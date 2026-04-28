@@ -51,9 +51,17 @@ export const useBackgroundImport = () => {
     if (s.isRunning) return;
     if (s.lastImport && Date.now() - s.lastImport.getTime() < MIN_IMPORT_GAP) return;
 
-    // Gate on auth: skip if user is not logged in (no org context available)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    // Gate on verified auth + org context to prevent cross-tenant import attempts
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return;
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profileError || !profile?.organization_id) return;
 
     setState(prev => ({ ...prev, isRunning: true }));
 

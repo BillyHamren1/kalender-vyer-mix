@@ -43,6 +43,29 @@ export interface ImportFilters {
   forceHistoricalImport?: boolean;
 }
 
+const resolveImportOrganizationId = async (): Promise<string | null> => {
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return null;
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.warn('Could not resolve organization_id for import:', profileError);
+      return null;
+    }
+
+    return profile?.organization_id ?? null;
+  } catch (error) {
+    console.warn('Could not resolve organization_id for import:', error);
+    return null;
+  }
+};
+
 /**
  * Enhanced import bookings with historical support and duplicate cleanup
  * @param filters - Import filter options
@@ -59,21 +82,21 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
   let syncMode: SyncMode;
   
   try {
-    // Resolve organization_id from user profile to ensure correct tenant isolation
-    let organizationId: string | undefined;
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('organization_id')
-          .eq('user_id', user.id)
-          .single();
-        organizationId = profile?.organization_id ?? undefined;
+    const organizationId = await resolveImportOrganizationId();
+    if (!organizationId) {
+      const message = 'Import skipped: authenticated user with organization_id is required.';
+      if (!silent) {
+        toast.error('Kunde inte starta synkronisering', {
+          description: 'Ingen organisation kunde kopplas till den inloggade användaren.'
+        });
       }
-    } catch (e) {
-      console.warn('Could not resolve organization_id for import:', e);
+
+      return {
+        success: false,
+        error: message,
+      };
     }
+
     // Handle historical import mode
     const isHistoricalMode = filters.syncMode === 'historical' || filters.includeHistorical || filters.forceHistoricalImport;
     
@@ -325,20 +348,12 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
     return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
   }
   try {
-    // Resolve organization_id from user profile
-    let organizationId: string | undefined;
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('organization_id')
-          .eq('user_id', user.id)
-          .single();
-        organizationId = profile?.organization_id ?? undefined;
-      }
-    } catch (e) {
-      console.warn('Could not resolve organization_id for quiet import:', e);
+    const organizationId = await resolveImportOrganizationId();
+    if (!organizationId) {
+      return {
+        success: false,
+        error: 'Import skipped: authenticated user with organization_id is required.',
+      };
     }
 
     // Determine sync mode intelligently
