@@ -213,10 +213,10 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
     const syncDurationMs = Date.now() - startTime;
 
     if (functionError) {
-      console.error('Error calling import-bookings function:', functionError);
-
       // Treat edge timeouts as "still running" — server keeps processing.
+      // Check FIRST so we don't trigger error boundaries via console.error.
       if (isEdgeTimeoutError(functionError)) {
+        console.info('[import-bookings] gateway timeout — sync continues in background');
         if (!silent) {
           toast.info('Synkroniseringen körs vidare i bakgrunden — det kan ta några minuter.', {
             duration: 4000,
@@ -228,6 +228,9 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
           error: 'background_processing',
         };
       }
+
+      console.error('Error calling import-bookings function:', functionError);
+
 
       await updateSyncState(syncType, {
         last_sync_status: 'failed',
