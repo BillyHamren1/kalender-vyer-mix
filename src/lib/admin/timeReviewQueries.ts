@@ -150,8 +150,11 @@ export async function fetchDayReviewRows(
     if (!w.staff_id || !w.started_at) continue;
     const date = ymd(w.started_at);
     const b = ensure(w.staff_id, date);
+    b.workdayId = w.id;
     b.workdayStart = w.started_at;
     b.workdayEnd = w.ended_at ?? null;
+    b.approvedAt = w.approved_at ?? null;
+    b.approvedBy = w.approved_by ?? null;
     b.reviewStatus =
       w.review_status === 'approved'
         ? 'approved'
@@ -176,12 +179,15 @@ export async function fetchDayReviewRows(
       staffName: meta.name,
       staffColor: meta.color,
       date,
+      workdayId: b.workdayId,
       workdayStart: b.workdayStart,
       workdayEnd: b.workdayEnd,
       workEntries: b.workEntries,
       travelSegments: b.travelSegments,
       result: evaluateAdminTimeReview(input),
       reviewStatus: b.reviewStatus,
+      approvedAt: b.approvedAt,
+      approvedBy: b.approvedBy,
     });
   }
 
