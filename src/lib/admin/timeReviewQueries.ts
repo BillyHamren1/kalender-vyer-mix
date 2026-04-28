@@ -53,7 +53,7 @@ export async function fetchDayReviewRows(
     supabase.from('staff_members').select('id, name, color'),
     supabase
       .from('time_reports')
-      .select('id, staff_id, report_date, start_time, end_time, hours_worked, is_subdivision, status, booking_id')
+      .select('id, staff_id, report_date, start_time, end_time, hours_worked, is_subdivision, approved, booking_id')
       .gte('report_date', args.fromDate)
       .lte('report_date', args.toDate),
     supabase
