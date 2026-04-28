@@ -54,28 +54,14 @@ serve(async (req) => {
 
   for (const job of claimedJobs) {
     try {
-      if (job.booking_id === INCREMENTAL_DISCOVERY_BOOKING_ID && job.event_type === INCREMENTAL_DISCOVERY_EVENT_TYPE) {
-        const { data: syncState } = await supabase
-          .from('sync_state')
-          .select('last_sync_timestamp')
-          .eq('sync_type', 'booking_import')
-          .maybeSingle()
-
-        const importPayload: Record<string, unknown> = {
-          organization_id: job.organization_id,
-          syncMode: 'incremental',
-          quiet: true,
-        }
-
-        if (syncState?.last_sync_timestamp) {
-          const sinceDate = new Date(syncState.last_sync_timestamp)
-          sinceDate.setHours(sinceDate.getHours() - 1)
-          importPayload.startDate = sinceDate.toISOString().split('T')[0]
-        }
+      if (job.booking_id === INCREMENTAL_DISCOVERY_BOOKING_ID && String(job.event_type || '').startsWith(INCREMENTAL_DISCOVERY_EVENT_TYPE)) {
+        const [, encodedLastSyncTimestamp = '', encodedNextSyncCursor = ''] = String(job.event_type || '').split('|')
+        const lastSyncTimestamp = decodeURIComponent(encodedLastSyncTimestamp)
+        const nextSyncCursor = decodeURIComponent(encodedNextSyncCursor)
 
         const discoveryRes = await fetch(`${supabaseUrl}/functions/v1/export_bookings?${new URLSearchParams({
           organization_id: job.organization_id,
-          ...(importPayload.startDate ? { since: new Date(`${importPayload.startDate}T00:00:00.000Z`).toISOString() } : {}),
+          ...(lastSyncTimestamp ? { since: new Date(lastSyncTimestamp).toISOString() } : {}),
         }).toString()}`, {
           method: 'GET',
           headers: {
@@ -139,6 +125,25 @@ serve(async (req) => {
             error_message: null,
           })
           .eq('id', job.id)
+
+        if (nextSyncCursor) {
+          await supabase
+            .from('sync_state')
+            .upsert({
+              sync_type: 'booking_import',
+              organization_id: job.organization_id,
+              last_sync_timestamp: nextSyncCursor,
+              last_sync_mode: 'incremental',
+              last_sync_status: 'success',
+              metadata: {
+                queued_for_worker: true,
+                cursor_advanced_to: nextSyncCursor,
+                discovery_completed_at: new Date().toISOString(),
+                queued_jobs: uniqueBookingIds.length,
+              },
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'sync_type' })
+        }
 
         console.log(`[process-sync-jobs] Discovery job ${job.id} queued ${uniqueBookingIds.length} incremental booking jobs`)
         results.push({ job_id: job.id, booking_id: job.booking_id, status: 'completed' })
