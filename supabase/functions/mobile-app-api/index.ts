@@ -9275,3 +9275,237 @@ async function handleAdminMarkGapTravel(
   }
   return await handleCreateTravelFromGap(supabase, target_staff_id, rest, organizationId)
 }
+
+/**
+ * admin_approve_day — godkänner en hel arbetsdag för en personal.
+ *
+ * Säkerhetskontroller (server-side, oavsett UI):
+ *   - workday måste finnas och vara stängd (ended_at != null)
+ *   - inga öppna time_reports (end_time IS NULL) får finnas på dagen
+ *   - inga öppna travel_time_logs (end_time IS NULL) får finnas på dagen
+ *   - om kritiska anomalies → kräv override_reason från admin
+ *
+ * Effekt:
+ *   - sätt workdays.review_status='approved', approved_at, approved_by
+ *   - cascade: sätt approved=true på alla time_reports och travel_time_logs
+ *     som ligger inom workday-fönstret OCH inte redan är approved.
+ */
+async function handleAdminApproveDay(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const { workday_id, override_reason, force } = data || {}
+  if (!workday_id) {
+    return new Response(
+      JSON.stringify({ error: 'workday_id required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Hämta workday
+  const { data: wd, error: wdErr } = await supabase
+    .from('workdays')
+    .select('id, staff_id, started_at, ended_at, organization_id')
+    .eq('id', workday_id)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (wdErr || !wd) {
+    return new Response(
+      JSON.stringify({ error: 'workday_not_found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  if (!wd.ended_at) {
+    return new Response(
+      JSON.stringify({ error: 'workday_open', detail: 'Arbetsdagen är fortfarande öppen.' }),
+      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const dayDate = new Date(wd.started_at).toISOString().slice(0, 10)
+  const startIso = wd.started_at
+  const endIso = wd.ended_at
+
+  // Hård kontroll: öppna time_reports / travel_time_logs på dagen
+  const [{ data: openReports }, { data: openTravel }] = await Promise.all([
+    supabase
+      .from('time_reports')
+      .select('id')
+      .eq('staff_id', wd.staff_id)
+      .eq('organization_id', organizationId)
+      .eq('report_date', dayDate)
+      .is('end_time', null)
+      .limit(1),
+    supabase
+      .from('travel_time_logs')
+      .select('id')
+      .eq('staff_id', wd.staff_id)
+      .eq('organization_id', organizationId)
+      .is('end_time', null)
+      .gte('start_time', startIso)
+      .lte('start_time', endIso)
+      .limit(1),
+  ])
+
+  if ((openReports?.length || 0) > 0 || (openTravel?.length || 0) > 0) {
+    return new Response(
+      JSON.stringify({ error: 'open_timer', detail: 'En aktivitet eller resa är fortfarande igång.' }),
+      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Pending assistant_events?
+  const { data: pendingEvents } = await supabase
+    .from('assistant_events')
+    .select('id')
+    .eq('staff_id', wd.staff_id)
+    .eq('organization_id', organizationId)
+    .eq('resolution_status', 'pending')
+    .gte('happened_at', startIso)
+    .lte('happened_at', endIso)
+    .limit(1)
+
+  if ((pendingEvents?.length || 0) > 0 && !force) {
+    return new Response(
+      JSON.stringify({
+        error: 'pending_assistant_events',
+        detail: 'Det finns assistent-händelser som inte är behandlade.',
+      }),
+      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Om force=true men ingen reason → blockera
+  if (force && (!override_reason || String(override_reason).trim().length < 3)) {
+    return new Response(
+      JSON.stringify({ error: 'override_reason_required', detail: 'Ange en kommentar för override.' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const nowIso = new Date().toISOString()
+
+  // 1) Markera workday som approved
+  const { data: approvedWd, error: approveErr } = await supabase
+    .from('workdays')
+    .update({
+      review_status: 'approved',
+      review_computed_at: nowIso,
+      approved_at: nowIso,
+      approved_by: callerUserId,
+      approval_override_reason: force ? String(override_reason).slice(0, 2000) : null,
+    })
+    .eq('id', workday_id)
+    .eq('organization_id', organizationId)
+    .select('id, staff_id, started_at, ended_at, review_status, approved_at, approved_by, approval_override_reason')
+    .single()
+
+  if (approveErr) {
+    return new Response(
+      JSON.stringify({ error: approveErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // 2) Cascade — godkänn alla time_reports för dagen som inte redan är approved
+  const { data: cascadedReports } = await supabase
+    .from('time_reports')
+    .update({ approved: true, updated_at: nowIso })
+    .eq('staff_id', wd.staff_id)
+    .eq('organization_id', organizationId)
+    .eq('report_date', dayDate)
+    .eq('approved', false)
+    .not('end_time', 'is', null)
+    .select('id')
+
+  // 3) Cascade — travel_time_logs (har egen approved-kolumn om den finns)
+  let cascadedTravelCount = 0
+  try {
+    const { data: cascadedTravel } = await supabase
+      .from('travel_time_logs')
+      .update({ approved: true, updated_at: nowIso })
+      .eq('staff_id', wd.staff_id)
+      .eq('organization_id', organizationId)
+      .gte('start_time', startIso)
+      .lte('start_time', endIso)
+      .eq('approved', false)
+      .select('id')
+    cascadedTravelCount = cascadedTravel?.length || 0
+  } catch (_e) {
+    // travel_time_logs kanske saknar approved-kolumn — ignorera
+    cascadedTravelCount = 0
+  }
+
+  return new Response(
+    JSON.stringify({
+      workday: approvedWd,
+      cascaded_time_reports: cascadedReports?.length || 0,
+      cascaded_travel_logs: cascadedTravelCount,
+      override: !!force,
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
+
+/**
+ * admin_unapprove_day — backa godkännande av en dag (failsafe om något var fel).
+ * Sätter workday tillbaka till 'needs_review' och rensar approved_at/by.
+ * Time_reports och travel_time_logs förblir approved (måste backas individuellt
+ * via befintligt edit-flöde) — avsiktligt försiktigt.
+ */
+async function handleAdminUnapproveDay(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  const { workday_id, note } = data || {}
+  if (!workday_id) {
+    return new Response(
+      JSON.stringify({ error: 'workday_id required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  const { data: row, error } = await supabase
+    .from('workdays')
+    .update({
+      review_status: 'needs_review',
+      review_computed_at: new Date().toISOString(),
+      review_note: typeof note === 'string' ? note.slice(0, 2000) : null,
+      approved_at: null,
+      approved_by: null,
+      approval_override_reason: null,
+    })
+    .eq('id', workday_id)
+    .eq('organization_id', organizationId)
+    .select('id, review_status, approved_at, approved_by')
+    .single()
+
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  return new Response(
+    JSON.stringify({ workday: row }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
