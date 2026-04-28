@@ -1,96 +1,67 @@
+## Problem
 
-# Enhetligt Gantt ⇄ Personalkalender (alla projekt)
+Just nu finns det två parallella "status"-system som krockar i Projektöversikten:
 
-## Mål
-Ett och samma Gantt-schema för **alla projekt** (medel + stora, med eller utan koppling till booking). Gantt visar exakt samma fas-rader som personalkalendern och håller dem i synk åt båda hållen. "Live"-kolumnen är borttagen från personalkalendern (per [Live Column Removed](mem://features/planning/live-column-removed-v1)) — det betyder att Gantt visar **Rigg** och **Demontering** per dag (eventdagen filtreras bort i personalkalendern).
+1. **Riktig projektstatus** (`projects.status`): aktiv, completed (=stängt), cancelled (=avbokat).
+2. **Härledd ekonomi-status** (`getEconomyStatus`): hittar på 9 olika etiketter — `missing-data`, `risk`, `partially-invoiced`, `event-completed`, `upcoming` osv. — baserat på vad som råkar saknas i datan.
 
-## Vad det ska se ut som
-Tre "swimlanes" i Gantt — `Riggning`, `Event`, `Demontering` — och under varje swimlane en stapel per planerad dag med dynamisk text:
+Det är (2) som producerar **"Saknar data"**. Den triggas så fort 3 av 7 datapunkter saknas (faktura, tidrapport, lev.faktura, budget, offert, eventdatum, booking). Ett helt normalt **kommande** projekt har naturligt 4 av dessa tomma → märks felaktigt som "Saknar data".
 
-```text
-Riggning      [ Rigg dag 1 ][ Rigg dag 2 ][ Rigg dag 3 ]
-Event                                                      [ Event ]
-Demontering                                                          [ Demont. dag 1 ][ Demont. dag 2 ]
+Du vill bara ha **tre** statusar, överallt:
+
+- **Aktivt / Öppet**
+- **Stängt**
+- **Avbokat**
+
+## Lösning
+
+### 1. Ny enkel status-funktion
+
+Ny fil `src/lib/economy/projectLifecycleStatus.ts`:
+
+```ts
+export type ProjectLifecycleStatus = 'active' | 'closed' | 'cancelled';
+
+export function getProjectLifecycleStatus(p): ProjectLifecycleStatus {
+  if (p.status === 'cancelled') return 'cancelled';
+  if (p.status === 'completed' || p.economyClosed) return 'closed';
+  return 'active';
+}
 ```
 
-- Varje stapel = en `calendar_events`-rad (en per dag/fas/syskon-booking).
-- Texten "Rigg dag N" räknas från första rig-dagen i projektet.
-- För stora projekt slås syskon-bookings samman per fas+datum (samma sannings­källa som [Phase Time Sync](mem://features/planning/phase-time-sync-v1) använder).
-- Eventdagen visas som en grå/ljusblå milstolpe i Gantt men är icke-redigerbar där (eftersom den inte längre ligger i personalkalendern).
+### 2. Förenkla `EconomyStatusBadge`
 
-## Tvåvägssync — kontrakt
+Ersätt de 9 varianterna med 3:
 
-| Åtgärd                                            | Effekt                                                                                          |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Drag stapel i Gantt (annan dag)                   | Uppdaterar `start_time` + `end_time` på motsvarande `calendar_events`-rader                     |
-| Resize stapel i Gantt                             | Uppdaterar tider på alla syskon i samma fas+datum via `timeSync.applyPhaseTime`                 |
-| Lägg till dag i Gantt (klicka "+")                | Skapar nya `calendar_events` (rig/rigDown) + uppdaterar `bookings.<phase>_*_time/date`          |
-| Ta bort dag i Gantt                               | Tar bort motsvarande `calendar_events`-rad (med bekräftelse)                                    |
-| Drag/resize i personalkalendern                   | Realtime `postgres_changes` på `calendar_events` → Gantt re-renderar utan reload                |
-| Tidsändring via "Phase Time Sync"-flödet          | Speglas direkt i Gantt (samma källa)                                                            |
+```text
+Aktivt    — grön/primary outline
+Stängt    — grå (muted)
+Avbokat   — röd (destructive)
+```
 
-Allt skrivande går genom **`eventService.updateCalendarEvent`** + **`src/services/timeSync.ts`** (befintlig single-writer för fas-tider). Inget nytt sync-lager — vi byter bara källa för Gantt-vyn.
+Komponenten tar nu `ProjectLifecycleStatus` istället för `EconomyProjectStatus`.
 
-## Arkitektur — en Gantt, tre call-sites
+### 3. Uppdatera `CompletedProjectsList` (Projektöversikten)
 
-### Ny komponent
-`src/components/project/UnifiedProjectGantt.tsx` (~250 rader)
-- Tar `projectId` (UUID) + valfritt `bookingId` som indata.
-- Hämtar `calendar_events` via befintlig `fetchEventsByBookingId` — för stora projekt loopas över alla syskon-bookings (`large_projects` → `bookings`).
-- Grupperar events per fas (`event_type`) + datum → swimlanes.
-- Renderar drag/resize via befintlig `react-day-picker`-style timeline (samma look som dagens `EstablishmentGanttChart`, så vi kan återanvända delar av dess CSS).
-- Lyssnar på Supabase Realtime för `calendar_events` filtrerat på de aktuella `booking_id`s.
-- Skriver via `eventService.updateCalendarEvent` + `timeSync.applyPhaseTime`.
+- Filter-dropdown blir bara: **Aktiva** (default), **Stängda**, **Avbokade**, **Alla**.
+- Statuskolumn använder nya `getProjectLifecycleStatus`.
+- Tar bort all logik som testar `economy-closed`, `missing-data`, `risk` osv. för filtrering/visning av status.
 
-### Hook
-`src/hooks/useProjectGanttEvents.ts` (~120 rader)
-- Resolver: tar `projectId` → returnerar lista av `bookingId`s (single eller multi för stora projekt) + standalone-fallback (`project-<uuid>` enligt `projectCalendarService`).
-- React Query-key: `['project-gantt', projectId]`.
-- Realtime-subscription registrerar på alla `booking_id`s och invalidaterar query.
+### 4. Behåll datafel som "varningsikoner", inte status
 
-### Ersätter
-- `src/components/project/EstablishmentGanttChart.tsx` (906 rader) — **ersätts**. Det gamla planerings­läget med `establishment_tasks` blir kvar som **separat** "Checklista/uppgifter"-sektion under Gantt (eftersom det inte är tider, utan TODOs). Inga data raderas.
-- `src/components/project/LargeProjectGanttChart.tsx` (179 rader) — **ersätts** av samma `UnifiedProjectGantt`.
-- `src/components/project/ProjectGanttChart.tsx` (322 rader, deadline-baserad) — **tas bort** från projekt-flikarna. Den var en parallell vy som inte längre behövs när Gantt = kalendern.
+Ekonomi-flaggorna (saknad faktura/tidrapport/budget) är fortfarande nyttiga — men **inte som status**. De visas i de detaljerade ekonomi-vyerna (`ProjectEconomyTab`, `EconomyOverview`-dashboarden) som små varnings-chips/ikoner på raden, inte som projektets huvudstatus. Det här ändrar vi inte i den här rundan; vi rör bara översiktslistan.
 
-### Call-sites som uppdateras
-- `src/pages/project/EstablishmentPage.tsx` → använd `UnifiedProjectGantt`
-- `src/pages/project/LargeEstablishmentPage.tsx` → använd `UnifiedProjectGantt`
-- `src/pages/project/LargeProjectViewPage.tsx` → använd `UnifiedProjectGantt` (ersätter "Projektschema"-kortet)
+### 5. Behåll bakåtkompatibilitet
 
-## Tekniska detaljer
+`getEconomyStatus` och `EconomyProjectStatus`-typen tas **inte** bort — de används fortfarande av Ekonomi-dashboarden (`/economy` analyspanelerna) som grupperar projekt per fakturerings-fas. Vi byter bara ut dem på platsen där användaren ser en enkel "vad är statusen på projektet"-badge.
 
-**Datakälla (single source):** `calendar_events` filtrerade på `booking_id IN (...projektets bookings...)`. För standalone-projekt: `booking_id = 'project-<uuid>'` (befintlig konvention från `projectCalendarService.ts`).
+## Filer som ändras
 
-**Stora projekt — syskon-resolution:** Använd samma logik som `timeSync.ts` redan gör: hämta alla bookings under `large_project_id`, gruppera events per `(event_type, source_date)` och rendera *en* stapel per grupp. Klick → expanderar och visar vilka syskon-bookings som ingår.
+- `src/lib/economy/projectLifecycleStatus.ts` (ny)
+- `src/components/economy/EconomyStatusBadge.tsx` — accepterar `ProjectLifecycleStatus`, 3 varianter
+- `src/components/economy/CompletedProjectsList.tsx` — nytt filter (Aktiva/Stängda/Avbokade/Alla), använder ny status-funktion
+- `mem://features/project-economy/ui-hierarchy` — uppdatera regel: "Projektöversikten visar enbart livscykel-status (Aktivt/Stängt/Avbokat). Härledda ekonomi-statusar används bara i Ekonomi-dashboardens analysvyer."
 
-**Dag-numrering:** "Rigg dag N" räknas på unika sorterade rig-datum i projektet (1-indexerat). Samma för Demontering. Event = ingen numrering (ofta 1 dag).
+## Resultat
 
-**Realtime:** En enda `supabase.channel('project-gantt-<projectId>')` med `postgres_changes`-filter `booking_id=in.(...)`. Auto-invalidate av React Query-key vid INSERT/UPDATE/DELETE. Följer [Realtime Event Invalidation](mem://infrastructure/realtime-event-driven-invalidation).
-
-**Skrivvägen:**
-- Drag/resize → `timeSync.applyPhaseTime(projectId, phase, date, startTime, endTime)` (sprider till alla syskon)
-- Add day → `eventService.addCalendarEvent` + uppdatera `bookings.<phase>date` via `planning-api-proxy` om bookingbaserat, annars via `projectCalendarService` för standalone.
-- Delete day → `eventService.deleteCalendarEvent` (med confirm-dialog).
-
-**Eventdagen (icke-redigerbar i Gantt):** Visas som markör eftersom den inte längre ligger i personalkalendern (per memory). Klick → öppnar projekt­detaljer för att ändra eventdate.
-
-**Filer som rörs:**
-- ➕ `src/components/project/UnifiedProjectGantt.tsx`
-- ➕ `src/hooks/useProjectGanttEvents.ts`
-- ✏️ `src/pages/project/EstablishmentPage.tsx`
-- ✏️ `src/pages/project/LargeEstablishmentPage.tsx`
-- ✏️ `src/pages/project/LargeProjectViewPage.tsx`
-- 🗑️ `src/components/project/EstablishmentGanttChart.tsx` (ersätts)
-- 🗑️ `src/components/project/LargeProjectGanttChart.tsx` (ersätts)
-- 🗑️ `src/components/project/ProjectGanttChart.tsx` (tas bort från projektvyn)
-- ⚠️ `establishment_tasks` (DB) lämnas orörd — checklistan kan flyttas till en separat "Uppgifter"-sektion i samma flik om du vill, säg till.
-
-**Memory som uppdateras efter implementation:** Ny memory `mem://features/projects/unified-gantt-calendar-sync-v1` som låser regeln "Ett Gantt = personalkalendern, gäller alla projekt".
-
-## Frågor du redan svarat på
-- ✅ Vilket Gantt: **båda** (medel + stora) — enhetligt.
-- 🟡 Sync-riktning: Jag antar **båda riktningar** (drag i Gantt → kalender, drag i kalender → Gantt) eftersom det var det du beskrev ("tvåvägssync"). Säg till om du bara vill ha en riktning.
-- 🟡 Dag-indelning: Jag antar **en stapel per dag och fas** med text "Rigg dag 1, dag 2…" eftersom det var ditt exempel. Säg till om du hellre vill ha en lång stapel som spänner alla dagar.
-
-Godkänn så bygger jag.
+Listan i Projektöversikten visar bara: **Aktivt** / **Stängt** / **Avbokat**. Inga fler "Saknar data", "Event klart", "Risk" eller "Redo fakturera" som projektstatus. Samma språk som du själv använder.

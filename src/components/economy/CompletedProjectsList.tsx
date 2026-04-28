@@ -24,24 +24,36 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
+import {
+  getProjectLifecycleStatus,
+  LIFECYCLE_STATUS_LABEL,
+  type ProjectLifecycleStatus,
+} from '@/lib/economy/projectLifecycleStatus';
 
 const PAGE_SIZE = 10;
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
 
-type StatusFilter = 'all' | 'active' | EconomyProjectInsight['economyStatus'];
+type StatusFilter = 'all' | ProjectLifecycleStatus;
 
-const statusLabels: Record<Exclude<StatusFilter, 'all' | 'active'>, string> = {
-  'upcoming': 'Kommande',
-  'ongoing': 'Pågående',
-  'event-completed': 'Event slutfört',
-  'ready-for-invoicing': 'Redo att fakturera',
-  'partially-invoiced': 'Delvis fakturerat',
-  'fully-invoiced': 'Fullt fakturerat',
-  'economy-closed': 'Stängt',
-  'risk': 'Risk',
-  'missing-data': 'Saknar data',
+const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
+  active: 'Aktiva',
+  closed: 'Stängda',
+  cancelled: 'Avbokade',
+  all: 'Alla',
+};
+
+const STATUS_DOT_CLASS: Record<ProjectLifecycleStatus, string> = {
+  active: 'bg-primary',
+  closed: 'bg-muted-foreground/50',
+  cancelled: 'bg-destructive',
+};
+
+const STATUS_PILL_CLASS: Record<ProjectLifecycleStatus, string> = {
+  active: 'border-primary/30 text-primary bg-primary/5',
+  closed: 'border-border bg-muted/50 text-muted-foreground',
+  cancelled: 'border-destructive/40 text-destructive bg-destructive/5',
 };
 
 interface Props {
@@ -93,8 +105,8 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return completed.filter(p => {
-      if (statusFilter === 'active' && (p.economyStatus === 'economy-closed' || p.status === 'completed')) return false;
-      if (statusFilter !== 'all' && statusFilter !== 'active' && p.economyStatus !== statusFilter) return false;
+      const lifecycle = getProjectLifecycleStatus({ status: p.status, economyClosed: (p as any).economyClosed });
+      if (statusFilter !== 'all' && lifecycle !== statusFilter) return false;
       if (!q) return true;
       return p.name.toLowerCase().includes(q);
     });
@@ -231,11 +243,10 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Dölj stängda</SelectItem>
-                <SelectItem value="all">Alla statusar</SelectItem>
-                {Object.entries(statusLabels).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
-                ))}
+                <SelectItem value="active">{STATUS_FILTER_LABELS.active}</SelectItem>
+                <SelectItem value="closed">{STATUS_FILTER_LABELS.closed}</SelectItem>
+                <SelectItem value="cancelled">{STATUS_FILTER_LABELS.cancelled}</SelectItem>
+                <SelectItem value="all">{STATUS_FILTER_LABELS.all}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -270,7 +281,8 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                   {visible.map((p) => {
                     const checked = selectedIds.has(p.id);
                     const dateLabel = p._eventDate ? format(p._eventDate, 'd MMM yyyy', { locale: sv }) : '—';
-                    const statusLabel = statusLabels[p.economyStatus as Exclude<StatusFilter, 'all'>] ?? p.economyStatus;
+                    const lifecycle = getProjectLifecycleStatus({ status: p.status, economyClosed: (p as any).economyClosed });
+                    const statusLabel = LIFECYCLE_STATUS_LABEL[lifecycle];
                     return (
                       <TableRow
                         key={p.id}
@@ -305,8 +317,8 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                           {dateLabel}
                         </TableCell>
                         <TableCell className="py-5 align-middle">
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70" />
+                          <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium', STATUS_PILL_CLASS[lifecycle])}>
+                            <span className={cn('inline-block h-1.5 w-1.5 rounded-full', STATUS_DOT_CLASS[lifecycle])} />
                             {statusLabel}
                           </span>
                         </TableCell>
