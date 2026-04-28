@@ -17,6 +17,19 @@ import {
   evaluateAdminTimeReview,
 } from './adminTimeReviewEngine';
 
+export interface PlannedJob {
+  bookingId: string;
+  bookingNumber: string | null;
+  client: string | null;
+  role: string | null;
+  /** ISO start of earliest phase that day */
+  start: string | null;
+  /** ISO end of latest phase that day */
+  end: string | null;
+  /** Minutes between start and end (0 if missing) */
+  minutes: number;
+}
+
 export interface DayReviewRow {
   staffId: string;
   staffName: string;
@@ -27,6 +40,10 @@ export interface DayReviewRow {
   workdayEnd: string | null;
   workEntries: ReviewWorkEntry[];
   travelSegments: ReviewTravelSegment[];
+  plannedJobs: PlannedJob[];
+  plannedStart: string | null;
+  plannedEnd: string | null;
+  plannedMinutes: number;
   result: AdminTimeReviewResult;
   reviewStatus: 'open' | 'needs_review' | 'approved';
   approvedAt: string | null;
