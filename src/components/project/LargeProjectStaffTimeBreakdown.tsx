@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Users, CheckCircle, Clock } from 'lucide-react';
 import type { StaffTimeReport } from '@/types/projectEconomy';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import type { LargeProjectBookingLink } from '@/types/largeProject';
+import type { LargeProjectBooking } from '@/types/largeProject';
 
 interface Props {
   timeReportsByBooking: Record<string, StaffTimeReport[]>;
