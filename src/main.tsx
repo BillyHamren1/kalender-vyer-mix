@@ -60,9 +60,31 @@ const hasRecentRecoveryAttempt = () => {
     const raw = window.sessionStorage.getItem(MODULE_RECOVERY_KEY);
     if (!raw) return false;
     const timestamp = Number(raw);
-    return Number.isFinite(timestamp) && Date.now() - timestamp < 15_000;
+    return Number.isFinite(timestamp) && Date.now() - timestamp < 30_000;
   } catch {
     return false;
+  }
+};
+
+const purgeBrowserCaches = async () => {
+  // 1. Clear Cache Storage (covers any SW-cached HTML/JS)
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {
+    // Ignore — we'll still reload.
+  }
+
+  // 2. Unregister any service workers so they can't replay old responses
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch {
+    // Ignore.
   }
 };
 
