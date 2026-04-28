@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ChevronDown, ChevronRight, Package, Users, ShoppingCart, FileText, Receipt,
-  Plus, Save, X, Pencil, Trash2,
+  Plus, Save, X, Pencil, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLargeProjectBookingLabel } from '@/lib/largeProjectBookingLabel';
@@ -43,6 +43,7 @@ interface BookingInfo {
     id?: string;
     client?: string;
     booking_number?: string | null;
+    status?: string | null;
   } | null;
 }
 
@@ -423,24 +424,39 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                           .reduce((s: number, si: any) => s + (Number(si.invoice_data?.Total) || 0), 0);
 
                       const { bookingNumber, clientName } = getBookingParts(bookingId);
+                      const bookingLink = bookings.find((b) => b.booking_id === bookingId);
+                      const isCancelled = (bookingLink?.booking?.status || '').toUpperCase() === 'CANCELLED';
 
                       return (
                         <React.Fragment key={bookingId}>
                           <TableRow
                             onClick={() => toggleBooking(bookingId)}
-                            className="cursor-pointer hover:bg-muted/40 transition-colors"
+                            className={cn(
+                              "cursor-pointer hover:bg-muted/40 transition-colors",
+                              isCancelled && "bg-destructive/5"
+                            )}
                           >
                             <TableCell className="w-10">
                               {isExpanded
                                 ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                 : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                             </TableCell>
-                            <TableCell className="font-bold text-sm">{bookingNumber}</TableCell>
-                            <TableCell className="font-semibold text-sm">{clientName}</TableCell>
-                            <TableCell className="text-right text-sm font-medium tabular-nums">
+                            <TableCell className={cn("font-bold text-sm", isCancelled && "line-through text-muted-foreground")}>{bookingNumber}</TableCell>
+                            <TableCell className={cn("font-semibold text-sm", isCancelled && "text-muted-foreground")}>
+                              <div className="flex items-center gap-2">
+                                {isCancelled && (
+                                  <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive ring-1 ring-destructive/30 flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    AVBOKAD
+                                  </Badge>
+                                )}
+                                <span className={cn(isCancelled && "line-through")}>{clientName}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className={cn("text-right text-sm font-medium tabular-nums", isCancelled && "line-through text-muted-foreground")}>
                               {fmt(displayRevenue)}
                             </TableCell>
-                            <TableCell className="text-right text-sm font-semibold tabular-nums">
+                            <TableCell className={cn("text-right text-sm font-semibold tabular-nums", isCancelled && "line-through text-muted-foreground")}>
                               {fmt(totalCost)}
                             </TableCell>
                           </TableRow>
