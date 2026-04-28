@@ -300,10 +300,16 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
     const cancelledSkippedCount = results.cancelled_bookings_skipped?.length || 0;
     const duplicatesSkippedCount = results.duplicates_skipped?.length || 0;
     const eventsCreated = results.calendar_events_created || 0;
+    const queuedJobsCount = (results as typeof results & { queued_jobs?: number }).queued_jobs || 0;
     
     // Only show toasts if not in silent mode
     if (!silent) {
-      if (newCount > 0 || updatedCount > 0 || statusChangedCount > 0) {
+      if (queuedJobsCount > 0) {
+        const syncTypeDisplay = isHistoricalMode ? 'Historical' : syncMode.charAt(0).toUpperCase() + syncMode.slice(1);
+        toast.success(`${syncTypeDisplay} sync started`, {
+          description: `${queuedJobsCount} bokningar köade för bakgrundssynk • ${(syncDurationMs / 1000).toFixed(1)}s`
+        });
+      } else if (newCount > 0 || updatedCount > 0 || statusChangedCount > 0) {
         const messages = [];
         if (newCount > 0) messages.push(`${newCount} new booking${newCount > 1 ? 's' : ''}`);
         if (updatedCount > 0) messages.push(`${updatedCount} updated`);
