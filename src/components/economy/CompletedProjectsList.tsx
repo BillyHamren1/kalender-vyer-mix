@@ -32,7 +32,7 @@ const formatCurrency = (v: number) =>
 
 type StatusFilter = 'all' | 'active' | EconomyProjectInsight['economyStatus'];
 
-const statusLabels: Record<Exclude<StatusFilter, 'all'>, string> = {
+const statusLabels: Record<Exclude<StatusFilter, 'all' | 'active'>, string> = {
   'upcoming': 'Kommande',
   'ongoing': 'Pågående',
   'event-completed': 'Event slutfört',
