@@ -6885,6 +6885,15 @@ export type Database = {
         Returns: number
       }
       promote_stale_assistant_events: { Args: never; Returns: number }
+      sync_all_phase_times: {
+        Args: never
+        Returns: {
+          bookings_updated: number
+          events_updated: number
+          large_project_groups: number
+          siblings_synced: number
+        }[]
+      }
       tr_shift_interval: {
         Args: { _date: string; _end: string; _start: string }
         Returns: unknown
