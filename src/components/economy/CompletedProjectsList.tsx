@@ -184,7 +184,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <CardTitle className="text-base font-semibold">Slutförda projekt</CardTitle>
+              <CardTitle className="text-base font-semibold">Alla projekt</CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 Äldsta överst · {filtered.length} totalt
                 {selectMode && selectedIds.size > 0 && ` · ${selectedIds.size} markerade`}
