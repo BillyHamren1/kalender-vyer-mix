@@ -201,7 +201,14 @@ export function LargeProjectEditableCostList({
               </span>
             </div>
           </TableCell>
-          <TableCell className="text-right tabular-nums font-bold">{fmt(totals[cat])}</TableCell>
+          <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(budgets[cat])}</TableCell>
+          <TableCell className="text-right tabular-nums font-bold">{fmt(actuals[cat])}</TableCell>
+          <TableCell className={cn(
+            'text-right tabular-nums font-semibold',
+            (budgets[cat] - actuals[cat]) < 0 ? 'text-red-600' : (budgets[cat] - actuals[cat]) > 0 ? 'text-green-600' : 'text-muted-foreground'
+          )}>
+            {fmt(budgets[cat] - actuals[cat])}
+          </TableCell>
           <TableCell />
         </TableRow>
 
