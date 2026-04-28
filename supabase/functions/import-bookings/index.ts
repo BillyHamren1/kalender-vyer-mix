@@ -416,13 +416,15 @@ const INCREMENTAL_DISCOVERY_EVENT_TYPE = 'booking.incremental.scan';
 async function enqueueIncrementalDiscoveryJob(
   supabase: any,
   organizationId: string,
+  lastSyncTimestamp: string | null,
+  nextSyncCursor: string,
 ) {
   const { data: existingJob, error: existingJobError } = await supabase
     .from('booking_sync_jobs')
     .select('id')
     .eq('organization_id', organizationId)
     .eq('booking_id', INCREMENTAL_DISCOVERY_BOOKING_ID)
-    .eq('event_type', INCREMENTAL_DISCOVERY_EVENT_TYPE)
+    .like('event_type', `${INCREMENTAL_DISCOVERY_EVENT_TYPE}%`)
     .in('status', ['pending', 'processing'])
     .maybeSingle();
 
@@ -439,7 +441,11 @@ async function enqueueIncrementalDiscoveryJob(
     .insert({
       booking_id: INCREMENTAL_DISCOVERY_BOOKING_ID,
       organization_id: organizationId,
-      event_type: INCREMENTAL_DISCOVERY_EVENT_TYPE,
+      event_type: [
+        INCREMENTAL_DISCOVERY_EVENT_TYPE,
+        encodeURIComponent(lastSyncTimestamp || ''),
+        encodeURIComponent(nextSyncCursor),
+      ].join('|'),
       status: 'pending',
     });
 
