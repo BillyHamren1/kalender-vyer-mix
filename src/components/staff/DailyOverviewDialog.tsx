@@ -459,11 +459,23 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 flex-wrap">
-            <Navigation className="h-5 w-5 text-primary" />
-            <span>Dagöversikt — {format(new Date(date), 'EEEE d MMMM yyyy', { locale: sv })}</span>
-            <span className="text-sm font-normal text-muted-foreground">· {staffName}</span>
-          </DialogTitle>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
+              <Navigation className="h-5 w-5 text-primary" />
+              <span>Dagöversikt — {format(new Date(date), 'EEEE d MMMM yyyy', { locale: sv })}</span>
+              <span className="text-sm font-normal text-muted-foreground">· {staffName}</span>
+            </DialogTitle>
+            {reviewRow && (
+              <DayApprovalAction
+                workdayId={reviewRow.workdayId}
+                workday={reviewRow.workdayStart ? { started_at: reviewRow.workdayStart, ended_at: reviewRow.workdayEnd } : null}
+                result={reviewRow.result}
+                reviewStatus={reviewRow.reviewStatus}
+                variant="full"
+                onApproved={() => onOpenChange(false)}
+              />
+            )}
+          </div>
         </DialogHeader>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
