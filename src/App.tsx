@@ -294,6 +294,7 @@ const WebRoutes: React.FC = () => {
         </AuthProvider>
       } />
     </Routes>
+    </Suspense>
   );
 };
 
