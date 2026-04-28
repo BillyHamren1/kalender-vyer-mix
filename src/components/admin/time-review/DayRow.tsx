@@ -42,11 +42,13 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
           : 'border-l-emerald-500';
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onClick(row)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(row); }}
       className={cn(
-        'group w-full text-left rounded-xl border bg-card hover:bg-accent/40 hover:shadow-sm transition-all px-4 py-3 flex flex-col gap-2 border-l-4',
+        'group w-full text-left rounded-xl border bg-card hover:bg-accent/40 hover:shadow-sm transition-all px-4 py-3 flex flex-col gap-2 border-l-4 cursor-pointer',
         accent,
       )}
     >
