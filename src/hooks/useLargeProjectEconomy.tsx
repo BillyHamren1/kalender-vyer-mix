@@ -16,6 +16,7 @@ interface AggregatedBookingEconomy {
   totalRevenue: number;
   totalCost: number;
   totalStaffCost: number;
+  totalActualHours: number;
   totalPurchases: number;
   totalQuotes: number;
   totalInvoices: number;
@@ -73,12 +74,12 @@ export const useLargeProjectEconomy = (
         console.warn(`${TAG} No economy data returned for ${bookingIds.length} bookings (project ${largeProjectId})`);
       }
       return {
-        totalRevenue: 0, totalCost: 0, totalStaffCost: 0,
+        totalRevenue: 0, totalCost: 0, totalStaffCost: 0, totalActualHours: 0,
         totalPurchases: 0, totalQuotes: 0, totalInvoices: 0,
         totalSupplierInvoices: 0, bookingCount: 0,
       };
     }
-    let totalRevenue = 0, totalCost = 0, totalStaffCost = 0;
+    let totalRevenue = 0, totalCost = 0, totalStaffCost = 0, totalActualHours = 0;
     let totalPurchases = 0, totalQuotes = 0, totalInvoices = 0, totalSupplierInvoices = 0;
     let bookingCount = 0;
 
@@ -113,7 +114,10 @@ export const useLargeProjectEconomy = (
       // Staff/time
       const tr = bd.time_reports;
       if (Array.isArray(tr)) {
-        tr.forEach((r: any) => { totalStaffCost += r.total_cost || 0; });
+        tr.forEach((r: any) => {
+          totalStaffCost += r.total_cost || 0;
+          totalActualHours += (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
+        });
       } else if (tr !== undefined) {
         console.warn(`${TAG} Booking ${bId}: time_reports is not an array`, typeof tr);
       }
@@ -151,7 +155,7 @@ export const useLargeProjectEconomy = (
     });
 
     return {
-      totalRevenue, totalCost, totalStaffCost,
+      totalRevenue, totalCost, totalStaffCost, totalActualHours,
       totalPurchases, totalQuotes, totalInvoices,
       totalSupplierInvoices, bookingCount,
     };

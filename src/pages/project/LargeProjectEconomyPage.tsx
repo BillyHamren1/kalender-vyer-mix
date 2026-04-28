@@ -157,30 +157,49 @@ const LargeProjectEconomyPage = () => {
           </Button>
         </CardHeader>
         <CardContent>
-          {budget ? (
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Budgeterade timmar</p>
-                <p className="text-lg font-semibold">{budget.budgeted_hours}h</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Timpris</p>
-                <p className="text-lg font-semibold">{fmt(budget.hourly_rate)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Estimerad kostnad</p>
-                <p className="text-lg font-semibold">{fmt(summary.budgetedCost)}</p>
-              </div>
-              {budget.description && (
-                <div className="col-span-3">
-                  <p className="text-xs text-muted-foreground">Kommentar</p>
-                  <p className="text-sm">{budget.description}</p>
-                </div>
-              )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Budgeterade timmar</p>
+              <p className="text-lg font-semibold">
+                {budget ? `${budget.budgeted_hours}h` : <span className="text-muted-foreground">—</span>}
+              </p>
             </div>
-          ) : (
-            <p className="text-muted-foreground text-center py-6 text-sm">
-              Ingen timbudget inställd — klicka "Ställ in" för att lägga till.
+            <div>
+              <p className="text-xs text-muted-foreground">Rapporterad tid</p>
+              <p className={cn(
+                "text-lg font-semibold",
+                budget && summary.totalActualHours > budget.budgeted_hours ? "text-destructive" : "text-foreground"
+              )}>
+                {summary.totalActualHours.toFixed(1)}h
+                {budget && budget.budgeted_hours > 0 && (
+                  <span className="text-xs text-muted-foreground ml-1">
+                    ({((summary.totalActualHours / budget.budgeted_hours) * 100).toFixed(0)}%)
+                  </span>
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Timpris</p>
+              <p className="text-lg font-semibold">
+                {budget ? fmt(budget.hourly_rate) : <span className="text-muted-foreground">—</span>}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Estimerad kostnad</p>
+              <p className="text-lg font-semibold">
+                {budget ? fmt(summary.budgetedCost) : <span className="text-muted-foreground">—</span>}
+              </p>
+            </div>
+            {budget?.description && (
+              <div className="col-span-2 md:col-span-4">
+                <p className="text-xs text-muted-foreground">Kommentar</p>
+                <p className="text-sm">{budget.description}</p>
+              </div>
+            )}
+          </div>
+          {!budget && (
+            <p className="text-muted-foreground text-xs mt-3">
+              Ingen timbudget inställd — klicka "Ställ in" för att lägga till. Rapporterad tid visas oavsett.
             </p>
           )}
         </CardContent>
