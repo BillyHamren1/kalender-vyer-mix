@@ -79,18 +79,19 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(() => loadHidden());
 
   const completed = useMemo(() => {
     const today = new Date();
     return projectInsights
-      .filter(p => COMPLETED_STATUSES.includes(p.economyStatus) && p.status !== 'completed')
+      .filter(p => COMPLETED_STATUSES.includes(p.economyStatus) && !hidden.has(p.id))
       .map(p => {
         const eventDate = p.eventdate ? new Date(p.eventdate) : null;
         const daysSince = eventDate ? differenceInDays(today, eventDate) : -1;
         return { ...p, _daysSince: daysSince, _eventDate: eventDate };
       })
       .sort((a, b) => b._daysSince - a._daysSince);
-  }, [projectInsights]);
+  }, [projectInsights, hidden]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
