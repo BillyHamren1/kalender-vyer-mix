@@ -354,6 +354,62 @@ async function uploadBase64ToStorage(
   }
 }
 
+async function enqueueIncrementalSyncJobs(
+  supabase: any,
+  bookings: any[],
+  organizationId: string,
+  eventTypeHint?: string | null,
+) {
+  const uniqueBookingIds = Array.from(new Set(
+    (bookings || [])
+      .map((booking) => typeof booking?.id === 'string' ? booking.id.trim() : '')
+      .filter(Boolean)
+  ));
+
+  if (uniqueBookingIds.length === 0) {
+    return { queued: 0, alreadyQueued: 0, totalCandidates: 0 };
+  }
+
+  const { data: activeJobs, error: activeJobsError } = await supabase
+    .from('booking_sync_jobs')
+    .select('booking_id')
+    .eq('organization_id', organizationId)
+    .in('booking_id', uniqueBookingIds)
+    .in('status', ['pending', 'processing']);
+
+  if (activeJobsError) {
+    throw new Error(`Could not inspect sync queue: ${activeJobsError.message}`);
+  }
+
+  const activeBookingIds = new Set((activeJobs || []).map((job: any) => job.booking_id));
+  const jobsToInsert = uniqueBookingIds
+    .filter((bookingId) => !activeBookingIds.has(bookingId))
+    .map((bookingId) => ({
+      booking_id: bookingId,
+      organization_id: organizationId,
+      event_type: eventTypeHint || 'booking.incremental',
+      status: 'pending',
+    }));
+
+  const INSERT_BATCH_SIZE = 200;
+  for (let index = 0; index < jobsToInsert.length; index += INSERT_BATCH_SIZE) {
+    const batch = jobsToInsert.slice(index, index + INSERT_BATCH_SIZE);
+    const { error: insertError } = await supabase
+      .from('booking_sync_jobs')
+      .insert(batch);
+
+    if (insertError) {
+      throw new Error(`Could not queue sync jobs: ${insertError.message}`);
+    }
+  }
+
+  return {
+    queued: jobsToInsert.length,
+    alreadyQueued: uniqueBookingIds.length - jobsToInsert.length,
+    totalCandidates: uniqueBookingIds.length,
+  };
+}
+
 /**
  * Sync warehouse calendar events for a confirmed booking
  * Creates 6 logistics events based on rig/event/rigdown dates
