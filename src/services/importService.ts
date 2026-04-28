@@ -407,15 +407,17 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
     );
 
     if (functionError) {
-      console.error('Error calling import-bookings function:', functionError);
-
-      // Quiet background sync — swallow edge timeouts silently.
+      // Quiet background sync — swallow edge timeouts silently (no console.error to avoid error boundaries).
       if (isEdgeTimeoutError(functionError)) {
+        console.info('[import-bookings] background sync still running on server (gateway timeout) — ignoring');
         return {
           success: true,
           results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 },
         };
       }
+
+      console.error('Error calling import-bookings function:', functionError);
+
 
       return {
         success: false,
