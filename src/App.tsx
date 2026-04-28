@@ -11,13 +11,7 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { APP_MODE, getDefaultRoute } from "@/config/appMode";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 
-// ── App Shells (native-mode wrappers) ──────────────────────────────
-import TimeAppShell from "@/shells/TimeAppShell";
-import ScannerAppShell from "@/shells/ScannerAppShell";
 
-// Layouts
-import MainSystemLayout from "@/components/layouts/MainSystemLayout";
-import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
 
 // Main system pages — eager (used immediately after login)
 import PlanningDashboard from "./pages/PlanningDashboard";
