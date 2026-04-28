@@ -30,27 +30,23 @@ const PAGE_SIZE = 10;
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
 
-type StatusFilter = 'all' | 'event-completed' | 'ready-for-invoicing' | 'partially-invoiced' | 'fully-invoiced' | 'economy-closed';
+type StatusFilter = 'all' | EconomyProjectInsight['economyStatus'];
 
 const statusLabels: Record<Exclude<StatusFilter, 'all'>, string> = {
+  'upcoming': 'Kommande',
+  'ongoing': 'Pågående',
   'event-completed': 'Event slutfört',
   'ready-for-invoicing': 'Redo att fakturera',
   'partially-invoiced': 'Delvis fakturerat',
   'fully-invoiced': 'Fullt fakturerat',
   'economy-closed': 'Stängt',
+  'risk': 'Risk',
+  'missing-data': 'Saknar data',
 };
 
 interface Props {
   projectInsights: EconomyProjectInsight[];
 }
-
-const COMPLETED_STATUSES: EconomyProjectInsight['economyStatus'][] = [
-  'event-completed',
-  'ready-for-invoicing',
-  'partially-invoiced',
-  'fully-invoiced',
-  'economy-closed',
-];
 
 const HIDDEN_KEY = 'completed_projects_hidden_v1';
 
