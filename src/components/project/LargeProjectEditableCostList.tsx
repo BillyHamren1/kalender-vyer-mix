@@ -240,7 +240,8 @@ export function LargeProjectEditableCostList({
                   />
                 </TableCell>
                 <TableCell />
-                <TableCell className="w-32">
+                <TableCell />
+                <TableCell className="w-28">
                   <EditableCell
                     value={l.amount}
                     type="number"
@@ -248,6 +249,7 @@ export function LargeProjectEditableCostList({
                     onSave={(v) => updateLine({ id: l.id, updates: { amount: parseFloat(v) || 0 } })}
                   />
                 </TableCell>
+                <TableCell />
                 <TableCell className="w-10">
                   <Button
                     variant="ghost"
@@ -266,7 +268,7 @@ export function LargeProjectEditableCostList({
               <>
                 <TableRow className="bg-muted/10 hover:bg-muted/10">
                   <TableCell />
-                  <TableCell colSpan={6} className="py-1.5 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                  <TableCell colSpan={8} className="py-1.5 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
                     Rapporterad arbetstid (automatisk)
                   </TableCell>
                 </TableRow>
@@ -277,7 +279,9 @@ export function LargeProjectEditableCostList({
                     <TableCell>{r.staff}</TableCell>
                     <TableCell>—</TableCell>
                     <TableCell className="text-right tabular-nums">{r.hours.toFixed(1)}h</TableCell>
+                    <TableCell />
                     <TableCell className="text-right tabular-nums">{fmt(r.cost)}</TableCell>
+                    <TableCell />
                     <TableCell />
                   </TableRow>
                 ))}
@@ -287,7 +291,7 @@ export function LargeProjectEditableCostList({
             {/* Add row + import panel */}
             <TableRow className="hover:bg-transparent">
               <TableCell />
-              <TableCell colSpan={6} className="py-2">
+              <TableCell colSpan={8} className="py-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     variant="outline"
