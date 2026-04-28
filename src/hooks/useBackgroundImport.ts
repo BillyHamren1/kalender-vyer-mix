@@ -51,6 +51,10 @@ export const useBackgroundImport = () => {
     if (s.isRunning) return;
     if (s.lastImport && Date.now() - s.lastImport.getTime() < MIN_IMPORT_GAP) return;
 
+    // Gate on auth: skip if user is not logged in (no org context available)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     setState(prev => ({ ...prev, isRunning: true }));
 
     try {
