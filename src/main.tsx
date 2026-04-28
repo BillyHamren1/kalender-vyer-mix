@@ -1,11 +1,61 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './App.tsx'
 import './index.css'
 import { APP_MODE, isScannerApp, getDefaultRoute } from './config/appMode'
 import { Capacitor } from '@capacitor/core'
 import { initializeGlobalDiagnostics } from './services/diagnostics/diagnostics'
 import { GlobalErrorBoundary } from './components/diagnostics/GlobalErrorBoundary'
+
+const root = createRoot(document.getElementById('root')!);
+const BOOT_RECOVERY_KEY = 'boot-recovery-reloaded-once';
+
+const renderBootFailure = () => {
+  root.render(
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
+      <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
+        <h1 className="text-lg font-semibold text-card-foreground">Appen kunde inte laddas</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Ladda om sidan för att hämta senaste versionen.</p>
+        <button
+          type="button"
+          onClick={() => {
+            sessionStorage.removeItem(BOOT_RECOVERY_KEY);
+            window.location.reload();
+          }}
+          className="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          Ladda om
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const recoverBootImportFailure = async (error: unknown) => {
+  console.error('[boot] failed to load app entry', error);
+  const hasReloaded = sessionStorage.getItem(BOOT_RECOVERY_KEY) === 'true';
+
+  if (!hasReloaded) {
+    sessionStorage.setItem(BOOT_RECOVERY_KEY, 'true');
+    window.location.reload();
+    return;
+  }
+
+  renderBootFailure();
+};
+
+const mountApp = async () => {
+  try {
+    const { default: App } = await import('./App.tsx');
+    sessionStorage.removeItem(BOOT_RECOVERY_KEY);
+    root.render(
+      <GlobalErrorBoundary>
+        <App />
+      </GlobalErrorBoundary>
+    );
+  } catch (error) {
+    await recoverBootImportFailure(error);
+  }
+};
 
 // Detect scanner mode and swap icons/manifest dynamically
 if (isScannerApp) {
@@ -31,8 +81,4 @@ if (Capacitor.isNativePlatform() && window.location.pathname === '/') {
 
 initializeGlobalDiagnostics();
 
-createRoot(document.getElementById("root")!).render(
-  <GlobalErrorBoundary>
-    <App />
-  </GlobalErrorBoundary>
-);
+void mountApp();
