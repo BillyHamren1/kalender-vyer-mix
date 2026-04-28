@@ -101,22 +101,7 @@ const LargeProjectViewPage = () => {
         </TabsContent>
 
         <TabsContent value="gantt">
-          {isGanttSetupOpen || ganttSteps.length === 0 ? (
-            <LargeProjectGanttSetup
-              largeProjectId={project.id}
-              existingSteps={ganttSteps.length > 0 ? ganttSteps : undefined}
-              onSave={async (steps) => {
-                detail.saveGantt(steps);
-                setIsGanttSetupOpen(false);
-              }}
-              onCancel={ganttSteps.length > 0 ? () => setIsGanttSetupOpen(false) : undefined}
-            />
-          ) : (
-            <LargeProjectGanttChart
-              steps={ganttSteps}
-              onEdit={() => setIsGanttSetupOpen(true)}
-            />
-          )}
+          <UnifiedProjectGantt projectId={project.id} isLargeProject={true} />
         </TabsContent>
 
         <TabsContent value="files">
