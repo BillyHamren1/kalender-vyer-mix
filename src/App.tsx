@@ -10,6 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { APP_MODE, getDefaultRoute } from "@/config/appMode";
 import { LanguageProvider } from "@/i18n/LanguageContext";
+import { lazyWithRecovery } from "@/utils/lazyWithRecovery";
 
 
 
