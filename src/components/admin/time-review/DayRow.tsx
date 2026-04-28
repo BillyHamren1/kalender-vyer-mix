@@ -1,7 +1,7 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Clock, Car, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Clock, Car, AlertTriangle, ChevronRight, CalendarClock, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DayStatusBadge } from './DayStatusBadge';
 import { MiniTimelineBar } from './MiniTimelineBar';
@@ -79,14 +79,58 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
           </div>
           <p className="text-xs text-muted-foreground capitalize">
             {format(parseISO(`${row.date}T00:00:00`), 'EEEE d MMM', { locale: sv })}
-            {row.workdayStart && (
+            {row.workdayStart ? (
               <>
                 <span className="mx-1.5">·</span>
                 {format(parseISO(row.workdayStart), 'HH:mm')}
                 {row.workdayEnd ? `–${format(parseISO(row.workdayEnd), 'HH:mm')}` : '– pågår'}
               </>
-            )}
+            ) : row.plannedStart ? (
+              <>
+                <span className="mx-1.5">·</span>
+                <span className="inline-flex items-center gap-1 normal-case text-muted-foreground/80">
+                  <CalendarClock className="w-3 h-3" />
+                  Planerad {format(parseISO(row.plannedStart), 'HH:mm')}
+                  {row.plannedEnd ? `–${format(parseISO(row.plannedEnd), 'HH:mm')}` : ''}
+                </span>
+              </>
+            ) : null}
           </p>
+          {row.plannedJobs.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {row.plannedJobs.slice(0, 4).map((job) => {
+                const inferred =
+                  job.start && job.end &&
+                  row.workEntries.some((e) => e.start_time && e.end_time &&
+                    new Date(e.start_time).getTime() < new Date(job.end!).getTime() &&
+                    new Date(e.end_time).getTime() > new Date(job.start!).getTime());
+                return (
+                  <span
+                    key={job.bookingId}
+                    className={cn(
+                      'inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border',
+                      inferred
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
+                        : 'bg-muted/40 border-border text-muted-foreground',
+                    )}
+                    title={`${job.bookingNumber ?? ''} ${job.client ?? ''}${inferred ? ' — rapporterad' : ' — ej rapporterad'}`}
+                  >
+                    <Briefcase className="w-2.5 h-2.5" />
+                    {job.bookingNumber ?? job.client ?? job.bookingId.slice(0, 6)}
+                    {job.start && (
+                      <span className="opacity-70">
+                        {format(parseISO(job.start), 'HH:mm')}
+                        {job.end ? `–${format(parseISO(job.end), 'HH:mm')}` : ''}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+              {row.plannedJobs.length > 4 && (
+                <span className="text-[10px] text-muted-foreground">+{row.plannedJobs.length - 4}</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Numbers */}
