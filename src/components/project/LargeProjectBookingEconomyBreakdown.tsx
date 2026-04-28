@@ -43,6 +43,7 @@ interface BookingInfo {
     id?: string;
     client?: string;
     booking_number?: string | null;
+    status?: string | null;
   } | null;
 }
 
