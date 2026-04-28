@@ -304,9 +304,10 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
       // Products — split into assembly / handling / purchase
       const products = extractProducts(data);
       products.forEach((p: any) => {
-        const a = Number(p.assembly_cost) || 0;
-        const h = Number(p.handling_cost) || 0;
-        const pu = Number(p.purchase_cost) || 0;
+        const qty = Number(p.quantity) || 1;
+        const a = (Number(p.assembly_cost) || 0) * qty;
+        const h = (Number(p.handling_cost) || 0) * qty;
+        const pu = (Number(p.purchase_cost) || 0) * qty;
         if (a) { buckets.assembly.amount += a; buckets.assembly.count += 1; }
         if (h) { buckets.handling.amount += h; buckets.handling.count += 1; }
         if (pu) { buckets.purchase.amount += pu; buckets.purchase.count += 1; }
