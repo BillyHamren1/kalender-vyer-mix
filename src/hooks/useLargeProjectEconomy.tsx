@@ -154,7 +154,7 @@ export const useLargeProjectEconomy = (
     });
 
     return {
-      totalRevenue, totalCost, totalStaffCost,
+      totalRevenue, totalCost, totalStaffCost, totalActualHours,
       totalPurchases, totalQuotes, totalInvoices,
       totalSupplierInvoices, bookingCount,
     };
