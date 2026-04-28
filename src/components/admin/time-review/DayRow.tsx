@@ -79,6 +79,11 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
                 Markerad
               </span>
             )}
+            {isPlannedOnly && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 bg-sky-500/10 px-1.5 py-0.5 rounded">
+                Planerad
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground capitalize">
             {format(parseISO(`${row.date}T00:00:00`), 'EEEE d MMM', { locale: sv })}
