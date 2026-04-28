@@ -1,13 +1,14 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App'
 import { isScannerApp, getDefaultRoute } from './config/appMode'
 import { Capacitor } from '@capacitor/core'
-import { initializeGlobalDiagnostics } from './services/diagnostics/diagnostics'
+import { initializeGlobalDiagnostics, reportDiagnostic } from './services/diagnostics/diagnostics'
 import { GlobalErrorBoundary } from './components/diagnostics/GlobalErrorBoundary'
 
 const root = createRoot(document.getElementById('root')!);
+const MODULE_RECOVERY_KEY = 'eventflow-module-recovery';
+const MODULE_RECOVERY_QUERY = '__lovable_module_reload';
 
 // Detect scanner mode and swap icons/manifest dynamically
 if (isScannerApp) {
@@ -33,8 +34,129 @@ if (Capacitor.isNativePlatform() && window.location.pathname === '/') {
 
 initializeGlobalDiagnostics();
 
-root.render(
-  <GlobalErrorBoundary>
-    <App />
-  </GlobalErrorBoundary>
-);
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return String(error ?? 'Okänt fel');
+};
+
+const shouldRecoverFromModuleError = (error: unknown) => {
+  const message = getErrorMessage(error).toLowerCase();
+  return [
+    'failed to fetch dynamically imported module',
+    'importing a module script failed',
+    'failed to load module script',
+    'the server responded with a status of 404',
+    'failed to load resource',
+    'error loading dynamically imported module',
+  ].some((fragment) => message.includes(fragment));
+};
+
+const hasRecentRecoveryAttempt = () => {
+  try {
+    const raw = window.sessionStorage.getItem(MODULE_RECOVERY_KEY);
+    if (!raw) return false;
+    const timestamp = Number(raw);
+    return Number.isFinite(timestamp) && Date.now() - timestamp < 15_000;
+  } catch {
+    return false;
+  }
+};
+
+const markRecoveryAttempt = () => {
+  try {
+    window.sessionStorage.setItem(MODULE_RECOVERY_KEY, String(Date.now()));
+  } catch {
+    // Ignore storage failures.
+  }
+};
+
+const clearRecoveryAttempt = () => {
+  try {
+    window.sessionStorage.removeItem(MODULE_RECOVERY_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+};
+
+const cleanupRecoveryQuery = () => {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(MODULE_RECOVERY_QUERY)) return;
+
+  url.searchParams.delete(MODULE_RECOVERY_QUERY);
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const reloadWithFreshDocument = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.set(MODULE_RECOVERY_QUERY, String(Date.now()));
+  window.location.replace(url.toString());
+};
+
+const renderBootError = (message: string) => {
+  root.render(
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
+      <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
+        <h1 className="text-lg font-semibold text-card-foreground">Appen kunde inte laddas</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        <button
+          type="button"
+          onClick={reloadWithFreshDocument}
+          className="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          Ladda om
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const handleModuleLoadFailure = (error: unknown, source: 'boot' | 'preload') => {
+  const message = getErrorMessage(error);
+
+  reportDiagnostic({
+    code: source === 'boot' ? 'BOOT_MODULE_LOAD_FAILED' : 'VITE_PRELOAD_ERROR',
+    source: 'vite',
+    severity: 'critical',
+    error,
+    metadata: {
+      phase: source,
+      href: window.location.href,
+    },
+  });
+
+  if (shouldRecoverFromModuleError(error) && !hasRecentRecoveryAttempt()) {
+    markRecoveryAttempt();
+    reloadWithFreshDocument();
+    return;
+  }
+
+  renderBootError('Previewn verkar ha fastnat på en gammal modulversion. Ladda om sidan för att hämta en frisk version.');
+};
+
+window.addEventListener('vite:preloadError', (event) => {
+  const preloadEvent = event as Event & { payload?: unknown; preventDefault?: () => void };
+  preloadEvent.preventDefault?.();
+  handleModuleLoadFailure(preloadEvent.payload ?? new Error('Vite preload error'), 'preload');
+});
+
+const mountApp = async () => {
+  try {
+    const { default: App } = await import('./App');
+    clearRecoveryAttempt();
+    cleanupRecoveryQuery();
+
+    root.render(
+      <GlobalErrorBoundary>
+        <App />
+      </GlobalErrorBoundary>
+    );
+  } catch (error) {
+    handleModuleLoadFailure(error, 'boot');
+  }
+};
+
+void mountApp();
