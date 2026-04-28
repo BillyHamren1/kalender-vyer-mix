@@ -43,13 +43,31 @@ interface Props {
   projectInsights: EconomyProjectInsight[];
 }
 
-// Excludes 'economy-closed' — closed projects disappear from this list.
 const COMPLETED_STATUSES: EconomyProjectInsight['economyStatus'][] = [
   'event-completed',
   'ready-for-invoicing',
   'partially-invoiced',
   'fully-invoiced',
+  'economy-closed',
 ];
+
+const HIDDEN_KEY = 'completed_projects_hidden_v1';
+
+const loadHidden = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw));
+  } catch {
+    return new Set();
+  }
+};
+
+const saveHidden = (ids: Set<string>) => {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(ids)));
+  } catch { /* ignore */ }
+};
 
 const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const navigate = useNavigate();
