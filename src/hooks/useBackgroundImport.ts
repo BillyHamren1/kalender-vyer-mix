@@ -14,6 +14,23 @@ const IMPORT_INTERVAL = 30 * 1000;
 const MIN_IMPORT_GAP = 25 * 1000;
 const STORAGE_KEY = 'background_import_state';
 
+const BACKGROUND_IMPORT_ROUTE_PREFIXES = [
+  '/dashboard',
+  '/calendar',
+  '/booking',
+  '/booking-list',
+  '/projects',
+  '/project',
+  '/large-project',
+  '/my-projects',
+];
+
+const isBackgroundImportRoute = () => {
+  if (typeof window === 'undefined') return false;
+  const pathname = window.location.pathname;
+  return BACKGROUND_IMPORT_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+};
+
 export const useBackgroundImport = () => {
   const [state, setState] = useState<BackgroundImportState>(() => {
     // Scanner mode: never import bookings
@@ -50,6 +67,7 @@ export const useBackgroundImport = () => {
     const s = stateRef.current;
     if (s.isRunning) return;
     if (s.lastImport && Date.now() - s.lastImport.getTime() < MIN_IMPORT_GAP) return;
+    if (!isBackgroundImportRoute()) return;
 
     // Gate on verified auth + org context to prevent cross-tenant import attempts
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -103,6 +121,9 @@ export const useBackgroundImport = () => {
 
   const triggerManualImport = useCallback(async () => {
     if (stateRef.current.isRunning) return false;
+    if (!isBackgroundImportRoute()) {
+      return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
+    }
     setState(prev => ({ ...prev, isRunning: true }));
     try {
       const result = await importBookings({ syncMode: 'incremental' }, false);
