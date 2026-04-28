@@ -25,11 +25,21 @@ const META: Record<CostCategory, { label: string; icon: React.ComponentType<any>
     hint: 'Övriga manuella kostnader för projektet.' },
 };
 
+interface LocalProduct {
+  id: string;
+  name: string;
+  quantity: number;
+  assembly_cost: number | null;
+  handling_cost: number | null;
+  purchase_cost: number | null;
+}
+
 interface Props {
   largeProjectId: string;
   lines: CostLine[];
   bookingEconomyData: Record<string, BatchEconomyData> | null;
   timeReportsByBooking: Record<string, StaffTimeReport[]>;
+  localProducts: LocalProduct[];
   addLine: (input: { category: CostCategory; description?: string; amount?: number; supplier?: string | null; cost_date?: string | null }) => void;
   updateLine: (input: { id: string; updates: Partial<CostLine> }) => void;
   removeLine: (id: string) => void;
@@ -71,7 +81,7 @@ function EditableCell({
 }
 
 export function LargeProjectEditableCostList({
-  largeProjectId, lines, bookingEconomyData, timeReportsByBooking,
+  largeProjectId, lines, bookingEconomyData, timeReportsByBooking, localProducts,
   addLine, updateLine, removeLine,
 }: Props) {
   const [expanded, setExpanded] = useState<Record<CostCategory, boolean>>({
@@ -140,18 +150,31 @@ export function LargeProjectEditableCostList({
     return items;
   }, [bookingEconomyData, byCategory.purchase]);
 
-  // Totals
-  const totals = useMemo(() => {
+  // Budget per category — derived from local_products (assembly/handling/purchase × qty)
+  const budgets = useMemo(() => {
+    const b: Record<CostCategory, number> = { purchase: 0, handling: 0, assembly: 0, other: 0 };
+    localProducts.forEach((p) => {
+      const qty = Number(p.quantity) || 1;
+      b.purchase += (Number(p.purchase_cost) || 0) * qty;
+      b.handling += (Number(p.handling_cost) || 0) * qty;
+      b.assembly += (Number(p.assembly_cost) || 0) * qty;
+    });
+    return b;
+  }, [localProducts]);
+
+  // Actual totals (manual lines + reported time for assembly)
+  const actuals = useMemo(() => {
     const t: Record<CostCategory, number> = { purchase: 0, handling: 0, assembly: 0, other: 0 };
     (Object.keys(byCategory) as CostCategory[]).forEach((k) => {
       t[k] = byCategory[k].reduce((s, l) => s + (Number(l.amount) || 0), 0);
     });
-    // Assembly auto-includes reported time
     t.assembly += reportedTimeTotal;
     return t;
   }, [byCategory, reportedTimeTotal]);
 
-  const grandTotal = totals.purchase + totals.handling + totals.assembly + totals.other;
+  const grandBudget = budgets.purchase + budgets.handling + budgets.assembly + budgets.other;
+  const grandActual = actuals.purchase + actuals.handling + actuals.assembly + actuals.other;
+  const grandDiff = grandBudget - grandActual;
 
   const toggle = (k: CostCategory) => setExpanded((s) => ({ ...s, [k]: !s[k] }));
 
@@ -178,7 +201,14 @@ export function LargeProjectEditableCostList({
               </span>
             </div>
           </TableCell>
-          <TableCell className="text-right tabular-nums font-bold">{fmt(totals[cat])}</TableCell>
+          <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(budgets[cat])}</TableCell>
+          <TableCell className="text-right tabular-nums font-bold">{fmt(actuals[cat])}</TableCell>
+          <TableCell className={cn(
+            'text-right tabular-nums font-semibold',
+            (budgets[cat] - actuals[cat]) < 0 ? 'text-red-600' : (budgets[cat] - actuals[cat]) > 0 ? 'text-green-600' : 'text-muted-foreground'
+          )}>
+            {fmt(budgets[cat] - actuals[cat])}
+          </TableCell>
           <TableCell />
         </TableRow>
 
@@ -210,7 +240,8 @@ export function LargeProjectEditableCostList({
                   />
                 </TableCell>
                 <TableCell />
-                <TableCell className="w-32">
+                <TableCell />
+                <TableCell className="w-28">
                   <EditableCell
                     value={l.amount}
                     type="number"
@@ -218,6 +249,7 @@ export function LargeProjectEditableCostList({
                     onSave={(v) => updateLine({ id: l.id, updates: { amount: parseFloat(v) || 0 } })}
                   />
                 </TableCell>
+                <TableCell />
                 <TableCell className="w-10">
                   <Button
                     variant="ghost"
@@ -236,7 +268,7 @@ export function LargeProjectEditableCostList({
               <>
                 <TableRow className="bg-muted/10 hover:bg-muted/10">
                   <TableCell />
-                  <TableCell colSpan={6} className="py-1.5 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                  <TableCell colSpan={8} className="py-1.5 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
                     Rapporterad arbetstid (automatisk)
                   </TableCell>
                 </TableRow>
@@ -247,7 +279,9 @@ export function LargeProjectEditableCostList({
                     <TableCell>{r.staff}</TableCell>
                     <TableCell>—</TableCell>
                     <TableCell className="text-right tabular-nums">{r.hours.toFixed(1)}h</TableCell>
+                    <TableCell />
                     <TableCell className="text-right tabular-nums">{fmt(r.cost)}</TableCell>
+                    <TableCell />
                     <TableCell />
                   </TableRow>
                 ))}
@@ -257,7 +291,7 @@ export function LargeProjectEditableCostList({
             {/* Add row + import panel */}
             <TableRow className="hover:bg-transparent">
               <TableCell />
-              <TableCell colSpan={6} className="py-2">
+              <TableCell colSpan={8} className="py-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     variant="outline"
@@ -331,7 +365,9 @@ export function LargeProjectEditableCostList({
               <TableHead>Beskrivning</TableHead>
               <TableHead className="w-40">Leverantör</TableHead>
               <TableHead className="w-20 text-right">Tim</TableHead>
-              <TableHead className="w-32 text-right">Belopp</TableHead>
+              <TableHead className="w-28 text-right">Budget</TableHead>
+              <TableHead className="w-28 text-right">Faktiskt</TableHead>
+              <TableHead className="w-24 text-right">Diff</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -339,8 +375,15 @@ export function LargeProjectEditableCostList({
             {(['purchase', 'handling', 'assembly', 'other'] as CostCategory[]).map(renderCategory)}
             <TableRow className="border-t-2 bg-muted/40 font-bold">
               <TableCell />
-              <TableCell colSpan={4}>TOTAL KOSTNAD</TableCell>
-              <TableCell className="text-right tabular-nums">{fmt(grandTotal)}</TableCell>
+              <TableCell colSpan={4}>TOTALT</TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(grandBudget)}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmt(grandActual)}</TableCell>
+              <TableCell className={cn(
+                'text-right tabular-nums',
+                grandDiff < 0 ? 'text-red-600' : grandDiff > 0 ? 'text-green-600' : 'text-muted-foreground'
+              )}>
+                {fmt(grandDiff)}
+              </TableCell>
               <TableCell />
             </TableRow>
           </TableBody>
