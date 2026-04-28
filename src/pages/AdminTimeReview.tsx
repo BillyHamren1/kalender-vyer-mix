@@ -56,16 +56,7 @@ const AdminTimeReview: React.FC = () => {
     });
   }, [rows, filter, topFilter]);
 
-  const emptyKind: EmptyKind | null = (() => {
-    if (filteredRows.length > 0) return null;
-    if (rows.length === 0) return 'no-days';
-    if (filter.staffId !== 'all' || filter.status !== 'all' || filter.anomaly !== 'all' || filter.projectQuery || topFilter) {
-      return 'no-matches';
-    }
-    if (rows.every((r) => r.reviewStatus === 'approved')) return 'all-approved';
-    if (rows.every((r) => r.result.anomalies.length === 0)) return 'no-anomalies';
-    return 'no-matches';
-  })();
+  const emptyKind: EmptyKind | null = computeEmptyKind(rows, filteredRows, filter, topFilter);
 
   const resetFilter = () => {
     setFilter((prev) => ({ ...prev, staffId: 'all', status: 'all', anomaly: 'all', projectQuery: '' }));
