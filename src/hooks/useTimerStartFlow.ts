@@ -39,10 +39,12 @@ import {
   type WorkTarget,
 } from '@/hooks/useWorkSession';
 import {
-  useGeofencing,
+  // useGeofencing is mounted ONCE by GeofencingProvider — see GeofencingContext.tsx.
+  // We only consume the shared instance via useGeofencingContext().
   haversineDistance,
   ENTER_RADIUS,
 } from '@/hooks/useGeofencing';
+import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
 import { useWorkDay } from '@/hooks/useWorkDay';
 import type { MobileBooking } from '@/services/mobileApiService';
@@ -143,7 +145,7 @@ export function useTimerStartFlow(
   bookings: MobileBooking[],
   staffId?: string,
 ) {
-  const { activeTimers, userPosition } = useGeofencing(bookings, staffId);
+  const { activeTimers, userPosition } = useGeofencingContext();
   const { startSession, stopSession, resolveTargetCoords } = useWorkSession(
     bookings,
     staffId,

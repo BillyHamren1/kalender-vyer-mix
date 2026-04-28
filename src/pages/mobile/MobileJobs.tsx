@@ -4,7 +4,7 @@ import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
-import { useGeofencing } from '@/hooks/useGeofencing';
+import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import { type WorkTarget } from '@/hooks/useWorkSession';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
@@ -52,7 +52,7 @@ const MobileJobs = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   useEffect(() => { localStorage.setItem(VIEW_MODE_KEY, viewMode); }, [viewMode]);
 
-  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, dismissGeofenceEvent } = useGeofencing(bookings, staff?.id);
+  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, dismissGeofenceEvent } = useGeofencingContext();
 
   // ALL starts go through useTimerStartFlow → evaluateStartConflict →
   // startSession. No raw startTimer / startSession calls here. Direct
