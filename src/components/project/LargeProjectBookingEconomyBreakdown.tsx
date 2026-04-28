@@ -188,33 +188,33 @@ function AddPurchaseRow({ bookingId, onAdded }: { bookingId: string; onAdded: ()
   );
 }
 
-/* ─── Editable product cost cell ─── */
+/* ─── Editable product cost cell — always visible input ─── */
 function EditableCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
-  const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value.toString());
 
-  if (editing) {
-    return (
-      <Input
-        type="number"
-        className="h-7 text-xs text-right w-24"
-        value={val}
-        onChange={e => setVal(e.target.value)}
-        onBlur={() => { onSave(parseFloat(val) || 0); setEditing(false); }}
-        onKeyDown={e => { if (e.key === 'Enter') { onSave(parseFloat(val) || 0); setEditing(false); } if (e.key === 'Escape') setEditing(false); }}
-        autoFocus
-      />
-    );
-  }
+  // Sync external changes (e.g. after save / refetch)
+  React.useEffect(() => {
+    setVal(value.toString());
+  }, [value]);
+
+  const commit = () => {
+    const parsed = parseFloat(val) || 0;
+    if (parsed !== value) onSave(parsed);
+  };
 
   return (
-    <button
-      onClick={() => { setVal(value.toString()); setEditing(true); }}
-      className="text-xs text-right w-full cursor-pointer hover:bg-muted/60 rounded px-1 py-0.5 transition-colors"
-      title="Klicka för att redigera"
-    >
-      {fmt(value)}
-    </button>
+    <Input
+      type="number"
+      className="h-7 text-xs text-right w-24 ml-auto"
+      value={val}
+      onChange={e => setVal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); }
+        if (e.key === 'Escape') { setVal(value.toString()); (e.target as HTMLInputElement).blur(); }
+      }}
+      onFocus={e => e.target.select()}
+    />
   );
 }
 
