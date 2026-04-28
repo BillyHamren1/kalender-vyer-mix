@@ -37,7 +37,6 @@ import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { convertToISO8601 } from '@/utils/dateUtils';
 import { addDays, subDays, format } from 'date-fns';
 import { buildPlannerCalendarEvents } from './plannerCalendarDerivation';
-import { syncFromCalendarEvent } from '@/services/timeSync';
 
 export interface CalendarEventUpdate {
   start?: string;
@@ -358,6 +357,7 @@ export const updateCalendarEvent = async (
   let syncedSiblings = 0;
   if (updates.start && updates.end && data.booking_id && data.event_type && data.source_date) {
     try {
+      const { syncFromCalendarEvent } = await import('@/services/timeSync');
       const res = await syncFromCalendarEvent({
         booking_id: data.booking_id,
         event_type: data.event_type,
