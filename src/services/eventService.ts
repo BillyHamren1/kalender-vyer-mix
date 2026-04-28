@@ -37,6 +37,7 @@ import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { convertToISO8601 } from '@/utils/dateUtils';
 import { addDays, subDays, format } from 'date-fns';
 import { buildPlannerCalendarEvents } from './plannerCalendarDerivation';
+import { syncFromCalendarEvent } from '@/services/timeSync';
 
 export interface CalendarEventUpdate {
   start?: string;
