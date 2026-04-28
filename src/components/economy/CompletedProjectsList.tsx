@@ -142,12 +142,15 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
 
     for (const p of items) {
       try {
-        const table = p.projectSize === 'large' ? 'large_projects' : 'projects';
-        const { error } = await supabase
-          .from(table)
-          .update({ status: 'completed' })
-          .eq('id', p.id);
-        if (error) throw error;
+        // Only push status update for projects that aren't already completed in DB.
+        if (p.status !== 'completed') {
+          const table = p.projectSize === 'large' ? 'large_projects' : 'projects';
+          const { error } = await supabase
+            .from(table)
+            .update({ status: 'completed' })
+            .eq('id', p.id);
+          if (error) throw error;
+        }
         success++;
       } catch (err) {
         console.error('[CompletedProjectsList] close failed for', p.id, err);
@@ -155,13 +158,19 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
       }
     }
 
+    // Hide successfully closed projects from this list (persistent via localStorage).
+    const newHidden = new Set(hidden);
+    items.forEach(p => newHidden.add(p.id));
+    setHidden(newHidden);
+    saveHidden(newHidden);
+
     setIsClosing(false);
     setConfirmOpen(false);
     setSelectedIds(new Set());
     setSelectMode(false);
 
     if (success > 0) {
-      toast.success(`${success} projekt stängdes`);
+      toast.success(`${success} projekt stängdes och dolda från listan`);
       queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
     }
     if (failed > 0) {
