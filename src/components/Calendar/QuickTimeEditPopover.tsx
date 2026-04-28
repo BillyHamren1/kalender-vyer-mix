@@ -123,30 +123,22 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           end_time: newEnd.toISOString()
         });
       } else {
-        // Update calendar event in database
-        await updateCalendarEvent(event.id, {
+        // Update calendar event — booking row + sibling bookings (if part of
+        // a large project) are mirrored automatically by syncPhaseTime.
+        const result = await updateCalendarEvent(event.id, {
           start: newStart.toISOString(),
           end: newEnd.toISOString()
         });
 
-        // CRITICAL: Also update the booking time fields
-        if (event.bookingId && event.eventType) {
-          const bookingTimeField = {
-            'rig': { start: 'rig_start_time', end: 'rig_end_time' },
-            'event': { start: 'event_start_time', end: 'event_end_time' },
-            'rigDown': { start: 'rigdown_start_time', end: 'rigdown_end_time' }
-          }[event.eventType];
-
-          if (bookingTimeField) {
-            await supabase
-              .from('bookings')
-              .update({
-                [bookingTimeField.start]: newStart.toISOString(),
-                [bookingTimeField.end]: newEnd.toISOString()
-              })
-              .eq('id', event.bookingId);
-          }
+        const siblings = (result as any)?.syncedSiblings ?? 0;
+        if (siblings > 0) {
+          toast.success(`Tid uppdaterad – synkad till ${siblings} bokning${siblings === 1 ? '' : 'ar'} i projektet`);
+        } else {
+          toast.success('Tid uppdaterad');
         }
+        setOpen(false);
+        if (onUpdate) onUpdate();
+        return;
       }
 
       toast.success('Tid uppdaterad');
