@@ -68,7 +68,23 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // Compute aggregated summary from booking economy
+  // Local time reports per booking (single source of truth — same as normal projects)
+  const { data: timeReportsByBooking = {} } = useQuery({
+    queryKey: ['large-project-time-reports', bookingIds],
+    queryFn: async () => {
+      const result: Record<string, StaffTimeReport[]> = {};
+      await Promise.all(bookingIds.map(async (bId) => {
+        try {
+          result[bId] = await fetchProjectTimeReports(bId);
+        } catch (e) {
+          console.warn('[LargeProjectEcon] time reports fetch failed for', bId, e);
+          result[bId] = [];
+        }
+      }));
+      return result;
+    },
+    enabled: bookingIds.length > 0,
+  });
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
     const TAG = '[LargeProjectEcon]';
     if (!bookingEconomyData) {
