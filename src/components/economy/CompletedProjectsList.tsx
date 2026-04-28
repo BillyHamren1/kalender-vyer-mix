@@ -30,27 +30,23 @@ const PAGE_SIZE = 10;
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
 
-type StatusFilter = 'all' | 'event-completed' | 'ready-for-invoicing' | 'partially-invoiced' | 'fully-invoiced' | 'economy-closed';
+type StatusFilter = 'all' | EconomyProjectInsight['economyStatus'];
 
 const statusLabels: Record<Exclude<StatusFilter, 'all'>, string> = {
+  'upcoming': 'Kommande',
+  'ongoing': 'Pågående',
   'event-completed': 'Event slutfört',
   'ready-for-invoicing': 'Redo att fakturera',
   'partially-invoiced': 'Delvis fakturerat',
   'fully-invoiced': 'Fullt fakturerat',
   'economy-closed': 'Stängt',
+  'risk': 'Risk',
+  'missing-data': 'Saknar data',
 };
 
 interface Props {
   projectInsights: EconomyProjectInsight[];
 }
-
-const COMPLETED_STATUSES: EconomyProjectInsight['economyStatus'][] = [
-  'event-completed',
-  'ready-for-invoicing',
-  'partially-invoiced',
-  'fully-invoiced',
-  'economy-closed',
-];
 
 const HIDDEN_KEY = 'completed_projects_hidden_v1';
 
@@ -85,7 +81,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const completed = useMemo(() => {
     const today = new Date();
     return projectInsights
-      .filter(p => COMPLETED_STATUSES.includes(p.economyStatus) && !hidden.has(p.id))
+      .filter(p => !hidden.has(p.id))
       .map(p => {
         const eventDate = p.eventdate ? new Date(p.eventdate) : null;
         const daysSince = eventDate ? differenceInDays(today, eventDate) : -1;
@@ -188,7 +184,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <CardTitle className="text-base font-semibold">Slutförda projekt</CardTitle>
+              <CardTitle className="text-base font-semibold">Alla projekt</CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 Äldsta överst · {filtered.length} totalt
                 {selectMode && selectedIds.size > 0 && ` · ${selectedIds.size} markerade`}
@@ -246,7 +242,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
         <CardContent className="p-0">
           {filtered.length === 0 ? (
             <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-              Inga slutförda projekt matchar dina filter.
+              Inga projekt matchar dina filter.
             </div>
           ) : (
             <>
