@@ -195,7 +195,7 @@ const EconomyOverview: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Projektutvärdering
+                  Projektöversikt
                 </h1>
                 <p className="text-muted-foreground mt-0.5">
                   Kontrolltorn · Kostnader · Attest · Överlämning

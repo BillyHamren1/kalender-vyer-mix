@@ -43,7 +43,7 @@ const baseNavigationItems: NavItem[] = [
     icon: FolderKanban,
     children: [
       { title: "Mina projekt", url: "/my-projects" },
-      { title: "Projektutvärdering", url: "/economy", icon: Wallet },
+      { title: "Projektöversikt", url: "/economy", icon: Wallet },
     ],
   },
   {
