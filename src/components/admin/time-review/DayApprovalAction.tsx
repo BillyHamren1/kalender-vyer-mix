@@ -115,7 +115,7 @@ export const DayApprovalAction: React.FC<DayApprovalActionProps> = ({
     if (!workdayId) return;
     setBusy(true);
     try {
-      await mobileApi.callAdminAction('admin_unapprove_day', { workday_id: workdayId });
+      await mobileApi.adminUnapproveDay({ workday_id: workdayId });
       toast({ title: 'Godkännande borttaget', description: 'Dagen är åter i needs_review.' });
       refresh();
     } catch (e: any) {
