@@ -63,7 +63,7 @@ export async function fetchDayReviewRows(
       .lte('report_date', args.toDate),
     supabase
       .from('workdays')
-      .select('id, staff_id, started_at, ended_at, review_status')
+      .select('id, staff_id, started_at, ended_at, review_status, approved_at, approved_by')
       .gte('started_at', fromIso)
       .lt('started_at', toIso),
   ]);
