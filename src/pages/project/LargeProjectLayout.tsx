@@ -436,30 +436,6 @@ const LargeProjectLayout = () => {
                 Kopplade bokningar ({bookings.length})
               </h3>
               <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    if (!project?.id) return;
-                    const t = toast.loading("Synkar tider mellan bokningar…");
-                    try {
-                      const r = await backfillLargeProjectTimes(project.id);
-                      toast.success(
-                        r.syncedSiblings > 0
-                          ? `Tider synkade i ${r.groupsProcessed} fas-grupp · ${r.syncedSiblings} bokning${r.syncedSiblings === 1 ? '' : 'ar'} uppdaterade`
-                          : "Alla bokningar har redan samma tider",
-                        { id: t }
-                      );
-                      queryClient.invalidateQueries({ queryKey: ["large-project-detail", project.id] });
-                    } catch (e) {
-                      toast.error("Kunde inte synka tider", { id: t, description: e instanceof Error ? e.message : String(e) });
-                    }
-                  }}
-                  title="Tvinga alla bokningar i projektet att ha samma tid per fas + datum"
-                >
-                  <RefreshCw className="w-4 h-4 mr-1" />
-                  Synka tider
-                </Button>
                 <Button size="sm" variant="outline" onClick={() => setIsAddBookingOpen(true)}>
                   <Plus className="w-4 h-4 mr-1" />
                   Lägg till bokning
