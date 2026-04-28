@@ -1891,19 +1891,18 @@ serve(async (req) => {
       );
 
       const importCompletedAt = new Date().toISOString();
-      const nextSyncCursor = importStartedAt;
       await supabase
         .from('sync_state')
         .upsert({
           sync_type: 'booking_import',
           organization_id: organizationId,
-          last_sync_timestamp: nextSyncCursor,
           last_sync_mode: syncMode,
-          last_sync_status: 'success',
+          last_sync_status: 'in_progress',
           metadata: {
             queued_for_worker: true,
             queue_summary: queueSummary,
-            cursor_advanced_to: nextSyncCursor,
+            queued_at: importCompletedAt,
+            pending_cursor_advance_to: importStartedAt,
             discovery_job: true,
           },
           updated_at: importCompletedAt,
@@ -1912,7 +1911,7 @@ serve(async (req) => {
       console.log('[import-bookings] Incremental discovery queued for worker', JSON.stringify({
         organization_id: organizationId,
         queue_summary: queueSummary,
-        cursor_advanced_to: nextSyncCursor,
+        pending_cursor_advance_to: importStartedAt,
       }));
 
       return new Response(
