@@ -16,6 +16,7 @@ interface AggregatedBookingEconomy {
   totalRevenue: number;
   totalCost: number;
   totalStaffCost: number;
+  totalActualHours: number;
   totalPurchases: number;
   totalQuotes: number;
   totalInvoices: number;
