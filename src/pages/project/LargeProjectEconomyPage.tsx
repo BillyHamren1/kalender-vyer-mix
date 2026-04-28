@@ -26,6 +26,7 @@ import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useLargeProjectEconomy } from "@/hooks/useLargeProjectEconomy";
 import type { LargeProjectPurchase } from "@/types/largeProject";
 import { LargeProjectBookingEconomyBreakdown } from "@/components/project/LargeProjectBookingEconomyBreakdown";
+import { LargeProjectStaffTimeBreakdown } from "@/components/project/LargeProjectStaffTimeBreakdown";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 }).format(v);
