@@ -216,6 +216,12 @@ const LargeProjectEconomyPage = () => {
         />
       )}
 
+      {/* Detailed reported time per staff/day across all bookings */}
+      <LargeProjectStaffTimeBreakdown
+        timeReportsByBooking={timeReportsByBooking}
+        bookings={bookings}
+      />
+
       {/* Purchases */}
       <Card className="border-border/40">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
