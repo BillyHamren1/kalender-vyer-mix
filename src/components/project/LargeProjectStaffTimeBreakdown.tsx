@@ -7,7 +7,7 @@ import type { LargeProjectBooking } from '@/types/largeProject';
 
 interface Props {
   timeReportsByBooking: Record<string, StaffTimeReport[]>;
-  bookings: LargeProjectBookingLink[];
+  bookings: LargeProjectBooking[];
 }
 
 const fmt = (amount: number) =>
