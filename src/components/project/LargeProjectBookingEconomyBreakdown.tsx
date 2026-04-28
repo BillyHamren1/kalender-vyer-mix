@@ -456,8 +456,29 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                             <TableRow className="hover:bg-transparent">
                               <TableCell colSpan={5} className="p-0">
                                 <div className="border-t border-border/40 p-4 space-y-4 bg-muted/20">
-                                  {/* Products — editable costs */}
-                                  {products.length > 0 && (
+                                  {/* Products — editable costs.
+                                      Fall back to local booking_products when the booking
+                                      system returns no line items (vanligt om bokningen är
+                                      gammal eller inte synkad), så att fälten inte ser tomma ut. */}
+                                  {(() => {
+                                    const hasRemote = products.length > 0;
+                                    const productsToRender = hasRemote
+                                      ? products
+                                      : bookingLocalProducts
+                                          .filter(lp => !lp.is_package_component && !lp.parent_product_id)
+                                          .map(lp => ({
+                                            product_name: lp.name,
+                                            quantity: lp.quantity,
+                                            total_revenue: lp.total_price ?? 0,
+                                            assembly_cost: lp.assembly_cost ?? 0,
+                                            handling_cost: lp.handling_cost ?? 0,
+                                            purchase_cost: lp.purchase_cost ?? 0,
+                                            sku: lp.sku,
+                                            __localId: lp.id,
+                                          }));
+
+                                    if (productsToRender.length === 0) return null;
+                                    return (
                                     <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={displayProductCosts}>
                                       <Table>
                                         <TableHeader>
@@ -472,9 +493,11 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                          {products.map((p: any, i: number) => {
+                                          {productsToRender.map((p: any, i: number) => {
                                             const productName = p.product_name || p.name || p.description || '—';
-                                            const localMatch = findLocalProduct(bookingId, productName, p.sku);
+                                            const localMatch = p.__localId
+                                              ? bookingLocalProducts.find(lp => lp.id === p.__localId)
+                                              : findLocalProduct(bookingId, productName, p.sku);
 
                                             const productRevenue = p.total_revenue || p.revenue || p.total_price || localMatch?.total_price || 0;
 
@@ -516,7 +539,8 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                         </TableBody>
                                       </Table>
                                     </Section>
-                                  )}
+                                    );
+                                  })()}
 
                                   {/* Staff */}
                                   {timeReports.length > 0 && (
@@ -626,7 +650,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                     </Section>
                                   )}
 
-                                  {products.length === 0 && timeReports.length === 0 && purchases.length === 0 && invoices.length === 0 && supplierInvoices.length === 0 && (
+                                  {products.length === 0 && bookingLocalProducts.length === 0 && timeReports.length === 0 && purchases.length === 0 && invoices.length === 0 && supplierInvoices.length === 0 && (
                                     <p className="text-xs text-muted-foreground text-center py-4">Ingen detaljerad data tillgänglig</p>
                                   )}
                                 </div>
