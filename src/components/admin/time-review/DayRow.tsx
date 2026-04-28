@@ -1,7 +1,7 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Clock, Car, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Clock, Car, AlertTriangle, ChevronRight, CalendarClock, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DayStatusBadge } from './DayStatusBadge';
 import { MiniTimelineBar } from './MiniTimelineBar';
@@ -32,6 +32,7 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
   const m = row.result.metrics;
   const status = row.result.status;
 
+  const isPlannedOnly = !row.workdayStart && row.plannedJobs.length > 0;
   const accent =
     status === 'critical'
       ? 'border-l-destructive'
@@ -39,7 +40,9 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
         ? 'border-l-amber-500'
         : row.workdayStart && !row.workdayEnd
           ? 'border-l-teal-500'
-          : 'border-l-emerald-500';
+          : isPlannedOnly
+            ? 'border-l-sky-400'
+            : 'border-l-emerald-500';
 
   return (
     <div
@@ -76,22 +79,72 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
                 Markerad
               </span>
             )}
+            {isPlannedOnly && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 bg-sky-500/10 px-1.5 py-0.5 rounded">
+                Planerad
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground capitalize">
             {format(parseISO(`${row.date}T00:00:00`), 'EEEE d MMM', { locale: sv })}
-            {row.workdayStart && (
+            {row.workdayStart ? (
               <>
                 <span className="mx-1.5">·</span>
                 {format(parseISO(row.workdayStart), 'HH:mm')}
                 {row.workdayEnd ? `–${format(parseISO(row.workdayEnd), 'HH:mm')}` : '– pågår'}
               </>
-            )}
+            ) : row.plannedStart ? (
+              <>
+                <span className="mx-1.5">·</span>
+                <span className="inline-flex items-center gap-1 normal-case text-muted-foreground/80">
+                  <CalendarClock className="w-3 h-3" />
+                  Planerad {format(parseISO(row.plannedStart), 'HH:mm')}
+                  {row.plannedEnd ? `–${format(parseISO(row.plannedEnd), 'HH:mm')}` : ''}
+                </span>
+              </>
+            ) : null}
           </p>
+          {row.plannedJobs.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {row.plannedJobs.slice(0, 4).map((job) => {
+                const inferred =
+                  job.start && job.end &&
+                  row.workEntries.some((e) => e.start_time && e.end_time &&
+                    new Date(e.start_time).getTime() < new Date(job.end!).getTime() &&
+                    new Date(e.end_time).getTime() > new Date(job.start!).getTime());
+                return (
+                  <span
+                    key={job.bookingId}
+                    className={cn(
+                      'inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border',
+                      inferred
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
+                        : 'bg-muted/40 border-border text-muted-foreground',
+                    )}
+                    title={`${job.bookingNumber ?? ''} ${job.client ?? ''}${inferred ? ' — rapporterad' : ' — ej rapporterad'}`}
+                  >
+                    <Briefcase className="w-2.5 h-2.5" />
+                    {job.bookingNumber ?? job.client ?? job.bookingId.slice(0, 6)}
+                    {job.start && (
+                      <span className="opacity-70">
+                        {format(parseISO(job.start), 'HH:mm')}
+                        {job.end ? `–${format(parseISO(job.end), 'HH:mm')}` : ''}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+              {row.plannedJobs.length > 4 && (
+                <span className="text-[10px] text-muted-foreground">+{row.plannedJobs.length - 4}</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Numbers */}
         <div className="hidden md:flex items-center gap-5 text-xs shrink-0">
           <Stat icon={<Clock className="w-3 h-3 text-muted-foreground" />} label="Dag" value={fmtMinutes(m.workdayMinutes)} />
+          <Stat icon={<CalendarClock className="w-3 h-3 text-sky-600" />} label="Planerat" value={fmtMinutes(row.plannedMinutes)} tone={row.plannedMinutes ? 'text-sky-700' : 'text-muted-foreground'} />
           <Stat label="Rapport" value={fmtMinutes(m.reportedActivityMinutes)} tone="text-emerald-700" />
           <Stat icon={<Car className="w-3 h-3 text-amber-600" />} label="Resa" value={fmtMinutes(m.travelMinutes)} tone={m.travelMinutes ? 'text-amber-700' : 'text-muted-foreground'} />
           <Stat

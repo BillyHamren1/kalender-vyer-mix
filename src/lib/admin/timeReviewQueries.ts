@@ -17,6 +17,19 @@ import {
   evaluateAdminTimeReview,
 } from './adminTimeReviewEngine';
 
+export interface PlannedJob {
+  bookingId: string;
+  bookingNumber: string | null;
+  client: string | null;
+  role: string | null;
+  /** ISO start of earliest phase that day */
+  start: string | null;
+  /** ISO end of latest phase that day */
+  end: string | null;
+  /** Minutes between start and end (0 if missing) */
+  minutes: number;
+}
+
 export interface DayReviewRow {
   staffId: string;
   staffName: string;
@@ -27,6 +40,10 @@ export interface DayReviewRow {
   workdayEnd: string | null;
   workEntries: ReviewWorkEntry[];
   travelSegments: ReviewTravelSegment[];
+  plannedJobs: PlannedJob[];
+  plannedStart: string | null;
+  plannedEnd: string | null;
+  plannedMinutes: number;
   result: AdminTimeReviewResult;
   reviewStatus: 'open' | 'needs_review' | 'approved';
   approvedAt: string | null;
@@ -49,7 +66,7 @@ export async function fetchDayReviewRows(
   next.setUTCDate(next.getUTCDate() + 1);
   const toIso = next.toISOString();
 
-  const [staffRes, reportsRes, travelRes, workdaysRes] = await Promise.all([
+  const [staffRes, reportsRes, travelRes, workdaysRes, bsaRes] = await Promise.all([
     supabase.from('staff_members').select('id, name, color'),
     supabase
       .from('time_reports')
@@ -66,12 +83,34 @@ export async function fetchDayReviewRows(
       .select('id, staff_id, started_at, ended_at, review_status, approved_at, approved_by')
       .gte('started_at', fromIso)
       .lt('started_at', toIso),
+    supabase
+      .from('booking_staff_assignments')
+      .select('id, staff_id, booking_id, role, assignment_date')
+      .gte('assignment_date', args.fromDate)
+      .lte('assignment_date', args.toDate),
   ]);
 
   if (staffRes.error) throw staffRes.error;
   if (reportsRes.error) throw reportsRes.error;
   if (travelRes.error) throw travelRes.error;
   if (workdaysRes.error) throw workdaysRes.error;
+  if (bsaRes.error) throw bsaRes.error;
+
+  // Fetch only the bookings actually referenced by BSA in window.
+  const bookingIds = Array.from(
+    new Set(((bsaRes.data ?? []) as any[]).map((r) => r.booking_id).filter(Boolean)),
+  );
+  const bookingsById = new Map<string, any>();
+  if (bookingIds.length > 0) {
+    const { data: bookingsData, error: bookingsErr } = await supabase
+      .from('bookings')
+      .select(
+        'id, booking_number, client, eventdate, rigdaydate, rigdowndate, event_start_time, event_end_time, rig_start_time, rig_end_time, rigdown_start_time, rigdown_end_time',
+      )
+      .in('id', bookingIds);
+    if (bookingsErr) throw bookingsErr;
+    (bookingsData ?? []).forEach((b: any) => bookingsById.set(b.id, b));
+  }
 
   const staffById = new Map<string, { name: string; color: string | null }>();
   (staffRes.data ?? []).forEach((s: any) =>
@@ -82,6 +121,7 @@ export async function fetchDayReviewRows(
   type Bucket = {
     workEntries: ReviewWorkEntry[];
     travelSegments: ReviewTravelSegment[];
+    plannedJobs: PlannedJob[];
     workdayId: string | null;
     workdayStart: string | null;
     workdayEnd: string | null;
@@ -98,6 +138,7 @@ export async function fetchDayReviewRows(
       b = {
         workEntries: [],
         travelSegments: [],
+        plannedJobs: [],
         workdayId: null,
         workdayStart: null,
         workdayEnd: null,
@@ -113,12 +154,8 @@ export async function fetchDayReviewRows(
   for (const r of (reportsRes.data ?? []) as any[]) {
     if (!r.staff_id || !r.report_date) continue;
     const b = ensure(r.staff_id, r.report_date);
-    const start = r.start_time
-      ? `${r.report_date}T${String(r.start_time).slice(0, 8)}`
-      : null;
-    const end = r.end_time
-      ? `${r.report_date}T${String(r.end_time).slice(0, 8)}`
-      : null;
+    const start = r.start_time ? `${r.report_date}T${String(r.start_time).slice(0, 8)}` : null;
+    const end = r.end_time ? `${r.report_date}T${String(r.end_time).slice(0, 8)}` : null;
     b.workEntries.push({
       id: r.id,
       start_time: start,
@@ -132,12 +169,8 @@ export async function fetchDayReviewRows(
   for (const t of (travelRes.data ?? []) as any[]) {
     if (!t.staff_id || !t.report_date) continue;
     const b = ensure(t.staff_id, t.report_date);
-    const start = t.start_time
-      ? `${t.report_date}T${String(t.start_time).slice(0, 8)}`
-      : null;
-    const end = t.end_time
-      ? `${t.report_date}T${String(t.end_time).slice(0, 8)}`
-      : null;
+    const start = t.start_time ? `${t.report_date}T${String(t.start_time).slice(0, 8)}` : null;
+    const end = t.end_time ? `${t.report_date}T${String(t.end_time).slice(0, 8)}` : null;
     b.travelSegments.push({
       id: t.id,
       start_time: start,
@@ -163,16 +196,78 @@ export async function fetchDayReviewRows(
           : 'open';
   }
 
+  // Process planned assignments — these CREATE buckets for staff who are
+  // planned but haven't started a workday yet.
+  for (const a of (bsaRes.data ?? []) as any[]) {
+    if (!a.staff_id || !a.booking_id || !a.assignment_date) continue;
+    const booking = bookingsById.get(a.booking_id);
+    if (!booking) continue;
+    const date = a.assignment_date as string;
+    const phases: Array<[string | null, string | null]> = [
+      [booking.rigdaydate === date ? booking.rig_start_time : null,
+       booking.rigdaydate === date ? booking.rig_end_time : null],
+      [booking.eventdate === date ? booking.event_start_time : null,
+       booking.eventdate === date ? booking.event_end_time : null],
+      [booking.rigdowndate === date ? booking.rigdown_start_time : null,
+       booking.rigdowndate === date ? booking.rigdown_end_time : null],
+    ];
+    let earliest: number | null = null;
+    let latest: number | null = null;
+    for (const [s, e] of phases) {
+      if (s) {
+        const t = new Date(s).getTime();
+        if (!Number.isNaN(t) && (earliest === null || t < earliest)) earliest = t;
+      }
+      if (e) {
+        const t = new Date(e).getTime();
+        if (!Number.isNaN(t) && (latest === null || t > latest)) latest = t;
+      }
+    }
+    const startIso = earliest !== null ? new Date(earliest).toISOString() : null;
+    const endIso = latest !== null ? new Date(latest).toISOString() : null;
+    const minutes = startIso && endIso ? Math.max(0, Math.round((latest! - earliest!) / 60_000)) : 0;
+    const b = ensure(a.staff_id, date);
+    b.plannedJobs.push({
+      bookingId: a.booking_id,
+      bookingNumber: booking.booking_number ?? null,
+      client: booking.client ?? null,
+      role: a.role ?? null,
+      start: startIso,
+      end: endIso,
+      minutes,
+    });
+  }
+
   const rows: DayReviewRow[] = [];
   for (const [k, b] of buckets) {
     const [sid, date] = k.split('::');
     const meta = staffById.get(sid) ?? { name: 'Okänd', color: null };
+    let plannedStartMs: number | null = null;
+    let plannedEndMs: number | null = null;
+    let plannedMinutes = 0;
+    for (const job of b.plannedJobs) {
+      if (job.start) {
+        const t = new Date(job.start).getTime();
+        if (plannedStartMs === null || t < plannedStartMs) plannedStartMs = t;
+      }
+      if (job.end) {
+        const t = new Date(job.end).getTime();
+        if (plannedEndMs === null || t > plannedEndMs) plannedEndMs = t;
+      }
+      plannedMinutes += job.minutes;
+    }
+    const plannedStart = plannedStartMs !== null ? new Date(plannedStartMs).toISOString() : null;
+    const plannedEnd = plannedEndMs !== null ? new Date(plannedEndMs).toISOString() : null;
+
     const input: AdminTimeReviewInput = {
       workday: b.workdayStart
         ? { started_at: b.workdayStart, ended_at: b.workdayEnd }
         : null,
       workEntries: b.workEntries,
       travelSegments: b.travelSegments,
+      plannedStart,
+      plannedEnd,
+      plannedMinutes,
     };
     rows.push({
       staffId: sid,
@@ -184,6 +279,10 @@ export async function fetchDayReviewRows(
       workdayEnd: b.workdayEnd,
       workEntries: b.workEntries,
       travelSegments: b.travelSegments,
+      plannedJobs: b.plannedJobs,
+      plannedStart,
+      plannedEnd,
+      plannedMinutes,
       result: evaluateAdminTimeReview(input),
       reviewStatus: b.reviewStatus,
       approvedAt: b.approvedAt,
@@ -191,6 +290,8 @@ export async function fetchDayReviewRows(
     });
   }
 
-  rows.sort((a, b) => (a.date === b.date ? a.staffName.localeCompare(b.staffName) : b.date.localeCompare(a.date)));
+  rows.sort((a, b) =>
+    a.date === b.date ? a.staffName.localeCompare(b.staffName) : b.date.localeCompare(a.date),
+  );
   return rows;
 }

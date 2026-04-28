@@ -18,6 +18,10 @@ const baseRow = (overrides: Partial<DayReviewRow> = {}): DayReviewRow => ({
   workdayEnd: '2026-04-28T16:00:00.000Z',
   workEntries: [],
   travelSegments: [],
+  plannedJobs: [],
+  plannedStart: null,
+  plannedEnd: null,
+  plannedMinutes: 0,
   result: {
     metrics: {
       workdayMinutes: 540,
