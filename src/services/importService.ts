@@ -401,6 +401,15 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
 
     if (functionError) {
       console.error('Error calling import-bookings function:', functionError);
+
+      // Quiet background sync — swallow edge timeouts silently.
+      if (isEdgeTimeoutError(functionError)) {
+        return {
+          success: true,
+          results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 },
+        };
+      }
+
       return {
         success: false,
         error: `Import function error: ${functionError.message}`,
