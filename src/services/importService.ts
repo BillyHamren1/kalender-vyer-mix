@@ -17,12 +17,19 @@ import {
 const isEdgeTimeoutError = (err: unknown): boolean => {
   if (!err) return false;
   const msg = (err as { message?: string })?.message?.toLowerCase() ?? '';
-  const status = (err as { context?: { status?: number } })?.context?.status;
+  const ctx = (err as { context?: { status?: number; statusText?: string } })?.context;
+  const status = ctx?.status;
+  const statusText = (ctx?.statusText ?? '').toLowerCase();
+  // FunctionsHttpError wraps any non-2xx — treat ALL of them as "still running"
+  // for import-bookings since the server keeps processing past the 150s gateway cap.
   return (
     status === 504 ||
+    status === 408 ||
+    statusText.includes('timeout') ||
     msg.includes('idle_timeout') ||
     msg.includes('timeout') ||
-    msg.includes('non-2xx')
+    msg.includes('non-2xx') ||
+    msg.includes('functionshttperror')
   );
 };
 
@@ -206,10 +213,10 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
     const syncDurationMs = Date.now() - startTime;
 
     if (functionError) {
-      console.error('Error calling import-bookings function:', functionError);
-
       // Treat edge timeouts as "still running" — server keeps processing.
+      // Check FIRST so we don't trigger error boundaries via console.error.
       if (isEdgeTimeoutError(functionError)) {
+        console.info('[import-bookings] gateway timeout — sync continues in background');
         if (!silent) {
           toast.info('Synkroniseringen körs vidare i bakgrunden — det kan ta några minuter.', {
             duration: 4000,
@@ -221,6 +228,9 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
           error: 'background_processing',
         };
       }
+
+      console.error('Error calling import-bookings function:', functionError);
+
 
       await updateSyncState(syncType, {
         last_sync_status: 'failed',
@@ -400,15 +410,17 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
     );
 
     if (functionError) {
-      console.error('Error calling import-bookings function:', functionError);
-
-      // Quiet background sync — swallow edge timeouts silently.
+      // Quiet background sync — swallow edge timeouts silently (no console.error to avoid error boundaries).
       if (isEdgeTimeoutError(functionError)) {
+        console.info('[import-bookings] background sync still running on server (gateway timeout) — ignoring');
         return {
           success: true,
           results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 },
         };
       }
+
+      console.error('Error calling import-bookings function:', functionError);
+
 
       return {
         success: false,
