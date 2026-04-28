@@ -93,7 +93,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return completed.filter(p => {
-      if (statusFilter === 'active' && p.economyStatus === 'economy-closed') return false;
+      if (statusFilter === 'active' && (p.economyStatus === 'economy-closed' || p.status === 'completed')) return false;
       if (statusFilter !== 'all' && statusFilter !== 'active' && p.economyStatus !== statusFilter) return false;
       if (!q) return true;
       return p.name.toLowerCase().includes(q);
