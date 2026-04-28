@@ -247,14 +247,6 @@ const LargeProjectEconomyPage = () => {
         </CardContent>
       </Card>
 
-      {/* Budget Dialog */}
-      <BudgetDialog
-        open={budgetOpen}
-        onOpenChange={setBudgetOpen}
-        currentBudget={budget || null}
-        onSave={saveBudget}
-      />
-
       {/* Purchase Dialog (add/edit) */}
       <PurchaseDialog
         open={purchaseOpen}
@@ -288,60 +280,6 @@ const LargeProjectEconomyPage = () => {
     </div>
   );
 };
-
-/* ─── Budget Dialog ─── */
-function BudgetDialog({ open, onOpenChange, currentBudget, onSave }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  currentBudget: { budgeted_hours: number; hourly_rate: number; description: string | null } | null;
-  onSave: (d: { budgeted_hours: number; hourly_rate: number; description?: string }) => void;
-}) {
-  const [hours, setHours] = useState("");
-  const [rate, setRate] = useState("350");
-  const [desc, setDesc] = useState("");
-
-  const resetForm = () => {
-    if (currentBudget) {
-      setHours(currentBudget.budgeted_hours.toString());
-      setRate(currentBudget.hourly_rate.toString());
-      setDesc(currentBudget.description || "");
-    } else {
-      setHours(""); setRate("350"); setDesc("");
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) resetForm(); onOpenChange(o); }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Timbudget</DialogTitle></DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); onSave({ budgeted_hours: parseFloat(hours) || 0, hourly_rate: parseFloat(rate) || 350, description: desc || undefined }); onOpenChange(false); }} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Budgeterade timmar</Label>
-              <Input type="number" min="0" step="0.5" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="0" />
-            </div>
-            <div className="space-y-2">
-              <Label>Timpris (kr)</Label>
-              <Input type="number" min="0" step="1" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="350" />
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg text-center text-sm">
-            <span className="text-muted-foreground">Estimerad kostnad:</span>{" "}
-            <span className="font-bold">{fmt((parseFloat(hours) || 0) * (parseFloat(rate) || 0))}</span>
-          </div>
-          <div className="space-y-2">
-            <Label>Kommentar</Label>
-            <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="T.ex. baserat på 3 rigdagar..." rows={2} />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Avbryt</Button>
-            <Button type="submit">Spara</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /* ─── Purchase Dialog (add/edit) ─── */
 function PurchaseDialog({ open, onOpenChange, existing, onAdd, onUpdate }: {
