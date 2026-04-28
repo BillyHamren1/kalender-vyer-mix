@@ -433,20 +433,27 @@ const StaffTimeReports: React.FC = () => {
           segmentKind = 'location';
         }
 
-        const existing = a.projects.get(projectKey);
-        a.projects.set(projectKey, {
-          label: projectLabel,
-          is_open: (existing?.is_open || false) || isOpen,
-          total_hours: (existing?.total_hours || 0) + hours,
-        });
+        // Presence-only segments: show in timeline (so admin sees where the
+        // staff was) but with hours=0 so any per-project totals stay correct.
+        const segmentLabel = isPresenceOnly ? `Närvaro: ${projectLabel}` : projectLabel;
+        const segmentHours = isPresenceOnly ? 0 : hours;
+
+        if (!isPresenceOnly) {
+          const existing = a.projects.get(projectKey);
+          a.projects.set(projectKey, {
+            label: projectLabel,
+            is_open: (existing?.is_open || false) || isOpen,
+            total_hours: (existing?.total_hours || 0) + hours,
+          });
+        }
         a.segments.push({
           id: `lt:${e.id}`,
           kind: segmentKind,
-          label: projectLabel,
+          label: segmentLabel,
           start: e.entered_at,
           end: e.exited_at,
           isOpen,
-          hours,
+          hours: segmentHours,
         });
         byStaff.set(e.staff_id, a);
       }
