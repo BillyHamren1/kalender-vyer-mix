@@ -207,17 +207,31 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
 
     if (functionError) {
       console.error('Error calling import-bookings function:', functionError);
-      
+
+      // Treat edge timeouts as "still running" — server keeps processing.
+      if (isEdgeTimeoutError(functionError)) {
+        if (!silent) {
+          toast.info('Synkroniseringen körs vidare i bakgrunden — det kan ta några minuter.', {
+            duration: 4000,
+          });
+        }
+        return {
+          success: true,
+          results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 },
+          error: 'background_processing',
+        };
+      }
+
       await updateSyncState(syncType, {
         last_sync_status: 'failed',
-        metadata: { 
+        metadata: {
           error: functionError.message,
           sync_mode: syncMode,
           duration_ms: syncDurationMs,
           historical_mode: isHistoricalMode
         }
       });
-      
+
       return {
         success: false,
         error: `Import function error: ${functionError.message}`,
