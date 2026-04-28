@@ -90,6 +90,38 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(() => loadHidden());
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleStatusChange = async (
+    p: EconomyProjectInsight,
+    next: ProjectLifecycleStatus,
+  ) => {
+    const current = getProjectLifecycleStatus({ status: p.status, economyClosed: (p as any).economyClosed });
+    if (current === next) return;
+    setUpdatingId(p.id);
+    try {
+      const table = p.projectSize === 'large' ? 'large_projects' : 'projects';
+      const dbStatus = next === 'closed' ? 'completed' : next === 'cancelled' ? 'cancelled' : 'active';
+      const { error } = await supabase.from(table).update({ status: dbStatus }).eq('id', p.id);
+      if (error) throw error;
+
+      // If reopened, un-hide it locally
+      if (next === 'active' && hidden.has(p.id)) {
+        const newHidden = new Set(hidden);
+        newHidden.delete(p.id);
+        setHidden(newHidden);
+        saveHidden(newHidden);
+      }
+
+      toast.success(`Status ändrad till ${LIFECYCLE_STATUS_LABEL[next]}`);
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err: any) {
+      console.error('[CompletedProjectsList] status change failed', err);
+      toast.error('Kunde inte ändra status: ' + (err?.message ?? 'okänt fel'));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const completed = useMemo(() => {
     const today = new Date();
