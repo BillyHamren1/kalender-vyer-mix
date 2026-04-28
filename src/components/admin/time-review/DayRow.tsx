@@ -23,6 +23,12 @@ const initials = (name: string) =>
     .map((n) => n[0]?.toUpperCase() ?? '')
     .join('') || '?';
 
+const safeFormat = (value: string | null | undefined, pattern: string) => {
+  if (!value) return null;
+  const parsed = parseISO(value);
+  return Number.isNaN(parsed.getTime()) ? null : format(parsed, pattern, { locale: sv });
+};
+
 export interface DayRowProps {
   row: DayReviewRow;
   onClick: (row: DayReviewRow) => void;
@@ -31,6 +37,11 @@ export interface DayRowProps {
 export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
   const m = row.result.metrics;
   const status = row.result.status;
+  const dayLabel = safeFormat(`${row.date}T00:00:00`, 'EEEE d MMM') ?? row.date;
+  const workdayStartLabel = safeFormat(row.workdayStart, 'HH:mm');
+  const workdayEndLabel = safeFormat(row.workdayEnd, 'HH:mm');
+  const plannedStartLabel = safeFormat(row.plannedStart, 'HH:mm');
+  const plannedEndLabel = safeFormat(row.plannedEnd, 'HH:mm');
 
   const isPlannedOnly = !row.workdayStart && row.plannedJobs.length > 0;
   const accent =
@@ -86,20 +97,20 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
             )}
           </div>
           <p className="text-xs text-muted-foreground capitalize">
-            {format(parseISO(`${row.date}T00:00:00`), 'EEEE d MMM', { locale: sv })}
+            {dayLabel}
             {row.workdayStart ? (
               <>
                 <span className="mx-1.5">·</span>
-                {format(parseISO(row.workdayStart), 'HH:mm')}
-                {row.workdayEnd ? `–${format(parseISO(row.workdayEnd), 'HH:mm')}` : '– pågår'}
+                {workdayStartLabel ?? 'Okänd start'}
+                {row.workdayEnd ? `–${workdayEndLabel ?? 'okänt slut'}` : '– pågår'}
               </>
             ) : row.plannedStart ? (
               <>
                 <span className="mx-1.5">·</span>
                 <span className="inline-flex items-center gap-1 normal-case text-muted-foreground/80">
                   <CalendarClock className="w-3 h-3" />
-                  Planerad {format(parseISO(row.plannedStart), 'HH:mm')}
-                  {row.plannedEnd ? `–${format(parseISO(row.plannedEnd), 'HH:mm')}` : ''}
+                  Planerad {plannedStartLabel ?? 'okänd tid'}
+                  {row.plannedEnd ? `–${plannedEndLabel ?? 'okänd tid'}` : ''}
                 </span>
               </>
             ) : null}
@@ -127,8 +138,8 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
                     {job.bookingNumber ?? job.client ?? job.bookingId.slice(0, 6)}
                     {job.start && (
                       <span className="opacity-70">
-                        {format(parseISO(job.start), 'HH:mm')}
-                        {job.end ? `–${format(parseISO(job.end), 'HH:mm')}` : ''}
+                        {safeFormat(job.start, 'HH:mm') ?? 'okänd tid'}
+                        {job.end ? `–${safeFormat(job.end, 'HH:mm') ?? 'okänd tid'}` : ''}
                       </span>
                     )}
                   </span>
