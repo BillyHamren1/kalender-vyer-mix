@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
 import { updateBookingDatesViaApi } from '@/services/planningApiService';
-import { syncPhaseTime } from '@/services/timeSync';
 
 export const useBookingDates = (
   id: string | undefined,
@@ -221,6 +220,7 @@ export const useBookingDates = (
       try {
         const startISO = startTime ? `${newDate}T${startTime}:00Z` : null;
         const endISO   = endTime   ? `${newDate}T${endTime}:00Z`   : null;
+        const { syncPhaseTime } = await import('@/services/timeSync');
         const sync = await syncPhaseTime({
           bookingId: id,
           phase: dateType,
