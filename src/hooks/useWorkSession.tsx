@@ -54,12 +54,10 @@ import { useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import {
-  useGeofencing,
-  ActiveTimer,
-  haversineDistance,
-  ENTER_RADIUS,
-  getGpsSettings,
+  // useGeofencing is mounted ONCE by GeofencingProvider; we only consume context here.
+  // Direct useGeofencing() calls in feature code are forbidden — see GeofencingContext.tsx.
 } from '@/hooks/useGeofencing';
+import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import { useStopBreakDecision } from '@/hooks/useStopBreakDecision';
 import { takeVisits as takeProjectAddressVisits } from '@/lib/projectAddressVisits';
 import { shouldPromptForBreak } from '@/utils/breakPolicy';
