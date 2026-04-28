@@ -361,7 +361,9 @@ export function LargeProjectEditableCostList({
               <TableHead>Beskrivning</TableHead>
               <TableHead className="w-40">Leverantör</TableHead>
               <TableHead className="w-20 text-right">Tim</TableHead>
-              <TableHead className="w-32 text-right">Belopp</TableHead>
+              <TableHead className="w-28 text-right">Budget</TableHead>
+              <TableHead className="w-28 text-right">Faktiskt</TableHead>
+              <TableHead className="w-24 text-right">Diff</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -369,8 +371,15 @@ export function LargeProjectEditableCostList({
             {(['purchase', 'handling', 'assembly', 'other'] as CostCategory[]).map(renderCategory)}
             <TableRow className="border-t-2 bg-muted/40 font-bold">
               <TableCell />
-              <TableCell colSpan={4}>TOTAL KOSTNAD</TableCell>
-              <TableCell className="text-right tabular-nums">{fmt(grandTotal)}</TableCell>
+              <TableCell colSpan={4}>TOTALT</TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(grandBudget)}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmt(grandActual)}</TableCell>
+              <TableCell className={cn(
+                'text-right tabular-nums',
+                grandDiff < 0 ? 'text-red-600' : grandDiff > 0 ? 'text-green-600' : 'text-muted-foreground'
+              )}>
+                {fmt(grandDiff)}
+              </TableCell>
               <TableCell />
             </TableRow>
           </TableBody>
