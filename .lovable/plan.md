@@ -1,63 +1,96 @@
-## Problemet i klartext
 
-Armands "26h 53m" på 28 april består av:
-- **12,5h riktig arbetstid** på Lager-projektet (från `time_reports`)
-- **13,5h närvaro** på FA Warehouse (från `location_time_entries`)
+# Enhetligt Gantt ⇄ Personalkalender (alla projekt)
 
-Båda är samma fysiska tid på samma plats. Men admin-vyn lägger ihop dem som om han jobbat 26 timmar. Det är fel — närvarotimern är bara en passiv markör för "var i lagret", inte arbetad tid.
+## Mål
+Ett och samma Gantt-schema för **alla projekt** (medel + stora, med eller utan koppling till booking). Gantt visar exakt samma fas-rader som personalkalendern och håller dem i synk åt båda hållen. "Live"-kolumnen är borttagen från personalkalendern (per [Live Column Removed](mem://features/planning/live-column-removed-v1)) — det betyder att Gantt visar **Rigg** och **Demontering** per dag (eventdagen filtreras bort i personalkalendern).
 
-Samma sak händer för alla anställda som har en aktiv närvaro-timer parallellt med en projekt-/booking-timer. Det är därför "alla timmar är dubbelräknade".
+## Vad det ska se ut som
+Tre "swimlanes" i Gantt — `Riggning`, `Event`, `Demontering` — och under varje swimlane en stapel per planerad dag med dynamisk text:
 
-## Rotorsak
-
-I `src/pages/StaffTimeReports.tsx` finns redan en dedup-mekanism (rad 260–281) som ska hindra dubbelräkning. Men den fungerar bara när närvaro-raden har ett `booking_id`. För **presence-timrar** (vilket är default enligt projektets egna regler — se memory `location-timer-role-v1`) är `booking_id` alltid `NULL`, och då går dedupen inte igång → båda raderna räknas.
-
-Bevis från databasen för Armands 28 april:
-```
-location_time_entries: booking_id=NULL, FA Warehouse, 13h 27m
-time_reports:          booking_id=6fd6e6da (Lager), 12h 28m
+```text
+Riggning      [ Rigg dag 1 ][ Rigg dag 2 ][ Rigg dag 3 ]
+Event                                                      [ Event ]
+Demontering                                                          [ Demont. dag 1 ][ Demont. dag 2 ]
 ```
 
-## Fix
+- Varje stapel = en `calendar_events`-rad (en per dag/fas/syskon-booking).
+- Texten "Rigg dag N" räknas från första rig-dagen i projektet.
+- För stora projekt slås syskon-bookings samman per fas+datum (samma sannings­källa som [Phase Time Sync](mem://features/planning/phase-time-sync-v1) använder).
+- Eventdagen visas som en grå/ljusblå milstolpe i Gantt men är icke-redigerbar där (eftersom den inte längre ligger i personalkalendern).
 
-I `src/pages/StaffTimeReports.tsx`, loopen som processar `location_time_entries` (ungefär rad 369–443):
+## Tvåvägssync — kontrakt
 
-**Regel:** En `location_time_entry` med `booking_id = NULL` OCH `large_project_id = NULL` är en ren närvaro-rad. Den ska:
+| Åtgärd                                            | Effekt                                                                                          |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Drag stapel i Gantt (annan dag)                   | Uppdaterar `start_time` + `end_time` på motsvarande `calendar_events`-rader                     |
+| Resize stapel i Gantt                             | Uppdaterar tider på alla syskon i samma fas+datum via `timeSync.applyPhaseTime`                 |
+| Lägg till dag i Gantt (klicka "+")                | Skapar nya `calendar_events` (rig/rigDown) + uppdaterar `bookings.<phase>_*_time/date`          |
+| Ta bort dag i Gantt                               | Tar bort motsvarande `calendar_events`-rad (med bekräftelse)                                    |
+| Drag/resize i personalkalendern                   | Realtime `postgres_changes` på `calendar_events` → Gantt re-renderar utan reload                |
+| Tidsändring via "Phase Time Sync"-flödet          | Speglas direkt i Gantt (samma källa)                                                            |
 
-1. **INTE** adderas till `total_hours` (lönesumman)
-2. **INTE** öka `reports_count`
-3. Fortfarande visas som ett eget segment i tidslinjen, men märkt "Närvaro" så admin ser var personen varit
-4. Inte räknas som "öppen tidrapport" (`has_open_report`) — närvaron är passiv
+Allt skrivande går genom **`eventService.updateCalendarEvent`** + **`src/services/timeSync.ts`** (befintlig single-writer för fas-tider). Inget nytt sync-lager — vi byter bara källa för Gantt-vyn.
 
-Detta speglar exakt vad memory `location-timer-role-v1` redan säger: presence-LTE genererar **ingen time_report på stop**. Då ska den heller inte räknas som arbetad tid i admin-vyn.
+## Arkitektur — en Gantt, tre call-sites
 
-## Konkreta kodändringar
+### Ny komponent
+`src/components/project/UnifiedProjectGantt.tsx` (~250 rader)
+- Tar `projectId` (UUID) + valfritt `bookingId` som indata.
+- Hämtar `calendar_events` via befintlig `fetchEventsByBookingId` — för stora projekt loopas över alla syskon-bookings (`large_projects` → `bookings`).
+- Grupperar events per fas (`event_type`) + datum → swimlanes.
+- Renderar drag/resize via befintlig `react-day-picker`-style timeline (samma look som dagens `EstablishmentGanttChart`, så vi kan återanvända delar av dess CSS).
+- Lyssnar på Supabase Realtime för `calendar_events` filtrerat på de aktuella `booking_id`s.
+- Skriver via `eventService.updateCalendarEvent` + `timeSync.applyPhaseTime`.
 
-**Fil:** `src/pages/StaffTimeReports.tsx`
+### Hook
+`src/hooks/useProjectGanttEvents.ts` (~120 rader)
+- Resolver: tar `projectId` → returnerar lista av `bookingId`s (single eller multi för stora projekt) + standalone-fallback (`project-<uuid>` enligt `projectCalendarService`).
+- React Query-key: `['project-gantt', projectId]`.
+- Realtime-subscription registrerar på alla `booking_id`s och invalidaterar query.
 
-I loopen `for (const e of locationEntries as any[])`:
+### Ersätter
+- `src/components/project/EstablishmentGanttChart.tsx` (906 rader) — **ersätts**. Det gamla planerings­läget med `establishment_tasks` blir kvar som **separat** "Checklista/uppgifter"-sektion under Gantt (eftersom det inte är tider, utan TODOs). Inga data raderas.
+- `src/components/project/LargeProjectGanttChart.tsx` (179 rader) — **ersätts** av samma `UnifiedProjectGantt`.
+- `src/components/project/ProjectGanttChart.tsx` (322 rader, deadline-baserad) — **tas bort** från projekt-flikarna. Den var en parallell vy som inte längre behövs när Gantt = kalendern.
 
-- Lägg till tidigt i loopen: `const isPresenceOnly = !e.booking_id && !e.large_project_id;`
-- Hoppa över `a.total_hours += hours` när `isPresenceOnly`
-- Hoppa över `a.reports_count += 1` när `isPresenceOnly`
-- Hoppa över `a.has_open_report = true` när `isPresenceOnly`
-- Behåll segment-skapandet, men sätt `hours: 0` på presence-segmentet och en label som "Närvaro: {locationName}" så det syns i tidslinjen utan att förvränga summan
-- Tillåt fortfarande `earliest_start`/`latest_end` att uppdateras (så "från–till" på dagen blir rätt)
+### Call-sites som uppdateras
+- `src/pages/project/EstablishmentPage.tsx` → använd `UnifiedProjectGantt`
+- `src/pages/project/LargeEstablishmentPage.tsx` → använd `UnifiedProjectGantt`
+- `src/pages/project/LargeProjectViewPage.tsx` → använd `UnifiedProjectGantt` (ersätter "Projektschema"-kortet)
 
-## Vad som INTE ändras
+## Tekniska detaljer
 
-- Inga DB-migrationer
-- Ingen ändring i mobile-app eller timer-flödet
-- Ingen ändring i `time_reports` eller `location_time_entries` — datan är korrekt, det är bara visningen som dubbelräknat
-- Cron `close-stale-workday-entries` påverkas inte
-- Bilden visar fortfarande närvaro-raderna, men de räknas inte med i totalen
+**Datakälla (single source):** `calendar_events` filtrerade på `booking_id IN (...projektets bookings...)`. För standalone-projekt: `booking_id = 'project-<uuid>'` (befintlig konvention från `projectCalendarService.ts`).
 
-## Bonusfix (samtidigt)
+**Stora projekt — syskon-resolution:** Använd samma logik som `timeSync.ts` redan gör: hämta alla bookings under `large_project_id`, gruppera events per `(event_type, source_date)` och rendera *en* stapel per grupp. Klick → expanderar och visar vilka syskon-bookings som ingår.
 
-De 3 mini-raderna kl 20:31–20:33 (1 min vardera = 0,02h × 3) på `time_reports` är skräp från start/stopp-loopen vi diskuterade tidigare. Vi LÅTER dem ligga kvar — separat åtgärd. Den här ändringen handlar bara om dubbelräkningen mellan presence och work.
+**Dag-numrering:** "Rigg dag N" räknas på unika sorterade rig-datum i projektet (1-indexerat). Samma för Demontering. Event = ingen numrering (ofta 1 dag).
 
-## Test
+**Realtime:** En enda `supabase.channel('project-gantt-<projectId>')` med `postgres_changes`-filter `booking_id=in.(...)`. Auto-invalidate av React Query-key vid INSERT/UPDATE/DELETE. Följer [Realtime Event Invalidation](mem://infrastructure/realtime-event-driven-invalidation).
 
-Efter ändring: ladda om `/staff-management/time-reports` och kolla Armands kort för 28 april. Ska visa **~12,5h** istället för 26h 53m. Närvaro-raderna ska fortfarande synas som "Närvaro: FA Warehouse" men utan att påverka summan.
+**Skrivvägen:**
+- Drag/resize → `timeSync.applyPhaseTime(projectId, phase, date, startTime, endTime)` (sprider till alla syskon)
+- Add day → `eventService.addCalendarEvent` + uppdatera `bookings.<phase>date` via `planning-api-proxy` om bookingbaserat, annars via `projectCalendarService` för standalone.
+- Delete day → `eventService.deleteCalendarEvent` (med confirm-dialog).
 
-**Säg "kör" så genomför jag ändringen.**
+**Eventdagen (icke-redigerbar i Gantt):** Visas som markör eftersom den inte längre ligger i personalkalendern (per memory). Klick → öppnar projekt­detaljer för att ändra eventdate.
+
+**Filer som rörs:**
+- ➕ `src/components/project/UnifiedProjectGantt.tsx`
+- ➕ `src/hooks/useProjectGanttEvents.ts`
+- ✏️ `src/pages/project/EstablishmentPage.tsx`
+- ✏️ `src/pages/project/LargeEstablishmentPage.tsx`
+- ✏️ `src/pages/project/LargeProjectViewPage.tsx`
+- 🗑️ `src/components/project/EstablishmentGanttChart.tsx` (ersätts)
+- 🗑️ `src/components/project/LargeProjectGanttChart.tsx` (ersätts)
+- 🗑️ `src/components/project/ProjectGanttChart.tsx` (tas bort från projektvyn)
+- ⚠️ `establishment_tasks` (DB) lämnas orörd — checklistan kan flyttas till en separat "Uppgifter"-sektion i samma flik om du vill, säg till.
+
+**Memory som uppdateras efter implementation:** Ny memory `mem://features/projects/unified-gantt-calendar-sync-v1` som låser regeln "Ett Gantt = personalkalendern, gäller alla projekt".
+
+## Frågor du redan svarat på
+- ✅ Vilket Gantt: **båda** (medel + stora) — enhetligt.
+- 🟡 Sync-riktning: Jag antar **båda riktningar** (drag i Gantt → kalender, drag i kalender → Gantt) eftersom det var det du beskrev ("tvåvägssync"). Säg till om du bara vill ha en riktning.
+- 🟡 Dag-indelning: Jag antar **en stapel per dag och fas** med text "Rigg dag 1, dag 2…" eftersom det var ditt exempel. Säg till om du hellre vill ha en lång stapel som spänner alla dagar.
+
+Godkänn så bygger jag.
