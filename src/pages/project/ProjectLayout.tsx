@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
   { key: "execution", label: "Utförande", icon: HardHat, path: "/execution", emphasis: true },
-  { key: "economy", label: "Projektekonomi", icon: Wallet, path: "/economy" },
+  { key: "economy", label: "Projektutvärdering", icon: Wallet, path: "/economy" },
 ];
 
 const ProjectLayout = () => {

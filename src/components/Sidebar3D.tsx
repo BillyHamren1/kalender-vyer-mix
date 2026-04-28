@@ -43,6 +43,7 @@ const baseNavigationItems: NavItem[] = [
     children: [
       { title: "Mina projekt", url: "/my-projects" },
       { title: "Under slutförande", url: "/projects/closing", icon: AlertCircle },
+      { title: "Projektutvärdering", url: "/economy", icon: Wallet },
     ],
   },
   {
