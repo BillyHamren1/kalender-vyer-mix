@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ChevronDown, ChevronRight, Package, Users, ShoppingCart, FileText, Receipt,
-  Plus, Save, X, Pencil, Trash2,
+  Plus, Save, X, Pencil, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLargeProjectBookingLabel } from '@/lib/largeProjectBookingLabel';
