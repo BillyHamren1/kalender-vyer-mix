@@ -129,16 +129,12 @@ export const useLargeProjectEconomy = (
           console.warn(`${TAG} Booking ${bId}: missing product_costs.summary, using local fallback (rev: ${localRev})`);
         }
       }
-      // Staff/time
-      const tr = bd.time_reports;
-      if (Array.isArray(tr)) {
-        tr.forEach((r: any) => {
-          totalStaffCost += r.total_cost || 0;
-          totalActualHours += (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
-        });
-      } else if (tr !== undefined) {
-        console.warn(`${TAG} Booking ${bId}: time_reports is not an array`, typeof tr);
-      }
+      // Staff/time — use LOCAL time_reports (single source of truth, same as normal projects)
+      const localTr = timeReportsByBooking[bId] || [];
+      localTr.forEach((r) => {
+        totalStaffCost += r.total_cost || 0;
+        totalActualHours += (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
+      });
       // Purchases
       const pu = bd.purchases;
       if (Array.isArray(pu)) {
