@@ -47,7 +47,7 @@ export async function fetchDayReviewRows(
   const toIso = next.toISOString();
 
   const [staffRes, reportsRes, travelRes, workdaysRes] = await Promise.all([
-    supabase.from('staff').select('id, name, color'),
+    supabase.from('staff_members').select('id, name, color'),
     supabase
       .from('time_reports')
       .select('id, staff_id, report_date, start_time, end_time, hours_worked, is_subdivision, status, booking_id')
