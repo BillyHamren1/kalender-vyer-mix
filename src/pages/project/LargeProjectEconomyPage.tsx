@@ -112,6 +112,7 @@ const LargeProjectEconomyPage = () => {
         lines={lines}
         bookingEconomyData={bookingEconomyData}
         timeReportsByBooking={timeReportsByBooking}
+        localProducts={localProducts}
         addLine={addLine}
         updateLine={updateLine}
         removeLine={removeLine}
