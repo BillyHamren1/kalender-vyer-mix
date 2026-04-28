@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
@@ -18,10 +17,9 @@ const tabTriggerClass =
 
 const LargeProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
-  const [isGanttSetupOpen, setIsGanttSetupOpen] = useState(false);
   const navigate = useNavigate();
 
-  const { project, tasks, files, ganttSteps } = detail;
+  const { project, tasks, files } = detail;
 
   // Get first booking ID for transport (large projects may have multiple)
   const bookingId = (project as any)?.bookings?.[0]?.booking_id || null;
