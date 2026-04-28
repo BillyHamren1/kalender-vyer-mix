@@ -82,9 +82,12 @@ export async function fetchDayReviewRows(
   type Bucket = {
     workEntries: ReviewWorkEntry[];
     travelSegments: ReviewTravelSegment[];
+    workdayId: string | null;
     workdayStart: string | null;
     workdayEnd: string | null;
     reviewStatus: 'open' | 'needs_review' | 'approved';
+    approvedAt: string | null;
+    approvedBy: string | null;
   };
   const key = (sid: string, date: string) => `${sid}::${date}`;
   const buckets = new Map<string, Bucket>();
@@ -95,9 +98,12 @@ export async function fetchDayReviewRows(
       b = {
         workEntries: [],
         travelSegments: [],
+        workdayId: null,
         workdayStart: null,
         workdayEnd: null,
         reviewStatus: 'open',
+        approvedAt: null,
+        approvedBy: null,
       };
       buckets.set(k, b);
     }
