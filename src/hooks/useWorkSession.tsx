@@ -54,12 +54,16 @@ import { useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import {
-  useGeofencing,
-  ActiveTimer,
+  // NOTE: `useGeofencing` is intentionally NOT imported here.
+  // The hook is mounted ONCE by <GeofencingProvider>; this file consumes the
+  // shared instance via useGeofencingContext(). Direct useGeofencing() calls
+  // in feature code re-introduce the multi-GPS-watcher crash.
   haversineDistance,
   ENTER_RADIUS,
   getGpsSettings,
+  type ActiveTimer,
 } from '@/hooks/useGeofencing';
+import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import { useStopBreakDecision } from '@/hooks/useStopBreakDecision';
 import { takeVisits as takeProjectAddressVisits } from '@/lib/projectAddressVisits';
 import { shouldPromptForBreak } from '@/utils/breakPolicy';
@@ -217,7 +221,7 @@ export function useWorkSession(
   bookings: MobileBooking[],
   staffId?: string,
 ) {
-  const geo = useGeofencing(bookings, staffId);
+  const geo = useGeofencingContext();
   const breakDecision = useStopBreakDecision();
 
   const {
