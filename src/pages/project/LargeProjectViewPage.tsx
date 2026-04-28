@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
@@ -7,9 +6,8 @@ import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
-import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
-import { LargeProjectGanttChart } from "@/components/project/LargeProjectGanttChart";
 import LargeProjectTeam from "@/components/project/LargeProjectTeam";
+import UnifiedProjectGantt from "@/components/project/UnifiedProjectGantt";
 
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
@@ -19,10 +17,9 @@ const tabTriggerClass =
 
 const LargeProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
-  const [isGanttSetupOpen, setIsGanttSetupOpen] = useState(false);
   const navigate = useNavigate();
 
-  const { project, tasks, files, ganttSteps } = detail;
+  const { project, tasks, files } = detail;
 
   // Get first booking ID for transport (large projects may have multiple)
   const bookingId = (project as any)?.bookings?.[0]?.booking_id || null;
@@ -102,22 +99,7 @@ const LargeProjectViewPage = () => {
         </TabsContent>
 
         <TabsContent value="gantt">
-          {isGanttSetupOpen || ganttSteps.length === 0 ? (
-            <LargeProjectGanttSetup
-              largeProjectId={project.id}
-              existingSteps={ganttSteps.length > 0 ? ganttSteps : undefined}
-              onSave={async (steps) => {
-                detail.saveGantt(steps);
-                setIsGanttSetupOpen(false);
-              }}
-              onCancel={ganttSteps.length > 0 ? () => setIsGanttSetupOpen(false) : undefined}
-            />
-          ) : (
-            <LargeProjectGanttChart
-              steps={ganttSteps}
-              onEdit={() => setIsGanttSetupOpen(true)}
-            />
-          )}
+          <UnifiedProjectGantt projectId={project.id} isLargeProject={true} />
         </TabsContent>
 
         <TabsContent value="files">
