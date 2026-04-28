@@ -67,7 +67,7 @@ export const getEventColor = (eventType: string | undefined): string => {
     case 'transport':
       return '#BFDBFE'; // Light blue (matches delivery)
     default:
-      return '#6b7280'; // gray-500
+      return '#DBEAFE'; // Light blue (blue-100)
   }
 };
 
