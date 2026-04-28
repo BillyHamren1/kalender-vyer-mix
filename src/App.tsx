@@ -24,41 +24,41 @@ import ProjectLayout from "./pages/project/ProjectLayout";
 import LargeProjectLayout from "./pages/project/LargeProjectLayout";
 
 // Main system pages — lazy
-const InvoicingPage = lazy(() => import("./pages/InvoicingPage"));
-const CustomCalendarPage = lazy(() => import("./pages/CustomCalendarPage"));
-const StaffManagement = lazy(() => import("./pages/StaffManagement"));
-const TimeReportApprovals = lazy(() => import("./pages/TimeReportApprovals"));
-const StaffTimeReports = lazy(() => import("./pages/StaffTimeReports"));
-const AdminTimeReview = lazy(() => import("./pages/AdminTimeReview"));
-const StaffDetail = lazy(() => import("./pages/StaffDetail"));
-const BookingDetail = lazy(() => import("./pages/BookingDetail"));
-const BookingList = lazy(() => import("./pages/BookingList"));
-const ProjectManagement = lazy(() => import("./pages/ProjectManagement"));
-const ProjectArchive = lazy(() => import("./pages/ProjectArchive"));
-const ProjectClosing = lazy(() => import("./pages/ProjectClosing"));
-const ProjectViewPage = lazy(() => import("./pages/project/ProjectViewPage"));
-const EstablishmentPage = lazy(() => import("./pages/project/EstablishmentPage"));
-const ProjectEconomyPage = lazy(() => import("./pages/project/ProjectEconomyPage"));
-const LargeProjectViewPage = lazy(() => import("./pages/project/LargeProjectViewPage"));
-const LargeEstablishmentPage = lazy(() => import("./pages/project/LargeEstablishmentPage"));
-const LargeProjectEconomyPage = lazy(() => import("./pages/project/LargeProjectEconomyPage"));
-const LargeCollaborationPage = lazy(() => import("./pages/project/LargeCollaborationPage"));
-const EconomyOverview = lazy(() => import("./pages/EconomyOverview"));
-const AnalyticsDashboard = lazy(() => import("./pages/AnalyticsDashboard"));
-const ProjectEconomyDetail = lazy(() => import("./pages/ProjectEconomyDetail"));
-const StaffRevenueOverview = lazy(() => import("./pages/StaffRevenueOverview"));
-const JobDetail = lazy(() => import("./pages/JobDetail"));
-const APIDocumentation = lazy(() => import("./pages/APIDocumentation"));
-const StaffDashboard = lazy(() => import("./pages/StaffDashboard"));
-const CommunicationPage = lazy(() => import("./pages/CommunicationPage"));
-const OpsControlCenter = lazy(() => import("./pages/OpsControlCenter"));
-const SyncReconciliation = lazy(() => import("./pages/SyncReconciliation"));
-const StaffLiveDebug = lazy(() => import("./pages/admin/StaffLiveDebug"));
-const LegacyIncomingPackingDebug = lazy(() => import("./pages/admin/LegacyIncomingPackingDebug"));
-const TransportResponse = lazy(() => import("./pages/TransportResponse"));
+const InvoicingPage = lazyWithRecovery(() => import("./pages/InvoicingPage"));
+const CustomCalendarPage = lazyWithRecovery(() => import("./pages/CustomCalendarPage"));
+const StaffManagement = lazyWithRecovery(() => import("./pages/StaffManagement"));
+const TimeReportApprovals = lazyWithRecovery(() => import("./pages/TimeReportApprovals"));
+const StaffTimeReports = lazyWithRecovery(() => import("./pages/StaffTimeReports"));
+const AdminTimeReview = lazyWithRecovery(() => import("./pages/AdminTimeReview"));
+const StaffDetail = lazyWithRecovery(() => import("./pages/StaffDetail"));
+const BookingDetail = lazyWithRecovery(() => import("./pages/BookingDetail"));
+const BookingList = lazyWithRecovery(() => import("./pages/BookingList"));
+const ProjectManagement = lazyWithRecovery(() => import("./pages/ProjectManagement"));
+const ProjectArchive = lazyWithRecovery(() => import("./pages/ProjectArchive"));
+const ProjectClosing = lazyWithRecovery(() => import("./pages/ProjectClosing"));
+const ProjectViewPage = lazyWithRecovery(() => import("./pages/project/ProjectViewPage"));
+const EstablishmentPage = lazyWithRecovery(() => import("./pages/project/EstablishmentPage"));
+const ProjectEconomyPage = lazyWithRecovery(() => import("./pages/project/ProjectEconomyPage"));
+const LargeProjectViewPage = lazyWithRecovery(() => import("./pages/project/LargeProjectViewPage"));
+const LargeEstablishmentPage = lazyWithRecovery(() => import("./pages/project/LargeEstablishmentPage"));
+const LargeProjectEconomyPage = lazyWithRecovery(() => import("./pages/project/LargeProjectEconomyPage"));
+const LargeCollaborationPage = lazyWithRecovery(() => import("./pages/project/LargeCollaborationPage"));
+const EconomyOverview = lazyWithRecovery(() => import("./pages/EconomyOverview"));
+const AnalyticsDashboard = lazyWithRecovery(() => import("./pages/AnalyticsDashboard"));
+const ProjectEconomyDetail = lazyWithRecovery(() => import("./pages/ProjectEconomyDetail"));
+const StaffRevenueOverview = lazyWithRecovery(() => import("./pages/StaffRevenueOverview"));
+const JobDetail = lazyWithRecovery(() => import("./pages/JobDetail"));
+const APIDocumentation = lazyWithRecovery(() => import("./pages/APIDocumentation"));
+const StaffDashboard = lazyWithRecovery(() => import("./pages/StaffDashboard"));
+const CommunicationPage = lazyWithRecovery(() => import("./pages/CommunicationPage"));
+const OpsControlCenter = lazyWithRecovery(() => import("./pages/OpsControlCenter"));
+const SyncReconciliation = lazyWithRecovery(() => import("./pages/SyncReconciliation"));
+const StaffLiveDebug = lazyWithRecovery(() => import("./pages/admin/StaffLiveDebug"));
+const LegacyIncomingPackingDebug = lazyWithRecovery(() => import("./pages/admin/LegacyIncomingPackingDebug"));
+const TransportResponse = lazyWithRecovery(() => import("./pages/TransportResponse"));
 
 // Logistics pages
-const LogisticsHub = lazy(() => import("./pages/LogisticsHub"));
+const LogisticsHub = lazyWithRecovery(() => import("./pages/LogisticsHub"));
 
 // Layouts — eager
 import MainSystemLayout from "@/components/layouts/MainSystemLayout";
@@ -69,42 +69,42 @@ import TimeAppShell from "@/shells/TimeAppShell";
 import ScannerAppShell from "@/shells/ScannerAppShell";
 
 // Warehouse system pages — lazy
-const WarehouseDashboard = lazy(() => import("./pages/WarehouseDashboard"));
-const WarehouseCalendarPage = lazy(() => import("./pages/WarehouseCalendarPage"));
-const PackingManagement = lazy(() => import("./pages/PackingManagement"));
-const PackingDetail = lazy(() => import("./pages/PackingDetail"));
-const WarehouseProjectDetail = lazy(() => import("./pages/WarehouseProjectDetail"));
-const PackingVerify = lazy(() => import("./pages/PackingVerify"));
-const WarehouseEconomy = lazy(() => import("./pages/WarehouseEconomy"));
-const WarehouseInventoryPlaceholder = lazy(() => import("./pages/WarehouseInventoryPlaceholder"));
-const WarehouseServicePlaceholder = lazy(() => import("./pages/WarehouseServicePlaceholder"));
+const WarehouseDashboard = lazyWithRecovery(() => import("./pages/WarehouseDashboard"));
+const WarehouseCalendarPage = lazyWithRecovery(() => import("./pages/WarehouseCalendarPage"));
+const PackingManagement = lazyWithRecovery(() => import("./pages/PackingManagement"));
+const PackingDetail = lazyWithRecovery(() => import("./pages/PackingDetail"));
+const WarehouseProjectDetail = lazyWithRecovery(() => import("./pages/WarehouseProjectDetail"));
+const PackingVerify = lazyWithRecovery(() => import("./pages/PackingVerify"));
+const WarehouseEconomy = lazyWithRecovery(() => import("./pages/WarehouseEconomy"));
+const WarehouseInventoryPlaceholder = lazyWithRecovery(() => import("./pages/WarehouseInventoryPlaceholder"));
+const WarehouseServicePlaceholder = lazyWithRecovery(() => import("./pages/WarehouseServicePlaceholder"));
 
 // Mobile staff app pages (web mode only — native uses shells)
 import { MobileAuthProvider } from "@/contexts/MobileAuthContext";
 import MobileProtectedRoute from "@/components/mobile-app/MobileProtectedRoute";
 import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
 import PlannerOnlyRoute from "@/components/mobile-app/PlannerOnlyRoute";
-const MobileLogin = lazy(() => import("./pages/mobile/MobileLogin"));
-const MobileJobs = lazy(() => import("./pages/mobile/MobileJobs"));
-const MobileJobDetail = lazy(() => import("./pages/mobile/MobileJobDetail"));
-const MobileProjectDetail = lazy(() => import("./pages/mobile/MobileProjectDetail"));
-const MobileLocationDetail = lazy(() => import("./pages/mobile/MobileLocationDetail"));
-const MobileTimeReport = lazy(() => import("./pages/mobile/MobileTimeReport"));
-const MobileEditTimeReport = lazy(() => import("./pages/mobile/MobileEditTimeReport"));
-const MobileExpenses = lazy(() => import("./pages/mobile/MobileExpenses"));
-const MobileProfile = lazy(() => import("./pages/mobile/MobileProfile"));
-const MobileTimeHistory = lazy(() => import("./pages/mobile/MobileTimeHistory"));
-const MobileInbox = lazy(() => import("./pages/mobile/MobileInbox"));
-const MobileMyFlags = lazy(() => import("./pages/mobile/MobileMyFlags"));
-const MobileDayReview = lazy(() => import("./pages/mobile/MobileDayReview"));
-const MobileCompleteJob = lazy(() => import("./pages/mobile/MobileCompleteJob"));
-const MobileOverview = lazy(() => import("./pages/mobile/MobileOverview"));
-const MobileScannerApp = lazy(() => import("./pages/MobileScannerApp"));
-const ScannerLogin = lazy(() => import("./pages/scanner/ScannerLogin"));
+const MobileLogin = lazyWithRecovery(() => import("./pages/mobile/MobileLogin"));
+const MobileJobs = lazyWithRecovery(() => import("./pages/mobile/MobileJobs"));
+const MobileJobDetail = lazyWithRecovery(() => import("./pages/mobile/MobileJobDetail"));
+const MobileProjectDetail = lazyWithRecovery(() => import("./pages/mobile/MobileProjectDetail"));
+const MobileLocationDetail = lazyWithRecovery(() => import("./pages/mobile/MobileLocationDetail"));
+const MobileTimeReport = lazyWithRecovery(() => import("./pages/mobile/MobileTimeReport"));
+const MobileEditTimeReport = lazyWithRecovery(() => import("./pages/mobile/MobileEditTimeReport"));
+const MobileExpenses = lazyWithRecovery(() => import("./pages/mobile/MobileExpenses"));
+const MobileProfile = lazyWithRecovery(() => import("./pages/mobile/MobileProfile"));
+const MobileTimeHistory = lazyWithRecovery(() => import("./pages/mobile/MobileTimeHistory"));
+const MobileInbox = lazyWithRecovery(() => import("./pages/mobile/MobileInbox"));
+const MobileMyFlags = lazyWithRecovery(() => import("./pages/mobile/MobileMyFlags"));
+const MobileDayReview = lazyWithRecovery(() => import("./pages/mobile/MobileDayReview"));
+const MobileCompleteJob = lazyWithRecovery(() => import("./pages/mobile/MobileCompleteJob"));
+const MobileOverview = lazyWithRecovery(() => import("./pages/mobile/MobileOverview"));
+const MobileScannerApp = lazyWithRecovery(() => import("./pages/MobileScannerApp"));
+const ScannerLogin = lazyWithRecovery(() => import("./pages/scanner/ScannerLogin"));
 import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
 
 // EconomyTimeReports (used inside MainSystemLayout pages)
-const EconomyTimeReports = lazy(() => import("./pages/EconomyTimeReports"));
+const EconomyTimeReports = lazyWithRecovery(() => import("./pages/EconomyTimeReports"));
 
 const queryClient = new QueryClient();
 
