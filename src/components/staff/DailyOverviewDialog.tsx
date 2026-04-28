@@ -73,6 +73,12 @@ function toHHMM(value: string | null | undefined): string {
   return value.length >= 5 ? value.slice(0, 5) : value;
 }
 
+function formatDialogDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return format(parsed, 'EEEE d MMMM yyyy', { locale: sv });
+}
+
 export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   open,
   onOpenChange,
@@ -463,7 +469,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <DialogTitle className="flex items-center gap-2 flex-wrap">
               <Navigation className="h-5 w-5 text-primary" />
-              <span>Dagöversikt — {format(new Date(date), 'EEEE d MMMM yyyy', { locale: sv })}</span>
+              <span>Dagöversikt — {formatDialogDate(date)}</span>
               <span className="text-sm font-normal text-muted-foreground">· {staffName}</span>
             </DialogTitle>
             {reviewRow && (
