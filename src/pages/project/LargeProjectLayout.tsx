@@ -26,7 +26,7 @@ const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
   { key: "establishment", label: "Planering", icon: HardHat, path: "/establishment" },
   { key: "collaboration", label: "Samarbete", icon: MessageSquare, path: "/collaboration" },
-  { key: "economy", label: "Projektekonomi", icon: Wallet, path: "/economy" },
+  { key: "economy", label: "Projektutvärdering", icon: Wallet, path: "/economy" },
 ];
 
 const LargeProjectLayout = () => {
