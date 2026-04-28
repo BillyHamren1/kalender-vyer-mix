@@ -100,6 +100,17 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
           />
         </div>
 
+        {/* Approval action — stop propagation so click doesn't open dialog */}
+        <div className="hidden lg:flex shrink-0" onClick={(e) => e.stopPropagation()}>
+          <DayApprovalAction
+            workdayId={row.workdayId}
+            workday={row.workdayStart ? { started_at: row.workdayStart, ended_at: row.workdayEnd } : null}
+            result={row.result}
+            reviewStatus={row.reviewStatus}
+            variant="compact"
+          />
+        </div>
+
         <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-foreground transition-colors shrink-0" />
       </div>
 
