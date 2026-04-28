@@ -43,13 +43,31 @@ interface Props {
   projectInsights: EconomyProjectInsight[];
 }
 
-// Excludes 'economy-closed' — closed projects disappear from this list.
 const COMPLETED_STATUSES: EconomyProjectInsight['economyStatus'][] = [
   'event-completed',
   'ready-for-invoicing',
   'partially-invoiced',
   'fully-invoiced',
+  'economy-closed',
 ];
+
+const HIDDEN_KEY = 'completed_projects_hidden_v1';
+
+const loadHidden = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw));
+  } catch {
+    return new Set();
+  }
+};
+
+const saveHidden = (ids: Set<string>) => {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(ids)));
+  } catch { /* ignore */ }
+};
 
 const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const navigate = useNavigate();
@@ -61,18 +79,19 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(() => loadHidden());
 
   const completed = useMemo(() => {
     const today = new Date();
     return projectInsights
-      .filter(p => COMPLETED_STATUSES.includes(p.economyStatus) && p.status !== 'completed')
+      .filter(p => COMPLETED_STATUSES.includes(p.economyStatus) && !hidden.has(p.id))
       .map(p => {
         const eventDate = p.eventdate ? new Date(p.eventdate) : null;
         const daysSince = eventDate ? differenceInDays(today, eventDate) : -1;
         return { ...p, _daysSince: daysSince, _eventDate: eventDate };
       })
       .sort((a, b) => b._daysSince - a._daysSince);
-  }, [projectInsights]);
+  }, [projectInsights, hidden]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -123,12 +142,15 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
 
     for (const p of items) {
       try {
-        const table = p.projectSize === 'large' ? 'large_projects' : 'projects';
-        const { error } = await supabase
-          .from(table)
-          .update({ status: 'completed' })
-          .eq('id', p.id);
-        if (error) throw error;
+        // Only push status update for projects that aren't already completed in DB.
+        if (p.status !== 'completed') {
+          const table = p.projectSize === 'large' ? 'large_projects' : 'projects';
+          const { error } = await supabase
+            .from(table)
+            .update({ status: 'completed' })
+            .eq('id', p.id);
+          if (error) throw error;
+        }
         success++;
       } catch (err) {
         console.error('[CompletedProjectsList] close failed for', p.id, err);
@@ -136,13 +158,19 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
       }
     }
 
+    // Hide successfully closed projects from this list (persistent via localStorage).
+    const newHidden = new Set(hidden);
+    items.forEach(p => newHidden.add(p.id));
+    setHidden(newHidden);
+    saveHidden(newHidden);
+
     setIsClosing(false);
     setConfirmOpen(false);
     setSelectedIds(new Set());
     setSelectMode(false);
 
     if (success > 0) {
-      toast.success(`${success} projekt stängdes`);
+      toast.success(`${success} projekt stängdes och dolda från listan`);
       queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
     }
     if (failed > 0) {
