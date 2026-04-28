@@ -408,9 +408,9 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                         ? productSummary.revenue
                         : localRevenueTotal;
 
-                      // Compute local costs from local products
+                      // Compute local costs from local products (per-styck × antal)
                       const localCostsTotal = bookingLocalProducts.reduce((s, lp) =>
-                        s + (lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0), 0);
+                        s + ((lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0)) * (Number(lp.quantity) || 1), 0);
                       const displayProductCosts = (productSummary?.costs && productSummary.costs > 0)
                         ? productSummary.costs
                         : localCostsTotal;
