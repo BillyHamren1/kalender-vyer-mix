@@ -252,6 +252,7 @@ export const useLargeProjectEconomy = (
     summary,
     bookingEconomyData: bookingEconomyData || null,
     localProducts,
+    timeReportsByBooking,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
     addPurchase: addPurchaseMutation.mutate,
