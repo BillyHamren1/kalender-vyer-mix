@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   AlertDialog,
@@ -15,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Search, CheckSquare, X, Loader2 } from 'lucide-react';
+import { Search, CheckSquare, X, Loader2, ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { format, differenceInDays } from 'date-fns';
@@ -89,6 +90,38 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(() => loadHidden());
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleStatusChange = async (
+    p: EconomyProjectInsight,
+    next: ProjectLifecycleStatus,
+  ) => {
+    const current = getProjectLifecycleStatus({ status: p.status, economyClosed: (p as any).economyClosed });
+    if (current === next) return;
+    setUpdatingId(p.id);
+    try {
+      const table = p.projectSize === 'large' ? 'large_projects' : 'projects';
+      const dbStatus = next === 'closed' ? 'completed' : next === 'cancelled' ? 'cancelled' : 'active';
+      const { error } = await supabase.from(table).update({ status: dbStatus }).eq('id', p.id);
+      if (error) throw error;
+
+      // If reopened, un-hide it locally
+      if (next === 'active' && hidden.has(p.id)) {
+        const newHidden = new Set(hidden);
+        newHidden.delete(p.id);
+        setHidden(newHidden);
+        saveHidden(newHidden);
+      }
+
+      toast.success(`Status ändrad till ${LIFECYCLE_STATUS_LABEL[next]}`);
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err: any) {
+      console.error('[CompletedProjectsList] status change failed', err);
+      toast.error('Kunde inte ändra status: ' + (err?.message ?? 'okänt fel'));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const completed = useMemo(() => {
     const today = new Date();
@@ -316,11 +349,46 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                         <TableCell className="py-5 align-middle text-sm text-muted-foreground tabular-nums">
                           {dateLabel}
                         </TableCell>
-                        <TableCell className="py-5 align-middle">
-                          <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium', STATUS_PILL_CLASS[lifecycle])}>
-                            <span className={cn('inline-block h-1.5 w-1.5 rounded-full', STATUS_DOT_CLASS[lifecycle])} />
-                            {statusLabel}
-                          </span>
+                        <TableCell className="py-5 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                disabled={updatingId === p.id}
+                                className={cn(
+                                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:brightness-95 disabled:opacity-60',
+                                  STATUS_PILL_CLASS[lifecycle],
+                                )}
+                              >
+                                <span className={cn('inline-block h-1.5 w-1.5 rounded-full', STATUS_DOT_CLASS[lifecycle])} />
+                                {statusLabel}
+                                {updatingId === p.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin ml-0.5" />
+                                ) : (
+                                  <ChevronDown className="h-3 w-3 ml-0.5 opacity-70" />
+                                )}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-44 p-1">
+                              {(['active', 'closed', 'cancelled'] as ProjectLifecycleStatus[]).map((opt) => {
+                                const isCurrent = opt === lifecycle;
+                                return (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => handleStatusChange(p, opt)}
+                                    className="w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted text-left"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className={cn('inline-block h-1.5 w-1.5 rounded-full', STATUS_DOT_CLASS[opt])} />
+                                      {LIFECYCLE_STATUS_LABEL[opt]}
+                                    </span>
+                                    {isCurrent && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
+                                  </button>
+                                );
+                              })}
+                            </PopoverContent>
+                          </Popover>
                         </TableCell>
                         <TableCell className="py-5 align-middle text-right tabular-nums font-semibold text-sm pr-6">
                           {formatCurrency(p.quotedAmount)}
