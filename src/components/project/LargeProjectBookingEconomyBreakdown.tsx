@@ -650,7 +650,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                     </Section>
                                   )}
 
-                                  {products.length === 0 && timeReports.length === 0 && purchases.length === 0 && invoices.length === 0 && supplierInvoices.length === 0 && (
+                                  {products.length === 0 && bookingLocalProducts.length === 0 && timeReports.length === 0 && purchases.length === 0 && invoices.length === 0 && supplierInvoices.length === 0 && (
                                     <p className="text-xs text-muted-foreground text-center py-4">Ingen detaljerad data tillgänglig</p>
                                   )}
                                 </div>
