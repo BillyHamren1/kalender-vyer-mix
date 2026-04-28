@@ -13,12 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Plus, Trash2, Settings, DollarSign, BarChart3, TrendingDown,
+  Plus, Trash2, DollarSign, BarChart3, TrendingDown,
   ShoppingCart, Receipt, Image, ExternalLink, Pencil, ChevronDown, ChevronUp,
 } from "lucide-react";
-import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -26,7 +23,7 @@ import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useLargeProjectEconomy } from "@/hooks/useLargeProjectEconomy";
 import type { LargeProjectPurchase } from "@/types/largeProject";
 import { LargeProjectBookingEconomyBreakdown } from "@/components/project/LargeProjectBookingEconomyBreakdown";
-import { LargeProjectStaffTimeBreakdown } from "@/components/project/LargeProjectStaffTimeBreakdown";
+import { LargeProjectUnifiedCostList } from "@/components/project/LargeProjectUnifiedCostList";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 }).format(v);
@@ -46,11 +43,10 @@ const LargeProjectEconomyPage = () => {
   const bookingIds = bookings.map((b) => b.booking_id);
 
   const {
-    budget, purchases, summary, isLoading, bookingEconomyData, localProducts, timeReportsByBooking,
-    saveBudget, addPurchase, updatePurchase, removePurchase,
+    purchases, summary, isLoading, bookingEconomyData, localProducts, timeReportsByBooking,
+    addPurchase, updatePurchase, removePurchase,
   } = useLargeProjectEconomy(project?.id, bookingIds);
 
-  const [budgetOpen, setBudgetOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<LargeProjectPurchase | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<{ url: string; description: string } | null>(null);
@@ -148,65 +144,15 @@ const LargeProjectEconomyPage = () => {
         </Card>
       </div>
 
-      {/* Budget */}
-      <Card className="border-border/40">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-base font-medium">Timbudget</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => setBudgetOpen(true)}>
-            <Settings className="h-4 w-4 mr-2" />
-            {budget ? "Ändra" : "Ställ in"}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Budgeterade timmar</p>
-              <p className="text-lg font-semibold">
-                {budget ? `${budget.budgeted_hours}h` : <span className="text-muted-foreground">—</span>}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Rapporterad tid</p>
-              <p className={cn(
-                "text-lg font-semibold",
-                budget && summary.totalActualHours > budget.budgeted_hours ? "text-destructive" : "text-foreground"
-              )}>
-                {summary.totalActualHours.toFixed(1)}h
-                {budget && budget.budgeted_hours > 0 && (
-                  <span className="text-xs text-muted-foreground ml-1">
-                    ({((summary.totalActualHours / budget.budgeted_hours) * 100).toFixed(0)}%)
-                  </span>
-                )}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Timpris</p>
-              <p className="text-lg font-semibold">
-                {budget ? fmt(budget.hourly_rate) : <span className="text-muted-foreground">—</span>}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Estimerad kostnad</p>
-              <p className="text-lg font-semibold">
-                {budget ? fmt(summary.budgetedCost) : <span className="text-muted-foreground">—</span>}
-              </p>
-            </div>
-            {budget?.description && (
-              <div className="col-span-2 md:col-span-4">
-                <p className="text-xs text-muted-foreground">Kommentar</p>
-                <p className="text-sm">{budget.description}</p>
-              </div>
-            )}
-          </div>
-          {!budget && (
-            <p className="text-muted-foreground text-xs mt-3">
-              Ingen timbudget inställd — klicka "Ställ in" för att lägga till. Rapporterad tid visas oavsett.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Unified cost overview: Budget vs Actual per category (incl. assembly = reported time) */}
+      <LargeProjectUnifiedCostList
+        bookingEconomyData={bookingEconomyData}
+        localProducts={localProducts}
+        timeReportsByBooking={timeReportsByBooking}
+        purchases={purchases}
+      />
 
-      {/* Detailed per-booking economy breakdown */}
+      {/* Detailed per-booking economy breakdown (editable product costs) */}
       {bookingEconomyData && summary.bookingCount > 0 && (
         <LargeProjectBookingEconomyBreakdown
           bookingEconomyData={bookingEconomyData}
@@ -215,12 +161,6 @@ const LargeProjectEconomyPage = () => {
           localProducts={localProducts}
         />
       )}
-
-      {/* Detailed reported time per staff/day across all bookings */}
-      <LargeProjectStaffTimeBreakdown
-        timeReportsByBooking={timeReportsByBooking}
-        bookings={bookings}
-      />
 
       {/* Purchases */}
       <Card className="border-border/40">
@@ -307,14 +247,6 @@ const LargeProjectEconomyPage = () => {
         </CardContent>
       </Card>
 
-      {/* Budget Dialog */}
-      <BudgetDialog
-        open={budgetOpen}
-        onOpenChange={setBudgetOpen}
-        currentBudget={budget || null}
-        onSave={saveBudget}
-      />
-
       {/* Purchase Dialog (add/edit) */}
       <PurchaseDialog
         open={purchaseOpen}
@@ -348,60 +280,6 @@ const LargeProjectEconomyPage = () => {
     </div>
   );
 };
-
-/* ─── Budget Dialog ─── */
-function BudgetDialog({ open, onOpenChange, currentBudget, onSave }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  currentBudget: { budgeted_hours: number; hourly_rate: number; description: string | null } | null;
-  onSave: (d: { budgeted_hours: number; hourly_rate: number; description?: string }) => void;
-}) {
-  const [hours, setHours] = useState("");
-  const [rate, setRate] = useState("350");
-  const [desc, setDesc] = useState("");
-
-  const resetForm = () => {
-    if (currentBudget) {
-      setHours(currentBudget.budgeted_hours.toString());
-      setRate(currentBudget.hourly_rate.toString());
-      setDesc(currentBudget.description || "");
-    } else {
-      setHours(""); setRate("350"); setDesc("");
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) resetForm(); onOpenChange(o); }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Timbudget</DialogTitle></DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); onSave({ budgeted_hours: parseFloat(hours) || 0, hourly_rate: parseFloat(rate) || 350, description: desc || undefined }); onOpenChange(false); }} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Budgeterade timmar</Label>
-              <Input type="number" min="0" step="0.5" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="0" />
-            </div>
-            <div className="space-y-2">
-              <Label>Timpris (kr)</Label>
-              <Input type="number" min="0" step="1" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="350" />
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg text-center text-sm">
-            <span className="text-muted-foreground">Estimerad kostnad:</span>{" "}
-            <span className="font-bold">{fmt((parseFloat(hours) || 0) * (parseFloat(rate) || 0))}</span>
-          </div>
-          <div className="space-y-2">
-            <Label>Kommentar</Label>
-            <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="T.ex. baserat på 3 rigdagar..." rows={2} />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Avbryt</Button>
-            <Button type="submit">Spara</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /* ─── Purchase Dialog (add/edit) ─── */
 function PurchaseDialog({ open, onOpenChange, existing, onAdd, onUpdate }: {
