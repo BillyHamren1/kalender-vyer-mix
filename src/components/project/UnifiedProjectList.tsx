@@ -27,6 +27,7 @@ interface UnifiedProject {
   address: string | null;
   navigateTo: string;
   bookingCancelled?: boolean;
+  cancelledBookingCount?: number;
   bookingId?: string | null;
   projectNumber?: string | null;
   isInternal?: boolean;
@@ -125,19 +126,27 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       });
     });
 
-    largeProjects.forEach(lp => items.push({
-      id: lp.id,
-      name: lp.name,
-      type: 'large',
-      date: lp.start_date?.[0] ?? null,
-      eventDate: lp.end_date?.[0] ?? lp.start_date?.[0] ?? null,
-      status: lp.status,
-      subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
-      address: lp.location ?? null,
-      navigateTo: `/large-project/${lp.id}`,
-      bookingId: null,
-      projectNumber: (lp as any).project_number || null,
-    }));
+    largeProjects.forEach(lp => {
+      const cancelledBookingCount = (lp.bookings || []).filter(
+        (linkedBooking) => linkedBooking.booking?.status === 'CANCELLED'
+      ).length;
+
+      items.push({
+        id: lp.id,
+        name: lp.name,
+        type: 'large',
+        date: lp.start_date?.[0] ?? null,
+        eventDate: lp.end_date?.[0] ?? lp.start_date?.[0] ?? null,
+        status: lp.status,
+        subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
+        address: lp.location ?? null,
+        navigateTo: `/large-project/${lp.id}`,
+        bookingCancelled: cancelledBookingCount > 0,
+        cancelledBookingCount,
+        bookingId: null,
+        projectNumber: (lp as any).project_number || null,
+      });
+    });
 
     return items;
   }, [jobs, projects, largeProjects]);
@@ -280,7 +289,9 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
               {project.bookingCancelled && (
                 <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive ring-1 ring-destructive/30 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  AVBOKAD
+                  {project.type === 'large' && project.cancelledBookingCount && project.cancelledBookingCount > 1
+                    ? `${project.cancelledBookingCount} AVBOKADE`
+                    : 'AVBOKAD'}
                 </Badge>
               )}
 

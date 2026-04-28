@@ -29,8 +29,10 @@ export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> 
         sort_order,
         created_at,
         bookings:booking_id (
+          id,
           booking_number,
-          client
+          client,
+          status
         )
       )
     `)

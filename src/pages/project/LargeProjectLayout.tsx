@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { propagateProjectDatesToBookings, arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -457,21 +457,31 @@ const LargeProjectLayout = () => {
                   {bookings.map((lpb) => {
                     const b = lpb.booking;
                     const isExpanded = expandedBookingIds.has(lpb.booking_id);
+                    const isCancelled = (b?.status || '').toUpperCase() === 'CANCELLED';
                     return (
                       <div key={lpb.id}>
                         <div
-                          className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
+                          className={cn(
+                            "flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors cursor-pointer",
+                            isCancelled && "bg-destructive/5"
+                          )}
                           onClick={() => toggleBookingExpanded(lpb.booking_id)}
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-                            <span className="text-sm font-medium truncate">
+                            {isCancelled && (
+                              <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive ring-1 ring-destructive/30 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                AVBOKAD
+                              </Badge>
+                            )}
+                            <span className={cn("text-sm font-medium truncate", isCancelled && "line-through text-muted-foreground")}>
                               {getLargeProjectBookingLabel(lpb)}
                             </span>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             {b?.deliveryaddress && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <span className={cn("text-xs text-muted-foreground flex items-center gap-1", isCancelled && "line-through text-muted-foreground/70")}>
                                 <MapPin className="h-3 w-3" />
                                 {b.deliveryaddress}
                               </span>
