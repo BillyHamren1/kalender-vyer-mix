@@ -386,9 +386,21 @@ const StaffTimeReports: React.FC = () => {
           : isOpen
             ? Math.max(0, (nowMs - new Date(e.entered_at).getTime()) / 3_600_000)
             : 0;
-        a.total_hours += hours;
-        a.reports_count += 1;
-        if (isOpen) a.has_open_report = true;
+
+        // Presence-only LTE: a location_time_entry without booking_id AND
+        // without large_project_id is a passive "närvaro" marker (the staff
+        // is physically at a place, e.g. FA Warehouse). It must NOT be added
+        // to total_hours — that would double-count the same physical time
+        // when a parallel booking/project timer (e.g. "Lager") is also
+        // running. See memory `location-timer-role-v1`: presence LTE never
+        // produces a time_report, so it must not contribute to payable hours.
+        const isPresenceOnly = !e.booking_id && !e.large_project_id;
+
+        if (!isPresenceOnly) {
+          a.total_hours += hours;
+          a.reports_count += 1;
+          if (isOpen) a.has_open_report = true;
+        }
         const startHHMM = format(new Date(e.entered_at), 'HH:mm:ss');
         if (!a.earliest_start || startHHMM < a.earliest_start) a.earliest_start = startHHMM;
         if (!isOpen && e.exited_at) {
