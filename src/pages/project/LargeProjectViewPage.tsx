@@ -7,9 +7,8 @@ import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
-import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
-import { LargeProjectGanttChart } from "@/components/project/LargeProjectGanttChart";
 import LargeProjectTeam from "@/components/project/LargeProjectTeam";
+import UnifiedProjectGantt from "@/components/project/UnifiedProjectGantt";
 
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
