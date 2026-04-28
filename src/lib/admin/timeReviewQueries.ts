@@ -125,7 +125,7 @@ export async function fetchDayReviewRows(
       end_time: end,
       hours_worked: Number(r.hours_worked) || 0,
       is_subdivision: !!r.is_subdivision,
-      status: r.status ?? null,
+      status: r.approved ? 'approved' : null,
     });
   }
 
