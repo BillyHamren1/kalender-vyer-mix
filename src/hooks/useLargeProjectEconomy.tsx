@@ -73,12 +73,12 @@ export const useLargeProjectEconomy = (
         console.warn(`${TAG} No economy data returned for ${bookingIds.length} bookings (project ${largeProjectId})`);
       }
       return {
-        totalRevenue: 0, totalCost: 0, totalStaffCost: 0,
+        totalRevenue: 0, totalCost: 0, totalStaffCost: 0, totalActualHours: 0,
         totalPurchases: 0, totalQuotes: 0, totalInvoices: 0,
         totalSupplierInvoices: 0, bookingCount: 0,
       };
     }
-    let totalRevenue = 0, totalCost = 0, totalStaffCost = 0;
+    let totalRevenue = 0, totalCost = 0, totalStaffCost = 0, totalActualHours = 0;
     let totalPurchases = 0, totalQuotes = 0, totalInvoices = 0, totalSupplierInvoices = 0;
     let bookingCount = 0;
 
