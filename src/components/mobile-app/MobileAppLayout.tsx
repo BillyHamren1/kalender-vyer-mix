@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import MobileBottomNav from './MobileBottomNav';
 import MobileGlobalOverlays from './MobileGlobalOverlays';
+import { GeofencingProvider } from '@/contexts/GeofencingContext';
 
 interface MobileAppLayoutProps {
   children: React.ReactNode;
@@ -36,18 +37,20 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
   }, []);
 
   return (
-    <div
-      className="bg-card max-w-lg mx-auto fixed inset-0 overflow-y-auto overscroll-none"
-      style={{ WebkitOverflowScrolling: 'touch' as any }}
-    >
-      <div style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
-        {/* Global overlays — banners render here at top of content, dialogs portal to root. */}
-        <MobileGlobalOverlays />
-        {children}
-      </div>
+    <GeofencingProvider>
+      <div
+        className="bg-card max-w-lg mx-auto fixed inset-0 overflow-y-auto overscroll-none"
+        style={{ WebkitOverflowScrolling: 'touch' as any }}
+      >
+        <div style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
+          {/* Global overlays — banners render here at top of content, dialogs portal to root. */}
+          <MobileGlobalOverlays />
+          {children}
+        </div>
 
-      <MobileBottomNav />
-    </div>
+        <MobileBottomNav />
+      </div>
+    </GeofencingProvider>
   );
 };
 
