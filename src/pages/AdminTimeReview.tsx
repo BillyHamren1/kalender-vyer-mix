@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { Loader2, Clock } from 'lucide-react';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,7 +14,7 @@ import { computeCounts, matchesFilter, computeEmptyKind } from '@/lib/admin/admi
 
 const AdminTimeReview: React.FC = () => {
   const [filter, setFilter] = useState<FilterState>({
-    from: subDays(new Date(), 13),
+    from: new Date(),
     to: new Date(),
     staffId: 'all',
     status: 'all',
