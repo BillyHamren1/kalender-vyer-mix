@@ -75,6 +75,12 @@ const ProjectEconomyDashboard: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
+        <div className="rounded-xl border border-border/40 bg-card p-6 text-center">
+          <p className="text-sm font-medium text-foreground">Hämtar ekonomidata…</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Synkar mot bokningssystemet (kan ta upp till en minut första gången).
+          </p>
+        </div>
         <Skeleton className="h-64 rounded-xl" />
       </div>
     );
