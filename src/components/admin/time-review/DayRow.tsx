@@ -5,6 +5,7 @@ import { Clock, Car, AlertTriangle, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DayStatusBadge } from './DayStatusBadge';
 import { MiniTimelineBar } from './MiniTimelineBar';
+import { DayApprovalAction } from './DayApprovalAction';
 import type { DayReviewRow } from '@/lib/admin/timeReviewQueries';
 
 const fmtMinutes = (m: number) => {
@@ -41,11 +42,13 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
           : 'border-l-emerald-500';
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onClick(row)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(row); }}
       className={cn(
-        'group w-full text-left rounded-xl border bg-card hover:bg-accent/40 hover:shadow-sm transition-all px-4 py-3 flex flex-col gap-2 border-l-4',
+        'group w-full text-left rounded-xl border bg-card hover:bg-accent/40 hover:shadow-sm transition-all px-4 py-3 flex flex-col gap-2 border-l-4 cursor-pointer',
         accent,
       )}
     >
@@ -99,6 +102,17 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
           />
         </div>
 
+        {/* Approval action — stop propagation so click doesn't open dialog */}
+        <div className="hidden lg:flex shrink-0" onClick={(e) => e.stopPropagation()}>
+          <DayApprovalAction
+            workdayId={row.workdayId}
+            workday={row.workdayStart ? { started_at: row.workdayStart, ended_at: row.workdayEnd } : null}
+            result={row.result}
+            reviewStatus={row.reviewStatus}
+            variant="compact"
+          />
+        </div>
+
         <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-foreground transition-colors shrink-0" />
       </div>
 
@@ -109,7 +123,7 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
         workEntries={row.workEntries}
         travelSegments={row.travelSegments}
       />
-    </button>
+    </div>
   );
 };
 

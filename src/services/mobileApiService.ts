@@ -948,6 +948,37 @@ export const mobileApi = {
     travel_log?: any;
   }>('admin_mark_gap_travel', data),
 
+  /**
+   * admin_approve_day — godkänner hela arbetsdagen för en personal.
+   * Cascade-godkänner time_reports + travel_time_logs som ligger i workday-fönstret.
+   * `force=true` kräver `override_reason` (>= 3 tecken).
+   */
+  adminApproveDay: (data: {
+    workday_id: string;
+    force?: boolean;
+    override_reason?: string | null;
+  }) => callApi<{
+    workday: {
+      id: string;
+      staff_id: string;
+      started_at: string;
+      ended_at: string | null;
+      review_status: string;
+      approved_at: string | null;
+      approved_by: string | null;
+      approval_override_reason: string | null;
+    };
+    cascaded_time_reports: number;
+    cascaded_travel_logs: number;
+    override: boolean;
+  }>('admin_approve_day', data),
+
+  adminUnapproveDay: (data: { workday_id: string; note?: string }) =>
+    callApi<{ workday: { id: string; review_status: string; approved_at: string | null; approved_by: string | null } }>(
+      'admin_unapprove_day',
+      data,
+    ),
+
   // Confirm/correct the end-of-day time after the nightly cron auto-closed
   // an abandoned timer. Adjusts the affected entries and resolves the flag.
   correctStaleDayEnd: (data: { flag_id: string; chosen_end_iso: string }) =>

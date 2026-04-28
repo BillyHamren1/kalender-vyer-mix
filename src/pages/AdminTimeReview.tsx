@@ -126,6 +126,7 @@ const AdminTimeReview: React.FC = () => {
           date={openRow.date}
           staffId={openRow.staffId}
           staffName={openRow.staffName}
+          reviewRow={openRow}
           travelSegments={openRow.travelSegments.map((t) => ({
             id: t.id,
             start_time: t.start_time,

@@ -22,12 +22,15 @@ export interface DayReviewRow {
   staffName: string;
   staffColor: string | null;
   date: string; // YYYY-MM-DD
+  workdayId: string | null;
   workdayStart: string | null;
   workdayEnd: string | null;
   workEntries: ReviewWorkEntry[];
   travelSegments: ReviewTravelSegment[];
   result: AdminTimeReviewResult;
   reviewStatus: 'open' | 'needs_review' | 'approved';
+  approvedAt: string | null;
+  approvedBy: string | null;
 }
 
 export interface FetchDayReviewArgs {
@@ -60,7 +63,7 @@ export async function fetchDayReviewRows(
       .lte('report_date', args.toDate),
     supabase
       .from('workdays')
-      .select('id, staff_id, started_at, ended_at, review_status')
+      .select('id, staff_id, started_at, ended_at, review_status, approved_at, approved_by')
       .gte('started_at', fromIso)
       .lt('started_at', toIso),
   ]);
@@ -79,9 +82,12 @@ export async function fetchDayReviewRows(
   type Bucket = {
     workEntries: ReviewWorkEntry[];
     travelSegments: ReviewTravelSegment[];
+    workdayId: string | null;
     workdayStart: string | null;
     workdayEnd: string | null;
     reviewStatus: 'open' | 'needs_review' | 'approved';
+    approvedAt: string | null;
+    approvedBy: string | null;
   };
   const key = (sid: string, date: string) => `${sid}::${date}`;
   const buckets = new Map<string, Bucket>();
@@ -92,9 +98,12 @@ export async function fetchDayReviewRows(
       b = {
         workEntries: [],
         travelSegments: [],
+        workdayId: null,
         workdayStart: null,
         workdayEnd: null,
         reviewStatus: 'open',
+        approvedAt: null,
+        approvedBy: null,
       };
       buckets.set(k, b);
     }
@@ -141,8 +150,11 @@ export async function fetchDayReviewRows(
     if (!w.staff_id || !w.started_at) continue;
     const date = ymd(w.started_at);
     const b = ensure(w.staff_id, date);
+    b.workdayId = w.id;
     b.workdayStart = w.started_at;
     b.workdayEnd = w.ended_at ?? null;
+    b.approvedAt = w.approved_at ?? null;
+    b.approvedBy = w.approved_by ?? null;
     b.reviewStatus =
       w.review_status === 'approved'
         ? 'approved'
@@ -167,12 +179,15 @@ export async function fetchDayReviewRows(
       staffName: meta.name,
       staffColor: meta.color,
       date,
+      workdayId: b.workdayId,
       workdayStart: b.workdayStart,
       workdayEnd: b.workdayEnd,
       workEntries: b.workEntries,
       travelSegments: b.travelSegments,
       result: evaluateAdminTimeReview(input),
       reviewStatus: b.reviewStatus,
+      approvedAt: b.approvedAt,
+      approvedBy: b.approvedBy,
     });
   }
 
