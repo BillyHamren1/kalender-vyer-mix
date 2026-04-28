@@ -27,8 +27,11 @@ export const useCalendarImport = () => {
       if (result.success) {
         const newCount = result.results?.new_bookings?.length || 0;
         const updatedCount = result.results?.updated_bookings?.length || 0;
+        const queuedCount = (result.results as { queued_jobs?: number } | undefined)?.queued_jobs || 0;
         
-        if (!silent && (newCount > 0 || updatedCount > 0)) {
+        if (!silent && queuedCount > 0) {
+          toast.success(`Refresh started: ${queuedCount} bookingar köade för bakgrundssynk`);
+        } else if (!silent && (newCount > 0 || updatedCount > 0)) {
           toast.success(`Refresh completed: ${newCount} new, ${updatedCount} updated bookings`);
         } else if (!silent) {
           toast.success('Calendar data is up to date');
