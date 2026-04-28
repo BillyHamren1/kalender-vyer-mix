@@ -1886,6 +1886,8 @@ serve(async (req) => {
       const queueSummary = await enqueueIncrementalDiscoveryJob(
         supabase,
         organizationId,
+        lastSyncTimestamp,
+        importStartedAt,
       );
 
       const importCompletedAt = new Date().toISOString();
