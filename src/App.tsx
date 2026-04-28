@@ -186,9 +186,15 @@ const AppContent = () => {
 const WebRoutes: React.FC = () => {
   const defaultRoute = getDefaultRoute();
 
+  const routeFallback = (
+    <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
+      Laddar…
+    </div>
+  );
+
   return (
+    <Suspense fallback={routeFallback}>
     <Routes>
-      {/* Auth Routes - Not Protected */}
       <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
       <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
 
