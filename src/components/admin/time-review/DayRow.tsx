@@ -123,7 +123,7 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
         workEntries={row.workEntries}
         travelSegments={row.travelSegments}
       />
-    </button>
+    </div>
   );
 };
 
