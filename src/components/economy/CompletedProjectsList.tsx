@@ -251,9 +251,9 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
             <>
               <Table>
                 <TableHeader>
-                  <TableRow className="hover:bg-transparent border-border/60">
+                  <TableRow className="hover:bg-transparent border-b border-border/60">
                     {selectMode && (
-                      <TableHead className="h-10 w-[44px]">
+                      <TableHead className="h-11 w-[44px] pl-6">
                         <Checkbox
                           checked={allVisibleSelected || (someVisibleSelected ? 'indeterminate' : false)}
                           onCheckedChange={toggleAllVisible}
@@ -261,16 +261,17 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                         />
                       </TableHead>
                     )}
-                    <TableHead className="h-10 text-xs font-medium uppercase tracking-wide">Projekt</TableHead>
-                    <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px]">Eventdatum</TableHead>
-                    <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[160px]">Status</TableHead>
-                    <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px] text-right">Värde</TableHead>
-                    <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px] text-right">Kvar att fakturera</TableHead>
+                    <TableHead className={cn('h-11 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground', !selectMode && 'pl-6')}>Projekt</TableHead>
+                    <TableHead className="h-11 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[180px]">Eventdatum</TableHead>
+                    <TableHead className="h-11 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[160px]">Status</TableHead>
+                    <TableHead className="h-11 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[160px] text-right pr-6">Summa</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visible.map((p) => {
                     const checked = selectedIds.has(p.id);
+                    const dateLabel = p._eventDate ? format(p._eventDate, 'd MMM yyyy', { locale: sv }) : '—';
+                    const statusLabel = statusLabels[p.economyStatus as Exclude<StatusFilter, 'all'>] ?? p.economyStatus;
                     return (
                       <TableRow
                         key={p.id}
@@ -279,12 +280,12 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                           else navigate(p.navigateTo);
                         }}
                         className={cn(
-                          'cursor-pointer border-border/60',
+                          'group cursor-pointer border-b border-border/40 transition-colors hover:bg-muted/30',
                           selectMode && checked && 'bg-muted/40'
                         )}
                       >
                         {selectMode && (
-                          <TableCell className="py-3 w-[44px]" onClick={(e) => e.stopPropagation()}>
+                          <TableCell className="py-5 w-[44px] pl-6 align-middle" onClick={(e) => e.stopPropagation()}>
                             <Checkbox
                               checked={checked}
                               onCheckedChange={() => toggleRow(p.id)}
@@ -292,18 +293,26 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="py-3 font-medium text-sm">{p.name}</TableCell>
-                        <TableCell className="py-3 text-sm text-muted-foreground tabular-nums">
-                          {p._eventDate ? format(p._eventDate, 'd MMM yyyy', { locale: sv }) : '—'}
+                        <TableCell className={cn('py-5 align-middle', !selectMode && 'pl-6')}>
+                          <div className="font-semibold text-sm leading-tight text-foreground">
+                            {p.name}
+                          </div>
+                          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+                            {dateLabel}
+                          </div>
                         </TableCell>
-                        <TableCell className="py-3 text-sm text-muted-foreground">
-                          {statusLabels[p.economyStatus as Exclude<StatusFilter, 'all'>] ?? p.economyStatus}
+                        <TableCell className="py-5 align-middle text-sm text-muted-foreground tabular-nums">
+                          {dateLabel}
                         </TableCell>
-                        <TableCell className="py-3 text-sm text-right tabular-nums font-medium">
+                        <TableCell className="py-5 align-middle">
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70" />
+                            {statusLabel}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-5 align-middle text-right tabular-nums font-semibold text-sm pr-6">
                           {formatCurrency(p.quotedAmount)}
-                        </TableCell>
-                        <TableCell className="py-3 text-sm text-right tabular-nums text-muted-foreground">
-                          {p.remainingToInvoice > 0 ? formatCurrency(p.remainingToInvoice) : '—'}
                         </TableCell>
                       </TableRow>
                     );
