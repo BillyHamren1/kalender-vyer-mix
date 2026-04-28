@@ -1,0 +1,2 @@
+ALTER TABLE public.product_cost_overrides
+  DROP CONSTRAINT IF EXISTS product_cost_overrides_project_id_fkey;
