@@ -117,13 +117,13 @@ async function applyToBooking(
 export async function syncPhaseTime(input: SyncPhaseTimeInput): Promise<SyncPhaseTimeResult> {
   const { bookingId, phase, date, startISO, endISO } = input;
 
-  // Look up the primary booking's large_project_id (and confirm its phase date).
+  // Look up the primary booking's large_project_id.
   const f = PHASE_FIELDS[phase];
   const { data: primary, error: pErr } = await supabase
     .from('bookings')
-    .select(`id, large_project_id, ${f.date}`)
+    .select('id, large_project_id')
     .eq('id', bookingId)
-    .single();
+    .maybeSingle();
 
   if (pErr || !primary) {
     console.warn('[timeSync] primary booking lookup failed', bookingId, pErr);
@@ -145,13 +145,13 @@ export async function syncPhaseTime(input: SyncPhaseTimeInput): Promise<SyncPhas
   if (largeProjectId) {
     const { data: siblings, error: sErr } = await supabase
       .from('bookings')
-      .select(`id, ${f.date}`)
+      .select('id')
       .eq('large_project_id', largeProjectId)
-      .eq(f.date, date)
+      .eq(f.date as 'rigdaydate' | 'eventdate' | 'rigdowndate', date)
       .neq('id', bookingId);
 
     if (!sErr && siblings) {
-      for (const sib of siblings as Array<{ id: string }>) {
+      for (const sib of siblings) {
         const r = await applyToBooking(sib.id, date, phase, startISO, endISO);
         if (r.booking) {
           bookingsUpdated += 1;
