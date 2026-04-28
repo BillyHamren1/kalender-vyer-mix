@@ -1,0 +1,1 @@
+DELETE FROM public.booking_sync_jobs WHERE booking_id = '__incremental_discovery__';
