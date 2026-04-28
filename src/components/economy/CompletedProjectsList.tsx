@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Search, CheckSquare, X, Loader2 } from 'lucide-react';
+import { Search, CheckSquare, X, Loader2, ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { format, differenceInDays } from 'date-fns';
