@@ -23,6 +23,7 @@ import EconomyKpiCards from '@/components/economy/EconomyKpiCards';
 import EconomyTBAnalysis from '@/components/economy/EconomyTBAnalysis';
 import BillingSection from '@/components/economy/billing/BillingSection';
 import ProjectLeaderActionBoard from '@/components/economy/ProjectLeaderActionBoard';
+import CompletedProjectsList from '@/components/economy/CompletedProjectsList';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
