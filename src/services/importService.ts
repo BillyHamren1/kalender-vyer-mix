@@ -9,6 +9,23 @@ import {
   type SyncMode 
 } from "./syncStateService";
 
+/**
+ * Detect "soft" timeouts from edge function (504 / IDLE_TIMEOUT).
+ * import-bookings is long-running and frequently exceeds the 150s edge limit,
+ * but it keeps processing on the server. We treat this as in-progress, not failed.
+ */
+const isEdgeTimeoutError = (err: unknown): boolean => {
+  if (!err) return false;
+  const msg = (err as { message?: string })?.message?.toLowerCase() ?? '';
+  const status = (err as { context?: { status?: number } })?.context?.status;
+  return (
+    status === 504 ||
+    msg.includes('idle_timeout') ||
+    msg.includes('timeout') ||
+    msg.includes('non-2xx')
+  );
+};
+
 // Type for import results
 export interface ImportResults {
   success: boolean;
