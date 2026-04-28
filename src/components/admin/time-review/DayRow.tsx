@@ -32,6 +32,7 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
   const m = row.result.metrics;
   const status = row.result.status;
 
+  const isPlannedOnly = !row.workdayStart && row.plannedJobs.length > 0;
   const accent =
     status === 'critical'
       ? 'border-l-destructive'
@@ -39,7 +40,9 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
         ? 'border-l-amber-500'
         : row.workdayStart && !row.workdayEnd
           ? 'border-l-teal-500'
-          : 'border-l-emerald-500';
+          : isPlannedOnly
+            ? 'border-l-sky-400'
+            : 'border-l-emerald-500';
 
   return (
     <div
