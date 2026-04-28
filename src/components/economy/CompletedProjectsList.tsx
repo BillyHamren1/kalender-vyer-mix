@@ -30,9 +30,9 @@ const PAGE_SIZE = 10;
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
 
-type StatusFilter = 'all' | EconomyProjectInsight['economyStatus'];
+type StatusFilter = 'all' | 'active' | EconomyProjectInsight['economyStatus'];
 
-const statusLabels: Record<Exclude<StatusFilter, 'all'>, string> = {
+const statusLabels: Record<Exclude<StatusFilter, 'all' | 'active'>, string> = {
   'upcoming': 'Kommande',
   'ongoing': 'Pågående',
   'event-completed': 'Event slutfört',
@@ -70,7 +70,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -93,7 +93,8 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return completed.filter(p => {
-      if (statusFilter !== 'all' && p.economyStatus !== statusFilter) return false;
+      if (statusFilter === 'active' && p.economyStatus === 'economy-closed') return false;
+      if (statusFilter !== 'all' && statusFilter !== 'active' && p.economyStatus !== statusFilter) return false;
       if (!q) return true;
       return p.name.toLowerCase().includes(q);
     });
@@ -230,6 +231,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="active">Dölj stängda</SelectItem>
                 <SelectItem value="all">Alla statusar</SelectItem>
                 {Object.entries(statusLabels).map(([key, label]) => (
                   <SelectItem key={key} value={key}>{label}</SelectItem>
