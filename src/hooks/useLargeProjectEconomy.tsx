@@ -9,6 +9,8 @@ import {
   deleteLargeProjectPurchase,
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
+import { fetchProjectTimeReports } from '@/services/projectEconomyService';
+import type { StaffTimeReport } from '@/types/projectEconomy';
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
 import { supabase } from '@/integrations/supabase/client';
 
