@@ -22,12 +22,15 @@ export interface DayReviewRow {
   staffName: string;
   staffColor: string | null;
   date: string; // YYYY-MM-DD
+  workdayId: string | null;
   workdayStart: string | null;
   workdayEnd: string | null;
   workEntries: ReviewWorkEntry[];
   travelSegments: ReviewTravelSegment[];
   result: AdminTimeReviewResult;
   reviewStatus: 'open' | 'needs_review' | 'approved';
+  approvedAt: string | null;
+  approvedBy: string | null;
 }
 
 export interface FetchDayReviewArgs {
