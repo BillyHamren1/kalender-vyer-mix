@@ -103,8 +103,8 @@ export const useLargeProjectEconomy = (
         const localRev = localBP
           .filter(lp => !lp.is_package_component && !lp.parent_product_id)
           .reduce((s, lp) => s + (lp.total_price || 0), 0);
-        const localCost = localBP.reduce((s, lp) => 
-          s + (lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0), 0);
+        const localCost = localBP.reduce((s, lp) =>
+          s + ((lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0)) * (Number(lp.quantity) || 1), 0);
         totalRevenue += localRev;
         totalCost += pc?.summary?.costs || localCost;
         if (!pc?.summary) {

@@ -304,9 +304,10 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
       // Products — split into assembly / handling / purchase
       const products = extractProducts(data);
       products.forEach((p: any) => {
-        const a = Number(p.assembly_cost) || 0;
-        const h = Number(p.handling_cost) || 0;
-        const pu = Number(p.purchase_cost) || 0;
+        const qty = Number(p.quantity) || 1;
+        const a = (Number(p.assembly_cost) || 0) * qty;
+        const h = (Number(p.handling_cost) || 0) * qty;
+        const pu = (Number(p.purchase_cost) || 0) * qty;
         if (a) { buckets.assembly.amount += a; buckets.assembly.count += 1; }
         if (h) { buckets.handling.amount += h; buckets.handling.count += 1; }
         if (pu) { buckets.purchase.amount += pu; buckets.purchase.count += 1; }
@@ -407,9 +408,9 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                         ? productSummary.revenue
                         : localRevenueTotal;
 
-                      // Compute local costs from local products
+                      // Compute local costs from local products (per-styck × antal)
                       const localCostsTotal = bookingLocalProducts.reduce((s, lp) =>
-                        s + (lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0), 0);
+                        s + ((lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0)) * (Number(lp.quantity) || 1), 0);
                       const displayProductCosts = (productSummary?.costs && productSummary.costs > 0)
                         ? productSummary.costs
                         : localCostsTotal;
@@ -513,7 +514,8 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                             const assemblyCost = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
                                             const handlingCost = localMatch?.handling_cost ?? p.handling_cost ?? 0;
                                             const purchaseCost = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
-                                            const totalPCost = assemblyCost + handlingCost + purchaseCost;
+                                            const qty = Number(p.quantity) || 1;
+                                            const totalPCost = (assemblyCost + handlingCost + purchaseCost) * qty;
 
                                             return (
                                               <TableRow key={i}>
