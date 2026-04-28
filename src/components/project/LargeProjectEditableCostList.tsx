@@ -25,11 +25,21 @@ const META: Record<CostCategory, { label: string; icon: React.ComponentType<any>
     hint: 'Övriga manuella kostnader för projektet.' },
 };
 
+interface LocalProduct {
+  id: string;
+  name: string;
+  quantity: number;
+  assembly_cost: number | null;
+  handling_cost: number | null;
+  purchase_cost: number | null;
+}
+
 interface Props {
   largeProjectId: string;
   lines: CostLine[];
   bookingEconomyData: Record<string, BatchEconomyData> | null;
   timeReportsByBooking: Record<string, StaffTimeReport[]>;
+  localProducts: LocalProduct[];
   addLine: (input: { category: CostCategory; description?: string; amount?: number; supplier?: string | null; cost_date?: string | null }) => void;
   updateLine: (input: { id: string; updates: Partial<CostLine> }) => void;
   removeLine: (id: string) => void;
@@ -71,7 +81,7 @@ function EditableCell({
 }
 
 export function LargeProjectEditableCostList({
-  largeProjectId, lines, bookingEconomyData, timeReportsByBooking,
+  largeProjectId, lines, bookingEconomyData, timeReportsByBooking, localProducts,
   addLine, updateLine, removeLine,
 }: Props) {
   const [expanded, setExpanded] = useState<Record<CostCategory, boolean>>({
@@ -140,18 +150,31 @@ export function LargeProjectEditableCostList({
     return items;
   }, [bookingEconomyData, byCategory.purchase]);
 
-  // Totals
-  const totals = useMemo(() => {
+  // Budget per category — derived from local_products (assembly/handling/purchase × qty)
+  const budgets = useMemo(() => {
+    const b: Record<CostCategory, number> = { purchase: 0, handling: 0, assembly: 0, other: 0 };
+    localProducts.forEach((p) => {
+      const qty = Number(p.quantity) || 1;
+      b.purchase += (Number(p.purchase_cost) || 0) * qty;
+      b.handling += (Number(p.handling_cost) || 0) * qty;
+      b.assembly += (Number(p.assembly_cost) || 0) * qty;
+    });
+    return b;
+  }, [localProducts]);
+
+  // Actual totals (manual lines + reported time for assembly)
+  const actuals = useMemo(() => {
     const t: Record<CostCategory, number> = { purchase: 0, handling: 0, assembly: 0, other: 0 };
     (Object.keys(byCategory) as CostCategory[]).forEach((k) => {
       t[k] = byCategory[k].reduce((s, l) => s + (Number(l.amount) || 0), 0);
     });
-    // Assembly auto-includes reported time
     t.assembly += reportedTimeTotal;
     return t;
   }, [byCategory, reportedTimeTotal]);
 
-  const grandTotal = totals.purchase + totals.handling + totals.assembly + totals.other;
+  const grandBudget = budgets.purchase + budgets.handling + budgets.assembly + budgets.other;
+  const grandActual = actuals.purchase + actuals.handling + actuals.assembly + actuals.other;
+  const grandDiff = grandBudget - grandActual;
 
   const toggle = (k: CostCategory) => setExpanded((s) => ({ ...s, [k]: !s[k] }));
 
