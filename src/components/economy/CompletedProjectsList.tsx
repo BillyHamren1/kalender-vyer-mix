@@ -2,9 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle2, Search, Calendar, ArrowRight, Clock } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { format, differenceInDays } from 'date-fns';
@@ -24,17 +24,6 @@ const statusLabels: Record<Exclude<StatusFilter, 'all'>, string> = {
   'partially-invoiced': 'Delvis fakturerat',
   'fully-invoiced': 'Fullt fakturerat',
   'economy-closed': 'Stängt',
-};
-
-const statusBadgeVariant = (status: EconomyProjectInsight['economyStatus']) => {
-  switch (status) {
-    case 'economy-closed': return 'border-green-300 text-green-700 bg-green-50 dark:bg-green-950/30';
-    case 'fully-invoiced': return 'border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/30';
-    case 'partially-invoiced': return 'border-amber-300 text-amber-700 bg-amber-50 dark:bg-amber-950/30';
-    case 'ready-for-invoicing': return 'border-purple-300 text-purple-700 bg-purple-50 dark:bg-purple-950/30';
-    case 'event-completed': return 'border-orange-300 text-orange-700 bg-orange-50 dark:bg-orange-950/30';
-    default: return 'border-border text-muted-foreground';
-  }
 };
 
 interface Props {
@@ -64,7 +53,6 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
         const daysSince = eventDate ? differenceInDays(today, eventDate) : -1;
         return { ...p, _daysSince: daysSince, _eventDate: eventDate };
       })
-      // Oldest first (largest daysSince first)
       .sort((a, b) => b._daysSince - a._daysSince);
   }, [projectInsights]);
 
@@ -81,19 +69,14 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const hasMore = visible.length < filtered.length;
 
   return (
-    <Card className="border-border/40">
+    <Card className="border-border/60">
       <CardHeader className="pb-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-base">Slutförda projekt</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Äldsta överst — kräver utvärdering · {filtered.length} totalt
-              </p>
-            </div>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle className="text-base font-semibold">Slutförda projekt</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Äldsta överst · {filtered.length} totalt
+            </p>
           </div>
         </div>
 
@@ -128,58 +111,51 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
           </div>
         ) : (
           <>
-            <div className="divide-y divide-border/60">
-              {visible.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => navigate(p.navigateTo)}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-accent/40 transition-colors text-left group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm truncate">{p.name}</span>
-                      <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-4', statusBadgeVariant(p.economyStatus))}>
-                        {statusLabels[p.economyStatus as Exclude<StatusFilter, 'all'>] ?? p.economyStatus}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                      {p._eventDate && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {format(p._eventDate, 'd MMM yyyy', { locale: sv })}
-                        </span>
-                      )}
-                      {p._daysSince > 0 && (
-                        <span className={cn(
-                          'flex items-center gap-1',
-                          p._daysSince > 90 ? 'text-destructive font-medium' :
-                          p._daysSince > 30 ? 'text-amber-600' : ''
-                        )}>
-                          <Clock className="h-3 w-3" />
-                          {p._daysSince} {p._daysSince === 1 ? 'dag' : 'dagar'} sedan
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-semibold text-foreground">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-border/60">
+                  <TableHead className="h-10 text-xs font-medium uppercase tracking-wide">Projekt</TableHead>
+                  <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px]">Eventdatum</TableHead>
+                  <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[100px]">Ålder</TableHead>
+                  <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[160px]">Status</TableHead>
+                  <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px] text-right">Värde</TableHead>
+                  <TableHead className="h-10 text-xs font-medium uppercase tracking-wide w-[140px] text-right">Kvar att fakturera</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.map((p) => (
+                  <TableRow
+                    key={p.id}
+                    onClick={() => navigate(p.navigateTo)}
+                    className="cursor-pointer border-border/60"
+                  >
+                    <TableCell className="py-3 font-medium text-sm">{p.name}</TableCell>
+                    <TableCell className="py-3 text-sm text-muted-foreground tabular-nums">
+                      {p._eventDate ? format(p._eventDate, 'd MMM yyyy', { locale: sv }) : '—'}
+                    </TableCell>
+                    <TableCell className={cn(
+                      'py-3 text-sm tabular-nums',
+                      p._daysSince > 90 ? 'text-destructive font-medium' :
+                      p._daysSince > 30 ? 'text-foreground' : 'text-muted-foreground'
+                    )}>
+                      {p._daysSince > 0 ? `${p._daysSince} d` : '—'}
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-muted-foreground">
+                      {statusLabels[p.economyStatus as Exclude<StatusFilter, 'all'>] ?? p.economyStatus}
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-right tabular-nums font-medium">
                       {formatCurrency(p.quotedAmount)}
-                    </div>
-                    {p.remainingToInvoice > 0 && (
-                      <div className="text-[10px] text-muted-foreground">
-                        Kvar: {formatCurrency(p.remainingToInvoice)}
-                      </div>
-                    )}
-                  </div>
-
-                  <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                </button>
-              ))}
-            </div>
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-right tabular-nums text-muted-foreground">
+                      {p.remainingToInvoice > 0 ? formatCurrency(p.remainingToInvoice) : '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
 
             {hasMore && (
-              <div className="p-4 border-t border-border/40 flex justify-center">
+              <div className="p-4 border-t border-border/60 flex justify-center">
                 <Button
                   variant="outline"
                   size="sm"
