@@ -171,6 +171,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       const WAREHOUSE_TYPES = ['packing', 'return', 'delivery', 'inventory', 'unpacking'];
       const isWarehouseEvent = !!event.eventType && WAREHOUSE_TYPES.includes(event.eventType);
 
+      let syncedSiblings = 0;
+
       if (isWarehouseEvent) {
         trace('WAREHOUSE branch');
         const whPayload: any = {
@@ -201,7 +203,6 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         if (teamChanged) {
           updatePayload.resourceId = selectedResourceId;
         }
-        let syncedSiblings = 0;
         try {
           const result = await updateCalendarEvent(event.id, updatePayload);
           syncedSiblings = (result as any)?.syncedSiblings ?? 0;
