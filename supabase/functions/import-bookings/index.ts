@@ -410,51 +410,6 @@ async function enqueueIncrementalSyncJobs(
   };
 }
 
-const INCREMENTAL_DISCOVERY_BOOKING_ID = '__incremental_discovery__';
-const INCREMENTAL_DISCOVERY_EVENT_TYPE = 'booking.incremental.scan';
-
-async function enqueueIncrementalDiscoveryJob(
-  supabase: any,
-  organizationId: string,
-  lastSyncTimestamp: string | null,
-  nextSyncCursor: string,
-) {
-  const { data: existingJobs, error: existingJobError } = await supabase
-    .from('booking_sync_jobs')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .eq('booking_id', INCREMENTAL_DISCOVERY_BOOKING_ID)
-    .like('event_type', `${INCREMENTAL_DISCOVERY_EVENT_TYPE}%`)
-    .in('status', ['pending', 'processing'])
-    .limit(1);
-
-  if (existingJobError) {
-    throw new Error(`Could not inspect incremental discovery queue: ${existingJobError.message}`);
-  }
-
-  if (existingJobs && existingJobs.length > 0) {
-    return { queued: false, alreadyQueued: true };
-  }
-
-  const { error: insertError } = await supabase
-    .from('booking_sync_jobs')
-    .insert({
-      booking_id: INCREMENTAL_DISCOVERY_BOOKING_ID,
-      organization_id: organizationId,
-      event_type: [
-        INCREMENTAL_DISCOVERY_EVENT_TYPE,
-        encodeURIComponent(lastSyncTimestamp || ''),
-        encodeURIComponent(nextSyncCursor),
-      ].join('|'),
-      status: 'pending',
-    });
-
-  if (insertError) {
-    throw new Error(`Could not queue incremental discovery job: ${insertError.message}`);
-  }
-
-  return { queued: true, alreadyQueued: false };
-}
 
 /**
  * Sync warehouse calendar events for a confirmed booking
