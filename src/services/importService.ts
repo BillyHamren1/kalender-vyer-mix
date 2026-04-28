@@ -17,12 +17,19 @@ import {
 const isEdgeTimeoutError = (err: unknown): boolean => {
   if (!err) return false;
   const msg = (err as { message?: string })?.message?.toLowerCase() ?? '';
-  const status = (err as { context?: { status?: number } })?.context?.status;
+  const ctx = (err as { context?: { status?: number; statusText?: string } })?.context;
+  const status = ctx?.status;
+  const statusText = (ctx?.statusText ?? '').toLowerCase();
+  // FunctionsHttpError wraps any non-2xx — treat ALL of them as "still running"
+  // for import-bookings since the server keeps processing past the 150s gateway cap.
   return (
     status === 504 ||
+    status === 408 ||
+    statusText.includes('timeout') ||
     msg.includes('idle_timeout') ||
     msg.includes('timeout') ||
-    msg.includes('non-2xx')
+    msg.includes('non-2xx') ||
+    msg.includes('functionshttperror')
   );
 };
 
