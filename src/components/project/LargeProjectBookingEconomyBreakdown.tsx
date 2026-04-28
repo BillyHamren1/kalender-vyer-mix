@@ -513,7 +513,8 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                             const assemblyCost = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
                                             const handlingCost = localMatch?.handling_cost ?? p.handling_cost ?? 0;
                                             const purchaseCost = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
-                                            const totalPCost = assemblyCost + handlingCost + purchaseCost;
+                                            const qty = Number(p.quantity) || 1;
+                                            const totalPCost = (assemblyCost + handlingCost + purchaseCost) * qty;
 
                                             return (
                                               <TableRow key={i}>
