@@ -357,7 +357,6 @@ export const updateCalendarEvent = async (
   let syncedSiblings = 0;
   if (updates.start && updates.end && data.booking_id && data.event_type && data.source_date) {
     try {
-      const { syncFromCalendarEvent } = await import('@/services/timeSync');
       const res = await syncFromCalendarEvent({
         booking_id: data.booking_id,
         event_type: data.event_type,
