@@ -1961,6 +1961,80 @@ serve(async (req) => {
 
     console.log(`Fetched ${externalData.data.length} bookings from external API`)
 
+    if (syncMode === 'incremental' && !isHistoricalImport && !isSingleBookingRefresh) {
+      const queueSummary = await enqueueIncrementalSyncJobs(
+        supabase,
+        externalData.data,
+        organizationId,
+        webhookEventType,
+      );
+
+      const importCompletedAt = new Date().toISOString();
+      const nextSyncCursor = importStartedAt;
+      await supabase
+        .from('sync_state')
+        .upsert({
+          sync_type: 'booking_import',
+          organization_id: organizationId,
+          last_sync_timestamp: nextSyncCursor,
+          last_sync_mode: syncMode,
+          last_sync_status: 'success',
+          metadata: {
+            queued_for_worker: true,
+            queue_summary: queueSummary,
+            cursor_advanced_to: nextSyncCursor,
+          },
+          updated_at: importCompletedAt,
+        }, { onConflict: 'sync_type' });
+
+      console.log('[import-bookings] Incremental batch queued for worker', JSON.stringify({
+        organization_id: organizationId,
+        queue_summary: queueSummary,
+        cursor_advanced_to: nextSyncCursor,
+      }));
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          queued: true,
+          results: {
+            total: queueSummary.totalCandidates,
+            imported: 0,
+            failed: 0,
+            calendar_events_created: 0,
+            warehouse_events_created: 0,
+            packing_projects_created: 0,
+            products_imported: 0,
+            attachments_imported: 0,
+            new_bookings: [],
+            updated_bookings: [],
+            status_changed_bookings: [],
+            cancelled_bookings_skipped: [],
+            duplicates_skipped: [],
+            unchanged_bookings_skipped: [],
+            products_updated_bookings: [],
+            product_changes: [],
+            errors: [],
+            sync_mode: 'incremental',
+            queued_jobs: queueSummary.queued,
+            already_queued_jobs: queueSummary.alreadyQueued,
+            team_distribution: {
+              'team-1': 0,
+              'team-2': 0,
+              'team-3': 0,
+              'team-4': 0,
+              'team-5': 0,
+              'team-11': 0,
+            },
+          },
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        },
+      )
+    }
+
     // ── LOCAL-DATA FALLBACK for single-booking refresh ────────────────────
     // When the external API returns 0 bookings for a webhook-triggered sync,
     // fall back to local data so calendar reconciliation still runs.
