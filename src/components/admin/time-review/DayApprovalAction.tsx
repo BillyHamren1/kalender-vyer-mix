@@ -79,7 +79,7 @@ export const DayApprovalAction: React.FC<DayApprovalActionProps> = ({
     }
     setBusy(true);
     try {
-      const res = await mobileApi.callAdminAction('admin_approve_day', {
+      const res = await mobileApi.adminApproveDay({
         workday_id: workdayId,
         force,
         override_reason: reason ?? null,
