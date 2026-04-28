@@ -9,6 +9,8 @@ import {
   deleteLargeProjectPurchase,
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
+import { fetchProjectTimeReports } from '@/services/projectEconomyService';
+import type { StaffTimeReport } from '@/types/projectEconomy';
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -66,7 +68,23 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // Compute aggregated summary from booking economy
+  // Local time reports per booking (single source of truth — same as normal projects)
+  const { data: timeReportsByBooking = {} } = useQuery({
+    queryKey: ['large-project-time-reports', bookingIds],
+    queryFn: async () => {
+      const result: Record<string, StaffTimeReport[]> = {};
+      await Promise.all(bookingIds.map(async (bId) => {
+        try {
+          result[bId] = await fetchProjectTimeReports(bId);
+        } catch (e) {
+          console.warn('[LargeProjectEcon] time reports fetch failed for', bId, e);
+          result[bId] = [];
+        }
+      }));
+      return result;
+    },
+    enabled: bookingIds.length > 0,
+  });
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
     const TAG = '[LargeProjectEcon]';
     if (!bookingEconomyData) {
@@ -111,16 +129,12 @@ export const useLargeProjectEconomy = (
           console.warn(`${TAG} Booking ${bId}: missing product_costs.summary, using local fallback (rev: ${localRev})`);
         }
       }
-      // Staff/time
-      const tr = bd.time_reports;
-      if (Array.isArray(tr)) {
-        tr.forEach((r: any) => {
-          totalStaffCost += r.total_cost || 0;
-          totalActualHours += (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
-        });
-      } else if (tr !== undefined) {
-        console.warn(`${TAG} Booking ${bId}: time_reports is not an array`, typeof tr);
-      }
+      // Staff/time — use LOCAL time_reports (single source of truth, same as normal projects)
+      const localTr = timeReportsByBooking[bId] || [];
+      localTr.forEach((r) => {
+        totalStaffCost += r.total_cost || 0;
+        totalActualHours += (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
+      });
       // Purchases
       const pu = bd.purchases;
       if (Array.isArray(pu)) {
@@ -238,6 +252,7 @@ export const useLargeProjectEconomy = (
     summary,
     bookingEconomyData: bookingEconomyData || null,
     localProducts,
+    timeReportsByBooking,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
     addPurchase: addPurchaseMutation.mutate,

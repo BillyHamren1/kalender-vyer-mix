@@ -26,6 +26,7 @@ import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useLargeProjectEconomy } from "@/hooks/useLargeProjectEconomy";
 import type { LargeProjectPurchase } from "@/types/largeProject";
 import { LargeProjectBookingEconomyBreakdown } from "@/components/project/LargeProjectBookingEconomyBreakdown";
+import { LargeProjectStaffTimeBreakdown } from "@/components/project/LargeProjectStaffTimeBreakdown";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 }).format(v);
@@ -45,7 +46,7 @@ const LargeProjectEconomyPage = () => {
   const bookingIds = bookings.map((b) => b.booking_id);
 
   const {
-    budget, purchases, summary, isLoading, bookingEconomyData, localProducts,
+    budget, purchases, summary, isLoading, bookingEconomyData, localProducts, timeReportsByBooking,
     saveBudget, addPurchase, updatePurchase, removePurchase,
   } = useLargeProjectEconomy(project?.id, bookingIds);
 
@@ -214,6 +215,12 @@ const LargeProjectEconomyPage = () => {
           localProducts={localProducts}
         />
       )}
+
+      {/* Detailed reported time per staff/day across all bookings */}
+      <LargeProjectStaffTimeBreakdown
+        timeReportsByBooking={timeReportsByBooking}
+        bookings={bookings}
+      />
 
       {/* Purchases */}
       <Card className="border-border/40">
