@@ -1,83 +1,40 @@
-## Mål
-En enda regel överallt:
+# Fix: Persistent white screen from stale Vite module URLs
 
-1. **Bokningstider = kalendertider.** Ändras tid på endera sidan ska den andra omedelbart matcha. Per fas (rig / event / rigDown).
-2. **Stora projekt:** alla bokningar i samma stora projekt ärver samma tid per fas + datum. Ändrar man tiden på vilken bokning eller vilket event som helst → alla syskon i projektet får samma tid.
+## Vad som faktiskt händer
 
-Inga nya kolumner. Ingen ny datakälla. Bara konsekvent spegling vid varje skrivpunkt.
+Skärmdumpen visar `net::ERR_ABORTED 404` på `PackingVerify.tsx` och `MobileProfile.tsx`. Båda är **statiska** imports högst upp i `src/App.tsx`. Det betyder:
 
-## Sanningsmodell
-```text
-calendar_events.start_time / end_time   ⇄  bookings.<fas>_start_time / <fas>_end_time
-                                         (exakt samma värde, alltid)
-                  │
-                  └── om bookings.large_project_id finns:
-                          alla syskon-bokningar (samma fas + samma datum) får samma tid
-```
+1. Webbläsaren har kvar gamla, tids-stämplade modul-URL:er från en tidigare HMR-session.
+2. Eftersom ALLT i `App.tsx` importeras statiskt, räcker det att **en enda** modul i kedjan är borta för att hela appen blir vit — `import('./App')` rejectar.
+3. Boot-recovery i `src/main.tsx` triggar EN gång, lägger till `?__lovable_module_reload=...`, men det query-parametern bustar inte själva modul-URL:erna som `index.html` redan har cachat — så samma 404 repeteras.
+4. När 15-sekunders cooldown slår in renderas felrutan, men i praktiken hinner användaren bara se vit skärm.
 
-`<fas>` = `rig` | `event` | `rigdown`, mappat från `calendar_events.event_type`.
+URL:en `/?__lovable_module_reload=1777379385570` bekräftar att recovery redan körts — men felet kvarstår.
 
-## Implementation: en gemensam funktion, anropad från alla skrivpunkter
+## Lösningen — två lager
 
-### Ny modul: `src/services/timeSync.ts`
-En funktion som är hela sanningen:
+### 1. Hård cache-bust vid recovery (`src/main.tsx`)
+Byt `window.location.replace(url + ?param)` mot ett riktigt cache-rensande omladdningsflöde:
+- Avregistrera ev. service worker (`navigator.serviceWorker.getRegistrations()` → `unregister()`).
+- Töm `caches` API (`caches.keys()` → `caches.delete()`).
+- Sedan `window.location.reload()` (inte `replace` med querystring) så att webbläsaren hämtar färsk `index.html` med nya modul-URL:er.
 
-```ts
-syncPhaseTime({
-  bookingId,         // uuid (sub-booking)
-  phase,             // 'rig' | 'event' | 'rigDown'
-  date,              // YYYY-MM-DD (rigdaydate / eventdate / rigdowndate)
-  startISO, endISO,  // de nya tiderna
-})
-```
+Behåll cooldown-loggiken så vi inte hamnar i reload-loop, men öka fönstret till ~30 s och visa felrutan med en tydlig "Töm cache och ladda om"-knapp som upprepar samma rensning.
 
-Den gör, i en transaktion (RPC) eller sekventiellt:
+### 2. Lazy-loada tunga route-komponenter (`src/App.tsx`)
+Konvertera de mest brott-känsliga sid-importerna till `React.lazy()` så att en enstaka stale chunk INTE tar ner hela appen — bara just den routen. Wrap routes med `<Suspense fallback={...}>`.
 
-1. **Bokning:** uppdatera `bookings.<fas>_start_time` / `<fas>_end_time` på `bookingId`.
-2. **Kalender:** uppsert `calendar_events` där `booking_id = bookingId AND event_type = phase AND source_date = date` med samma `start_time`/`end_time`.
-3. **Stort projekt-spridning:** om bokningen har `large_project_id`, hitta alla *andra* bokningar i samma projekt som har samma fas-datum (`rigdaydate` / `eventdate` / `rigdowndate` = `date`). För varje sådan: upprepa steg 1 + 2 (samma klockslag, samma datum).
-4. Returnera `{ syncedSiblings: number }` för toast-feedback.
+Minimum för att lösa det aktuella felet: `PackingVerify`, `MobileProfile`, samt mobil-sidorna och warehouse-sidorna som inte används på första rendering. Behåll layouts, providers, `Auth`, `NotFound`, `MainSystemLayout` som statiska.
 
-För att undvika rekursion/loopar: trigger `track_booking_changes` skriver redan till `booking_changes` men den startar ingen kaskad. Vi gör all spridning från klient-/edge-koden, inte via DB-triggers.
+Detta isolerar framtida stale-chunk-fel till den enskilda routen istället för hela bundle-trädet.
 
-### Skrivpunkter som ska gå genom `syncPhaseTime`
+## Filer som ändras
 
-**A. Kalender-sidan (när man ändrar tid på ett event):**
-- `src/services/eventService.ts` → `updateCalendarEvent`: efter befintlig update, om både `start` och `end` finns och `event_type` + `booking_id` finns → anropa `syncPhaseTime`. Då skrivs det egna eventet förvisso två gånger (en gång nu, en gång via syncPhaseTime steg 2) men idempotent.
-  - Renare: vi kan ta bort den första lokala updaten och låta `syncPhaseTime` göra allt jobb. Det blir den föredragna vägen.
-- `src/components/Calendar/QuickTimeEditPopover.tsx`: visa toast med `syncedSiblings`-räkning.
-- `src/components/Calendar/MoveEventDateDialog.tsx`: samma.
-- `src/services/eventEditHelpers.ts` (drag/resize): går redan via `updateCalendarEvent` → ärver beteendet.
+- `src/main.tsx` — cache/SW-rensning + `location.reload()` istället för query-bust.
+- `src/App.tsx` — `React.lazy(() => import(...))` för mobil-, warehouse- och övriga icke-kritiska sidor + en gemensam `<Suspense>` runt `<Routes>`.
 
-**B. Bokning-sidan (när man ändrar tid på själva bokningen):**
-- Identifiera UI-platser som direkt skriver `bookings.<fas>_*_time`. Vanliga misstänkta:
-  - Bokningens detaljvy / "redigera tider"-modal i Planning.
-  - Edge function `planning-api-proxy` (om den exponerar tids-uppdateringar) — där läggs samma helper in på server-sidan.
-- Alla dessa byts till att gå genom `syncPhaseTime` (klient eller server).
+## Vad användaren märker
 
-**C. Edge-funktioner som rör tider:**
-- `import-bookings`: gör inget extra — den importerar från extern källa och vi vill inte trigga vår propagering där (den kan skriva olika tider på syskon-bokningar avsiktligt vid import). Lämnas oförändrad.
-- `planning-api-proxy`: om den har en "uppdatera tid"-action, lägg in samma propageringssteg där (med service role) så det fungerar även när admin ändrar tid via API-vägen.
-
-### Backfill (engångsfix för befintlig data)
-För varje stort projekt: gruppera dess bokningar per fas + datum, ta median-tiden (eller första icke-null) och kör `syncPhaseTime` på alla syskon. Säkerställer att Tiomila och liknande blir konsekvent direkt.
-
-- En liten knapp "Synka alla tider i projektet" i `LargeProjectLayout` som kör backfillen för det öppna projektet. (Plus ev. en admin-batch för alla projekt.)
-
-## Filändringar
-- ny: `src/services/timeSync.ts`
-- edit: `src/services/eventService.ts` (`updateCalendarEvent` → använd `syncPhaseTime`)
-- edit: `src/components/Calendar/QuickTimeEditPopover.tsx` (toast med syskon-räkning)
-- edit: `src/components/Calendar/MoveEventDateDialog.tsx` (toast)
-- edit: bokningens "redigera tider"-vy i Planning (identifieras under bygget) — skrivs via `syncPhaseTime`
-- edit: `supabase/functions/planning-api-proxy/index.ts` om den hanterar tids-uppdateringar (server-side helper med service role)
-- edit: `src/pages/project/LargeProjectLayout.tsx` (backfill-knapp)
-
-## Vad som **inte** ändras
-- Inga schema-ändringar.
-- `import-bookings` rörs inte.
-- Personalkalender, AdminTimeReview, mobil, plannedDay etc. fortsätter läsa från `calendar_events` / `bookings.*_time` — får automatiskt rätt värden.
-
-## Edge-case att fundera på
-- **Olika datum för samma fas inom samma stora projekt** (t.ex. en bokning har rig 27/4 och en annan rig 28/4). Då propageras INGENTING mellan dem — propagering kräver matchande datum. Det är rätt beteende: olika datum = olika dag, kan ha olika tider.
-- **En bokning saknar fas-datum** (t.ex. ingen `rigdowndate`): bara den fas som faktiskt finns spridningsbar. Övriga ignoreras.
+- Vita skärmen försvinner: en stale modul tvingar en ren omladdning som faktiskt hämtar färska URL:er.
+- Om en enskild sida ändå skulle ha en stale chunk: bara just den sidan visar laddspinner/felruta, resten av appen fungerar.
+- Inga funktionella ändringar i logik — bara hur moduler hämtas.
