@@ -9,6 +9,23 @@ import {
   type SyncMode 
 } from "./syncStateService";
 
+/**
+ * Detect "soft" timeouts from edge function (504 / IDLE_TIMEOUT).
+ * import-bookings is long-running and frequently exceeds the 150s edge limit,
+ * but it keeps processing on the server. We treat this as in-progress, not failed.
+ */
+const isEdgeTimeoutError = (err: unknown): boolean => {
+  if (!err) return false;
+  const msg = (err as { message?: string })?.message?.toLowerCase() ?? '';
+  const status = (err as { context?: { status?: number } })?.context?.status;
+  return (
+    status === 504 ||
+    msg.includes('idle_timeout') ||
+    msg.includes('timeout') ||
+    msg.includes('non-2xx')
+  );
+};
+
 // Type for import results
 export interface ImportResults {
   success: boolean;
@@ -190,17 +207,31 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
 
     if (functionError) {
       console.error('Error calling import-bookings function:', functionError);
-      
+
+      // Treat edge timeouts as "still running" — server keeps processing.
+      if (isEdgeTimeoutError(functionError)) {
+        if (!silent) {
+          toast.info('Synkroniseringen körs vidare i bakgrunden — det kan ta några minuter.', {
+            duration: 4000,
+          });
+        }
+        return {
+          success: true,
+          results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 },
+          error: 'background_processing',
+        };
+      }
+
       await updateSyncState(syncType, {
         last_sync_status: 'failed',
-        metadata: { 
+        metadata: {
           error: functionError.message,
           sync_mode: syncMode,
           duration_ms: syncDurationMs,
           historical_mode: isHistoricalMode
         }
       });
-      
+
       return {
         success: false,
         error: `Import function error: ${functionError.message}`,
@@ -370,6 +401,15 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
 
     if (functionError) {
       console.error('Error calling import-bookings function:', functionError);
+
+      // Quiet background sync — swallow edge timeouts silently.
+      if (isEdgeTimeoutError(functionError)) {
+        return {
+          success: true,
+          results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 },
+        };
+      }
+
       return {
         success: false,
         error: `Import function error: ${functionError.message}`,
