@@ -5,6 +5,7 @@ import { Clock, Car, AlertTriangle, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DayStatusBadge } from './DayStatusBadge';
 import { MiniTimelineBar } from './MiniTimelineBar';
+import { DayApprovalAction } from './DayApprovalAction';
 import type { DayReviewRow } from '@/lib/admin/timeReviewQueries';
 
 const fmtMinutes = (m: number) => {
