@@ -447,6 +447,10 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleAdminMarkGapBreak(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'admin_mark_gap_travel':
         return await handleAdminMarkGapTravel(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_approve_day':
+        return await handleAdminApproveDay(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_unapprove_day':
+        return await handleAdminUnapproveDay(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'toggle_establishment_task':
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
       case 'get_organization_locations':
