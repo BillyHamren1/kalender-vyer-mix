@@ -287,55 +287,50 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
     queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
   };
 
-  // Build merged list of all costs across bookings
-  const mergedCosts = useMemo(() => {
-    const all: { type: string; bookingId: string; bookingName: string; description: string; info: string; amount: number }[] = [];
-    Object.entries(bookingEconomyData).forEach(([bookingId, data]) => {
-      const bName = getBookingName(bookingId);
+  // Aggregate all costs across all bookings into category buckets
+  const mergedCategories = useMemo(() => {
+    const buckets: Record<string, { label: string; amount: number; count: number }> = {
+      assembly:  { label: 'Montage',             amount: 0, count: 0 },
+      handling:  { label: 'Hantering',           amount: 0, count: 0 },
+      purchase:  { label: 'Inköp (produkt)',     amount: 0, count: 0 },
+      staff:     { label: 'Personal',            amount: 0, count: 0 },
+      purchases: { label: 'Inköp (lösa)',        amount: 0, count: 0 },
+      invoices:  { label: 'Fakturor',            amount: 0, count: 0 },
+      supplier:  { label: 'Leverantörsfakturor', amount: 0, count: 0 },
+    };
 
-      // Products — include ALL, even zero-cost
+    Object.entries(bookingEconomyData).forEach(([bookingId, data]) => {
+      // Products — split into assembly / handling / purchase
       const products = extractProducts(data);
       products.forEach((p: any) => {
-        const cost = p.total_cost ?? p.cost ?? ((p.assembly_cost || 0) + (p.handling_cost || 0) + (p.purchase_cost || 0));
-        all.push({
-          type: 'Produkt', bookingId, bookingName: bName,
-          description: p.product_name || p.name || p.description || '—',
-          info: `${p.quantity || 1} st`,
-          amount: cost,
-        });
+        const a = Number(p.assembly_cost) || 0;
+        const h = Number(p.handling_cost) || 0;
+        const pu = Number(p.purchase_cost) || 0;
+        if (a) { buckets.assembly.amount += a; buckets.assembly.count += 1; }
+        if (h) { buckets.handling.amount += h; buckets.handling.count += 1; }
+        if (pu) { buckets.purchase.amount += pu; buckets.purchase.count += 1; }
       });
 
       // Staff / time reports
       const timeReports = Array.isArray(data.time_reports) ? data.time_reports : [];
       timeReports.forEach((r: any) => {
-        all.push({
-          type: 'Personal', bookingId, bookingName: bName,
-          description: r.staff_name || 'Okänd',
-          info: `${r.total_hours || r.hours_worked || 0}h`,
-          amount: r.total_cost || 0,
-        });
+        const c = Number(r.total_cost) || 0;
+        buckets.staff.amount += c;
+        buckets.staff.count += 1;
       });
 
       // Purchases
       const purchases = Array.isArray(data.purchases) ? data.purchases : [];
       purchases.forEach((p: any) => {
-        all.push({
-          type: 'Inköp', bookingId, bookingName: bName,
-          description: p.description || '—',
-          info: p.supplier || '—',
-          amount: p.amount || 0,
-        });
+        buckets.purchases.amount += Number(p.amount) || 0;
+        buckets.purchases.count += 1;
       });
 
       // Invoices
       const invoices = Array.isArray(data.invoices) ? data.invoices : [];
       invoices.forEach((inv: any) => {
-        all.push({
-          type: 'Faktura', bookingId, bookingName: bName,
-          description: inv.supplier || '—',
-          info: inv.invoice_number || '—',
-          amount: Number(inv.invoiced_amount) || 0,
-        });
+        buckets.invoices.amount += Number(inv.invoiced_amount) || 0;
+        buckets.invoices.count += 1;
       });
 
       // Supplier invoices (skip linked to avoid double-counting)
@@ -343,18 +338,16 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
       supplierInvoices
         .filter((s: any) => !(s.is_final_link && s.linked_cost_id))
         .forEach((si: any) => {
-          all.push({
-            type: 'Lev.faktura', bookingId, bookingName: bName,
-            description: si.invoice_data?.SupplierName || '—',
-            info: si.invoice_data?.GivenNumber || '—',
-            amount: Number(si.invoice_data?.Total) || 0,
-          });
+          buckets.supplier.amount += Number(si.invoice_data?.Total) || 0;
+          buckets.supplier.count += 1;
         });
     });
-    return all;
+
+    return Object.values(buckets).filter(b => b.count > 0 || b.amount !== 0);
   }, [bookingEconomyData, bookings]);
 
-  const mergedTotal = mergedCosts.reduce((s, c) => s + c.amount, 0);
+  const mergedTotal = mergedCategories.reduce((s, c) => s + c.amount, 0);
+  const mergedCount = mergedCategories.reduce((s, c) => s + c.count, 0);
 
   return (
     <Card className="border-border/40">
