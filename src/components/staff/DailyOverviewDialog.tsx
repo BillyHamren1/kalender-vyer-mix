@@ -53,6 +53,8 @@ interface DailyOverviewDialogProps {
   staffName: string;
   travelSegments: TravelSegment[];
   workEntries: WorkEntry[];
+  /** Optional — när satt visas "Godkänn dag" CTA i headern. */
+  reviewRow?: import('@/lib/admin/timeReviewQueries').DayReviewRow | null;
 }
 
 /**
