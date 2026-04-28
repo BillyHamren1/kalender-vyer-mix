@@ -113,7 +113,10 @@ export const useLargeProjectEconomy = (
       // Staff/time
       const tr = bd.time_reports;
       if (Array.isArray(tr)) {
-        tr.forEach((r: any) => { totalStaffCost += r.total_cost || 0; });
+        tr.forEach((r: any) => {
+          totalStaffCost += r.total_cost || 0;
+          totalActualHours += (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
+        });
       } else if (tr !== undefined) {
         console.warn(`${TAG} Booking ${bId}: time_reports is not an array`, typeof tr);
       }
