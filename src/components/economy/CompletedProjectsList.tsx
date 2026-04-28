@@ -242,7 +242,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
         <CardContent className="p-0">
           {filtered.length === 0 ? (
             <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-              Inga slutförda projekt matchar dina filter.
+              Inga projekt matchar dina filter.
             </div>
           ) : (
             <>
