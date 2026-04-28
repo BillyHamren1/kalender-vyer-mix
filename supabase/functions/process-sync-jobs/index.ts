@@ -17,8 +17,6 @@ const corsHeaders = {
 }
 
 const BATCH_SIZE = 10
-const INCREMENTAL_DISCOVERY_BOOKING_ID = '__incremental_discovery__'
-const INCREMENTAL_DISCOVERY_EVENT_TYPE = 'booking.incremental.scan'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
