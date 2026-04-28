@@ -1,40 +1,20 @@
-import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Plus, Trash2, DollarSign, BarChart3, TrendingDown,
-  ShoppingCart, Receipt, Image, ExternalLink, Pencil, ChevronDown, ChevronUp,
+  DollarSign, BarChart3, TrendingDown, ChevronDown, ChevronUp,
 } from "lucide-react";
-import { format } from "date-fns";
-import { sv } from "date-fns/locale";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useLargeProjectEconomy } from "@/hooks/useLargeProjectEconomy";
-import type { LargeProjectPurchase } from "@/types/largeProject";
+import { useLargeProjectCostLines } from "@/hooks/useLargeProjectCostLines";
 import { LargeProjectBookingEconomyBreakdown } from "@/components/project/LargeProjectBookingEconomyBreakdown";
-import { LargeProjectUnifiedCostList } from "@/components/project/LargeProjectUnifiedCostList";
+import { LargeProjectEditableCostList } from "@/components/project/LargeProjectEditableCostList";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 }).format(v);
-
-const getCategoryLabel = (c: string | null) => {
-  switch (c) {
-    case "material": return "Material";
-    case "transport": return "Transport";
-    default: return "Övrigt";
-  }
-};
 
 const LargeProjectEconomyPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
@@ -43,18 +23,18 @@ const LargeProjectEconomyPage = () => {
   const bookingIds = bookings.map((b) => b.booking_id);
 
   const {
-    purchases, summary, isLoading, bookingEconomyData, localProducts, timeReportsByBooking,
-    addPurchase, updatePurchase, removePurchase,
+    summary, isLoading, bookingEconomyData, localProducts, timeReportsByBooking,
   } = useLargeProjectEconomy(project?.id, bookingIds);
 
-  const [purchaseOpen, setPurchaseOpen] = useState(false);
-  const [editingPurchase, setEditingPurchase] = useState<LargeProjectPurchase | null>(null);
-  const [receiptPreview, setReceiptPreview] = useState<{ url: string; description: string } | null>(null);
+  const {
+    lines, isLoading: linesLoading, addLine, updateLine, removeLine,
+  } = useLargeProjectCostLines(project?.id);
+
   const [costBreakdownOpen, setCostBreakdownOpen] = useState(false);
 
   if (!project) return null;
 
-  if (isLoading) {
+  if (isLoading || linesLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-32 w-full" />
@@ -63,15 +43,21 @@ const LargeProjectEconomyPage = () => {
     );
   }
 
+  // Real total cost = manual lines + reported time (assembly auto)
+  const reportedTimeTotal = Object.values(timeReportsByBooking).reduce((s, reps) =>
+    s + reps.reduce((ss, r: any) => ss + (Number(r.total_cost) || 0), 0), 0);
+  const linesTotal = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+  const realTotalCost = linesTotal + reportedTimeTotal;
+
   const margin = summary.grandTotalRevenue > 0
-    ? ((summary.grandTotalRevenue - summary.grandTotalCost) / summary.grandTotalRevenue) * 100
+    ? ((summary.grandTotalRevenue - realTotalCost) / summary.grandTotalRevenue) * 100
     : 0;
-  const marginAmount = summary.grandTotalRevenue - summary.grandTotalCost;
+  const marginAmount = summary.grandTotalRevenue - realTotalCost;
 
   return (
     <div className="space-y-5">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card className="border-border/40">
           <CardContent className="p-4">
             <div className="flex items-center gap-1.5 mb-1">
@@ -98,25 +84,11 @@ const LargeProjectEconomyPage = () => {
                 {costBreakdownOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               </Button>
             </div>
-            <p className="text-xl font-bold text-foreground">{fmt(summary.grandTotalCost)}</p>
+            <p className="text-xl font-bold text-foreground">{fmt(realTotalCost)}</p>
             {costBreakdownOpen && (
               <div className="mt-3 pt-3 border-t border-border/40 space-y-1.5">
-                {[
-                  { label: 'Produktkostnad (bokningar)', value: summary.totalCost },
-                  { label: 'Personalkostnad', value: summary.totalStaffCost },
-                  { label: 'Bokningsinköp', value: summary.totalPurchases },
-                  { label: 'Fakturor', value: summary.totalInvoices },
-                  { label: 'Leverantörsfakturor', value: summary.totalSupplierInvoices },
-                  { label: 'Projektinköp (lokala)', value: summary.localPurchasesTotal },
-                ].map((item) => (
-                  <div key={item.label} className={cn(
-                    "flex items-center justify-between text-xs",
-                    item.value === 0 ? "text-muted-foreground/50" : "text-foreground"
-                  )}>
-                    <span>{item.label}</span>
-                    <span className={cn("font-medium", item.value > 0 && "text-foreground")}>{fmt(item.value)}</span>
-                  </div>
-                ))}
+                <div className="flex justify-between text-xs"><span>Manuella kostnadsrader</span><span className="font-medium">{fmt(linesTotal)}</span></div>
+                <div className="flex justify-between text-xs"><span>Rapporterad arbetstid</span><span className="font-medium">{fmt(reportedTimeTotal)}</span></div>
               </div>
             )}
           </CardContent>
@@ -132,27 +104,20 @@ const LargeProjectEconomyPage = () => {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-border/40">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" />
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Projektinköp</p>
-            </div>
-            <p className="text-xl font-bold text-foreground">{fmt(summary.localPurchasesTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{purchases.length} poster</p>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Unified cost overview: Budget vs Actual per category (incl. assembly = reported time) */}
-      <LargeProjectUnifiedCostList
+      {/* Editable unified cost list */}
+      <LargeProjectEditableCostList
+        largeProjectId={project.id}
+        lines={lines}
         bookingEconomyData={bookingEconomyData}
-        localProducts={localProducts}
         timeReportsByBooking={timeReportsByBooking}
-        purchases={purchases}
+        addLine={addLine}
+        updateLine={updateLine}
+        removeLine={removeLine}
       />
 
-      {/* Detailed per-booking economy breakdown (editable product costs) */}
+      {/* Detailed per-booking economy breakdown (referensdata från bokningssystemet) */}
       {bookingEconomyData && summary.bookingCount > 0 && (
         <LargeProjectBookingEconomyBreakdown
           bookingEconomyData={bookingEconomyData}
@@ -161,223 +126,8 @@ const LargeProjectEconomyPage = () => {
           localProducts={localProducts}
         />
       )}
-
-      {/* Purchases */}
-      <Card className="border-border/40">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-base font-medium">Projektinköp</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => { setEditingPurchase(null); setPurchaseOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Lägg till
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {purchases.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Beskrivning</TableHead>
-                  <TableHead>Leverantör</TableHead>
-                  <TableHead>Kategori</TableHead>
-                  <TableHead>Kvitto</TableHead>
-                  <TableHead className="text-right">Belopp</TableHead>
-                  <TableHead className="w-20"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {purchases.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>
-                      {p.purchase_date
-                        ? format(new Date(p.purchase_date), "yyyy-MM-dd", { locale: sv })
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="font-medium">{p.description}</TableCell>
-                    <TableCell>{p.supplier || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="text-xs">
-                        {getCategoryLabel(p.category)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {p.receipt_url ? (
-                        /\.(jpg|jpeg|png|gif|webp)$/i.test(p.receipt_url) ? (
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-primary"
-                            onClick={() => setReceiptPreview({ url: p.receipt_url!, description: p.description })}>
-                            <Image className="h-3.5 w-3.5 mr-1" /> Visa
-                          </Button>
-                        ) : (
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-primary"
-                            onClick={() => window.open(p.receipt_url!, "_blank")}>
-                            <Receipt className="h-3.5 w-3.5 mr-1" /> Öppna
-                          </Button>
-                        )
-                      ) : (
-                        <span className="text-muted-foreground text-xs">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{fmt(p.amount || 0)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7"
-                          onClick={() => { setEditingPurchase(p); setPurchaseOpen(true); }}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => removePurchase(p.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className="font-bold border-t-2">
-                  <TableCell colSpan={5}>TOTALT</TableCell>
-                  <TableCell className="text-right">{fmt(summary.localPurchasesTotal)}</TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-muted-foreground text-center py-8 text-sm">
-              Inga projektinköp registrerade
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Purchase Dialog (add/edit) */}
-      <PurchaseDialog
-        open={purchaseOpen}
-        onOpenChange={setPurchaseOpen}
-        existing={editingPurchase}
-        onAdd={(data) => addPurchase(data)}
-        onUpdate={(id, updates) => updatePurchase({ id, updates })}
-      />
-
-      {/* Receipt preview */}
-      <Dialog open={!!receiptPreview} onOpenChange={() => setReceiptPreview(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5" />
-              Kvitto: {receiptPreview?.description}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4">
-            {receiptPreview && (
-              <>
-                <img src={receiptPreview.url} alt="Kvittobild" className="max-h-[60vh] w-auto rounded-lg shadow-md" />
-                <Button variant="outline" onClick={() => window.open(receiptPreview.url, "_blank")}>
-                  <ExternalLink className="h-4 w-4 mr-2" /> Öppna i ny flik
-                </Button>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
-
-/* ─── Purchase Dialog (add/edit) ─── */
-function PurchaseDialog({ open, onOpenChange, existing, onAdd, onUpdate }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  existing: LargeProjectPurchase | null;
-  onAdd: (d: { description: string; amount: number; category?: string; supplier?: string; purchase_date?: string; receipt_url?: string }) => void;
-  onUpdate: (id: string, updates: Partial<LargeProjectPurchase>) => void;
-}) {
-  const [description, setDescription] = useState("");
-  const [supplier, setSupplier] = useState("");
-  const [amount, setAmount] = useState("");
-  const [purchaseDate, setPurchaseDate] = useState("");
-  const [category, setCategory] = useState("other");
-  const [receiptUrl, setReceiptUrl] = useState("");
-
-  const resetForm = () => {
-    if (existing) {
-      setDescription(existing.description);
-      setSupplier(existing.supplier || "");
-      setAmount((existing.amount || 0).toString());
-      setPurchaseDate(existing.purchase_date || "");
-      setCategory(existing.category || "other");
-      setReceiptUrl(existing.receipt_url || "");
-    } else {
-      setDescription(""); setSupplier(""); setAmount("");
-      setPurchaseDate(""); setCategory("other"); setReceiptUrl("");
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const data = {
-      description,
-      supplier: supplier || undefined,
-      amount: parseFloat(amount) || 0,
-      purchase_date: purchaseDate || undefined,
-      category,
-      receipt_url: receiptUrl || undefined,
-    };
-    if (existing) {
-      onUpdate(existing.id, data);
-    } else {
-      onAdd(data);
-    }
-    onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) resetForm(); onOpenChange(o); }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{existing ? "Redigera inköp" : "Lägg till inköp"}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Beskrivning *</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="T.ex. Kablar och kontakter" required />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Leverantör</Label>
-              <Input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="T.ex. Elgiganten" />
-            </div>
-            <div className="space-y-2">
-              <Label>Belopp (kr) *</Label>
-              <Input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" required />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Datum</Label>
-              <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Kategori</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="material">Material</SelectItem>
-                  <SelectItem value="transport">Transport</SelectItem>
-                  <SelectItem value="other">Övrigt</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Länk till kvitto (valfritt)</Label>
-            <Input type="url" value={receiptUrl} onChange={(e) => setReceiptUrl(e.target.value)} placeholder="https://..." />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Avbryt</Button>
-            <Button type="submit" disabled={!description || !amount}>{existing ? "Spara ändringar" : "Lägg till"}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default LargeProjectEconomyPage;

@@ -1930,6 +1930,59 @@ export type Database = {
           },
         ]
       }
+      large_project_cost_lines: {
+        Row: {
+          amount: number
+          category: string
+          cost_date: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          large_project_id: string
+          notes: string | null
+          organization_id: string
+          supplier: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category: string
+          cost_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          large_project_id: string
+          notes?: string | null
+          organization_id: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          cost_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          large_project_id?: string
+          notes?: string | null
+          organization_id?: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_cost_lines_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       large_project_files: {
         Row: {
           file_name: string
