@@ -81,7 +81,7 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
   const completed = useMemo(() => {
     const today = new Date();
     return projectInsights
-      .filter(p => COMPLETED_STATUSES.includes(p.economyStatus) && !hidden.has(p.id))
+      .filter(p => !hidden.has(p.id))
       .map(p => {
         const eventDate = p.eventdate ? new Date(p.eventdate) : null;
         const daysSince = eventDate ? differenceInDays(today, eventDate) : -1;
