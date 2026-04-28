@@ -419,3 +419,84 @@ export function summarizeForBadge(result: AdminTimeReviewResult): DayStatusSumma
     topLabel: top?.label ?? null,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Day-level approvability
+// ─────────────────────────────────────────────────────────────────────
+
+export type ApprovalBlocker =
+  | 'workday_missing'
+  | 'workday_open'
+  | 'open_timer'
+  | 'pending_assistant_events'
+  | 'unresolved_critical_anomaly';
+
+export interface ApprovabilityResult {
+  /** True when admin can approve directly without override. */
+  canApprove: boolean;
+  /** True when only critical anomalies remain — admin may force-approve with reason. */
+  canOverride: boolean;
+  /** Hard blockers that even override cannot bypass (e.g. open timer). */
+  blockers: ApprovalBlocker[];
+  /** Critical anomalies that require an override reason. */
+  criticalAnomalies: ReviewAnomaly[];
+  /** Short Swedish summary for tooltips. */
+  reason: string | null;
+}
+
+/**
+ * evaluateDayApprovability — gate for the "Godkänn dag"-button.
+ *
+ * Hard blockers (cannot be overridden):
+ *   - workday row is missing
+ *   - workday is still open (no ended_at)
+ *   - an active timer is still running
+ *   - pending workday-assistant events
+ *
+ * Soft blockers (override with comment is allowed):
+ *   - any anomaly with severity = 'critical' that isn't already covered
+ *     by a hard blocker
+ */
+export function evaluateDayApprovability(
+  result: AdminTimeReviewResult,
+  context: {
+    workday: ReviewWorkdayInput | null;
+    openTimer?: ReviewOpenTimer | null;
+    assistantEvents?: ReviewAssistantEvent[];
+  },
+): ApprovabilityResult {
+  const blockers: ApprovalBlocker[] = [];
+
+  if (!context.workday) blockers.push('workday_missing');
+  else if (!context.workday.ended_at) blockers.push('workday_open');
+
+  if (context.openTimer) blockers.push('open_timer');
+
+  const pending = (context.assistantEvents ?? []).filter((e) => !e.acknowledged).length;
+  if (pending > 0) blockers.push('pending_assistant_events');
+
+  const criticalAnomalies = result.anomalies.filter(
+    (a) =>
+      a.severity === 'critical' &&
+      // 'open_timer_stale' and 'missing_logout' are already hard blockers
+      a.kind !== 'open_timer_stale' &&
+      a.kind !== 'missing_logout',
+  );
+
+  if (criticalAnomalies.length > 0) blockers.push('unresolved_critical_anomaly');
+
+  const hardBlockers = blockers.filter((b) => b !== 'unresolved_critical_anomaly');
+  const canOverride = hardBlockers.length === 0 && criticalAnomalies.length > 0;
+  const canApprove = blockers.length === 0;
+
+  let reason: string | null = null;
+  if (blockers.includes('workday_missing')) reason = 'Ingen arbetsdag registrerad.';
+  else if (blockers.includes('workday_open')) reason = 'Arbetsdagen är fortfarande öppen.';
+  else if (blockers.includes('open_timer')) reason = 'En aktivitet är fortfarande igång.';
+  else if (blockers.includes('pending_assistant_events'))
+    reason = `${pending} assistent-händelser väntar på bekräftelse.`;
+  else if (blockers.includes('unresolved_critical_anomaly'))
+    reason = `${criticalAnomalies.length} kritiska avvikelser kräver override.`;
+
+  return { canApprove, canOverride, blockers, criticalAnomalies, reason };
+}
