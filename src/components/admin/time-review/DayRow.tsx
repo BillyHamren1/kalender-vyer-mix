@@ -144,6 +144,7 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
         {/* Numbers */}
         <div className="hidden md:flex items-center gap-5 text-xs shrink-0">
           <Stat icon={<Clock className="w-3 h-3 text-muted-foreground" />} label="Dag" value={fmtMinutes(m.workdayMinutes)} />
+          <Stat icon={<CalendarClock className="w-3 h-3 text-sky-600" />} label="Planerat" value={fmtMinutes(row.plannedMinutes)} tone={row.plannedMinutes ? 'text-sky-700' : 'text-muted-foreground'} />
           <Stat label="Rapport" value={fmtMinutes(m.reportedActivityMinutes)} tone="text-emerald-700" />
           <Stat icon={<Car className="w-3 h-3 text-amber-600" />} label="Resa" value={fmtMinutes(m.travelMinutes)} tone={m.travelMinutes ? 'text-amber-700' : 'text-muted-foreground'} />
           <Stat
