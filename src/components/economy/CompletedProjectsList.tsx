@@ -349,11 +349,46 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
                         <TableCell className="py-5 align-middle text-sm text-muted-foreground tabular-nums">
                           {dateLabel}
                         </TableCell>
-                        <TableCell className="py-5 align-middle">
-                          <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium', STATUS_PILL_CLASS[lifecycle])}>
-                            <span className={cn('inline-block h-1.5 w-1.5 rounded-full', STATUS_DOT_CLASS[lifecycle])} />
-                            {statusLabel}
-                          </span>
+                        <TableCell className="py-5 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                disabled={updatingId === p.id}
+                                className={cn(
+                                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:brightness-95 disabled:opacity-60',
+                                  STATUS_PILL_CLASS[lifecycle],
+                                )}
+                              >
+                                <span className={cn('inline-block h-1.5 w-1.5 rounded-full', STATUS_DOT_CLASS[lifecycle])} />
+                                {statusLabel}
+                                {updatingId === p.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin ml-0.5" />
+                                ) : (
+                                  <ChevronDown className="h-3 w-3 ml-0.5 opacity-70" />
+                                )}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-44 p-1">
+                              {(['active', 'closed', 'cancelled'] as ProjectLifecycleStatus[]).map((opt) => {
+                                const isCurrent = opt === lifecycle;
+                                return (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => handleStatusChange(p, opt)}
+                                    className="w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted text-left"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className={cn('inline-block h-1.5 w-1.5 rounded-full', STATUS_DOT_CLASS[opt])} />
+                                      {LIFECYCLE_STATUS_LABEL[opt]}
+                                    </span>
+                                    {isCurrent && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
+                                  </button>
+                                );
+                              })}
+                            </PopoverContent>
+                          </Popover>
                         </TableCell>
                         <TableCell className="py-5 align-middle text-right tabular-nums font-semibold text-sm pr-6">
                           {formatCurrency(p.quotedAmount)}
