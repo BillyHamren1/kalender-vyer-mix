@@ -316,13 +316,16 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
 /**
  * Update a calendar event from a planner UI action.
  * Used by: drag-drop, time editing, team reassignment.
- * 
- * NOTE: Callers updating time/date MUST also update the bookings table.
+ *
+ * Time updates flow through `syncPhaseTime` so the booking row AND every
+ * sibling booking in the same large project (matching phase + date) stay in
+ * lockstep. Returns the updated CalendarEvent and the number of sibling
+ * bookings that were synchronized.
  */
 export const updateCalendarEvent = async (
   eventId: string, 
   updates: CalendarEventUpdate
-): Promise<CalendarEvent> => {
+): Promise<CalendarEvent & { syncedSiblings?: number }> => {
   console.log('📝 [Planner UI] Updating calendar event:', eventId);
   
   const updateData: any = {};
@@ -330,7 +333,6 @@ export const updateCalendarEvent = async (
     updateData.start_time = updates.start;
     // Keep source_date in sync with the new start so the reconciler
     // doesn't see a date mismatch and recreate / move the event back.
-    // start is an ISO UTC string (e.g. 2026-04-24T08:00:00.000Z) — take the date portion.
     updateData.source_date = String(updates.start).slice(0, 10);
   }
   if (updates.end) updateData.end_time = updates.end;
@@ -348,6 +350,25 @@ export const updateCalendarEvent = async (
   if (error) {
     console.error('❌ Error updating calendar event:', error);
     throw error;
+  }
+
+  // Mirror the new time onto bookings.<phase>_*_time and propagate to all
+  // sibling bookings in the same large project (no-op for plain bookings).
+  let syncedSiblings = 0;
+  if (updates.start && updates.end && data.booking_id && data.event_type && data.source_date) {
+    try {
+      const { syncFromCalendarEvent } = await import('@/services/timeSync');
+      const res = await syncFromCalendarEvent({
+        booking_id: data.booking_id,
+        event_type: data.event_type,
+        source_date: data.source_date,
+        start_time: data.start_time,
+        end_time: data.end_time,
+      });
+      syncedSiblings = res?.syncedSiblings ?? 0;
+    } catch (e) {
+      console.warn('[updateCalendarEvent] timeSync failed (non-fatal)', e);
+    }
   }
 
   return {
@@ -370,7 +391,8 @@ export const updateCalendarEvent = async (
       bookingNumber: data.booking_number,
       eventType: data.event_type,
       manuallyAssigned: false
-    }
+    },
+    syncedSiblings,
   };
 };
 

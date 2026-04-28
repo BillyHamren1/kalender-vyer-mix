@@ -171,6 +171,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       const WAREHOUSE_TYPES = ['packing', 'return', 'delivery', 'inventory', 'unpacking'];
       const isWarehouseEvent = !!event.eventType && WAREHOUSE_TYPES.includes(event.eventType);
 
+      let syncedSiblings = 0;
+
       if (isWarehouseEvent) {
         trace('WAREHOUSE branch');
         const whPayload: any = {
@@ -202,7 +204,8 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           updatePayload.resourceId = selectedResourceId;
         }
         try {
-          await updateCalendarEvent(event.id, updatePayload);
+          const result = await updateCalendarEvent(event.id, updatePayload);
+          syncedSiblings = (result as any)?.syncedSiblings ?? 0;
           trace('updateCalendarEvent OK', updatePayload);
         } catch (err) {
           traceError('updateCalendarEvent FAILED', err);
@@ -293,8 +296,11 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         : '';
 
       trace('SUCCESS');
+      const siblingsNote = syncedSiblings > 0
+        ? ` · synkad till ${syncedSiblings} bokning${syncedSiblings === 1 ? '' : 'ar'} i projektet`
+        : '';
       toast.success('Händelse flyttad', {
-        description: `${event.title} → ${format(selectedDate, 'd MMM yyyy')}${movedToTeam}`
+        description: `${event.title} → ${format(selectedDate, 'd MMM yyyy')}${movedToTeam}${siblingsNote}`
       });
 
       if (onUpdate) await onUpdate();

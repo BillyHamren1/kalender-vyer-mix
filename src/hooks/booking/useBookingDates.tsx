@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
 import { updateBookingDatesViaApi } from '@/services/planningApiService';
+import { syncPhaseTime } from '@/services/timeSync';
 
 export const useBookingDates = (
   id: string | undefined,
@@ -214,6 +215,25 @@ export const useBookingDates = (
 
       // Write to Booking API (source of truth)
       await updateBookingDatesViaApi(id, updateData);
+
+      // Mirror locally and propagate to sibling bookings in the same large
+      // project so all rows agree on time immediately (single source rule).
+      try {
+        const startISO = startTime ? `${newDate}T${startTime}:00Z` : null;
+        const endISO   = endTime   ? `${newDate}T${endTime}:00Z`   : null;
+        const sync = await syncPhaseTime({
+          bookingId: id,
+          phase: dateType,
+          date: newDate,
+          startISO,
+          endISO,
+        });
+        if (sync.syncedSiblings > 0) {
+          toast.success(`Tid synkad till ${sync.syncedSiblings} bokning${sync.syncedSiblings === 1 ? '' : 'ar'} i projektet`);
+        }
+      } catch (e) {
+        console.warn('[useBookingDates.editDate] timeSync failed (non-fatal)', e);
+      }
 
       // Update local booking state
       const localFieldMap = {
