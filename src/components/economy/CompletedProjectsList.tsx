@@ -24,24 +24,36 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
+import {
+  getProjectLifecycleStatus,
+  LIFECYCLE_STATUS_LABEL,
+  type ProjectLifecycleStatus,
+} from '@/lib/economy/projectLifecycleStatus';
 
 const PAGE_SIZE = 10;
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(v);
 
-type StatusFilter = 'all' | 'active' | EconomyProjectInsight['economyStatus'];
+type StatusFilter = 'all' | ProjectLifecycleStatus;
 
-const statusLabels: Record<Exclude<StatusFilter, 'all' | 'active'>, string> = {
-  'upcoming': 'Kommande',
-  'ongoing': 'Pågående',
-  'event-completed': 'Event slutfört',
-  'ready-for-invoicing': 'Redo att fakturera',
-  'partially-invoiced': 'Delvis fakturerat',
-  'fully-invoiced': 'Fullt fakturerat',
-  'economy-closed': 'Stängt',
-  'risk': 'Risk',
-  'missing-data': 'Saknar data',
+const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
+  active: 'Aktiva',
+  closed: 'Stängda',
+  cancelled: 'Avbokade',
+  all: 'Alla',
+};
+
+const STATUS_DOT_CLASS: Record<ProjectLifecycleStatus, string> = {
+  active: 'bg-primary',
+  closed: 'bg-muted-foreground/50',
+  cancelled: 'bg-destructive',
+};
+
+const STATUS_PILL_CLASS: Record<ProjectLifecycleStatus, string> = {
+  active: 'border-primary/30 text-primary bg-primary/5',
+  closed: 'border-border bg-muted/50 text-muted-foreground',
+  cancelled: 'border-destructive/40 text-destructive bg-destructive/5',
 };
 
 interface Props {

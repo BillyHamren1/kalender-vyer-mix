@@ -2,33 +2,43 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { EconomyProjectStatus } from '@/types/economyOverview';
+import {
+  getProjectLifecycleStatus,
+  LIFECYCLE_STATUS_LABEL,
+  type ProjectLifecycleStatus,
+} from '@/lib/economy/projectLifecycleStatus';
 
-type EconomyStatus = EconomyProjectStatus;
-
-const STATUS_CONFIG: Record<EconomyStatus, { label: string; className: string }> = {
-  'upcoming': { label: 'Kommande', className: 'border-amber-300 text-amber-700 bg-amber-50' },
-  'ongoing': { label: 'Pågående', className: 'border-blue-300 text-blue-700 bg-blue-50' },
-  'event-completed': { label: 'Event klart', className: 'border-primary/30 text-primary bg-primary/5' },
-  'ready-for-invoicing': { label: 'Redo fakturera', className: 'border-primary/30 text-primary bg-primary/5' },
-  'partially-invoiced': { label: 'Delvis fakturerad', className: 'border-amber-300 text-amber-700 bg-amber-50' },
-  'fully-invoiced': { label: 'Fullt fakturerad', className: 'border-primary/30 text-primary bg-primary/5' },
-  'economy-closed': { label: 'Stängd', className: 'bg-muted text-muted-foreground border-border' },
-  'risk': { label: 'Risk', className: 'border-destructive/40 text-destructive bg-destructive/5' },
-  'missing-data': { label: 'Saknar data', className: 'border-amber-300 text-amber-700 bg-amber-50' },
+const LIFECYCLE_CLASS: Record<ProjectLifecycleStatus, string> = {
+  active: 'border-primary/30 text-primary bg-primary/5',
+  closed: 'bg-muted text-muted-foreground border-border',
+  cancelled: 'border-destructive/40 text-destructive bg-destructive/5',
 };
 
+/**
+ * Map gamla härledda EconomyProjectStatus → ny enkel livscykel.
+ * Behållen så att komponenten kan användas av äldre call-sites
+ * utan att tappa typsäkerhet.
+ */
+function statusToLifecycle(status: ProjectLifecycleStatus | EconomyProjectStatus): ProjectLifecycleStatus {
+  if (status === 'active' || status === 'closed' || status === 'cancelled') return status;
+  if (status === 'economy-closed') return 'closed';
+  return 'active';
+}
+
 interface Props {
-  status: EconomyStatus;
+  /** Nya användare: skicka 'active' | 'closed' | 'cancelled'. Gamla EconomyProjectStatus mappas automatiskt. */
+  status: ProjectLifecycleStatus | EconomyProjectStatus;
   className?: string;
 }
 
 const EconomyStatusBadge: React.FC<Props> = ({ status, className }) => {
-  const config = STATUS_CONFIG[status];
+  const lifecycle = statusToLifecycle(status);
   return (
-    <Badge variant="outline" className={cn("text-[10px] font-medium", config.className, className)}>
-      {config.label}
+    <Badge variant="outline" className={cn('text-[10px] font-medium', LIFECYCLE_CLASS[lifecycle], className)}>
+      {LIFECYCLE_STATUS_LABEL[lifecycle]}
     </Badge>
   );
 };
 
 export default EconomyStatusBadge;
+export { getProjectLifecycleStatus };
