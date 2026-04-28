@@ -287,55 +287,50 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
     queryClient.invalidateQueries({ queryKey: ['large-project-local-products'] });
   };
 
-  // Build merged list of all costs across bookings
-  const mergedCosts = useMemo(() => {
-    const all: { type: string; bookingId: string; bookingName: string; description: string; info: string; amount: number }[] = [];
-    Object.entries(bookingEconomyData).forEach(([bookingId, data]) => {
-      const bName = getBookingName(bookingId);
+  // Aggregate all costs across all bookings into category buckets
+  const mergedCategories = useMemo(() => {
+    const buckets: Record<string, { label: string; amount: number; count: number }> = {
+      assembly:  { label: 'Montage',             amount: 0, count: 0 },
+      handling:  { label: 'Hantering',           amount: 0, count: 0 },
+      purchase:  { label: 'Inköp (produkt)',     amount: 0, count: 0 },
+      staff:     { label: 'Personal',            amount: 0, count: 0 },
+      purchases: { label: 'Inköp (lösa)',        amount: 0, count: 0 },
+      invoices:  { label: 'Fakturor',            amount: 0, count: 0 },
+      supplier:  { label: 'Leverantörsfakturor', amount: 0, count: 0 },
+    };
 
-      // Products — include ALL, even zero-cost
+    Object.entries(bookingEconomyData).forEach(([bookingId, data]) => {
+      // Products — split into assembly / handling / purchase
       const products = extractProducts(data);
       products.forEach((p: any) => {
-        const cost = p.total_cost ?? p.cost ?? ((p.assembly_cost || 0) + (p.handling_cost || 0) + (p.purchase_cost || 0));
-        all.push({
-          type: 'Produkt', bookingId, bookingName: bName,
-          description: p.product_name || p.name || p.description || '—',
-          info: `${p.quantity || 1} st`,
-          amount: cost,
-        });
+        const a = Number(p.assembly_cost) || 0;
+        const h = Number(p.handling_cost) || 0;
+        const pu = Number(p.purchase_cost) || 0;
+        if (a) { buckets.assembly.amount += a; buckets.assembly.count += 1; }
+        if (h) { buckets.handling.amount += h; buckets.handling.count += 1; }
+        if (pu) { buckets.purchase.amount += pu; buckets.purchase.count += 1; }
       });
 
       // Staff / time reports
       const timeReports = Array.isArray(data.time_reports) ? data.time_reports : [];
       timeReports.forEach((r: any) => {
-        all.push({
-          type: 'Personal', bookingId, bookingName: bName,
-          description: r.staff_name || 'Okänd',
-          info: `${r.total_hours || r.hours_worked || 0}h`,
-          amount: r.total_cost || 0,
-        });
+        const c = Number(r.total_cost) || 0;
+        buckets.staff.amount += c;
+        buckets.staff.count += 1;
       });
 
       // Purchases
       const purchases = Array.isArray(data.purchases) ? data.purchases : [];
       purchases.forEach((p: any) => {
-        all.push({
-          type: 'Inköp', bookingId, bookingName: bName,
-          description: p.description || '—',
-          info: p.supplier || '—',
-          amount: p.amount || 0,
-        });
+        buckets.purchases.amount += Number(p.amount) || 0;
+        buckets.purchases.count += 1;
       });
 
       // Invoices
       const invoices = Array.isArray(data.invoices) ? data.invoices : [];
       invoices.forEach((inv: any) => {
-        all.push({
-          type: 'Faktura', bookingId, bookingName: bName,
-          description: inv.supplier || '—',
-          info: inv.invoice_number || '—',
-          amount: Number(inv.invoiced_amount) || 0,
-        });
+        buckets.invoices.amount += Number(inv.invoiced_amount) || 0;
+        buckets.invoices.count += 1;
       });
 
       // Supplier invoices (skip linked to avoid double-counting)
@@ -343,18 +338,16 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
       supplierInvoices
         .filter((s: any) => !(s.is_final_link && s.linked_cost_id))
         .forEach((si: any) => {
-          all.push({
-            type: 'Lev.faktura', bookingId, bookingName: bName,
-            description: si.invoice_data?.SupplierName || '—',
-            info: si.invoice_data?.GivenNumber || '—',
-            amount: Number(si.invoice_data?.Total) || 0,
-          });
+          buckets.supplier.amount += Number(si.invoice_data?.Total) || 0;
+          buckets.supplier.count += 1;
         });
     });
-    return all;
+
+    return Object.values(buckets).filter(b => b.count > 0 || b.amount !== 0);
   }, [bookingEconomyData, bookings]);
 
-  const mergedTotal = mergedCosts.reduce((s, c) => s + c.amount, 0);
+  const mergedTotal = mergedCategories.reduce((s, c) => s + c.amount, 0);
+  const mergedCount = mergedCategories.reduce((s, c) => s + c.count, 0);
 
   return (
     <Card className="border-border/40">
@@ -365,7 +358,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
         <Tabs defaultValue="per-booking" className="space-y-4">
           <TabsList className="h-9 p-0.5">
             <TabsTrigger value="per-booking" className="text-xs px-3">Per bokning</TabsTrigger>
-            <TabsTrigger value="merged" className="text-xs px-3">Alla kostnader ({mergedCosts.length})</TabsTrigger>
+            <TabsTrigger value="merged" className="text-xs px-3">Alla kostnader ({mergedCount})</TabsTrigger>
           </TabsList>
 
           {/* ─── Per booking view (table) ─── */}
@@ -666,39 +659,36 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
             )}
           </TabsContent>
 
-          {/* ─── Merged view — all costs in one table ─── */}
+          {/* ─── Merged view — aggregated by category across all bookings ─── */}
           <TabsContent value="merged" className="mt-0">
-            {mergedCosts.length === 0 ? (
+            {mergedCategories.length === 0 ? (
               <p className="text-muted-foreground text-center py-8 text-sm">Inga kostnader registrerade i bokningarna</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Typ</TableHead>
-                    <TableHead className="text-xs">Bokning</TableHead>
-                    <TableHead className="text-xs">Beskrivning</TableHead>
-                    <TableHead className="text-xs">Info</TableHead>
-                    <TableHead className="text-xs text-right">Belopp</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mergedCosts.map((c, i) => (
-                    <TableRow key={i}>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.type}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">{c.bookingName}</TableCell>
-                      <TableCell className="text-xs font-medium">{c.description}</TableCell>
-                      <TableCell className="text-xs">{c.info}</TableCell>
-                      <TableCell className="text-xs text-right font-medium">{fmt(c.amount)}</TableCell>
+              <div className="rounded-lg border border-border/40 overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Kategori</TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Antal poster</TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Belopp</TableHead>
                     </TableRow>
-                  ))}
-                  <TableRow className="font-bold border-t-2">
-                    <TableCell colSpan={4} className="text-xs">TOTALT</TableCell>
-                    <TableCell className="text-xs text-right">{fmt(mergedTotal)}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {mergedCategories.map((c) => (
+                      <TableRow key={c.label}>
+                        <TableCell className="text-xs font-medium">{c.label}</TableCell>
+                        <TableCell className="text-xs text-right text-muted-foreground">{c.count}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{fmt(c.amount)}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-bold border-t-2 bg-muted/30">
+                      <TableCell className="text-xs">TOTALT</TableCell>
+                      <TableCell className="text-xs text-right">{mergedCount}</TableCell>
+                      <TableCell className="text-xs text-right">{fmt(mergedTotal)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </TabsContent>
         </Tabs>
