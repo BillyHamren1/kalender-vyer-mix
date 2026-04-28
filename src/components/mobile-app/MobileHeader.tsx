@@ -63,8 +63,12 @@ const HeaderWorkdayControls: React.FC = () => {
   if (!workdayOpen && !showControls) return null;
 
   return (
-    <div className="px-4 pt-2 pb-1.5 flex flex-col items-center gap-2">
-      {workdayOpen && <WorkDayHeaderTimer />}
+    <div className="w-full px-4 pt-2 pb-2 flex flex-col items-center justify-center gap-2 bg-primary">
+      {workdayOpen && (
+        <div className="w-full flex justify-center">
+          <WorkDayHeaderTimer />
+        </div>
+      )}
 
       {showControls && (
         workdayOpen ? (
