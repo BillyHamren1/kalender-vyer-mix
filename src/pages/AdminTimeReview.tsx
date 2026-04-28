@@ -10,28 +10,7 @@ import { FilterBar, type FilterState } from '@/components/admin/time-review/Filt
 import { DayRow } from '@/components/admin/time-review/DayRow';
 import { EmptyState, type EmptyKind } from '@/components/admin/time-review/EmptyState';
 import { DailyOverviewDialog } from '@/components/staff/DailyOverviewDialog';
-
-const computeCounts = (rows: DayReviewRow[]): SummaryCounts => ({
-  total: rows.length,
-  ongoing: rows.filter((r) => r.workdayStart && !r.workdayEnd).length,
-  needsReview: rows.filter((r) => r.reviewStatus === 'needs_review' || r.result.status === 'critical').length,
-  readyToApprove: rows.filter((r) => r.reviewStatus !== 'approved' && r.result.status === 'ok' && r.workdayEnd).length,
-  approved: rows.filter((r) => r.reviewStatus === 'approved').length,
-});
-
-const matchesFilter = (row: DayReviewRow, f: FilterState): boolean => {
-  if (f.staffId !== 'all' && row.staffId !== f.staffId) return false;
-  if (f.status === 'ongoing' && !(row.workdayStart && !row.workdayEnd)) return false;
-  if (f.status === 'needsReview' && !(row.reviewStatus === 'needs_review' || row.result.status === 'critical')) return false;
-  if (f.status === 'readyToApprove' && !(row.reviewStatus !== 'approved' && row.result.status === 'ok' && row.workdayEnd)) return false;
-  if (f.status === 'approved' && row.reviewStatus !== 'approved') return false;
-  if (f.anomaly !== 'all' && !row.result.anomalies.some((a) => a.kind === f.anomaly)) return false;
-  if (f.projectQuery.trim()) {
-    const q = f.projectQuery.trim().toLowerCase();
-    if (!row.staffName.toLowerCase().includes(q)) return false;
-  }
-  return true;
-};
+import { computeCounts, matchesFilter, computeEmptyKind } from '@/lib/admin/adminTimeReviewFilters';
 
 const AdminTimeReview: React.FC = () => {
   const [filter, setFilter] = useState<FilterState>({
