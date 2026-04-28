@@ -659,39 +659,36 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
             )}
           </TabsContent>
 
-          {/* ─── Merged view — all costs in one table ─── */}
+          {/* ─── Merged view — aggregated by category across all bookings ─── */}
           <TabsContent value="merged" className="mt-0">
-            {mergedCosts.length === 0 ? (
+            {mergedCategories.length === 0 ? (
               <p className="text-muted-foreground text-center py-8 text-sm">Inga kostnader registrerade i bokningarna</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Typ</TableHead>
-                    <TableHead className="text-xs">Bokning</TableHead>
-                    <TableHead className="text-xs">Beskrivning</TableHead>
-                    <TableHead className="text-xs">Info</TableHead>
-                    <TableHead className="text-xs text-right">Belopp</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mergedCosts.map((c, i) => (
-                    <TableRow key={i}>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.type}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">{c.bookingName}</TableCell>
-                      <TableCell className="text-xs font-medium">{c.description}</TableCell>
-                      <TableCell className="text-xs">{c.info}</TableCell>
-                      <TableCell className="text-xs text-right font-medium">{fmt(c.amount)}</TableCell>
+              <div className="rounded-lg border border-border/40 overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Kategori</TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Antal poster</TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Belopp</TableHead>
                     </TableRow>
-                  ))}
-                  <TableRow className="font-bold border-t-2">
-                    <TableCell colSpan={4} className="text-xs">TOTALT</TableCell>
-                    <TableCell className="text-xs text-right">{fmt(mergedTotal)}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {mergedCategories.map((c) => (
+                      <TableRow key={c.label}>
+                        <TableCell className="text-xs font-medium">{c.label}</TableCell>
+                        <TableCell className="text-xs text-right text-muted-foreground">{c.count}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{fmt(c.amount)}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-bold border-t-2 bg-muted/30">
+                      <TableCell className="text-xs">TOTALT</TableCell>
+                      <TableCell className="text-xs text-right">{mergedCount}</TableCell>
+                      <TableCell className="text-xs text-right">{fmt(mergedTotal)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </TabsContent>
         </Tabs>
