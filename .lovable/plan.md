@@ -1,40 +1,68 @@
-# Fix: Persistent white screen from stale Vite module URLs
+## Current diagnosis
+Do I know what the issue is? Yes.
 
-## Vad som faktiskt händer
+The current crash is no longer the original boot-time white screen. The app now mounts, then fails when the `/calendar` route lazily imports `src/pages/CustomCalendarPage.tsx`.
 
-Skärmdumpen visar `net::ERR_ABORTED 404` på `PackingVerify.tsx` och `MobileProfile.tsx`. Båda är **statiska** imports högst upp i `src/App.tsx`. Det betyder:
+The problem is:
+- `src/main.tsx` already handles boot/preload module failures with cache purging.
+- But route-level `React.lazy(...)` failures happen after mount.
+- Those errors currently fall into `GlobalErrorBoundary`, which only does a plain `window.location.reload()`.
+- A plain reload can reuse the same stale document/module graph, so the user gets stuck on the same error screen.
 
-1. Webbläsaren har kvar gamla, tids-stämplade modul-URL:er från en tidigare HMR-session.
-2. Eftersom ALLT i `App.tsx` importeras statiskt, räcker det att **en enda** modul i kedjan är borta för att hela appen blir vit — `import('./App')` rejectar.
-3. Boot-recovery i `src/main.tsx` triggar EN gång, lägger till `?__lovable_module_reload=...`, men det query-parametern bustar inte själva modul-URL:erna som `index.html` redan har cachat — så samma 404 repeteras.
-4. När 15-sekunders cooldown slår in renderas felrutan, men i praktiken hinner användaren bara se vit skärm.
+## Plan
+1. Extract the module-recovery logic from `src/main.tsx` into a shared utility.
+   - Move the stale-module detection, cooldown key, cache purge, service-worker unregister, and hard-reload flow into a reusable helper.
+   - Keep the behavior consistent for both boot-time and route-time failures.
 
-URL:en `/?__lovable_module_reload=1777379385570` bekräftar att recovery redan körts — men felet kvarstår.
+2. Add route-level recovery for lazy imports.
+   - Introduce a `lazyWithRecovery` wrapper (or equivalent shared lazy loader) for route modules.
+   - Use it for `CustomCalendarPage` and the other route-level lazy pages in `src/App.tsx`.
+   - On `Failed to fetch dynamically imported module` and similar stale-chunk errors, trigger the same recovery path instead of just throwing a generic React error.
 
-## Lösningen — två lager
+3. Upgrade `GlobalErrorBoundary` to distinguish module-fetch failures from true render bugs.
+   - If the error is a lazy-module fetch failure, show a recovery UI that uses the shared cache-purge + hard-reload path.
+   - For normal React rendering errors, keep the existing diagnostic fallback behavior.
+   - Update the button behavior so the user never gets only a plain reload for stale chunk issues.
 
-### 1. Hård cache-bust vid recovery (`src/main.tsx`)
-Byt `window.location.replace(url + ?param)` mot ett riktigt cache-rensande omladdningsflöde:
-- Avregistrera ev. service worker (`navigator.serviceWorker.getRegistrations()` → `unregister()`).
-- Töm `caches` API (`caches.keys()` → `caches.delete()`).
-- Sedan `window.location.reload()` (inte `replace` med querystring) så att webbläsaren hämtar färsk `index.html` med nya modul-URL:er.
+4. Keep diagnostics intact.
+   - Continue reporting these failures to diagnostics, but tag them clearly as module-load failures vs render errors.
+   - Preserve the current cooldown so the app attempts one automatic recovery before showing the manual retry UI.
 
-Behåll cooldown-loggiken så vi inte hamnar i reload-loop, men öka fönstret till ~30 s och visa felrutan med en tydlig "Töm cache och ladda om"-knapp som upprepar samma rensning.
+5. Scope the first fix to the failure path the user is on, then apply consistently.
+   - Ensure `/calendar` is protected first.
+   - Apply the same recovery wrapper/pattern to the rest of the lazy-loaded routes so the problem does not reappear on other pages like mobile or warehouse views.
 
-### 2. Lazy-loada tunga route-komponenter (`src/App.tsx`)
-Konvertera de mest brott-känsliga sid-importerna till `React.lazy()` så att en enstaka stale chunk INTE tar ner hela appen — bara just den routen. Wrap routes med `<Suspense fallback={...}>`.
+## Files to update
+- `src/main.tsx`
+- `src/App.tsx`
+- `src/components/diagnostics/GlobalErrorBoundary.tsx`
+- likely one new shared helper file, e.g. `src/utils/moduleRecovery.ts` or similar
 
-Minimum för att lösa det aktuella felet: `PackingVerify`, `MobileProfile`, samt mobil-sidorna och warehouse-sidorna som inte används på första rendering. Behåll layouts, providers, `Auth`, `NotFound`, `MainSystemLayout` som statiska.
+## Technical details
+```text
+User opens /calendar
+  -> React.lazy(import('./pages/CustomCalendarPage'))
+  -> browser requests stale or missing module URL
+  -> import rejects
+  -> shared recovery detects stale-module error
+       -> report diagnostic
+       -> purge caches + unregister SW
+       -> hard reload once
+  -> if still failing after cooldown
+       -> show manual "Töm cache och ladda om" UI
+```
 
-Detta isolerar framtida stale-chunk-fel till den enskilda routen istället för hela bundle-trädet.
+Implementation shape:
+- Shared helpers:
+  - `shouldRecoverFromModuleError(error)`
+  - `purgeBrowserCaches()`
+  - `recoverFromModuleError(...)`
+- Shared lazy wrapper:
+  - `lazyWithRecovery(() => import('./pages/CustomCalendarPage'))`
+- Error boundary button:
+  - use shared recovery helper instead of plain `window.location.reload()`
 
-## Filer som ändras
-
-- `src/main.tsx` — cache/SW-rensning + `location.reload()` istället för query-bust.
-- `src/App.tsx` — `React.lazy(() => import(...))` för mobil-, warehouse- och övriga icke-kritiska sidor + en gemensam `<Suspense>` runt `<Routes>`.
-
-## Vad användaren märker
-
-- Vita skärmen försvinner: en stale modul tvingar en ren omladdning som faktiskt hämtar färska URL:er.
-- Om en enskild sida ändå skulle ha en stale chunk: bara just den sidan visar laddspinner/felruta, resten av appen fungerar.
-- Inga funktionella ändringar i logik — bara hur moduler hämtas.
+## Expected outcome
+- `/calendar` no longer traps the user on the generic error screen after a stale lazy import.
+- Stale chunk/module mismatch errors recover the same way whether they happen at boot or during navigation.
+- Real component bugs still surface as diagnostics instead of being hidden behind forced reload behavior.
