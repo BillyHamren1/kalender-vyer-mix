@@ -357,7 +357,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
         <CardTitle className="text-base font-medium">Detaljerad ekonomi per bokning</CardTitle>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="per-booking" className="space-y-4">
+        <Tabs defaultValue="merged" className="space-y-4">
           <TabsList className="h-9 p-0.5">
             <TabsTrigger value="per-booking" className="text-xs px-3">Per bokning</TabsTrigger>
             <TabsTrigger value="merged" className="text-xs px-3">Alla kostnader ({mergedCount})</TabsTrigger>
