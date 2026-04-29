@@ -72,22 +72,19 @@ const WarehouseDashboard = () => {
               {/* Översta raden: status-board (huvudvyn) */}
               <OpsStatusBoard jobs={data.jobs} />
 
-              {/* Andra raden: två kolumner — attention + staff-timeline */}
-              <div className="grid grid-cols-1 xl:grid-cols-[1fr_2fr] gap-4">
-                <OpsAttentionPanel items={data.attention} />
-                {mode === "day" ? (
-                  <OpsStaffTimeline
-                    anchorDate={anchorDate}
-                    shifts={data.shifts}
-                    scans={data.scans}
-                    jobs={data.jobs}
-                  />
-                ) : (
-                  <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-muted-foreground">
-                    Personalskift visas i dagsvy.
-                  </div>
-                )}
-              </div>
+              {/* Andra raden: staff-timeline */}
+              {mode === "day" ? (
+                <OpsStaffTimeline
+                  anchorDate={anchorDate}
+                  shifts={data.shifts}
+                  scans={data.scans}
+                  jobs={data.jobs}
+                />
+              ) : (
+                <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-muted-foreground">
+                  Personalskift visas i dagsvy.
+                </div>
+              )}
 
               {/* Sista raden: inkommande projekt (inbox) */}
               <WarehouseProjectInbox />
