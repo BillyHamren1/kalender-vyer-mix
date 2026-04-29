@@ -42,6 +42,8 @@ export interface JournalTableRow {
   pingAgeMin?: number | null;
   /** All sessions for the day — used by day-start/day-end to derive presence union. */
   allSessions?: ProjectSession[];
+  /** Latest ping ISO — only set on day-start (used by summary row). */
+  latestPingAt?: string | null;
   /** True for session rows — drives per-row presence detail. */
   sessionStart?: string | null;
   sessionEnd?: string | null;
