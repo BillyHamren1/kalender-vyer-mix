@@ -1163,6 +1163,79 @@ Deno.serve(async (req) => {
         })
       }
 
+      case 'return_scan_sku': {
+        // Local-only return scan: match scanned value (SKU or product name)
+        // against the packing's items where quantity_packed > quantity_returned,
+        // and bump quantity_returned by 1. No WMS round-trip.
+        const { packingId, sku: scannedValue, returnedBy } = params
+        if (!packingId || !scannedValue) return json({ success: false, error: 'packingId och sku krävs' })
+
+        const trimmed = String(scannedValue).trim()
+        const lower = trimmed.toLowerCase()
+
+        const { data: rows, error: rowsErr } = await supabase
+          .from('packing_list_items')
+          .select('id, quantity_packed, quantity_returned, manual_name, booking_products(id, sku, name)')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+
+        if (rowsErr) {
+          console.error('[return_scan_sku] rows fetch failed', rowsErr)
+          return json({ success: false, error: 'Kunde inte läsa packlistan' })
+        }
+
+        // Match priority: exact SKU > exact name > contains name
+        const matchSku = (rows || []).find((r: any) => {
+          const s = r.booking_products?.sku
+          return s && String(s).trim().toLowerCase() === lower
+        })
+        const matchName = matchSku || (rows || []).find((r: any) => {
+          const n = r.booking_products?.name || r.manual_name
+          return n && String(n).trim().toLowerCase() === lower
+        })
+        const matchContains = matchName || (rows || []).find((r: any) => {
+          const n = r.booking_products?.name || r.manual_name
+          return n && String(n).toLowerCase().includes(lower)
+        })
+
+        const matched = matchContains
+        if (!matched) {
+          return json({ success: false, error: `Hittade ingen produkt för "${trimmed}" i denna packning`, debugCode: 'RETURN_NO_MATCH' })
+        }
+
+        const sentOut = Math.max(0, (matched as any).quantity_packed ?? 0)
+        const currentBack = Math.max(0, (matched as any).quantity_returned ?? 0)
+        if (sentOut === 0) {
+          return json({ success: false, error: 'Inget skickades ut för denna rad', debugCode: 'RETURN_NOT_SENT' })
+        }
+        if (currentBack >= sentOut) {
+          return json({
+            success: false,
+            error: `Alla ${sentOut} st av "${(matched as any).booking_products?.name || trimmed}" är redan returnerade`,
+            debugCode: 'RETURN_ALREADY_FULL',
+            itemId: (matched as any).id,
+          })
+        }
+
+        await transitionToReturning(supabase, packingId, ORG_ID)
+
+        const newQty = Math.min(currentBack + 1, sentOut)
+        await supabase.from('packing_list_items').update({
+          quantity_returned: newQty,
+          returned_at: new Date().toISOString(),
+          returned_by: returnedBy || null,
+        }).eq('id', (matched as any).id).eq('organization_id', ORG_ID)
+
+        await checkIfAllReturned(supabase, packingId, ORG_ID)
+        return json({
+          success: true,
+          itemId: (matched as any).id,
+          productName: (matched as any).booking_products?.name || (matched as any).manual_name,
+          quantity_returned: newQty,
+          quantity_packed: sentOut,
+        })
+      }
+
       // ============== RETURN (IN) FLOW ==============
       // Mirrors toggle_item / decrement_item but on quantity_returned, capped
       // by quantity_packed (= what actually went out). Status flows
