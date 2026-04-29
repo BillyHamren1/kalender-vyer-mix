@@ -9,11 +9,20 @@ import {
   fetchWarehouseProjectTasks,
   fetchWarehousePackings,
   deleteWarehouseProject,
+  updateWarehouseProject,
 } from "@/services/warehouseProjectService";
 import {
   WAREHOUSE_PROJECT_STATUS_LABELS,
   WAREHOUSE_PROJECT_STATUS_COLORS,
+  type WarehouseProjectStatus,
 } from "@/types/warehouseProject";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import PackingCard from "@/components/packing/PackingCard";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
