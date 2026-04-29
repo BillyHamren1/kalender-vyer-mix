@@ -17,6 +17,7 @@ import CopyEventDialog from './CopyEventDialog';
 import AddRiggDayDialog from './AddRiggDayDialog';
 import { handleBookingMove } from '@/services/staffCalendarService';
 import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
+import { resolveCalendarEventId, isSyntheticCalendarEventId } from '@/services/calendarEventResolver';
 
 interface MoveEventDateDialogProps {
   open: boolean;
