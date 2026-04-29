@@ -21,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Building2, MapPin, Search, Pencil, Calendar } from 'lucide-react';
 import type { MobileBooking } from '@/services/mobileApiService';
 import type { WorkTarget } from '@/hooks/useWorkSession';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 export type StartDaySelection =
   | { kind: 'target'; target: WorkTarget; label: string }
