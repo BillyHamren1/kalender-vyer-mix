@@ -331,6 +331,44 @@ const StaffTimeReports: React.FC = () => {
         return wins.some(([ws, we]) => s < we && e > ws); // overlap
       };
 
+      // Centralized label resolver — same priority used by both the segment
+      // loop AND the journal mapping. Priority:
+      //   1. large_project_id  → large_projects.name
+      //   2. booking + warehouse-internal → location name (e.g. "FA Warehouse")
+      //   3. booking_id → bookingMap.label
+      //   4. location_id → location name
+      //   5. fallback "—" (NEVER "Projekt"/"Tidrapport" — silently masks bugs)
+      const resolveTimeReportLabel = (r: {
+        booking_id: string | null;
+        large_project_id: string | null;
+        location_id: string | null;
+      }): { key: string; label: string } => {
+        if (r.large_project_id) {
+          return {
+            key: `lp:${r.large_project_id}`,
+            label: largeProjectMap.get(r.large_project_id) || 'Stort projekt',
+          };
+        }
+        if (r.booking_id) {
+          const info = bookingMap.get(r.booking_id);
+          if (info?.is_internal && info.location_id) {
+            const locName = locNameMap.get(info.location_id);
+            if (locName) return { key: `booking:${r.booking_id}`, label: locName };
+          }
+          return {
+            key: `booking:${r.booking_id}`,
+            label: info?.label || 'Okänt projekt',
+          };
+        }
+        if (r.location_id) {
+          return {
+            key: `loc:${r.location_id}`,
+            label: locNameMap.get(r.location_id) || 'Plats',
+          };
+        }
+        return { key: 'unknown', label: '—' };
+      };
+
       for (const r of reports) {
         const a = byStaff.get(r.staff_id) || newAgg();
 
@@ -351,11 +389,12 @@ const StaffTimeReports: React.FC = () => {
         if (r.end_time && (!a.latest_end || r.end_time > a.latest_end)) {
           a.latest_end = r.end_time;
         }
-        const bookingInfo = r.booking_id ? bookingMap.get(r.booking_id) : null;
-        const label = bookingInfo?.label || (r.booking_id ? 'Okänt projekt' : 'Tidrapport');
-        if (r.booking_id && !shadowed) {
-          const existing = a.projects.get(r.booking_id);
-          a.projects.set(r.booking_id, {
+        const resolved = resolveTimeReportLabel(r as any);
+        const label = resolved.label;
+        const projectKey = resolved.key;
+        if (!shadowed && projectKey !== 'unknown') {
+          const existing = a.projects.get(projectKey);
+          a.projects.set(projectKey, {
             label,
             is_open: (existing?.is_open || false) || !r.end_time,
             total_hours: (existing?.total_hours || 0) + (r.hours_worked || 0),
