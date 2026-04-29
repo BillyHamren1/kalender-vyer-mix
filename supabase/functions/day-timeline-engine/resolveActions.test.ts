@@ -19,51 +19,41 @@ function fakeSupabase(initial: Tables) {
     if (!tables[name]) tables[name] = [];
     return tables[name];
   }
-  type B = {
-    _name: string;
-    _filters: Array<[string, unknown]>;
-    _selectCols?: string;
-    _isMaybe?: boolean;
-    _selectAfterInsert?: boolean;
-    select(cols?: string): B;
-    eq(col: string, v: unknown): B;
-    maybeSingle(): Promise<{ data: Row | null; error: null }>;
-    update(patch: Row): Promise<{ data: null; error: null }>;
-    insert(row: Row | Row[]): B & { select(c?: string): B };
-    then?: unknown;
-  };
-  function builder(name: string): B {
-    const b: B = {
-      _name: name,
-      _filters: [],
-      select(cols?: string) { this._selectCols = cols; return this; },
-      eq(col, v) { this._filters.push([col, v]); return this; },
+  // Chainable builder where every terminal call returns a thenable.
+  // deno-lint-ignore no-explicit-any
+  function builder(name: string): any {
+    let filters: Array<[string, unknown]> = [];
+    let pendingUpdate: Row | null = null;
+    let pendingInsert: Row[] | null = null;
+    const api = {
+      select(_cols?: string) { return api; },
+      eq(col: string, v: unknown) { filters.push([col, v]); return api; },
       async maybeSingle() {
-        const rows = table(this._name).filter((r) =>
-          this._filters.every(([c, v]) => r[c] === v)
-        );
+        if (pendingInsert) return { data: pendingInsert[0] ?? null, error: null };
+        const rows = table(name).filter((r) => filters.every(([c, v]) => r[c] === v));
         return { data: rows[0] ?? null, error: null };
       },
-      async update(patch: Row) {
-        for (const r of table(this._name)) {
-          if (this._filters.every(([c, v]) => r[c] === v)) Object.assign(r, patch);
-        }
-        return { data: null, error: null };
-      },
+      update(patch: Row) { pendingUpdate = patch; return api; },
       insert(rowOrRows: Row | Row[]) {
         const rows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows];
         const inserted = rows.map((r) => ({ id: r.id ?? crypto.randomUUID(), ...r }));
-        table(this._name).push(...inserted);
-        const self = this;
-        const out: B = {
-          ...self,
-          select(_cols?: string) { return out; },
-          async maybeSingle() { return { data: inserted[0], error: null }; },
-        };
-        return out;
+        table(name).push(...inserted);
+        pendingInsert = inserted;
+        return api;
+      },
+      // Allow `await builder` to flush pending update/insert with no select().
+      then(resolve: (v: { data: null; error: null }) => void) {
+        if (pendingUpdate) {
+          for (const r of table(name)) {
+            if (filters.every(([c, v]) => r[c] === v)) Object.assign(r, pendingUpdate);
+          }
+          pendingUpdate = null;
+        }
+        filters = [];
+        resolve({ data: null, error: null });
       },
     };
-    return b;
+    return api;
   }
   const supabase = {
     from(name: string) { return builder(name); },
