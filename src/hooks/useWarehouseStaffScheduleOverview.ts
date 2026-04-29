@@ -203,6 +203,21 @@ export function useWarehouseStaffScheduleOverview(
             });
           });
         }
+
+        if (assignment.team_id === 'transport') {
+          // Lager-pass från planeringskalenderns Lager-kolumn (interna lagerprojektet 07–16)
+          group.items.push({
+            id: `transport-lager-${assignment.id}`,
+            date: assignment.assignment_date,
+            title: 'Lager – Lagerpass',
+            kind: 'warehouse',
+            resourceId: 'transport',
+            resourceLabel: 'Lager',
+            eventType: 'internal_task',
+            startTime: `${assignment.assignment_date}T07:00:00`,
+            endTime: `${assignment.assignment_date}T16:00:00`,
+          });
+        }
       });
 
       return staffMembers
