@@ -38,7 +38,7 @@ export interface OpsProject {
   updatedAt: string;
 }
 
-const ACTIVE_STATUSES = ["pending", "planning", "in_progress", "ready", "ready_for_pickup"];
+const ACTIVE_STATUSES = ["pending", "planning", "in_progress", "ready", "ready_for_pickup", "packed", "delivered", "back", "returning"];
 // We also pull recently signed (last 48h) to populate "Klart nyligen".
 
 interface RawProject {
