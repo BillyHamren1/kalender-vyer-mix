@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   ChevronDown, ChevronRight, MapPin, LogIn, LogOut,
@@ -9,6 +9,8 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffPingDetailPanel } from './StaffPingDetailPanel';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
+import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
+import { computeWorkPresence, combineDayPresence } from '@/lib/staff/workPresence';
 
 const fmt = (iso: string | null) => {
   if (!iso) return '—';
@@ -37,6 +39,11 @@ export interface JournalTableRow {
   stale?: boolean;
   /** ping age in minutes, for stale label */
   pingAgeMin?: number | null;
+  /** All sessions for the day — used by day-start/day-end to derive presence union. */
+  allSessions?: ProjectSession[];
+  /** True for session rows — drives per-row presence detail. */
+  sessionStart?: string | null;
+  sessionEnd?: string | null;
 }
 
 const sessionKindToRowKind = (k: ProjectSession['kind']): RowKind => {
@@ -64,8 +71,21 @@ export const buildJournalRows = (
 ): JournalTableRow[] => {
   const rows: JournalTableRow[] = [];
   const j = staff.journal;
+  const allSessions = j.sessions;
 
-  // Day start
+  // Helper: widen the ping window around a single timestamp so the expanded
+  // panel actually shows pings (was zero-width before, hence "Inga GPS-pings").
+  const widen = (iso: string | null, beforeMin = 30, afterMin = 30): { from: string | null; to: string | null } => {
+    if (!iso) return { from: null, to: null };
+    const t = new Date(iso).getTime();
+    return {
+      from: new Date(t - beforeMin * 60_000).toISOString(),
+      to: new Date(t + afterMin * 60_000).toISOString(),
+    };
+  };
+
+  // Day start — widen ±30 min around reported start so we can see actual arrival.
+  const startWin = widen(j.start.at, 30, 30);
   rows.push({
     staffId: staff.id,
     staffName: staff.name,
@@ -78,8 +98,9 @@ export const buildJournalRows = (
     endIso: j.start.at,
     isOpen: false,
     hours: null,
-    fromIso: j.start.at,
-    toIso: j.start.at,
+    fromIso: startWin.from,
+    toIso: startWin.to,
+    allSessions,
   });
 
   // Sessions
@@ -98,6 +119,8 @@ export const buildJournalRows = (
       hours: s.hours,
       fromIso: s.start,
       toIso: s.end,
+      sessionStart: s.start,
+      sessionEnd: s.end,
     });
   }
 
@@ -111,6 +134,11 @@ export const buildJournalRows = (
     (Date.now() - new Date(staff.latestPing!.updated_at!).getTime()) > STALE_PING_MS
   );
 
+  // Widen end window: 30 min before reported end, until "now" if open.
+  const endWin = j.end.isOpen
+    ? { from: j.end.at ? new Date(new Date(j.end.at).getTime() - 30 * 60_000).toISOString() : null, to: new Date().toISOString() }
+    : widen(j.end.at, 30, 30);
+
   rows.push({
     staffId: staff.id,
     staffName: staff.name,
@@ -123,10 +151,11 @@ export const buildJournalRows = (
     endIso: j.end.at,
     isOpen: j.end.isOpen,
     hours: staff.total_hours,
-    fromIso: j.end.at,
-    toIso: j.end.at,
+    fromIso: endWin.from,
+    toIso: endWin.to,
     stale,
     pingAgeMin,
+    allSessions,
   });
 
   return rows;
@@ -137,6 +166,103 @@ interface JournalTableProps {
   date: string;
   onSelectStaff: (id: string, name: string) => void;
 }
+
+const minutesBetween = (a: string, b: string) =>
+  Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000);
+
+/**
+ * Inline GPS-derived "Anlände HH:MM · Lämnade HH:MM" line shown under the
+ * description for day-start / day-end / session rows. Uses pings cached via
+ * useStaffPingsForDay so multiple rows share the same network call.
+ *
+ * - For day-start: shows the very first ping near any work site.
+ * - For day-end:   shows the very last ping near any work site.
+ * - For session rows: shows arrival / departure inside that session window.
+ *
+ * If the reported start/end differs from GPS by ≥15 min, the value is
+ * highlighted in destructive color so the admin can spot the mismatch
+ * without clicking or running an AI analysis.
+ */
+
+
+const PresenceLineWithDate: React.FC<{ row: JournalTableRow; date: string }> = ({ row, date }) => {
+  const { data: pings = [], isLoading } = useStaffPingsForDay(row.staffId, date, true);
+
+  const result = useMemo(() => {
+    if (!pings.length) return null;
+
+    if (row.kind === 'day-start' || row.kind === 'day-end') {
+      const sessions = (row.allSessions || []).filter(s => s.kind !== 'travel');
+      if (!sessions.length) return null;
+      const perSession = sessions.map(s => computeWorkPresence(pings, s.start, s.end));
+      const combined = combineDayPresence(perSession);
+      const isStart = row.kind === 'day-start';
+      const gpsTime = isStart ? combined.arrivedAt : combined.leftAt;
+      if (!gpsTime) return null;
+      const reported = row.startIso;
+      const label = isStart ? 'Anlände' : 'Lämnade';
+      if (!reported) return { label, gpsTime, diffMin: null as number | null };
+      const diff = isStart
+        ? minutesBetween(gpsTime, reported)        // positive = report startade SENARE än ankomst
+        : minutesBetween(gpsTime, reported);       // positive = report stängd EFTER faktisk avgång
+      return { label, gpsTime, diffMin: diff };
+    }
+
+    // Session row
+    if (!row.sessionStart) return null;
+    const presence = computeWorkPresence(pings, row.sessionStart, row.sessionEnd ?? null);
+    if (!presence.arrivedAt && !presence.leftAt) return null;
+    return {
+      label: 'På plats',
+      arrived: presence.arrivedAt,
+      left: presence.leftAt,
+      basePings: presence.basePings.length,
+      sample: presence.sampleCount,
+    } as any;
+  }, [pings, row]);
+
+  if (isLoading || !result) return null;
+
+  // Day-start / day-end variant
+  if (result.label === 'Anlände' || result.label === 'Lämnade') {
+    const gps = format(new Date(result.gpsTime), 'HH:mm');
+    const diff = result.diffMin;
+    if (diff == null) {
+      return (
+        <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+          {result.label} <strong className="text-foreground">{gps}</strong> (GPS)
+        </div>
+      );
+    }
+    if (Math.abs(diff) < 2) {
+      return (
+        <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+          {result.label} <strong className="text-foreground">{gps}</strong> · matchar rapport
+        </div>
+      );
+    }
+    const sign = diff > 0 ? `+${diff}` : `${diff}`;
+    const flagged = Math.abs(diff) >= 15;
+    return (
+      <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+        {result.label}{' '}
+        <strong className={flagged ? 'text-destructive' : 'text-foreground'}>{gps}</strong>
+        {' · rapport '}{result.label === 'Anlände' ? 'startad' : 'stängd'}{' '}
+        {format(new Date(row.startIso!), 'HH:mm')} ({sign} min)
+      </div>
+    );
+  }
+
+  // Session "På plats: HH:MM – HH:MM"
+  const arr = result.arrived ? format(new Date(result.arrived), 'HH:mm') : '—';
+  const lft = result.left ? format(new Date(result.left), 'HH:mm') : (row.isOpen ? 'pågår' : '—');
+  return (
+    <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+      På plats: <strong className="text-foreground">{arr} – {lft}</strong>
+      <span className="ml-1">({result.basePings}/{result.sample} pings vid bas)</span>
+    </div>
+  );
+};
 
 /**
  * Excel-style flat table: Namn | Beskrivning | Plats | Klockslag | Varaktighet
@@ -212,20 +338,25 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
 
                   {/* Beskrivning */}
                   <td className="py-2 px-2 align-top">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-3 flex justify-center text-muted-foreground">
-                        {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                      </span>
-                      <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className={`truncate ${bold ? 'font-bold text-foreground' : 'text-foreground'}`}>
-                        {r.description}
-                      </span>
-                      {r.stale && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-destructive font-medium ml-2">
-                          <WifiOff className="h-3 w-3" />
-                          Tappad signal{r.pingAgeMin != null ? ` · ${r.pingAgeMin}m` : ''}
+                    <div className="flex flex-col min-w-0 gap-0.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-3 flex justify-center text-muted-foreground">
+                          {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                         </span>
-                      )}
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className={`truncate ${bold ? 'font-bold text-foreground' : 'text-foreground'}`}>
+                          {r.description}
+                        </span>
+                        {r.stale && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-destructive font-medium ml-2">
+                            <WifiOff className="h-3 w-3" />
+                            Tappad signal{r.pingAgeMin != null ? ` · ${r.pingAgeMin}m` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="pl-8">
+                        <PresenceLineWithDate row={r} date={date} />
+                      </div>
                     </div>
                   </td>
 
