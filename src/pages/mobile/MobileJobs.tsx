@@ -267,7 +267,7 @@ const MobileJobs = () => {
                             </div>
                           )}
                           {hasTimer && timer && (
-                            <p className="text-xs font-mono text-primary font-bold mt-1">
+                            <p className="text-xs font-mono tabular-nums text-primary font-bold mt-1">
                               ⏱ {formatElapsed(timer.startTime)}
                             </p>
                           )}
