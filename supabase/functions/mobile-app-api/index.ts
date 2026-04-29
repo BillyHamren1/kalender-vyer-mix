@@ -811,7 +811,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     .select('assignment_date, team_id')
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
-    .gte('assignment_date', today)
+    .gte('assignment_date', historyCutoffDate)
 
   if (staffTeamAssignmentsError) {
     console.error('[get_bookings] staff_assignments query error:', staffTeamAssignmentsError)
