@@ -399,7 +399,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                   />
                 )}
 
-                {isOpen && r.fromIso && (
+                {isOpen && r.fromIso && (r.kind === 'day-start' || r.kind === 'day-end') && (
                   <tr className="bg-muted/20">
                     <td></td>
                     <td colSpan={5} className="py-2 px-2">
