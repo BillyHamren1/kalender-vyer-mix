@@ -138,7 +138,8 @@ interface PendingStart {
 interface DistanceWarning {
   placeName: string;
   distance: number;
-  onConfirm: () => void;
+  /** Användarens (obligatoriska) anledning skickas in vid bekräft. */
+  onConfirm: (reason: string) => void;
 }
 
 export function useTimerStartFlow(
