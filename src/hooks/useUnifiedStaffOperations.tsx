@@ -114,12 +114,10 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     return result;
   }, [activeStaff, filterByTag, filterByStaffIds]);
 
-  // availableStaff for current date (derived, no extra fetch)
-  const availableStaff = useMemo(() => {
-    const dateStr = format(currentDate, 'yyyy-MM-dd');
-    const assignedIds = new Set(assignments.filter(a => a.date === dateStr).map(a => a.staffId));
-    return filteredActiveStaff.filter(s => !assignedIds.has(s.id));
-  }, [filteredActiveStaff, assignments, currentDate]);
+  // availableStaff for current date — multi-team policy: ALWAYS return every
+  // active staff. Even if they're already in one team today, they should be
+  // selectable to also join another team. Visual indicator handled by UI.
+  const availableStaff = useMemo(() => filteredActiveStaff, [filteredActiveStaff]);
 
   // Memoized lookup: team + date -> staff members
   const getStaffForTeamAndDate = useMemo(() => {
@@ -155,10 +153,11 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       else blockedIds.add(p.staff_id);
     });
 
-    // Staff with no availability records = available by default
+    // Multi-team: do NOT exclude staff that already have an assignment.
+    // Only block staff that have an explicit availability "blocked"/"unavailable" period.
     const hasAnyRecord = new Set([...availableIds, ...blockedIds]);
     return filteredActiveStaff
-      .filter(s => !blockedIds.has(s.id) && (availableIds.has(s.id) || !hasAnyRecord.has(s.id)) && !assignedIds.has(s.id));
+      .filter(s => !blockedIds.has(s.id) && (availableIds.has(s.id) || !hasAnyRecord.has(s.id)));
   }, [filteredActiveStaff, assignments]);
 
   // Planning date: all staff with assignment status (derived from cache)
@@ -181,10 +180,17 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     });
 
     const assignmentsForDate = assignments.filter(a => a.date === dateStr);
-    const assignmentMap = new Map<string, { teamId: string; teamName: string }>();
+    // Multi-team aware: collect ALL teams a staff member is in for this date.
+    const teamsByStaff = new Map<string, Array<{ teamId: string; teamName: string }>>();
+    const formatTeamName = (id: string) =>
+      id === 'team-11' ? 'Live'
+        : id.startsWith('team-') ? 'Team ' + id.replace('team-', '')
+        : id.startsWith('lager-') ? 'Lager ' + id.replace('lager-', '')
+        : id;
     assignmentsForDate.forEach(a => {
-      let teamName = a.teamId === 'team-11' ? 'Live' : a.teamId.startsWith('team-') ? 'Team ' + a.teamId.replace('team-', '') : a.teamId.startsWith('lager-') ? 'Lager ' + a.teamId.replace('lager-', '') : a.teamId;
-      assignmentMap.set(a.staffId, { teamId: a.teamId, teamName });
+      const list = teamsByStaff.get(a.staffId) || [];
+      list.push({ teamId: a.teamId, teamName: formatTeamName(a.teamId) });
+      teamsByStaff.set(a.staffId, list);
     });
 
     // Staff with no availability records = available by default
@@ -192,36 +198,64 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     const result = filteredActiveStaff
       .filter(s => !blockedIds.has(s.id) && (availableIds.has(s.id) || !hasAnyRecord.has(s.id)))
       .map(s => {
-        const assignment = assignmentMap.get(s.id);
-        const status: 'free' | 'assigned_current_team' | 'assigned_other_team' = !assignment
-          ? 'free'
-          : assignment.teamId === targetTeamId ? 'assigned_current_team' : 'assigned_other_team';
-        return { ...s, assignmentStatus: status, assignedTeamId: assignment?.teamId, assignedTeamName: assignment?.teamName };
+        const teams = teamsByStaff.get(s.id) || [];
+        const inCurrentTeam = teams.some(t => t.teamId === targetTeamId);
+        const inOtherTeam = teams.some(t => t.teamId !== targetTeamId);
+        const status: 'free' | 'assigned_current_team' | 'assigned_other_team' =
+          teams.length === 0 ? 'free'
+          : inCurrentTeam ? 'assigned_current_team'
+          : 'assigned_other_team';
+        // Surface the OTHER teams (not the current one) for "Also on …" hint.
+        const otherTeams = teams.filter(t => t.teamId !== targetTeamId);
+        return {
+          ...s,
+          assignmentStatus: status,
+          assignedTeamId: otherTeams[0]?.teamId,
+          assignedTeamName: otherTeams.map(t => t.teamName).join(', ') || undefined,
+        };
       })
-      .sort((a, b) => ({ free: 0, assigned_current_team: 1, assigned_other_team: 2 }[a.assignmentStatus] - { free: 0, assigned_current_team: 1, assigned_other_team: 2 }[b.assignmentStatus]));
+      .sort((a, b) => ({ free: 0, assigned_current_team: 2, assigned_other_team: 1 }[a.assignmentStatus] - { free: 0, assigned_current_team: 2, assigned_other_team: 1 }[b.assignmentStatus]));
 
     return result;
   }, [filteredActiveStaff, assignments]);
 
-  // Staff drop with optimistic update
-  const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
+  // Staff drop with optimistic update.
+  // Multi-team: assignment ADDS a team-row (does not replace others).
+  // `fromTeamId` (optional): when removing, only that one team-row is cleared
+  // so other team memberships on the same day remain intact.
+  const handleStaffDrop = useCallback(async (
+    staffId: string,
+    resourceId: string | null,
+    targetDate?: Date,
+    fromTeamId?: string,
+  ) => {
     if (!staffId) return;
 
     const effectiveDate = targetDate || currentDate;
     const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
     const staffMember = activeStaff.find(s => s.id === staffId);
 
-    // Optimistic update
+    // Optimistic update — add OR remove a single team-row.
     queryClient.setQueryData<StaffAssignment[]>(['staff-assignments-all'], prev => {
-      const filtered = (prev || []).filter(a => !(a.staffId === staffId && a.date === effectiveDateStr));
-      if (!resourceId) return filtered;
-      return [...filtered, {
-        staffId,
-        staffName: staffMember?.name || `Staff ${staffId}`,
-        teamId: resourceId,
-        date: effectiveDateStr,
-        color: staffMember?.color || '#E3F2FD',
-      }];
+      const list = prev || [];
+      if (resourceId) {
+        // Don't add a duplicate for (staff,team,date)
+        if (list.some(a => a.staffId === staffId && a.teamId === resourceId && a.date === effectiveDateStr)) {
+          return list;
+        }
+        return [...list, {
+          staffId,
+          staffName: staffMember?.name || `Staff ${staffId}`,
+          teamId: resourceId,
+          date: effectiveDateStr,
+          color: staffMember?.color || '#E3F2FD',
+        }];
+      }
+      // Removing
+      if (fromTeamId) {
+        return list.filter(a => !(a.staffId === staffId && a.date === effectiveDateStr && a.teamId === fromTeamId));
+      }
+      return list.filter(a => !(a.staffId === staffId && a.date === effectiveDateStr));
     });
 
     try {
@@ -232,11 +266,13 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
         if (error) throw error;
         toast.success(`Personal tilldelad`);
       } else {
-        const { error } = await supabase
+        let q = supabase
           .from('staff_assignments')
           .delete()
           .eq('staff_id', staffId)
           .eq('assignment_date', effectiveDateStr);
+        if (fromTeamId) q = q.eq('team_id', fromTeamId);
+        const { error } = await q;
         if (error) throw error;
         toast.success(`Tilldelning borttagen`);
       }
