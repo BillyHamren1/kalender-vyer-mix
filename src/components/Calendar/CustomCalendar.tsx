@@ -162,6 +162,31 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     };
   };
 
+  // Fullscreen popover för en specifik dag (öppnas via klick på dag-titeln)
+  const expandedDayDialog = (
+    <Dialog open={!!expandedDay} onOpenChange={(open) => !open && setExpandedDay(null)}>
+      <DialogContent
+        className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 border-0 bg-background overflow-auto"
+        style={{ width: '100vw', height: '100vh' }}
+      >
+        <DialogTitle className="sr-only">
+          {expandedDay ? format(expandedDay, 'EEEE d MMMM yyyy') : 'Dag'}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          Helskärmsvy för vald dag
+        </DialogDescription>
+        {expandedDay && (
+          <div className="w-full h-full p-4 overflow-auto">
+            <TimeGrid
+              {...buildTimeGridProps(expandedDay, true)}
+              onTitleClick={undefined}
+            />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
   // Weekly/Monthly mode
   if (isWeeklyMode) {
     return (
@@ -187,6 +212,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
             })}
           </div>
         </div>
+        {expandedDayDialog}
       </EditControllerProvider>
     );
   }
