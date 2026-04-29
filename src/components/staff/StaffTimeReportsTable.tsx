@@ -197,13 +197,16 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                   {/* Namn — only first row per person */}
                   <td className="py-2 px-2 align-top">
                     {r.isFirstForStaff && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onSelectStaff(r.staffId, r.staffName); }}
-                        className="font-semibold text-foreground hover:underline text-left"
-                      >
-                        {r.staffName}
-                      </button>
+                      <div className="flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onSelectStaff(r.staffId, r.staffName); }}
+                          className="font-semibold text-foreground hover:underline text-left"
+                        >
+                          {r.staffName}
+                        </button>
+                        <AnalyzeDayButton staffId={r.staffId} staffName={r.staffName} date={date} />
+                      </div>
                     )}
                   </td>
 
