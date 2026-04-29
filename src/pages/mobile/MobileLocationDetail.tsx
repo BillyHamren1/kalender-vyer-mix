@@ -124,13 +124,19 @@ const MobileLocationDetail = () => {
 
   const handleStopTimer = async () => {
     if (!locationTarget) return;
-    // Unified engine — pure presence: no time_report, only server-stop.
+    // Unified engine — saves a time_report (Fas 1 unification) and stops.
+    // We stay on the location page so user sees the timer disappear and
+    // can continue with another task without losing context.
     try {
       const res = await stopSession(locationTarget);
       if (res.cancelled) return;
       if (res.saved) {
-        toast.success(t('timer.stoppedCreateReport'));
-        navigate('/m/report');
+        const hours = res.hoursWorked ?? 0;
+        toast.success(
+          hours > 0
+            ? `Tidrapport sparad: ${hours.toFixed(1).replace('.', ',')} h`
+            : 'Timern stoppad',
+        );
       }
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte stoppa timer');
@@ -214,7 +220,7 @@ const MobileLocationDetail = () => {
               <p className="text-[11px] text-muted-foreground mt-1">📅 {task.deadline}</p>
             )}
             {isActiveTask && activeTimer && (
-              <p className="text-xs font-mono text-primary font-bold mt-1">
+              <p className="text-xs font-mono tabular-nums text-primary font-bold mt-1">
                 ⏱ {formatElapsed(activeTimer.startTime)}
               </p>
             )}
@@ -291,7 +297,7 @@ const MobileLocationDetail = () => {
       {/* Timer info bar */}
       {currentTimer && (
         <div className="text-center py-1.5 bg-primary/5">
-          <span className="text-xs font-mono text-primary bg-primary/10 px-3 py-1 rounded-full">
+          <span className="text-xs font-mono tabular-nums text-primary bg-primary/10 px-3 py-1 rounded-full">
             <Clock className="w-3 h-3 inline mr-1" />{formatElapsed(currentTimer.startTime)}
           </span>
           {(currentTimer as any).establishmentTaskTitle && (
