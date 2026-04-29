@@ -15,6 +15,7 @@ import { haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import { mobileApi } from '@/services/mobileApiService';
 import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
 import type { MobileBooking } from '@/services/mobileApiService';
+import { isBookingPlannedOnDate } from '@/lib/mobileBookingPlanning';
 
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
@@ -63,14 +64,7 @@ const HeaderWorkdayControls: React.FC = () => null;
  * Endast bookings som är planerade idag får auto-starta dagen via GPS.
  */
 function isPlannedToday(b: MobileBooking): boolean {
-  const today = new Date().toISOString().slice(0, 10);
-  const candidates = [
-    b.rigdaydate,
-    b.eventdate,
-    b.rigdowndate,
-    ...(b.assignment_dates || []),
-  ];
-  return candidates.some((d) => d === today);
+  return isBookingPlannedOnDate(b);
 }
 
 /**
