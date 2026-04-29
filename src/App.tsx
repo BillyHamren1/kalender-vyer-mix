@@ -129,6 +129,17 @@ const queryClient = new QueryClient({
   },
 });
 
+// Pause all polling/refetching while the tab is hidden. Resume on visibility.
+// This stops dashboards (planning/ops/warehouse) from hammering the network in the background
+// and dramatically reduces idle CPU/memory across the app.
+if (typeof document !== "undefined") {
+  focusManager.setEventListener((handleFocus) => {
+    const onVisibility = () => handleFocus(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  });
+}
+
 // Create and export CalendarContext
 interface CalendarContextType {
   lastViewedDate: Date;
