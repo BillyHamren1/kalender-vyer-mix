@@ -499,6 +499,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleGetPositionAtTime(supabase, staffId, data, organizationId)
       case 'get_movement_for_day':
         return await handleGetMovementForDay(supabase, staffId, data, organizationId)
+      case 'get_staff_day_reality':
+        return await handleGetStaffDayReality(supabase, staffId, data, organizationId)
       case 'get_arrival_state':
         return await handleGetArrivalState(supabase, staffId, organizationId)
       case 'mark_arrival_resolved':
