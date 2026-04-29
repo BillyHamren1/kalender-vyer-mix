@@ -43,6 +43,10 @@ export interface DayFact {
   flagged?: boolean;
   /** Sub-classification for "away" rows. */
   awaySubtype?: AwaySubtype;
+  /** Median coordinate of the "away" period — used for reverse-geocoding. */
+  awayCoords?: { lat: number; lng: number } | null;
+  /** Approximate distance from base (m) for the away period. */
+  awayDistanceMeters?: number;
 }
 
 export interface BuildDayFactsInput {
