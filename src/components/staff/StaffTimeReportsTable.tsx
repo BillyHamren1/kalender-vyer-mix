@@ -7,7 +7,7 @@ import {
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { DayFactsPanel } from './DayFactsPanel';
-import { SessionDiscrepancyRows } from './SessionDiscrepancyRows';
+import { StaffDaySummaryRow } from './StaffDaySummaryRow';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
@@ -42,6 +42,8 @@ export interface JournalTableRow {
   pingAgeMin?: number | null;
   /** All sessions for the day — used by day-start/day-end to derive presence union. */
   allSessions?: ProjectSession[];
+  /** Latest ping ISO — only set on day-start (used by summary row). */
+  latestPingAt?: string | null;
   /** True for session rows — drives per-row presence detail. */
   sessionStart?: string | null;
   sessionEnd?: string | null;
@@ -102,6 +104,7 @@ export const buildJournalRows = (
     fromIso: startWin.from,
     toIso: startWin.to,
     allSessions,
+    latestPingAt: staff.latestPing?.updated_at ?? null,
   });
 
   // Sessions
@@ -312,6 +315,20 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
 
             return (
               <React.Fragment key={r.rowId}>
+                {/* Consolidated per-person summary banner — once, above the
+                    first row. Surfaces open-timer status, stale GPS and
+                    deviations in ONE place instead of red rows everywhere. */}
+                {r.isFirstForStaff && r.allSessions && r.allSessions.length > 0 && (
+                  <StaffDaySummaryRow
+                    staffId={r.staffId}
+                    staffName={r.staffName}
+                    date={date}
+                    sessions={r.allSessions}
+                    latestPingAt={r.latestPingAt ?? null}
+                    leadingCells={1}
+                    totalCols={6}
+                  />
+                )}
                 <tr
                   className={`border-b border-border/40 hover:bg-muted/30 cursor-pointer ${
                     r.isFirstForStaff ? 'border-t-2 border-t-border' : ''
@@ -383,18 +400,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                   <td className="py-2 px-2"></td>
                 </tr>
 
-                {/* Always-visible discrepancy rows under each session */}
-                {(r.kind === 'session-booking' || r.kind === 'session-large' || r.kind === 'session-location') && r.startIso && (
-                  <SessionDiscrepancyRows
-                    staffId={r.staffId}
-                    date={date}
-                    reportedStart={r.startIso}
-                    reportedEnd={r.isOpen ? null : r.endIso}
-                    baseLabel={r.address}
-                    leadingCells={1}
-                    totalCols={6}
-                  />
-                )}
+                {/* Per-session discrepancy noise was removed — replaced by
+                    one consolidated StaffDaySummaryRow rendered at the top
+                    of each staff member's block (see fragment below). */}
 
                 {isOpen && r.fromIso && (r.kind === 'day-start' || r.kind === 'day-end') && (
                   <tr className="bg-muted/20">
