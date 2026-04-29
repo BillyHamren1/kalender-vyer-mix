@@ -68,9 +68,13 @@ export interface StaffDayJournal {
 export interface RawTimeReport {
   id: string;
   booking_id: string | null;
+  large_project_id?: string | null;
+  location_id?: string | null;
   start_iso: string;
   end_iso: string | null;
   hours: number;
+  /** Pre-resolved label from the caller (uses centralized resolver). */
+  label?: string;
 }
 
 export interface RawLocationEntry {
@@ -162,13 +166,26 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     if (!existing.address && base.address) existing.address = base.address;
   };
 
-  // Time reports → keyed by booking_id (or fallback to report id)
+  // Time reports → keyed by (large_project | booking | location | id) so a
+  // tidrapport without booking_id but with large_project_id still groups under
+  // the correct project session and inherits its label from the caller.
   for (const r of input.reports) {
-    const key = r.booking_id ? `booking:${r.booking_id}` : `tr:${r.id}`;
+    const key = r.large_project_id
+      ? `lp:${r.large_project_id}`
+      : r.booking_id
+        ? `booking:${r.booking_id}`
+        : r.location_id
+          ? `loc:${r.location_id}`
+          : `tr:${r.id}`;
+    const kind: ProjectSessionKind = r.large_project_id
+      ? 'large_project'
+      : r.location_id && !r.booking_id
+        ? 'location'
+        : 'booking';
     upsert(key, {
       key,
-      kind: 'booking',
-      label: '', // filled by LTE if present; caller has booking-label fallback
+      kind,
+      label: r.label || '', // filled by LTE if present; caller has booking-label fallback
       start: r.start_iso,
       end: r.end_iso,
       hours: r.hours,

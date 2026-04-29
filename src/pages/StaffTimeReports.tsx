@@ -112,7 +112,7 @@ const StaffTimeReports: React.FC = () => {
         // migration don't double up against the canonical location_time_entry.
         supabase
           .from('time_reports')
-          .select('id, staff_id, booking_id, hours_worked, start_time, end_time, source, source_entry_id')
+          .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id')
           .eq('report_date', dateStr)
           .eq('is_subdivision', false)
           .or('source.is.null,source.neq.location_auto'),
@@ -176,8 +176,14 @@ const StaffTimeReports: React.FC = () => {
       const locationEntries = locationRes.data || [];
       const workdays = workdaysRes.data || [];
 
-      // Resolve location -> internal booking (e.g. Lager) for project label
-      const locationIds = [...new Set(locationEntries.map(e => e.location_id).filter(Boolean))];
+      // Resolve location -> internal booking (e.g. Lager) for project label.
+      // Include location_id from BOTH location_time_entries AND time_reports so
+      // a manually-created Lager-tidrapport (without LTE) still resolves to the
+      // location's name (e.g. "FA Warehouse") instead of falling back to "Lager".
+      const locationIds = [...new Set([
+        ...locationEntries.map(e => e.location_id).filter(Boolean),
+        ...reports.map(r => (r as any).location_id).filter(Boolean),
+      ])] as string[];
       const locationBookingMap = new Map<string, { booking_id: string; label: string }>();
       const locNameMap = new Map<string, string>();
       if (locationIds.length > 0) {
@@ -210,12 +216,31 @@ const StaffTimeReports: React.FC = () => {
         ...reports.map(r => r.booking_id).filter(Boolean),
         ...locationEntries.map(e => (e as any).booking_id).filter(Boolean),
       ])] as string[];
-      const bookingMap = new Map<string, { label: string; is_internal: boolean }>();
+      const bookingMap = new Map<string, { label: string; is_internal: boolean; location_id: string | null }>();
+      const warehouseBookingLocationIds: string[] = [];
       if (bookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
           .select('id, client, booking_number, is_internal, internal_type')
           .in('id', bookingIds);
+        // Look up the location for any internal warehouse booking via projects.
+        const warehouseBookingIds = (bookings || [])
+          .filter(b => b.is_internal && b.internal_type === 'warehouse')
+          .map(b => b.id);
+        const bookingLocationMap = new Map<string, string>();
+        if (warehouseBookingIds.length > 0) {
+          const { data: warehouseProjects } = await supabase
+            .from('projects')
+            .select('booking_id, location_id')
+            .in('booking_id', warehouseBookingIds)
+            .eq('is_internal', true);
+          (warehouseProjects || []).forEach(p => {
+            if (p.booking_id && p.location_id) {
+              bookingLocationMap.set(p.booking_id, p.location_id);
+              warehouseBookingLocationIds.push(p.location_id);
+            }
+          });
+        }
         (bookings || []).forEach(b => {
           let label: string;
           if (b.is_internal) {
@@ -225,14 +250,21 @@ const StaffTimeReports: React.FC = () => {
           } else {
             label = b.client;
           }
-          bookingMap.set(b.id, { label, is_internal: !!b.is_internal });
+          bookingMap.set(b.id, {
+            label,
+            is_internal: !!b.is_internal,
+            location_id: bookingLocationMap.get(b.id) || null,
+          });
         });
       }
 
-      // Fetch large project labels for LTE rows tied to a large project.
-      const largeProjectIds = [...new Set(
-        locationEntries.map(e => (e as any).large_project_id).filter(Boolean)
-      )] as string[];
+      // Fetch large project labels — include BOTH location_time_entries AND
+      // time_reports so a manually-created project tidrapport (e.g. Tiomila 2026)
+      // resolves to the project name instead of falling back to "Projekt".
+      const largeProjectIds = [...new Set([
+        ...locationEntries.map(e => (e as any).large_project_id).filter(Boolean),
+        ...reports.map(r => (r as any).large_project_id).filter(Boolean),
+      ])] as string[];
       const largeProjectMap = new Map<string, string>();
       if (largeProjectIds.length > 0) {
         const { data: lps } = await supabase
@@ -240,6 +272,17 @@ const StaffTimeReports: React.FC = () => {
           .select('id, name')
           .in('id', largeProjectIds);
         (lps || []).forEach(p => largeProjectMap.set(p.id, p.name || 'Stort projekt'));
+      }
+
+      // If the warehouse-booking lookup found new location IDs that weren't in
+      // the initial locationIds set, fetch their names too.
+      const missingLocationIds = warehouseBookingLocationIds.filter(id => !locNameMap.has(id));
+      if (missingLocationIds.length > 0) {
+        const { data: extraLocations } = await supabase
+          .from('organization_locations')
+          .select('id, name')
+          .in('id', missingLocationIds);
+        (extraLocations || []).forEach(l => locNameMap.set(l.id, l.name));
       }
 
       // Build per-staff aggregate
@@ -288,6 +331,44 @@ const StaffTimeReports: React.FC = () => {
         return wins.some(([ws, we]) => s < we && e > ws); // overlap
       };
 
+      // Centralized label resolver — same priority used by both the segment
+      // loop AND the journal mapping. Priority:
+      //   1. large_project_id  → large_projects.name
+      //   2. booking + warehouse-internal → location name (e.g. "FA Warehouse")
+      //   3. booking_id → bookingMap.label
+      //   4. location_id → location name
+      //   5. fallback "—" (NEVER "Projekt"/"Tidrapport" — silently masks bugs)
+      const resolveTimeReportLabel = (r: {
+        booking_id: string | null;
+        large_project_id: string | null;
+        location_id: string | null;
+      }): { key: string; label: string } => {
+        if (r.large_project_id) {
+          return {
+            key: `lp:${r.large_project_id}`,
+            label: largeProjectMap.get(r.large_project_id) || 'Stort projekt',
+          };
+        }
+        if (r.booking_id) {
+          const info = bookingMap.get(r.booking_id);
+          if (info?.is_internal && info.location_id) {
+            const locName = locNameMap.get(info.location_id);
+            if (locName) return { key: `booking:${r.booking_id}`, label: locName };
+          }
+          return {
+            key: `booking:${r.booking_id}`,
+            label: info?.label || 'Okänt projekt',
+          };
+        }
+        if (r.location_id) {
+          return {
+            key: `loc:${r.location_id}`,
+            label: locNameMap.get(r.location_id) || 'Plats',
+          };
+        }
+        return { key: 'unknown', label: '—' };
+      };
+
       for (const r of reports) {
         const a = byStaff.get(r.staff_id) || newAgg();
 
@@ -308,11 +389,12 @@ const StaffTimeReports: React.FC = () => {
         if (r.end_time && (!a.latest_end || r.end_time > a.latest_end)) {
           a.latest_end = r.end_time;
         }
-        const bookingInfo = r.booking_id ? bookingMap.get(r.booking_id) : null;
-        const label = bookingInfo?.label || (r.booking_id ? 'Okänt projekt' : 'Tidrapport');
-        if (r.booking_id && !shadowed) {
-          const existing = a.projects.get(r.booking_id);
-          a.projects.set(r.booking_id, {
+        const resolved = resolveTimeReportLabel(r as any);
+        const label = resolved.label;
+        const projectKey = resolved.key;
+        if (!shadowed && projectKey !== 'unknown') {
+          const existing = a.projects.get(projectKey);
+          a.projects.set(projectKey, {
             label,
             is_open: (existing?.is_open || false) || !r.end_time,
             total_hours: (existing?.total_hours || 0) + (r.hours_worked || 0),
@@ -423,7 +505,13 @@ const StaffTimeReports: React.FC = () => {
         if (e.booking_id) {
           const info = bookingMap.get(e.booking_id);
           projectKey = e.booking_id;
-          projectLabel = info?.label || 'Okänt projekt';
+          // Internal warehouse booking → prefer location name (e.g. "FA Warehouse")
+          // so all rows for that location share the same label.
+          if (info?.is_internal && info.location_id) {
+            projectLabel = locNameMap.get(info.location_id) || info.label || 'Okänt projekt';
+          } else {
+            projectLabel = info?.label || 'Okänt projekt';
+          }
           // Internal booking (Lager) → keep as 'location' icon; real booking → 'booking'.
           segmentKind = info?.is_internal ? 'location' : 'booking';
         } else if (e.large_project_id) {
@@ -547,9 +635,12 @@ const StaffTimeReports: React.FC = () => {
             .map(r => ({
               id: r.id,
               booking_id: r.booking_id,
+              large_project_id: r.large_project_id ?? null,
+              location_id: r.location_id ?? null,
               start_iso: composeLocalIso(dateStr, r.start_time),
               end_iso: r.end_time ? composeLocalIso(dateStr, r.end_time) : null,
               hours: r.hours_worked || 0,
+              label: resolveTimeReportLabel(r as any).label,
             }));
 
           const staffLTEs: RawLocationEntry[] = (locationEntries as any[])
@@ -562,16 +653,14 @@ const StaffTimeReports: React.FC = () => {
                 : isOpen
                   ? Math.max(0, (nowMs - new Date(e.entered_at).getTime()) / 3_600_000)
                   : 0;
-              let label = 'Plats';
-              if (e.booking_id) {
-                label = bookingMap.get(e.booking_id)?.label || 'Okänt projekt';
-              } else if (e.large_project_id) {
-                label = largeProjectMap.get(e.large_project_id) || 'Stort projekt';
-              } else if (e.location_id) {
-                label = locationBookingMap.get(e.location_id)?.label
-                  || locNameMap.get(e.location_id)
-                  || 'Lager';
-              }
+              // Use the same centralized resolver as time_reports so an LTE
+              // on an internal warehouse booking shows "FA Warehouse" too.
+              const resolved = resolveTimeReportLabel({
+                booking_id: e.booking_id,
+                large_project_id: e.large_project_id,
+                location_id: e.location_id,
+              });
+              const label = resolved.label === '—' ? 'Plats' : resolved.label;
               return {
                 id: e.id,
                 booking_id: e.booking_id,
