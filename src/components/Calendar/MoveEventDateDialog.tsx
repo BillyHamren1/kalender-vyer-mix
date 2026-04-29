@@ -197,20 +197,45 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
       } else {
         trace('NORMAL branch');
 
-        const updatePayload: any = {
-          start: newStartISO,
-          end: newEndISO,
-        };
-        if (teamChanged) {
-          updatePayload.resourceId = selectedResourceId;
-        }
-        try {
-          const result = await updateCalendarEvent(event.id, updatePayload);
-          syncedSiblings = (result as any)?.syncedSiblings ?? 0;
-          trace('updateCalendarEvent OK', updatePayload);
-        } catch (err) {
-          traceError('updateCalendarEvent FAILED', err);
-          throw new Error(`Steg "Uppdatera kalenderhändelse" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
+        // Resolve a real calendar_events.id. Staff-calendar derived rows have
+        // synthetic ids (`staff-…-{phase}-{date}`) and many have NO underlying
+        // calendar_events row at all — we must NOT blindly call
+        // updateCalendarEvent(syntheticId) because it returns 0 rows and the
+        // user gets an opaque "Kunde inte flytta händelsen" toast.
+        const realEventId = await resolveCalendarEventId({
+          rawId: event.id,
+          bookingId: event.bookingId,
+          eventType: event.eventType,
+          sourceDate: currentDateStr,
+        });
+
+        if (realEventId) {
+          const updatePayload: any = {
+            start: newStartISO,
+            end: newEndISO,
+          };
+          if (teamChanged) {
+            updatePayload.resourceId = selectedResourceId;
+          }
+          try {
+            const result = await updateCalendarEvent(realEventId, updatePayload);
+            syncedSiblings = (result as any)?.syncedSiblings ?? 0;
+            trace('updateCalendarEvent OK', { realEventId, updatePayload });
+          } catch (err) {
+            traceError('updateCalendarEvent FAILED', err);
+            throw new Error(`Steg "Uppdatera kalenderhändelse" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        } else if (isSyntheticCalendarEventId(event.id)) {
+          // Expected for staff-calendar derived rows — booking write below is
+          // the authoritative source; reconciler materializes the calendar
+          // event on next sync.
+          trace('NORMAL branch — no calendar_events row, booking-only update', {
+            bookingId: event.bookingId,
+            phase: event.eventType,
+            fromDate: currentDateStr,
+          });
+        } else {
+          throw new Error(`Hittade ingen kalenderhändelse för bokning ${event.bookingId} (${event.eventType} ${currentDateStr}).`);
         }
 
         // Mirror date/time onto the booking row for staff event types only.
