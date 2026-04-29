@@ -500,6 +500,11 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
         </div>
 
+        {/* Correction suggestions (Etapp 3) — actionable above timeline */}
+        {date && staffId && (
+          <CorrectionSuggestionsPanel staffId={staffId} date={date} organizationId={organizationId} />
+        )}
+
         {/* Server-derived event timeline (Day Timeline Engine) */}
         {date && staffId && (
           <DayEventTimeline staffId={staffId} date={date} />
