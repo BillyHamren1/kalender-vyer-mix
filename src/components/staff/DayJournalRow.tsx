@@ -222,9 +222,8 @@ const sessionIcon = (kind: ProjectSession['kind']) => {
 };
 
 export const ProjectSessionRow: React.FC<ProjectSessionRowProps> = ({
-  session, staffId, staffName, date,
+  session, staffId, date,
 }) => {
-  const [open, setOpen] = useState(false);
   const Icon = sessionIcon(session.kind);
 
   // Pings are shared across all rows for the day via React Query cache.
@@ -274,11 +273,8 @@ export const ProjectSessionRow: React.FC<ProjectSessionRowProps> = ({
       time={time}
       duration={duration}
       detail={detail}
-      expandable={false}
-      expanded={false}
       indent
-    >
-    </JournalRow>
+    />
   );
 };
 
