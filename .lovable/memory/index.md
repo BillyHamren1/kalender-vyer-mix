@@ -10,5 +10,6 @@
 - [Workday timer](.lovable/memory/features/field-staff/workday-timer-v1.md) — Server-anchored dagtimer i headern.
 - [Start day flow](.lovable/memory/features/field-staff/start-day-flow-v1.md) — GPS auto-start, fallback-dialog, fri text-flagga och off-site-förklaring.
 - [Multi-team staff assignment](.lovable/memory/features/planning/multi-team-staff-assignment-v1.md) — Personal i flera team samma dag; available-listan exkluderar aldrig assignade; remove kan scopas till en teamrad.
+- [Staff Calendar Single Writer](.lovable/memory/constraints/staff-calendar-single-writer-v1.md) — Endast `services/staffAssignmentCore.ts` skriver till `staff_assignments`. Allt annat delegerar. Låst av `src/test/staffCalendar.contract.test.ts`. Borttagna duplikater listas där — återinför ej.
 - [Scanner Return (IN) Flow](.lovable/memory/features/warehouse/scanner-return-flow-v1.md) — Packlistor visas både som UT (rigdaydate) och IN (rigdowndate). Retur-scan ökar quantity_returned. Statusar delivered → returning → returned.
 - [Planning Calendar Lager Column](.lovable/memory/features/planning/lager-column-bridge-v1.md) — Planeringskalenderns "Lager"-kolumn (legacy id 'transport'): internt Lagerprojekt 07–16 + staff_assignments speglas till warehouse availability.
