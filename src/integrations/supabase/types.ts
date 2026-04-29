@@ -6447,6 +6447,7 @@ export type Database = {
       }
       workdays: {
         Row: {
+          admin_note: string | null
           approval_override_reason: string | null
           approved_at: string | null
           approved_by: string | null
@@ -6466,6 +6467,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_note?: string | null
           approval_override_reason?: string | null
           approved_at?: string | null
           approved_by?: string | null
@@ -6485,6 +6487,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_note?: string | null
           approval_override_reason?: string | null
           approved_at?: string | null
           approved_by?: string | null
