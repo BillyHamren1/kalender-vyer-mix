@@ -172,19 +172,30 @@ export function useWarehouseAvailableStaff(
     };
   }, [currentDate, view]);
 
-  const { data: lagerAssignedStaffIds = [] } = useQuery({
-    queryKey: ['warehouse-lager-assigned-staff', startKey, endKey],
+  const { data: lagerAssignmentsByDate = {} } = useQuery({
+    queryKey: ['warehouse-lager-assigned-staff-by-date', startKey, endKey],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('staff_assignments')
-        .select('staff_id')
+        .select('staff_id, assignment_date')
         .eq('team_id', 'transport')
         .gte('assignment_date', startKey)
         .lte('assignment_date', endKey);
       if (error) throw error;
-      return Array.from(new Set((data || []).map((r: any) => r.staff_id)));
+      const map: Record<string, string[]> = {};
+      for (const r of (data || []) as any[]) {
+        const d = r.assignment_date as string;
+        if (!map[d]) map[d] = [];
+        if (!map[d].includes(r.staff_id)) map[d].push(r.staff_id);
+      }
+      return map;
     },
   });
+
+  const lagerAssignedStaffIds = useMemo(
+    () => Array.from(new Set(Object.values(lagerAssignmentsByDate).flat())),
+    [lagerAssignmentsByDate],
+  );
 
   // Realtime: invalidera när staff_assignments ändras
   useEffect(() => {
@@ -194,7 +205,7 @@ export function useWarehouseAvailableStaff(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'staff_assignments' },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['warehouse-lager-assigned-staff'] });
+          queryClient.invalidateQueries({ queryKey: ['warehouse-lager-assigned-staff-by-date'] });
         },
       )
       .subscribe();
@@ -208,9 +219,26 @@ export function useWarehouseAvailableStaff(
     [permanentlyActiveIds, lagerAssignedStaffIds],
   );
 
+  // Per-date allowed staff: permanent activations are valid every day,
+  // lager-drag assignments only on their specific date.
+  const activeStaffIdsByDate = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    // build all dates in range
+    const start = new Date(startKey);
+    const end = new Date(endKey);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = format(d, 'yyyy-MM-dd');
+      const set = new Set<string>(permanentlyActiveIds);
+      (lagerAssignmentsByDate[key] || []).forEach(id => set.add(id));
+      map[key] = Array.from(set);
+    }
+    return map;
+  }, [startKey, endKey, permanentlyActiveIds, lagerAssignmentsByDate]);
+
   return {
     staffWithActivations,
     activeStaffIds,
+    activeStaffIdsByDate,
     isLoading: isLoadingActivations,
   };
 }
