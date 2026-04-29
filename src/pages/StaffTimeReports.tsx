@@ -635,9 +635,12 @@ const StaffTimeReports: React.FC = () => {
             .map(r => ({
               id: r.id,
               booking_id: r.booking_id,
+              large_project_id: r.large_project_id ?? null,
+              location_id: r.location_id ?? null,
               start_iso: composeLocalIso(dateStr, r.start_time),
               end_iso: r.end_time ? composeLocalIso(dateStr, r.end_time) : null,
               hours: r.hours_worked || 0,
+              label: resolveTimeReportLabel(r as any).label,
             }));
 
           const staffLTEs: RawLocationEntry[] = (locationEntries as any[])
