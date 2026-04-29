@@ -73,7 +73,6 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [expandedStaff, setExpandedStaff] = useState<Set<string>>(new Set());
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -91,14 +90,6 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   const liveCount = staffList.filter(s => resolveLiveStatus(s.has_open_report, s.latestPing) === 'live').length;
   const staleCount = staffList.filter(s => resolveLiveStatus(s.has_open_report, s.latestPing) === 'stale').length;
   const totalHours = staffList.reduce((s, x) => s + x.total_hours, 0);
-
-  const toggleExpanded = (id: string) => {
-    setExpandedStaff(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
 
   return (
     <PremiumCard
@@ -222,19 +213,14 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
               const pingAgeMin = staff.latestPing?.updated_at
                 ? Math.floor((Date.now() - new Date(staff.latestPing.updated_at).getTime()) / 60000)
                 : null;
-              const expanded = expandedStaff.has(staff.id);
 
               return (
                 <div
                   key={staff.id}
                   className="rounded-lg border border-border/40 hover:border-border transition-colors"
                 >
-                  {/* Compact header — click to toggle journal */}
-                  <button
-                    type="button"
-                    onClick={() => toggleExpanded(staff.id)}
-                    className="w-full flex items-stretch gap-3 px-3 py-2.5 text-left"
-                  >
+                  {/* Person header — always visible, never collapsed */}
+                  <div className="flex items-stretch gap-3 px-3 py-2.5">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 relative self-start mt-0.5 bg-muted text-muted-foreground">
                       {staff.name.charAt(0).toUpperCase()}
                       {liveStatus === 'live' && (
@@ -248,7 +234,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 flex-wrap min-w-0">
-                          <span className="font-medium text-sm text-foreground truncate">{staff.name}</span>
+                          <span className="font-semibold text-sm text-foreground truncate">{staff.name}</span>
                           {staff.role && (
                             <span className="text-[11px] text-muted-foreground">{staff.role}</span>
                           )}
@@ -269,10 +255,10 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                           )}
                         </div>
                         <div className="text-right shrink-0">
-                          <div className="text-sm font-semibold text-foreground tabular-nums leading-tight">
+                          <div className="text-base font-bold text-foreground tabular-nums leading-tight">
                             {formatHoursMinutes(staff.total_hours)}
                           </div>
-                          <div className="text-[10px] text-muted-foreground tabular-nums leading-tight">
+                          <div className="text-[11px] text-muted-foreground tabular-nums leading-tight">
                             {staff.earliest_start && (
                               <>
                                 {staff.earliest_start.slice(0, 5)}
@@ -286,60 +272,56 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                         </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
 
-                  {/* Expanded journal */}
-                  {expanded && (
-                    <div className="px-3 pb-3 pt-1 space-y-1 bg-muted/10 border-t border-border/40">
-                      <DayHeaderRow
-                        variant="start"
-                        header={staff.journal.start}
-                        staffId={staff.id}
-                        date={dateStr}
-                      />
+                  {/* Journal — always visible. Sessions = "delrapporter på ny rad". */}
+                  <div className="px-3 pb-3 space-y-0.5 border-t border-border/40">
+                    <DayHeaderRow
+                      variant="start"
+                      header={staff.journal.start}
+                      staffId={staff.id}
+                      date={dateStr}
+                    />
 
-                      {staff.journal.sessions.length === 0 ? (
-                        <div className="ml-3 py-3 text-xs text-muted-foreground italic">
-                          Inga projekt-sessioner — bara närvaro vid {staff.journal.start.address || 'en plats'}.
-                        </div>
-                      ) : (
-                        <div className="space-y-0.5">
-                          {staff.journal.sessions.map(s => (
-                            <ProjectSessionRow
-                              key={s.key}
-                              session={s}
-                              staffId={staff.id}
-                              staffName={staff.name}
-                              date={dateStr}
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      <DayHeaderRow
-                        variant="end"
-                        header={staff.journal.end}
-                        totalHours={staff.total_hours}
-                        staffId={staff.id}
-                        date={dateStr}
-                      />
-
-                      <div className="flex items-center justify-between pt-2 border-t border-border/40">
-                        {liveStatus === 'stale' && (
-                          <PingPhoneButton staffId={staff.id} staffName={staff.name} />
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="ml-auto h-7 text-xs gap-1"
-                          onClick={() => onSelectStaff(staff.id, staff.name)}
-                        >
-                          Detaljerad rapport
-                          <ChevronRight className="h-3 w-3" />
-                        </Button>
+                    {staff.journal.sessions.length === 0 ? (
+                      <div className="ml-3 py-2 text-xs text-muted-foreground italic">
+                        Inga projekt-sessioner — bara närvaro vid {staff.journal.start.address || 'en plats'}.
                       </div>
+                    ) : (
+                      staff.journal.sessions.map(s => (
+                        <ProjectSessionRow
+                          key={s.key}
+                          session={s}
+                          staffId={staff.id}
+                          staffName={staff.name}
+                          date={dateStr}
+                        />
+                      ))
+                    )}
+
+                    <DayHeaderRow
+                      variant="end"
+                      header={staff.journal.end}
+                      totalHours={staff.total_hours}
+                      staffId={staff.id}
+                      date={dateStr}
+                    />
+
+                    <div className="flex items-center justify-between pt-2">
+                      {liveStatus === 'stale' && (
+                        <PingPhoneButton staffId={staff.id} staffName={staff.name} />
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-auto h-7 text-xs gap-1"
+                        onClick={() => onSelectStaff(staff.id, staff.name)}
+                      >
+                        Detaljerad rapport
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })
