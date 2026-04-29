@@ -51,6 +51,7 @@ interface TimeGridProps {
     onNavigateLeft: () => void;
     onNavigateRight: () => void;
   };
+  onTitleClick?: (date: Date) => void;
   setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }
 
