@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, ChevronRight, Search, ChevronLeft, Activity, CheckCircle2, CalendarDays, MapPin, Briefcase, Car, WifiOff, Smartphone } from 'lucide-react';
+import { Clock, ChevronRight, Search, ChevronLeft, CalendarDays, MapPin, Briefcase, Car, WifiOff } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -177,30 +176,22 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
         </Button>
       </div>
 
-      {/* Summary badges */}
+      {/* Summary — neutral text, only stale gets a warning color */}
       {!isLoading && staffList.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          <Badge variant="secondary" className="text-[11px] gap-1">
-            <Clock className="h-3 w-3" />
-            {formatHoursMinutes(totalHours)} totalt
-          </Badge>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-xs text-muted-foreground">
+          <span className="tabular-nums">
+            <span className="font-semibold text-foreground">{formatHoursMinutes(totalHours)}</span> totalt
+          </span>
           {liveCount > 0 && (
-            <Badge
-              variant="outline"
-              className="text-[11px] gap-1 font-medium border-primary/30 text-primary bg-primary/5"
-            >
-              <Activity className="h-3 w-3" />
-              {liveCount} pågående
-            </Badge>
+            <span className="tabular-nums">
+              <span className="font-semibold text-foreground">{liveCount}</span> pågående
+            </span>
           )}
           {staleCount > 0 && (
-            <Badge
-              variant="outline"
-              className="text-[11px] gap-1 font-medium border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
-            >
+            <span className="tabular-nums text-destructive font-medium inline-flex items-center gap-1">
               <WifiOff className="h-3 w-3" />
               {staleCount} tappad signal
-            </Badge>
+            </span>
           )}
         </div>
       )}
@@ -240,80 +231,54 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
               <button
                 key={staff.id}
                 onClick={() => onSelectStaff(staff.id, staff.name)}
-                className={`w-full flex items-stretch gap-2.5 px-3 py-2 rounded-lg border transition-all text-left group ${
-                  liveStatus === 'live'
-                    ? 'border-primary/25 bg-primary/[0.04] hover:bg-primary/[0.07]'
-                    : liveStatus === 'stale'
-                      ? 'border-amber-500/30 bg-amber-500/[0.04] hover:bg-amber-500/[0.07]'
-                      : 'border-transparent hover:bg-muted/50 hover:border-border/60'
-                }`}
+                className="w-full flex items-stretch gap-3 px-3 py-2.5 rounded-lg border border-transparent hover:bg-muted/40 hover:border-border/60 transition-colors text-left group"
               >
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 relative self-start mt-0.5"
-                  style={{
-                    backgroundColor: staff.color ? `${staff.color}20` : 'hsl(var(--muted))',
-                    color: staff.color || 'hsl(var(--muted-foreground))',
-                  }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 relative self-start mt-0.5 bg-muted text-muted-foreground"
                 >
                   {staff.name.charAt(0).toUpperCase()}
                   {liveStatus === 'live' && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background animate-pulse" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-foreground border-2 border-background" />
                   )}
                   {liveStatus === 'stale' && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-background" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive border-2 border-background" />
                   )}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  {/* Header row: name + status + day total */}
+                  {/* Header row: name + minimal meta + day total */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2 flex-wrap min-w-0">
                       <span className="font-medium text-sm text-foreground truncate">{staff.name}</span>
                       {staff.role && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          {staff.role}
-                        </Badge>
+                        <span className="text-[11px] text-muted-foreground">{staff.role}</span>
                       )}
-                      {liveStatus === 'live' ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 border-primary/30 text-primary bg-primary/5"
-                        >
-                          <Activity className="h-2.5 w-2.5" />
-                          Pågående
-                        </Badge>
-                      ) : liveStatus === 'stale' ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
+                      {liveStatus === 'live' && (
+                        <span className="text-[11px] text-muted-foreground">· Pågående</span>
+                      )}
+                      {liveStatus === 'closed' && (
+                        <span className="text-[11px] text-muted-foreground">· Avslutad</span>
+                      )}
+                      {liveStatus === 'stale' && (
+                        <span
+                          className="text-[11px] font-medium text-destructive inline-flex items-center gap-1"
                           title={pingAgeMin != null ? `Senaste signal för ${pingAgeMin} min sedan` : 'Ingen signal från telefonen'}
                         >
-                          <WifiOff className="h-2.5 w-2.5" />
+                          <WifiOff className="h-3 w-3" />
                           Tappad signal{pingAgeMin != null ? ` · ${pingAgeMin}m` : ''}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 border-border/60 text-muted-foreground"
-                        >
-                          <CheckCircle2 className="h-2.5 w-2.5" />
-                          Avslutad
-                        </Badge>
+                        </span>
                       )}
                       {staff.latestPing?.app_version && (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 border-border/60 text-muted-foreground font-mono"
+                        <span
+                          className="text-[10px] text-muted-foreground/70 font-mono"
                           title={[
                             staff.latestPing.app_platform ? `Plattform: ${staff.latestPing.app_platform}` : null,
                             staff.latestPing.app_build ? `Build ${staff.latestPing.app_build}` : null,
                           ].filter(Boolean).join(' · ') || 'Appversion'}
                         >
-                          <Smartphone className="h-2.5 w-2.5" />
                           {staff.latestPing.app_platform === 'ios' ? 'iOS ' : staff.latestPing.app_platform === 'android' ? 'Android ' : ''}
                           {staff.latestPing.app_version}
-                          {staff.latestPing.app_build ? ` (${staff.latestPing.app_build})` : ''}
-                        </Badge>
+                        </span>
                       )}
                     </div>
                     <div className="text-right shrink-0">
@@ -326,7 +291,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                             {staff.earliest_start.slice(0, 5)}
                             {' – '}
                             {staff.has_open_report
-                              ? <span className="text-primary font-medium">pågår</span>
+                              ? <span className="text-foreground font-medium">pågår</span>
                               : (staff.latest_end?.slice(0, 5) || '—')}
                           </>
                         )}
@@ -334,7 +299,6 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                     </div>
                   </div>
 
-                  {/* Chronological segment timeline — open at top, then newest → oldest */}
                   {/* Latest GPS ping (no live tick — backend updates) */}
                   <div className="mt-1 flex items-center gap-2">
                     <StaffLatestPing ping={staff.latestPing} className="flex-1 min-w-0" />
@@ -342,51 +306,45 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       <PingPhoneButton staffId={staff.id} staffName={staff.name} />
                     )}
                   </div>
+
+                  {/* Chronological segment timeline */}
                   {(staff.segments?.length ?? 0) > 0 && (
-                    <div className="mt-1.5 border-l-2 border-border/60 pl-2 space-y-0.5">
+                    <div className="mt-1.5 border-l border-border pl-2.5 space-y-0.5">
                       {staff.segments.map(seg => {
                         const Icon = segmentIcon(seg.kind);
                         const isLive = seg.isOpen;
                         return (
                           <div
                             key={seg.id}
-                            className={`flex items-center justify-between gap-3 text-xs leading-snug rounded-md px-1.5 py-0.5 ${
-                              isLive
-                                ? 'bg-primary/[0.06] border border-primary/20'
-                                : ''
-                            }`}
+                            className="flex items-center justify-between gap-3 text-xs leading-snug py-0.5"
                           >
                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
                               {isLive ? (
-                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" />
                               ) : (
                                 <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
                               )}
                               <span
-                                className={`truncate ${
-                                  isLive
-                                    ? 'text-primary font-semibold'
-                                    : 'text-foreground/80'
-                                }`}
+                                className={`truncate ${isLive ? 'text-foreground font-medium' : 'text-foreground/70'}`}
                                 title={seg.label}
                               >
-                                 {isLive && <span className="mr-1 text-[10px] uppercase tracking-wide">NU:</span>}
+                                {isLive && <span className="mr-1 text-[10px] uppercase tracking-wide text-muted-foreground">NU:</span>}
                                 {seg.label}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0 tabular-nums text-[11px]">
-                              <span className="text-muted-foreground">
+                            <div className="flex items-center gap-2 shrink-0 tabular-nums text-[11px] text-muted-foreground">
+                              <span>
                                 {formatTimeShort(seg.start)}
                                 {' → '}
-                                {seg.end ? formatTimeShort(seg.end) : <span className="text-primary font-medium">pågår</span>}
+                                {seg.end ? formatTimeShort(seg.end) : <span className="text-foreground font-medium">pågår</span>}
                               </span>
                               {isLive ? (
                                 <LiveDuration
                                   startedAt={seg.start}
-                                  className="font-semibold text-primary min-w-[64px] text-right"
+                                  className="font-medium text-foreground min-w-[64px] text-right"
                                 />
                               ) : (
-                                <span className="text-muted-foreground min-w-[48px] text-right">
+                                <span className="min-w-[48px] text-right">
                                   {formatHoursMinutes(seg.hours)}
                                 </span>
                               )}
@@ -398,7 +356,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   )}
                 </div>
 
-                <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0 self-center" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-colors shrink-0 self-center" />
               </button>
               );
             })
