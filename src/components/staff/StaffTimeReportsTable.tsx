@@ -167,6 +167,107 @@ interface JournalTableProps {
   onSelectStaff: (id: string, name: string) => void;
 }
 
+const minutesBetween = (a: string, b: string) =>
+  Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000);
+
+/**
+ * Inline GPS-derived "Anlände HH:MM · Lämnade HH:MM" line shown under the
+ * description for day-start / day-end / session rows. Uses pings cached via
+ * useStaffPingsForDay so multiple rows share the same network call.
+ *
+ * - For day-start: shows the very first ping near any work site.
+ * - For day-end:   shows the very last ping near any work site.
+ * - For session rows: shows arrival / departure inside that session window.
+ *
+ * If the reported start/end differs from GPS by ≥15 min, the value is
+ * highlighted in destructive color so the admin can spot the mismatch
+ * without clicking or running an AI analysis.
+ */
+const PresenceLine: React.FC<{ row: JournalTableRow }> = ({ row }) => {
+  const { data: pings = [], isLoading } = useStaffPingsForDay(row.staffId, '__date__placeholder__', false);
+  // We need the date string from the parent — accept it via prop wrapper below.
+  return null; // Replaced by PresenceLineWithDate
+};
+
+const PresenceLineWithDate: React.FC<{ row: JournalTableRow; date: string }> = ({ row, date }) => {
+  const { data: pings = [], isLoading } = useStaffPingsForDay(row.staffId, date, true);
+
+  const result = useMemo(() => {
+    if (!pings.length) return null;
+
+    if (row.kind === 'day-start' || row.kind === 'day-end') {
+      const sessions = (row.allSessions || []).filter(s => s.kind !== 'travel');
+      if (!sessions.length) return null;
+      const perSession = sessions.map(s => computeWorkPresence(pings, s.start, s.end));
+      const combined = combineDayPresence(perSession);
+      const isStart = row.kind === 'day-start';
+      const gpsTime = isStart ? combined.arrivedAt : combined.leftAt;
+      if (!gpsTime) return null;
+      const reported = row.startIso;
+      const label = isStart ? 'Anlände' : 'Lämnade';
+      if (!reported) return { label, gpsTime, diffMin: null as number | null };
+      const diff = isStart
+        ? minutesBetween(gpsTime, reported)        // positive = report startade SENARE än ankomst
+        : minutesBetween(gpsTime, reported);       // positive = report stängd EFTER faktisk avgång
+      return { label, gpsTime, diffMin: diff };
+    }
+
+    // Session row
+    if (!row.sessionStart) return null;
+    const presence = computeWorkPresence(pings, row.sessionStart, row.sessionEnd ?? null);
+    if (!presence.arrivedAt && !presence.leftAt) return null;
+    return {
+      label: 'På plats',
+      arrived: presence.arrivedAt,
+      left: presence.leftAt,
+      basePings: presence.basePings.length,
+      sample: presence.sampleCount,
+    } as any;
+  }, [pings, row]);
+
+  if (isLoading || !result) return null;
+
+  // Day-start / day-end variant
+  if (result.label === 'Anlände' || result.label === 'Lämnade') {
+    const gps = format(new Date(result.gpsTime), 'HH:mm');
+    const diff = result.diffMin;
+    if (diff == null) {
+      return (
+        <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+          {result.label} <strong className="text-foreground">{gps}</strong> (GPS)
+        </div>
+      );
+    }
+    if (Math.abs(diff) < 2) {
+      return (
+        <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+          {result.label} <strong className="text-foreground">{gps}</strong> · matchar rapport
+        </div>
+      );
+    }
+    const sign = diff > 0 ? `+${diff}` : `${diff}`;
+    const flagged = Math.abs(diff) >= 15;
+    return (
+      <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+        {result.label}{' '}
+        <strong className={flagged ? 'text-destructive' : 'text-foreground'}>{gps}</strong>
+        {' · rapport '}{result.label === 'Anlände' ? 'startad' : 'stängd'}{' '}
+        {format(new Date(row.startIso!), 'HH:mm')} ({sign} min)
+      </div>
+    );
+  }
+
+  // Session "På plats: HH:MM – HH:MM"
+  const arr = result.arrived ? format(new Date(result.arrived), 'HH:mm') : '—';
+  const lft = result.left ? format(new Date(result.left), 'HH:mm') : (row.isOpen ? 'pågår' : '—');
+  return (
+    <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+      På plats: <strong className="text-foreground">{arr} – {lft}</strong>
+      <span className="ml-1">({result.basePings}/{result.sample} pings vid bas)</span>
+    </div>
+  );
+};
+
 /**
  * Excel-style flat table: Namn | Beskrivning | Plats | Klockslag | Varaktighet
  * - Name only renders on the first row per person.
