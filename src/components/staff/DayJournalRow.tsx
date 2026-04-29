@@ -134,10 +134,12 @@ export const DayHeaderRow: React.FC<DayHeaderRowProps> = ({
 
   const presence = useMemo(() => {
     if (!pings.length || !sessions.length) return null;
-    const perSession = sessions
-      .filter(s => s.kind !== 'travel')
-      .map(s => computeWorkPresence(pings, s.start, s.end));
-    return combineDayPresence(perSession);
+    const real = sessions.filter(s => s.kind !== 'travel');
+    const perSession = real.map(s => computeWorkPresence(pings, s.start, s.end));
+    const combined = combineDayPresence(perSession);
+    // Only authoritative when at least one session had a real base coord.
+    const baseIsAuthoritative = perSession.some(p => p.baseIsAuthoritative);
+    return { ...combined, baseIsAuthoritative };
   }, [pings, sessions]);
 
   const reportedTime = isStart
