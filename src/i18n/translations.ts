@@ -201,6 +201,7 @@ const translations = {
   'calendar.showWeek': { sv: 'Visa veckan', en: 'Show week' },
   'calendar.prev': { sv: 'Föregående', en: 'Previous' },
   'calendar.next': { sv: 'Nästa', en: 'Next' },
+  'scanner.calendar.noPackingsThisDay': { sv: 'Inga packjobb denna dag', en: 'No packings this day' },
 
   // Common
   'common.loading': { sv: 'Laddar...', en: 'Loading...' },
