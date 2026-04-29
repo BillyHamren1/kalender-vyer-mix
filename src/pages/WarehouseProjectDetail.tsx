@@ -9,11 +9,20 @@ import {
   fetchWarehouseProjectTasks,
   fetchWarehousePackings,
   deleteWarehouseProject,
+  updateWarehouseProject,
 } from "@/services/warehouseProjectService";
 import {
   WAREHOUSE_PROJECT_STATUS_LABELS,
   WAREHOUSE_PROJECT_STATUS_COLORS,
+  type WarehouseProjectStatus,
 } from "@/types/warehouseProject";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import PackingCard from "@/components/packing/PackingCard";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -66,6 +75,18 @@ const WarehouseProjectDetail = () => {
     }
   };
 
+  const handleStatusChange = async (status: WarehouseProjectStatus) => {
+    if (!warehouseProjectId) return;
+    try {
+      await updateWarehouseProject(warehouseProjectId, { status });
+      await queryClient.invalidateQueries({ queryKey: ['warehouse-project', warehouseProjectId] });
+      toast.success('Status uppdaterad');
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte uppdatera status');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -104,9 +125,18 @@ const WarehouseProjectDetail = () => {
                 <span className="text-xs font-mono px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
                   {project.project_number}
                 </span>
-                <Badge className={WAREHOUSE_PROJECT_STATUS_COLORS[project.status]}>
-                  {WAREHOUSE_PROJECT_STATUS_LABELS[project.status]}
-                </Badge>
+                <Select value={project.status} onValueChange={(v) => handleStatusChange(v as WarehouseProjectStatus)}>
+                  <SelectTrigger className={`h-7 w-auto gap-1.5 px-2.5 text-xs font-medium border-0 ${WAREHOUSE_PROJECT_STATUS_COLORS[project.status]}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(WAREHOUSE_PROJECT_STATUS_LABELS) as WarehouseProjectStatus[]).map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {WAREHOUSE_PROJECT_STATUS_LABELS[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <h1 className="text-2xl font-semibold text-[hsl(var(--heading))]">{project.name}</h1>
               {(project.start_date || project.end_date) && (
