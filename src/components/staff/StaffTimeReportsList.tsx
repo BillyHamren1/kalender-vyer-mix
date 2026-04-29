@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, ChevronRight, Search, ChevronLeft, CalendarDays, WifiOff } from 'lucide-react';
+import { Clock, Search, ChevronLeft, ChevronRight, CalendarDays, WifiOff } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { PingPhoneButton } from './PingPhoneButton';
-import { DayHeaderRow, ProjectSessionRow } from './DayJournalRow';
+import { JournalTable, buildJournalRows, type JournalTableRow } from './StaffTimeReportsTable';
 import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal } from '@/lib/staff/dayJournal';
 
