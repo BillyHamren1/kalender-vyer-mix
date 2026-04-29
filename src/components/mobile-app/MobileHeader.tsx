@@ -40,14 +40,42 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
   return slot;
 };
 
+/**
+ * HeaderWorkdayControls
+ *
+ * Visar ENDAST WorkDayHeaderTimer (dag-klockan) när dagen är öppen.
+ * Start/Avsluta dag-knappen renderas inline i sidans header
+ * (se `HeaderStartEndDayButton`) — inte som en egen rad här.
+ */
 const HeaderWorkdayControls: React.FC = () => {
+  const { current } = useWorkDay();
+  const workdayOpen = !!current && !current.ended_at;
+
+  if (!workdayOpen) return null;
+
+  return (
+    <div className="w-full px-4 pt-2 pb-1 flex justify-center bg-primary">
+      <WorkDayHeaderTimer />
+    </div>
+  );
+};
+
+/**
+ * HeaderStartEndDayButton
+ *
+ * Kompakt ikon-knapp som placeras inline i sidans header-rad
+ * (mellan andra header-actions). Visar Play när dagen ej är öppen
+ * och LogOut när den är öppen.
+ */
+export const HeaderStartEndDayButton: React.FC = () => {
   const location = useLocation();
   const { t } = useLanguage();
   const { current, start } = useWorkDay();
   const workdayOpen = !!current && !current.ended_at;
   const [startingDay, setStartingDay] = useState(false);
 
-  const showControls = location.pathname !== '/m/report';
+  // Göm på rapport-sidan (samma policy som tidigare)
+  if (location.pathname === '/m/report') return null;
 
   const handleStartDay = useCallback(async () => {
     if (startingDay || workdayOpen) return;
@@ -60,43 +88,33 @@ const HeaderWorkdayControls: React.FC = () => {
     }
   }, [startingDay, workdayOpen, start]);
 
-  if (!workdayOpen && !showControls) return null;
+  if (workdayOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
+        className="p-2.5 rounded-xl bg-destructive/90 text-destructive-foreground active:scale-95 transition-all"
+        title={t('workday.endDayTitle')}
+        aria-label={t('workday.endDay')}
+      >
+        <LogOut className="w-4.5 h-4.5" />
+      </button>
+    );
+  }
 
   return (
-    <div className="w-full px-4 pt-2 pb-2 flex flex-col items-center justify-center gap-2 bg-primary">
-      {workdayOpen && (
-        <div className="w-full flex justify-center">
-          <WorkDayHeaderTimer />
-        </div>
-      )}
-
-      {showControls && (
-        workdayOpen ? (
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
-            className="w-full max-w-[240px] min-h-[48px] rounded-2xl px-4 flex items-center justify-center gap-2 bg-destructive text-destructive-foreground border-2 border-destructive shadow-[0_8px_24px_-8px_hsl(var(--destructive)/0.55)] active:scale-[0.98] transition-all font-bold text-sm"
-            title={t('workday.endDayTitle')}
-            aria-label={t('workday.endDay')}
-          >
-            <LogOut className="w-4 h-4" />
-            <span>{t('workday.endDay')}</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleStartDay}
-            disabled={startingDay}
-            className="w-full max-w-[240px] min-h-[48px] rounded-2xl px-4 flex items-center justify-center gap-2 bg-primary text-primary-foreground border-2 border-primary-foreground/20 shadow-[0_8px_24px_-8px_hsl(var(--primary-foreground)/0.22)] active:scale-[0.98] transition-all font-bold text-sm disabled:opacity-70 disabled:cursor-not-allowed"
-            title={t('workday.startDayTitle')}
-            aria-label={startingDay ? t('workday.starting') : t('workday.startDay')}
-          >
-            {startingDay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            <span>{startingDay ? t('workday.starting') : t('workday.startDay')}</span>
-          </button>
-        )
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={handleStartDay}
+      disabled={startingDay}
+      className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all disabled:opacity-60"
+      title={t('workday.startDayTitle')}
+      aria-label={startingDay ? t('workday.starting') : t('workday.startDay')}
+    >
+      {startingDay
+        ? <Loader2 className="w-4.5 h-4.5 text-primary-foreground/80 animate-spin" />
+        : <Play className="w-4.5 h-4.5 text-primary-foreground/80" />}
+    </button>
   );
 };
 

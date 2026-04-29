@@ -10,18 +10,16 @@ import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
-import { HeaderShell } from '@/components/mobile-app/MobileHeader';
+import { HeaderShell, HeaderStartEndDayButton } from '@/components/mobile-app/MobileHeader';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
-import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, ClipboardCheck, UserCircle2 } from 'lucide-react';
+import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { useQuery } from '@tanstack/react-query';
-import { mobileApi } from '@/services/mobileApiService';
 
 const VIEW_MODE_KEY = 'mobile.calendarView';
 const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
@@ -34,15 +32,6 @@ const MobileJobs = () => {
   const { data: shifts = [] } = useScheduledShifts();
   const { t } = useLanguage();
 
-  // Day-review badge — antal needs_review-dagar senaste 7 dagar
-  const { data: reviewData } = useQuery({
-    queryKey: ['workdays-review-summary'],
-    queryFn: () => mobileApi.listWorkdaysReview({ days: 7 }),
-    enabled: !!staff?.id,
-    staleTime: 60_000,
-    refetchOnWindowFocus: true,
-  });
-  const needsReviewCount = (reviewData?.workdays || []).filter(w => w.review_status === 'needs_review').length;
 
   // Calendar view state — persisted in localStorage
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
@@ -156,7 +145,7 @@ const MobileJobs = () => {
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <HeaderShell>
         <div className="px-5 pt-1.5 pb-2.5 flex items-center justify-between gap-3">
-          {/* LEFT: action buttons (refresh + day-review) */}
+          {/* LEFT: refresh */}
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => refetch()}
@@ -165,18 +154,9 @@ const MobileJobs = () => {
             >
               <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
             </button>
-            <button
-              onClick={() => navigate('/m/day-review')}
-              className="relative p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
-              aria-label="Dagavstämning"
-            >
-              <ClipboardCheck className="w-4.5 h-4.5 text-primary-foreground/80" />
-              {needsReviewCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                  {needsReviewCount}
-                </span>
-              )}
-            </button>
+
+            {/* Start/Avsluta dag — kompakt ikon mellan Uppdatera och Profil */}
+            <HeaderStartEndDayButton />
           </div>
 
           {/* RIGHT: clickable name → profile */}
