@@ -124,15 +124,35 @@ export const HeaderStartEndDayButton: React.FC = () => {
   if (location.pathname === '/m/report') return null;
 
   /**
-   * Öppna ALLTID StartDayDialog så användaren själv väljer projekt/plats.
-   * (Tidigare auto-start vid GPS-träff togs bort på begäran — användaren ska
-   * alltid bekräfta vilket projekt dagen startar på.)
+   * Steg 1: Snabb GPS-poll (≤3s). Om vi hittar en booking vid platsen
+   *         → auto-starta workday + projekttimer direkt.
+   *         Annars → öppna StartDayDialog så användaren MÅSTE välja något.
    */
-  const handleStartDay = useCallback(() => {
+  const handleStartDay = useCallback(async () => {
     if (startingDay || workdayOpen) return;
-    clearWorkdayEnded();
-    setDialogOpen(true);
-  }, [startingDay, workdayOpen]);
+    setStartingDay(true);
+    try {
+      clearWorkdayEnded();
+      const pos = userPosition ?? await waitForPosition(() => userPosition);
+      const match = findNearbyBooking(bookings, pos);
+
+      if (match) {
+        const target = match.large_project_id && match.large_project_name
+          ? { kind: 'project' as const, largeProjectId: match.large_project_id, name: match.large_project_name }
+          : { kind: 'booking' as const, bookingId: match.id, client: match.client };
+        const label = match.large_project_name || match.client;
+        const result = requestStart(target, { label });
+        if (result === 'started' || result === 'duplicate') {
+          toast.success(`Dagen startad på ${label}`);
+        }
+        return;
+      }
+
+      setDialogOpen(true);
+    } finally {
+      setStartingDay(false);
+    }
+  }, [startingDay, workdayOpen, userPosition, bookings, requestStart]);
 
   /**
    * Användaren har valt något i dialogen.
@@ -201,13 +221,14 @@ export const HeaderStartEndDayButton: React.FC = () => {
         type="button"
         onClick={handleStartDay}
         disabled={startingDay}
-        className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all disabled:opacity-60"
+        className="flex items-center gap-1.5 rounded-xl bg-primary-foreground px-3 py-2 text-sm font-semibold text-primary shadow-sm active:scale-95 transition-all disabled:opacity-60"
         title={t('workday.startDayTitle')}
         aria-label={startingDay ? t('workday.starting') : t('workday.startDay')}
       >
         {startingDay
-          ? <Loader2 className="w-4.5 h-4.5 text-primary-foreground/80 animate-spin" />
-          : <Play className="w-4.5 h-4.5 text-primary-foreground/80" />}
+          ? <Loader2 className="h-4 w-4 animate-spin" />
+          : <Play className="h-4 w-4 fill-current" />}
+        <span>{startingDay ? t('workday.starting') : t('workday.startDay')}</span>
       </button>
       <StartDayDialog
         open={dialogOpen}
