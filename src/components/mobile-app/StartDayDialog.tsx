@@ -27,11 +27,23 @@ export type StartDaySelection =
   | { kind: 'target'; target: WorkTarget; label: string }
   | { kind: 'manual'; text: string };
 
+export interface StartDayLocation {
+  id: string;
+  name: string;
+  address: string | null;
+}
+
 interface StartDayDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (selection: StartDaySelection) => void | Promise<void>;
   bookings: MobileBooking[];
+  /**
+   * Fasta platser (t.ex. Lager) som ALLTID ska kunna väljas som startmål,
+   * även om personen inte är planerad på något jobb idag. Renderas överst
+   * i listan så att Lager alltid finns inom räckhåll.
+   */
+  locations?: StartDayLocation[];
   starting?: boolean;
 }
 
