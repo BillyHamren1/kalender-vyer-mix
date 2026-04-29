@@ -68,9 +68,13 @@ export interface StaffDayJournal {
 export interface RawTimeReport {
   id: string;
   booking_id: string | null;
+  large_project_id?: string | null;
+  location_id?: string | null;
   start_iso: string;
   end_iso: string | null;
   hours: number;
+  /** Pre-resolved label from the caller (uses centralized resolver). */
+  label?: string;
 }
 
 export interface RawLocationEntry {
