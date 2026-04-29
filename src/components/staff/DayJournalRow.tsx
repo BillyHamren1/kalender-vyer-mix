@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, MapPin, Briefcase, Car, LogIn, LogOut, Alert
 import { format } from 'date-fns';
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { StaffPingDetailPanel } from './StaffPingDetailPanel';
+import { DayFactsPanel } from './DayFactsPanel';
 import type { DayHeader, ProjectSession } from '@/lib/staff/dayJournal';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { computeWorkPresence, combineDayPresence } from '@/lib/staff/workPresence';
@@ -187,17 +187,18 @@ export const DayHeaderRow: React.FC<DayHeaderRowProps> = ({
       {header.at && (() => {
         const t = new Date(header.at).getTime();
         const windowMs = 30 * 60 * 1000;
-        const fromIso = new Date(t - windowMs).toISOString();
-        const toIso = header.isOpen
-          ? new Date().toISOString()
+        const reportedStart = new Date(t - windowMs).toISOString();
+        const reportedEnd = header.isOpen
+          ? null
           : new Date(t + windowMs).toISOString();
         return (
-          <StaffPingDetailPanel
+          <DayFactsPanel
             staffId={staffId}
             staffName=""
             date={date}
-            fromIso={fromIso}
-            toIso={toIso}
+            reportedStart={reportedStart}
+            reportedEnd={reportedEnd}
+            baseLabel={header.address}
           />
         );
       })()}
@@ -278,12 +279,13 @@ export const ProjectSessionRow: React.FC<ProjectSessionRowProps> = ({
       onToggle={() => setOpen(o => !o)}
       indent
     >
-      <StaffPingDetailPanel
+      <DayFactsPanel
         staffId={staffId}
         staffName={staffName}
         date={date}
-        fromIso={session.start}
-        toIso={session.end}
+        reportedStart={session.start}
+        reportedEnd={session.end}
+        baseLabel={session.address}
       />
     </JournalRow>
   );
