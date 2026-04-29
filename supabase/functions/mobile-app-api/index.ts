@@ -6992,6 +6992,9 @@ const WORKDAY_FLAG_TYPES = new Set([
   'activity_ended_day_continues', 'geofence_presence_mismatch',
   'team_time_deviation', 'unreasonable_travel', 'time_gap',
   'missing_report', 'long_day', 'overlapping_times',
+  'home_arrival_end_day_adjusted', 'home_arrival_auto_ended',
+  'auto_closed_overnight', 'auto_closed_travel', 'auto_closed_report',
+  'unclear_start_target',
 ])
 
 async function handleCreateWorkdayFlag(supabase: any, staffId: string, data: any, organizationId: string) {
