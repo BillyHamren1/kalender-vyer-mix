@@ -3,6 +3,7 @@ export type PackingStatus =
   | 'in_progress'
   | 'packed'
   | 'delivered'
+  | 'back'
   | 'returning'
   | 'returned'
   | 'completed'
