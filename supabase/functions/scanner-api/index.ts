@@ -142,8 +142,9 @@ async function transitionToReturning(supabase: any, packingId: string, orgId: st
     .eq('organization_id', orgId)
     .single()
 
-  if (data?.status === 'delivered') {
-    console.log(`[return-flow] ${packingId}: delivered → returning`)
+  // Tillåt: delivered (I produktion) ELLER back (Tillbaka) → returning (Påbörjad)
+  if (data?.status === 'delivered' || data?.status === 'back') {
+    console.log(`[return-flow] ${packingId}: ${data.status} → returning`)
     await supabase
       .from('packing_projects')
       .update({ status: 'returning', updated_at: new Date().toISOString() })
@@ -153,8 +154,6 @@ async function transitionToReturning(supabase: any, packingId: string, orgId: st
 }
 
 async function checkIfAllReturned(supabase: any, packingId: string, orgId: string) {
-  // Returnable = same countable rule as outbound, but compared against
-  // quantity_packed (what actually went out) rather than quantity_to_pack.
   const { data: items, error } = await supabase
     .from('packing_list_items')
     .select('id, excluded, quantity_to_pack, quantity_packed, quantity_returned, booking_products(id, parent_product_id)')
@@ -163,9 +162,6 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
 
   if (error || !items || items.length === 0) return
 
-  // Reuse package-header collapse rule from shared helper by mapping shape.
-  // We do the totals locally because the canonical helper compares against
-  // quantity_to_pack, not quantity_packed/returned.
   const headers = new Set<string>()
   for (const it of items) {
     const pid = (it as any).booking_products?.parent_product_id
@@ -177,7 +173,7 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
   for (const it of items) {
     if ((it as any).excluded === true) continue
     const productId = (it as any).booking_products?.id
-    if (productId && headers.has(productId)) continue // package header row
+    if (productId && headers.has(productId)) continue
     const sent = Math.max(0, ((it as any).quantity_packed ?? 0) | 0)
     const back = Math.max(0, ((it as any).quantity_returned ?? 0) | 0)
     totalOut += sent
@@ -185,11 +181,11 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
     if (back > 0) anyReturned = true
   }
 
-  if (totalOut === 0) return // nothing was actually packed/sent — leave alone
+  if (totalOut === 0) return
 
   const { data: packing } = await supabase
     .from('packing_projects')
-    .select('status')
+    .select('status, booking_id')
     .eq('id', packingId)
     .eq('organization_id', orgId)
     .single()
@@ -197,7 +193,7 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
   const current = packing?.status
 
   if (totalReturned >= totalOut) {
-    if (current === 'delivered' || current === 'returning') {
+    if (current === 'delivered' || current === 'back' || current === 'returning') {
       console.log(`[return-flow] ${packingId}: ${current} → returned`)
       await supabase
         .from('packing_projects')
@@ -205,14 +201,25 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
         .eq('id', packingId)
         .eq('organization_id', orgId)
     }
-  } else if (anyReturned && current === 'delivered') {
+  } else if (anyReturned && (current === 'delivered' || current === 'back')) {
     await transitionToReturning(supabase, packingId, orgId)
   } else if (!anyReturned && current === 'returning') {
-    // All return scans undone → revert to delivered
-    console.log(`[return-flow] ${packingId}: returning → delivered (all return scans undone)`)
+    // Alla retur-scans ångrade → tillbaka till `back` om rigdown passerat, annars `delivered`
+    let revertTo: 'back' | 'delivered' = 'delivered'
+    if (packing?.booking_id) {
+      const { data: bk } = await supabase
+        .from('bookings')
+        .select('rigdowndate')
+        .eq('id', packing.booking_id)
+        .eq('organization_id', orgId)
+        .single()
+      const today = new Date().toISOString().slice(0, 10)
+      if (bk?.rigdowndate && bk.rigdowndate <= today) revertTo = 'back'
+    }
+    console.log(`[return-flow] ${packingId}: returning → ${revertTo} (alla retur-scans ångrade)`)
     await supabase
       .from('packing_projects')
-      .update({ status: 'delivered', updated_at: new Date().toISOString() })
+      .update({ status: revertTo, updated_at: new Date().toISOString() })
       .eq('id', packingId)
       .eq('organization_id', orgId)
   }
@@ -286,7 +293,7 @@ Deno.serve(async (req) => {
         // - delivered  → show if rigdowndate within 14 days (or unset) so the
         //                return (IN) flow can be picked up from the calendar.
         const filtered = packingsWithBookings.filter((p: any) => {
-          if (p.status === 'in_progress' || p.status === 'packed' || p.status === 'returning') return true
+          if (p.status === 'in_progress' || p.status === 'packed' || p.status === 'returning' || p.status === 'back') return true
           if (p.status === 'planning') {
             const rigDate = p.booking?.rigdaydate
             if (!rigDate) return true

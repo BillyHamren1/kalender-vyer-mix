@@ -46,7 +46,7 @@ const PackingDashboard = ({ packings, onDelete }: PackingDashboardProps) => {
   const statCards = [
     { label: 'Planering', value: stats.planning, icon: Package, color: 'hsl(210 80% 55%)' },
     { label: 'Pågående', value: stats.inProgress, icon: Clock, color: 'hsl(38 92% 50%)' },
-    { label: 'Levererat', value: stats.delivered, icon: ArrowRight, color: 'hsl(270 60% 55%)' },
+    { label: 'I produktion', value: stats.delivered, icon: ArrowRight, color: 'hsl(270 60% 55%)' },
     { label: 'Klart', value: stats.completed, icon: CheckCircle2, color: 'hsl(142 60% 40%)' },
   ];
 

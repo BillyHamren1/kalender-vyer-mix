@@ -1,92 +1,72 @@
-# Returflöde (IN) i scanner-kalendern
+# Nytt statusflöde för lagerprojekt
 
-## Mål
-Idag visar scanner-kalendern bara packningar för **UT** (ankrade på `rigdaydate`). Vi behöver att samma packlista även dyker upp på **`rigdowndate`** som ett **retur-jobb (IN)**, där hela ursprungslistan visas igen och varje kolli/artikel kan scannas tillbaka till hyllan.
+Användarvänliga steg ska visas så här genom hela systemet (kort, listor, dashboard, scanner-app, lagerprojekt-detalj):
 
-## UX
-
-En packning kan nu ha **två kort** i kalendern:
-
-```text
-[OUT] 12 jun  Acme AB · Pack    → status: planning/in_progress/packed
-[IN]  18 jun  Acme AB · Retur   → status: delivered → returning → returned
+```
+UT:        1. Planering   →  2. Pågående    →  3. Slutförd
+                                                     ↓
+Mellan:                       I produktion  (ute hos kund)
+                                                     ↓
+IN:        1. Tillbaka    →  2. Påbörjad    →  3. Slutförd
 ```
 
-Korten särskiljs visuellt:
-- **OUT-kort** (oförändrat): grön/blå badge, knappar "Scan" + "Check off"
-- **IN-kort** (nytt): orange/lila badge "Retur", knappar "Scan tillbaka" + "Check off"
+## Mappning till databasens `packing_projects.status`
 
-Pinned-sektionen "Pågående nu" inkluderar både `in_progress` (OUT) och `returning` (IN).
+| Visad etikett | DB-status | Trigger |
+|---|---|---|
+| Planering | `planning` | Skapas vid inbox→packing |
+| Pågående | `in_progress` | Första pack-scan eller manuell start |
+| Slutförd (UT) | `packed` | Alla items packade (canonical progress = 100%) |
+| I produktion | `delivered` | Sätts vid signering av packlistan (befintligt) |
+| **Tillbaka** | **`back`** *(ny status)* | **Auto vid `rigdowndate <= today` och `status='delivered'`** |
+| Påbörjad (IN) | `returning` | Första retur-scan |
+| Slutförd (IN) | `returned` | Alla utskickade items returnerade |
 
-## Datamodell
+`completed`/`cancelled` behålls oförändrade.
 
-Lägger till två nya statusar på `packing_projects.status`:
-- `delivered` → finns redan, betyder "ute hos kund". Triggas idag när chaffören signerar utlämning.
-- **`returning`** (NY) → minst ett kolli har scannats tillbaka, ej alla.
-- **`returned`** (NY) → alla kollin tillbaka på hyllan, jobbet är klart.
+## Vad som behöver göras
 
-Befintligt `completed` behålls för administrativ avslut efter `returned`.
+### 1. Databas-migration
+- Lägg till `'back'` i CHECK-constraint på `packing_projects.status` (om sådan finns, annars bara dokumentation).
+- Skapa edge-cron-funktion `flip-delivered-to-back` som körs t.ex. var 30:e minut: sätter `status='back'` på alla `packing_projects` där `status='delivered'` och kopplad bookings `rigdowndate <= today`.
+  - Alternativt: kör check på read-vägen i `useWarehouseOpsBoard` och `scanner-api get_packing_status` så vi inte behöver cron — men cron är tydligast för konsekvent UI överallt. Vi kör cron + samma check i `scanner-api/get_packing_items` som säkerhet.
 
-`packing_list_items` får två nya kolumner för att tracka returscanning utan att överskriva utlämningsdatan:
-- `quantity_returned int default 0`
-- `returned_at timestamptz`
-- `returned_by uuid`
+### 2. `supabase/functions/scanner-api/index.ts`
+- `transitionToReturning` & `checkIfAllReturned`: tillåt övergång från **både `delivered` och `back`** till `returning`, och från `returning`/`back` → `returned` när allt scannats in.
+- När en retur-scan undos (allt = 0): återgå till `back` om `rigdowndate <= today`, annars `delivered`.
+- `signed`-pathen orörd (sätter fortsatt `delivered`).
 
-(Vi rör inte `quantity_packed/packed_at` — den datan är historik från utlämning.)
+### 3. Ny cron edge-function `packing-status-cron`
+- Lyssnar på schedule (config.toml `[functions.packing-status-cron] schedule = "*/30 * * * *"`).
+- Joinar `packing_projects` med `bookings` på `booking_id`/`large_project_id` och flippar `delivered → back` när rigdown-datum är passerat.
+- Multi-tenant safe (filtrerar per `organization_id` rad-för-rad, ingen org-stripning behövs).
 
-## Backend (scanner-api edge function)
+### 4. Frontend-etiketter (`src/types/packing.ts`)
+- Lägg till `'back'` i `PackingStatus`-unionen.
+- Uppdatera `PACKING_STATUS_LABELS`:
+  - `planning: 'Planering'`
+  - `in_progress: 'Pågående'`
+  - `packed: 'Slutförd'`  *(tidigare "Packad")*
+  - `delivered: 'I produktion'`  *(tidigare "Levererat")*
+  - `back: 'Tillbaka'`
+  - `returning: 'Påbörjad'`  *(tidigare "Retur pågår")*
+  - `returned: 'Slutförd'`  *(tidigare "Retur klar")*
+- Uppdatera `PACKING_STATUS_COLORS` (lägg `back` = orange/amber).
 
-1. **`list_active_packings`**: utöka filtret till `['planning','in_progress','packed','delivered','returning']` så delivered-packningar finns kvar i listan tills de är fullt returnerade.
-2. **Nytt action `return_scan_item`**: ökar `quantity_returned` (klampat mot `quantity_packed`), sätter `returned_at/by`, och flippar packningens status `delivered → returning → returned` enligt samma single-source-regel som packing-progress-mirrorn (`supabase/functions/_shared/packing-progress.ts` får ett spegelfält för "returnable items").
-3. **Idempotens**: parcel-baserad scanning återanvänder `packing_list_item_allocations` så ett scan av kolli A returnerar exakt de items som var packade i A.
+### 5. Komponenter som visar status
+Inga logikändringar utöver att hantera `'back'` som ett giltigt status-värde:
+- `OpsProjectCard.tsx` / `OpsBoardSection.tsx` — bucketize: `back` hamnar i "Idag/försenat IN"-sektion.
+- `PackingCard.tsx`, `PackingDashboard.tsx`, `PackingCalendarView.tsx`, `ActivePackingsGrid.tsx`, `PackingDetail.tsx`, `PackingManagement.tsx` — använder bara labels/colors-mappar, fungerar automatiskt efter typuppdatering.
+- `usePackingsByDate.ts`: lägg till `'back'` i `isReturnable`-check så IN-anchor genereras även för `back`.
 
-## Frontend
+### 6. `useWarehouseOpsBoard`
+- Hämta även status `'back'` i listfiltret.
+- Bucketize: `back` → "Tillbaka idag" eller liknande sektion (bredvid "Pågående UT").
 
-### `src/hooks/scanner/usePackingsByDate.ts`
-Lägg till en andra ankring per packning:
+### 7. Memory-uppdatering
+Skapa `mem://features/warehouse/packing-status-flow-v1` med tabellen ovan + auto-flip-regel, och referera i index.
 
-```text
-För varje packning emit:
-  - { kind:'out', anchor: rigdaydate ?? eventdate ?? created_at }
-  - om status ∈ {delivered, returning} och rigdowndate finns:
-      { kind:'in',  anchor: rigdowndate }
-```
-
-Hooken returnerar `Array<{ packing, kind: 'out' | 'in' }>` per dag istället för bara packningar.
-
-### `src/components/scanner/calendar/PackingCard.tsx`
-Tar emot `kind`-prop:
-- Olika badge/färg/ikon (`PackageOpen` för IN, `Package` för OUT)
-- Olika knapptexter: "Scan tillbaka" / "Check off retur" vs nuvarande
-- `onSelect(packingId, mode, kind)` så `VerificationView` vet om den är i retur-läge
-
-### `PackingDayView` / `WeekView` / `MonthView`
-Loopar över de nya `{packing, kind}`-entries istället för packings. Counten i månadsvyn räknar OUT+IN separat (eller summerat — föreslår summerat med tooltip).
-
-### `MobileScannerApp.tsx`
-- `handleSelectPacking(id, mode, kind)` → state får ett nytt fält `flow: 'out' | 'in'`
-- Pinned-sektionen "Pågående nu" inkluderar både `in_progress` och `returning`
-
-### `VerificationView` + `ManualChecklistView`
-Får en `flow`-prop. När `flow === 'in'`:
-- Visar `quantity_packed` som "Att scanna tillbaka"
-- Progress = `quantity_returned / quantity_packed`
-- Scan-handler kallar `return_scan_item` istället för `scan_item`
-- "Klar"-knappen sätter status till `returned` när alla items är returnerade
-
-## Realtime
-`useScannerRealtime` lyssnar redan på `packing_list_items` och `packing_projects` — räcker, eftersom retur-scans uppdaterar samma rader.
-
-## Migrations
-Två migrations:
-1. ALTER TABLE `packing_list_items` ADD COLUMN `quantity_returned`, `returned_at`, `returned_by`.
-2. Lägg till `'returning'` och `'returned'` i `packing_status` enum (eller text-check).
-
-## Risk / scope
-- Backend mirror `packing-progress.ts` måste få en parallell "return-progress"-räknare så inga andra delar av systemet (planning-statusbadges) tror jobbet plötsligt är "stuck" när det är på väg tillbaka.
-- Statusvokabulär för Planning-modulen ändras INTE — där visas fortfarande Aktivt/Stängt/Avbokat (memory: project-status-vocabulary-v1). Retur-statusarna är interna för warehouse-modulen.
-
-## Avgränsning
-Denna PR rör enbart scanner-mobilen + edge function + DB. Desktop "PackingManagement" får en kort indikator (Retur in_progress) men ingen full retur-UI i denna runda.
-
-Är detta rätt riktning, eller vill du att returscanning ska gå mot en helt separat tabell/projekttyp istället för att återanvända `packing_projects`?
+## Inget av detta ändrar
+- Pack/retur-scan-logik (kvantiteter, allokeringar, kollin) — orörd.
+- Sign_packing-flödet — orört (sätter fortsatt `delivered`).
+- Avbruten/avslutad-statusarna.

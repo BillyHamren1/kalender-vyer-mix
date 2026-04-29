@@ -15,22 +15,28 @@ import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox"
 type Bucket = "active" | "overdue" | "today" | "soon" | "upcoming" | "done";
 
 function bucketize(p: OpsProject): Bucket {
-  if (p.signedAt) return "done";
-  // "Pågår nu" — någon scannat senaste 30 min ELLER status === in_progress med >0%
+  if (p.status === "returned" || p.status === "completed") return "done";
+  if (p.signedAt && p.status !== "delivered" && p.status !== "back" && p.status !== "returning") return "done";
+
+  // Aktiv just nu — pågående retur eller någon scannat senaste 30 min
   const lastAct = p.lastActivityAt ? parseISO(p.lastActivityAt) : null;
   const minsSince = lastAct && isValid(lastAct) ? (Date.now() - lastAct.getTime()) / 60000 : Infinity;
-  if (minsSince <= 30 && !p.signedAt) return "active";
+  if (p.status === "returning") return "active";
+  if (minsSince <= 30) return "active";
 
+  // "Tillbaka" = kommit hem, redo att starta retur — visa som dagens jobb
+  if (p.status === "back") return "today";
+
+  // "I produktion" = ute hos kund, inväntar retur — visa under kommande/snart baserat på rigdown
   if (p.startDate) {
     const d = parseISO(p.startDate);
     if (isValid(d)) {
       const days = differenceInCalendarDays(d, new Date());
-      if (days < 0 && p.percent < 100) return "overdue";
+      if (days < 0 && p.percent < 100 && p.status !== "delivered") return "overdue";
       if (days === 0 || days === 1) return "today";
       if (days <= 5) return "soon";
     }
   }
-  // No date → if status in_progress treat as active, else upcoming
   if (p.status === "in_progress" && p.percent > 0 && p.percent < 100) return "active";
   return "upcoming";
 }
