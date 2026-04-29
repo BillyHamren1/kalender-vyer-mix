@@ -32,6 +32,7 @@ import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { registerGeofenceAutoActions } from '@/hooks/useGeofencing';
 import type { ArrivalTarget } from '@/types/arrivalTarget';
 import { initLocationPingHandler } from '@/services/locationPingHandler';
+import { isArrivalTargetPlannedToday } from '@/lib/mobileBookingPlanning';
 
 /**
  * MobileGlobalOverlays — single source of truth for ALL global mobile flows.
@@ -240,13 +241,18 @@ const MobileGlobalOverlays: React.FC = () => {
   const staleDay = useStaleDayCorrection(!!staff);
 
   const arrivalTarget: ArrivalTarget | null = arrivalState?.target ?? null;
+  const plannedArrivalTarget = arrivalTarget && isArrivalTargetPlannedToday(arrivalTarget, bookings)
+    ? arrivalTarget
+    : null;
 
   useEffect(() => {
     if (eodActive) return;
-    if (arrivalState?.should_prompt && arrivalTarget) {
+    if (arrivalState?.should_prompt && plannedArrivalTarget) {
       setArrivalDialogOpen(true);
+    } else if (!plannedArrivalTarget) {
+      setArrivalDialogOpen(false);
     }
-  }, [arrivalState?.should_prompt, arrivalTarget, eodActive]);
+  }, [arrivalState?.should_prompt, plannedArrivalTarget, eodActive]);
 
   /**
    * Map an ArrivalTarget → WorkTarget. The WorkSession engine is what
@@ -267,11 +273,11 @@ const MobileGlobalOverlays: React.FC = () => {
   }, []);
 
   const handleArrivalConfirm = useCallback(async (result: { startedAtIso: string; usedSuggestedArrival: boolean }) => {
-    if (!arrivalTarget) return;
+    if (!plannedArrivalTarget) return;
     setArrivalSubmitting(true);
     try {
-      const startedAt = result.usedSuggestedArrival ? arrivalTarget.arrived_at : result.startedAtIso;
-      const workTarget = arrivalToWorkTarget(arrivalTarget);
+      const startedAt = result.usedSuggestedArrival ? plannedArrivalTarget.arrived_at : result.startedAtIso;
+      const workTarget = arrivalToWorkTarget(plannedArrivalTarget);
       if (!workTarget) throw new Error('Unknown arrival type');
 
       // Arrival is a HELPER — it must only mark itself resolved if the
@@ -281,7 +287,7 @@ const MobileGlobalOverlays: React.FC = () => {
       const status = await tryStartFromArrival(workTarget, { startedAtIso: startedAt });
 
       if (status === 'started' || status === 'duplicate') {
-        await markResolved(arrivalTarget);
+        await markResolved(plannedArrivalTarget);
         setArrivalDialogOpen(false);
         refreshArrival();
         return;
@@ -301,13 +307,13 @@ const MobileGlobalOverlays: React.FC = () => {
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [arrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival]);
+  }, [plannedArrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival]);
 
   const handleArrivalDismiss = useCallback(async () => {
-    if (!arrivalTarget) return;
-    await markResolved(arrivalTarget);
+    if (!plannedArrivalTarget) return;
+    await markResolved(plannedArrivalTarget);
     setArrivalDialogOpen(false);
-  }, [arrivalTarget, markResolved]);
+  }, [plannedArrivalTarget, markResolved]);
 
   useEffect(() => {
     if (staleTimers.length > 0 && !eodActive && !arrivalDialogOpen) {
@@ -391,11 +397,11 @@ const MobileGlobalOverlays: React.FC = () => {
         />
       )}
 
-      {arrivalState?.should_prompt && arrivalTarget && (
+      {arrivalState?.should_prompt && plannedArrivalTarget && (
         <UnifiedArrivalPrompt
           open={arrivalDialogOpen}
           onOpenChange={setArrivalDialogOpen}
-          target={arrivalTarget}
+          target={plannedArrivalTarget}
           onConfirm={handleArrivalConfirm}
           onDismiss={handleArrivalDismiss}
         />
