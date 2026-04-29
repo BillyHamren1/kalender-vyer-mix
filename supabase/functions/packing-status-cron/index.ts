@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     let flipped = 0
     const flippedIds: string[] = []
     for (const row of candidates || []) {
-      const downDate = (row as any).bookings?.rigdowndate as string | null | undefined
+      const downDate = downByBooking.get((row as any).booking_id) ?? null
       if (!downDate) continue
       if (downDate <= today) {
         const { error: upErr } = await supabase
