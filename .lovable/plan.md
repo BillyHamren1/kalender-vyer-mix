@@ -1,122 +1,69 @@
-# Operations Board v2 — Kontroll, inte korthög
+# Fix: "Skapa lagerprojekt" misslyckas med "Packing items missing after sync"
 
-Nuvarande sidan ersätts helt. Ingen mer "lista av projektkort". Sidan har **EN datumväljare** högst upp som styr hela vyn (Idag / Imorgon / +N dagar / valfritt datum / hel vecka), och tre fokuserade sektioner under den.
+## Rotorsak (verifierad mot DB)
 
-## Layout
+Bokningen `KMK / 2604-126` har **5 duplicerade `packing_projects`-rader** kopplade till samma `booking_id` (samma org, alla `large_project_id = NULL`). Bara den första har items (19 st), de andra fyra är tomma.
 
-```text
-┌──────────────────────────────────────────────────────────────────────┐
-│  [Idag] [Imorgon] [Vecka] [📅 valfri]      Senast scannat: 09:42    │
-│  Kontroll · 4 jobb UT · 2 IN · 6 personer aktiva                    │
-└──────────────────────────────────────────────────────────────────────┘
+Flödet i `convertInboxItemToWarehouseProject` (`src/services/warehouseProjectService.ts`) gör:
 
-┌─ Behöver uppmärksamhet ─────────────────────────────────────────────┐
-│  🔴 Bokning 4521 — UT imorgon 07:00 — 38% packat — ingen scannat 2h│
-│  🟠 Bokning 4498 — Tillbaka idag — retur ej påbörjad                │
-│  🟡 Anders har inga scans senaste 90 min (sista jobbet 65%)         │
-└──────────────────────────────────────────────────────────────────────┘
+1. `supabase.from('packing_projects').select('id').eq('booking_id', …).is('large_project_id', null).maybeSingle()` → **returnerar `null`** när det finns >1 rad (PostgREST `PGRST116`, felet sväljs eftersom vi inte läser `error`).
+2. Eftersom inget hittas skapas en **6:e tom `packing_projects`**.
+3. `syncBookingToPacking(bookingId, orgId, { throwOnError: true })` anropas **utan `targetPackingId`**.
+4. Edge-funktionen `sync-booking-to-packing` gör samma `.maybeSingle()`-lookup → väljer en av de gamla raderna (eller skapar ännu en) och skriver items dit.
+5. Klient-koden räknar items för den nyligen skapade tomma `packingId` → 0 → kastar `"Packing items missing after sync — aborting to avoid empty packlista"`.
 
-┌─ Jobb (för valt datum) ─────────────────────────────────────────────┐
-│  ▸ UT 4521  Trygghetsbolaget   ████████░░ 78%  Anders, Eva  Rig 07:│
-│  ▸ UT 4530  Volvo Möte         ██░░░░░░░░ 20%  —             Rig 09│
-│  ▸ IN 4498  Castellum          ███░░░░░░░ 30%  Anders        Down 14│
-│  ▸ IN 4477  Skanska            ██████████ 100% (signerat)    Down 16│
-└──────────────────────────────────────────────────────────────────────┘
+Det är därför vissa projekt fungerar (1 packing_project ⇒ `.maybeSingle()` löser ut korrekt) och andra inte (≥2 ⇒ alltid null).
 
-┌─ Personalens dag (skift-tidslinje) ─────────────────────────────────┐
-│  Kl  06  07  08  09  10  11  12  13  14  15  16  17  18           │
-│  Anders ┃███▓▓▓ ░ ▓▓▓▓▓▓▓▓▓░▓▓▓▓┃   8h  4521(60%)→4498(retur)     │
-│  Eva    ┃     ███████ ░ ▓▓▓▓░░░░┃   5h  4521(40%)                  │
-│  Mikael ┃   ░ ░ ░                ┃   pres only — inga scans        │
-│  Pia    ┃                         ┃   ej inloggad                   │
-│   Legend: ▓ scan-aktivitet  ░ rast  ┃ skift start/slut             │
-└──────────────────────────────────────────────────────────────────────┘
+## Lösning
+
+Tre lager — alla behövs för att förebygga och läka detta.
+
+### 1. Klient: hantera duplikat och tvinga sync till rätt rad
+`src/services/warehouseProjectService.ts` (booking-grenen kring rad 300–363):
+
+- Byt `.maybeSingle()` mot `.order('created_at', { ascending: true }).limit(50)` och välj kanonisk rad enligt prioritet:
+  1. Den med flest `packing_list_items` (joinad count).
+  2. Vid tie: äldsta `created_at`.
+- Om flera hittas: behåll kanonisk, **mjuk-merga** övriga genom att uppdatera deras `warehouse_project_id` till `NULL` och flagga `status='cancelled'` (eller hård-radera om de saknar items, scans och allokeringar — säkert via separat helper).
+- Anropa `syncBookingToPacking(bookingId, orgId, { throwOnError: true, targetPackingId: canonicalId })` så edge-funktionen tvingas skriva items till rätt rad.
+- Verify-stegets `itemCount` läses därefter mot **samma `canonicalId`**.
+
+Samma mönster appliceras i large-project-grenen (rad 384–469) som har identisk bugg (`.maybeSingle()` på `large_project_id`).
+
+### 2. Edge function: skydda mot framtida duplikat
+`supabase/functions/sync-booking-to-packing/index.ts` rad 177–184:
+
+- Byt `.maybeSingle()` mot deterministiskt val (count desc, created_at asc, limit 1).
+- När fler än en rad upptäcks: logga varning `[sync-booking-to-packing] Duplicate packing_projects detected for booking …` så att vi kan följa upp i Edge Function Logs.
+
+### 3. Engångs-städmigration
+Ny migration `clean_duplicate_packing_projects.sql`:
+
+```sql
+-- För varje (booking_id, organization_id) där large_project_id IS NULL
+-- och rad-count > 1: behåll raden med flest packing_list_items
+-- (tie-break: äldsta created_at). Övriga sätts till status='cancelled'
+-- och warehouse_project_id=NULL så de döljs ur inkorgsflödet men
+-- bevaras för audit. Hård radering görs INTE (FK-risker mot scans).
 ```
 
-Alla rader klickbara → öppnar lagerprojektet eller staff-detalj.
+Migrationen är idempotent och säker att köra om.
 
-## Datumväljaren (kärna)
+## Tekniska detaljer
 
-- En kontrollpanel: knappar **Igår / Idag / Imorgon / Vecka** + en `<DatePicker>`-popover för valfritt datum.
-- Internt state: `mode = 'day' | 'week'`, `anchorDate = Date`. Vecka = mån–sön kring `anchorDate`.
-- Hela sidan filtrerar på dessa.
+- **Filer som ändras**:
+  - `src/services/warehouseProjectService.ts` (booking- och large-project-grenarna)
+  - `supabase/functions/sync-booking-to-packing/index.ts` (lookup-logik + varningslogg)
+  - Ny: `supabase/migrations/<timestamp>_dedupe_packing_projects.sql`
+  - Liten helper: `src/services/packing/resolveCanonicalPacking.ts` för att återanvända "välj kanonisk + soft-cancel duplicates"-logiken (även framtida bruk i `IncomingPackingList` etc.).
 
-## Sektion 1 — "Behöver uppmärksamhet"
+- **Bevaras**: Inga items, scans eller allokeringar raderas. Endast metadata på tomma duplicate-rader uppdateras.
 
-Beräknad client-side från ops-data + lite extra. Visar max 5–8 rader, sorterat efter allvar.
+- **Ingen schemaförändring** — `packing_projects` saknar idag unique constraint på `(booking_id, organization_id) WHERE large_project_id IS NULL`. Vi lägger **inte** till en sådan i denna PR (existerande historisk data kan ha legitima edge cases från large-project-omkopplingar). Vi loggar istället varningar och låter städmigrationen + deterministisk lookup räcka.
 
-Regler:
-1. **UT-deadline missad/nära**: jobb där `rigdaydate` ∈ [valt-datum, +1 dag] och `percent < 100`. Kritiskt om <8h kvar.
-2. **IN ej påbörjad**: status = `back` mer än 4h.
-3. **Stillastående jobb**: `in_progress` med scans senaste 6h men inget de senaste 2h.
-4. **Personal inaktiv**: scannat något idag men inget de senaste 90 min, och har inte loggat ut.
-5. **Försenat utan ansvarig**: deadline ≤ idag, status `planning`/`in_progress`, 0 workers tilldelade.
+## Verifiering efter fix
 
-## Sektion 2 — "Jobb för valt datum/vecka"
-
-Kompakt tabellrad (inte stora kort):
-- Riktning-badge (UT/IN), bokningsnummer, kund
-- Progress-bar inline + procent
-- Workers (avatarer komprimerade)
-- Tid kvar / deadline relativt valt datum
-
-För **vecka**: gruppera per dag (Mån / Tis / Ons …), klick på dag = byt mode till 'day' med det datumet.
-
-Hämtas från utökad `useWarehouseOpsBoard(anchorDate, mode)` som bara returnerar jobb vars `rigdaydate` (UT) eller `rigdowndate` (IN) ligger inom intervallet, plus aktiva (status `in_progress`/`returning`) oavsett datum.
-
-## Sektion 3 — "Personalens dag" (tidslinje per person, skift-baserad)
-
-För varje lagerpersonal som har scan-aktivitet eller `time_reports`-skift på valt datum (för 'week'-mode: en kompaktare variant per dag, eller dolt — föreslås dolt i week-mode).
-
-**Datakällor:**
-- `time_reports` filtrerade på datum + tag `lager`/internal warehouse project → ger `start_time`, `end_time`, `break_minutes` per person → skift-pillen `┃...┃`.
-- `packing_list_item_allocations` per `scanned_by_staff_id` på datum → scan-block (hopslagna i 5-min-buckets).
-- `location_time_entries` på lager-location → fallback om inga scans (visa bara närvaro `░`).
-
-**Render:**
-- Horisontell tidsaxel 06–20.
-- Per person: en rad. Skift-pill från start→slut. Inom skiftet: heat-block där scans skedde (täthet = antal scans).
-- Höger om raden: total tid + senaste/aktuella jobb (tex `4521 (60%) → 4498 retur`).
-- Enkla regler för status-prick:
-  - 🟢 scannat senaste 30 min
-  - 🟡 inga scans senaste 60–120 min men skift pågår
-  - 🔴 inga scans 2h+ och skift > 4h pågående
-  - ⚫ skift slutat
-
-## Implementation
-
-### Nya/utökade hooks
-- `useWarehouseOpsRange(anchorDate, mode)` — ersätter `useWarehouseOpsBoard`. Returnerar:
-  - `jobs: OpsProject[]` — filtrerade på datum-intervall.
-  - `attentionItems: AttentionItem[]` — beräknat från jobs + workers.
-  - `staffDay: StaffDayEntry[]` — skift + scan-blocks per person.
-  - `summary: { jobsOut, jobsIn, peopleActive, lastScanAt }`.
-- Ett tunt `useWarehouseShifts(anchorDate, mode)` som hämtar `time_reports` med lager-tag eller kopplade till internal warehouse project.
-
-### Nya komponenter (alla små, <200 rader)
-- `src/components/warehouse-ops/OpsDateBar.tsx` — kontrollpanel + datumväljare + sammanfattning.
-- `src/components/warehouse-ops/OpsAttention.tsx` — sektion 1, lista med prio-rader.
-- `src/components/warehouse-ops/OpsJobsTable.tsx` — sektion 2, kompakta rader (vecko-grupperad om mode=week).
-- `src/components/warehouse-ops/OpsStaffTimeline.tsx` — sektion 3, tidslinjen.
-- `src/components/warehouse-ops/OpsStaffRow.tsx` — en rad i tidslinjen.
-
-### Borttagna
-- `OpsBoardSection.tsx` & `OpsProjectCard.tsx` — den gamla kortvyn skrotas i ops-boardet (filerna kan finnas kvar tills inget importerar dem; PackingDashboard använder dem inte).
-
-### Sidan
-- `src/pages/WarehouseDashboard.tsx` skrivs om från grunden, monterar `OpsDateBar` + 3 sektioner. Behåller endast: header, refresh-knapp, internal-task-knapp och `<WarehouseProjectInbox />`.
-
-### Datafetch & prestanda
-- All beräkning kvar i React Query med `refetchInterval: 30_000` för jobs/scans, `60_000` för shifts.
-- Range-baserad hämtning gör att vi slipper läsa 500 packings — bara de som matchar valt datumintervall + aktiva.
-- `staffDay` byggs i hooken (inte i komponent) så vi får en enda källa.
-
-### Sortering & buckets
-- "Behöver uppmärksamhet" sorterad efter allvar (kritisk → varning).
-- "Jobb" sorteras: aktiva först, sen efter rig-tid stigande.
-- "Personal" sorteras: aktiva nu överst, sen efter total tid idag fallande.
-
-## Det här ändras INTE
-- Status-flödet (Planering→Pågående→…→Slutförd IN) är orört.
-- Scanner-API och `packing_projects`-data orört.
-- Lagerprojekt-detaljsidor orörda.
+1. Kör städmigrationen → `KMK`-bokningen får 1 aktiv packing_project (den med 19 items).
+2. Klicka "Skapa lagerprojekt" på KMK i inkorgen → skapas utan fel, lagerprojektet pekar på samma packing_project (19 items synliga).
+3. Lägg till en produkt på bokningen → resync → items hamnar i kanonisk rad.
+4. Edge Function Logs ska inte visa "Duplicate packing_projects detected" för normala bokningar.
