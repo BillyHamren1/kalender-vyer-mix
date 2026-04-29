@@ -315,6 +315,20 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
 
             return (
               <React.Fragment key={r.rowId}>
+                {/* Consolidated per-person summary banner — once, above the
+                    first row. Surfaces open-timer status, stale GPS and
+                    deviations in ONE place instead of red rows everywhere. */}
+                {r.isFirstForStaff && r.allSessions && r.allSessions.length > 0 && (
+                  <StaffDaySummaryRow
+                    staffId={r.staffId}
+                    staffName={r.staffName}
+                    date={date}
+                    sessions={r.allSessions}
+                    latestPingAt={r.latestPingAt ?? null}
+                    leadingCells={1}
+                    totalCols={6}
+                  />
+                )}
                 <tr
                   className={`border-b border-border/40 hover:bg-muted/30 cursor-pointer ${
                     r.isFirstForStaff ? 'border-t-2 border-t-border' : ''
