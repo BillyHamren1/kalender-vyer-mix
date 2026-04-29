@@ -464,6 +464,7 @@ const WarehouseCalendarPage = () => {
                   allTeams={resourcesWithWarehouse}
                   variant="warehouse"
                   activatedStaffIds={activeStaffIds}
+                  activatedStaffByDate={activeStaffIdsByDate}
                 />
               )}
             </>
@@ -490,6 +491,7 @@ const WarehouseCalendarPage = () => {
                   allTeams={resourcesWithWarehouse}
                   variant="warehouse"
                   activatedStaffIds={activeStaffIds}
+                  activatedStaffByDate={activeStaffIdsByDate}
                 />
               )}
             </>
@@ -513,6 +515,7 @@ const WarehouseCalendarPage = () => {
                 allTeams={resourcesWithWarehouse}
                 variant="warehouse"
                 activatedStaffIds={activeStaffIds}
+                  activatedStaffByDate={activeStaffIdsByDate}
               />
               {/* Week tabs for quick navigation within the month */}
               <WeekTabsNavigation
