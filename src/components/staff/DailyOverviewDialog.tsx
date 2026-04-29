@@ -12,6 +12,7 @@ import { optimizeStaffRoute, StaffRouteResult, RouteStop } from '@/services/staf
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { DayApprovalAction } from '@/components/admin/time-review/DayApprovalAction';
+import { DayEventTimeline } from '@/components/staff/DayEventTimeline';
 
 interface GpsPoint {
   lat: number;
@@ -495,6 +496,11 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <SummaryCard icon={<Briefcase className="h-4 w-4" />} label="Arbetstid" value={formatHoursMinutes(totalWork)} />
           <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
         </div>
+
+        {/* Server-derived event timeline (Day Timeline Engine) */}
+        {date && staffId && (
+          <DayEventTimeline staffId={staffId} date={date} />
+        )}
 
         {/* Map first — show all travel segments as lines */}
         {hasMapData ? (
