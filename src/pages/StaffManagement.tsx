@@ -33,8 +33,9 @@ const StaffManagement: React.FC = () => {
   } = useQuery({
     queryKey: ['staffMembers'],
     queryFn: fetchStaffMembers,
-    staleTime: 60000,
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   const handleRefresh = () => {
