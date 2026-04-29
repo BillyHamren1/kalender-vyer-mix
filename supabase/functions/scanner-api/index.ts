@@ -258,9 +258,9 @@ Deno.serve(async (req) => {
           .from('packing_projects')
           .select('*')
           .eq('organization_id', ORG_ID)
-          .in('status', ['planning', 'in_progress', 'packed'])
+          .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning'])
           .order('created_at', { ascending: false })
-          .limit(100)
+          .limit(150)
 
         if (error) throw error
 
@@ -280,14 +280,25 @@ Deno.serve(async (req) => {
           })
         )
 
-        // Filter: in_progress/packed always shown; planning only if rigdaydate <= 14 days from now (or no date)
+        // Filter rules:
+        // - in_progress / packed / returning  → always shown (active work)
+        // - planning   → show if rigdaydate within 14 days (or unset)
+        // - delivered  → show if rigdowndate within 14 days (or unset) so the
+        //                return (IN) flow can be picked up from the calendar.
         const filtered = packingsWithBookings.filter((p: any) => {
-          if (p.status === 'in_progress' || p.status === 'packed') return true
-          // Planning: show if rigdaydate is within 14 days or not set
-          const rigDate = p.booking?.rigdaydate
-          if (!rigDate) return true // No date = show it (manual packing without booking date)
-          return rigDate <= cutoffDate
-        }).slice(0, 50)
+          if (p.status === 'in_progress' || p.status === 'packed' || p.status === 'returning') return true
+          if (p.status === 'planning') {
+            const rigDate = p.booking?.rigdaydate
+            if (!rigDate) return true
+            return rigDate <= cutoffDate
+          }
+          if (p.status === 'delivered') {
+            const downDate = p.booking?.rigdowndate
+            if (!downDate) return true
+            return downDate <= cutoffDate
+          }
+          return false
+        }).slice(0, 80)
 
         return new Response(JSON.stringify(filtered), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
