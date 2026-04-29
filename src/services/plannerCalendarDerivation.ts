@@ -272,13 +272,14 @@ export const buildPlannerCalendarEvents = ({
     return { booking: linkedBookings[0], resourceId: undefined, start: `${date}T${DEFAULT_HOURS[phase][0]}`, end: `${date}T${DEFAULT_HOURS[phase][1]}` };
   };
 
-  const bookingSeen = new Set<string>();
-  const projectSeen = new Set<string>();
-  // Real rows: emit as-is for non-project bookings.
-  // For project-linked bookings we DROP the per-booking real row and instead
-  // emit a single project-level row below. This is what the user asked for:
-  // "projektets datum/tider" — one event per project day, not one per booking.
   const events: CalendarEvent[] = [];
+
+  // ── Real calendar_events rows are the SOLE source of truth.
+  // For project-linked bookings we still emit one row per (project, phase, date)
+  // — but only if a real calendar_events row exists for it. No fallback
+  // synthesis. If a row is missing → it doesn't appear; reconciler/backfill
+  // will create it.
+  const projectEmitted = new Set<string>();
   for (const row of realEvents) {
     const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
     const projectId = booking?.large_project_id || (row.booking_id ? bookingToProject.get(row.booking_id) : undefined);
@@ -286,104 +287,46 @@ export const buildPlannerCalendarEvents = ({
     const sourceDate = extractDate(row.source_date || row.start_time);
 
     if (projectId && phase && sourceDate) {
-      // Skip — project-level event is emitted in the large_projects loop below.
-      continue;
-    }
-
-    if (booking && phase && sourceDate) {
-      bookingSeen.add(`${booking.id}|${phase}|${sourceDate}`);
-    }
-    events.push(mapRealRowToCalendarEvent(row, booking, undefined));
-  }
-
-  for (const booking of bookings) {
-    if (!booking.id || (booking.status && booking.status.toUpperCase() === 'OFFER')) continue;
-    if (booking.large_project_id) continue;
-
-    const phases: PlannerPhase[] = ['rig', 'rigDown'];
-    for (const phase of phases) {
-      const date = getBookingPhaseDate(booking, phase);
-      if (!date || date < fromDate || date > toDate) continue;
-      const key = `${booking.id}|${phase}|${date}`;
-      if (bookingSeen.has(key)) continue;
-
-      const times = getBookingPhaseTimes(booking, phase);
-      const resourceId = inferBookingTeam(booking, phase, date);
-      if (!resourceId) continue;
-
-      events.push({
-        id: `synthetic-booking-${booking.id}-${phase}-${date}`,
-        title: booking.client || 'Bokning',
-        start: buildIso(date, times.start, DEFAULT_HOURS[phase][0]),
-        end: buildIso(date, times.end, DEFAULT_HOURS[phase][1]),
-        resourceId,
-        bookingId: booking.id,
-        bookingNumber: booking.booking_number || undefined,
-        booking_number: booking.booking_number || undefined,
-        eventType: phase,
-        delivery_address: booking.deliveryaddress || undefined,
-        extendedProps: {
-          bookingId: booking.id,
-          booking_id: booking.id,
-          resourceId,
-          deliveryAddress: booking.deliveryaddress || undefined,
-          bookingNumber: booking.booking_number || undefined,
-          eventType: phase,
-          sourceDate: date,
-          isSyntheticFallback: true,
-          manuallyAssigned: false,
-        },
-      });
-      bookingSeen.add(key);
-    }
-  }
-
-  for (const project of largeProjects) {
-    const dates: Array<{ date: string; phase: PlannerPhase }> = [
-      ...((project.start_date || []).map((date) => ({ date, phase: 'rig' as PlannerPhase }))),
-      ...((project.end_date || []).map((date) => ({ date, phase: 'rigDown' as PlannerPhase }))),
-    ];
-
-    for (const { date, phase } of dates) {
-      if (!date || date < fromDate || date > toDate) continue;
-      const key = `${project.id}|${phase}|${date}`;
-      if (projectSeen.has(key)) continue;
-
-      const inferred = inferProjectSynthetic(project.id, phase, date);
-      // Project-level team override wins over inference.
+      const key = `${projectId}|${phase}|${sourceDate}`;
+      if (projectEmitted.has(key)) continue;
+      projectEmitted.add(key);
+      const project = projectsById.get(projectId);
+      // Project-level team override wins over the row's resource_id
       const overrideTeam = projectTeamByKey.get(key);
-      const resourceId = overrideTeam || inferred.resourceId;
+      const resourceId = overrideTeam || row.resource_id || '';
       if (!resourceId) continue;
-
       events.push({
-        id: `synthetic-project-${project.id}-${phase}-${date}`,
-        title: project.name || inferred.booking?.client || 'Stort projekt',
-        start: inferred.start,
-        end: inferred.end,
+        id: row.id,
+        title: project?.name || booking?.client || row.title,
+        start: row.start_time,
+        end: row.end_time,
         resourceId,
-        bookingId: inferred.booking?.id || undefined,
-        bookingNumber: inferred.booking?.booking_number || undefined,
-        booking_number: inferred.booking?.booking_number || undefined,
+        bookingId: row.booking_id || undefined,
+        bookingNumber: row.booking_number || booking?.booking_number || undefined,
+        booking_number: row.booking_number || booking?.booking_number || undefined,
         eventType: phase,
-        delivery_address: project.address || inferred.booking?.deliveryaddress || undefined,
+        delivery_address: row.delivery_address || project?.address || booking?.deliveryaddress || undefined,
         extendedProps: {
-          bookingId: inferred.booking?.id || undefined,
-          booking_id: inferred.booking?.id || undefined,
+          bookingId: row.booking_id || undefined,
+          booking_id: row.booking_id || undefined,
           resourceId,
-          deliveryAddress: project.address || inferred.booking?.deliveryaddress || undefined,
-          bookingNumber: inferred.booking?.booking_number || undefined,
+          deliveryAddress: row.delivery_address || project?.address || booking?.deliveryaddress || undefined,
+          bookingNumber: row.booking_number || booking?.booking_number || undefined,
           eventType: phase,
-          sourceDate: date,
-          largeProjectId: project.id,
-          largeProjectName: project.name || undefined,
+          sourceDate,
+          largeProjectId: projectId,
+          largeProjectName: project?.name || undefined,
           isLargeProject: true,
-          isSyntheticFallback: !overrideTeam && !!inferred && !inferred.booking,
+          isSyntheticFallback: false,
           phase,
           manuallyAssigned: false,
         },
       });
-      projectSeen.add(key);
+      continue;
     }
+
+    if (!row.resource_id) continue;
+    events.push(mapRealRowToCalendarEvent(row, booking, undefined));
   }
 
   return events.sort((a, b) => String(a.start).localeCompare(String(b.start)));
