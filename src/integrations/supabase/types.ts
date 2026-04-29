@@ -1119,6 +1119,120 @@ export type Database = {
           },
         ]
       }
+      day_timeline_events: {
+        Row: {
+          accuracy: number | null
+          computed_at: string
+          confidence: number
+          date: string
+          distance_to_reported_site_m: number | null
+          engine_version: string
+          event_type: string
+          human_readable_text: string
+          id: string
+          lat: number | null
+          lng: number | null
+          matched_site_id: string | null
+          matched_site_name: string | null
+          matched_site_type: string | null
+          organization_id: string
+          related_time_report_id: string | null
+          related_workday_id: string | null
+          source: string | null
+          staff_id: string
+          ts: string
+        }
+        Insert: {
+          accuracy?: number | null
+          computed_at?: string
+          confidence?: number
+          date: string
+          distance_to_reported_site_m?: number | null
+          engine_version?: string
+          event_type: string
+          human_readable_text: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          matched_site_id?: string | null
+          matched_site_name?: string | null
+          matched_site_type?: string | null
+          organization_id: string
+          related_time_report_id?: string | null
+          related_workday_id?: string | null
+          source?: string | null
+          staff_id: string
+          ts: string
+        }
+        Update: {
+          accuracy?: number | null
+          computed_at?: string
+          confidence?: number
+          date?: string
+          distance_to_reported_site_m?: number | null
+          engine_version?: string
+          event_type?: string
+          human_readable_text?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          matched_site_id?: string | null
+          matched_site_name?: string | null
+          matched_site_type?: string | null
+          organization_id?: string
+          related_time_report_id?: string | null
+          related_workday_id?: string | null
+          source?: string | null
+          staff_id?: string
+          ts?: string
+        }
+        Relationships: []
+      }
+      day_timeline_snapshots: {
+        Row: {
+          created_at: string
+          date: string
+          engine_version: string
+          event_count: number
+          id: string
+          input_signature: string | null
+          is_dirty: boolean
+          last_computed_at: string | null
+          organization_id: string
+          staff_id: string
+          suggestion_count: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          engine_version?: string
+          event_count?: number
+          id?: string
+          input_signature?: string | null
+          is_dirty?: boolean
+          last_computed_at?: string | null
+          organization_id: string
+          staff_id: string
+          suggestion_count?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          engine_version?: string
+          event_count?: number
+          id?: string
+          input_signature?: string | null
+          is_dirty?: boolean
+          last_computed_at?: string | null
+          organization_id?: string
+          staff_id?: string
+          suggestion_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       device_tokens: {
         Row: {
           created_at: string
@@ -5287,6 +5401,90 @@ export type Database = {
           },
         ]
       }
+      time_report_correction_suggestions: {
+        Row: {
+          computed_at: string
+          confidence: number
+          difference_min: number | null
+          engine_version: string
+          human_readable_text: string
+          id: string
+          organization_id: string
+          original_end_time: string | null
+          original_start_time: string | null
+          reason: string
+          report_date: string
+          resolution_payload: Json | null
+          resolved_action: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          staff_id: string
+          status: string
+          suggested_duration_min: number | null
+          suggested_end_time: string | null
+          suggested_start_time: string | null
+          suggestion_type: string
+          target_booking_id: string | null
+          target_location_id: string | null
+          target_project_id: string | null
+          time_report_id: string
+        }
+        Insert: {
+          computed_at?: string
+          confidence?: number
+          difference_min?: number | null
+          engine_version?: string
+          human_readable_text: string
+          id?: string
+          organization_id: string
+          original_end_time?: string | null
+          original_start_time?: string | null
+          reason: string
+          report_date: string
+          resolution_payload?: Json | null
+          resolved_action?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          staff_id: string
+          status?: string
+          suggested_duration_min?: number | null
+          suggested_end_time?: string | null
+          suggested_start_time?: string | null
+          suggestion_type: string
+          target_booking_id?: string | null
+          target_location_id?: string | null
+          target_project_id?: string | null
+          time_report_id: string
+        }
+        Update: {
+          computed_at?: string
+          confidence?: number
+          difference_min?: number | null
+          engine_version?: string
+          human_readable_text?: string
+          id?: string
+          organization_id?: string
+          original_end_time?: string | null
+          original_start_time?: string | null
+          reason?: string
+          report_date?: string
+          resolution_payload?: Json | null
+          resolved_action?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          staff_id?: string
+          status?: string
+          suggested_duration_min?: number | null
+          suggested_end_time?: string | null
+          suggested_start_time?: string | null
+          suggestion_type?: string
+          target_booking_id?: string | null
+          target_location_id?: string | null
+          target_project_id?: string | null
+          time_report_id?: string
+        }
+        Relationships: []
+      }
       time_report_edit_log: {
         Row: {
           created_at: string
@@ -6991,6 +7189,10 @@ export type Database = {
         Returns: boolean
       }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
+      mark_day_timeline_dirty: {
+        Args: { _date: string; _org_id: string; _staff_id: string }
+        Returns: undefined
+      }
       mark_job_thread_read: {
         Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
         Returns: number
