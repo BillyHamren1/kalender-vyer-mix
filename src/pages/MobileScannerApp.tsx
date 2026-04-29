@@ -258,6 +258,18 @@ const MobileScannerApp: React.FC = () => {
     );
   }
 
+  if (state === 'returning' && selectedPackingId) {
+    return (
+      <div className="min-h-screen bg-background p-4">
+        <ReturnView
+          packingId={selectedPackingId}
+          onBack={goHome}
+          registerScanHandler={(handler) => { activeScanHandler.current = handler; }}
+        />
+      </div>
+    );
+  }
+
   // Home screen with packing list
   return (
     <div className="min-h-screen bg-background flex flex-col relative">
