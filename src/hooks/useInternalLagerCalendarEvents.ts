@@ -16,14 +16,19 @@ export function useInternalLagerCalendarEvents(
   view: 'day' | 'weekly' | 'monthly' | 'list' = 'weekly',
 ) {
   const { data: lagerProjects = [] } = useQuery({
-    queryKey: ['internal-lager-projects'],
+    queryKey: ['internal-lager-projects-with-booking'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, name, is_internal')
+        .select('id, name, is_internal, booking_id, bookings:bookings!projects_booking_id_fkey(id, booking_number)')
         .eq('is_internal', true);
       if (error) throw error;
-      return data || [];
+      return (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        bookingId: p.booking_id || p.bookings?.id || null,
+        bookingNumber: p.bookings?.booking_number || null,
+      }));
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -56,6 +61,9 @@ export function useInternalLagerCalendarEvents(
         end: `${dateStr}T16:00:00`,
         resourceId: 'transport',
         eventType: 'internal_task',
+        bookingId: project.bookingId || undefined,
+        bookingNumber: project.bookingNumber || undefined,
+        booking_number: project.bookingNumber || undefined,
         viewed: true,
         editable: false,
         startEditable: false,
@@ -65,6 +73,8 @@ export function useInternalLagerCalendarEvents(
         extendedProps: {
           isInternalLager: true,
           projectId: project.id,
+          booking_id: project.bookingId || undefined,
+          bookingNumber: project.bookingNumber || undefined,
           readOnly: true,
         },
       } as CalendarEvent);
