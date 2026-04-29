@@ -2,10 +2,19 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Loader2, LogOut, Play } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import WorkDayHeaderTimer from './WorkDayHeaderTimer';
 import { useWorkDay } from '@/hooks/useWorkDay';
 import { clearWorkdayEnded } from '@/services/workdayState';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useMobileBookings } from '@/hooks/useMobileData';
+import { useGeofencingContext } from '@/contexts/GeofencingContext';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
+import { haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
+import { mobileApi } from '@/services/mobileApiService';
+import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
+import type { MobileBooking } from '@/services/mobileApiService';
 
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
