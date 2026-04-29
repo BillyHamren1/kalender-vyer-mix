@@ -302,7 +302,7 @@ export function useTimerStartFlow(
         coords.lat,
         coords.lng,
       );
-      if (dist > ENTER_RADIUS) {
+      if (dist > OFF_SITE_PROMPT_RADIUS) {
         setDistanceWarning({
           placeName: coords.label || opts.label,
           distance: dist,
