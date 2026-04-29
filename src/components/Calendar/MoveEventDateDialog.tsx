@@ -231,7 +231,10 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           throw new Error(`Hittade ingen kalenderhändelse för bokning ${event.bookingId} (${event.eventType} ${currentDateStr}). Kör backfill.`);
         }
 
-        // Mirror date/time onto the booking row for staff event types only.
+        // Mirror date/time onto the booking row — but ONLY if the day we
+        // moved IS the booking's primary date for this phase. Multi-day
+        // rig/rigDown has secondary calendar_events rows that must NOT
+        // overwrite bookings.<phase>date when moved.
         if (event.bookingId && event.eventType) {
           const bookingFields = {
             'rig': { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
@@ -240,71 +243,52 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           }[event.eventType as 'rig' | 'event' | 'rigDown'];
 
           if (bookingFields) {
-            const bkUpdate = {
-              [bookingFields.date]: newDateStr,
-              [bookingFields.start]: newStartISO,
-              [bookingFields.end]: newEndISO,
-            };
-            const { error: bkErr } = await supabase
+            const { data: bkRow } = await supabase
               .from('bookings')
-              .update(bkUpdate)
-              .eq('id', event.bookingId);
-            if (bkErr) {
-              traceError('bookings update FAILED', { bkErr, bkUpdate });
-              throw new Error(`Steg "Uppdatera bokning" misslyckades: ${bkErr.message}`);
+              .select(bookingFields.date)
+              .eq('id', event.bookingId)
+              .maybeSingle();
+            const primaryDate = (bkRow as any)?.[bookingFields.date];
+            const isPrimaryDay = primaryDate && primaryDate === currentDateStr;
+
+            if (isPrimaryDay) {
+              const bkUpdate = {
+                [bookingFields.date]: newDateStr,
+                [bookingFields.start]: newStartISO,
+                [bookingFields.end]: newEndISO,
+              };
+              const { error: bkErr } = await supabase
+                .from('bookings')
+                .update(bkUpdate)
+                .eq('id', event.bookingId);
+              if (bkErr) {
+                traceError('bookings update FAILED', { bkErr, bkUpdate });
+                throw new Error(`Steg "Uppdatera bokning" misslyckades: ${bkErr.message}`);
+              }
+              trace('bookings update OK (primary day)', bkUpdate);
+            } else {
+              trace('bookings update SKIPPED (secondary day)', {
+                phase: event.eventType, primaryDate, movedFrom: currentDateStr,
+              });
             }
-            trace('bookings update OK', bkUpdate);
           }
         }
 
-        // IMPORTANT: for normal planner bookings, the authoritative team on refresh
-        // is derived from booking_staff_assignments (and sometimes re-imported real rows),
-        // not only calendar_events.resource_id. So persist a real booking move when the
-        // team changed for the same booking/day.
-        if (event.bookingId && event.eventType && event.resourceId && selectedResourceId && teamChanged) {
-          trace('handleBookingMove call', {
-            bookingId: event.bookingId,
-            oldTeam: event.resourceId,
-            newTeam: selectedResourceId,
-            oldDate: currentDateStr,
-            newDate: newDateStr,
-          });
-          let moveResult;
+        // Räkna om BSA för båda dagarna. Personalen tillhör teamet — bokningen
+        // flyttas. recompute_booking_staff_for_day säkerställer att BSA speglar
+        // staff_assignments × calendar_events.resource_id.
+        if (event.bookingId) {
           try {
-            moveResult = await handleBookingMove(
-              event.bookingId,
-              event.resourceId,
-              selectedResourceId,
-              currentDateStr,
-              newDateStr
-            );
-          } catch (err) {
-            traceError('handleBookingMove THREW', err);
-            throw new Error(`Steg "Flytta bemanning" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
-          }
-          trace('handleBookingMove RESULT', moveResult);
-
-          if (!moveResult?.success) {
-            const conflicts = (moveResult as any)?.conflicts || [];
-            const staffIds = conflicts.map((c: any) => c.staff_id).filter(Boolean);
-
-            // Look up names for nicer message
-            let names: string[] = [];
-            if (staffIds.length > 0) {
-              const { data: staff } = await supabase
-                .from('staff_members')
-                .select('id, name')
-                .in('id', staffIds);
-              names = (staff || []).map(s => s.name).filter(Boolean);
-            }
-
-            const teamName = resources.find(r => r.id === selectedResourceId)?.title || selectedResourceId;
-            const detail = names.length > 0
-              ? `${names.join(', ')} ligger inte i ${teamName} den ${format(selectedDate, 'd MMM yyyy')}.`
-              : `Ingen personal kunde flyttas till ${teamName} den ${format(selectedDate, 'd MMM yyyy')}.`;
-
-            traceError('Move blocked by conflicts', { conflicts, detail });
-            throw new Error(`Kunde inte flytta bemanningen: ${detail}`);
+            const dates = Array.from(new Set([currentDateStr, newDateStr]));
+            await Promise.all(dates.map(d =>
+              supabase.rpc('recompute_booking_staff_for_day' as any, {
+                p_booking_id: event.bookingId,
+                p_date: d,
+              })
+            ));
+            trace('BSA recompute OK', { dates });
+          } catch (rpcErr) {
+            traceError('BSA recompute FAILED (non-fatal)', rpcErr);
           }
         }
       }
