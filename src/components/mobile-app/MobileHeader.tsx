@@ -148,6 +148,13 @@ export const HeaderStartEndDayButton: React.FC = () => {
       const match = findNearbyBooking(bookings, pos);
 
       if (match) {
+        // WORKDAY-FIRST: säkerställ dagtimer även om activity-timer redan
+        // skulle vara igång (då skulle requestStart returnera 'duplicate').
+        const wd = await ensureActive();
+        if (!wd) {
+          toast.error('Kunde inte starta arbetsdagen. Försök igen.');
+          return;
+        }
         const target = match.large_project_id && match.large_project_name
           ? { kind: 'project' as const, largeProjectId: match.large_project_id, name: match.large_project_name }
           : { kind: 'booking' as const, bookingId: match.id, client: match.client };
@@ -163,7 +170,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
     } finally {
       setStartingDay(false);
     }
-  }, [startingDay, workdayOpen, userPosition, bookings, requestStart]);
+  }, [startingDay, workdayOpen, userPosition, bookings, requestStart, ensureActive]);
 
   /**
    * Användaren har valt något i dialogen.
