@@ -196,15 +196,6 @@ const MobileScannerApp: React.FC = () => {
     [filteredPackings],
   );
 
-  // Handle QR scan from camera
-  const handleHomeScan = useCallback((scannedValue: string) => {
-    // Close the camera overlay so the user can see results
-    setIsQRActive(false);
-    // Camera scans go through the same flow
-    scanner.submitManualScan(scannedValue, 'camera');
-    handleBarcodeScan(scannedValue);
-  }, [scanner, handleBarcodeScan]);
-
   // Handle packing selection with mode
   const handleSelectPacking = (packingId: string, mode: 'verifying' | 'manual') => {
     setSelectedPackingId(packingId);
