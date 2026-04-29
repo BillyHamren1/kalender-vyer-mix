@@ -114,8 +114,13 @@ export function detectMovementSegments(
     const isAway = dist > threshold;
 
     if (isAway) {
-      if (!active) active = [];
-      active.push(sorted[i]);
+      if (!active) {
+        // Seed with the full triggering window so the segment captures the
+        // first away-ping (which often carries the freshest address).
+        active = [...window];
+      } else {
+        active.push(sorted[i]);
+      }
     } else if (active) {
       // Close segment
       const segCentre = centreOf(active);
