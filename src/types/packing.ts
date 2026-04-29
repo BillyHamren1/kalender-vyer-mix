@@ -1,4 +1,12 @@
-export type PackingStatus = 'planning' | 'in_progress' | 'packed' | 'delivered' | 'completed' | 'cancelled';
+export type PackingStatus =
+  | 'planning'
+  | 'in_progress'
+  | 'packed'
+  | 'delivered'
+  | 'returning'
+  | 'returned'
+  | 'completed'
+  | 'cancelled';
 
 export interface Packing {
   id: string;
