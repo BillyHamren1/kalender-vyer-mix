@@ -105,6 +105,14 @@ const CompletedProjectsList: React.FC<Props> = ({ projectInsights }) => {
       const { error } = await supabase.from(table).update({ status: dbStatus }).eq('id', p.id);
       if (error) throw error;
 
+      // ── Optimistic cache update so the row disappears from the active filter immediately ──
+      queryClient.setQueryData<any[]>(['economy-overview'], (prev) => {
+        if (!Array.isArray(prev)) return prev;
+        return prev.map((row: any) =>
+          row?.id === p.id ? { ...row, status: dbStatus } : row,
+        );
+      });
+
       // If reopened, un-hide it locally
       if (next === 'active' && hidden.has(p.id)) {
         const newHidden = new Set(hidden);
