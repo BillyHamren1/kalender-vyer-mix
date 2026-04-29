@@ -39,6 +39,11 @@ export interface JournalTableRow {
   stale?: boolean;
   /** ping age in minutes, for stale label */
   pingAgeMin?: number | null;
+  /** All sessions for the day — used by day-start/day-end to derive presence union. */
+  allSessions?: ProjectSession[];
+  /** True for session rows — drives per-row presence detail. */
+  sessionStart?: string | null;
+  sessionEnd?: string | null;
 }
 
 const sessionKindToRowKind = (k: ProjectSession['kind']): RowKind => {
