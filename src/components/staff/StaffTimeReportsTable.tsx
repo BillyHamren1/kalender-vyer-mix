@@ -12,6 +12,8 @@ import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { computeWorkPresence, combineDayPresence } from '@/lib/staff/workPresence';
+import { findPingAtTime } from '@/lib/staff/pingAtTime';
+import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 
 const fmt = (iso: string | null) => {
   if (!iso) return '—';
