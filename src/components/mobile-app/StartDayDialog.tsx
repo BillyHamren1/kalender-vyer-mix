@@ -208,25 +208,25 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium block mb-1.5">
-                Var är du? (Adress eller beskrivning)
+                {t('startDay.manualLabel')}
               </label>
               <Input
                 value={manualText}
                 onChange={(e) => setManualText(e.target.value)}
-                placeholder="T.ex. Storgatan 12, kund X, lager…"
+                placeholder={t('startDay.manualPlaceholder')}
                 autoFocus
                 disabled={starting}
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                En flagga skapas så arbetsledare kan koppla rätt projekt åt dig senare.
+                {t('startDay.manualHelp')}
               </p>
             </div>
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setShowManual(false)} disabled={starting} className="flex-1">
-                Tillbaka
+                {t('startDay.back')}
               </Button>
               <Button onClick={handleManualSubmit} disabled={starting || !manualText.trim()} className="flex-1">
-                {starting ? 'Startar…' : 'Starta dagen'}
+                {starting ? t('startDay.starting') : t('startDay.confirm')}
               </Button>
             </div>
           </div>
