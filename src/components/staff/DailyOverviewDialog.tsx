@@ -12,6 +12,7 @@ import { optimizeStaffRoute, StaffRouteResult, RouteStop } from '@/services/staf
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { DayApprovalAction } from '@/components/admin/time-review/DayApprovalAction';
+import { DayEventTimeline } from '@/components/staff/DayEventTimeline';
 
 interface GpsPoint {
   lat: number;
