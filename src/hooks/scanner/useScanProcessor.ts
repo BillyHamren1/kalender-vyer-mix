@@ -29,6 +29,7 @@ export interface PendingUnknownProductState {
 interface UseScanProcessorOptions {
   packingId: string;
   verifierName: string;
+  verifierStaffId?: string | null;
   getItems: () => PackingItem[];
   getIsMinusMode: () => boolean;
   getIsKolliMode: () => boolean;
