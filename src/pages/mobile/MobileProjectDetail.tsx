@@ -7,6 +7,7 @@ import { format, parseISO } from 'date-fns';
 import { MapPin, ChevronRight, Loader2, FolderOpen, Phone, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
+import MobileProjectTimerCard from '@/components/mobile-app/project/MobileProjectTimerCard';
 
 const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string) => {
   if (dates.rigdaydate === assignmentDate) return { label: 'RIG', className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
@@ -130,6 +131,14 @@ const MobileProjectDetail = () => {
             </p>
           </div>
         </div>
+
+        {/* Project timer — start/stop tid på hela projektet */}
+        {projectId && (
+          <MobileProjectTimerCard
+            largeProjectId={projectId}
+            projectName={projectName}
+          />
+        )}
 
         {sorted.length > 0 && (
           <div className="space-y-2">
