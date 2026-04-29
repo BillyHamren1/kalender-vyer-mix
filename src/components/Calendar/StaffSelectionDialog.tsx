@@ -253,7 +253,10 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                         )}
                         {isAssignedToOtherTeam && (
                           <p className="text-xs text-orange-500">
-                            Currently on {getTeamName(staff.assignedTeamId!)} - will be moved
+                            Also on {staff.assignedTeamIds
+                              .filter(t => t !== resourceId)
+                              .map(getTeamName)
+                              .join(', ')}
                           </p>
                         )}
                       </div>
@@ -263,12 +266,12 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleAssignStaff(staff.id, staff.name)}
-                      disabled={isCurrentlyAssigning}
+                      disabled={isCurrentlyAssigning || isAssignedToCurrentTeam}
                       title={
                         isAssignedToCurrentTeam 
                           ? `Already assigned to ${resourceTitle}`
                           : isAssignedToOtherTeam 
-                            ? `Move to ${resourceTitle}`
+                            ? `Also assign to ${resourceTitle}`
                             : `Assign to ${resourceTitle}`
                       }
                     >
