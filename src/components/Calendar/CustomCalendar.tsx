@@ -10,7 +10,6 @@ import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { useEventDragDrop } from '@/hooks/useEventDragDrop';
 import { extractUTCDate } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
