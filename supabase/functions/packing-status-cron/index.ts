@@ -22,14 +22,26 @@ Deno.serve(async (req) => {
 
     const today = new Date().toISOString().slice(0, 10)
 
-    // Hämta alla packings i status `delivered` med booking
+    // Hämta alla packings i status `delivered` med booking_id
     const { data: candidates, error } = await supabase
       .from('packing_projects')
-      .select('id, organization_id, booking_id, large_project_id, bookings:booking_id(rigdowndate)')
+      .select('id, organization_id, booking_id')
       .eq('status', 'delivered')
+      .not('booking_id', 'is', null)
       .limit(1000)
 
     if (error) throw error
+
+    // Hämta rigdowndate för alla relevanta bookings i ett svep
+    const bookingIds = [...new Set((candidates || []).map((c: any) => c.booking_id).filter(Boolean))]
+    const downByBooking = new Map<string, string | null>()
+    if (bookingIds.length > 0) {
+      const { data: bks } = await supabase
+        .from('bookings')
+        .select('id, rigdowndate')
+        .in('id', bookingIds)
+      for (const b of bks || []) downByBooking.set((b as any).id, (b as any).rigdowndate)
+    }
 
     let flipped = 0
     const flippedIds: string[] = []
