@@ -1,12 +1,15 @@
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import type { 
-  ProjectBudget, 
-  ProjectPurchase, 
-  ProjectQuote, 
-  ProjectInvoice, 
-  StaffTimeReport, 
-  EconomySummary 
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import type {
+  ProjectBudget,
+  ProjectPurchase,
+  ProjectQuote,
+  ProjectInvoice,
+  StaffTimeReport,
+  EconomySummary,
 } from '@/types/projectEconomy';
 
 interface ExportData {
@@ -19,317 +22,292 @@ interface ExportData {
   summary: EconomySummary;
 }
 
-const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(amount);
-};
+const formatCurrency = (amount: number): string =>
+  new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', maximumFractionDigits: 0 }).format(amount || 0);
 
 const formatDate = (date: string | null): string => {
   if (!date) return '-';
-  return format(new Date(date), 'yyyy-MM-dd', { locale: sv });
-};
-
-const escapeCSV = (value: string | number | null | undefined): string => {
-  if (value === null || value === undefined) return '';
-  const str = String(value);
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return `"${str.replace(/"/g, '""')}"`;
+  try {
+    return format(new Date(date), 'yyyy-MM-dd', { locale: sv });
+  } catch {
+    return '-';
   }
-  return str;
 };
 
+const safeName = (name: string) => name.replace(/[^\w\-]+/g, '-').replace(/-+/g, '-').toLowerCase();
+
+// ─────────────────────────────────────────────────────────────
+// EXCEL (.xlsx) — flera flikar med riktiga celler/tal
+// ─────────────────────────────────────────────────────────────
 export const exportToExcel = (data: ExportData): void => {
-  const lines: string[] = [];
   const today = format(new Date(), 'yyyy-MM-dd');
-  
-  // Header
-  lines.push(`Ekonomisk sammanställning - ${data.projectName}`);
-  lines.push(`Exporterad: ${today}`);
-  lines.push('');
-  
-  // Summary section
-  lines.push('=== SAMMANFATTNING ===');
-  lines.push('');
-  lines.push('Kategori,Budget,Utfall,Avvikelse,Avvikelse %');
-  lines.push(`Personal,${data.summary.staffBudget},${data.summary.staffActual},${data.summary.staffDeviation},${data.summary.staffDeviationPercent.toFixed(1)}%`);
-  lines.push(`Inköp,-,${data.summary.purchasesTotal},-,-`);
-  lines.push(`Offerter/Fakturor,${data.summary.quotesTotal},${data.summary.invoicesTotal},${data.summary.invoiceDeviation},-`);
-  lines.push(`TOTALT,${data.summary.totalBudget},${data.summary.totalActual},${data.summary.totalDeviation},${data.summary.totalDeviationPercent.toFixed(1)}%`);
-  lines.push('');
-  
-  // Budget section
+  const wb = XLSX.utils.book_new();
+  const s = data.summary;
+
+  // 1) Sammanfattning
+  const summaryRows: (string | number)[][] = [
+    ['Ekonomisk sammanställning', data.projectName],
+    ['Exporterad', today],
+    [],
+    ['Kategori', 'Budget (SEK)', 'Utfall (SEK)', 'Avvikelse (SEK)', 'Avvikelse %'],
+    ['Personal', s.staffBudget, s.staffActual, s.staffDeviation, Number((s.staffDeviationPercent || 0).toFixed(1))],
+    ['Inköp', '', s.purchasesTotal, '', ''],
+    ['Offerter', s.quotesTotal, '', '', ''],
+    ['Leverantörsfakturor', '', s.invoicesTotal, s.invoiceDeviation, ''],
+    ['Produktkostnad (budget)', s.productCostBudget, '', '', ''],
+    ['Produktintäkt (kund)', s.productRevenue, '', '', ''],
+    [],
+    ['TOTALT', s.totalBudget, s.totalActual, s.totalDeviation, Number((s.totalDeviationPercent || 0).toFixed(1))],
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+  wsSummary['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Sammanfattning');
+
+  // 2) Budget
   if (data.budget) {
-    lines.push('=== BUDGET ===');
-    lines.push('');
-    lines.push('Budgeterade timmar,Timlön,Total budget');
-    lines.push(`${data.budget.budgeted_hours},${data.budget.hourly_rate},${data.summary.staffBudget}`);
-    lines.push('');
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Budgeterade timmar', 'Timlön', 'Total budget'],
+      [data.budget.budgeted_hours, data.budget.hourly_rate, s.staffBudget],
+      [],
+      ['Beskrivning', data.budget.description || ''],
+    ]);
+    ws['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Budget');
   }
-  
-  // Staff time reports
+
+  // 3) Personal & timmar
   if (data.timeReports.length > 0) {
-    lines.push('=== PERSONAL & TIMMAR ===');
-    lines.push('');
-    lines.push('Personal,Timmar,Övertid,Timlön,Övertidslön,Total kostnad');
-    data.timeReports.forEach(report => {
-      lines.push([
-        escapeCSV(report.staff_name),
-        report.total_hours,
-        report.overtime_hours,
-        report.hourly_rate,
-        report.overtime_rate,
-        report.total_cost
-      ].join(','));
-    });
-    lines.push('');
+    const rows: (string | number)[][] = [
+      ['Personal', 'Timmar', 'Övertid', 'Timlön', 'Övertidslön', 'Total kostnad', 'Godkänt'],
+      ...data.timeReports.map((r) => [
+        r.staff_name,
+        r.total_hours,
+        r.overtime_hours,
+        r.hourly_rate,
+        r.overtime_rate,
+        r.total_cost,
+        r.approved ? 'Ja' : 'Nej',
+      ]),
+      [
+        'TOTALT',
+        data.timeReports.reduce((a, r) => a + r.total_hours, 0),
+        data.timeReports.reduce((a, r) => a + r.overtime_hours, 0),
+        '',
+        '',
+        s.staffActual,
+        '',
+      ],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 26 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Personal');
   }
-  
-  // Purchases
+
+  // 4) Inköp
   if (data.purchases.length > 0) {
-    lines.push('=== INKÖP ===');
-    lines.push('');
-    lines.push('Datum,Beskrivning,Leverantör,Kategori,Belopp');
-    data.purchases.forEach(purchase => {
-      lines.push([
-        escapeCSV(formatDate(purchase.purchase_date)),
-        escapeCSV(purchase.description),
-        escapeCSV(purchase.supplier),
-        escapeCSV(purchase.category),
-        purchase.amount
-      ].join(','));
-    });
-    lines.push(`,,,,TOTALT: ${data.summary.purchasesTotal}`);
-    lines.push('');
+    const rows: (string | number)[][] = [
+      ['Datum', 'Beskrivning', 'Leverantör', 'Kategori', 'Belopp'],
+      ...data.purchases.map((p) => [
+        formatDate(p.purchase_date),
+        p.description,
+        p.supplier || '',
+        p.category || '',
+        p.amount,
+      ]),
+      ['', '', '', 'TOTALT', s.purchasesTotal],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 22 }, { wch: 16 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Inköp');
   }
-  
-  // Quotes
+
+  // 5) Offerter
   if (data.quotes.length > 0) {
-    lines.push('=== OFFERTER ===');
-    lines.push('');
-    lines.push('Leverantör,Beskrivning,Offertdatum,Giltigt till,Belopp,Status');
-    data.quotes.forEach(quote => {
-      lines.push([
-        escapeCSV(quote.supplier),
-        escapeCSV(quote.description),
-        escapeCSV(formatDate(quote.quote_date)),
-        escapeCSV(formatDate(quote.valid_until)),
-        quote.quoted_amount,
-        escapeCSV(quote.status)
-      ].join(','));
-    });
-    lines.push(`,,,,TOTALT: ${data.summary.quotesTotal},`);
-    lines.push('');
+    const rows: (string | number)[][] = [
+      ['Leverantör', 'Beskrivning', 'Offertdatum', 'Giltigt till', 'Belopp', 'Status'],
+      ...data.quotes.map((q) => [
+        q.supplier,
+        q.description,
+        formatDate(q.quote_date),
+        formatDate(q.valid_until),
+        q.quoted_amount,
+        q.status,
+      ]),
+      ['', '', '', 'TOTALT', s.quotesTotal, ''],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 22 }, { wch: 32 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Offerter');
   }
-  
-  // Invoices
+
+  // 6) Fakturor
   if (data.invoices.length > 0) {
-    lines.push('=== FAKTUROR ===');
-    lines.push('');
-    lines.push('Leverantör,Fakturanummer,Fakturadatum,Förfallodatum,Belopp,Status');
-    data.invoices.forEach(invoice => {
-      lines.push([
-        escapeCSV(invoice.supplier),
-        escapeCSV(invoice.invoice_number),
-        escapeCSV(formatDate(invoice.invoice_date)),
-        escapeCSV(formatDate(invoice.due_date)),
-        invoice.invoiced_amount,
-        escapeCSV(invoice.status)
-      ].join(','));
-    });
-    lines.push(`,,,,TOTALT: ${data.summary.invoicesTotal},`);
+    const rows: (string | number)[][] = [
+      ['Leverantör', 'Fakturanummer', 'Fakturadatum', 'Förfallodatum', 'Belopp', 'Status'],
+      ...data.invoices.map((i) => [
+        i.supplier,
+        i.invoice_number || '',
+        formatDate(i.invoice_date),
+        formatDate(i.due_date),
+        i.invoiced_amount,
+        i.status,
+      ]),
+      ['', '', '', 'TOTALT', s.invoicesTotal, ''],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Fakturor');
   }
-  
-  // Create and download file
-  const csvContent = lines.join('\n');
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `ekonomi-${data.projectName.replace(/\s+/g, '-').toLowerCase()}-${today}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  XLSX.writeFile(wb, `ekonomi-${safeName(data.projectName)}-${today}.xlsx`);
 };
 
+// ─────────────────────────────────────────────────────────────
+// PDF — riktig nedladdningsbar PDF via jsPDF + autoTable
+// ─────────────────────────────────────────────────────────────
 export const exportToPDF = (data: ExportData): void => {
   const today = format(new Date(), 'yyyy-MM-dd');
-  
-  // Create printable HTML content
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html lang="sv">
-    <head>
-      <meta charset="UTF-8">
-      <title>Ekonomisk sammanställning - ${data.projectName}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #333; padding: 20mm; }
-        h1 { font-size: 18pt; margin-bottom: 5mm; color: #1a1a1a; }
-        h2 { font-size: 13pt; margin: 8mm 0 4mm 0; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 2mm; }
-        .meta { color: #666; font-size: 10pt; margin-bottom: 10mm; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 5mm; }
-        th, td { padding: 2mm 3mm; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f5f5f5; font-weight: 600; font-size: 10pt; }
-        td { font-size: 10pt; }
-        .amount { text-align: right; }
-        .total-row { font-weight: 600; background: #f9f9f9; }
-        .summary-card { display: flex; gap: 10mm; margin-bottom: 8mm; }
-        .summary-item { flex: 1; padding: 4mm; background: #f5f5f5; border-radius: 2mm; }
-        .summary-label { font-size: 9pt; color: #666; }
-        .summary-value { font-size: 14pt; font-weight: 600; margin-top: 1mm; }
-        .positive { color: #16a34a; }
-        .negative { color: #dc2626; }
-        .warning { color: #ca8a04; }
-        @media print { body { padding: 10mm; } }
-      </style>
-    </head>
-    <body>
-      <h1>Ekonomisk sammanställning</h1>
-      <p class="meta">${data.projectName} • Exporterad ${today}</p>
-      
-      <div class="summary-card">
-        <div class="summary-item">
-          <div class="summary-label">Total budget</div>
-          <div class="summary-value">${formatCurrency(data.summary.totalBudget)}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Totalt utfall</div>
-          <div class="summary-value">${formatCurrency(data.summary.totalActual)}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Avvikelse</div>
-          <div class="summary-value ${data.summary.totalDeviation > 0 ? 'negative' : data.summary.totalDeviation < 0 ? 'positive' : ''}">
-            ${data.summary.totalDeviation > 0 ? '+' : ''}${formatCurrency(data.summary.totalDeviation)}
-            (${data.summary.totalDeviationPercent.toFixed(1)}%)
-          </div>
-        </div>
-      </div>
-      
-      ${data.timeReports.length > 0 ? `
-        <h2>Personal & Timmar</h2>
-        ${data.budget ? `<p style="margin-bottom: 3mm; font-size: 10pt; color: #666;">Budget: ${data.budget.budgeted_hours} tim × ${formatCurrency(data.budget.hourly_rate)}/tim = ${formatCurrency(data.summary.staffBudget)}</p>` : ''}
-        <table>
-          <thead>
-            <tr>
-              <th>Personal</th>
-              <th class="amount">Timmar</th>
-              <th class="amount">Övertid</th>
-              <th class="amount">Kostnad</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.timeReports.map(r => `
-              <tr>
-                <td>${r.staff_name}</td>
-                <td class="amount">${r.total_hours} h</td>
-                <td class="amount">${r.overtime_hours} h</td>
-                <td class="amount">${formatCurrency(r.total_cost)}</td>
-              </tr>
-            `).join('')}
-            <tr class="total-row">
-              <td>Totalt</td>
-              <td class="amount">${data.summary.actualHours} h</td>
-              <td class="amount"></td>
-              <td class="amount">${formatCurrency(data.summary.staffActual)}</td>
-            </tr>
-          </tbody>
-        </table>
-      ` : ''}
-      
-      ${data.purchases.length > 0 ? `
-        <h2>Inköp</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Datum</th>
-              <th>Beskrivning</th>
-              <th>Leverantör</th>
-              <th class="amount">Belopp</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.purchases.map(p => `
-              <tr>
-                <td>${formatDate(p.purchase_date)}</td>
-                <td>${p.description}</td>
-                <td>${p.supplier || '-'}</td>
-                <td class="amount">${formatCurrency(p.amount)}</td>
-              </tr>
-            `).join('')}
-            <tr class="total-row">
-              <td colspan="3">Totalt</td>
-              <td class="amount">${formatCurrency(data.summary.purchasesTotal)}</td>
-            </tr>
-          </tbody>
-        </table>
-      ` : ''}
-      
-      ${data.quotes.length > 0 ? `
-        <h2>Offerter</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Leverantör</th>
-              <th>Beskrivning</th>
-              <th>Status</th>
-              <th class="amount">Belopp</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.quotes.map(q => `
-              <tr>
-                <td>${q.supplier}</td>
-                <td>${q.description}</td>
-                <td>${q.status}</td>
-                <td class="amount">${formatCurrency(q.quoted_amount)}</td>
-              </tr>
-            `).join('')}
-            <tr class="total-row">
-              <td colspan="3">Totalt offererat</td>
-              <td class="amount">${formatCurrency(data.summary.quotesTotal)}</td>
-            </tr>
-          </tbody>
-        </table>
-      ` : ''}
-      
-      ${data.invoices.length > 0 ? `
-        <h2>Fakturor</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Leverantör</th>
-              <th>Fakturanr</th>
-              <th>Status</th>
-              <th class="amount">Belopp</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.invoices.map(i => `
-              <tr>
-                <td>${i.supplier}</td>
-                <td>${i.invoice_number || '-'}</td>
-                <td>${i.status}</td>
-                <td class="amount">${formatCurrency(i.invoiced_amount)}</td>
-              </tr>
-            `).join('')}
-            <tr class="total-row">
-              <td colspan="3">Totalt fakturerat</td>
-              <td class="amount">${formatCurrency(data.summary.invoicesTotal)}</td>
-            </tr>
-          </tbody>
-        </table>
-      ` : ''}
-    </body>
-    </html>
-  `;
-  
-  // Open print dialog
-  const printWindow = window.open('', '_blank');
-  if (printWindow) {
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.onload = () => {
-      printWindow.print();
-    };
+  const s = data.summary;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('Ekonomisk sammanställning', 40, 50);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`${data.projectName}  •  Exporterad ${today}`, 40, 68);
+  doc.setTextColor(0);
+
+  // Sammanfattning
+  autoTable(doc, {
+    startY: 90,
+    head: [['Kategori', 'Budget', 'Utfall', 'Avvikelse', 'Avvikelse %']],
+    body: [
+      ['Personal', formatCurrency(s.staffBudget), formatCurrency(s.staffActual), formatCurrency(s.staffDeviation), `${(s.staffDeviationPercent || 0).toFixed(1)}%`],
+      ['Inköp', '-', formatCurrency(s.purchasesTotal), '-', '-'],
+      ['Offerter', formatCurrency(s.quotesTotal), '-', '-', '-'],
+      ['Leverantörsfakturor', '-', formatCurrency(s.invoicesTotal), formatCurrency(s.invoiceDeviation), '-'],
+      ['Produktkostnad (budget)', formatCurrency(s.productCostBudget), '-', '-', '-'],
+      ['Produktintäkt (kund)', formatCurrency(s.productRevenue), '-', '-', '-'],
+      [
+        { content: 'TOTALT', styles: { fontStyle: 'bold' } },
+        { content: formatCurrency(s.totalBudget), styles: { fontStyle: 'bold' } },
+        { content: formatCurrency(s.totalActual), styles: { fontStyle: 'bold' } },
+        { content: formatCurrency(s.totalDeviation), styles: { fontStyle: 'bold' } },
+        { content: `${(s.totalDeviationPercent || 0).toFixed(1)}%`, styles: { fontStyle: 'bold' } },
+      ],
+    ],
+    styles: { fontSize: 9, cellPadding: 4 },
+    headStyles: { fillColor: [240, 240, 240], textColor: 30, fontStyle: 'bold' },
+    columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+    margin: { left: 40, right: 40 },
+  });
+
+  const sectionTitle = (title: string, y: number) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(title, 40, y);
+  };
+
+  let cursor = (doc as any).lastAutoTable.finalY + 24;
+
+  // Personal & timmar
+  if (data.timeReports.length > 0) {
+    sectionTitle('Personal & Timmar', cursor);
+    autoTable(doc, {
+      startY: cursor + 8,
+      head: [['Personal', 'Timmar', 'Övertid', 'Timlön', 'Kostnad']],
+      body: [
+        ...data.timeReports.map((r) => [
+          r.staff_name,
+          `${r.total_hours} h`,
+          `${r.overtime_hours} h`,
+          formatCurrency(r.hourly_rate),
+          formatCurrency(r.total_cost),
+        ]),
+        [
+          { content: 'TOTALT', styles: { fontStyle: 'bold' } },
+          { content: `${s.actualHours} h`, styles: { fontStyle: 'bold' } },
+          '',
+          '',
+          { content: formatCurrency(s.staffActual), styles: { fontStyle: 'bold' } },
+        ],
+      ],
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [240, 240, 240], textColor: 30, fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+      margin: { left: 40, right: 40 },
+    });
+    cursor = (doc as any).lastAutoTable.finalY + 24;
   }
+
+  // Inköp
+  if (data.purchases.length > 0) {
+    if (cursor > 720) { doc.addPage(); cursor = 50; }
+    sectionTitle('Inköp', cursor);
+    autoTable(doc, {
+      startY: cursor + 8,
+      head: [['Datum', 'Beskrivning', 'Leverantör', 'Belopp']],
+      body: [
+        ...data.purchases.map((p) => [formatDate(p.purchase_date), p.description, p.supplier || '-', formatCurrency(p.amount)]),
+        [{ content: 'TOTALT', colSpan: 3, styles: { fontStyle: 'bold' } }, { content: formatCurrency(s.purchasesTotal), styles: { fontStyle: 'bold' } }],
+      ],
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [240, 240, 240], textColor: 30, fontStyle: 'bold' },
+      columnStyles: { 3: { halign: 'right' } },
+      margin: { left: 40, right: 40 },
+    });
+    cursor = (doc as any).lastAutoTable.finalY + 24;
+  }
+
+  // Offerter
+  if (data.quotes.length > 0) {
+    if (cursor > 720) { doc.addPage(); cursor = 50; }
+    sectionTitle('Offerter', cursor);
+    autoTable(doc, {
+      startY: cursor + 8,
+      head: [['Leverantör', 'Beskrivning', 'Status', 'Belopp']],
+      body: [
+        ...data.quotes.map((q) => [q.supplier, q.description, q.status, formatCurrency(q.quoted_amount)]),
+        [{ content: 'TOTALT', colSpan: 3, styles: { fontStyle: 'bold' } }, { content: formatCurrency(s.quotesTotal), styles: { fontStyle: 'bold' } }],
+      ],
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [240, 240, 240], textColor: 30, fontStyle: 'bold' },
+      columnStyles: { 3: { halign: 'right' } },
+      margin: { left: 40, right: 40 },
+    });
+    cursor = (doc as any).lastAutoTable.finalY + 24;
+  }
+
+  // Fakturor
+  if (data.invoices.length > 0) {
+    if (cursor > 720) { doc.addPage(); cursor = 50; }
+    sectionTitle('Leverantörsfakturor', cursor);
+    autoTable(doc, {
+      startY: cursor + 8,
+      head: [['Leverantör', 'Fakturanr', 'Status', 'Belopp']],
+      body: [
+        ...data.invoices.map((i) => [i.supplier, i.invoice_number || '-', i.status, formatCurrency(i.invoiced_amount)]),
+        [{ content: 'TOTALT', colSpan: 3, styles: { fontStyle: 'bold' } }, { content: formatCurrency(s.invoicesTotal), styles: { fontStyle: 'bold' } }],
+      ],
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [240, 240, 240], textColor: 30, fontStyle: 'bold' },
+      columnStyles: { 3: { halign: 'right' } },
+      margin: { left: 40, right: 40 },
+    });
+  }
+
+  // Sidfot med sidnummer
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(140);
+    doc.text(`Sida ${i} av ${pageCount}`, pageWidth - 40, doc.internal.pageSize.getHeight() - 20, { align: 'right' });
+  }
+
+  doc.save(`ekonomi-${safeName(data.projectName)}-${today}.pdf`);
 };
