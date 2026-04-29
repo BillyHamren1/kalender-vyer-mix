@@ -137,15 +137,23 @@ export const DayHeaderRow: React.FC<DayHeaderRowProps> = ({
       expanded={expanded}
       onToggle={() => setExpanded(s => !s)}
     >
-      {header.at && (
-        <StaffPingDetailPanel
-          staffId={staffId}
-          staffName=""
-          date={date}
-          fromIso={header.at}
-          toIso={header.at}
-        />
-      )}
+      {header.at && (() => {
+        const t = new Date(header.at).getTime();
+        const windowMs = 30 * 60 * 1000; // ±30 min context
+        const fromIso = new Date(t - windowMs).toISOString();
+        const toIso = header.isOpen
+          ? new Date().toISOString()
+          : new Date(t + windowMs).toISOString();
+        return (
+          <StaffPingDetailPanel
+            staffId={staffId}
+            staffName=""
+            date={date}
+            fromIso={fromIso}
+            toIso={toIso}
+          />
+        );
+      })()}
     </JournalRow>
   );
 };
