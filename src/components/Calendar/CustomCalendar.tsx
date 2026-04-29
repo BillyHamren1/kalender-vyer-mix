@@ -37,6 +37,7 @@ interface CustomCalendarProps {
   isEventReadOnly?: (event: CalendarEvent) => boolean;
   onEventClick?: (event: CalendarEvent) => void;
   activatedStaffIds?: string[];
+  activatedStaffByDate?: Record<string, string[]>;
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
