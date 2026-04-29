@@ -11,7 +11,11 @@ interface Props {
   selectedDate: Date;
   onSelectDate: (d: Date) => void;
   packings: PackingWithBooking[];
-  onSelect: (packingId: string, mode: 'verifying' | 'manual') => void;
+  onSelect: (
+    packingId: string,
+    mode: 'verifying' | 'manual',
+    kind: import('@/hooks/scanner/usePackingsByDate').PackingEntryKind,
+  ) => void;
 }
 
 const PackingWeekView: React.FC<Props> = ({ selectedDate, onSelectDate, packings, onSelect }) => {
