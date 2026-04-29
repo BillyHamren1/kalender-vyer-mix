@@ -421,40 +421,64 @@ const MobileScannerApp: React.FC = () => {
               {searchQuery ? 'No packing lists match the search' : 'No active packing lists'}
             </p>
           </div>
+        ) : searchQuery.trim() ? (
+          // Search active → flat results, ignore date filter
+          <div className="space-y-2">
+            {filteredPackings.map(p => (
+              <PackingCard key={p.id} packing={p} onSelect={handleSelectPacking} />
+            ))}
+          </div>
         ) : (
           <>
-            {inProgress.length > 0 && (
+            {/* Pinned: in-progress jobs across all dates */}
+            {inProgressPackings.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  In progress
+                  Pågående nu
                 </h2>
                 <div className="space-y-2">
-                  {inProgress.map(renderPackingCard)}
+                  {inProgressPackings.map(p => (
+                    <PackingCard key={p.id} packing={p} onSelect={handleSelectPacking} />
+                  ))}
                 </div>
               </section>
             )}
 
-            {packed.length > 0 && (
-              <section>
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Packed
-                </h2>
-                <div className="space-y-2">
-                  {packed.map(renderPackingCard)}
-                </div>
-              </section>
-            )}
-
-            {upcoming.length > 0 && (
-              <section>
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  {(inProgress.length > 0 || packed.length > 0) ? 'Upcoming' : 'Packing lists'}
-                </h2>
-                <div className="space-y-2">
-                  {upcoming.map(renderPackingCard)}
-                </div>
-              </section>
-            )}
+            {/* Calendar — Day / Week / Month, parity with time app */}
+            <section className="space-y-3">
+              <CalendarViewToggle value={viewMode} onChange={setViewMode} />
+              <CalendarDateNav
+                viewMode={viewMode}
+                selectedDate={selectedDate}
+                onChange={setSelectedDate}
+              />
+              {viewMode === 'day' && (
+                <PackingDayView
+                  date={selectedDate}
+                  packings={filteredPackings}
+                  onSelect={handleSelectPacking}
+                  onShowWeek={() => setViewMode('week')}
+                />
+              )}
+              {viewMode === 'week' && (
+                <PackingWeekView
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
+                  packings={filteredPackings}
+                  onSelect={handleSelectPacking}
+                />
+              )}
+              {viewMode === 'month' && (
+                <PackingMonthView
+                  selectedDate={selectedDate}
+                  onSelectDate={(d) => {
+                    setSelectedDate(d);
+                    setViewMode('day');
+                  }}
+                  packings={filteredPackings}
+                />
+              )}
+            </section>
           </>
         )}
       </main>
