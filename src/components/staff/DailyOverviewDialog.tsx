@@ -542,7 +542,29 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
         {/* Server-derived event timeline (Day Timeline Engine) */}
         {date && staffId && (
-          <DayEventTimeline staffId={staffId} date={date} />
+          <div className="space-y-3">
+            <DayTimelineMap
+              events={timelineEvents}
+              pings={pings}
+              knownPlaces={knownPlaces}
+              selectedEventId={selectedEventId}
+              onEventSelect={setSelectedEventId}
+            />
+            <div className="flex items-center justify-end">
+              <RawGpsDrawer
+                pings={pings}
+                date={date}
+                staffName={staffName}
+                selectedEvent={selectedEvent}
+              />
+            </div>
+            <DayEventTimeline
+              staffId={staffId}
+              date={date}
+              selectedEventId={selectedEventId}
+              onSelectEvent={setSelectedEventId}
+            />
+          </div>
         )}
 
         {/* Map first — show all travel segments as lines */}
