@@ -52,22 +52,11 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
 /**
  * HeaderWorkdayControls
  *
- * Visar ENDAST WorkDayHeaderTimer (dag-klockan) när dagen är öppen.
- * Start/Avsluta dag-knappen renderas inline i sidans header
- * (se `HeaderStartEndDayButton`) — inte som en egen rad här.
+ * Tidigare visade dag-klockan på en egen rad ovanför ikonerna. Nu renderas
+ * `WorkDayHeaderTimer` inline bredvid Start/Avsluta-knappen i sidans header
+ * (se `HeaderStartEndDayButton`), så vi behöver inte längre någon separat rad.
  */
-const HeaderWorkdayControls: React.FC = () => {
-  const { current } = useWorkDay();
-  const workdayOpen = !!current && !current.ended_at;
-
-  if (!workdayOpen) return null;
-
-  return (
-    <div className="w-full px-4 pt-2 pb-1 flex justify-center bg-primary">
-      <WorkDayHeaderTimer />
-    </div>
-  );
-};
+const HeaderWorkdayControls: React.FC = () => null;
 
 /**
  * Är denna booking planerad för idag? Vi kollar rig/event/down + assignment_dates.
