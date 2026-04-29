@@ -120,7 +120,7 @@ const queryClient = new QueryClient({
       gcTime: 30 * 60_000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      refetchOnMount: false,
+      // refetchOnMount default = true: stale data refreshes silently in background while cache shows instantly
       retry: 1,
     },
     mutations: {
