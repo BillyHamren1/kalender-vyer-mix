@@ -38,6 +38,10 @@ export interface WorkPresence {
   leftAt: string | null;
   basePings: Ping[];
   base: { lat: number; lng: number } | null;
+  /** True if `base` was provided by the caller (booking/project/location).
+   *  False = inferred from the pings themselves (do NOT claim it matches
+   *  the reported workplace). */
+  baseIsAuthoritative: boolean;
   sampleCount: number;
 }
 
@@ -78,27 +82,36 @@ export function computeWorkPresence(
     .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
 
   if (inWindow.length === 0) {
-    return { arrivedAt: null, leftAt: null, basePings: [], base: opts.base ?? null, sampleCount: 0 };
+    return {
+      arrivedAt: null, leftAt: null, basePings: [],
+      base: opts.base ?? null, baseIsAuthoritative: !!opts.base, sampleCount: 0,
+    };
   }
 
-  // Resolve base. We REQUIRE a real coordinate from the caller (booking /
-  // project / location). If none is supplied we MUST NOT invent one from
-  // the pings themselves — doing so would silently treat the staff
-  // member's home as "the workplace" and produce false "Anlände 06:51 ·
-  // matchar rapport" lines. Without a base, we simply cannot say where
-  // they were.
-  const base = opts.base ?? null;
+  // Resolve base. Prefer the caller-provided coordinate (booking / project /
+  // location). If none is supplied we fall back to the **median of pings
+  // INSIDE the strict report window** so we still show where the person
+  // actually was — but we mark `baseIsAuthoritative=false` so the UI
+  // refuses to claim it "matches the reported workplace".
+  let base = opts.base ?? null;
+  const baseIsAuthoritative = !!base;
   if (!base) {
-    return { arrivedAt: null, leftAt: null, basePings: [], base: null, sampleCount: inWindow.length };
+    const strict = inWindow.filter(p => {
+      const t = new Date(p.recorded_at).getTime();
+      return t >= startMs && t <= endMs;
+    });
+    const seed = strict.length >= 3 ? strict : inWindow;
+    base = { lat: median(seed.map(p => p.lat)), lng: median(seed.map(p => p.lng)) };
   }
 
-  const basePings = inWindow.filter(p => haversineMeters(base, { lat: p.lat, lng: p.lng }) <= threshold);
+  const basePings = inWindow.filter(p => haversineMeters(base!, { lat: p.lat, lng: p.lng }) <= threshold);
 
   return {
     arrivedAt: basePings[0]?.recorded_at ?? null,
     leftAt: basePings[basePings.length - 1]?.recorded_at ?? null,
     basePings,
     base,
+    baseIsAuthoritative,
     sampleCount: inWindow.length,
   };
 }
