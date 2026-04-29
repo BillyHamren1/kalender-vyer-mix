@@ -9,6 +9,11 @@ interface AvailableStaffMember {
   id: string;
   name: string;
   color?: string;
+  // Multi-team aware: a staff member can be in several teams the same day.
+  // First entry is mirrored to the legacy single-value fields for callers
+  // that still read `assignedTeamId` / `assignedTeamName`.
+  assignedTeamIds: string[];
+  assignedTeamNames: string[];
   assignedTeamId?: string;
   assignedTeamName?: string;
 }
