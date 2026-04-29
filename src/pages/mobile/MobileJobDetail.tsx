@@ -112,7 +112,12 @@ const MobileJobDetail = () => {
         if (res.cancelled) return;
         if (res.saved) {
           invalidateTimeReports();
-          toast.success(t('time.savedHours' as any, { h: res.hoursWorked }) || `Time report saved: ${res.hoursWorked}h`);
+          const hours = res.hoursWorked ?? 0;
+          toast.success(
+            hours > 0
+              ? `Tidrapport sparad: ${hours.toFixed(1).replace('.', ',')} h`
+              : 'Timern stoppad',
+          );
         }
       } catch (err: any) {
         toast.error(err.message || t('time.couldNotSave' as any));
@@ -205,7 +210,7 @@ const MobileJobDetail = () => {
       {/* Timer info bar */}
       {!isProjectBooking && currentTimer && (
         <div className="text-center py-1.5 bg-primary/5">
-          <span className="text-xs font-mono text-primary bg-primary/10 px-3 py-1 rounded-full">
+          <span className="text-xs font-mono tabular-nums text-primary bg-primary/10 px-3 py-1 rounded-full">
             <Clock className="w-3 h-3 inline mr-1" />{formatTimer(timerElapsed)}
           </span>
           {currentTimer.establishmentTaskTitle && (
