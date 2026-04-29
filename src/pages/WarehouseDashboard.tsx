@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWarehouseOpsRange, type OpsMode } from "@/hooks/useWarehouseOpsRange";
 import OpsDateBar from "@/components/warehouse-ops/OpsDateBar";
-import OpsAttentionPanel from "@/components/warehouse-ops/OpsAttentionPanel";
+
 import OpsStatusBoard from "@/components/warehouse-ops/OpsStatusBoard";
 import OpsStaffTimeline from "@/components/warehouse-ops/OpsStaffTimeline";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
@@ -72,22 +72,19 @@ const WarehouseDashboard = () => {
               {/* Översta raden: status-board (huvudvyn) */}
               <OpsStatusBoard jobs={data.jobs} />
 
-              {/* Andra raden: två kolumner — attention + staff-timeline */}
-              <div className="grid grid-cols-1 xl:grid-cols-[1fr_2fr] gap-4">
-                <OpsAttentionPanel items={data.attention} />
-                {mode === "day" ? (
-                  <OpsStaffTimeline
-                    anchorDate={anchorDate}
-                    shifts={data.shifts}
-                    scans={data.scans}
-                    jobs={data.jobs}
-                  />
-                ) : (
-                  <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-muted-foreground">
-                    Personalskift visas i dagsvy.
-                  </div>
-                )}
-              </div>
+              {/* Andra raden: staff-timeline */}
+              {mode === "day" ? (
+                <OpsStaffTimeline
+                  anchorDate={anchorDate}
+                  shifts={data.shifts}
+                  scans={data.scans}
+                  jobs={data.jobs}
+                />
+              ) : (
+                <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-muted-foreground">
+                  Personalskift visas i dagsvy.
+                </div>
+              )}
 
               {/* Sista raden: inkommande projekt (inbox) */}
               <WarehouseProjectInbox />
