@@ -30,10 +30,11 @@ export const useAvailableStaffWeek = (
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{ id: string; name: string; color?: string }>;
   },
   filterByTag?: string,
-  activatedStaffIds?: string[]
+  activatedStaffIds?: string[],
+  activatedStaffByDate?: Record<string, string[]>
 ) => {
   const { data: weekAvailableStaff } = useQuery({
-    queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(','), filterByTag || '', activatedStaffIds?.join(',') || ''],
+    queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(','), filterByTag || '', activatedStaffIds?.join(',') || '', activatedStaffByDate ? JSON.stringify(activatedStaffByDate) : ''],
     queryFn: async () => {
       const results: Record<string, Array<{ id: string; name: string; color?: string }>> = {};
       const availableByDate = await getAvailableStaffForDateRange(days, filterByTag);
@@ -43,8 +44,15 @@ export const useAvailableStaffWeek = (
         ids.forEach(id => allStaffIds.add(id));
       }
 
-      // If activatedStaffIds is provided, filter to only those staff
-      if (activatedStaffIds && activatedStaffIds.length > 0) {
+      // Per-date filter takes priority over flat activatedStaffIds.
+      if (activatedStaffByDate) {
+        for (const day of days) {
+          const dateStr = format(day, 'yyyy-MM-dd');
+          const allowed = new Set(activatedStaffByDate[dateStr] || []);
+          availableByDate[dateStr] = (availableByDate[dateStr] || []).filter(id => allowed.has(id));
+          allowed.forEach(id => allStaffIds.add(id));
+        }
+      } else if (activatedStaffIds && activatedStaffIds.length > 0) {
         for (const [dateStr, ids] of Object.entries(availableByDate)) {
           availableByDate[dateStr] = ids.filter(id => activatedStaffIds.includes(id));
         }
