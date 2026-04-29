@@ -217,8 +217,6 @@ const PresenceLineWithDate: React.FC<{ row: JournalTableRow; date: string }> = (
       label: 'På plats',
       arrived: presence.arrivedAt,
       left: presence.leftAt,
-      basePings: presence.basePings.length,
-      sample: presence.sampleCount,
     } as any;
   }, [pings, row]);
 

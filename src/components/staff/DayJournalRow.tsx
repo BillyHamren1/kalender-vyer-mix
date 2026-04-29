@@ -257,10 +257,7 @@ export const ProjectSessionRow: React.FC<ProjectSessionRowProps> = ({
     return (
       <>
         <span className="text-muted-foreground">På plats:</span>{' '}
-        <span className={cls}>{arr} – {lft}</span>{' '}
-        <span className="text-muted-foreground">
-          ({presence.basePings.length}/{presence.sampleCount} pings vid bas)
-        </span>
+        <span className={cls}>{arr} – {lft}</span>
       </>
     );
   }, [presence, session.start, session.end, session.isOpen]);
