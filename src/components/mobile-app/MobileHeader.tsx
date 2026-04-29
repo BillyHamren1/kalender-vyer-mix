@@ -124,40 +124,15 @@ export const HeaderStartEndDayButton: React.FC = () => {
   if (location.pathname === '/m/report') return null;
 
   /**
-   * Steg 1: Snabb GPS-poll (≤3s). Om vi hittar en bookning vid den platsen
-   *         → auto-starta workday + timer direkt utan dialog.
-   *         Annars → öppna StartDayDialog så användaren MÅSTE välja något.
+   * Öppna ALLTID StartDayDialog så användaren själv väljer projekt/plats.
+   * (Tidigare auto-start vid GPS-träff togs bort på begäran — användaren ska
+   * alltid bekräfta vilket projekt dagen startar på.)
    */
-  const handleStartDay = useCallback(async () => {
+  const handleStartDay = useCallback(() => {
     if (startingDay || workdayOpen) return;
-    setStartingDay(true);
-    try {
-      clearWorkdayEnded();
-      // Försök fånga en GPS-fix snabbt (faller tillbaka direkt om den saknas)
-      const pos = userPosition ?? await waitForPosition(() => userPosition);
-      const match = findNearbyBooking(bookings, pos);
-
-      if (match) {
-        // Auto-träff: starta dagen + aktivitetstimer omedelbart.
-        const target = match.large_project_id && match.large_project_name
-          ? { kind: 'project' as const, largeProjectId: match.large_project_id, name: match.large_project_name }
-          : { kind: 'booking' as const, bookingId: match.id, client: match.client };
-        const label = match.large_project_name || match.client;
-        // requestStart säkerställer workday + startar timer (workday-first).
-        const result = requestStart(target, { label });
-        if (result === 'started' || result === 'duplicate') {
-          toast.success(`Dagen startad på ${label}`);
-        }
-        // 'conflict' hanteras av globala TimerConflictDialog.
-        return;
-      }
-
-      // Ingen match → låt användaren välja
-      setDialogOpen(true);
-    } finally {
-      setStartingDay(false);
-    }
-  }, [startingDay, workdayOpen, userPosition, bookings, requestStart]);
+    clearWorkdayEnded();
+    setDialogOpen(true);
+  }, [startingDay, workdayOpen]);
 
   /**
    * Användaren har valt något i dialogen.
