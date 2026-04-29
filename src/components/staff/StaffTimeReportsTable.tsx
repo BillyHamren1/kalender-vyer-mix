@@ -104,6 +104,7 @@ export const buildJournalRows = (
     fromIso: startWin.from,
     toIso: startWin.to,
     allSessions,
+    latestPingAt: staff.latestPing?.updated_at ?? null,
   });
 
   // Sessions
