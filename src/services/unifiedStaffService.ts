@@ -220,7 +220,7 @@ export const {
   getStaffCalendarEvents,
   assignStaffToBooking,
   removeStaffFromBooking,
-  handleBookingMove,
+  
   bulkAssignStaff,
   getStaffSummary,
   exportStaffToExternal,

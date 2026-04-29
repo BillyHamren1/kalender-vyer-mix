@@ -137,7 +137,10 @@ serve(async (req) => {
         break
       
       case 'handle_booking_move':
-        response = await handleBookingMove(supabase, data.booking_id, data.old_team_id, data.new_team_id, data.old_date, data.new_date, organizationId!)
+        // DEPRECATED: BSA mirrors staff_assignments × calendar_events.resource_id deterministically.
+        // Use the recompute_booking_staff_for_day RPC instead.
+        // See mem://features/planning/calendar-team-model-v1
+        response = { success: false, deprecated: true, error: 'handle_booking_move is deprecated. Use recompute_booking_staff_for_day RPC.' }
         break
       
       case 'bulk_assign_staff':
