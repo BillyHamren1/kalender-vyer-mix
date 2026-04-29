@@ -50,7 +50,7 @@ export const resolveCalendarEventId = async ({
   eventType,
   sourceDate,
 }: ResolveInput): Promise<string | null> => {
-  if (rawId && !isSyntheticCalendarEventId(rawId)) {
+  if (rawId && !looksSynthetic(rawId)) {
     return rawId;
   }
 
