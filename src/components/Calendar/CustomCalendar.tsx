@@ -81,7 +81,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const filterByTag = variant === 'warehouse' ? 'Lager' : 'Montage';
   const { getAvailableStaffForDay } = useAvailableStaffWeek(
-    days, weekStartTime, resources, weeklyStaffOperations, filterByTag, activatedStaffIds
+    days, weekStartTime, resources, weeklyStaffOperations, filterByTag, activatedStaffIds, activatedStaffByDate
   );
 
   const {
