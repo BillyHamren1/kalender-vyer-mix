@@ -54,7 +54,7 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 }) => {
   const isWarehouseSource = !!event.eventType && (WAREHOUSE_TYPES as readonly string[]).includes(event.eventType);
 
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [eventType, setEventType] = useState<'rig' | 'event' | 'rigDown' | WarehouseType>(
     isWarehouseSource ? (event.eventType as WarehouseType) : 'rig'
   );
@@ -112,8 +112,8 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
   }, [open, event.bookingId, event.start]);
 
   const handleCreate = async () => {
-    if (!selectedDate) {
-      toast.error('Välj ett datum');
+    if (!selectedDates || selectedDates.length === 0) {
+      toast.error('Välj minst ett datum');
       return;
     }
 
@@ -125,10 +125,6 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
     setIsCreating(true);
 
     try {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const startDateTime = `${dateStr}T${startTime}:00Z`;
-      const endDateTime = `${dateStr}T${endTime}:00Z`;
-
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .select('organization_id, booking_number, deliveryaddress, delivery_city, client')
@@ -141,89 +137,136 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 
       const isWarehouseTarget = (WAREHOUSE_TYPES as readonly string[]).includes(eventType);
 
-      if (isWarehouseTarget) {
-        const { error: whErr } = await supabase
-          .from('warehouse_calendar_events')
-          .insert({
-            title: booking.client || event.title,
-            start_time: startDateTime,
-            end_time: endDateTime,
-            resource_id: 'warehouse',
-            booking_id: event.bookingId,
-            booking_number: booking.booking_number,
-            event_type: eventType,
-            organization_id: booking.organization_id,
-            delivery_address:
-              [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
-            manually_adjusted: true,
-          });
-        if (whErr) throw whErr;
+      // Sortera datum kronologiskt så bokningens primära fält
+      // (rigdaydate / eventdate / rigdowndate) hamnar på första dagen.
+      const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+      const failures: string[] = [];
+      let successCount = 0;
 
-        const labels: Record<string, string> = {
-          packing: 'Packning',
-          return: 'Retur',
-          delivery: 'Leverans',
-          inventory: 'Inventering',
-          unpacking: 'Uppackning',
-        };
-        toast.success(`${labels[eventType] || 'Dag'} tillagd`);
+      for (const date of sorted) {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const startDateTime = `${dateStr}T${startTime}:00Z`;
+        const endDateTime = `${dateStr}T${endTime}:00Z`;
+
+        try {
+          if (isWarehouseTarget) {
+            const { error: whErr } = await supabase
+              .from('warehouse_calendar_events')
+              .insert({
+                title: booking.client || event.title,
+                start_time: startDateTime,
+                end_time: endDateTime,
+                resource_id: 'warehouse',
+                booking_id: event.bookingId,
+                booking_number: booking.booking_number,
+                event_type: eventType,
+                organization_id: booking.organization_id,
+                delivery_address:
+                  [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
+                manually_adjusted: true,
+              });
+            if (whErr) throw whErr;
+          } else {
+            const sourceDate = startDateTime.split('T')[0];
+
+            // Only insert into calendar_events if we have a resource (team) to
+            // attach the row to — calendar_events.resource_id is NOT NULL.
+            if (event.resourceId) {
+              const { error: insertError } = await supabase
+                .from('calendar_events')
+                .insert({
+                  title: event.title,
+                  start_time: startDateTime,
+                  end_time: endDateTime,
+                  resource_id: event.resourceId,
+                  booking_id: event.bookingId,
+                  event_type: eventType,
+                  organization_id: booking.organization_id,
+                  booking_number: booking.booking_number,
+                  delivery_address:
+                    [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
+                  source_date: sourceDate,
+                });
+              if (insertError) throw insertError;
+            } else {
+              console.log('[AddRiggDayDialog] no resourceId — skipping calendar_events insert, booking update will trigger reconciler');
+            }
+
+            // Spegla endast FÖRSTA datumet på bokningens primära fält
+            // (annars skriver dag 2-N över dag 1).
+            const isFirst = date.getTime() === sorted[0].getTime();
+            if (isFirst) {
+              const bookingFieldMap = {
+                rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+                event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+                rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+              } as const;
+
+              const fields = bookingFieldMap[eventType as 'rig' | 'event' | 'rigDown'];
+              if (fields) {
+                const { error: bkErr } = await supabase
+                  .from('bookings')
+                  .update({
+                    [fields.date]: dateStr,
+                    [fields.start]: startDateTime,
+                    [fields.end]: endDateTime,
+                  })
+                  .eq('id', event.bookingId);
+                if (bkErr) throw bkErr;
+              }
+            }
+
+            // Recompute BSA för den nya dagen så personalen från det valda
+            // teamet speglas in (per calendar-team-model-v1).
+            try {
+              await supabase.rpc('recompute_booking_staff_for_day' as any, {
+                p_booking_id: event.bookingId,
+                p_date: dateStr,
+              });
+            } catch (rpcErr) {
+              console.warn('[AddRiggDayDialog] BSA recompute failed (non-fatal)', rpcErr);
+            }
+          }
+          successCount++;
+        } catch (perDayErr: any) {
+          const msg = perDayErr?.message || perDayErr?.hint || String(perDayErr);
+          failures.push(`${dateStr}: ${msg}`);
+        }
+      }
+
+      const labels: Record<string, string> = {
+        packing: 'Packning',
+        return: 'Retur',
+        delivery: 'Leverans',
+        inventory: 'Inventering',
+        unpacking: 'Uppackning',
+        rig: 'Riggdag',
+        event: 'Eventdag',
+        rigDown: 'Rivdag',
+      };
+      const typeLabel = labels[eventType] || 'Dag';
+
+      if (successCount > 0 && failures.length === 0) {
+        toast.success(
+          successCount === 1
+            ? `${typeLabel} tillagd`
+            : `${successCount} ${typeLabel.toLowerCase()}ar tillagda`,
+        );
+      } else if (successCount > 0 && failures.length > 0) {
+        toast.warning(`${successCount} av ${sorted.length} dagar tillagda`, {
+          description: failures.join('\n'),
+          duration: 8000,
+        });
       } else {
-        const sourceDate = startDateTime.split('T')[0];
-
-        // Only insert into calendar_events if we have a resource (team) to
-        // attach the row to — calendar_events.resource_id is NOT NULL.
-        // Without a team, we still update the booking row; the import-bookings
-        // reconciler will materialize the calendar_event on next sync.
-        if (event.resourceId) {
-          const { error: insertError } = await supabase
-            .from('calendar_events')
-            .insert({
-              title: event.title,
-              start_time: startDateTime,
-              end_time: endDateTime,
-              resource_id: event.resourceId,
-              booking_id: event.bookingId,
-              event_type: eventType,
-              organization_id: booking.organization_id,
-              booking_number: booking.booking_number,
-              delivery_address:
-                [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
-              source_date: sourceDate,
-            });
-          if (insertError) throw insertError;
-        } else {
-          console.log('[AddRiggDayDialog] no resourceId — skipping calendar_events insert, booking update will trigger reconciler');
-        }
-
-        const bookingFieldMap = {
-          rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
-          event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
-          rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
-        } as const;
-
-        const fields = bookingFieldMap[eventType as 'rig' | 'event' | 'rigDown'];
-        if (fields) {
-          const { error: bkErr } = await supabase
-            .from('bookings')
-            .update({
-              [fields.date]: dateStr,
-              [fields.start]: startDateTime,
-              [fields.end]: endDateTime,
-            })
-            .eq('id', event.bookingId);
-          if (bkErr) throw bkErr;
-        }
-
-        const typeLabels = { rig: 'Riggdag', event: 'Eventdag', rigDown: 'Rivdag' } as const;
-        toast.success(`${typeLabels[eventType as 'rig' | 'event' | 'rigDown']} tillagd`);
+        throw new Error(failures.join('\n') || 'Inga dagar kunde läggas till');
       }
 
       onOpenChange(false);
       if (onUpdate) onUpdate();
     } catch (error: any) {
-      console.error('Error creating event day:', error);
+      console.error('Error creating event day(s):', error);
       const detail = error?.message || error?.hint || (typeof error === 'string' ? error : '');
-      toast.error('Kunde inte lägga till dagen', {
+      toast.error('Kunde inte lägga till dagen/dagarna', {
         description: detail || undefined,
       });
     } finally {
