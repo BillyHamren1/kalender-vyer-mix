@@ -165,11 +165,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           {/* Row 2: team headers */}
           <div className="time-empty-cell" style={{ gridRow: 2, gridColumn: 1 }} />
           {resources.map((resource, index) => {
-            const isActiveTeam = selectingForTeam?.id === resource.id;
+            const isActiveTeam = openPickerTeamId === resource.id;
+            const assignedIds = getAssignedStaffForTeam(resource.id).map((s) => s.id);
             return (
               <div
                 key={`header-${resource.id}`}
-                className="team-header-cell cursor-pointer"
+                className="team-header-cell"
                 style={{
                   gridColumn: index + 2,
                   gridRow: 2,
@@ -177,16 +178,25 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   minWidth: fullWidth ? '120px' : `${TEAM_COLUMN_WIDTH}px`,
                   ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {}),
                 }}
-                onClick={() => handleStaffSelectionClick(resource.id, resource.title)}
-                title={`Assign staff to ${resource.title}`}
               >
                 <div className="team-header-content">
                   <span className="team-title">{resource.title}</span>
-                  <button
-                    className="add-staff-button-header"
-                    onClick={(e) => { e.stopPropagation(); handleStaffSelectionClick(resource.id, resource.title); }}
-                    title={`Assign staff to ${resource.title}`}
-                  >+</button>
+                  <TeamStaffPickerPopover
+                    teamId={resource.id}
+                    teamTitle={resource.title}
+                    staff={availableStaff}
+                    assignedStaffIds={assignedIds}
+                    onPick={(staffId) => handlePickStaffForTeam(resource.id, staffId)}
+                    open={isActiveTeam}
+                    onOpenChange={(o) => setOpenPickerTeamId(o ? resource.id : null)}
+                  >
+                    <button
+                      className="add-staff-button-header"
+                      onClick={(e) => e.stopPropagation()}
+                      title={`Tilldela personal till ${resource.title}`}
+                      aria-label={`Tilldela personal till ${resource.title}`}
+                    >+</button>
+                  </TeamStaffPickerPopover>
                 </div>
               </div>
             );
