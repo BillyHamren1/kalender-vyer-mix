@@ -333,6 +333,23 @@
   border-radius: 2px;
 }
 
+/* Fullscreen day view: visa namn bredvid varandra */
+.fullscreen-day .assigned-staff-header-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+  gap: 4px 6px;
+  max-height: none;
+}
+.fullscreen-day .staff-header-assignment-area {
+  overflow: visible;
+}
+.fullscreen-day .staff-assignment-header-row {
+  height: auto !important;
+  max-height: none !important;
+}
+
 /* Time Labels Column */
 .time-labels-column {
   background: #ffffff;
