@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useCallback, useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import { useCarouselState } from '@/hooks/useCarouselState';
