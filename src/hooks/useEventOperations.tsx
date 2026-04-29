@@ -45,7 +45,33 @@ export const useEventOperations = ({
       }
 
       // Persist to DB (FullCalendar already shows the new position optimistically)
-      await updateCalendarEvent(info.event.id, eventData);
+      const updated = await updateCalendarEvent(info.event.id, eventData);
+
+      // Räkna om BSA för (booking, datum) för båda dagarna som potentiellt
+      // berördes — säkerställer att personalen härleds från staff_assignments ×
+      // calendar_events.resource_id (team-modellen).
+      try {
+        const bookingId = (info.event.extendedProps as any)?.booking_id
+          || (info.event.extendedProps as any)?.bookingId
+          || updated.bookingId;
+        if (bookingId) {
+          const oldDate = info.oldEvent?.start
+            ? new Date(info.oldEvent.start).toISOString().slice(0, 10)
+            : null;
+          const newDate = info.event.start
+            ? new Date(info.event.start).toISOString().slice(0, 10)
+            : oldDate;
+          const dates = Array.from(new Set([oldDate, newDate].filter(Boolean))) as string[];
+          await Promise.all(dates.map(d =>
+            supabase.rpc('recompute_booking_staff_for_day' as any, {
+              p_booking_id: bookingId,
+              p_date: d,
+            })
+          ));
+        }
+      } catch (rpcErr) {
+        console.warn('[useEventOperations] BSA recompute failed (non-fatal)', rpcErr);
+      }
 
       toast.success(changeDescription || 'Händelse uppdaterad');
 
