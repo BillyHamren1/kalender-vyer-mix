@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StaffMember } from './StaffAssignmentRow';
+import type { StaffMember } from './StaffTypes';
 import { toast } from 'sonner';
 import { getAvailableStaffForDate } from '@/services/staffAvailabilityService';
 import { supabase } from '@/integrations/supabase/client';
