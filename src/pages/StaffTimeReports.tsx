@@ -176,8 +176,14 @@ const StaffTimeReports: React.FC = () => {
       const locationEntries = locationRes.data || [];
       const workdays = workdaysRes.data || [];
 
-      // Resolve location -> internal booking (e.g. Lager) for project label
-      const locationIds = [...new Set(locationEntries.map(e => e.location_id).filter(Boolean))];
+      // Resolve location -> internal booking (e.g. Lager) for project label.
+      // Include location_id from BOTH location_time_entries AND time_reports so
+      // a manually-created Lager-tidrapport (without LTE) still resolves to the
+      // location's name (e.g. "FA Warehouse") instead of falling back to "Lager".
+      const locationIds = [...new Set([
+        ...locationEntries.map(e => e.location_id).filter(Boolean),
+        ...reports.map(r => (r as any).location_id).filter(Boolean),
+      ])] as string[];
       const locationBookingMap = new Map<string, { booking_id: string; label: string }>();
       const locNameMap = new Map<string, string>();
       if (locationIds.length > 0) {
