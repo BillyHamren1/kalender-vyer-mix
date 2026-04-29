@@ -138,13 +138,13 @@ export function useWarehouseOpsBoard() {
 
       // 6. Group items per project & build workers per project
       const itemsByProject = new Map<string, any[]>();
-      for (const it of items || []) {
-        const arr = itemsByProject.get(it.packing_project_id as string) || [];
+      for (const it of items) {
+        const arr = itemsByProject.get(it.packing_id as string) || [];
         arr.push(it);
-        itemsByProject.set(it.packing_project_id as string, arr);
+        itemsByProject.set(it.packing_id as string, arr);
       }
       const itemToProject = new Map<string, string>();
-      for (const it of items || []) itemToProject.set(it.id as string, it.packing_project_id as string);
+      for (const it of items) itemToProject.set(it.id as string, it.packing_id as string);
 
       const workersByProject = new Map<string, Map<string, OpsWorker>>();
       for (const a of allocations) {
