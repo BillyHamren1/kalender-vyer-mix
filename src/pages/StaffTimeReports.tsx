@@ -112,7 +112,7 @@ const StaffTimeReports: React.FC = () => {
         // migration don't double up against the canonical location_time_entry.
         supabase
           .from('time_reports')
-          .select('id, staff_id, booking_id, hours_worked, start_time, end_time, source, source_entry_id')
+          .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id')
           .eq('report_date', dateStr)
           .eq('is_subdivision', false)
           .or('source.is.null,source.neq.location_auto'),
