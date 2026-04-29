@@ -220,9 +220,12 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 
       onOpenChange(false);
       if (onUpdate) onUpdate();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating event day:', error);
-      toast.error('Kunde inte lägga till dagen');
+      const detail = error?.message || error?.hint || (typeof error === 'string' ? error : '');
+      toast.error('Kunde inte lägga till dagen', {
+        description: detail || undefined,
+      });
     } finally {
       setIsCreating(false);
     }
