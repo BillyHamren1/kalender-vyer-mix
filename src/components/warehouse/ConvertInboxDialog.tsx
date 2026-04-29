@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import {
   createWarehouseProjectFromInbox,
   fetchInboxItemSuggestedDates,
+  WarehouseProjectAlreadyExistsError,
 } from '@/services/warehouseProjectService';
 import { WarehouseProjectInboxItem, WarehouseProject } from '@/types/warehouseProject';
 import { toast } from 'sonner';
@@ -132,6 +133,15 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
       onSuccess(wp);
       onOpenChange(false);
     } catch (err) {
+      if (err instanceof WarehouseProjectAlreadyExistsError) {
+        toast.success(
+          `Lagerprojekt ${err.existing.project_number} finns redan — länkar och stänger notisen`,
+          { id: progress }
+        );
+        onSuccess(err.existing);
+        onOpenChange(false);
+        return;
+      }
       console.error(err);
       const msg = err instanceof Error ? err.message : 'Okänt fel';
       toast.error(`Kunde inte skapa lagerprojekt: ${msg}`, { id: progress });

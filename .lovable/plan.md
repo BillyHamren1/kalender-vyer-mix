@@ -1,61 +1,53 @@
-## Mål
+## Vad som faktiskt händer
 
-I scanner-appen (`MobileScannerApp`) ska listan med packjobb visas i samma kalenderupplägg som tid-appens "Mina jobb" — med Dag / Vecka / Månad-toggle, datumnavigering och datum-gruppering. Sökruta + "Identifiera produkt" + scanner-headern bevaras oförändrade.
+För Bergman Event AB / booking #2603-126:
 
-## Nuläge
+1. **17 april** — Projektet konverterades första gången. Det skapade `warehouse_projects.Lager-2603-126` (men `source_project_id` sattes inte i den raden).
+2. **27 april (idag)** — Projektet i Planning raderades och importerades om från externa bookingsystemet. Det skapade ett **nytt** `projects`-id (`1c2c01d4…`).
+3. Triggern `trg_notify_warehouse_on_new_project` fyrar på `AFTER INSERT ON projects` och la in en helt ny rad i `warehouse_project_inbox` — utan att kolla om underlaget (samma `booking_number` 2603-126) redan har ett aktivt `warehouse_projects`.
+4. När du klickar "Skapa lagerprojekt" försöker den skapa `Lager-2603-126` igen → unique constraint krockar → "Okänt fel".
 
-- `src/pages/MobileScannerApp.tsx` listar packjobb som tre platta grupper: `In progress`, `Packed`, `Planning` (filtrerade på `searchQuery`).
-- Datumkälla per packjob: `packing.booking?.rigdaydate ?? packing.booking?.eventdate`.
-- Tid-appen (`src/pages/mobile/MobileJobs.tsx`) använder en återanvändbar trio:
-  - `CalendarViewToggle` (day/week/month, persisterad i `localStorage`)
-  - `CalendarDateNav` (← idag →)
-  - `MobileDayView` / `MobileWeekView` / `MobileMonthView` — alla typade mot `ScheduledShift`, vilket inte matchar packjobb.
+Så ja — du har helt rätt. Det är inte ett "nytt projekt", det är samma underliggande booking som dök upp på nytt i Planning, men inbox-logiken förstår inte det.
 
-## Lösning
+## Vad planen åtgärdar
 
-Bygg en parallell, packjobb-specifik kalender-trio som speglar tid-appens UX men jobbar mot `PackingWithBooking[]`. Återanvänd `CalendarViewToggle` och `CalendarDateNav` rakt av (de är data-agnostiska).
+### 1. Inbox-triggern blir smartare (DB)
 
-### Nya komponenter (`src/components/scanner/calendar/`)
+`notify_warehouse_on_new_project` och `notify_warehouse_on_new_large_project` ska inte blint inserta en `new`-rad. Innan insert:
 
-1. `PackingDayView.tsx` — visar alla packjobb vars `displayDate` (rig→event-fallback) är vald dag. Renderar samma `renderPackingCard`-stil som idag (Scan / Bocka av-knappar). Tom-state med "Visa veckan"-knapp.
-2. `PackingWeekView.tsx` — horisontell veckostrip (mån–sön) som visar prick/badge per dag med antal packjobb; klick byter `selectedDate`. Under stripen: lista över valda dagens packjobb (samma kort som Day).
-3. `PackingMonthView.tsx` — månadsgrid (samma layout som `MobileMonthView`) med antal-badge per dag; klick → väljer datum + byter till Day-vy.
-4. `usePackingsByDate.ts` (hook i `src/hooks/scanner/`) — grupperar `PackingWithBooking[]` per `yyyy-MM-dd` baserat på `rigdaydate ?? eventdate`. Exporterar `getForDate(date)`, `getCountForDate(date)`, `getDatesInRange(from,to)`. Memoiserad.
+- Slå upp om det redan finns ett `warehouse_projects` för samma `organization_id` + `source_project_number` (för booking-baserade projekt) eller samma underliggande booking-set.
+- Om JA: skippa inbox-insert helt (eller skapa en `status='already_linked'`-rad som inte visas i listan), och länka det nya `projects.id` till det befintliga `warehouse_projects.source_project_id` så framtida lookups funkar.
+- Om NEJ: insert som vanligt.
 
-### Ändringar i `MobileScannerApp.tsx`
+### 2. Backfill av source_project_id
 
-- Lägg till state: `viewMode: CalendarViewMode` (persisterad i `localStorage` under `scanner.calendarView`, default `'day'`) och `selectedDate: Date`.
-- Ersätt nuvarande tre status-grupper (inProgress / packed / upcoming) i `home`-state med kalenderblocket:
-  ```
-  <CalendarViewToggle .../>
-  <CalendarDateNav .../>
-  {viewMode === 'day'   && <PackingDayView .../>}
-  {viewMode === 'week'  && <PackingWeekView .../>}
-  {viewMode === 'month' && <PackingMonthView .../>}
-  ```
-- Sökrutan filtrerar fortfarande hela `packings`-listan innan den skickas in i kalendervyerna (sökresultat ignorerar valt datum om query är aktiv → visa platt resultat, samma mönster som tid-appen inte har men passar här).
-- `In progress`-jobb pinnas som en liten "Pågående nu"-rad ovanför kalendervyn (oavsett datum), så användaren tappar inte ett pågående jobb när hen bläddrar bort från dagens datum.
-- `Identify product`-kortet och scanner-headern lämnas orörda.
+En migration som fyller i `source_project_id` på existerande `warehouse_projects` genom att matcha på `source_project_number` mot nuvarande `projects.booking_id → bookings.booking_number`. Detta läker existerande "föräldralösa" warehouse-projekt så regeln i punkt 1 kan hitta dem.
 
-### Detaljer
+### 3. Frontend: hantera "redan konverterad" elegant
 
-- Dag utan packjobb: tom-state med "Visa veckan"-knapp (parity med `MobileDayView`).
-- Datum-fallback per packjob: `rigdaydate || eventdate || created_at` (sista bara så ett packjob aldrig "försvinner" från kalendern).
-- Status-badge och kortlayout återanvänds från befintliga `renderPackingCard`/`getStatusBadge` — flytta dem till en delad `PackingCard.tsx` i `src/components/scanner/calendar/` för att hålla `MobileScannerApp.tsx` slim (och uppfyller fil-storleksregeln).
-- `i18n`: lägg till `calendar.noPackingsThisDay` (sv: "Inga packjobb denna dag" / en: "No packings this day"). `calendar.day/week/month/showWeek` finns redan.
-- Realtime/poll (`useScannerRealtime`) påverkas inte — den uppdaterar fortsatt `packings`, kalendervyerna re-renderas via memoiserad gruppering.
+I `createWarehouseProjectFromInbox`:
+- Innan insert: kolla om `warehouse_projects` redan finns för denna `organization_id` + `source_project_number`.
+- Om JA: länka inbox-raden till det existerande projektet (`warehouse_project_id` + `status='processed'`), visa toast _"Lagerprojektet finns redan — öppnar det"_, och navigera till det befintliga.
+- Om NEJ: kör som vanligt.
 
-### Filer som skapas
-- `src/components/scanner/calendar/PackingCard.tsx`
-- `src/components/scanner/calendar/PackingDayView.tsx`
-- `src/components/scanner/calendar/PackingWeekView.tsx`
-- `src/components/scanner/calendar/PackingMonthView.tsx`
-- `src/hooks/scanner/usePackingsByDate.ts`
+### 4. Städa Bergman-fallet manuellt
 
-### Filer som ändras
-- `src/pages/MobileScannerApp.tsx` — byter ut listsektionen mot kalenderblocket, lyfter ut kort-rendering.
-- `src/i18n/translations.ts` — ny nyckel `calendar.noPackingsThisDay`.
+Två konkreta åtgärder via insert-tool:
+- Sätt `warehouse_projects.source_project_id = '1c2c01d4-e9e5-4c82-9b95-88461092219f'` på Lager-2603-126.
+- Markera den nya inbox-raden (`51f7b85a…`) som `status='processed'` med `warehouse_project_id` pekande på den befintliga `Lager-2603-126`, så du slipper Okänt-fel-knappen direkt.
 
-### Out of scope
-- Ingen ändring av scanner-headern, identify-kortet, verifierings-/manuell-flödet eller datakälla (`fetchActivePackings`).
-- Ingen tidslinje (timrad) — packjobb saknar tider, så Day-vyn är en datums-grupperad lista, inte en `DayTimeline`.
+### 5. (Valfritt) "Uppdaterad"-notis
+
+Om du vill ha en explicit visuell signal när ett underliggande projekt har ändrats efter konvertering: lägg till en separat liten notis-sektion ("Projekt uppdaterade i Planning") som listar inbox-rader med `status='already_linked'`, så du ser att något hänt utan att det blockar dig med duplikat-skapning. Säg till om du vill ha den biten — annars hoppar vi den.
+
+## Tekniska filer som ändras
+
+- `supabase/migrations/<ny>.sql` — uppdatera båda `notify_warehouse_on_new_*`-triggerfunktioner + backfill av `source_project_id` + datapatch för Bergman-fallet.
+- `src/services/warehouseProjectService.ts` — `createWarehouseProjectFromInbox` får en pre-flight lookup mot existerande `warehouse_projects`.
+- (Ev.) `src/components/warehouse/WarehouseProjectInbox.tsx` — toast/redirect när det redan finns.
+
+## Vad jag INTE rör
+
+- `generate_warehouse_project_number`-triggern. Den är bara symptomet — när vi väl slutar försöka skapa duplikat behöver den inte härdas. Säg till om du vill att vi ändå lägger på collision-suffix som säkerhetsnät.
+
+Säg till om jag ska köra punkt 1–4. Punkt 5 frågar jag om separat.
