@@ -518,7 +518,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             ) : (
               <div style={{ width: '32px' }}></div>
             )}
-            <span className="day-title">
+            <span
+              className={`day-title ${onTitleClick ? 'cursor-pointer hover:underline' : ''}`}
+              onClick={onTitleClick ? () => onTitleClick(day) : undefined}
+              role={onTitleClick ? 'button' : undefined}
+              title={onTitleClick ? 'Öppna dagen i helskärm' : undefined}
+            >
               {format(day, 'EEE d')}
             </span>
             <div className="flex items-center gap-1">
