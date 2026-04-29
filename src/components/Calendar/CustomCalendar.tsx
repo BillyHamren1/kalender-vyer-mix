@@ -265,6 +265,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
           </div>
         </div>
       </div>
+      {expandedDayDialog}
     </EditControllerProvider>
   );
 };
