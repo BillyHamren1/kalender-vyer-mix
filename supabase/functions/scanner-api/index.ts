@@ -658,7 +658,8 @@ Deno.serve(async (req) => {
           quantity_packed: newQuantity,
           packed_at: now,
           packed_by: verifiedBy,
-          ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+          packed_by_staff_id: verifiedByStaffId || null,
+          ...(isNowFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
           ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
         }).eq('id', (selectedItem as any).id)
 
@@ -671,6 +672,7 @@ Deno.serve(async (req) => {
               parcel_id: activeParcelId,
               quantity: allocQty,
               scanned_by: verifiedBy || null,
+              scanned_by_staff_id: verifiedByStaffId || null,
               organization_id: ORG_ID,
             })
           }
