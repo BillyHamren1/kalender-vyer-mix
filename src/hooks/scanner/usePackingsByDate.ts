@@ -35,6 +35,7 @@ const resolveOutAnchor = (p: PackingWithBooking): Date | null =>
 const resolveInAnchor = (p: PackingWithBooking): Date | null => {
   const isReturnable =
     p.status === 'delivered' ||
+    p.status === 'back' ||
     p.status === 'returning' ||
     p.status === 'returned';
   if (!isReturnable) return null;
