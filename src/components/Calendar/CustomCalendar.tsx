@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useCallback, useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import { useCarouselState } from '@/hooks/useCarouselState';
@@ -182,6 +182,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
               onTitleClick={undefined}
               staffExpanded={true}
               onToggleStaffExpanded={undefined}
+              carouselNav={{
+                onNavigateLeft: () => setExpandedDay((d) => (d ? addDays(d, -1) : d)),
+                onNavigateRight: () => setExpandedDay((d) => (d ? addDays(d, 1) : d)),
+              }}
             />
           </div>
         )}
