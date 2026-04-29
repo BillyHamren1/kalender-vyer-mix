@@ -1,0 +1,236 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { differenceInSeconds, parseISO, format } from 'date-fns';
+import { Play, Square, Clock, Loader2, FolderOpen } from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useMobileBookings, useMobileTimeReports, useInvalidateMobileData } from '@/hooks/useMobileData';
+import { useWorkSession } from '@/hooks/useWorkSession';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
+import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
+import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
+
+interface Props {
+  largeProjectId: string;
+  projectName: string;
+}
+
+const formatHMS = (seconds: number) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
+const formatHours = (h: number) => h.toFixed(1).replace('.', ',');
+
+/**
+ * MobileProjectTimerCard
+ * ----------------------
+ * Det här kortet ger användaren en tydlig timer-yta INNE i ett stort projekt:
+ *
+ *   • "Pågår nu" — live-räknare för aktiv project-timer (samma key som
+ *     GlobalActiveTimerBanner: `project-<id>`).
+ *   • "Loggat idag" — summerad hours_worked från time_reports för dagens
+ *     datum, för det här stora projektet, för inloggad personal. Filtrerar
+ *     bort subdivisions (per-adress-metadata) så summan är samma som
+ *     löne-/faktureringssanningen.
+ *   • Stor Play / Stop-knapp som går genom samma unified-pipeline som alla
+ *     andra startytor (useTimerStartFlow.requestStart + useWorkSession.stopSession).
+ *
+ * Följer policy:
+ *   - workday-first (requestStart säkerställer workday)
+ *   - break-dialog mountas via useWorkSession.dialogs
+ *   - distance + conflict dialogs mountas här
+ *   - subdivisions filtreras bort (project-time-subdivisions-v1)
+ */
+export const MobileProjectTimerCard = ({ largeProjectId, projectName }: Props) => {
+  const navigate = useNavigate();
+  const { staff } = useMobileAuth();
+  const { data: bookings = [] } = useMobileBookings();
+  const { data: timeReports = [] } = useMobileTimeReports();
+  const { invalidateTimeReports } = useInvalidateMobileData();
+  const { activeTimers, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
+  const {
+    requestStart,
+    cancelConflict,
+    confirmSwitch,
+    conflictEval,
+    pendingLabel,
+    distanceWarning,
+    dismissDistanceWarning,
+  } = useTimerStartFlow(bookings, staff?.id);
+
+  const projectKey = `project-${largeProjectId}`;
+  const currentTimer = activeTimers.get(projectKey);
+  const [, setTick] = useState(0);
+  const [stopping, setStopping] = useState(false);
+
+  // Tick once per second only when a project timer is running.
+  useEffect(() => {
+    if (!currentTimer) return;
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [currentTimer]);
+
+  // Sum hours_worked logged today on this large project.
+  // Subdivisions are metadata only — never sum them or we'd double-count.
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+  const loggedTodayHours = useMemo(() => {
+    return timeReports
+      .filter(
+        (r: any) =>
+          r.large_project_id === largeProjectId &&
+          r.report_date === todayKey &&
+          !r.is_subdivision,
+      )
+      .reduce((sum: number, r: any) => sum + (Number(r.hours_worked) || 0), 0);
+  }, [timeReports, largeProjectId, todayKey]);
+
+  const liveSeconds = currentTimer
+    ? Math.max(0, differenceInSeconds(new Date(), parseISO(currentTimer.startTime)))
+    : 0;
+
+  const handleStart = () => {
+    requestStart(
+      { kind: 'project', largeProjectId, name: projectName },
+      { label: projectName },
+    );
+  };
+
+  const handleStop = async () => {
+    if (!currentTimer || stopping) return;
+    setStopping(true);
+    try {
+      const res = await stopSession({
+        kind: 'project',
+        largeProjectId,
+        name: projectName,
+      });
+      if (res.cancelled) return;
+      if (res.saved) {
+        invalidateTimeReports();
+        const hours = res.hoursWorked ?? 0;
+        toast.success(
+          hours > 0
+            ? `Tidrapport sparad: ${formatHours(hours)} h`
+            : 'Timern stoppad',
+        );
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte stoppa timer');
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        className={cn(
+          'rounded-2xl border bg-card p-4 shadow-md transition-all',
+          currentTimer
+            ? 'border-primary/40 ring-1 ring-primary/20'
+            : 'border-primary/20',
+        )}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <FolderOpen className="w-4 h-4 text-primary" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Tidrapportering — projekt
+          </span>
+        </div>
+
+        {/* Live timer */}
+        {currentTimer ? (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-primary/70 font-bold">
+                Pågår nu
+              </p>
+              <p className="text-2xl font-mono tabular-nums font-extrabold text-primary leading-tight">
+                {formatHMS(liveSeconds)}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Startad {format(parseISO(currentTimer.startTime), 'HH:mm')}
+                {currentTimer.isAutoStarted && ' (automatiskt)'}
+              </p>
+            </div>
+            <button
+              onClick={handleStop}
+              disabled={stopping}
+              className="shrink-0 h-14 px-5 rounded-2xl bg-destructive text-destructive-foreground font-bold flex items-center gap-2 shadow-md active:scale-95 transition-all disabled:opacity-60"
+            >
+              {stopping ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Square className="w-5 h-5" />
+              )}
+              {stopping ? 'Sparar…' : 'Avsluta'}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+                Ingen pågående timer
+              </p>
+              <p className="text-sm text-foreground/70 mt-0.5">
+                Tryck för att börja rapportera tid på projektet
+              </p>
+            </div>
+            <button
+              onClick={handleStart}
+              className="shrink-0 h-14 px-5 rounded-2xl bg-primary text-primary-foreground font-bold flex items-center gap-2 shadow-md active:scale-95 transition-all"
+            >
+              <Play className="w-5 h-5 ml-0.5" />
+              Starta
+            </button>
+          </div>
+        )}
+
+        {/* Logged today */}
+        <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-2">
+          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Loggat idag:</span>
+          <span className="text-sm font-bold tabular-nums text-foreground">
+            {formatHours(loggedTodayHours)} h
+          </span>
+          {loggedTodayHours > 0 && (
+            <button
+              onClick={() => navigate('/m/time-history')}
+              className="ml-auto text-[11px] font-semibold text-primary active:opacity-70"
+            >
+              Visa
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Dialogs — must be mounted in the same tree */}
+      <TimerConflictDialog
+        open={!!conflictEval}
+        evaluation={conflictEval}
+        newTargetLabel={pendingLabel}
+        onCancel={cancelConflict}
+        onSwitch={confirmSwitch}
+      />
+      <DistanceWarningDialog
+        open={!!distanceWarning}
+        onOpenChange={(open) => {
+          if (!open) dismissDistanceWarning();
+        }}
+        placeName={distanceWarning?.placeName || ''}
+        distanceMeters={distanceWarning?.distance || 0}
+        onConfirm={(reason) => {
+          distanceWarning?.onConfirm(reason);
+          dismissDistanceWarning();
+        }}
+      />
+      {dialogs}
+    </>
+  );
+};
+
+export default MobileProjectTimerCard;
