@@ -14,7 +14,7 @@ import {
   type RealityPing,
   type RealitySessionInput,
   type FlagType,
-} from './dayReality.ts';
+} from '../_shared/dayReality.ts';
 
 const SITE = { lat: 59.3293, lng: 18.0686 }; // Stockholm
 const FAR  = { lat: 59.4500, lng: 18.2000 }; // ~14 km away
