@@ -56,6 +56,14 @@ import {
 } from '@/lib/lastWorkSegment';
 
 /**
+ * Distans-tröskel för "off-site"-varningen vid manuell timer-start.
+ * Avsiktligt större än geofencens ENTER_RADIUS (150 m) — GPS i städer/inomhus
+ * kan lätt vara 100–200 m off, och vi vill inte tvinga fram en kommentar
+ * när användaren faktiskt står på platsen. Geofence-auto-start är oförändrad.
+ */
+const OFF_SITE_PROMPT_RADIUS = 300; // meters
+
+/**
  * Gap-baserad restidshärledning.
  *
  * När en aktivitet startas tittar vi på det senaste stoppade
