@@ -176,7 +176,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
           Helskärmsvy för vald dag
         </DialogDescription>
         {expandedDay && (
-          <div className="w-full h-full p-4 overflow-auto">
+          <div className="w-full h-full p-4 overflow-auto fullscreen-day">
             <TimeGrid
               {...buildTimeGridProps(expandedDay, true)}
               onTitleClick={undefined}
