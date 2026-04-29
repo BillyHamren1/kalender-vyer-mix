@@ -165,12 +165,8 @@ export const buildPlannerCalendarEvents = ({
   const projectsById = new Map(largeProjects.map((project) => [project.id, project]));
 
   const bookingToProject = new Map<string, string>();
-  const projectBookingIds = new Map<string, string[]>();
   for (const link of largeProjectBookings) {
     bookingToProject.set(link.booking_id, link.large_project_id);
-    const ids = projectBookingIds.get(link.large_project_id) || [];
-    ids.push(link.booking_id);
-    projectBookingIds.set(link.large_project_id, ids);
   }
 
   const realByBooking = new Map<string, RealCalendarEventRow[]>();
