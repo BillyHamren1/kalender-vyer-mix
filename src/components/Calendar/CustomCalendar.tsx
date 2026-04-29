@@ -152,6 +152,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       availableStaff: getAvailableStaffForDay(date),
       staffExpanded,
       onToggleStaffExpanded: () => setStaffExpanded(prev => !prev),
+      onTitleClick: (d: Date) => setExpandedDay(d),
       ...(isCenter ? {
         carouselNav: {
           onNavigateLeft: () => navigateCarousel('left'),
