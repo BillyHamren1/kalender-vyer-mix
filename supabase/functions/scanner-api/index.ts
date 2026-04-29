@@ -798,7 +798,7 @@ Deno.serve(async (req) => {
       }
 
       case 'create_parcel': {
-        const { packingId, createdBy } = params
+        const { packingId, createdBy, createdByStaffId } = params
 
         const { data: existing } = await supabase
           .from('packing_parcels')
@@ -812,7 +812,7 @@ Deno.serve(async (req) => {
 
         const { data, error } = await supabase
           .from('packing_parcels')
-          .insert({ packing_id: packingId, parcel_number: nextNumber, created_by: createdBy, organization_id: ORG_ID })
+          .insert({ packing_id: packingId, parcel_number: nextNumber, created_by: createdBy, created_by_staff_id: createdByStaffId || null, organization_id: ORG_ID })
           .select()
           .single()
 
