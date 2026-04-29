@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Contract test — locks the canonical staff_assignments write path.
  *
