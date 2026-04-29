@@ -70,23 +70,6 @@ const HeaderWorkdayControls: React.FC = () => {
 };
 
 /**
- * HeaderStartEndDayButton
- *
- * Kompakt ikon-knapp som placeras inline i sidans header-rad
- * (mellan andra header-actions). Visar Play när dagen ej är öppen
- * och LogOut när den är öppen.
- */
-export const HeaderStartEndDayButton: React.FC = () => {
-  const location = useLocation();
-  const { t } = useLanguage();
-  const { current, start } = useWorkDay();
-  const workdayOpen = !!current && !current.ended_at;
-  const [startingDay, setStartingDay] = useState(false);
-
-  // Göm på rapport-sidan (samma policy som tidigare)
-  if (location.pathname === '/m/report') return null;
-
-/**
  * Försöker hitta en booking/projekt som matchar användarens GPS-position.
  * Returnerar närmaste träff inom ENTER_RADIUS, eller null.
  */
