@@ -1,6 +1,8 @@
 import React, { useRef, useMemo, useCallback, useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format, addDays } from 'date-fns';
+import { format, addDays, getWeek } from 'date-fns';
+import { sv } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import TimeGrid from './TimeGrid';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import { useCarouselState } from '@/hooks/useCarouselState';
@@ -176,17 +178,28 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
           Helskärmsvy för vald dag
         </DialogDescription>
         {expandedDay && (
-          <div className="w-full h-full p-4 overflow-auto fullscreen-day">
-            <TimeGrid
-              {...buildTimeGridProps(expandedDay, true)}
-              onTitleClick={undefined}
-              staffExpanded={true}
-              onToggleStaffExpanded={undefined}
-              carouselNav={{
-                onNavigateLeft: () => setExpandedDay((d) => (d ? addDays(d, -1) : d)),
-                onNavigateRight: () => setExpandedDay((d) => (d ? addDays(d, 1) : d)),
-              }}
-            />
+          <div className="w-full h-full flex flex-col fullscreen-day">
+            <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b bg-background">
+              <CalendarIcon className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-bold text-foreground">
+                {`Vecka ${getWeek(expandedDay, { weekStartsOn: 1 })}, ${format(expandedDay, 'MMMM yyyy', { locale: sv }).replace(/^./, c => c.toUpperCase())}`}
+              </h2>
+              <span className="text-sm text-muted-foreground ml-2">
+                {format(expandedDay, 'EEEE d MMMM', { locale: sv })}
+              </span>
+            </div>
+            <div className="flex-1 p-4 overflow-auto">
+              <TimeGrid
+                {...buildTimeGridProps(expandedDay, true)}
+                onTitleClick={undefined}
+                staffExpanded={true}
+                onToggleStaffExpanded={undefined}
+                carouselNav={{
+                  onNavigateLeft: () => setExpandedDay((d) => (d ? addDays(d, -1) : d)),
+                  onNavigateRight: () => setExpandedDay((d) => (d ? addDays(d, 1) : d)),
+                }}
+              />
+            </div>
           </div>
         )}
       </DialogContent>
