@@ -41,6 +41,19 @@ const MobileScannerApp: React.FC = () => {
   const [identifyInput, setIdentifyInput] = useState('');
   const [isIdentifyQRActive, setIsIdentifyQRActive] = useState(false);
 
+  // Calendar view state — persisted in localStorage (parity with time app)
+  const VIEW_MODE_KEY = 'scanner.calendarView';
+  const isViewMode = (v: unknown): v is CalendarViewMode =>
+    v === 'day' || v === 'week' || v === 'month';
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    return isViewMode(stored) ? stored : 'day';
+  });
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
+
   // Active scan handler ref — points to the correct handler based on current state
   const activeScanHandler = useRef<(value: string) => void>(() => {});
 
