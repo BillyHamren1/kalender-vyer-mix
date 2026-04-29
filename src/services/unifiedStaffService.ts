@@ -106,11 +106,13 @@ class UnifiedStaffService {
     }
   }
 
-  async removeStaffAssignment(staffId: string, date: Date): Promise<void> {
+  async removeStaffAssignment(staffId: string, date: Date, teamId?: string): Promise<void> {
     const dateStr = date.toISOString().split('T')[0];
     const result = await this.callStaffFunction('remove_staff_assignment', {
       staff_id: staffId,
-      date: dateStr
+      date: dateStr,
+      // Multi-team: if teamId is provided, only that one row is removed.
+      ...(teamId ? { team_id: teamId } : {}),
     });
     
     if (!result.success) {
