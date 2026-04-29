@@ -1080,7 +1080,8 @@ export type WorkdayFlagType =
   | 'home_arrival_auto_ended'
   | 'auto_closed_overnight'
   | 'auto_closed_travel'
-  | 'auto_closed_report';
+  | 'auto_closed_report'
+  | 'unclear_start_target';
 
 export interface WorkdayFlag {
   id: string;
