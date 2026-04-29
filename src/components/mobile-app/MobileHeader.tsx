@@ -175,6 +175,15 @@ export const HeaderStartEndDayButton: React.FC = () => {
     setStartingDay(true);
     try {
       if (selection.kind === 'target') {
+        // WORKDAY-FIRST: säkerställ att dagtimern faktiskt startas innan vi
+        // delegerar till requestStart. requestStart kan returnera
+        // 'duplicate' (om en activity-timer redan finns lokalt) och då
+        // körs aldrig performStart → ingen workday skapas.
+        const wd = await ensureActive();
+        if (!wd) {
+          toast.error('Kunde inte starta arbetsdagen. Försök igen.');
+          return;
+        }
         const result = requestStart(selection.target, { label: selection.label });
         if (result === 'started' || result === 'duplicate') {
           toast.success(`Dagen startad på ${selection.label}`);
@@ -210,7 +219,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
     } finally {
       setStartingDay(false);
     }
-  }, [requestStart, start]);
+  }, [requestStart, start, ensureActive]);
 
   if (workdayOpen) {
     return (
