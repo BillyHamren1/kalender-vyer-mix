@@ -58,7 +58,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   variant = 'default',
   isEventReadOnly,
   onEventClick,
-  activatedStaffIds
+  activatedStaffIds,
+  activatedStaffByDate
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const weekStartTime = currentDate.getTime();
