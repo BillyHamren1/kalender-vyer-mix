@@ -206,7 +206,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
   const handleExportExcel = () => {
     try {
       exportToExcel({ projectName, budget: budget || null, timeReports, purchases, quotes, invoices, summary });
-      toast.success('Exporterad till Excel (CSV)');
+      toast.success('Exporterad till Excel');
     } catch { toast.error('Kunde inte exportera'); }
   };
 
