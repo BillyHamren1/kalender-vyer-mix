@@ -112,33 +112,10 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
     enabled: open
   });
 
-  // Initialize checklist with default items
-  const initializeChecklist = useCallback((booking: BookingOption | null) => {
-    const bookingDates: BookingDates = booking ? {
-      rigdaydate: booking.rigdaydate,
-      eventdate: booking.eventdate,
-      rigdowndate: booking.rigdowndate,
-      created_at: booking.created_at
-    } : {
-      rigdaydate: null,
-      eventdate: null,
-      rigdowndate: null,
-      created_at: new Date().toISOString()
-    };
-
-    const items: ChecklistItemData[] = DEFAULT_CHECKLIST.map((template, index) => {
-      const { date, isAsap } = calculateDeadline(template.deadlineRule, bookingDates);
-      return {
-        id: `item-${index}-${Date.now()}`,
-        title: template.title,
-        deadline: date,
-        isAsap,
-        isInfoOnly: template.isInfoOnly || false,
-        sort_order: template.sort_order
-      };
-    });
-
-    setChecklistItems(items);
+  // Initialize checklist as EMPTY by default — no auto-generated default tasks.
+  // Users add the tasks they actually need (or none).
+  const initializeChecklist = useCallback((_booking: BookingOption | null) => {
+    setChecklistItems([]);
   }, []);
 
   // Reset form when dialog opens
