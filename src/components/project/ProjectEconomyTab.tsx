@@ -345,7 +345,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleExportExcel}>
               <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Exportera till Excel (CSV)
+              Exportera till Excel (.xlsx)
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
