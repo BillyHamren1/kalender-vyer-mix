@@ -1,43 +1,79 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, Calendar, Camera, ClipboardCheck } from 'lucide-react';
+import {
+  Package,
+  PackageOpen,
+  Calendar,
+  Camera,
+  ClipboardCheck,
+  Undo2,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { PackingWithBooking } from '@/types/packing';
+import type { PackingEntryKind } from '@/hooks/scanner/usePackingsByDate';
 
 interface Props {
   packing: PackingWithBooking;
-  onSelect: (packingId: string, mode: 'verifying' | 'manual') => void;
+  kind?: PackingEntryKind; // 'out' (default) | 'in'
+  onSelect: (
+    packingId: string,
+    mode: 'verifying' | 'manual',
+    kind: PackingEntryKind,
+  ) => void;
 }
 
-const getStatusBadge = (status: string) => {
+const getOutBadge = (status: string) => {
   switch (status) {
     case 'in_progress':
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
-          In progress
+          Pågår
         </span>
       );
     case 'packed':
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
-          Packed ✓
+          Packad ✓
         </span>
       );
     case 'delivered':
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-          Delivered
+          Levererad
         </span>
       );
     default:
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-          Planning
+          Planering
         </span>
       );
   }
+};
+
+const getInBadge = (status: string) => {
+  if (status === 'returned') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-300">
+        Retur klar ✓
+      </span>
+    );
+  }
+  if (status === 'returning') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-800 border border-orange-300 animate-pulse">
+        Retur pågår
+      </span>
+    );
+  }
+  // delivered → return not started
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-700 border border-orange-200">
+      Att returnera
+    </span>
+  );
 };
 
 const formatDate = (dateString: string | null | undefined) => {
@@ -49,16 +85,42 @@ const formatDate = (dateString: string | null | undefined) => {
   }
 };
 
-export const PackingCard: React.FC<Props> = ({ packing, onSelect }) => {
-  const displayDate =
-    formatDate(packing.booking?.rigdaydate) || formatDate(packing.booking?.eventdate);
+export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }) => {
+  const isReturn = kind === 'in';
+
+  const displayDate = isReturn
+    ? formatDate(packing.booking?.rigdowndate) || formatDate(packing.booking?.eventdate)
+    : formatDate(packing.booking?.rigdaydate) || formatDate(packing.booking?.eventdate);
+
+  const Icon = isReturn ? PackageOpen : Package;
+  const flowLabel = isReturn ? 'IN · Retur' : 'UT · Pack';
+
+  const handleScan = () => onSelect(packing.id, 'verifying', kind);
+  const handleCheck = () => onSelect(packing.id, 'manual', kind);
 
   return (
-    <Card className="p-3 transition-all">
+    <Card
+      className={`p-3 transition-all ${
+        isReturn ? 'border-l-4 border-l-orange-400' : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-2 mb-2.5">
         <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span
+              className={`text-[9px] font-bold uppercase tracking-wider ${
+                isReturn ? 'text-orange-700' : 'text-primary'
+              }`}
+            >
+              {flowLabel}
+            </span>
+          </div>
           <div className="flex items-center gap-2 mb-1">
-            <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <Icon
+              className={`h-3.5 w-3.5 flex-shrink-0 ${
+                isReturn ? 'text-orange-600' : 'text-muted-foreground'
+              }`}
+            />
             <span className="font-medium text-sm truncate">{packing.name}</span>
           </div>
           {packing.booking?.client && (
@@ -68,7 +130,7 @@ export const PackingCard: React.FC<Props> = ({ packing, onSelect }) => {
           )}
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          {getStatusBadge(packing.status)}
+          {isReturn ? getInBadge(packing.status) : getOutBadge(packing.status)}
           {displayDate && (
             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
               <Calendar className="h-3 w-3" />
@@ -81,19 +143,20 @@ export const PackingCard: React.FC<Props> = ({ packing, onSelect }) => {
         <Button
           size="sm"
           className="flex-1 gap-1.5 h-9"
-          onClick={() => onSelect(packing.id, 'verifying')}
+          variant={isReturn ? 'secondary' : 'default'}
+          onClick={handleScan}
         >
-          <Camera className="h-3.5 w-3.5" />
-          <span className="text-xs">Scan</span>
+          {isReturn ? <Undo2 className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />}
+          <span className="text-xs">{isReturn ? 'Scanna in' : 'Scan'}</span>
         </Button>
         <Button
           size="sm"
           variant="outline"
           className="flex-1 gap-1.5 h-9"
-          onClick={() => onSelect(packing.id, 'manual')}
+          onClick={handleCheck}
         >
           <ClipboardCheck className="h-3.5 w-3.5" />
-          <span className="text-xs">Check off</span>
+          <span className="text-xs">{isReturn ? 'Checka in' : 'Check off'}</span>
         </Button>
       </div>
     </Card>
