@@ -9,6 +9,13 @@ import { StaffTimeReportsList } from '@/components/staff/StaffTimeReportsList';
 import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { format } from 'date-fns';
+import {
+  buildStaffDayJournal,
+  type RawTimeReport,
+  type RawLocationEntry,
+  type RawTravelLog,
+  type RawWorkday,
+} from '@/lib/staff/dayJournal';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
@@ -126,7 +133,7 @@ const StaffTimeReports: React.FC = () => {
         // must NOT bleed into today's view as 50h "still active" timers.
         supabase
           .from('workdays')
-          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes')
+          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note')
           .gte('started_at', dayStartIso)
           .lt('started_at', nextDayIso),
         // Latest GPS ping per staff (one row per staff_id by table design).
