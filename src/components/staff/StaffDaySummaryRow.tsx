@@ -25,6 +25,10 @@ interface Props {
   totalCols?: number;
 }
 
+const fmtDateLong = (iso: string) => {
+  try { return format(new Date(iso), 'EEEE d MMM', { locale: sv }); } catch { return iso; }
+};
+
 const fmt = (iso: string | null | undefined) => {
   if (!iso) return '—';
   try { return format(new Date(iso), 'HH:mm', { locale: sv }); } catch { return '—'; }
