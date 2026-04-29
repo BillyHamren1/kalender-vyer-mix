@@ -978,7 +978,7 @@ Deno.serve(async (req) => {
       }
 
       case 'sign_packing': {
-        const { packingId, signedBy } = params
+        const { packingId, signedBy, signedByStaffId } = params
 
         // STATUS FLOW: Signing = delivery confirmed → set to delivered
         // Only allow signing if status is 'packed' or 'in_progress'
@@ -995,7 +995,7 @@ Deno.serve(async (req) => {
 
         const { error } = await supabase
           .from('packing_projects')
-          .update({ signed_by: signedBy, signed_at: new Date().toISOString(), status: 'delivered' })
+          .update({ signed_by: signedBy, signed_by_staff_id: signedByStaffId || null, signed_at: new Date().toISOString(), status: 'delivered' })
           .eq('id', packingId)
           .eq('organization_id', ORG_ID)
 
