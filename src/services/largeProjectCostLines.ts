@@ -10,6 +10,7 @@ export interface CostLine {
   supplier: string | null;
   cost_date: string | null;
   amount: number;
+  budget_amount: number;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -32,6 +33,7 @@ export async function createCostLine(input: {
   supplier?: string | null;
   cost_date?: string | null;
   amount?: number;
+  budget_amount?: number;
   notes?: string | null;
 }): Promise<CostLine> {
   const { data, error } = await supabase
@@ -43,6 +45,7 @@ export async function createCostLine(input: {
       supplier: input.supplier ?? null,
       cost_date: input.cost_date ?? null,
       amount: input.amount ?? 0,
+      budget_amount: input.budget_amount ?? 0,
       notes: input.notes ?? null,
     } as any)
     .select()
