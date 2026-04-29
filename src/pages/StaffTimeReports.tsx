@@ -216,12 +216,31 @@ const StaffTimeReports: React.FC = () => {
         ...reports.map(r => r.booking_id).filter(Boolean),
         ...locationEntries.map(e => (e as any).booking_id).filter(Boolean),
       ])] as string[];
-      const bookingMap = new Map<string, { label: string; is_internal: boolean }>();
+      const bookingMap = new Map<string, { label: string; is_internal: boolean; location_id: string | null }>();
+      const warehouseBookingLocationIds: string[] = [];
       if (bookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
           .select('id, client, booking_number, is_internal, internal_type')
           .in('id', bookingIds);
+        // Look up the location for any internal warehouse booking via projects.
+        const warehouseBookingIds = (bookings || [])
+          .filter(b => b.is_internal && b.internal_type === 'warehouse')
+          .map(b => b.id);
+        const bookingLocationMap = new Map<string, string>();
+        if (warehouseBookingIds.length > 0) {
+          const { data: warehouseProjects } = await supabase
+            .from('projects')
+            .select('booking_id, location_id')
+            .in('booking_id', warehouseBookingIds)
+            .eq('is_internal', true);
+          (warehouseProjects || []).forEach(p => {
+            if (p.booking_id && p.location_id) {
+              bookingLocationMap.set(p.booking_id, p.location_id);
+              warehouseBookingLocationIds.push(p.location_id);
+            }
+          });
+        }
         (bookings || []).forEach(b => {
           let label: string;
           if (b.is_internal) {
@@ -231,14 +250,21 @@ const StaffTimeReports: React.FC = () => {
           } else {
             label = b.client;
           }
-          bookingMap.set(b.id, { label, is_internal: !!b.is_internal });
+          bookingMap.set(b.id, {
+            label,
+            is_internal: !!b.is_internal,
+            location_id: bookingLocationMap.get(b.id) || null,
+          });
         });
       }
 
-      // Fetch large project labels for LTE rows tied to a large project.
-      const largeProjectIds = [...new Set(
-        locationEntries.map(e => (e as any).large_project_id).filter(Boolean)
-      )] as string[];
+      // Fetch large project labels — include BOTH location_time_entries AND
+      // time_reports so a manually-created project tidrapport (e.g. Tiomila 2026)
+      // resolves to the project name instead of falling back to "Projekt".
+      const largeProjectIds = [...new Set([
+        ...locationEntries.map(e => (e as any).large_project_id).filter(Boolean),
+        ...reports.map(r => (r as any).large_project_id).filter(Boolean),
+      ])] as string[];
       const largeProjectMap = new Map<string, string>();
       if (largeProjectIds.length > 0) {
         const { data: lps } = await supabase
@@ -246,6 +272,17 @@ const StaffTimeReports: React.FC = () => {
           .select('id, name')
           .in('id', largeProjectIds);
         (lps || []).forEach(p => largeProjectMap.set(p.id, p.name || 'Stort projekt'));
+      }
+
+      // If the warehouse-booking lookup found new location IDs that weren't in
+      // the initial locationIds set, fetch their names too.
+      const missingLocationIds = warehouseBookingLocationIds.filter(id => !locNameMap.has(id));
+      if (missingLocationIds.length > 0) {
+        const { data: extraLocations } = await supabase
+          .from('organization_locations')
+          .select('id, name')
+          .in('id', missingLocationIds);
+        (extraLocations || []).forEach(l => locNameMap.set(l.id, l.name));
       }
 
       // Build per-staff aggregate
