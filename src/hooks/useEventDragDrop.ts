@@ -5,7 +5,7 @@ import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { moveLargeProjectDay, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
-import { resolveCalendarEventId, isSyntheticCalendarEventId } from '@/services/calendarEventResolver';
+import { resolveCalendarEventId } from '@/services/calendarEventResolver';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 // Serializable subset stored in dataTransfer
@@ -122,17 +122,11 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
         return;
       }
 
-      // ── Normal booking move (synthetic OR real calendar_events id):
-      // 1) Always update bookings.<phase>_*_time + .<phase>date — this is the
-      //    authoritative write that import-bookings reconciles from.
-      // 2) Try to resolve a real calendar_events row; if one exists, update it
-      //    in place. If none exists yet, skip silently — the reconciler will
-      //    materialize it on next sync.
-      //
-      // This was previously only done for events flagged isSyntheticFallback,
-      // which meant staff-calendar derived rows (id starts with `staff-`) hit
-      // updateCalendarEvent with an id that doesn't exist → 0 rows + opaque
-      // "Kunde inte flytta eventet" toast. That's fixed here.
+      // ── Normal booking move (date change).
+      // calendar_events is the single source of truth: every visible row has a
+      // real DB row (backfill + import-bookings expansion guarantee this). We
+      // resolve the real id, update calendar_events in place, and mirror the
+      // canonical date/time onto the bookings row.
       const phaseFields: Record<string, { date: string; start: string; end: string }> = {
         rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
         event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
@@ -145,7 +139,30 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
         return;
       }
 
-      // 1. Update booking row (authoritative)
+      const realEventId = await resolveCalendarEventId({
+        rawId: eventData.id,
+        bookingId: eventData.bookingId,
+        eventType: eventData.eventType,
+        sourceDate: currentDateStr,
+      });
+
+      if (!realEventId) {
+        // Should not happen post-backfill — surface clearly so we catch any miss.
+        toast.error('Kunde inte hitta kalenderhändelsen att flytta', {
+          description: `Bokning ${eventData.bookingId} (${eventData.eventType} ${currentDateStr}) saknar rad i calendar_events. Kör backfill.`,
+        });
+        return;
+      }
+
+      // 1. Update the calendar_events row in place (date + time on the row)
+      try {
+        await updateCalendarEvent(realEventId, { start: newStartISO, end: newEndISO });
+      } catch (err) {
+        console.error('[useEventDragDrop] calendar_events update failed', err);
+        throw err;
+      }
+
+      // 2. Mirror canonical date/time onto bookings row
       const { error: bkErr } = await supabase
         .from('bookings')
         .update({
@@ -157,35 +174,6 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
       if (bkErr) {
         console.error('[useEventDragDrop] bookings update failed', bkErr);
         throw new Error(`Kunde inte uppdatera bokningen: ${bkErr.message}`);
-      }
-
-      // 2. Try to update an existing calendar_events row in place
-      const realEventId = await resolveCalendarEventId({
-        rawId: eventData.id,
-        bookingId: eventData.bookingId,
-        eventType: eventData.eventType,
-        sourceDate: currentDateStr,
-      });
-
-      if (realEventId) {
-        try {
-          await updateCalendarEvent(realEventId, {
-            start: newStartISO,
-            end: newEndISO,
-          });
-        } catch (err) {
-          // Booking write already succeeded; calendar_event row will be
-          // reconciled on next import-bookings tick. Surface a warning, not
-          // a blocking error.
-          console.warn('[useEventDragDrop] calendar_events update failed (non-fatal)', err);
-        }
-      } else if (isSyntheticCalendarEventId(eventData.id)) {
-        // Expected: derived staff-calendar row with no underlying calendar_event yet.
-        console.log('[useEventDragDrop] no calendar_events row for', {
-          bookingId: eventData.bookingId,
-          eventType: eventData.eventType,
-          fromDate: currentDateStr,
-        }, '— relying on reconciler');
       }
 
       const targetDate = new Date(targetDateStr + 'T12:00:00Z');

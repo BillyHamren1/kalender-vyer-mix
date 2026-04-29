@@ -30,7 +30,11 @@ export interface ResolveInput {
   sourceDate?: string | null; // yyyy-MM-dd — the CURRENT date of the row before the move
 }
 
-export const isSyntheticCalendarEventId = (id: string): boolean => {
+/**
+ * @deprecated Synthetic ids should no longer exist post-backfill. Kept only
+ * as an internal helper for resolveCalendarEventId. Do NOT branch UI on it.
+ */
+const looksSynthetic = (id: string): boolean => {
   if (!id) return true;
   if (SYNTHETIC_PREFIXES.some((p) => id.startsWith(p))) return true;
   if (!UUID_RE.test(id)) return true;
@@ -46,7 +50,7 @@ export const resolveCalendarEventId = async ({
   eventType,
   sourceDate,
 }: ResolveInput): Promise<string | null> => {
-  if (rawId && !isSyntheticCalendarEventId(rawId)) {
+  if (rawId && !looksSynthetic(rawId)) {
     return rawId;
   }
 
