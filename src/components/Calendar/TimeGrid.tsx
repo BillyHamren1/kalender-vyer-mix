@@ -69,20 +69,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onTitleClick,
   setEvents,
 }) => {
-  const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
-  const staffContainerRef = useRef<HTMLDivElement>(null);
+  const [openPickerTeamId, setOpenPickerTeamId] = useState<string | null>(null);
   const { handleEventClick } = useEventNavigation();
-
-  useEffect(() => {
-    if (!selectingForTeam) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (staffContainerRef.current && !staffContainerRef.current.contains(e.target as Node)) {
-        setSelectingForTeam(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [selectingForTeam]);
 
   const timeSlots = generateTimeSlots();
   const totalTeamColumnsWidth = resources.length * TEAM_COLUMN_WIDTH;
@@ -105,17 +93,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     return Array.isArray(staff) ? staff : [];
   };
 
-  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string) => {
-    setSelectingForTeam(prev => {
-      const isOpening = prev?.id !== resourceId;
-      if (isOpening && !staffExpanded && onToggleStaffExpanded) onToggleStaffExpanded();
-      return isOpening ? { id: resourceId, title: resourceTitle } : null;
-    });
-  };
-
-  const handlePickStaff = async (staffId: string) => {
-    if (!selectingForTeam || !onStaffDrop) return;
-    await onStaffDrop(staffId, selectingForTeam.id, day);
+  const handlePickStaffForTeam = async (teamId: string, staffId: string) => {
+    if (!onStaffDrop) return;
+    await onStaffDrop(staffId, teamId, day);
   };
 
   const handleStaffRemoval = async (staffId: string) => {
@@ -129,16 +109,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <>
-      <TimeGridAvailableStaff
-        containerRef={staffContainerRef}
-        staff={availableStaff}
-        selectingForTeam={selectingForTeam}
-        expanded={staffExpanded}
-        onToggleExpanded={onToggleStaffExpanded}
-        onPickStaff={handlePickStaff}
-        onCancelSelection={() => setSelectingForTeam(null)}
-      />
-
       <div className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
         {/* Fixed header */}
         <div
