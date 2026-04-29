@@ -5,7 +5,7 @@ import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouse
 import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-import { useWarehouseStaffActivations } from '@/hooks/useWarehouseStaffActivations';
+import { useWarehouseStaffActivations, useWarehouseAvailableStaff } from '@/hooks/useWarehouseStaffActivations';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { distributeWarehouseEvents } from '@/utils/warehouseTeamAvailability';
 
