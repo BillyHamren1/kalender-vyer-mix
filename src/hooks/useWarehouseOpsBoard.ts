@@ -82,15 +82,16 @@ export function useWarehouseOpsBoard() {
       const ids = list.map((p) => p.id);
       const bookingIds = [...new Set(list.map((p) => p.booking_id).filter(Boolean))] as string[];
 
-      // 2. Items (for progress calc)
-      const { data: items, error: itemsErr } = await supabase
+      // 2. Items (for progress calc) — include booking_products.parent_product_id via relation
+      const itemsRes = await supabase
         .from("packing_list_items")
         .select(
-          "id,packing_project_id,excluded,quantity_to_pack,quantity_packed,booking_product_id,parent_product_id"
+          "id,packing_id,excluded,quantity_to_pack,quantity_packed,booking_product_id,booking_products(id,parent_product_id)"
         )
-        .in("packing_project_id", ids)
+        .in("packing_id", ids)
         .limit(20000);
-      if (itemsErr) throw itemsErr;
+      if (itemsRes.error) throw itemsRes.error;
+      const items = (itemsRes.data || []) as any[];
 
       // 3. Recent allocations (workers who scanned)
       const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
