@@ -86,7 +86,7 @@ const ANSWER_SOURCE_LABEL: Record<string, string> = {
  *   4. Notiser & svar   — vilka frågor som ställts, när, och vad personen svarade
  */
 export const StaffDaySummaryRow: React.FC<Props> = ({
-  staffId, date,
+  staffId, staffName, date,
   leadingCells = 1, totalCols = 6,
 }) => {
   const { data: reality, isLoading: realityLoading } = useStaffDayReality(staffId, date);
@@ -109,7 +109,7 @@ export const StaffDaySummaryRow: React.FC<Props> = ({
         <td colSpan={contentCols} className="py-2 px-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Bygger händelselogg…
+            Bygger händelselogg för {staffName}…
           </div>
         </td>
       </tr>
@@ -124,6 +124,17 @@ export const StaffDaySummaryRow: React.FC<Props> = ({
         <td key={`pad-${i}`} className="py-2 px-2"></td>
       ))}
       <td colSpan={contentCols} className="py-3 px-2">
+        {/* Owner header — så det alltid är tydligt vems logg detta är */}
+        <div className="mb-2 flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary px-2.5 py-1 text-xs font-semibold">
+            <Activity className="h-3 w-3" />
+            {staffName}
+          </span>
+          <span className="text-[11px] text-muted-foreground capitalize">
+            {fmtDateLong(date)}
+          </span>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* LEFT column: Timeline */}
           <EventTimeline events={log.events} />
