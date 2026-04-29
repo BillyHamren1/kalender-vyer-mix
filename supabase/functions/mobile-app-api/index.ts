@@ -9522,3 +9522,153 @@ async function handleAdminUnapproveDay(
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
+
+// ============================================================================
+// GET_STAFF_DAY_REALITY — admin-only fact engine for one staff/day.
+// Wraps _shared/dayReality.ts. See PROMPT 1 spec for output shape.
+// ============================================================================
+import { buildDayReality, type RealitySessionInput, type KnownSite } from '../_shared/dayReality.ts'
+
+async function handleGetStaffDayReality(supabase: any, callerStaffId: string, data: any, organizationId: string) {
+  const { staff_id, date } = data || {}
+  if (!staff_id || !date) {
+    return new Response(JSON.stringify({ error: 'staff_id and date are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // Admin gate (mirrors handleGetMovementForDay): self always; others require admin.
+  if (staff_id !== callerStaffId) {
+    const { data: callerStaff } = await supabase.from('staff_members').select('user_id').eq('id', callerStaffId).single()
+    let isAdmin = false
+    if (callerStaff?.user_id) {
+      const { data: roleRow } = await supabase.from('user_roles').select('role')
+        .eq('user_id', callerStaff.user_id).in('role', ['admin', 'projekt']).maybeSingle()
+      isAdmin = !!roleRow
+    }
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+  }
+
+  const fromIso = `${date}T00:00:00.000Z`
+  const toIso = `${date}T23:59:59.999Z`
+
+  // Fetch in parallel.
+  const [pingsRes, reportsRes, ltesRes, workdaysRes, locationsRes] = await Promise.all([
+    supabase.from('staff_location_history').select('lat, lng, accuracy, speed, recorded_at')
+      .eq('staff_id', staff_id).eq('organization_id', organizationId)
+      .gte('recorded_at', fromIso).lte('recorded_at', toIso).order('recorded_at', { ascending: true }).limit(5000),
+    supabase.from('time_reports')
+      .select('id, booking_id, large_project_id, location_id, start_time, end_time, report_date')
+      .eq('staff_id', staff_id).eq('organization_id', organizationId).eq('report_date', date).eq('is_subdivision', false),
+    supabase.from('location_time_entries')
+      .select('id, booking_id, large_project_id, location_id, entered_at, exited_at')
+      .eq('staff_id', staff_id).eq('organization_id', organizationId).eq('entry_date', date),
+    supabase.from('workdays').select('id, started_at, ended_at')
+      .eq('staff_id', staff_id).eq('organization_id', organizationId)
+      .gte('started_at', fromIso).lte('started_at', toIso).order('started_at', { ascending: true }).limit(1).maybeSingle(),
+    supabase.from('organization_locations').select('id, name, latitude, longitude, radius_meters')
+      .eq('organization_id', organizationId).eq('is_active', true),
+  ])
+
+  const pings = (pingsRes.data || []).map((p: any) => ({
+    recorded_at: p.recorded_at, lat: Number(p.lat), lng: Number(p.lng),
+    accuracy: p.accuracy != null ? Number(p.accuracy) : null,
+    speed: p.speed != null ? Number(p.speed) : null,
+  }))
+
+  // Resolve site coords for each session via booking / large_project / location.
+  const bookingIds = new Set<string>()
+  const largeIds = new Set<string>()
+  const locIds = new Set<string>()
+  const collect = (r: any) => {
+    if (r.booking_id) bookingIds.add(String(r.booking_id))
+    if (r.large_project_id) largeIds.add(String(r.large_project_id))
+    if (r.location_id) locIds.add(String(r.location_id))
+  }
+  ;(reportsRes.data || []).forEach(collect)
+  ;(ltesRes.data || []).forEach(collect)
+
+  const [bookingsRes, largeRes, locRes] = await Promise.all([
+    bookingIds.size ? supabase.from('bookings').select('id, client, delivery_latitude, delivery_longitude').in('id', [...bookingIds]) : { data: [] },
+    largeIds.size ? supabase.from('large_projects').select('id, name, address_latitude, address_longitude, address_radius_meters').in('id', [...largeIds]) : { data: [] },
+    locIds.size ? supabase.from('organization_locations').select('id, name, latitude, longitude, radius_meters').in('id', [...locIds]) : { data: [] },
+  ])
+
+  const bookingMap = new Map((bookingsRes.data || []).map((b: any) => [String(b.id), b]))
+  const largeMap = new Map((largeRes.data || []).map((l: any) => [String(l.id), l]))
+  const locMap = new Map((locRes.data || []).map((l: any) => [String(l.id), l]))
+
+  const composeIso = (t: string | null): string | null => {
+    if (!t) return null
+    return new Date(`${date}T${t}`).toISOString()
+  }
+
+  const sessions: RealitySessionInput[] = []
+
+  for (const r of reportsRes.data || []) {
+    let site: any = null; let label = 'Tidrapport'; let targetType: any = 'unknown'; let targetId: string | null = null
+    if (r.large_project_id && largeMap.has(String(r.large_project_id))) {
+      const lp: any = largeMap.get(String(r.large_project_id))
+      label = lp.name || 'Stort projekt'; targetType = 'large_project'; targetId = String(r.large_project_id)
+      if (lp.address_latitude != null && lp.address_longitude != null) site = { lat: Number(lp.address_latitude), lng: Number(lp.address_longitude), radiusMeters: lp.address_radius_meters ?? null }
+    } else if (r.booking_id && bookingMap.has(String(r.booking_id))) {
+      const b: any = bookingMap.get(String(r.booking_id))
+      label = b.client || `Booking ${r.booking_id}`; targetType = 'booking'; targetId = String(r.booking_id)
+      if (b.delivery_latitude != null && b.delivery_longitude != null) site = { lat: Number(b.delivery_latitude), lng: Number(b.delivery_longitude), radiusMeters: null }
+    } else if (r.location_id && locMap.has(String(r.location_id))) {
+      const l: any = locMap.get(String(r.location_id))
+      label = l.name || 'Plats'; targetType = 'location'; targetId = String(r.location_id)
+      if (l.latitude != null && l.longitude != null) site = { lat: Number(l.latitude), lng: Number(l.longitude), radiusMeters: l.radius_meters ?? null }
+    }
+    const start = composeIso(r.start_time); if (!start) continue
+    sessions.push({ id: String(r.id), kind: 'time_report', start, end: composeIso(r.end_time), label, targetType, targetId, site })
+  }
+
+  for (const e of ltesRes.data || []) {
+    let site: any = null; let label = 'Plats'; let targetType: any = 'unknown'; let targetId: string | null = null
+    if (e.location_id && locMap.has(String(e.location_id))) {
+      const l: any = locMap.get(String(e.location_id))
+      label = l.name || 'Plats'; targetType = 'location'; targetId = String(e.location_id)
+      if (l.latitude != null && l.longitude != null) site = { lat: Number(l.latitude), lng: Number(l.longitude), radiusMeters: l.radius_meters ?? null }
+    } else if (e.booking_id && bookingMap.has(String(e.booking_id))) {
+      const b: any = bookingMap.get(String(e.booking_id))
+      label = b.client || 'Booking'; targetType = 'booking'; targetId = String(e.booking_id)
+      if (b.delivery_latitude != null && b.delivery_longitude != null) site = { lat: Number(b.delivery_latitude), lng: Number(b.delivery_longitude), radiusMeters: null }
+    } else if (e.large_project_id && largeMap.has(String(e.large_project_id))) {
+      const lp: any = largeMap.get(String(e.large_project_id))
+      label = lp.name || 'Projekt'; targetType = 'large_project'; targetId = String(e.large_project_id)
+      if (lp.address_latitude != null && lp.address_longitude != null) site = { lat: Number(lp.address_latitude), lng: Number(lp.address_longitude), radiusMeters: lp.address_radius_meters ?? null }
+    }
+    if (!e.entered_at) continue
+    sessions.push({ id: String(e.id), kind: 'location_entry', start: e.entered_at, end: e.exited_at ?? null, label, targetType, targetId, site })
+  }
+
+  // Build a knownSites pool for wrong_reported_site detection.
+  const knownSites: KnownSite[] = []
+  for (const l of (locationsRes.data || [])) {
+    if (l.latitude != null && l.longitude != null) {
+      knownSites.push({ id: String(l.id), type: 'location', label: l.name || 'Plats', lat: Number(l.latitude), lng: Number(l.longitude), radiusMeters: l.radius_meters ?? null })
+    }
+  }
+  for (const b of bookingMap.values() as any) {
+    if (b.delivery_latitude != null && b.delivery_longitude != null) {
+      knownSites.push({ id: String(b.id), type: 'booking', label: b.client || 'Booking', lat: Number(b.delivery_latitude), lng: Number(b.delivery_longitude) })
+    }
+  }
+  for (const lp of largeMap.values() as any) {
+    if (lp.address_latitude != null && lp.address_longitude != null) {
+      knownSites.push({ id: String(lp.id), type: 'large_project', label: lp.name || 'Projekt', lat: Number(lp.address_latitude), lng: Number(lp.address_longitude), radiusMeters: lp.address_radius_meters ?? null })
+    }
+  }
+
+  const reality = buildDayReality({
+    staffId: staff_id, date, pings, sessions,
+    workday: workdaysRes.data ? { id: workdaysRes.data.id, started_at: workdaysRes.data.started_at, ended_at: workdaysRes.data.ended_at } : null,
+    knownSites,
+  })
+
+  return new Response(JSON.stringify(reality),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
