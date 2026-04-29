@@ -1,58 +1,119 @@
-## Mål
 
-I planeringskalendern (`/calendar`):
-1. Döp om kolumnen **"Transporter"** till **"Lager"**.
-2. Visa det interna Lagerprojektet automatiskt i den kolumnen, **kl 07:00–16:00 varje dag** (alla dagar i synlig vecka/dag).
-3. All personal som dras in i Lager-kolumnen ska **automatiskt synas som tillgänglig i lagerkalendern** (`/warehouse/calendar`) samma datum — utan att man manuellt måste aktivera dem via `WarehouseStaffActivationCard`.
+## Problemet i klartext
 
-## Ändringar
+Personalkalendern har **5 parallella vägar** för samma operation (tilldela/ta bort personal från team) — och **3 olika hooks** med funktionen `handleStaffDrop`. Olika delar av UI:t använder olika vägar, så de skriver inkonsekvent, har olika optimistic state, olika cache-invalidering, och olika regler för "ta bort hela dagen vs en team-rad". Det är därför jobb "försvinner" eller "flyttas" — beroende på var du klickar går skrivningen via olika logik.
 
-### 1. Byt namn på kolumnen
+### Dagens röra (mätt nu)
 
-**`src/hooks/useTeamResources.tsx`** (rad ~170)
-- `transportResource.title`: `'Transporter'` → `'Lager'`
-- Behåll `id: 'transport'` (bryter inget — staff_assignments, transport_assignments osv ligger kvar mot detta id).
+**Hooks som gör samma sak:**
+- `useUnifiedStaffOperations.handleStaffDrop` (302 rader, har optimistic state)
+- `useReliableStaffOperations.handleStaffDrop` (239 rader)
+- `useDateAwareStaffOperations.handleStaffDrop` (47 rader)
+- `useStaffOperations.handleStaffDrop`
+- `usePlanningDashboard.handleStaffDrop` + `handleStaffDropToBooking`
+- `useStaffBookingConnection` (egen variant via unifiedStaffService)
 
-Ev. visningsetiketter (`useStaffWarehouseSchedule.ts` rad 42, `WarehouseAssignmentTooltip.tsx`, `WarehouseStaffActivationCard.tsx` rad 25) behåller "Transport"-mappningen — de används endast i lagerkalenderns interna översikt och berör inte planeringskalenderns kolumnnamn.
+**Services som gör samma sak:**
+- `services/staffService.ts` → `assignStaffToTeam` / `removeStaffAssignment` (366 rader)
+- `services/unifiedStaffService.ts` → samma funktioner (248 rader)
+- `services/enhancedStaffService.ts` → wrappar unifiedStaffService (258 rader)
+- `lib/staffCalendar/staffAssignmentService.ts` (531 rader)
+- `lib/staffCalendar/unifiedStaffService.ts`
+- `lib/staffCalendar/staffService.ts`
+- `lib/staffCalendar/enhancedStaffService.ts`
 
-### 2. Lagerprojekt 07–16 i Lager-kolumnen
+**För stora filer (>200 rader, mot vår regel):**
+- `TimeGrid.tsx` — **722 rader**
+- `staffAssignmentService.ts` — **531 rader**
+- `MoveEventDateDialog.tsx` — 510 rader
+- `staffCalendarService.ts` — 490 rader
+- `staffService.ts` — 366 rader
+- `QuickTimeEditPopover.tsx` — 345 rader
+- `IndividualStaffCalendar.tsx` — 328 rader
+- `StaffBookingsList.tsx` — 310 rader
+- `useUnifiedStaffOperations.tsx` — 302 rader
+- `StaffSelectionDialog.tsx` — 301 rader
 
-Generera **virtuella heldagsevent** (07:00–16:00) för det interna Lager-projektet (`projects.is_internal = true`) för varje dag i synligt intervall, med `resourceId: 'transport'`.
+## Lösning — i tre etapper
 
-Implementation:
-- Ny hook `src/hooks/useInternalLagerCalendarEvents.ts`:
-  - Hämtar org-ets interna projekt (`is_internal=true`) via befintlig logik (samma query som `warehouseProjectService.ts` rad 619–626).
-  - Returnerar `CalendarEvent[]` — ett event per dag i `[start, end]`, kl 07–16, `resourceId: 'transport'`, `eventType: 'internal_task'`, titel = projektets namn ("Lager").
-  - Read-only / `editable: false` så det inte går att flytta/ändra av misstag.
-- I `src/pages/CustomCalendarPage.tsx`: anropa hooken med synligt datumintervall och merga in i `combinedEvents` tillsammans med befintliga transport-event.
+### Etapp 1: ETT canonical write-path (fixar "jobb flyttas/försvinner")
 
-### 3. Auto-tillgänglighet i lagerkalendern
+Gör `useUnifiedStaffOperations` till **enda** källan för assign/remove och `unifiedStaffService` till **enda** servicelagret. Allt annat blir tunna re-exports som loggar deprecation och delegerar.
 
-Idag filtrerar `WarehouseCalendarPage` på `useWarehouseStaffActivations().activeStaffIds` (kräver explicit "Aktivera personal"). Vi utökar källan så att personal som har en `staff_assignments`-rad med `team_id = 'transport'` på ett visst datum **räknas som tillgänglig den dagen** — automatiskt, utan permanent aktivering.
+```text
+UI (TimeGrid, SimpleStaffCurtain, StaffAssignmentRow, dashboards)
+        │
+        ▼
+useUnifiedStaffOperations  ◄── enda hook
+        │
+        ▼
+unifiedStaffService        ◄── enda service (edge: staff-management)
+        │
+        ▼
+staff_assignments (DB)     ◄── unique (staff,team,date)
+        │
+        ▼
+realtime invalidation → React Query
+```
 
-Implementation:
-- I `useWarehouseStaffActivations.ts`:
-  - Lägg till en datum-medveten variant: `getActiveStaffIdsForDate(date)` / `getActiveStaffIdsForRange(start, end)`.
-  - Returnerar union av:
-    1. Befintliga aktiveringar (permanent + temporary inom datumet).
-    2. `staff_assignments` med `team_id = 'transport'` för aktuellt datum (dvs personal som planerats i Lager-kolumnen i planeringskalendern).
-  - Realtime-subscribe på `staff_assignments` så listan uppdateras direkt när någon dras in i Lager-kolumnen.
-- I `src/pages/WarehouseCalendarPage.tsx` (rad 336–339):
-  - Använd den datum-medvetna varianten baserat på `currentWeekStart` + `viewMode`.
-  - Skicka det utökade `activeStaffIds` till `useUnifiedStaffOperations` så att personalen syns i lagerkalenderns staff-curtain/timeline samma dag.
-- `useWarehouseStaffTimeline` / `useWarehouseStaffScheduleOverview` läser redan från `staff_assignments` med `team_id LIKE 'lager-%'` — utöka dem att också inkludera `team_id = 'transport'` så Lager-passet visas i tidslinjen och inte bara som "tillgänglig".
+Konkret:
+- `useReliableStaffOperations`, `useDateAwareStaffOperations`, `useStaffOperations` → ersätts av re-exports från `useUnifiedStaffOperations` (samma signatur, ingen call-site behöver ändras initialt).
+- `services/staffService.ts` `assignStaffToTeam`/`removeStaffAssignment` → re-export från `unifiedStaffService`.
+- `services/enhancedStaffService.ts` → samma sak, eller raderas där det går.
+- `lib/staffCalendar/*` dubbletter → konvergerar till `services/unifiedStaffService.ts`.
+- En enda regel för remove: `(staffId, date, teamId?)` — `teamId` satt = ta bort den raden, undefined = ta bort alla för dagen. Inga andra regler någonstans.
+- En enda optimistic-update strategi (den i `useUnifiedStaffOperations`). Removas från `useLocalStaffState` och dashboard-hooken.
 
-## Berörda filer (sammanfattning)
+### Etapp 2: Splittra TimeGrid och staffAssignmentService
 
-- `src/hooks/useTeamResources.tsx` — rename Transporter → Lager
-- `src/hooks/useInternalLagerCalendarEvents.ts` — **ny**, virtuella 07–16 events
-- `src/pages/CustomCalendarPage.tsx` — merga in interna lagerprojekt-events
-- `src/hooks/useWarehouseStaffActivations.ts` — datum-medveten aktiv-lista + realtime
-- `src/pages/WarehouseCalendarPage.tsx` — använd datum-medveten variant
-- `src/hooks/useWarehouseStaffTimeline.ts`, `src/hooks/useWarehouseStaffScheduleOverview.ts` — inkludera `team_id='transport'` i tidslinjen
+`TimeGrid.tsx` (722 rader) splittas:
+- `TimeGrid.tsx` — bara grid + layout (~150 rader)
+- `TimeGridDnD.tsx` — drag/drop-logik
+- `TimeGridRow.tsx` — en rad (team)
+- `TimeGridCell.tsx` — en cell (dag)
+- `useTimeGridStaff.ts` — hook som filtrerar ut available + assigned
 
-## Vad som INTE ändras
+`staffAssignmentService.ts` (531 rader) splittas:
+- `assignmentQueries.ts` — read
+- `assignmentMutations.ts` — write
+- `assignmentDerivations.ts` — sammansättning av status/availability
+- `assignmentRealtime.ts` — subscription-hjälpare
 
-- Kolumn-id:t förblir `'transport'` — befintliga transport_assignments, staff_assignments och colorscheme bryts inte.
-- Lagerkalenderns egna kolumner (`lager-1`..`lager-N`) påverkas inte.
-- Ingen schemamigration krävs — vi återanvänder `staff_assignments` och `projects.is_internal`.
+`MoveEventDateDialog.tsx`, `staffCalendarService.ts`, `QuickTimeEditPopover.tsx`, `IndividualStaffCalendar.tsx`, `StaffBookingsList.tsx`, `StaffSelectionDialog.tsx` splittas i sub-komponenter/hooks där det är naturligt — utan att skapa mikrofiler.
+
+### Etapp 3: Kontraktstest som låser regeln
+
+Lägg `src/test/staffCalendar.contract.test.ts`:
+- Endast `useUnifiedStaffOperations` får anropa `unifiedStaffService.assignStaffToTeam/removeStaffAssignment` direkt (regex-grep i src).
+- Endast `unifiedStaffService` får göra `.from('staff_assignments')` mutations.
+- Inga nya filer i `src/components/Calendar/` eller `src/hooks/` över 200 rader, services över 250.
+
+Säkerhetsnät så att vi inte halkar tillbaka.
+
+## Vad jag INTE rör
+
+- Datamodellen (`staff_assignments`-tabellen, RLS, unique index — redan korrekt enligt memory `multi-team-staff-assignment-v1`).
+- Edge function `staff-management`.
+- `deriveStaffEvents.ts` (391 rader) — central, men välstrukturerad och täckt av tester. Lämnas.
+- Bookingsync/import-loopen (separat ärende vi redan har).
+
+## Förväntad effekt
+
+- Inga fler "jobb flyttar sig" — bara en skrivare betyder bara en sanning.
+- Filer ≤ memoriregeln (~200/250 rader).
+- Lättare att felsöka: en stack trace pekar alltid till samma fil.
+- Kontraktstest hindrar ny dubblering.
+
+## Risker
+
+- Många call-sites pekar på de gamla hookarna. Re-exports gör att vi kan migrera utan big-bang, men jag måste verifiera att signaturerna är 1:1. Det gör jag innan jag river något.
+- Optimistic state-skillnader kan ge en kort period där en knapp beter sig nytt. Jag verifierar drag-and-drop i TimeGrid + SimpleStaffCurtain + dashboard manuellt efter etapp 1.
+
+## Ordning
+
+1. Etapp 1 (skrivvägs-konsolidering) — säkraste vinsten, fixar buggen.
+2. Verifiera i preview att ingen flow är trasig.
+3. Etapp 2 (splittring).
+4. Etapp 3 (kontraktstest).
+
+Säg till om du vill att jag kör hela paketet eller bara Etapp 1 först.
