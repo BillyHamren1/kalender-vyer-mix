@@ -11,6 +11,8 @@ import type { DayTimelineEvent } from "@/hooks/admin/useDayTimeline";
 
 interface Props {
   event: DayTimelineEvent;
+  selected?: boolean;
+  onSelect?: (eventId: string) => void;
 }
 
 type Tone = "primary" | "muted" | "destructive";
@@ -44,7 +46,7 @@ function toneClasses(tone: Tone) {
   return { dot: "bg-muted text-muted-foreground ring-border", text: "text-muted-foreground" };
 }
 
-export function DayTimelineEventRow({ event }: Props) {
+export function DayTimelineEventRow({ event, selected, onSelect }: Props) {
   const [open, setOpen] = useState(false);
   const m = metaFor(event.event_type);
   const tones = toneClasses(m.tone);
@@ -72,12 +74,17 @@ export function DayTimelineEventRow({ event }: Props) {
 
       <button
         type="button"
-        onClick={() => expandable && setOpen((o) => !o)}
+        onClick={() => {
+          onSelect?.(event.id);
+          if (expandable) setOpen((o) => !o);
+        }}
         className={cn(
           "w-full text-left rounded-md px-2 py-1.5 -ml-2 hover:bg-accent/40 transition-colors",
           expandable ? "cursor-pointer" : "cursor-default",
+          selected && "bg-accent ring-1 ring-primary/40",
         )}
         aria-expanded={open}
+        aria-selected={selected}
       >
         <div className="flex items-start gap-2 flex-wrap">
           <span className="tabular-nums text-xs text-muted-foreground w-10 shrink-0 mt-0.5">{time}</span>
