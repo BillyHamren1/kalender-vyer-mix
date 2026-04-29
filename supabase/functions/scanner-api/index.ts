@@ -824,7 +824,7 @@ Deno.serve(async (req) => {
         // New allocation-based model: a single item can be split across multiple parcels.
         // Inserts an allocation row of `quantity` (default 1). Caller may pass quantity to allocate
         // multiple units in one call. Pass `parcelId: null` + `clearAllocations: true` to clear.
-        const { itemId, parcelId, quantity, scannedBy, clearAllocations } = params
+        const { itemId, parcelId, quantity, scannedBy, scannedByStaffId, clearAllocations } = params
 
         if (clearAllocations) {
           const { error } = await supabase
