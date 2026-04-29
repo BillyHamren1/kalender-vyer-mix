@@ -75,6 +75,18 @@ const WarehouseProjectDetail = () => {
     }
   };
 
+  const handleStatusChange = async (status: WarehouseProjectStatus) => {
+    if (!warehouseProjectId) return;
+    try {
+      await updateWarehouseProject(warehouseProjectId, { status });
+      await queryClient.invalidateQueries({ queryKey: ['warehouse-project', warehouseProjectId] });
+      toast.success('Status uppdaterad');
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte uppdatera status');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
