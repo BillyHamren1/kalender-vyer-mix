@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useEffect } from 'react';
+import { assignStaffToTeamCore, removeStaffAssignmentCore } from '@/services/staffAssignmentCore';
 
 export interface StaffAssignment {
   staffId: string;
@@ -260,20 +261,10 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
 
     try {
       if (resourceId) {
-        const { error } = await supabase
-          .from('staff_assignments')
-          .upsert({ staff_id: staffId, team_id: resourceId, assignment_date: effectiveDateStr }, { onConflict: 'staff_id,team_id,assignment_date' });
-        if (error) throw error;
+        await assignStaffToTeamCore(staffId, resourceId, effectiveDate);
         toast.success(`Personal tilldelad`);
       } else {
-        let q = supabase
-          .from('staff_assignments')
-          .delete()
-          .eq('staff_id', staffId)
-          .eq('assignment_date', effectiveDateStr);
-        if (fromTeamId) q = q.eq('team_id', fromTeamId);
-        const { error } = await q;
-        if (error) throw error;
+        await removeStaffAssignmentCore(staffId, effectiveDate, fromTeamId);
         toast.success(`Tilldelning borttagen`);
       }
     } catch (error) {

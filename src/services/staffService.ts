@@ -240,84 +240,33 @@ export const fetchStaffAssignments = async (date: Date, teamId?: string): Promis
   }
 };
 
-// Assign staff to a team for a specific date
-export const assignStaffToTeam = async (staffId: string, teamId: string, date: Date): Promise<void> => {
-  try {
-    const dateStr = date.toISOString().split('T')[0];
-    console.log(`Assigning staff ${staffId} to team ${teamId} for date ${dateStr}`);
-
-    // Check staff availability first
-    const { isStaffAvailableOnDate } = await import('@/services/staffAvailabilityService');
-    const isAvailable = await isStaffAvailableOnDate(staffId, date);
-    
-    if (!isAvailable) {
-      throw new Error('Staff member is not available on this date (blocked or unavailable period)');
-    }
-
-    // Multi-team allowed: upsert on (staff_id, team_id, assignment_date)
-    // so the staff member can belong to several teams the same day, but
-    // never the same team twice.
-    const { data, error } = await supabase
-      .from('staff_assignments')
-      .upsert({
-        staff_id: staffId,
-        team_id: teamId,
-        assignment_date: dateStr
-      }, {
-        onConflict: 'staff_id,team_id,assignment_date'
-      });
-
-    if (error) {
-      console.error('Error assigning staff to team:', error);
-      throw error;
-    }
-
-    console.log('Staff assigned successfully:', data);
-  } catch (error) {
-    console.error('Error in assignStaffToTeam:', error);
-    throw error;
+// Assign staff to a team for a specific date.
+// Delegates to the canonical core writer (staffAssignmentCore).
+export const assignStaffToTeam = async (
+  staffId: string,
+  teamId: string,
+  date: Date,
+): Promise<void> => {
+  // Availability gate — blocked/unavailable staff cannot be assigned.
+  const { isStaffAvailableOnDate } = await import('@/services/staffAvailabilityService');
+  const isAvailable = await isStaffAvailableOnDate(staffId, date);
+  if (!isAvailable) {
+    throw new Error('Staff member is not available on this date (blocked or unavailable period)');
   }
+  const { assignStaffToTeamCore } = await import('@/services/staffAssignmentCore');
+  await assignStaffToTeamCore(staffId, teamId, date);
 };
 
-// Remove staff assignment for a specific date.
-// If teamId is provided, only that team's assignment row is removed
-// (so other team memberships for the same day are preserved).
-// If teamId is omitted, all team assignments for that date are removed
-// (legacy behaviour, used when fully unassigning a staff member).
+// Remove staff assignment. If teamId is provided, only that team-row is
+// removed; otherwise all rows for the date are removed.
+// Delegates to the canonical core writer (staffAssignmentCore).
 export const removeStaffAssignment = async (
   staffId: string,
   date: Date,
-  teamId?: string
+  teamId?: string,
 ): Promise<void> => {
-  try {
-    const dateStr = date.toISOString().split('T')[0];
-    console.log(
-      `Removing assignment for staff ${staffId} on date ${dateStr}` +
-        (teamId ? ` (team ${teamId})` : ' (all teams)')
-    );
-
-    let query = supabase
-      .from('staff_assignments')
-      .delete()
-      .eq('staff_id', staffId)
-      .eq('assignment_date', dateStr);
-
-    if (teamId) {
-      query = query.eq('team_id', teamId);
-    }
-
-    const { error } = await query;
-
-    if (error) {
-      console.error('Error removing staff assignment:', error);
-      throw error;
-    }
-
-    console.log('Staff assignment removed successfully');
-  } catch (error) {
-    console.error('Error in removeStaffAssignment:', error);
-    throw error;
-  }
+  const { removeStaffAssignmentCore } = await import('@/services/staffAssignmentCore');
+  await removeStaffAssignmentCore(staffId, date, teamId);
 };
 
 // Get all active staff for a date, decorated with which teams they already
