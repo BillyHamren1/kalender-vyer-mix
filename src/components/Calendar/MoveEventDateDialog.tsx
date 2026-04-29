@@ -225,17 +225,10 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
             traceError('updateCalendarEvent FAILED', err);
             throw new Error(`Steg "Uppdatera kalenderhändelse" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
           }
-        } else if (isSyntheticCalendarEventId(event.id)) {
-          // Expected for staff-calendar derived rows — booking write below is
-          // the authoritative source; reconciler materializes the calendar
-          // event on next sync.
-          trace('NORMAL branch — no calendar_events row, booking-only update', {
-            bookingId: event.bookingId,
-            phase: event.eventType,
-            fromDate: currentDateStr,
-          });
         } else {
-          throw new Error(`Hittade ingen kalenderhändelse för bokning ${event.bookingId} (${event.eventType} ${currentDateStr}).`);
+          // Post-backfill: every visible row has a real calendar_events row.
+          // Missing row = real bug worth surfacing instead of silently hiding.
+          throw new Error(`Hittade ingen kalenderhändelse för bokning ${event.bookingId} (${event.eventType} ${currentDateStr}). Kör backfill.`);
         }
 
         // Mirror date/time onto the booking row for staff event types only.
