@@ -152,7 +152,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
         // skulle vara igång (då skulle requestStart returnera 'duplicate').
         const wd = await ensureActive();
         if (!wd) {
-          toast.error('Kunde inte starta arbetsdagen. Försök igen.');
+          toast.error('Kunde inte starta arbetspasset. Försök igen.');
           return;
         }
         const target = match.large_project_id && match.large_project_name
@@ -161,7 +161,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
         const label = match.large_project_name || match.client;
         const result = requestStart(target, { label });
         if (result === 'started' || result === 'duplicate') {
-          toast.success(`Dagen startad på ${label}`);
+          toast.success(`Arbetspass startat på ${label}`);
         }
         return;
       }
@@ -188,12 +188,12 @@ export const HeaderStartEndDayButton: React.FC = () => {
         // körs aldrig performStart → ingen workday skapas.
         const wd = await ensureActive();
         if (!wd) {
-          toast.error('Kunde inte starta arbetsdagen. Försök igen.');
+          toast.error('Kunde inte starta arbetspasset. Försök igen.');
           return;
         }
         const result = requestStart(selection.target, { label: selection.label });
         if (result === 'started' || result === 'duplicate') {
-          toast.success(`Dagen startad på ${selection.label}`);
+          toast.success(`Arbetspass startat på ${selection.label}`);
           setDialogOpen(false);
         } else if (result === 'conflict') {
           // Globala TimerConflictDialog tar över; stäng vår dialog.
@@ -205,7 +205,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
       // Manuell text: workday-first, sedan flagga.
       const wd = await start();
       if (!wd) {
-        toast.error('Kunde inte starta arbetsdagen. Försök igen.');
+        toast.error('Kunde inte starta arbetspasset. Försök igen.');
         return;
       }
       try {
@@ -221,7 +221,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
       } catch (err) {
         console.warn('[StartDay] createWorkdayFlag failed (non-fatal):', err);
       }
-      toast.success('Dagen startad. Arbetsledare kopplar projekt åt dig.');
+      toast.success('Arbetspass startat. Arbetsledare kopplar projekt åt dig.');
       setDialogOpen(false);
     } finally {
       setStartingDay(false);
