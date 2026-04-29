@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { format } from 'date-fns';
-import { AlertTriangle, Coffee, Clock, MapPin, LogIn, LogOut } from 'lucide-react';
+import { AlertTriangle, Coffee, Clock, MapPin } from 'lucide-react';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
-import { buildDayFacts, type DayFact } from '@/lib/staff/dayFacts';
+import { buildDayDiscrepancies, buildDayFacts, type DayDiscrepancy } from '@/lib/staff/dayFacts';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 
 interface Props {
@@ -29,39 +29,10 @@ const fmtDur = (min?: number) => {
   return `${m}m`;
 };
 
-const iconFor = (f: DayFact) => {
-  if (f.kind === 'arrival') return LogIn;
-  if (f.kind === 'departure') return LogOut;
-  if (f.kind === 'away') return f.awaySubtype === 'likely_lunch' ? Coffee : Clock;
+const iconFor = (f: DayDiscrepancy) => {
+  if (f.label.toLowerCase().includes('lunch') || f.label.toLowerCase().includes('rast')) return Coffee;
+  if (f.label.toLowerCase().includes('borta')) return Clock;
   return AlertTriangle;
-};
-
-const explanation = (f: DayFact, where: string | null): string => {
-  switch (f.kind) {
-    case 'arrival':
-      return f.detail || 'GPS visar att personen anlände senare än rapporterad starttid.';
-    case 'departure':
-      return f.detail || 'GPS visar att personen lämnade arbetsplatsen tidigare än rapporterad sluttid.';
-    case 'away': {
-      const dist = f.awayDistanceMeters
-        ? ` (~${f.awayDistanceMeters >= 1000 ? `${(f.awayDistanceMeters / 1000).toFixed(1)} km` : `${f.awayDistanceMeters} m`} från basen)`
-        : '';
-      const place = where ? ` vid ${where}` : '';
-      if (f.awaySubtype === 'likely_lunch') {
-        return `Personen var borta från arbetsplatsen ${fmtDur(f.durationMin)}${place}${dist}. Längden tyder på lunch — kontrollera att rast är registrerad.`;
-      }
-      if (f.awaySubtype === 'extended') {
-        return `Personen var borta från arbetsplatsen i ${fmtDur(f.durationMin)}${place}${dist}, men tidrapporten löper utan avbrott. Granska om denna tid ska vara med.`;
-      }
-      return `Kort frånvaro från arbetsplatsen${place}${dist}.`;
-    }
-    case 'report_overrun':
-      return `Rapporten löper ${fmtDur(f.durationMin)} efter sista GPS-pinget vid arbetsplatsen${where ? ` — sista observerade plats: ${where}` : ''}.`;
-    case 'report_vs_gps':
-      return f.detail || f.label;
-    default:
-      return f.detail || '';
-  }
 };
 
 /**
@@ -75,22 +46,22 @@ export const SessionDiscrepancyRows: React.FC<Props> = ({
 }) => {
   const { data: pings = [], isLoading } = useStaffPingsForDay(staffId, date, true);
 
-  const facts = useMemo(() => {
+  const visible = useMemo(() => {
     if (!pings.length) return [];
-    return buildDayFacts({
+    const facts = buildDayFacts({
       pings,
       reportedStart,
       reportedEnd,
       base: null,
       baseLabel: baseLabel ?? null,
     });
+    return buildDayDiscrepancies({
+      facts,
+      reportedStart,
+      reportedEnd,
+      baseLabel: baseLabel ?? null,
+    });
   }, [pings, reportedStart, reportedEnd, baseLabel]);
-
-  // Show only flagged + away (away is the most useful even if not "flagged")
-  const visible = useMemo(
-    () => facts.filter(f => f.flagged || f.kind === 'away' || f.kind === 'report_overrun'),
-    [facts],
-  );
 
   // Reverse-geocode all "away" coordinates in parallel. Order matters — we
   // index back into `visible` with the same offsets.
@@ -108,7 +79,10 @@ export const SessionDiscrepancyRows: React.FC<Props> = ({
         const isPeriod = !!f.until;
         const timeLabel = isPeriod ? `${fmt(f.at)} – ${fmt(f.until!)}` : fmt(f.at);
         const where = places[i];
-        const text = explanation(f, where);
+        const distance = f.awayDistanceMeters
+          ? `${f.awayDistanceMeters >= 1000 ? `${(f.awayDistanceMeters / 1000).toFixed(1)} km` : `${f.awayDistanceMeters} m`} från arbetsplatsen`
+          : null;
+        const text = [f.detail, where ? `Var: ${where}` : null, distance].filter(Boolean).join(' · ');
         return (
           <tr
             key={`${reportedStart}-disc-${i}`}
