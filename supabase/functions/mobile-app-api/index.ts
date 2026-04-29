@@ -7508,32 +7508,9 @@ async function handleGetMovementForDay(supabase: any, callerStaffId: string, dat
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  // C6: Authorization. A user may always look up their OWN movement.
-  // For OTHERS' movement, require that the calling staff member is mapped to a user
-  // with the 'admin' role.
-  if (staff_id !== callerStaffId) {
-    const { data: callerStaff } = await supabase
-      .from('staff_members')
-      .select('user_id')
-      .eq('id', callerStaffId)
-      .single()
-
-    let isAdmin = false
-    if (callerStaff?.user_id) {
-      const { data: roleRow } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', callerStaff.user_id)
-        .eq('role', 'admin')
-        .maybeSingle()
-      isAdmin = !!roleRow
-    }
-
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: 'Forbidden: admin role required to view other staff movement' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-    }
-  }
+  // Authorization: all authenticated users in the same organization may view any
+  // staff member's movement. Org isolation is enforced via the organizationId
+  // filter in the queries below.
 
   // Day window in Europe/Stockholm; simplified to UTC day for indexing speed
   const fromIso = `${date}T00:00:00.000Z`
@@ -9536,20 +9513,9 @@ async function handleGetStaffDayReality(supabase: any, callerStaffId: string, da
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  // Admin gate (mirrors handleGetMovementForDay): self always; others require admin.
-  if (staff_id !== callerStaffId) {
-    const { data: callerStaff } = await supabase.from('staff_members').select('user_id').eq('id', callerStaffId).single()
-    let isAdmin = false
-    if (callerStaff?.user_id) {
-      const { data: roleRow } = await supabase.from('user_roles').select('role')
-        .eq('user_id', callerStaff.user_id).in('role', ['admin', 'projekt']).maybeSingle()
-      isAdmin = !!roleRow
-    }
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-    }
-  }
+  // Authorization: all authenticated users in the same organization may view any
+  // staff member's day reality. Org isolation is enforced via the organizationId
+  // filter in the queries below.
 
   const fromIso = `${date}T00:00:00.000Z`
   const toIso = `${date}T23:59:59.999Z`
