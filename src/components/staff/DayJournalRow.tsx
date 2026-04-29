@@ -274,19 +274,10 @@ export const ProjectSessionRow: React.FC<ProjectSessionRowProps> = ({
       time={time}
       duration={duration}
       detail={detail}
-      expandable
-      expanded={open}
-      onToggle={() => setOpen(o => !o)}
+      expandable={false}
+      expanded={false}
       indent
     >
-      <DayFactsPanel
-        staffId={staffId}
-        staffName={staffName}
-        date={date}
-        reportedStart={session.start}
-        reportedEnd={session.end}
-        baseLabel={session.address}
-      />
     </JournalRow>
   );
 };
