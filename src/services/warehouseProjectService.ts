@@ -297,22 +297,50 @@ const createPackingsForWarehouseProject = async (
       throw new Error(`Source booking ${bookingId} not found`);
     }
 
-    // Re-use existing packing if one already exists for this booking
-    const { data: existing } = await supabase
+    // Re-use existing packing if one already exists for this booking.
+    // Defensive: there can be historical duplicates (.maybeSingle would return null
+    // and we'd insert ANOTHER empty row, then sync would write items to a different
+    // row -> verify fails -> "Packing items missing after sync"). Pick canonical:
+    // most items, tie-break oldest created_at. Soft-cancel the rest.
+    const { data: candidates, error: candErr } = await supabase
       .from('packing_projects')
-      .select('id')
+      .select('id, created_at, status, packing_list_items(count)')
       .eq('booking_id', bookingId)
       .is('large_project_id', null)
-      .maybeSingle();
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: true })
+      .limit(50);
+    if (candErr) throw candErr;
+
+    const ranked = (candidates || [])
+      .map((c: any) => ({
+        id: c.id as string,
+        createdAt: c.created_at as string,
+        items: Array.isArray(c.packing_list_items) ? (c.packing_list_items[0]?.count ?? 0) : 0,
+      }))
+      .sort((a, b) => (b.items - a.items) || (a.createdAt.localeCompare(b.createdAt)));
 
     let packingId: string;
-    if (existing) {
+    if (ranked.length > 0) {
+      packingId = ranked[0].id;
+      // Reattach canonical row to this warehouse project
       const { error: updErr } = await supabase
         .from('packing_projects')
         .update({ warehouse_project_id: wp.id })
-        .eq('id', existing.id);
+        .eq('id', packingId);
       if (updErr) throw updErr;
-      packingId = existing.id;
+
+      // Soft-cancel duplicates so they stop polluting future lookups
+      const dupIds = ranked.slice(1).map(r => r.id);
+      if (dupIds.length > 0) {
+        console.warn(
+          `[warehouseProjectService] Found ${dupIds.length} duplicate packing_projects for booking ${bookingId}; soft-cancelling: ${dupIds.join(', ')}`
+        );
+        await supabase
+          .from('packing_projects')
+          .update({ status: 'cancelled', warehouse_project_id: null })
+          .in('id', dupIds);
+      }
     } else {
       const dateStr = booking.eventdate
         ? new Date(booking.eventdate).toISOString().slice(0, 10)
@@ -342,8 +370,12 @@ const createPackingsForWarehouseProject = async (
       packingId = created.id;
     }
 
-    // BLOCKING product sync — must succeed.
-    await syncBookingToPacking(bookingId, booking.organization_id, { throwOnError: true });
+    // BLOCKING product sync — pass explicit target so the edge function writes
+    // items into THIS packing (not a stale duplicate it might rediscover).
+    await syncBookingToPacking(bookingId, booking.organization_id, {
+      throwOnError: true,
+      targetPackingId: packingId,
+    });
 
     // Verify: packing_list_items should exist (or booking has zero products, which is also OK)
     const { count: itemCount, error: verifyErr } = await supabase
