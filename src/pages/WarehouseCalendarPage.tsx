@@ -334,7 +334,7 @@ const WarehouseCalendarPage = () => {
 
   // Personal som är tillgänglig i lagerkalendern denna dag/vecka:
   // = aktiverad personal + personal planerad i Lager-kolumnen i planeringskalendern
-  const { activeStaffIds } = useWarehouseAvailableStaff(currentWeekStart, viewMode);
+  const { activeStaffIds, activeStaffIdsByDate } = useWarehouseAvailableStaff(currentWeekStart, viewMode);
 
   // Use the unified staff operations hook — filtered by available staff
   const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Lager', activeStaffIds);
