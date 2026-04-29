@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
@@ -7,7 +7,8 @@ import TeamVisibilityControl from './TeamVisibilityControl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { computeOverlapLayout, generateTimeSlots, getEventPosition } from './timeGridLayout';
 import { EventWrapper, SimpleTimeSlot } from './TimeGridEventLayer';
-import TimeGridAvailableStaff, { type AvailableStaffMember } from './TimeGridAvailableStaff';
+import { type AvailableStaffMember } from './TimeGridAvailableStaff';
+import TeamStaffPickerPopover from './TeamStaffPickerPopover';
 import './TimeGrid.css';
 
 interface TeamVisibilityProps {
@@ -68,20 +69,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onTitleClick,
   setEvents,
 }) => {
-  const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
-  const staffContainerRef = useRef<HTMLDivElement>(null);
+  const [openPickerTeamId, setOpenPickerTeamId] = useState<string | null>(null);
   const { handleEventClick } = useEventNavigation();
-
-  useEffect(() => {
-    if (!selectingForTeam) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (staffContainerRef.current && !staffContainerRef.current.contains(e.target as Node)) {
-        setSelectingForTeam(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [selectingForTeam]);
 
   const timeSlots = generateTimeSlots();
   const totalTeamColumnsWidth = resources.length * TEAM_COLUMN_WIDTH;
@@ -104,17 +93,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     return Array.isArray(staff) ? staff : [];
   };
 
-  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string) => {
-    setSelectingForTeam(prev => {
-      const isOpening = prev?.id !== resourceId;
-      if (isOpening && !staffExpanded && onToggleStaffExpanded) onToggleStaffExpanded();
-      return isOpening ? { id: resourceId, title: resourceTitle } : null;
-    });
-  };
-
-  const handlePickStaff = async (staffId: string) => {
-    if (!selectingForTeam || !onStaffDrop) return;
-    await onStaffDrop(staffId, selectingForTeam.id, day);
+  const handlePickStaffForTeam = async (teamId: string, staffId: string) => {
+    if (!onStaffDrop) return;
+    await onStaffDrop(staffId, teamId, day);
   };
 
   const handleStaffRemoval = async (staffId: string) => {
@@ -128,16 +109,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <>
-      <TimeGridAvailableStaff
-        containerRef={staffContainerRef}
-        staff={availableStaff}
-        selectingForTeam={selectingForTeam}
-        expanded={staffExpanded}
-        onToggleExpanded={onToggleStaffExpanded}
-        onPickStaff={handlePickStaff}
-        onCancelSelection={() => setSelectingForTeam(null)}
-      />
-
       <div className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
         {/* Fixed header */}
         <div
@@ -194,11 +165,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           {/* Row 2: team headers */}
           <div className="time-empty-cell" style={{ gridRow: 2, gridColumn: 1 }} />
           {resources.map((resource, index) => {
-            const isActiveTeam = selectingForTeam?.id === resource.id;
+            const isActiveTeam = openPickerTeamId === resource.id;
+            const assignedIds = getAssignedStaffForTeam(resource.id).map((s) => s.id);
             return (
               <div
                 key={`header-${resource.id}`}
-                className="team-header-cell cursor-pointer"
+                className="team-header-cell"
                 style={{
                   gridColumn: index + 2,
                   gridRow: 2,
@@ -206,16 +178,25 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   minWidth: fullWidth ? '120px' : `${TEAM_COLUMN_WIDTH}px`,
                   ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {}),
                 }}
-                onClick={() => handleStaffSelectionClick(resource.id, resource.title)}
-                title={`Assign staff to ${resource.title}`}
               >
                 <div className="team-header-content">
                   <span className="team-title">{resource.title}</span>
-                  <button
-                    className="add-staff-button-header"
-                    onClick={(e) => { e.stopPropagation(); handleStaffSelectionClick(resource.id, resource.title); }}
-                    title={`Assign staff to ${resource.title}`}
-                  >+</button>
+                  <TeamStaffPickerPopover
+                    teamId={resource.id}
+                    teamTitle={resource.title}
+                    staff={availableStaff}
+                    assignedStaffIds={assignedIds}
+                    onPick={(staffId) => handlePickStaffForTeam(resource.id, staffId)}
+                    open={isActiveTeam}
+                    onOpenChange={(o) => setOpenPickerTeamId(o ? resource.id : null)}
+                  >
+                    <button
+                      className="add-staff-button-header"
+                      onClick={(e) => e.stopPropagation()}
+                      title={`Tilldela personal till ${resource.title}`}
+                      aria-label={`Tilldela personal till ${resource.title}`}
+                    >+</button>
+                  </TeamStaffPickerPopover>
                 </div>
               </div>
             );
