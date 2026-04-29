@@ -354,7 +354,7 @@ export default function MobileDayReview() {
                                   onClick={() => runEventAction(ev, () => actions.endWorkDayAtHomeArrival(ev as any))}
                                 >
                                   <HomeIcon className="w-3.5 h-3.5 mr-1" />
-                                  Avsluta dagen ({format(new Date(ev.happened_at), 'HH:mm')})
+                                  Avsluta arbetspass ({format(new Date(ev.happened_at), 'HH:mm')})
                                 </Button>
                               )}
                               {av.adjustTravel && (

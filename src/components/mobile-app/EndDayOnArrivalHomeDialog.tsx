@@ -13,7 +13,7 @@ import { useLanguage } from '@/i18n/LanguageContext';
 // Kept for the copy-contract test (asserts no "hem"/"hemma"/"bostad").
 // The component itself uses translations; this constant mirrors the SV copy.
 export const END_DAY_HOME_COPY = {
-  title: 'Avsluta dagen?',
+  title: 'Avsluta arbetspass?',
   body: (place: string, time: string) =>
     `Jag misstänker att du avslutade din arbetsdag när du lämnade ${place} kl ${time}. Stämmer detta och du vill rapportera din tid?`,
   yes: (time: string) => `Ja, rapportera till ${time}`,

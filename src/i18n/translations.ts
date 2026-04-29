@@ -470,25 +470,25 @@ const translations = {
   'dayTimeline.event': { sv: 'Event', en: 'Event' },
   'dayTimeline.rigdown': { sv: 'Riv', en: 'Teardown' },
 
-  // Workday
-  'workday.endDay': { sv: 'Avsluta dagen', en: 'End the day' },
-  'workday.endDayTitle': { sv: 'Avsluta hela arbetsdagen — stänger alla aktiva timers och kör dagsavstämning', en: 'End the entire workday — closes all active timers and runs day reconciliation' },
-  'workday.endDayCancelled': { sv: 'Avslutning av dagen avbruten — timern fortsätter', en: 'End-day cancelled — timer keeps running' },
-  'workday.lengthTitle': { sv: 'Arbetsdagens längd — pågår tills du avslutar dagen', en: 'Workday length — runs until you end the day' },
-  'workday.todayTime': { sv: 'Dagens arbetstid', en: 'Today’s work time' },
+  // Workday (a "workday" is now called a work shift in the UI — staff can run multiple per calendar day)
+  'workday.endDay': { sv: 'Avsluta arbetspass', en: 'End shift' },
+  'workday.endDayTitle': { sv: 'Avsluta arbetspasset — stänger alla aktiva timers och kör avstämning. Du kan starta ett nytt pass senare samma dag.', en: 'End the shift — closes all active timers and runs reconciliation. You can start a new shift later the same day.' },
+  'workday.endDayCancelled': { sv: 'Avslutning av arbetspasset avbruten — timern fortsätter', en: 'End-shift cancelled — timer keeps running' },
+  'workday.lengthTitle': { sv: 'Arbetspassets längd — pågår tills du avslutar passet', en: 'Shift length — runs until you end the shift' },
+  'workday.todayTime': { sv: 'Pågående arbetspass', en: 'Current shift' },
   'workday.activityFallback': { sv: 'aktiviteten', en: 'the activity' },
-  'workday.noActiveTimers': { sv: 'Inga aktiva timers — arbetsdagen avslutades.', en: 'No active timers — the workday has ended.' },
-  'workday.startDay': { sv: 'Starta dagen', en: 'Start the day' },
-  'workday.startDayTitle': { sv: 'Starta arbetsdagen — du kan börja rapportera projekt/plats senare', en: 'Start the workday — you can report project/location time later' },
+  'workday.noActiveTimers': { sv: 'Inga aktiva timers — arbetspasset avslutades.', en: 'No active timers — the shift has ended.' },
+  'workday.startDay': { sv: 'Starta arbetspass', en: 'Start shift' },
+  'workday.startDayTitle': { sv: 'Starta ett arbetspass — du kan starta flera pass per dag och rapportera projekt/plats senare', en: 'Start a work shift — you can run several shifts per day and report project/location time later' },
   'workday.starting': { sv: 'Startar…', en: 'Starting…' },
-  'workday.couldNotStart': { sv: 'Kunde inte starta arbetsdagen', en: 'Could not start the workday' },
-  'workday.couldNotEnd': { sv: 'Kunde inte avsluta arbetsdagen — försök igen', en: 'Could not end the workday — please try again' },
-  'workday.dayEnded': { sv: 'Arbetsdagen avslutad', en: 'Workday ended' },
+  'workday.couldNotStart': { sv: 'Kunde inte starta arbetspasset', en: 'Could not start the shift' },
+  'workday.couldNotEnd': { sv: 'Kunde inte avsluta arbetspasset — försök igen', en: 'Could not end the shift — please try again' },
+  'workday.dayEnded': { sv: 'Arbetspasset avslutat', en: 'Shift ended' },
   'workday.totalTime': { sv: 'Total tid', en: 'Total time' },
   'workday.ending': { sv: 'Avslutar dagen…', en: 'Ending the day…' },
 
   // Start day dialog
-  'startDay.title': { sv: 'Vart börjar du dagen?', en: 'Where are you starting your day?' },
+  'startDay.title': { sv: 'Vart börjar du arbetspasset?', en: 'Where are you starting your shift?' },
   'startDay.description': { sv: 'Välj projektet eller platsen du startar med. Vi kunde inte se det automatiskt via GPS.', en: 'Pick the project or location you’re starting at. We couldn’t detect it automatically via GPS.' },
   'startDay.searchPlaceholder': { sv: 'Sök projekt eller kund…', en: 'Search project or client…' },
   'startDay.suggested': { sv: 'Föreslagna (±1 dag)', en: 'Suggested (±1 day)' },
@@ -500,7 +500,7 @@ const translations = {
   'startDay.manualPlaceholder': { sv: 'T.ex. Storgatan 12, kund X, lager…', en: 'E.g. Main St 12, client X, warehouse…' },
   'startDay.manualHelp': { sv: 'En flagga skapas så arbetsledare kan koppla rätt projekt åt dig senare.', en: 'A flag is created so a supervisor can link the right project for you later.' },
   'startDay.back': { sv: 'Tillbaka', en: 'Back' },
-  'startDay.confirm': { sv: 'Starta dagen', en: 'Start the day' },
+  'startDay.confirm': { sv: 'Starta arbetspass', en: 'Start shift' },
   'startDay.starting': { sv: 'Startar…', en: 'Starting…' },
 
   // GPS sync debug
