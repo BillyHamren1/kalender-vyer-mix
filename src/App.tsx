@@ -106,7 +106,28 @@ import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
 // EconomyTimeReports (used inside MainSystemLayout pages)
 const EconomyTimeReports = lazyWithRecovery(() => import("./pages/EconomyTimeReports"));
 
-const queryClient = new QueryClient();
+// Global cache strategy: show cached data instantly, refresh quietly in background.
+// - staleTime 60s: most navigations within a minute reuse cache without refetching.
+// - gcTime 30min: keep data warm so back/forward navigation is instant.
+// - refetchOnWindowFocus false: avoid storms when the user tab-switches.
+// - refetchOnReconnect true: still recover after network drops.
+// - retry 1: fail fast on bad endpoints instead of stalling the UI.
+// Hooks that need fresher/staler data override these locally (staleTime/refetchInterval).
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 30 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      // refetchOnMount default = true: stale data refreshes silently in background while cache shows instantly
+      retry: 1,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 // Create and export CalendarContext
 interface CalendarContextType {
