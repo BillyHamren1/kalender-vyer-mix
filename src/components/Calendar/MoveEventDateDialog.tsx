@@ -15,7 +15,7 @@ import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CopyEventDialog from './CopyEventDialog';
 import AddRiggDayDialog from './AddRiggDayDialog';
-import { handleBookingMove } from '@/services/staffCalendarService';
+// handleBookingMove deprecated — BSA derives from staff_assignments × calendar_events via recompute_booking_staff_for_day RPC
 import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { resolveCalendarEventId } from '@/services/calendarEventResolver';
 
