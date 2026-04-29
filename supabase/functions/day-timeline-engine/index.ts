@@ -28,7 +28,11 @@ interface ComputeArgs { staff_id: string; date: string; force?: boolean }
 interface GetArgs { staff_id: string; date: string }
 interface ResolveArgs {
   suggestion_id: string;
-  action: ResolveAction;
+  // The actual sub-action (accept/ignore/...). We use `resolve_action` so it
+  // does not collide with the top-level `action: "resolve_suggestion"` router.
+  // `action` kept as legacy fallback for older callers.
+  resolve_action?: ResolveAction;
+  action?: ResolveAction | "resolve_suggestion";
   payload?: Record<string, unknown>;
 }
 
@@ -392,8 +396,11 @@ async function handleResolve(
   userId: string,
   args: ResolveArgs,
 ) {
-  if (!args.suggestion_id || !args.action) {
-    return json({ error: "suggestion_id and action required" }, 400);
+  const subAction = (args.resolve_action
+    ?? (args.action && args.action !== "resolve_suggestion" ? args.action : undefined)
+    ?? (args.payload?.action as ResolveAction | undefined)) as ResolveAction | undefined;
+  if (!args.suggestion_id || !subAction) {
+    return json({ error: "suggestion_id and resolve_action required" }, 400);
   }
   const orgId = await getCallerOrg(supabase, userId);
   if (!orgId) return json({ error: "no_org" }, 403);
@@ -411,8 +418,8 @@ async function handleResolve(
     return json({ error: "suggestion_not_pending", status: sug.status }, 409);
   }
 
-  const handler = ACTIONS[args.action];
-  if (!handler) return json({ error: "unknown_resolve_action", action: args.action }, 400);
+  const handler = ACTIONS[subAction];
+  if (!handler) return json({ error: "unknown_resolve_action", action: subAction }, 400);
 
   try {
     const result = await handler({
