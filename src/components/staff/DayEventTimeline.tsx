@@ -8,9 +8,11 @@ import { DayTimelineEventRow } from "./DayTimelineEventRow";
 interface Props {
   staffId: string;
   date: string;
+  selectedEventId?: string | null;
+  onSelectEvent?: (eventId: string) => void;
 }
 
-export function DayEventTimeline({ staffId, date }: Props) {
+export function DayEventTimeline({ staffId, date, selectedEventId, onSelectEvent }: Props) {
   const { events, isLoading, isFetching, error, refresh } = useDayTimeline({ staffId, date });
   const [refreshing, setRefreshing] = useState(false);
 
@@ -68,7 +70,12 @@ export function DayEventTimeline({ staffId, date }: Props) {
       {!isLoading && events.length > 0 && (
         <ol className="relative space-y-2 before:absolute before:left-4 before:top-1 before:bottom-1 before:w-px before:bg-border">
           {events.map((e) => (
-            <DayTimelineEventRow key={e.id} event={e} />
+            <DayTimelineEventRow
+              key={e.id}
+              event={e}
+              selected={e.id === selectedEventId}
+              onSelect={onSelectEvent}
+            />
           ))}
         </ol>
       )}

@@ -14,6 +14,11 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { DayApprovalAction } from '@/components/admin/time-review/DayApprovalAction';
 import { DayEventTimeline } from '@/components/staff/DayEventTimeline';
 import { CorrectionSuggestionsPanel } from '@/components/staff/CorrectionSuggestionsPanel';
+import { DayTimelineMap, type KnownPlace } from '@/components/staff/DayTimelineMap';
+import { RawGpsDrawer } from '@/components/staff/RawGpsDrawer';
+import { useDayPings } from '@/hooks/admin/useDayPings';
+import { useDayTimeline } from '@/hooks/admin/useDayTimeline';
+import { useQuery } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 
 interface GpsPoint {
@@ -101,6 +106,36 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const [plannedRoute, setPlannedRoute] = useState<StaffRouteResult | null>(null);
   const [plannedLoading, setPlannedLoading] = useState(false);
   const [plannedError, setPlannedError] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
+  // Etapp 4: pings + events + known places for the timeline map / raw drawer
+  const { pings } = useDayPings({ staffId, date, enabled: open });
+  const { events: timelineEvents } = useDayTimeline({ staffId, date, enabled: open });
+  const { data: knownPlaces = [] } = useQuery({
+    queryKey: ['org-known-places', organizationId],
+    enabled: !!organizationId && open,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<KnownPlace[]> => {
+      if (!organizationId) return [];
+      const { data, error } = await supabase
+        .from('organization_locations')
+        .select('id, name, latitude, longitude, radius_meters, is_active')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true);
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id: r.id as string,
+        name: r.name as string,
+        lat: Number(r.latitude),
+        lng: Number(r.longitude),
+        radius_m: r.radius_meters != null ? Number(r.radius_meters) : 100,
+      }));
+    },
+  });
+  const selectedEvent = useMemo(
+    () => timelineEvents.find((e) => e.id === selectedEventId) ?? null,
+    [timelineEvents, selectedEventId],
+  );
 
   // Fetch mapbox token
   useEffect(() => {
@@ -507,7 +542,29 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
 
         {/* Server-derived event timeline (Day Timeline Engine) */}
         {date && staffId && (
-          <DayEventTimeline staffId={staffId} date={date} />
+          <div className="space-y-3">
+            <DayTimelineMap
+              events={timelineEvents}
+              pings={pings}
+              knownPlaces={knownPlaces}
+              selectedEventId={selectedEventId}
+              onEventSelect={setSelectedEventId}
+            />
+            <div className="flex items-center justify-end">
+              <RawGpsDrawer
+                pings={pings}
+                date={date}
+                staffName={staffName}
+                selectedEvent={selectedEvent}
+              />
+            </div>
+            <DayEventTimeline
+              staffId={staffId}
+              date={date}
+              selectedEventId={selectedEventId}
+              onSelectEvent={setSelectedEventId}
+            />
+          </div>
         )}
 
         {/* Map first — show all travel segments as lines */}
