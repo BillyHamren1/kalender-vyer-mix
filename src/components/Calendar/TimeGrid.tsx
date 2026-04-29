@@ -20,6 +20,9 @@ interface AvailableStaffMember {
   id: string;
   name: string;
   color?: string;
+  // Multi-team aware: list of teams this staff is already assigned to today.
+  // Legacy fields kept for backwards compat with older callers.
+  assignedTeamIds?: string[];
   assignedTeamId?: string;
   assignedTeamName?: string;
 }
@@ -351,10 +354,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     return `${timeColumnWidth + totalTeamColumnsWidth}px`;
   };
 
-  // Get unassigned available staff (not assigned to any team today)
+  // Multi-team policy: ALWAYS show every active staff member in the available
+  // row. Even if they're already assigned to one team today, they should be
+  // available to drop into another team. Visual indicator (badge) is rendered
+  // by StaffItem when assignedTeamIds is non-empty.
   const getUnassignedAvailableStaff = () => {
-    if (!availableStaff || availableStaff.length === 0) return [];
-    return availableStaff.filter(staff => !staff.assignedTeamId);
+    return availableStaff || [];
   };
 
   const availableStaffSectionHeight = staffExpandedProp ? 132 : 78;

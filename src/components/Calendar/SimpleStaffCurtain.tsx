@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Users, X, UserPlus, ArrowRightLeft, Check } from 'lucide-react';
+import { Users, X, UserPlus, Check } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 
@@ -157,11 +157,6 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
                     >
                       {assigning === staff.id ? (
                         <div className="h-3 w-3 animate-spin rounded-full border border-border border-t-primary"></div>
-                      ) : staff.assignmentStatus === 'assigned_other_team' ? (
-                        <>
-                          <ArrowRightLeft className="h-3 w-3 mr-1" />
-                          Move
-                        </>
                       ) : (
                         <>
                           <UserPlus className="h-3 w-3 mr-1" />

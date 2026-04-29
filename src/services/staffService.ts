@@ -320,13 +320,14 @@ export const removeStaffAssignment = async (
   }
 };
 
-// Get available staff (not assigned to any team) for a specific date
-export const getAvailableStaff = async (date: Date): Promise<StaffMember[]> => {
+// Get all active staff for a date, decorated with which teams they already
+// belong to (multi-team aware — never excludes assigned staff anymore).
+export const getAvailableStaff = async (
+  date: Date,
+): Promise<Array<StaffMember & { assignedTeamIds: string[] }>> => {
   try {
     const dateStr = date.toISOString().split('T')[0];
-    console.log(`Fetching available staff for date: ${dateStr}`);
 
-    // Get all staff members
     const { data: allStaff, error: staffError } = await supabase
       .from('staff_members')
       .select('*')
@@ -337,10 +338,9 @@ export const getAvailableStaff = async (date: Date): Promise<StaffMember[]> => {
       throw staffError;
     }
 
-    // Get assigned staff IDs for the date
     const { data: assignments, error: assignmentError } = await supabase
       .from('staff_assignments')
-      .select('staff_id')
+      .select('staff_id, team_id')
       .eq('assignment_date', dateStr);
 
     if (assignmentError) {
@@ -348,11 +348,17 @@ export const getAvailableStaff = async (date: Date): Promise<StaffMember[]> => {
       throw assignmentError;
     }
 
-    const assignedStaffIds = new Set(assignments?.map(a => a.staff_id) || []);
-    const availableStaff = (allStaff || []).filter(staff => !assignedStaffIds.has(staff.id));
+    const teamsByStaff = new Map<string, string[]>();
+    for (const row of assignments || []) {
+      const list = teamsByStaff.get(row.staff_id) || [];
+      list.push(row.team_id);
+      teamsByStaff.set(row.staff_id, list);
+    }
 
-    console.log(`Found ${availableStaff.length} available staff members`);
-    return availableStaff;
+    return (allStaff || []).map((s: any) => ({
+      ...s,
+      assignedTeamIds: teamsByStaff.get(s.id) || [],
+    }));
   } catch (error) {
     console.error('Error in getAvailableStaff:', error);
     throw error;

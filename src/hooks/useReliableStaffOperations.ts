@@ -120,22 +120,41 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     }));
   }, [assignments]);
 
-  // Get available staff (not assigned to any team) with color information
-  const getAvailableStaff = useCallback((): StaffMemberWithAssignment[] => {
-    const assignedStaffIds = new Set(assignments.map(a => a.staffId));
-    
-    return allStaff.filter(staff => !assignedStaffIds.has(staff.id));
+  // Multi-team: return ALL staff for the date, decorated with which teams
+  // they already belong to. Never exclude assigned staff — the same person
+  // can join several teams on the same day.
+  const getAvailableStaff = useCallback((): Array<StaffMemberWithAssignment & { assignedTeamIds: string[] }> => {
+    const teamsByStaff = new Map<string, string[]>();
+    for (const a of assignments) {
+      const list = teamsByStaff.get(a.staffId) || [];
+      list.push(a.teamId);
+      teamsByStaff.set(a.staffId, list);
+    }
+    return allStaff.map(staff => ({
+      ...staff,
+      assignedTeamIds: teamsByStaff.get(staff.id) || [],
+    }));
   }, [allStaff, assignments]);
 
-  // Handle staff drop operations
-  const handleStaffDrop = useCallback(async (staffId: string, targetTeamId: string | null, targetDate?: Date) => {
+  // Handle staff drop operations.
+  // - targetTeamId set  → assign (multi-team upsert)
+  // - targetTeamId null → unassign. If `fromTeamId` is provided, only that
+  //   one team-row is removed; otherwise all team rows for the day are
+  //   cleared (legacy "fully unassign" behaviour).
+  const handleStaffDrop = useCallback(async (
+    staffId: string,
+    targetTeamId: string | null,
+    targetDate?: Date,
+    fromTeamId?: string,
+  ) => {
     const effectiveDate = targetDate || currentDate;
     const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
-    
+
     console.log('ReliableStaffOperations: handleStaffDrop', {
       staffId,
       targetTeamId,
-      effectiveDateStr
+      effectiveDateStr,
+      fromTeamId,
     });
 
     try {
@@ -143,9 +162,6 @@ export const useReliableStaffOperations = (currentDate: Date) => {
 
       if (targetTeamId) {
         // Assign staff to team — multi-team allowed.
-        // Conflict key includes team_id so the same staff can join several
-        // teams the same day; only an exact (staff, team, date) duplicate
-        // is treated as a conflict.
         const { error } = await supabase
           .from('staff_assignments')
           .upsert({
@@ -161,17 +177,24 @@ export const useReliableStaffOperations = (currentDate: Date) => {
         const staffMember = allStaff.find(s => s.id === staffId);
         toast.success(`${staffMember?.name || 'Staff'} assigned to team`);
       } else {
-        // Remove ALL team assignments for this staff/date (full unassign).
-        const { error } = await supabase
+        // Unassign — scope to one team if `fromTeamId` is provided so other
+        // multi-team memberships on the same day are preserved.
+        let q = supabase
           .from('staff_assignments')
           .delete()
           .eq('staff_id', staffId)
           .eq('assignment_date', effectiveDateStr);
+        if (fromTeamId) q = q.eq('team_id', fromTeamId);
 
+        const { error } = await q;
         if (error) throw error;
 
         const staffMember = allStaff.find(s => s.id === staffId);
-        toast.success(`${staffMember?.name || 'Staff'} unassigned from team`);
+        toast.success(
+          fromTeamId
+            ? `${staffMember?.name || 'Staff'} removed from team`
+            : `${staffMember?.name || 'Staff'} unassigned from team`,
+        );
       }
 
       // Refresh assignments

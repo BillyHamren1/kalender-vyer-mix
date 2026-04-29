@@ -9,6 +9,11 @@ interface AvailableStaffMember {
   id: string;
   name: string;
   color?: string;
+  // Multi-team aware: a staff member can be in several teams the same day.
+  // First entry is mirrored to the legacy single-value fields for callers
+  // that still read `assignedTeamId` / `assignedTeamName`.
+  assignedTeamIds: string[];
+  assignedTeamNames: string[];
   assignedTeamId?: string;
   assignedTeamName?: string;
 }
@@ -75,17 +80,33 @@ export const useAvailableStaffWeek = (
     const availableStaff = weekAvailableStaff?.[dateStr] || [];
 
     if (!weeklyStaffOperations) {
-      return availableStaff.map(s => ({ ...s, assignedTeamId: undefined, assignedTeamName: undefined }));
+      return availableStaff.map(s => ({
+        ...s,
+        assignedTeamIds: [],
+        assignedTeamNames: [],
+        assignedTeamId: undefined,
+        assignedTeamName: undefined,
+      }));
     }
 
     return availableStaff.map(staff => {
+      const teamIds: string[] = [];
+      const teamNames: string[] = [];
       for (const resource of resources) {
         const teamStaff = weeklyStaffOperations.getStaffForTeamAndDate(resource.id, date);
         if (teamStaff.some(ts => ts.id === staff.id)) {
-          return { ...staff, assignedTeamId: resource.id, assignedTeamName: resource.title };
+          teamIds.push(resource.id);
+          teamNames.push(resource.title);
         }
       }
-      return { ...staff, assignedTeamId: undefined, assignedTeamName: undefined };
+      return {
+        ...staff,
+        assignedTeamIds: teamIds,
+        assignedTeamNames: teamNames,
+        // Legacy mirror — first team only.
+        assignedTeamId: teamIds[0],
+        assignedTeamName: teamNames[0],
+      };
     });
   }, [weekAvailableStaff, weeklyStaffOperations, resources]);
 

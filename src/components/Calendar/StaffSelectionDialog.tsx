@@ -37,7 +37,8 @@ interface StaffSelectionDialogProps {
 
 // Extended interface for staff with assignment status
 interface StaffWithAssignmentStatus extends StaffMember {
-  assignedTeamId: string | null;
+  // All teams this staff member is already assigned to on this date.
+  assignedTeamIds: string[];
   isAssignedToCurrentTeam: boolean;
   isAssignedToOtherTeam: boolean;
 }
@@ -116,48 +117,45 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
     });
 
     if (reliableStaffOperations) {
-      // Create assignment map from reliable data for the specific date
-      const assignedStaffMap = new Map();
+      // Multi-team aware: a staff member can be in MANY teams the same day,
+      // so we collect a Set of teamIds per staff (not a single teamId).
+      const assignedTeamsByStaff = new Map<string, Set<string>>();
       reliableStaffOperations.assignments
         .filter(assignment => assignment.date === dateStr)
         .forEach(assignment => {
-          assignedStaffMap.set(assignment.staffId, assignment.teamId);
+          const set = assignedTeamsByStaff.get(assignment.staffId) || new Set<string>();
+          set.add(assignment.teamId);
+          assignedTeamsByStaff.set(assignment.staffId, set);
         });
-      
-      console.log(`StaffSelectionDialog: Assignment map for ${dateStr}:`, Object.fromEntries(assignedStaffMap));
-      
-      // Add assignment status to each staff member using reliable data
+
       const staffWithStatus: StaffWithAssignmentStatus[] = searchFiltered.map(staff => {
-        const assignedTeamId = assignedStaffMap.get(staff.id) || null;
-        const isAssignedToCurrentTeam = assignedTeamId === resourceId;
-        const isAssignedToOtherTeam = assignedTeamId && assignedTeamId !== resourceId;
-        
+        const teamSet = assignedTeamsByStaff.get(staff.id) || new Set<string>();
+        const assignedTeamIds = Array.from(teamSet);
+        const isAssignedToCurrentTeam = teamSet.has(resourceId);
+        const isAssignedToOtherTeam = assignedTeamIds.some(t => t !== resourceId);
+
         return {
           ...staff,
-          assignedTeamId,
+          assignedTeamIds,
           isAssignedToCurrentTeam,
-          isAssignedToOtherTeam
+          isAssignedToOtherTeam,
         };
       });
-      
-      // Sort: unassigned first, then assigned to current team, then assigned to other teams
+
+      // Sort: not in this team first, then already in this team last.
       const sorted = staffWithStatus.sort((a, b) => {
-        if (!a.assignedTeamId && b.assignedTeamId) return -1;
-        if (a.assignedTeamId && !b.assignedTeamId) return 1;
-        if (a.isAssignedToCurrentTeam && !b.isAssignedToCurrentTeam) return -1;
-        if (!a.isAssignedToCurrentTeam && b.isAssignedToCurrentTeam) return 1;
+        if (a.isAssignedToCurrentTeam && !b.isAssignedToCurrentTeam) return 1;
+        if (!a.isAssignedToCurrentTeam && b.isAssignedToCurrentTeam) return -1;
         return a.name.localeCompare(b.name);
       });
-      
-      console.log(`StaffSelectionDialog: Processed ${sorted.length} staff with assignment status for ${resourceTitle} on ${dateStr}`);
+
       setFilteredStaff(sorted);
     } else {
-      // Fallback: show all available staff without assignment status
       const staffWithStatus: StaffWithAssignmentStatus[] = searchFiltered.map(staff => ({
         ...staff,
-        assignedTeamId: null,
+        assignedTeamIds: [],
         isAssignedToCurrentTeam: false,
-        isAssignedToOtherTeam: false
+        isAssignedToOtherTeam: false,
       }));
       staffWithStatus.sort((a, b) => a.name.localeCompare(b.name));
       setFilteredStaff(staffWithStatus);
@@ -255,7 +253,10 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                         )}
                         {isAssignedToOtherTeam && (
                           <p className="text-xs text-orange-500">
-                            Currently on {getTeamName(staff.assignedTeamId!)} - will be moved
+                            Also on {staff.assignedTeamIds
+                              .filter(t => t !== resourceId)
+                              .map(getTeamName)
+                              .join(', ')}
                           </p>
                         )}
                       </div>
@@ -265,12 +266,12 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleAssignStaff(staff.id, staff.name)}
-                      disabled={isCurrentlyAssigning}
+                      disabled={isCurrentlyAssigning || isAssignedToCurrentTeam}
                       title={
                         isAssignedToCurrentTeam 
                           ? `Already assigned to ${resourceTitle}`
                           : isAssignedToOtherTeam 
-                            ? `Move to ${resourceTitle}`
+                            ? `Also assign to ${resourceTitle}`
                             : `Assign to ${resourceTitle}`
                       }
                     >

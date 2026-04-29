@@ -117,7 +117,7 @@ serve(async (req) => {
         break
       
       case 'remove_staff_assignment':
-        response = await removeStaffAssignment(supabase, data.staff_id, data.date, organizationId!)
+        response = await removeStaffAssignment(supabase, data.staff_id, data.date, organizationId!, data.team_id)
         break
       
       case 'get_available_staff':
@@ -336,24 +336,41 @@ async function assignStaffToTeam(supabase: any, staffId: string, teamId: string,
   }
 }
 
-async function removeStaffAssignment(supabase: any, staffId: string, date: string, organizationId?: string): Promise<OperationResponse> {
+async function removeStaffAssignment(
+  supabase: any,
+  staffId: string,
+  date: string,
+  organizationId?: string,
+  teamId?: string,
+): Promise<OperationResponse> {
   try {
-    // Remove staff assignment
-    const { error: assignmentError } = await supabase
+    // Remove staff assignment — scope to one team if provided so multi-team
+    // memberships on the same day are preserved.
+    let assignmentQuery = supabase
       .from('staff_assignments')
       .delete()
       .eq('staff_id', staffId)
       .eq('assignment_date', date)
 
+    if (teamId) {
+      assignmentQuery = assignmentQuery.eq('team_id', teamId)
+    }
+
+    const { error: assignmentError } = await assignmentQuery
     if (assignmentError) throw assignmentError
 
-    // Remove booking assignments
-    const { error: bookingError } = await supabase
+    // Remove booking assignments — also scope to the same team when provided.
+    let bookingQuery = supabase
       .from('booking_staff_assignments')
       .delete()
       .eq('staff_id', staffId)
       .eq('assignment_date', date)
 
+    if (teamId) {
+      bookingQuery = bookingQuery.eq('team_id', teamId)
+    }
+
+    const { error: bookingError } = await bookingQuery
     if (bookingError) throw bookingError
 
     return { success: true }
@@ -364,7 +381,9 @@ async function removeStaffAssignment(supabase: any, staffId: string, date: strin
 
 async function getAvailableStaff(supabase: any, date: string, organizationId?: string): Promise<OperationResponse> {
   try {
-    // Get all staff members for this org
+    // Multi-team policy: return ALL active staff for the date, decorated with
+    // the list of teams they're already assigned to so callers can render
+    // "also on T1, T3" badges instead of hiding the staff member.
     let staffQuery = supabase
       .from('staff_members')
       .select('*')
@@ -372,21 +391,29 @@ async function getAvailableStaff(supabase: any, date: string, organizationId?: s
     if (organizationId) staffQuery = staffQuery.eq('organization_id', organizationId)
 
     const { data: allStaff, error: staffError } = await staffQuery
-
     if (staffError) throw staffError
 
-    // Get assigned staff IDs for the date
-    const { data: assignments, error: assignmentError } = await supabase
+    let assignmentsQuery = supabase
       .from('staff_assignments')
-      .select('staff_id')
+      .select('staff_id, team_id')
       .eq('assignment_date', date)
 
+    const { data: assignments, error: assignmentError } = await assignmentsQuery
     if (assignmentError) throw assignmentError
 
-    const assignedStaffIds = new Set(assignments?.map(a => a.staff_id) || [])
-    const availableStaff = (allStaff || []).filter(staff => !assignedStaffIds.has(staff.id))
+    const teamsByStaff = new Map<string, string[]>()
+    for (const row of assignments || []) {
+      const list = teamsByStaff.get(row.staff_id) || []
+      list.push(row.team_id)
+      teamsByStaff.set(row.staff_id, list)
+    }
 
-    return { success: true, data: availableStaff }
+    const decorated = (allStaff || []).map((s: any) => ({
+      ...s,
+      assignedTeamIds: teamsByStaff.get(s.id) || [],
+    }))
+
+    return { success: true, data: decorated }
   } catch (error) {
     return { success: false, error: error.message }
   }
