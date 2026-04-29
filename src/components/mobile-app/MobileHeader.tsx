@@ -52,22 +52,11 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
 /**
  * HeaderWorkdayControls
  *
- * Visar ENDAST WorkDayHeaderTimer (dag-klockan) när dagen är öppen.
- * Start/Avsluta dag-knappen renderas inline i sidans header
- * (se `HeaderStartEndDayButton`) — inte som en egen rad här.
+ * Tidigare visade dag-klockan på en egen rad ovanför ikonerna. Nu renderas
+ * `WorkDayHeaderTimer` inline bredvid Start/Avsluta-knappen i sidans header
+ * (se `HeaderStartEndDayButton`), så vi behöver inte längre någon separat rad.
  */
-const HeaderWorkdayControls: React.FC = () => {
-  const { current } = useWorkDay();
-  const workdayOpen = !!current && !current.ended_at;
-
-  if (!workdayOpen) return null;
-
-  return (
-    <div className="w-full px-4 pt-2 pb-1 flex justify-center bg-primary">
-      <WorkDayHeaderTimer />
-    </div>
-  );
-};
+const HeaderWorkdayControls: React.FC = () => null;
 
 /**
  * Är denna booking planerad för idag? Vi kollar rig/event/down + assignment_dates.
@@ -221,15 +210,18 @@ export const HeaderStartEndDayButton: React.FC = () => {
 
   if (workdayOpen) {
     return (
-      <button
-        type="button"
-        onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
-        className="p-2.5 rounded-xl bg-destructive/90 text-destructive-foreground active:scale-95 transition-all"
-        title={t('workday.endDayTitle')}
-        aria-label={t('workday.endDay')}
-      >
-        <LogOut className="w-4.5 h-4.5" />
-      </button>
+      <div className="flex items-center gap-2">
+        <WorkDayHeaderTimer />
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
+          className="p-2.5 rounded-xl bg-destructive/90 text-destructive-foreground active:scale-95 transition-all"
+          title={t('workday.endDayTitle')}
+          aria-label={t('workday.endDay')}
+        >
+          <LogOut className="w-4.5 h-4.5" />
+        </button>
+      </div>
     );
   }
 
