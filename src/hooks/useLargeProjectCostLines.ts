@@ -16,7 +16,7 @@ export function useLargeProjectCostLines(largeProjectId: string | undefined) {
   });
 
   const add = useMutation({
-    mutationFn: (input: { category: CostCategory; description?: string; amount?: number; supplier?: string | null; cost_date?: string | null }) =>
+    mutationFn: (input: { category: CostCategory; description?: string; amount?: number; budget_amount?: number; supplier?: string | null; cost_date?: string | null }) =>
       createCostLine({ large_project_id: largeProjectId!, ...input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
     onError: () => toast.error('Kunde inte lägga till rad'),
