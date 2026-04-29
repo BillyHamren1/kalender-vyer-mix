@@ -13,6 +13,8 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { DayApprovalAction } from '@/components/admin/time-review/DayApprovalAction';
 import { DayEventTimeline } from '@/components/staff/DayEventTimeline';
+import { CorrectionSuggestionsPanel } from '@/components/staff/CorrectionSuggestionsPanel';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 
 interface GpsPoint {
   lat: number;
@@ -91,6 +93,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   reviewRow,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
+  const { organizationId } = useCurrentOrg();
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapboxToken, setMapboxToken] = useState<string>('');
@@ -496,6 +499,11 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <SummaryCard icon={<Briefcase className="h-4 w-4" />} label="Arbetstid" value={formatHoursMinutes(totalWork)} />
           <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
         </div>
+
+        {/* Correction suggestions (Etapp 3) — actionable above timeline */}
+        {date && staffId && (
+          <CorrectionSuggestionsPanel staffId={staffId} date={date} organizationId={organizationId} />
+        )}
 
         {/* Server-derived event timeline (Day Timeline Engine) */}
         {date && staffId && (

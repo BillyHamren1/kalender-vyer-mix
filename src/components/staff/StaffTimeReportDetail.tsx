@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin, Route, Activity, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, Car, AlertTriangle, MapPin, Coffee, Briefcase, HelpCircle, Pin, Route, Activity, CheckCircle2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Badge } from '@/components/ui/badge';
@@ -74,7 +74,30 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
   const isoWeek = getISOWeek(weekStart);
 
-  // Main data query
+  // Pending correction suggestions for the visible week (badge per day)
+  const { data: pendingSuggestions } = useQuery({
+    queryKey: ['pending-suggestions', staffId, monthStart, monthEnd],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('time_report_correction_suggestions')
+        .select('id, report_date')
+        .eq('staff_id', staffId)
+        .eq('status', 'pending')
+        .gte('report_date', monthStart)
+        .lte('report_date', monthEnd);
+      return data ?? [];
+    },
+  });
+  const pendingSuggestionsByDate = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of pendingSuggestions ?? []) {
+      m.set(s.report_date, (m.get(s.report_date) ?? 0) + 1);
+    }
+    return m;
+  }, [pendingSuggestions]);
+
+
   const { data: queryData, isLoading } = useQuery({
     queryKey: ['staff-time-reports-detail', staffId, monthStart],
     queryFn: async () => {
@@ -672,6 +695,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                     const date = format(dayDate, 'yyyy-MM-dd');
                     const dateRows = grouped.get(date) || [];
                     const dateAnomalyCount = anomalyCountByDate.get(date) || 0;
+                    const datePendingSuggestions = pendingSuggestionsByDate.get(date) || 0;
                     const dateTotalHours = dateRows.reduce((s, r) => s + r.hours_worked, 0);
                     const dateTravelHours = dateRows.filter(r => r.type === 'travel').reduce((s, r) => s + r.hours_worked, 0);
                     const hasOpenWork = dateRows.some(r => r.type === 'work' && !r.end_time);
@@ -726,6 +750,16 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                   >
                                     <AlertTriangle className="h-4 w-4" />
                                   </button>
+                                )}
+                                {datePendingSuggestions > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] gap-1 border-destructive/40 text-destructive bg-destructive/5"
+                                    title={`${datePendingSuggestions} korrigeringsförslag väntar`}
+                                  >
+                                    <Sparkles className="h-2.5 w-2.5" />
+                                    {datePendingSuggestions} förslag
+                                  </Badge>
                                 )}
                                 {(unlinkedAnomaliesByDate.get(date) || []).length > 0 && (
                                   <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
