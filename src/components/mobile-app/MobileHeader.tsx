@@ -70,7 +70,24 @@ const HeaderWorkdayControls: React.FC = () => {
 };
 
 /**
+ * Är denna booking planerad för idag? Vi kollar rig/event/down + assignment_dates.
+ * Endast bookings som är planerade idag får auto-starta dagen via GPS.
+ */
+function isPlannedToday(b: MobileBooking): boolean {
+  const today = new Date().toISOString().slice(0, 10);
+  const candidates = [
+    b.rigdaydate,
+    b.eventdate,
+    b.rigdowndate,
+    ...(b.assignment_dates || []),
+  ];
+  return candidates.some((d) => d === today);
+}
+
+/**
  * Försöker hitta en booking/projekt som matchar användarens GPS-position.
+ * Begränsar till bookings som är PLANERADE IDAG — vi auto-startar aldrig på
+ * ett projekt som ligger om flera veckor bara för att GPS råkar matcha.
  * Returnerar närmaste träff inom ENTER_RADIUS, eller null.
  */
 function findNearbyBooking(
@@ -81,6 +98,7 @@ function findNearbyBooking(
   let best: { b: MobileBooking; dist: number } | null = null;
   for (const b of bookings) {
     if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
+    if (!isPlannedToday(b)) continue;
     const dist = haversineDistance(pos.lat, pos.lng, b.delivery_latitude, b.delivery_longitude);
     if (dist <= ENTER_RADIUS && (!best || dist < best.dist)) {
       best = { b, dist };
