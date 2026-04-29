@@ -1,119 +1,59 @@
+## Mål
+Få bort "synthetic" kalenderrader helt. Allt sparas på samma sätt: en riktig `calendar_events`-rad per (bokning, fas, datum). Drag, team-byte och tidsändring funkar då likadant överallt — ingen "rullar tillbaka"-bugg.
 
-## Problemet i klartext
+## Bakgrund (kort)
+Idag har `bookings` bara EN `rigdaydate` och EN `rigdowndate`. Flerdagars-rig/rigdown finns bara som personal-uppdrag i `staff_assignments`, och UI:t härleder låtsasrader ("synthetic", `id` börjar med `staff-…`). När man flyttar en synthetic-rad finns det ingen rad att skriva till → ändringen försvinner.
 
-Personalkalendern har **5 parallella vägar** för samma operation (tilldela/ta bort personal från team) — och **3 olika hooks** med funktionen `handleStaffDrop`. Olika delar av UI:t använder olika vägar, så de skriver inkonsekvent, har olika optimistic state, olika cache-invalidering, och olika regler för "ta bort hela dagen vs en team-rad". Det är därför jobb "försvinner" eller "flyttas" — beroende på var du klickar går skrivningen via olika logik.
+Skolfest #2604-64 är ett konkret exempel: `rigdowndate=2026-04-26` men personal jobbar även 27/4 → synthetic-rad → team-2 sparades aldrig.
 
-### Dagens röra (mätt nu)
+## Steg
 
-**Hooks som gör samma sak:**
-- `useUnifiedStaffOperations.handleStaffDrop` (302 rader, har optimistic state)
-- `useReliableStaffOperations.handleStaffDrop` (239 rader)
-- `useDateAwareStaffOperations.handleStaffDrop` (47 rader)
-- `useStaffOperations.handleStaffDrop`
-- `usePlanningDashboard.handleStaffDrop` + `handleStaffDropToBooking`
-- `useStaffBookingConnection` (egen variant via unifiedStaffService)
+### 1. Quick-fix för Skolfest #2604-64
+Skapa den saknade `calendar_events`-raden för 2026-04-27 (rigDown, `resource_id='team-2'`) så användarens flytt syns direkt.
 
-**Services som gör samma sak:**
-- `services/staffService.ts` → `assignStaffToTeam` / `removeStaffAssignment` (366 rader)
-- `services/unifiedStaffService.ts` → samma funktioner (248 rader)
-- `services/enhancedStaffService.ts` → wrappar unifiedStaffService (258 rader)
-- `lib/staffCalendar/staffAssignmentService.ts` (531 rader)
-- `lib/staffCalendar/unifiedStaffService.ts`
-- `lib/staffCalendar/staffService.ts`
-- `lib/staffCalendar/enhancedStaffService.ts`
+### 2. Backfill: materialisera alla synthetic-dagar som finns idag
+SQL-migration som för varje (bokning, fas) hittar alla dagar som har personal i `staff_assignments`/`booking_staff_assignments` men ingen `calendar_events`-rad — och skapar dem. Tider och team hämtas från BSA + booking-fältet, fallback 08:00–12:00.
 
-**För stora filer (>200 rader, mot vår regel):**
-- `TimeGrid.tsx` — **722 rader**
-- `staffAssignmentService.ts` — **531 rader**
-- `MoveEventDateDialog.tsx` — 510 rader
-- `staffCalendarService.ts` — 490 rader
-- `staffService.ts` — 366 rader
-- `QuickTimeEditPopover.tsx` — 345 rader
-- `IndividualStaffCalendar.tsx` — 328 rader
-- `StaffBookingsList.tsx` — 310 rader
-- `useUnifiedStaffOperations.tsx` — 302 rader
-- `StaffSelectionDialog.tsx` — 301 rader
+### 3. Utöka `import-bookings`
+Idag skapar reconcilern bara en rad per `rigdaydate`/`rigdowndate`. Ändras till: skapa en rad per dag som faktiskt är schemalagd (läs `rig_*_dates`-arrayer från BOOKING om de finns; annars expandera intervallet utifrån `rigdaydate`+antal dagar). Resultat: nya bokningar har aldrig synthetic-dagar.
 
-## Lösning — i tre etapper
+### 4. Riv ut synthetic-koden
+- `staffCalendarService.deriveStaffEvents` slutar generera `staff-…`-id:n för dagar som saknar `calendar_events` — istället loggas en varning ("backfill-kandidat") och raden visas inte.
+- `plannerCalendarDerivation`: ta bort `pickNearestReal`/`inferProjectSynthetic`-fallback som hittar på `resourceId`. Om en rad saknas → den finns inte i kalendern, punkt.
+- `useEventDragDrop` + `MoveEventDateDialog`: ta bort grenarna `isSyntheticCalendarEventId` / "booking-only update". Alla flyttar går samma väg: uppdatera `calendar_events`-raden + spegla till `bookings`.
+- `calendarEventResolver.isSyntheticCalendarEventId` + alla användningar tas bort.
 
-### Etapp 1: ETT canonical write-path (fixar "jobb flyttas/försvinner")
+### 5. Kontraktstest som låser det
+Nytt test (`src/test/calendarEvents.noSynthetic.contract.test.ts`) som failar om någon återinför `staff-`-prefix-id:n eller fallback-derivering av `resourceId` i kalenderkoden.
 
-Gör `useUnifiedStaffOperations` till **enda** källan för assign/remove och `unifiedStaffService` till **enda** servicelagret. Allt annat blir tunna re-exports som loggar deprecation och delegerar.
+### 6. Memory-uppdatering
+Lägg till `mem://constraints/no-synthetic-calendar-events-v1` och uppdatera index. Skriver om `calendar-sync-consistency` så det är tydligt: en rad per (bokning, fas, datum), inga härledningar.
 
-```text
-UI (TimeGrid, SimpleStaffCurtain, StaffAssignmentRow, dashboards)
-        │
-        ▼
-useUnifiedStaffOperations  ◄── enda hook
-        │
-        ▼
-unifiedStaffService        ◄── enda service (edge: staff-management)
-        │
-        ▼
-staff_assignments (DB)     ◄── unique (staff,team,date)
-        │
-        ▼
-realtime invalidation → React Query
-```
+## Tekniska detaljer
 
-Konkret:
-- `useReliableStaffOperations`, `useDateAwareStaffOperations`, `useStaffOperations` → ersätts av re-exports från `useUnifiedStaffOperations` (samma signatur, ingen call-site behöver ändras initialt).
-- `services/staffService.ts` `assignStaffToTeam`/`removeStaffAssignment` → re-export från `unifiedStaffService`.
-- `services/enhancedStaffService.ts` → samma sak, eller raderas där det går.
-- `lib/staffCalendar/*` dubbletter → konvergerar till `services/unifiedStaffService.ts`.
-- En enda regel för remove: `(staffId, date, teamId?)` — `teamId` satt = ta bort den raden, undefined = ta bort alla för dagen. Inga andra regler någonstans.
-- En enda optimistic-update strategi (den i `useUnifiedStaffOperations`). Removas från `useLocalStaffState` och dashboard-hooken.
+**Filer som ändras:**
+- `supabase/functions/import-bookings/index.ts` — expandera `rigDates`/`rigdownDates` till alla schemalagda dagar (steg 3)
+- `src/services/staffCalendarService.ts` — sluta skapa synthetic events (steg 4)
+- `src/services/plannerCalendarDerivation.ts` — ta bort `pickNearestReal`/`inferProjectSynthetic`-derivering (steg 4)
+- `src/hooks/useEventDragDrop.ts` — en enda kodväg för flytt (steg 4)
+- `src/components/Calendar/MoveEventDateDialog.tsx` — ta bort synthetic-grenen (steg 4)
+- `src/services/calendarEventResolver.ts` — ta bort `isSyntheticCalendarEventId` + relaterad logik (steg 4)
 
-### Etapp 2: Splittra TimeGrid och staffAssignmentService
+**Migrationer:**
+- En SQL-migration för quick-fix Skolfest #2604-64 (steg 1)
+- En SQL-migration för backfill av alla saknade rader (steg 2) — körs en gång, idempotent
 
-`TimeGrid.tsx` (722 rader) splittas:
-- `TimeGrid.tsx` — bara grid + layout (~150 rader)
-- `TimeGridDnD.tsx` — drag/drop-logik
-- `TimeGridRow.tsx` — en rad (team)
-- `TimeGridCell.tsx` — en cell (dag)
-- `useTimeGridStaff.ts` — hook som filtrerar ut available + assigned
+**Risker / saker att vara extra noga med:**
+- Backfill måste vara idempotent och får inte skapa duplicerade rader (unique på `(booking_id, event_type, source_date)` om det inte redan finns — vi lägger till indexet om det saknas).
+- `import-bookings` reconcilern måste fortsätta använda samma matchningsnyckel `(event_type, date)` så befintliga rader inte raderas.
+- Stora projekt har egen logik (`large_project_team_assignments`) som redan skriver riktiga overrides — den lämnas orörd.
 
-`staffAssignmentService.ts` (531 rader) splittas:
-- `assignmentQueries.ts` — read
-- `assignmentMutations.ts` — write
-- `assignmentDerivations.ts` — sammansättning av status/availability
-- `assignmentRealtime.ts` — subscription-hjälpare
+**Inget som rörs:**
+- `staff_assignments` skrivväg (precis konsoliderad — enda writer är `staffAssignmentCore`).
+- Warehouse-kalendern (`warehouse_calendar_events`).
+- BOOKING-systemet eller `planning-api-proxy`.
 
-`MoveEventDateDialog.tsx`, `staffCalendarService.ts`, `QuickTimeEditPopover.tsx`, `IndividualStaffCalendar.tsx`, `StaffBookingsList.tsx`, `StaffSelectionDialog.tsx` splittas i sub-komponenter/hooks där det är naturligt — utan att skapa mikrofiler.
-
-### Etapp 3: Kontraktstest som låser regeln
-
-Lägg `src/test/staffCalendar.contract.test.ts`:
-- Endast `useUnifiedStaffOperations` får anropa `unifiedStaffService.assignStaffToTeam/removeStaffAssignment` direkt (regex-grep i src).
-- Endast `unifiedStaffService` får göra `.from('staff_assignments')` mutations.
-- Inga nya filer i `src/components/Calendar/` eller `src/hooks/` över 200 rader, services över 250.
-
-Säkerhetsnät så att vi inte halkar tillbaka.
-
-## Vad jag INTE rör
-
-- Datamodellen (`staff_assignments`-tabellen, RLS, unique index — redan korrekt enligt memory `multi-team-staff-assignment-v1`).
-- Edge function `staff-management`.
-- `deriveStaffEvents.ts` (391 rader) — central, men välstrukturerad och täckt av tester. Lämnas.
-- Bookingsync/import-loopen (separat ärende vi redan har).
-
-## Förväntad effekt
-
-- Inga fler "jobb flyttar sig" — bara en skrivare betyder bara en sanning.
-- Filer ≤ memoriregeln (~200/250 rader).
-- Lättare att felsöka: en stack trace pekar alltid till samma fil.
-- Kontraktstest hindrar ny dubblering.
-
-## Risker
-
-- Många call-sites pekar på de gamla hookarna. Re-exports gör att vi kan migrera utan big-bang, men jag måste verifiera att signaturerna är 1:1. Det gör jag innan jag river något.
-- Optimistic state-skillnader kan ge en kort period där en knapp beter sig nytt. Jag verifierar drag-and-drop i TimeGrid + SimpleStaffCurtain + dashboard manuellt efter etapp 1.
-
-## Ordning
-
-1. Etapp 1 (skrivvägs-konsolidering) — säkraste vinsten, fixar buggen.
-2. Verifiera i preview att ingen flow är trasig.
-3. Etapp 2 (splittring).
-4. Etapp 3 (kontraktstest).
-
-Säg till om du vill att jag kör hela paketet eller bara Etapp 1 först.
+## Klart när
+- Skolfest #2604-64 visar rigDown 27/4 i team-2 efter F5.
+- Drag/team-byte funkar för alla rig-/rigdown-dagar oavsett om bokningen har en eller flera dagar — inget "hoppar tillbaka".
+- Inga `staff-…`-id:n finns kvar i koden, kontraktstestet failar om någon återinför dem.
