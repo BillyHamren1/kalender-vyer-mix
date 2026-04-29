@@ -177,30 +177,22 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
         </Button>
       </div>
 
-      {/* Summary badges */}
+      {/* Summary — neutral text, only stale gets a warning color */}
       {!isLoading && staffList.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          <Badge variant="secondary" className="text-[11px] gap-1">
-            <Clock className="h-3 w-3" />
-            {formatHoursMinutes(totalHours)} totalt
-          </Badge>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-xs text-muted-foreground">
+          <span className="tabular-nums">
+            <span className="font-semibold text-foreground">{formatHoursMinutes(totalHours)}</span> totalt
+          </span>
           {liveCount > 0 && (
-            <Badge
-              variant="outline"
-              className="text-[11px] gap-1 font-medium border-primary/30 text-primary bg-primary/5"
-            >
-              <Activity className="h-3 w-3" />
-              {liveCount} pågående
-            </Badge>
+            <span className="tabular-nums">
+              <span className="font-semibold text-foreground">{liveCount}</span> pågående
+            </span>
           )}
           {staleCount > 0 && (
-            <Badge
-              variant="outline"
-              className="text-[11px] gap-1 font-medium border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
-            >
+            <span className="tabular-nums text-destructive font-medium inline-flex items-center gap-1">
               <WifiOff className="h-3 w-3" />
               {staleCount} tappad signal
-            </Badge>
+            </span>
           )}
         </div>
       )}
