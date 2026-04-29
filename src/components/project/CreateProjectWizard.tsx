@@ -333,11 +333,13 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         completed: false
       }));
 
-      const { error: tasksError } = await supabase
-        .from('project_tasks')
-        .insert(tasks);
-
-      if (tasksError) throw tasksError;
+      // Insert tasks only if user added any (no auto-default tasks)
+      if (tasks.length > 0) {
+        const { error: tasksError } = await supabase
+          .from('project_tasks')
+          .insert(tasks);
+        if (tasksError) throw tasksError;
+      }
 
       // Sync standalone project to calendar if it has dates — CRITICAL: must succeed
       if (!bookingId && (eventdate || rigdaydate || rigdowndate)) {
@@ -360,10 +362,35 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         }
       }
 
+      // Booking-based projects: trigger import-bookings to materialize ALL
+      // rig/rigDown days in calendar_events. The local bookings row only
+      // stores the legacy single date (rigdaydate/rigdowndate); the external
+      // Booking system holds the authoritative arrays (rig_dates[],
+      // rigdown_dates[]). Without this, the Gantt would only show day 1.
+      if (bookingId) {
+        try {
+          const { error: importErr } = await supabase.functions.invoke('import-bookings', {
+            body: {
+              booking_id: bookingId,
+              syncMode: 'single',
+              organization_id: project.organization_id,
+              skip_review: true,
+            },
+          });
+          if (importErr) {
+            console.error('[CreateProjectWizard] import-bookings invoke failed:', importErr);
+            toast.error('⚠️ Projektet skapades men alla riggdagar/rivdagar kunde inte synkas. Kör "Uppdatera bokning" på projektet.', { duration: 15000 });
+          }
+        } catch (err) {
+          console.error('[CreateProjectWizard] import-bookings threw:', err);
+          toast.error('⚠️ Projektet skapades men datumsynk misslyckades. Kör "Uppdatera bokning" på projektet.', { duration: 15000 });
+        }
+      }
+
       return project;
     },
     onSuccess: () => {
-      toast.success('Projekt skapat med checklista');
+      toast.success('Projekt skapat');
       onSuccess();
     },
     onError: (error: any) => {
