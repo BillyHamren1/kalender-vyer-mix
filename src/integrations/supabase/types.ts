@@ -2821,6 +2821,7 @@ export type Database = {
           quantity: number
           scanned_at: string
           scanned_by: string | null
+          scanned_by_staff_id: string | null
         }
         Insert: {
           created_at?: string
@@ -2831,6 +2832,7 @@ export type Database = {
           quantity: number
           scanned_at?: string
           scanned_by?: string | null
+          scanned_by_staff_id?: string | null
         }
         Update: {
           created_at?: string
@@ -2841,6 +2843,7 @@ export type Database = {
           quantity?: number
           scanned_at?: string
           scanned_by?: string | null
+          scanned_by_staff_id?: string | null
         }
         Relationships: [
           {
@@ -2857,6 +2860,13 @@ export type Database = {
             referencedRelation: "packing_parcels"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "packing_list_item_allocations_scanned_by_staff_id_fkey"
+            columns: ["scanned_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
         ]
       }
       packing_list_items: {
@@ -2870,6 +2880,7 @@ export type Database = {
           organization_id: string
           packed_at: string | null
           packed_by: string | null
+          packed_by_staff_id: string | null
           packing_id: string
           parcel_id: string | null
           quantity_packed: number
@@ -2879,6 +2890,7 @@ export type Database = {
           returned_by: string | null
           verified_at: string | null
           verified_by: string | null
+          verified_by_staff_id: string | null
         }
         Insert: {
           booking_product_id?: string | null
@@ -2890,6 +2902,7 @@ export type Database = {
           organization_id?: string
           packed_at?: string | null
           packed_by?: string | null
+          packed_by_staff_id?: string | null
           packing_id: string
           parcel_id?: string | null
           quantity_packed?: number
@@ -2899,6 +2912,7 @@ export type Database = {
           returned_by?: string | null
           verified_at?: string | null
           verified_by?: string | null
+          verified_by_staff_id?: string | null
         }
         Update: {
           booking_product_id?: string | null
@@ -2910,6 +2924,7 @@ export type Database = {
           organization_id?: string
           packed_at?: string | null
           packed_by?: string | null
+          packed_by_staff_id?: string | null
           packing_id?: string
           parcel_id?: string | null
           quantity_packed?: number
@@ -2919,6 +2934,7 @@ export type Database = {
           returned_by?: string | null
           verified_at?: string | null
           verified_by?: string | null
+          verified_by_staff_id?: string | null
         }
         Relationships: [
           {
@@ -2936,6 +2952,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "packing_list_items_packed_by_staff_id_fkey"
+            columns: ["packed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "packing_list_items_packing_id_fkey"
             columns: ["packing_id"]
             isOneToOne: false
@@ -2949,12 +2972,20 @@ export type Database = {
             referencedRelation: "packing_parcels"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "packing_list_items_verified_by_staff_id_fkey"
+            columns: ["verified_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
         ]
       }
       packing_parcels: {
         Row: {
           created_at: string
           created_by: string | null
+          created_by_staff_id: string | null
           id: string
           organization_id: string
           packing_id: string
@@ -2963,6 +2994,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          created_by_staff_id?: string | null
           id?: string
           organization_id?: string
           packing_id: string
@@ -2971,12 +3003,20 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          created_by_staff_id?: string | null
           id?: string
           organization_id?: string
           packing_id?: string
           parcel_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_parcels_created_by_staff_id_fkey"
+            columns: ["created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_parcels_organization_id_fkey"
             columns: ["organization_id"]
@@ -3042,6 +3082,7 @@ export type Database = {
           project_leader: string | null
           signed_at: string | null
           signed_by: string | null
+          signed_by_staff_id: string | null
           start_date: string | null
           status: string
           updated_at: string
@@ -3063,6 +3104,7 @@ export type Database = {
           project_leader?: string | null
           signed_at?: string | null
           signed_by?: string | null
+          signed_by_staff_id?: string | null
           start_date?: string | null
           status?: string
           updated_at?: string
@@ -3084,6 +3126,7 @@ export type Database = {
           project_leader?: string | null
           signed_at?: string | null
           signed_by?: string | null
+          signed_by_staff_id?: string | null
           start_date?: string | null
           status?: string
           updated_at?: string
@@ -3102,6 +3145,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_projects_signed_by_staff_id_fkey"
+            columns: ["signed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
           {

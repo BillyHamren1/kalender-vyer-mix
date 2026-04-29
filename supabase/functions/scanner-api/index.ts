@@ -422,7 +422,7 @@ Deno.serve(async (req) => {
       }
 
       case 'verify_product': {
-        const { packingId, sku: serialNumber, verifiedBy, activeParcelId } = params
+        const { packingId, sku: serialNumber, verifiedBy, activeParcelId, verifiedByStaffId } = params
         console.log('[verify_product] start', { packingId, serialNumber, orgId: ORG_ID, verifiedBy: auth.staffName })
 
         // STATUS FLOW: First scan → set to in_progress
@@ -658,7 +658,8 @@ Deno.serve(async (req) => {
           quantity_packed: newQuantity,
           packed_at: now,
           packed_by: verifiedBy,
-          ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+          packed_by_staff_id: verifiedByStaffId || null,
+          ...(isNowFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
           ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
         }).eq('id', (selectedItem as any).id)
 
@@ -671,6 +672,7 @@ Deno.serve(async (req) => {
               parcel_id: activeParcelId,
               quantity: allocQty,
               scanned_by: verifiedBy || null,
+              scanned_by_staff_id: verifiedByStaffId || null,
               organization_id: ORG_ID,
             })
           }
@@ -691,7 +693,7 @@ Deno.serve(async (req) => {
       }
 
       case 'toggle_item': {
-        const { itemId, currentlyPacked, quantityToPack, verifiedBy } = params
+        const { itemId, currentlyPacked, quantityToPack, verifiedBy, verifiedByStaffId } = params
         const now = new Date().toISOString()
 
         // Get the packing_id for status flow
@@ -706,7 +708,7 @@ Deno.serve(async (req) => {
 
         if (currentlyPacked) {
           await supabase.from('packing_list_items').update({
-            quantity_packed: 0, packed_at: null, packed_by: null, verified_at: null, verified_by: null, parcel_id: null
+            quantity_packed: 0, packed_at: null, packed_by: null, packed_by_staff_id: null, verified_at: null, verified_by: null, verified_by_staff_id: null, parcel_id: null
           }).eq('id', itemId).eq('organization_id', ORG_ID)
           // Clear all parcel allocations on full reset
           await supabase.from('packing_list_item_allocations').delete().eq('packing_list_item_id', itemId).eq('organization_id', ORG_ID)
@@ -724,7 +726,8 @@ Deno.serve(async (req) => {
             quantity_packed: newQty,
             packed_at: now,
             packed_by: verifiedBy,
-            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+            packed_by_staff_id: verifiedByStaffId || null,
+            ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
             ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
           }).eq('id', itemId).eq('organization_id', ORG_ID)
 
@@ -734,6 +737,7 @@ Deno.serve(async (req) => {
               parcel_id: activeParcelId,
               quantity: newQty - currentQty,
               scanned_by: verifiedBy || null,
+              scanned_by_staff_id: verifiedByStaffId || null,
               organization_id: ORG_ID,
             })
           }
@@ -794,7 +798,7 @@ Deno.serve(async (req) => {
       }
 
       case 'create_parcel': {
-        const { packingId, createdBy } = params
+        const { packingId, createdBy, createdByStaffId } = params
 
         const { data: existing } = await supabase
           .from('packing_parcels')
@@ -808,7 +812,7 @@ Deno.serve(async (req) => {
 
         const { data, error } = await supabase
           .from('packing_parcels')
-          .insert({ packing_id: packingId, parcel_number: nextNumber, created_by: createdBy, organization_id: ORG_ID })
+          .insert({ packing_id: packingId, parcel_number: nextNumber, created_by: createdBy, created_by_staff_id: createdByStaffId || null, organization_id: ORG_ID })
           .select()
           .single()
 
@@ -820,7 +824,7 @@ Deno.serve(async (req) => {
         // New allocation-based model: a single item can be split across multiple parcels.
         // Inserts an allocation row of `quantity` (default 1). Caller may pass quantity to allocate
         // multiple units in one call. Pass `parcelId: null` + `clearAllocations: true` to clear.
-        const { itemId, parcelId, quantity, scannedBy, clearAllocations } = params
+        const { itemId, parcelId, quantity, scannedBy, scannedByStaffId, clearAllocations } = params
 
         if (clearAllocations) {
           const { error } = await supabase
@@ -868,6 +872,7 @@ Deno.serve(async (req) => {
             parcel_id: parcelId,
             quantity: finalQty,
             scanned_by: scannedBy || null,
+            scanned_by_staff_id: scannedByStaffId || null,
             organization_id: ORG_ID,
           })
         if (error) throw error
@@ -974,7 +979,7 @@ Deno.serve(async (req) => {
       }
 
       case 'sign_packing': {
-        const { packingId, signedBy } = params
+        const { packingId, signedBy, signedByStaffId } = params
 
         // STATUS FLOW: Signing = delivery confirmed → set to delivered
         // Only allow signing if status is 'packed' or 'in_progress'
@@ -991,7 +996,7 @@ Deno.serve(async (req) => {
 
         const { error } = await supabase
           .from('packing_projects')
-          .update({ signed_by: signedBy, signed_at: new Date().toISOString(), status: 'delivered' })
+          .update({ signed_by: signedBy, signed_by_staff_id: signedByStaffId || null, signed_at: new Date().toISOString(), status: 'delivered' })
           .eq('id', packingId)
           .eq('organization_id', ORG_ID)
 
@@ -1095,7 +1100,7 @@ Deno.serve(async (req) => {
       }
 
       case 'add_unknown_product': {
-        const { packingId, sku, name, quantityToPack, verifiedBy } = params
+        const { packingId, sku, name, quantityToPack, verifiedBy, verifiedByStaffId } = params
         const qty = Math.max(1, parseInt(quantityToPack, 10) || 1)
         const productName = (name && String(name).trim()) || (sku ? `Okänd: ${sku}` : 'Okänd produkt')
 
@@ -1142,7 +1147,8 @@ Deno.serve(async (req) => {
             quantity_packed: 1,
             packed_at: now,
             packed_by: verifiedBy,
-            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+            packed_by_staff_id: verifiedByStaffId || null,
+            ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
           })
           .select('id')
           .single()

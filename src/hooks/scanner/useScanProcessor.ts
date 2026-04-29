@@ -29,6 +29,7 @@ export interface PendingUnknownProductState {
 interface UseScanProcessorOptions {
   packingId: string;
   verifierName: string;
+  verifierStaffId?: string | null;
   getItems: () => PackingItem[];
   getIsMinusMode: () => boolean;
   getIsKolliMode: () => boolean;
@@ -108,7 +109,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     scanLog('scan_received', { value: scannedValue, type: parsed.type, unique: parsed.unique });
 
     const {
-      packingId, verifierName, getItems, getIsMinusMode, getIsKolliMode,
+      packingId, verifierName, verifierStaffId, getItems, getIsMinusMode, getIsKolliMode,
       onScanResult, onHighlight, onOptimisticIncrement,
       onOptimisticDecrement, onAssignToKolli, onTriggerSync,
     } = optRef.current;
@@ -163,7 +164,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // === NORMAL MODE ===
         scanLog('verify_start', { packingId, sku: scannedValue });
         const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
-        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId);
+        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId, verifierStaffId);
         scanLog('verify_result', result);
 
         // === Special branch: product not in packing list — pause + prompt user ===

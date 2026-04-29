@@ -260,7 +260,8 @@ export const verifyProductBySku = async (
   packingId: string,
   sku: string,
   verifiedBy: string,
-  activeParcelId?: string | null
+  activeParcelId?: string | null,
+  verifiedByStaffId?: string | null
 ): Promise<{
   success: boolean;
   productName?: string;
@@ -275,7 +276,7 @@ export const verifyProductBySku = async (
   bookingId?: string;
   alreadyScanned?: boolean;
 }> => {
-  return callScannerApi('verify_product', { packingId, sku, verifiedBy, activeParcelId: activeParcelId || null });
+  return callScannerApi('verify_product', { packingId, sku, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null });
 };
 
 // Add an unknown product (scanned but not in packing list) to both
@@ -285,9 +286,10 @@ export const addUnknownProduct = async (
   sku: string | null,
   name: string,
   quantityToPack: number,
-  verifiedBy: string
+  verifiedBy: string,
+  verifiedByStaffId?: string | null
 ): Promise<{ success: boolean; itemId?: string; bookingProductId?: string; productName?: string; error?: string }> => {
-  return callScannerApi('add_unknown_product', { packingId, sku, name, quantityToPack, verifiedBy });
+  return callScannerApi('add_unknown_product', { packingId, sku, name, quantityToPack, verifiedBy, verifiedByStaffId: verifiedByStaffId || null });
 };
 
 // Toggle a packing item manually (optionally allocate the increment to an active parcel)
@@ -296,9 +298,10 @@ export const togglePackingItemManually = async (
   currentlyPacked: boolean,
   quantityToPack: number,
   verifiedBy: string,
-  activeParcelId?: string | null
+  activeParcelId?: string | null,
+  verifiedByStaffId?: string | null
 ): Promise<{ success: boolean; error?: string }> => {
-  return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null });
+  return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null });
 };
 
 // Decrement a packing item by 1
@@ -315,8 +318,12 @@ export const getVerificationProgress = async (packingId: string) => {
 };
 
 // Sign a packing project
-export const signPacking = async (packingId: string, signedBy: string): Promise<void> => {
-  await callScannerApi('sign_packing', { packingId, signedBy });
+export const signPacking = async (
+  packingId: string,
+  signedBy: string,
+  signedByStaffId?: string | null
+): Promise<void> => {
+  await callScannerApi('sign_packing', { packingId, signedBy, signedByStaffId: signedByStaffId || null });
 };
 
 // Identify a product by serial number or SKU (home screen lookup)
