@@ -493,6 +493,7 @@ const translations = {
   'startDay.searchPlaceholder': { sv: 'Sök projekt eller kund…', en: 'Search project or client…' },
   'startDay.suggested': { sv: 'Föreslagna (±1 dag)', en: 'Suggested (±1 day)' },
   'startDay.allProjects': { sv: 'Alla projekt', en: 'All projects' },
+  'startDay.fixedLocations': { sv: 'Fasta platser', en: 'Fixed locations' },
   'startDay.noMatch': { sv: 'Inga matchande projekt. Skriv manuellt nedan.', en: 'No matching projects. Enter manually below.' },
   'startDay.manualToggle': { sv: 'Skriv manuellt istället', en: 'Enter manually instead' },
   'startDay.manualLabel': { sv: 'Var är du? (Adress eller beskrivning)', en: 'Where are you? (Address or description)' },

@@ -27,11 +27,23 @@ export type StartDaySelection =
   | { kind: 'target'; target: WorkTarget; label: string }
   | { kind: 'manual'; text: string };
 
+export interface StartDayLocation {
+  id: string;
+  name: string;
+  address: string | null;
+}
+
 interface StartDayDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (selection: StartDaySelection) => void | Promise<void>;
   bookings: MobileBooking[];
+  /**
+   * Fasta platser (t.ex. Lager) som ALLTID ska kunna väljas som startmål,
+   * även om personen inte är planerad på något jobb idag. Renderas överst
+   * i listan så att Lager alltid finns inom räckhåll.
+   */
+  locations?: StartDayLocation[];
   starting?: boolean;
 }
 
@@ -101,7 +113,7 @@ function buildTargets(bookings: MobileBooking[]): Array<{ key: string; label: st
 }
 
 export const StartDayDialog: React.FC<StartDayDialogProps> = ({
-  open, onClose, onConfirm, bookings, starting,
+  open, onClose, onConfirm, bookings, locations = [], starting,
 }) => {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
@@ -109,6 +121,19 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   const [showManual, setShowManual] = useState(false);
 
   const allTargets = useMemo(() => buildTargets(bookings), [bookings]);
+
+  // Lager och andra fasta platser ska ALLTID finnas som val, oavsett
+  // planering. De renderas i en egen sektion överst.
+  const locationTargets = useMemo(
+    () => locations.map((loc) => ({
+      key: `location:${loc.id}`,
+      label: loc.name,
+      sublabel: loc.address || undefined,
+      target: { kind: 'location' as const, locationId: loc.id, name: loc.name },
+    })),
+    [locations]
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return allTargets;
@@ -117,6 +142,16 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
       (t.sublabel || '').toLowerCase().includes(q)
     );
   }, [allTargets, search]);
+
+  const filteredLocations = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return locationTargets;
+    return locationTargets.filter(t =>
+      t.label.toLowerCase().includes(q) ||
+      (t.sublabel || '').toLowerCase().includes(q)
+    );
+  }, [locationTargets, search]);
+
 
   const nearby = filtered.filter(t => t.nearby);
   const others = filtered.filter(t => !t.nearby);
@@ -157,6 +192,20 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
 
             <ScrollArea className="flex-1 -mx-6 px-6">
               <div className="space-y-4 py-2">
+                {filteredLocations.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5" />
+                      {t('startDay.fixedLocations')}
+                    </h3>
+                    <div className="space-y-1.5">
+                      {filteredLocations.map(item => (
+                        <TargetRow key={item.key} item={item} onPick={handlePick} disabled={!!starting} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {nearby.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
@@ -184,7 +233,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
                   </div>
                 )}
 
-                {filtered.length === 0 && (
+                {filtered.length === 0 && filteredLocations.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-6">
                     {t('startDay.noMatch')}
                   </p>
