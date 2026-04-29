@@ -1163,6 +1163,90 @@ Deno.serve(async (req) => {
         })
       }
 
+      // ============== RETURN (IN) FLOW ==============
+      // Mirrors toggle_item / decrement_item but on quantity_returned, capped
+      // by quantity_packed (= what actually went out). Status flows
+      // delivered → returning → returned via checkIfAllReturned.
+
+      case 'return_toggle_item': {
+        const { itemId, returnedBy } = params
+        const now = new Date().toISOString()
+
+        const { data: itemData } = await supabase
+          .from('packing_list_items')
+          .select('packing_id, quantity_packed, quantity_returned')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        if (!itemData) return json({ success: false, error: 'Item not found' })
+        const sentOut = Math.max(0, (itemData as any).quantity_packed ?? 0)
+        const currentBack = Math.max(0, (itemData as any).quantity_returned ?? 0)
+
+        if (sentOut === 0) {
+          return json({ success: false, error: 'Inget skickades ut för denna rad' })
+        }
+
+        const packingId = (itemData as any).packing_id
+        await transitionToReturning(supabase, packingId, ORG_ID)
+
+        const newQty = Math.min(currentBack + 1, sentOut)
+        await supabase.from('packing_list_items').update({
+          quantity_returned: newQty,
+          returned_at: now,
+          returned_by: returnedBy || null,
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        await checkIfAllReturned(supabase, packingId, ORG_ID)
+        return json({ success: true, quantity_returned: newQty, quantity_packed: sentOut })
+      }
+
+      case 'return_decrement_item': {
+        const { itemId } = params
+        const { data: currentItem } = await supabase
+          .from('packing_list_items')
+          .select('quantity_returned, packing_id')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        const currentBack = Math.max(0, (currentItem as any)?.quantity_returned ?? 0)
+        if (currentBack <= 0) return json({ success: false, error: 'Redan på 0' })
+
+        const newQty = currentBack - 1
+        await supabase.from('packing_list_items').update({
+          quantity_returned: newQty,
+          ...(newQty === 0 ? { returned_at: null, returned_by: null } : {}),
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        if ((currentItem as any)?.packing_id) {
+          await checkIfAllReturned(supabase, (currentItem as any).packing_id, ORG_ID)
+        }
+        return json({ success: true, quantity_returned: newQty })
+      }
+
+      case 'reset_return_item': {
+        // Set quantity_returned back to 0 for one row (used by "Töm rad" UI)
+        const { itemId } = params
+        const { data: currentItem } = await supabase
+          .from('packing_list_items')
+          .select('packing_id')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        await supabase.from('packing_list_items').update({
+          quantity_returned: 0,
+          returned_at: null,
+          returned_by: null,
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        if ((currentItem as any)?.packing_id) {
+          await checkIfAllReturned(supabase, (currentItem as any).packing_id, ORG_ID)
+        }
+        return json({ success: true })
+      }
+
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
