@@ -166,7 +166,44 @@ export const fetchPackingListItems = async (packingId: string) => {
   return sortPackingItems(data || []);
 };
 
-// Sort packing items: parents first with children underneath
+// ============== RETURN (IN) FLOW ==============
+
+export interface ReturnScanResult {
+  success: boolean;
+  itemId?: string;
+  productName?: string;
+  quantity_returned?: number;
+  quantity_packed?: number;
+  error?: string;
+  debugCode?: string;
+}
+
+export const returnScanSku = async (
+  packingId: string,
+  sku: string,
+  returnedBy?: string,
+): Promise<ReturnScanResult> => {
+  try {
+    return await callScannerApi('return_scan_sku', { packingId, sku, returnedBy });
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode };
+  }
+};
+
+export const returnToggleItem = async (
+  itemId: string,
+  returnedBy?: string,
+): Promise<ReturnScanResult> => {
+  return callScannerApi('return_toggle_item', { itemId, returnedBy });
+};
+
+export const returnDecrementItem = async (itemId: string): Promise<ReturnScanResult> => {
+  return callScannerApi('return_decrement_item', { itemId });
+};
+
+export const returnResetItem = async (itemId: string): Promise<{ success: boolean }> => {
+  return callScannerApi('reset_return_item', { itemId });
+};
 const sortPackingItems = (items: any[]) => {
   const mainProducts: typeof items = [];
   const childrenByParent: Record<string, typeof items> = {};

@@ -130,6 +130,94 @@ async function checkIfAllPacked(supabase: any, packingId: string, orgId: string)
   }
 }
 
+// ============== RETURN (IN) FLOW LOGIC ==============
+// Allowed transitions for return: delivered → returning → returned
+// Driven by quantity_returned vs quantity_packed on the same items.
+
+async function transitionToReturning(supabase: any, packingId: string, orgId: string) {
+  const { data } = await supabase
+    .from('packing_projects')
+    .select('status')
+    .eq('id', packingId)
+    .eq('organization_id', orgId)
+    .single()
+
+  if (data?.status === 'delivered') {
+    console.log(`[return-flow] ${packingId}: delivered → returning`)
+    await supabase
+      .from('packing_projects')
+      .update({ status: 'returning', updated_at: new Date().toISOString() })
+      .eq('id', packingId)
+      .eq('organization_id', orgId)
+  }
+}
+
+async function checkIfAllReturned(supabase: any, packingId: string, orgId: string) {
+  // Returnable = same countable rule as outbound, but compared against
+  // quantity_packed (what actually went out) rather than quantity_to_pack.
+  const { data: items, error } = await supabase
+    .from('packing_list_items')
+    .select('id, excluded, quantity_to_pack, quantity_packed, quantity_returned, booking_products(id, parent_product_id)')
+    .eq('packing_id', packingId)
+    .eq('organization_id', orgId)
+
+  if (error || !items || items.length === 0) return
+
+  // Reuse package-header collapse rule from shared helper by mapping shape.
+  // We do the totals locally because the canonical helper compares against
+  // quantity_to_pack, not quantity_packed/returned.
+  const headers = new Set<string>()
+  for (const it of items) {
+    const pid = (it as any).booking_products?.parent_product_id
+    if (pid) headers.add(pid)
+  }
+  let totalOut = 0
+  let totalReturned = 0
+  let anyReturned = false
+  for (const it of items) {
+    if ((it as any).excluded === true) continue
+    const productId = (it as any).booking_products?.id
+    if (productId && headers.has(productId)) continue // package header row
+    const sent = Math.max(0, ((it as any).quantity_packed ?? 0) | 0)
+    const back = Math.max(0, ((it as any).quantity_returned ?? 0) | 0)
+    totalOut += sent
+    totalReturned += Math.min(back, sent)
+    if (back > 0) anyReturned = true
+  }
+
+  if (totalOut === 0) return // nothing was actually packed/sent — leave alone
+
+  const { data: packing } = await supabase
+    .from('packing_projects')
+    .select('status')
+    .eq('id', packingId)
+    .eq('organization_id', orgId)
+    .single()
+
+  const current = packing?.status
+
+  if (totalReturned >= totalOut) {
+    if (current === 'delivered' || current === 'returning') {
+      console.log(`[return-flow] ${packingId}: ${current} → returned`)
+      await supabase
+        .from('packing_projects')
+        .update({ status: 'returned', updated_at: new Date().toISOString() })
+        .eq('id', packingId)
+        .eq('organization_id', orgId)
+    }
+  } else if (anyReturned && current === 'delivered') {
+    await transitionToReturning(supabase, packingId, orgId)
+  } else if (!anyReturned && current === 'returning') {
+    // All return scans undone → revert to delivered
+    console.log(`[return-flow] ${packingId}: returning → delivered (all return scans undone)`)
+    await supabase
+      .from('packing_projects')
+      .update({ status: 'delivered', updated_at: new Date().toISOString() })
+      .eq('id', packingId)
+      .eq('organization_id', orgId)
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -170,9 +258,9 @@ Deno.serve(async (req) => {
           .from('packing_projects')
           .select('*')
           .eq('organization_id', ORG_ID)
-          .in('status', ['planning', 'in_progress', 'packed'])
+          .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning'])
           .order('created_at', { ascending: false })
-          .limit(100)
+          .limit(150)
 
         if (error) throw error
 
@@ -192,14 +280,25 @@ Deno.serve(async (req) => {
           })
         )
 
-        // Filter: in_progress/packed always shown; planning only if rigdaydate <= 14 days from now (or no date)
+        // Filter rules:
+        // - in_progress / packed / returning  → always shown (active work)
+        // - planning   → show if rigdaydate within 14 days (or unset)
+        // - delivered  → show if rigdowndate within 14 days (or unset) so the
+        //                return (IN) flow can be picked up from the calendar.
         const filtered = packingsWithBookings.filter((p: any) => {
-          if (p.status === 'in_progress' || p.status === 'packed') return true
-          // Planning: show if rigdaydate is within 14 days or not set
-          const rigDate = p.booking?.rigdaydate
-          if (!rigDate) return true // No date = show it (manual packing without booking date)
-          return rigDate <= cutoffDate
-        }).slice(0, 50)
+          if (p.status === 'in_progress' || p.status === 'packed' || p.status === 'returning') return true
+          if (p.status === 'planning') {
+            const rigDate = p.booking?.rigdaydate
+            if (!rigDate) return true
+            return rigDate <= cutoffDate
+          }
+          if (p.status === 'delivered') {
+            const downDate = p.booking?.rigdowndate
+            if (!downDate) return true
+            return downDate <= cutoffDate
+          }
+          return false
+        }).slice(0, 80)
 
         return new Response(JSON.stringify(filtered), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
@@ -1062,6 +1161,163 @@ Deno.serve(async (req) => {
           bookingProductId: bookingProduct.id,
           productName: `${productName} (1/${qty})`,
         })
+      }
+
+      case 'return_scan_sku': {
+        // Local-only return scan: match scanned value (SKU or product name)
+        // against the packing's items where quantity_packed > quantity_returned,
+        // and bump quantity_returned by 1. No WMS round-trip.
+        const { packingId, sku: scannedValue, returnedBy } = params
+        if (!packingId || !scannedValue) return json({ success: false, error: 'packingId och sku krävs' })
+
+        const trimmed = String(scannedValue).trim()
+        const lower = trimmed.toLowerCase()
+
+        const { data: rows, error: rowsErr } = await supabase
+          .from('packing_list_items')
+          .select('id, quantity_packed, quantity_returned, manual_name, booking_products(id, sku, name)')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+
+        if (rowsErr) {
+          console.error('[return_scan_sku] rows fetch failed', rowsErr)
+          return json({ success: false, error: 'Kunde inte läsa packlistan' })
+        }
+
+        // Match priority: exact SKU > exact name > contains name
+        const matchSku = (rows || []).find((r: any) => {
+          const s = r.booking_products?.sku
+          return s && String(s).trim().toLowerCase() === lower
+        })
+        const matchName = matchSku || (rows || []).find((r: any) => {
+          const n = r.booking_products?.name || r.manual_name
+          return n && String(n).trim().toLowerCase() === lower
+        })
+        const matchContains = matchName || (rows || []).find((r: any) => {
+          const n = r.booking_products?.name || r.manual_name
+          return n && String(n).toLowerCase().includes(lower)
+        })
+
+        const matched = matchContains
+        if (!matched) {
+          return json({ success: false, error: `Hittade ingen produkt för "${trimmed}" i denna packning`, debugCode: 'RETURN_NO_MATCH' })
+        }
+
+        const sentOut = Math.max(0, (matched as any).quantity_packed ?? 0)
+        const currentBack = Math.max(0, (matched as any).quantity_returned ?? 0)
+        if (sentOut === 0) {
+          return json({ success: false, error: 'Inget skickades ut för denna rad', debugCode: 'RETURN_NOT_SENT' })
+        }
+        if (currentBack >= sentOut) {
+          return json({
+            success: false,
+            error: `Alla ${sentOut} st av "${(matched as any).booking_products?.name || trimmed}" är redan returnerade`,
+            debugCode: 'RETURN_ALREADY_FULL',
+            itemId: (matched as any).id,
+          })
+        }
+
+        await transitionToReturning(supabase, packingId, ORG_ID)
+
+        const newQty = Math.min(currentBack + 1, sentOut)
+        await supabase.from('packing_list_items').update({
+          quantity_returned: newQty,
+          returned_at: new Date().toISOString(),
+          returned_by: returnedBy || null,
+        }).eq('id', (matched as any).id).eq('organization_id', ORG_ID)
+
+        await checkIfAllReturned(supabase, packingId, ORG_ID)
+        return json({
+          success: true,
+          itemId: (matched as any).id,
+          productName: (matched as any).booking_products?.name || (matched as any).manual_name,
+          quantity_returned: newQty,
+          quantity_packed: sentOut,
+        })
+      }
+
+      // ============== RETURN (IN) FLOW ==============
+      // Mirrors toggle_item / decrement_item but on quantity_returned, capped
+      // by quantity_packed (= what actually went out). Status flows
+      // delivered → returning → returned via checkIfAllReturned.
+
+      case 'return_toggle_item': {
+        const { itemId, returnedBy } = params
+        const now = new Date().toISOString()
+
+        const { data: itemData } = await supabase
+          .from('packing_list_items')
+          .select('packing_id, quantity_packed, quantity_returned')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        if (!itemData) return json({ success: false, error: 'Item not found' })
+        const sentOut = Math.max(0, (itemData as any).quantity_packed ?? 0)
+        const currentBack = Math.max(0, (itemData as any).quantity_returned ?? 0)
+
+        if (sentOut === 0) {
+          return json({ success: false, error: 'Inget skickades ut för denna rad' })
+        }
+
+        const packingId = (itemData as any).packing_id
+        await transitionToReturning(supabase, packingId, ORG_ID)
+
+        const newQty = Math.min(currentBack + 1, sentOut)
+        await supabase.from('packing_list_items').update({
+          quantity_returned: newQty,
+          returned_at: now,
+          returned_by: returnedBy || null,
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        await checkIfAllReturned(supabase, packingId, ORG_ID)
+        return json({ success: true, quantity_returned: newQty, quantity_packed: sentOut })
+      }
+
+      case 'return_decrement_item': {
+        const { itemId } = params
+        const { data: currentItem } = await supabase
+          .from('packing_list_items')
+          .select('quantity_returned, packing_id')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        const currentBack = Math.max(0, (currentItem as any)?.quantity_returned ?? 0)
+        if (currentBack <= 0) return json({ success: false, error: 'Redan på 0' })
+
+        const newQty = currentBack - 1
+        await supabase.from('packing_list_items').update({
+          quantity_returned: newQty,
+          ...(newQty === 0 ? { returned_at: null, returned_by: null } : {}),
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        if ((currentItem as any)?.packing_id) {
+          await checkIfAllReturned(supabase, (currentItem as any).packing_id, ORG_ID)
+        }
+        return json({ success: true, quantity_returned: newQty })
+      }
+
+      case 'reset_return_item': {
+        // Set quantity_returned back to 0 for one row (used by "Töm rad" UI)
+        const { itemId } = params
+        const { data: currentItem } = await supabase
+          .from('packing_list_items')
+          .select('packing_id')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .single()
+
+        await supabase.from('packing_list_items').update({
+          quantity_returned: 0,
+          returned_at: null,
+          returned_by: null,
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        if ((currentItem as any)?.packing_id) {
+          await checkIfAllReturned(supabase, (currentItem as any).packing_id, ORG_ID)
+        }
+        return json({ success: true })
       }
 
       default:

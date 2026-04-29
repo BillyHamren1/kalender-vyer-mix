@@ -22,8 +22,10 @@ import PackingDayView from '@/components/scanner/calendar/PackingDayView';
 import PackingWeekView from '@/components/scanner/calendar/PackingWeekView';
 import PackingMonthView from '@/components/scanner/calendar/PackingMonthView';
 import PackingCard from '@/components/scanner/calendar/PackingCard';
+import ReturnView from '@/components/scanner/ReturnView';
 
-type AppState = 'home' | 'verifying' | 'manual';
+type AppState = 'home' | 'verifying' | 'manual' | 'returning';
+type Flow = 'out' | 'in';
 
 const REALTIME_TABLES = ['packing_projects', 'packing_list_items', 'bookings'];
 
@@ -31,6 +33,7 @@ const MobileScannerApp: React.FC = () => {
   const navigate = useNavigate();
   const [state, setState] = useState<AppState>('home');
   const [selectedPackingId, setSelectedPackingId] = useState<string | null>(null);
+  const [flow, setFlow] = useState<Flow>('out');
   const [isQRActive, setIsQRActive] = useState(false);
   const [packings, setPackings] = useState<PackingWithBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -191,15 +194,25 @@ const MobileScannerApp: React.FC = () => {
 
   // Pinned in-progress packings (across all dates) — surfaced above calendar
   // so users don't lose an active job when navigating away from today.
+  // Includes both outbound (in_progress) and return (returning) work.
   const inProgressPackings = useMemo(
-    () => filteredPackings.filter(p => p.status === 'in_progress'),
+    () => filteredPackings.filter(p => p.status === 'in_progress' || p.status === 'returning'),
     [filteredPackings],
   );
 
-  // Handle packing selection with mode
-  const handleSelectPacking = (packingId: string, mode: 'verifying' | 'manual') => {
+  // Handle packing selection with mode + flow direction
+  const handleSelectPacking = (
+    packingId: string,
+    mode: 'verifying' | 'manual',
+    kind: 'out' | 'in' = 'out',
+  ) => {
     setSelectedPackingId(packingId);
-    setState(mode);
+    setFlow(kind);
+    if (kind === 'in') {
+      setState('returning');
+    } else {
+      setState(mode);
+    }
   };
 
   // Go back to home
@@ -207,6 +220,7 @@ const MobileScannerApp: React.FC = () => {
     setState('home');
     setSelectedPackingId(null);
     setIsQRActive(false);
+    setFlow('out');
   };
 
   // Render based on state
@@ -240,6 +254,18 @@ const MobileScannerApp: React.FC = () => {
         <ManualChecklistView 
           packingId={selectedPackingId}
           onBack={goHome}
+        />
+      </div>
+    );
+  }
+
+  if (state === 'returning' && selectedPackingId) {
+    return (
+      <div className="min-h-screen bg-background p-4">
+        <ReturnView
+          packingId={selectedPackingId}
+          onBack={goHome}
+          registerScanHandler={(handler) => { activeScanHandler.current = handler; }}
         />
       </div>
     );
@@ -429,7 +455,12 @@ const MobileScannerApp: React.FC = () => {
                 </h2>
                 <div className="space-y-2">
                   {inProgressPackings.map(p => (
-                    <PackingCard key={p.id} packing={p} onSelect={handleSelectPacking} />
+                    <PackingCard
+                      key={p.id}
+                      packing={p}
+                      kind={p.status === 'returning' ? 'in' : 'out'}
+                      onSelect={handleSelectPacking}
+                    />
                   ))}
                 </div>
               </section>

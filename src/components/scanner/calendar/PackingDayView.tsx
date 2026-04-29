@@ -2,13 +2,20 @@ import React from 'react';
 import { Calendar } from 'lucide-react';
 import type { PackingWithBooking } from '@/types/packing';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { usePackingsByDate } from '@/hooks/scanner/usePackingsByDate';
+import {
+  usePackingsByDate,
+  type PackingEntryKind,
+} from '@/hooks/scanner/usePackingsByDate';
 import PackingCard from './PackingCard';
 
 interface Props {
   date: Date;
   packings: PackingWithBooking[];
-  onSelect: (packingId: string, mode: 'verifying' | 'manual') => void;
+  onSelect: (
+    packingId: string,
+    mode: 'verifying' | 'manual',
+    kind: PackingEntryKind,
+  ) => void;
   onShowWeek?: () => void;
 }
 
@@ -41,8 +48,13 @@ const PackingDayView: React.FC<Props> = ({ date, packings, onSelect, onShowWeek 
 
   return (
     <div className="space-y-2">
-      {day.map(p => (
-        <PackingCard key={p.id} packing={p} onSelect={onSelect} />
+      {day.map(entry => (
+        <PackingCard
+          key={`${entry.packing.id}-${entry.kind}`}
+          packing={entry.packing}
+          kind={entry.kind}
+          onSelect={onSelect}
+        />
       ))}
     </div>
   );

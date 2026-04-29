@@ -1,4 +1,12 @@
-export type PackingStatus = 'planning' | 'in_progress' | 'packed' | 'delivered' | 'completed' | 'cancelled';
+export type PackingStatus =
+  | 'planning'
+  | 'in_progress'
+  | 'packed'
+  | 'delivered'
+  | 'returning'
+  | 'returned'
+  | 'completed'
+  | 'cancelled';
 
 export interface Packing {
   id: string;
@@ -117,6 +125,8 @@ export const PACKING_STATUS_LABELS: Record<PackingStatus, string> = {
   in_progress: 'Under arbete',
   packed: 'Packad',
   delivered: 'Levererat',
+  returning: 'Retur pågår',
+  returned: 'Retur klar',
   completed: 'Avslutat',
   cancelled: 'Avbokad'
 };
@@ -126,6 +136,8 @@ export const PACKING_STATUS_COLORS: Record<PackingStatus, string> = {
   in_progress: 'bg-yellow-100 text-yellow-800',
   packed: 'bg-teal-100 text-teal-800',
   delivered: 'bg-purple-100 text-purple-800',
+  returning: 'bg-orange-100 text-orange-800',
+  returned: 'bg-emerald-100 text-emerald-800',
   completed: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800'
 };
