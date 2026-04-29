@@ -188,7 +188,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
       }
       try {
         await mobileApi.createWorkdayFlag({
-          flag_type: 'unclear_start_target' as any,
+          flag_type: 'unclear_start_target',
           flag_date: new Date().toISOString().slice(0, 10),
           title: 'Oklart startprojekt',
           description: selection.text,
