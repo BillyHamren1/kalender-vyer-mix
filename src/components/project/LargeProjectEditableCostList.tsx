@@ -40,7 +40,7 @@ interface Props {
   bookingEconomyData: Record<string, BatchEconomyData> | null;
   timeReportsByBooking: Record<string, StaffTimeReport[]>;
   localProducts: LocalProduct[];
-  addLine: (input: { category: CostCategory; description?: string; amount?: number; supplier?: string | null; cost_date?: string | null }) => void;
+  addLine: (input: { category: CostCategory; description?: string; amount?: number; budget_amount?: number; supplier?: string | null; cost_date?: string | null }) => void;
   updateLine: (input: { id: string; updates: Partial<CostLine> }) => void;
   removeLine: (id: string) => void;
 }
@@ -150,8 +150,17 @@ export function LargeProjectEditableCostList({
     return items;
   }, [bookingEconomyData, byCategory.purchase]);
 
-  // Budget per category — derived from local_products (assembly/handling/purchase × qty)
-  const budgets = useMemo(() => {
+  // Per-line budget total (sum of budget_amount on manual lines, per category)
+  const lineBudgets = useMemo(() => {
+    const b: Record<CostCategory, number> = { purchase: 0, handling: 0, assembly: 0, other: 0 };
+    (Object.keys(byCategory) as CostCategory[]).forEach((k) => {
+      b[k] = byCategory[k].reduce((s, l) => s + (Number(l.budget_amount) || 0), 0);
+    });
+    return b;
+  }, [byCategory]);
+
+  // Product-derived budget per category (assembly/handling/purchase × qty)
+  const productBudgets = useMemo(() => {
     const b: Record<CostCategory, number> = { purchase: 0, handling: 0, assembly: 0, other: 0 };
     localProducts.forEach((p) => {
       const qty = Number(p.quantity) || 1;
@@ -161,6 +170,14 @@ export function LargeProjectEditableCostList({
     });
     return b;
   }, [localProducts]);
+
+  // Final budget = product-derived + per-line budget overrides
+  const budgets: Record<CostCategory, number> = {
+    purchase: productBudgets.purchase + lineBudgets.purchase,
+    handling: productBudgets.handling + lineBudgets.handling,
+    assembly: productBudgets.assembly + lineBudgets.assembly,
+    other: productBudgets.other + lineBudgets.other,
+  };
 
   // Actual totals (manual lines + reported time for assembly)
   const actuals = useMemo(() => {
