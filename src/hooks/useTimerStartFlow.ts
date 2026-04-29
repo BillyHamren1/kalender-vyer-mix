@@ -42,8 +42,15 @@ import {
   // useGeofencing is mounted ONCE by GeofencingProvider — see GeofencingContext.tsx.
   // We only consume the shared instance via useGeofencingContext().
   haversineDistance,
-  ENTER_RADIUS,
 } from '@/hooks/useGeofencing';
+
+/**
+ * Distans-tröskel för "off-site"-varningen vid manuell timer-start.
+ * Avsiktligt LARGER än geofencens ENTER_RADIUS (150 m) — GPS i städer/inomhus
+ * kan lätt vara 100-200 m off, och vi vill inte tvinga fram en kommentar
+ * när användaren faktiskt står på platsen. Geofence-auto-start är oförändrad.
+ */
+const OFF_SITE_PROMPT_RADIUS = 300; // meters
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import { STOP_TRAVEL_EVENT, type StopTravelEventDetail } from '@/hooks/useTravelDetection';
 import { useWorkDay } from '@/hooks/useWorkDay';
@@ -295,7 +302,7 @@ export function useTimerStartFlow(
         coords.lat,
         coords.lng,
       );
-      if (dist > ENTER_RADIUS) {
+      if (dist > OFF_SITE_PROMPT_RADIUS) {
         setDistanceWarning({
           placeName: coords.label || opts.label,
           distance: dist,
