@@ -277,44 +277,11 @@ export const getStaffCalendarEvents = async (
   }
 };
 
-// Handle booking moves and staff reassignments
-export const handleBookingMove = async (
-  bookingId: string,
-  oldTeamId: string,
-  newTeamId: string,
-  oldDate: string,
-  newDate: string
-): Promise<BookingMoveResult> => {
-  const params = {
-    p_booking_id: bookingId,
-    p_old_team_id: oldTeamId,
-    p_new_team_id: newTeamId,
-    p_old_date: oldDate,
-    p_new_date: newDate,
-  };
-  console.log('🚚 [handleBookingMove] RPC call →', params);
+// DEPRECATED: handleBookingMove removed.
+// BSA mirrors staff_assignments × calendar_events.resource_id deterministically.
+// Use supabase.rpc('recompute_booking_staff_for_day', { p_booking_id, p_date }) instead.
+// See mem://features/planning/calendar-team-model-v1
 
-  try {
-    const { data, error } = await supabase.rpc('handle_booking_move', params);
-
-    if (error) {
-      console.error('❌ [handleBookingMove] Supabase RPC error:', {
-        message: error.message,
-        details: (error as any).details,
-        hint: (error as any).hint,
-        code: (error as any).code,
-        params,
-      });
-      throw error;
-    }
-
-    console.log('✅ [handleBookingMove] RPC result:', data);
-    return data as unknown as BookingMoveResult;
-  } catch (error) {
-    console.error('❌ [handleBookingMove] Threw:', error, 'params:', params);
-    throw error;
-  }
-};
 
 // Get staff assignments for a specific booking
 export const getStaffForBooking = async (bookingId: string, date: string): Promise<string[]> => {

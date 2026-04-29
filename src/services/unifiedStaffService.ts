@@ -154,15 +154,10 @@ class UnifiedStaffService {
     }
   }
 
-  async handleBookingMove(bookingId: string, oldTeamId: string, newTeamId: string, oldDate: string, newDate: string): Promise<StaffOperationResponse> {
-    return await this.callStaffFunction('handle_booking_move', {
-      booking_id: bookingId,
-      old_team_id: oldTeamId,
-      new_team_id: newTeamId,
-      old_date: oldDate,
-      new_date: newDate
-    });
-  }
+  // DEPRECATED: handleBookingMove removed — BSA derives from staff_assignments
+  // × calendar_events via recompute_booking_staff_for_day RPC.
+  // See mem://features/planning/calendar-team-model-v1
+
 
   // Bulk Operations
   async bulkAssignStaff(assignments: Array<{ staff_id: string; team_id: string; date: string }>): Promise<StaffOperationResponse> {
@@ -225,7 +220,7 @@ export const {
   getStaffCalendarEvents,
   assignStaffToBooking,
   removeStaffFromBooking,
-  handleBookingMove,
+  
   bulkAssignStaff,
   getStaffSummary,
   exportStaffToExternal,
