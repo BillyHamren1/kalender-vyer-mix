@@ -93,6 +93,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   reviewRow,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
+  const { organizationId } = useCurrentOrg();
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapboxToken, setMapboxToken] = useState<string>('');
