@@ -192,6 +192,20 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
 
             <ScrollArea className="flex-1 -mx-6 px-6">
               <div className="space-y-4 py-2">
+                {filteredLocations.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5" />
+                      {t('startDay.fixedLocations')}
+                    </h3>
+                    <div className="space-y-1.5">
+                      {filteredLocations.map(item => (
+                        <TargetRow key={item.key} item={item} onPick={handlePick} disabled={!!starting} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {nearby.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
@@ -219,7 +233,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
                   </div>
                 )}
 
-                {filtered.length === 0 && (
+                {filtered.length === 0 && filteredLocations.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-6">
                     {t('startDay.noMatch')}
                   </p>
