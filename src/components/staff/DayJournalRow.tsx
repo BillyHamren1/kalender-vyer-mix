@@ -145,13 +145,17 @@ export const DayHeaderRow: React.FC<DayHeaderRowProps> = ({
     : (header.isOpen ? '—' : fmt(header.at));
 
   // Inline detail: actual arrival/departure vs reported start/end.
+  // Only render when the underlying base is authoritative (i.e. came from
+  // a real booking/project/location coordinate). Without that we'd be
+  // comparing the report against "wherever the phone happened to be" —
+  // typically the staff member's home — and falsely claim a match.
   const detail = useMemo(() => {
-    if (!presence) return null;
+    if (!presence || !presence.baseIsAuthoritative) return null;
     if (isStart) {
       if (!presence.arrivedAt) return null;
       const arr = fmt(presence.arrivedAt);
       if (!header.at) return <>Anlände {arr} (GPS)</>;
-      const diff = minutesBetween(presence.arrivedAt, header.at); // positive = report later than arrival
+      const diff = minutesBetween(presence.arrivedAt, header.at);
       if (Math.abs(diff) < 2) return <>Anlände {arr} · matchar rapport</>;
       const sign = diff > 0 ? `+${diff}` : `${diff}`;
       return <>Anlände <strong className="text-foreground">{arr}</strong> · rapport startad {fmt(header.at)} ({sign} min)</>;
@@ -160,7 +164,7 @@ export const DayHeaderRow: React.FC<DayHeaderRowProps> = ({
     if (!presence.leftAt) return null;
     const lft = fmt(presence.leftAt);
     if (!header.at) return <>Lämnade {lft} (GPS)</>;
-    const diff = minutesBetween(presence.leftAt, header.at); // positive = report stretched after departure
+    const diff = minutesBetween(presence.leftAt, header.at);
     if (Math.abs(diff) < 2) return <>Lämnade {lft} · matchar rapport</>;
     const sign = diff > 0 ? `+${diff}` : `${diff}`;
     const cls = Math.abs(diff) >= 15 ? 'text-destructive font-medium' : '';
