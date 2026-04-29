@@ -225,6 +225,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   staffExpanded: staffExpandedProp = false,
   onToggleStaffExpanded,
   carouselNav,
+  onTitleClick,
   setEvents
 }) => {
   const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
