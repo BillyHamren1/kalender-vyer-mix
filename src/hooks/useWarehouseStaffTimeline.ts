@@ -65,7 +65,7 @@ export function useWarehouseStaffTimeline(date: Date) {
         .select('staff_id, team_id')
         .in('staff_id', staffIds)
         .eq('assignment_date', dateKey)
-        .like('team_id', 'lager-%');
+        .or('team_id.like.lager-%,team_id.eq.transport');
       if (error) throw error;
       const map = new Map<string, string>();
       (data || []).forEach((row: any) => {
