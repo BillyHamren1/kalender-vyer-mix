@@ -13,6 +13,8 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { DayApprovalAction } from '@/components/admin/time-review/DayApprovalAction';
 import { DayEventTimeline } from '@/components/staff/DayEventTimeline';
+import { CorrectionSuggestionsPanel } from '@/components/staff/CorrectionSuggestionsPanel';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 
 interface GpsPoint {
   lat: number;
