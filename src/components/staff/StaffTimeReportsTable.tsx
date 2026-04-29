@@ -217,8 +217,6 @@ const PresenceLineWithDate: React.FC<{ row: JournalTableRow; date: string }> = (
       label: 'På plats',
       arrived: presence.arrivedAt,
       left: presence.leftAt,
-      basePings: presence.basePings.length,
-      sample: presence.sampleCount,
     } as any;
   }, [pings, row]);
 
@@ -260,7 +258,6 @@ const PresenceLineWithDate: React.FC<{ row: JournalTableRow; date: string }> = (
   return (
     <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
       På plats: <strong className="text-foreground">{arr} – {lft}</strong>
-      <span className="ml-1">({result.basePings}/{result.sample} pings vid bas)</span>
     </div>
   );
 };
@@ -399,7 +396,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                   />
                 )}
 
-                {isOpen && r.fromIso && (
+                {isOpen && r.fromIso && (r.kind === 'day-start' || r.kind === 'day-end') && (
                   <tr className="bg-muted/20">
                     <td></td>
                     <td colSpan={5} className="py-2 px-2">
