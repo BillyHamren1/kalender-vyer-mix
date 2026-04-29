@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
         // - delivered  → show if rigdowndate within 14 days (or unset) so the
         //                return (IN) flow can be picked up from the calendar.
         const filtered = packingsWithBookings.filter((p: any) => {
-          if (p.status === 'in_progress' || p.status === 'packed' || p.status === 'returning') return true
+          if (p.status === 'in_progress' || p.status === 'packed' || p.status === 'returning' || p.status === 'back') return true
           if (p.status === 'planning') {
             const rigDate = p.booking?.rigdaydate
             if (!rigDate) return true
