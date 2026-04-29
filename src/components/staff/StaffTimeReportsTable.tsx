@@ -7,6 +7,7 @@ import {
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffPingDetailPanel } from './StaffPingDetailPanel';
+import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 
 const fmt = (iso: string | null) => {
