@@ -157,11 +157,6 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
                     >
                       {assigning === staff.id ? (
                         <div className="h-3 w-3 animate-spin rounded-full border border-border border-t-primary"></div>
-                      ) : staff.assignmentStatus === 'assigned_other_team' ? (
-                        <>
-                          <ArrowRightLeft className="h-3 w-3 mr-1" />
-                          Move
-                        </>
                       ) : (
                         <>
                           <UserPlus className="h-3 w-3 mr-1" />
