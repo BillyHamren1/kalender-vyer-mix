@@ -5,7 +5,7 @@ import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { moveLargeProjectDay, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
-import { resolveCalendarEventId, isSyntheticCalendarEventId } from '@/services/calendarEventResolver';
+import { resolveCalendarEventId } from '@/services/calendarEventResolver';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 // Serializable subset stored in dataTransfer
