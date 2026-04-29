@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,7 +47,7 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
       .getMovementForDay(staffId, date)
       .then((res) => {
         if (cancelled) return;
-        setPoints(res.points || []);
+        setAllPoints(res.points || []);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -61,6 +61,17 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
       cancelled = true;
     };
   }, [staffId, date]);
+
+  // Optional time-window filter
+  const points = useMemo(() => {
+    if (!fromIso && !toIso) return allPoints;
+    const fromMs = fromIso ? new Date(fromIso).getTime() : -Infinity;
+    const toMs = toIso ? new Date(toIso).getTime() : Infinity;
+    return allPoints.filter(p => {
+      const t = new Date(p.recorded_at).getTime();
+      return t >= fromMs && t <= toMs;
+    });
+  }, [allPoints, fromIso, toIso]);
 
   // Init map + draw polyline
   useEffect(() => {
