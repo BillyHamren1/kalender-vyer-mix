@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, ChevronRight, Search, ChevronLeft, CalendarDays, MapPin, Briefcase, Car, WifiOff } from 'lucide-react';
+import { Clock, ChevronRight, Search, ChevronLeft, CalendarDays, WifiOff } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -9,10 +9,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { LiveDuration } from './LiveDuration';
-import { StaffLatestPing } from './StaffLatestPing';
 import { PingPhoneButton } from './PingPhoneButton';
-import type { DaySegment, SegmentKind, LatestPing } from '@/pages/StaffTimeReports';
+import { DayHeaderRow, ProjectSessionRow } from './DayJournalRow';
+import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
+import type { StaffDayJournal } from '@/lib/staff/dayJournal';
 
 interface ProjectInfo {
   booking_id: string;
@@ -33,32 +33,16 @@ interface StaffWithDayReport {
   latest_end: string | null;
   projects: ProjectInfo[];
   segments: DaySegment[];
+  journal: StaffDayJournal;
   latestPing: LatestPing | null;
 }
 
-const segmentIcon = (kind: SegmentKind) => {
-  if (kind === 'workday') return Clock;
-  if (kind === 'location') return MapPin;
-  if (kind === 'travel') return Car;
-  return Briefcase;
-};
-
-const formatTimeShort = (iso: string): string => {
-  try {
-    return format(new Date(iso), 'HH:mm');
-  } catch {
-    return '—';
-  }
-};
-
-// "Tappad signal": rapport fortfarande öppen, men telefonen har inte
-// pingat på >10 min. Vi vet inte säkert om personen jobbar — det är
-// troligare att appen dog / låg i bakgrunden.
+// "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
 const STALE_PING_MS = 10 * 60 * 1000;
 type LiveStatus = 'live' | 'stale' | 'closed';
 const resolveLiveStatus = (
   hasOpen: boolean,
-  ping: { updated_at: string | null } | null
+  ping: { updated_at: string | null } | null,
 ): LiveStatus => {
   if (!hasOpen) return 'closed';
   if (!ping?.updated_at) return 'stale';
@@ -89,6 +73,9 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [expandedStaff, setExpandedStaff] = useState<Set<string>>(new Set());
+
+  const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
   const filtered = useMemo(() => {
     if (!search.trim()) return staffList;
@@ -104,6 +91,14 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   const liveCount = staffList.filter(s => resolveLiveStatus(s.has_open_report, s.latestPing) === 'live').length;
   const staleCount = staffList.filter(s => resolveLiveStatus(s.has_open_report, s.latestPing) === 'stale').length;
   const totalHours = staffList.reduce((s, x) => s + x.total_hours, 0);
+
+  const toggleExpanded = (id: string) => {
+    setExpandedStaff(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <PremiumCard
@@ -176,7 +171,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
         </Button>
       </div>
 
-      {/* Summary — neutral text, only stale gets a warning color */}
+      {/* Summary — neutral, only stale gets a warning color */}
       {!isLoading && staffList.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-xs text-muted-foreground">
           <span className="tabular-nums">
@@ -227,137 +222,125 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
               const pingAgeMin = staff.latestPing?.updated_at
                 ? Math.floor((Date.now() - new Date(staff.latestPing.updated_at).getTime()) / 60000)
                 : null;
-              return (
-              <button
-                key={staff.id}
-                onClick={() => onSelectStaff(staff.id, staff.name)}
-                className="w-full flex items-stretch gap-3 px-3 py-2.5 rounded-lg border border-transparent hover:bg-muted/40 hover:border-border/60 transition-colors text-left group"
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 relative self-start mt-0.5 bg-muted text-muted-foreground"
-                >
-                  {staff.name.charAt(0).toUpperCase()}
-                  {liveStatus === 'live' && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-foreground border-2 border-background" />
-                  )}
-                  {liveStatus === 'stale' && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive border-2 border-background" />
-                  )}
-                </div>
+              const expanded = expandedStaff.has(staff.id);
 
-                <div className="flex-1 min-w-0">
-                  {/* Header row: name + minimal meta + day total */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <span className="font-medium text-sm text-foreground truncate">{staff.name}</span>
-                      {staff.role && (
-                        <span className="text-[11px] text-muted-foreground">{staff.role}</span>
-                      )}
+              return (
+                <div
+                  key={staff.id}
+                  className="rounded-lg border border-border/40 hover:border-border transition-colors"
+                >
+                  {/* Compact header — click to toggle journal */}
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(staff.id)}
+                    className="w-full flex items-stretch gap-3 px-3 py-2.5 text-left"
+                  >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 relative self-start mt-0.5 bg-muted text-muted-foreground">
+                      {staff.name.charAt(0).toUpperCase()}
                       {liveStatus === 'live' && (
-                        <span className="text-[11px] text-muted-foreground">· Pågående</span>
-                      )}
-                      {liveStatus === 'closed' && (
-                        <span className="text-[11px] text-muted-foreground">· Avslutad</span>
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-foreground border-2 border-background" />
                       )}
                       {liveStatus === 'stale' && (
-                        <span
-                          className="text-[11px] font-medium text-destructive inline-flex items-center gap-1"
-                          title={pingAgeMin != null ? `Senaste signal för ${pingAgeMin} min sedan` : 'Ingen signal från telefonen'}
-                        >
-                          <WifiOff className="h-3 w-3" />
-                          Tappad signal{pingAgeMin != null ? ` · ${pingAgeMin}m` : ''}
-                        </span>
-                      )}
-                      {staff.latestPing?.app_version && (
-                        <span
-                          className="text-[10px] text-muted-foreground/70 font-mono"
-                          title={[
-                            staff.latestPing.app_platform ? `Plattform: ${staff.latestPing.app_platform}` : null,
-                            staff.latestPing.app_build ? `Build ${staff.latestPing.app_build}` : null,
-                          ].filter(Boolean).join(' · ') || 'Appversion'}
-                        >
-                          {staff.latestPing.app_platform === 'ios' ? 'iOS ' : staff.latestPing.app_platform === 'android' ? 'Android ' : ''}
-                          {staff.latestPing.app_version}
-                        </span>
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive border-2 border-background" />
                       )}
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight">
-                        {formatHoursMinutes(staff.total_hours)}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground tabular-nums leading-tight">
-                        {staff.earliest_start && (
-                          <>
-                            {staff.earliest_start.slice(0, 5)}
-                            {' – '}
-                            {staff.has_open_report
-                              ? <span className="text-foreground font-medium">pågår</span>
-                              : (staff.latest_end?.slice(0, 5) || '—')}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Latest GPS ping (no live tick — backend updates) */}
-                  <div className="mt-1 flex items-center gap-2">
-                    <StaffLatestPing ping={staff.latestPing} className="flex-1 min-w-0" />
-                    {liveStatus === 'stale' && (
-                      <PingPhoneButton staffId={staff.id} staffName={staff.name} />
-                    )}
-                  </div>
-
-                  {/* Chronological segment timeline */}
-                  {(staff.segments?.length ?? 0) > 0 && (
-                    <div className="mt-1.5 border-l border-border pl-2.5 space-y-0.5">
-                      {staff.segments.map(seg => {
-                        const Icon = segmentIcon(seg.kind);
-                        const isLive = seg.isOpen;
-                        return (
-                          <div
-                            key={seg.id}
-                            className="flex items-center justify-between gap-3 text-xs leading-snug py-0.5"
-                          >
-                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                              {isLive ? (
-                                <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" />
-                              ) : (
-                                <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
-                              )}
-                              <span
-                                className={`truncate ${isLive ? 'text-foreground font-medium' : 'text-foreground/70'}`}
-                                title={seg.label}
-                              >
-                                {isLive && <span className="mr-1 text-[10px] uppercase tracking-wide text-muted-foreground">NU:</span>}
-                                {seg.label}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0 tabular-nums text-[11px] text-muted-foreground">
-                              <span>
-                                {formatTimeShort(seg.start)}
-                                {' → '}
-                                {seg.end ? formatTimeShort(seg.end) : <span className="text-foreground font-medium">pågår</span>}
-                              </span>
-                              {isLive ? (
-                                <LiveDuration
-                                  startedAt={seg.start}
-                                  className="font-medium text-foreground min-w-[64px] text-right"
-                                />
-                              ) : (
-                                <span className="min-w-[48px] text-right">
-                                  {formatHoursMinutes(seg.hours)}
-                                </span>
-                              )}
-                            </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="font-medium text-sm text-foreground truncate">{staff.name}</span>
+                          {staff.role && (
+                            <span className="text-[11px] text-muted-foreground">{staff.role}</span>
+                          )}
+                          {liveStatus === 'live' && (
+                            <span className="text-[11px] text-muted-foreground">· Pågående</span>
+                          )}
+                          {liveStatus === 'closed' && (
+                            <span className="text-[11px] text-muted-foreground">· Avslutad</span>
+                          )}
+                          {liveStatus === 'stale' && (
+                            <span
+                              className="text-[11px] font-medium text-destructive inline-flex items-center gap-1"
+                              title={pingAgeMin != null ? `Senaste signal för ${pingAgeMin} min sedan` : 'Ingen signal från telefonen'}
+                            >
+                              <WifiOff className="h-3 w-3" />
+                              Tappad signal{pingAgeMin != null ? ` · ${pingAgeMin}m` : ''}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-semibold text-foreground tabular-nums leading-tight">
+                            {formatHoursMinutes(staff.total_hours)}
                           </div>
-                        );
-                      })}
+                          <div className="text-[10px] text-muted-foreground tabular-nums leading-tight">
+                            {staff.earliest_start && (
+                              <>
+                                {staff.earliest_start.slice(0, 5)}
+                                {' – '}
+                                {staff.has_open_report
+                                  ? <span className="text-foreground font-medium">pågår</span>
+                                  : (staff.latest_end?.slice(0, 5) || '—')}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Expanded journal */}
+                  {expanded && (
+                    <div className="px-3 pb-3 pt-1 space-y-1 bg-muted/10 border-t border-border/40">
+                      <DayHeaderRow
+                        variant="start"
+                        header={staff.journal.start}
+                        staffId={staff.id}
+                        date={dateStr}
+                      />
+
+                      {staff.journal.sessions.length === 0 ? (
+                        <div className="ml-3 py-3 text-xs text-muted-foreground italic">
+                          Inga projekt-sessioner — bara närvaro vid {staff.journal.start.address || 'en plats'}.
+                        </div>
+                      ) : (
+                        <div className="space-y-0.5">
+                          {staff.journal.sessions.map(s => (
+                            <ProjectSessionRow
+                              key={s.key}
+                              session={s}
+                              staffId={staff.id}
+                              staffName={staff.name}
+                              date={dateStr}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      <DayHeaderRow
+                        variant="end"
+                        header={staff.journal.end}
+                        totalHours={staff.total_hours}
+                        staffId={staff.id}
+                        date={dateStr}
+                      />
+
+                      <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                        {liveStatus === 'stale' && (
+                          <PingPhoneButton staffId={staff.id} staffName={staff.name} />
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-auto h-7 text-xs gap-1"
+                          onClick={() => onSelectStaff(staff.id, staff.name)}
+                        >
+                          Detaljerad rapport
+                          <ChevronRight className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
-
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-colors shrink-0 self-center" />
-              </button>
               );
             })
           )}
