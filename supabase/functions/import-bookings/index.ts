@@ -1103,6 +1103,52 @@ async function reconcileCalendarEvents(
 
   console.log(`[Calendar Reconcile] ✅ Booking ${bookingData.id} reconciliation complete`);
 
+  // ── BSA RECOMPUTE ───────────────────────────────
+  // Personalen tillhör teamet, bokningen flyttas mellan team. BSA är en
+  // härledd spegel av staff_assignments × calendar_events.resource_id.
+  // Räkna om BSA för varje datum som har antingen en calendar_events-rad
+  // ELLER befintliga BSA-rader (sistnämnda för att fånga "spöken" från äldre data).
+  try {
+    const calendarDates = new Set<string>([
+      ...desiredEvents.map((d: any) => d.date as string),
+      ...((existingEvents || []) as any[]).map((e: any) => (e.source_date || (e.start_time as string)?.slice(0, 10)) as string).filter(Boolean),
+    ]);
+
+    const { data: existingBsaDates } = await supabase
+      .from('booking_staff_assignments')
+      .select('assignment_date')
+      .eq('booking_id', bookingData.id);
+
+    const allDates = new Set<string>([
+      ...calendarDates,
+      ...((existingBsaDates || []) as any[]).map((r: any) => r.assignment_date as string).filter(Boolean),
+    ]);
+
+    let recomputedAdded = 0;
+    let recomputedRemoved = 0;
+    for (const d of allDates) {
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('recompute_booking_staff_for_day', {
+          p_booking_id: bookingData.id,
+          p_date: d,
+        });
+        if (rpcErr) {
+          console.warn(`[BSA Recompute] RPC error for ${bookingData.id}@${d}:`, rpcErr.message);
+        } else if (rpcRes) {
+          recomputedAdded += (rpcRes as any).added || 0;
+          recomputedRemoved += (rpcRes as any).removed || 0;
+        }
+      } catch (e: any) {
+        console.warn(`[BSA Recompute] Threw for ${bookingData.id}@${d}:`, e?.message || e);
+      }
+    }
+    if (recomputedAdded || recomputedRemoved) {
+      console.log(`[BSA Recompute] Booking ${bookingData.id}: +${recomputedAdded} / -${recomputedRemoved} across ${allDates.size} day(s)`);
+    }
+  } catch (e: any) {
+    console.warn(`[BSA Recompute] Outer error for ${bookingData.id}:`, e?.message || e);
+  }
+
   // ── AUDIT LOG ──────────────────────────────
   {
     let auditEventsCreated = 0;
