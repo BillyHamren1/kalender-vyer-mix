@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useWarehouseOpsRange, type OpsMode } from "@/hooks/useWarehouseOpsRange";
 import OpsDateBar from "@/components/warehouse-ops/OpsDateBar";
 import OpsAttentionPanel from "@/components/warehouse-ops/OpsAttentionPanel";
-import OpsJobsTable from "@/components/warehouse-ops/OpsJobsTable";
+import OpsStatusBoard from "@/components/warehouse-ops/OpsStatusBoard";
 import OpsStaffTimeline from "@/components/warehouse-ops/OpsStaffTimeline";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
 import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
@@ -24,7 +24,7 @@ const WarehouseDashboard = () => {
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: "var(--gradient-page)" }}>
       <div className="relative">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(184_60%_38%/0.04),transparent)]" />
-        <div className="relative p-6 max-w-[1600px] mx-auto">
+        <div className="relative p-6 max-w-[1800px] mx-auto space-y-4">
           <PageHeader
             icon={Package}
             title="Lager Operations"
@@ -51,10 +51,6 @@ const WarehouseDashboard = () => {
             </Button>
           </PageHeader>
 
-          <div className="mb-6">
-            <WarehouseProjectInbox />
-          </div>
-
           <OpsDateBar
             anchorDate={anchorDate}
             mode={mode}
@@ -66,31 +62,36 @@ const WarehouseDashboard = () => {
           />
 
           {isLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-24 rounded-xl" />
-              <Skeleton className="h-64 rounded-xl" />
-              <Skeleton className="h-64 rounded-xl" />
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-[420px] rounded-xl" />
+              ))}
             </div>
           ) : data ? (
-            <div className="space-y-4">
-              <OpsAttentionPanel items={data.attention} />
-              <OpsJobsTable
-                jobs={data.jobs}
-                mode={mode}
-                onPickDay={(d) => {
-                  setAnchorDate(d);
-                  setMode("day");
-                }}
-              />
-              {mode === "day" && (
-                <OpsStaffTimeline
-                  anchorDate={anchorDate}
-                  shifts={data.shifts}
-                  scans={data.scans}
-                  jobs={data.jobs}
-                />
-              )}
-            </div>
+            <>
+              {/* Översta raden: status-board (huvudvyn) */}
+              <OpsStatusBoard jobs={data.jobs} />
+
+              {/* Andra raden: två kolumner — attention + staff-timeline */}
+              <div className="grid grid-cols-1 xl:grid-cols-[1fr_2fr] gap-4">
+                <OpsAttentionPanel items={data.attention} />
+                {mode === "day" ? (
+                  <OpsStaffTimeline
+                    anchorDate={anchorDate}
+                    shifts={data.shifts}
+                    scans={data.scans}
+                    jobs={data.jobs}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-muted-foreground">
+                    Personalskift visas i dagsvy.
+                  </div>
+                )}
+              </div>
+
+              {/* Sista raden: inkommande projekt (inbox) */}
+              <WarehouseProjectInbox />
+            </>
           ) : null}
         </div>
       </div>
