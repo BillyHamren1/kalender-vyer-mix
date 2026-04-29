@@ -497,6 +497,11 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
         </div>
 
+        {/* Server-derived event timeline (Day Timeline Engine) */}
+        {date && staffId && (
+          <DayEventTimeline staffId={staffId} date={date} />
+        )}
+
         {/* Map first — show all travel segments as lines */}
         {hasMapData ? (
           <div className="space-y-1">
