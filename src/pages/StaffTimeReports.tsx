@@ -505,7 +505,13 @@ const StaffTimeReports: React.FC = () => {
         if (e.booking_id) {
           const info = bookingMap.get(e.booking_id);
           projectKey = e.booking_id;
-          projectLabel = info?.label || 'Okänt projekt';
+          // Internal warehouse booking → prefer location name (e.g. "FA Warehouse")
+          // so all rows for that location share the same label.
+          if (info?.is_internal && info.location_id) {
+            projectLabel = locNameMap.get(info.location_id) || info.label || 'Okänt projekt';
+          } else {
+            projectLabel = info?.label || 'Okänt projekt';
+          }
           // Internal booking (Lager) → keep as 'location' icon; real booking → 'booking'.
           segmentKind = info?.is_internal ? 'location' : 'booking';
         } else if (e.large_project_id) {
