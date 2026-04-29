@@ -335,12 +335,17 @@
 
 /* Fullscreen day view: visa namn bredvid varandra */
 .fullscreen-day .assigned-staff-header-list {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  align-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: min-content;
   gap: 4px 6px;
+  align-items: start;
+  justify-items: stretch;
   max-height: none;
+}
+.fullscreen-day .assigned-staff-header-list > * {
+  width: 100%;
+  justify-content: center;
 }
 .fullscreen-day .staff-header-assignment-area {
   overflow: visible;
