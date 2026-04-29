@@ -708,7 +708,7 @@ Deno.serve(async (req) => {
 
         if (currentlyPacked) {
           await supabase.from('packing_list_items').update({
-            quantity_packed: 0, packed_at: null, packed_by: null, verified_at: null, verified_by: null, parcel_id: null
+            quantity_packed: 0, packed_at: null, packed_by: null, packed_by_staff_id: null, verified_at: null, verified_by: null, verified_by_staff_id: null, parcel_id: null
           }).eq('id', itemId).eq('organization_id', ORG_ID)
           // Clear all parcel allocations on full reset
           await supabase.from('packing_list_item_allocations').delete().eq('packing_list_item_id', itemId).eq('organization_id', ORG_ID)
@@ -726,7 +726,8 @@ Deno.serve(async (req) => {
             quantity_packed: newQty,
             packed_at: now,
             packed_by: verifiedBy,
-            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+            packed_by_staff_id: verifiedByStaffId || null,
+            ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
             ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
           }).eq('id', itemId).eq('organization_id', ORG_ID)
 
@@ -736,6 +737,7 @@ Deno.serve(async (req) => {
               parcel_id: activeParcelId,
               quantity: newQty - currentQty,
               scanned_by: verifiedBy || null,
+              scanned_by_staff_id: verifiedByStaffId || null,
               organization_id: ORG_ID,
             })
           }
