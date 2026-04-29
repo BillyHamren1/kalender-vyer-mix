@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
@@ -7,7 +7,8 @@ import TeamVisibilityControl from './TeamVisibilityControl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { computeOverlapLayout, generateTimeSlots, getEventPosition } from './timeGridLayout';
 import { EventWrapper, SimpleTimeSlot } from './TimeGridEventLayer';
-import TimeGridAvailableStaff, { type AvailableStaffMember } from './TimeGridAvailableStaff';
+import { type AvailableStaffMember } from './TimeGridAvailableStaff';
+import TeamStaffPickerPopover from './TeamStaffPickerPopover';
 import './TimeGrid.css';
 
 interface TeamVisibilityProps {
