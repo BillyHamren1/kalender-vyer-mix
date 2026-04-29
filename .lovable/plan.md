@@ -1,59 +1,148 @@
 ## Mål
-Få bort "synthetic" kalenderrader helt. Allt sparas på samma sätt: en riktig `calendar_events`-rad per (bokning, fas, datum). Drag, team-byte och tidsändring funkar då likadant överallt — ingen "rullar tillbaka"-bugg.
+Lås in den korrekta modellen: **personalen tillhör teamet, bokningen flyttas mellan team**. BSA blir en härledd spegel av `staff_assignments × calendar_events.resource_id`. Tryggt utrullat i små verifierade steg.
 
-## Bakgrund (kort)
-Idag har `bookings` bara EN `rigdaydate` och EN `rigdowndate`. Flerdagars-rig/rigdown finns bara som personal-uppdrag i `staff_assignments`, och UI:t härleder låtsasrader ("synthetic", `id` börjar med `staff-…`). När man flyttar en synthetic-rad finns det ingen rad att skriva till → ändringen försvinner.
+## Modell
 
-Skolfest #2604-64 är ett konkret exempel: `rigdowndate=2026-04-26` men personal jobbar även 27/4 → synthetic-rad → team-2 sparades aldrig.
+```text
+staff_assignments  (dag → team)         PRIMÄR — vem är i vilket team
+calendar_events    (dag → team)         PRIMÄR — vilken bokning ligger i vilket team
+booking_staff_assignments (BSA)         HÄRLEDD — alla i teamet får jobbet
+```
 
-## Steg
+**Regel:** För varje (booking, datum) gäller:
+> BSA = { staff där `staff_assignments.team_id = calendar_events.resource_id` på det datumet }
 
-### 1. Quick-fix för Skolfest #2604-64
-Skapa den saknade `calendar_events`-raden för 2026-04-27 (rigDown, `resource_id='team-2'`) så användarens flytt syns direkt.
+Drag av bokning ändrar bara `calendar_events`. BSA räknas om från principerna. Personalen "stannar" i teamet — bokningen byter team.
 
-### 2. Backfill: materialisera alla synthetic-dagar som finns idag
-SQL-migration som för varje (bokning, fas) hittar alla dagar som har personal i `staff_assignments`/`booking_staff_assignments` men ingen `calendar_events`-rad — och skapar dem. Tider och team hämtas från BSA + booking-fältet, fallback 08:00–12:00.
+**Skyddade kategorier:** rader med `team_id IN ('activity','project','location')` är härledda från andra system (tasks, large_project_staff, location-show-as-project) och rörs ALDRIG av detta.
 
-### 3. Utöka `import-bookings`
-Idag skapar reconcilern bara en rad per `rigdaydate`/`rigdowndate`. Ändras till: skapa en rad per dag som faktiskt är schemalagd (läs `rig_*_dates`-arrayer från BOOKING om de finns; annars expandera intervallet utifrån `rigdaydate`+antal dagar). Resultat: nya bokningar har aldrig synthetic-dagar.
+## Användarens regler (bekräftade)
+- Tomt mål-team → flytta ändå, BSA blir tom.
+- Datumflytt → personalen i `<gamlaTeam>` på `<nyaDatum>` får jobbet.
+- Ingen extra-bemanning utanför teammodellen.
 
-### 4. Riv ut synthetic-koden
-- `staffCalendarService.deriveStaffEvents` slutar generera `staff-…`-id:n för dagar som saknar `calendar_events` — istället loggas en varning ("backfill-kandidat") och raden visas inte.
-- `plannerCalendarDerivation`: ta bort `pickNearestReal`/`inferProjectSynthetic`-fallback som hittar på `resourceId`. Om en rad saknas → den finns inte i kalendern, punkt.
-- `useEventDragDrop` + `MoveEventDateDialog`: ta bort grenarna `isSyntheticCalendarEventId` / "booking-only update". Alla flyttar går samma väg: uppdatera `calendar_events`-raden + spegla till `bookings`.
-- `calendarEventResolver.isSyntheticCalendarEventId` + alla användningar tas bort.
+---
 
-### 5. Kontraktstest som låser det
-Nytt test (`src/test/calendarEvents.noSynthetic.contract.test.ts`) som failar om någon återinför `staff-`-prefix-id:n eller fallback-derivering av `resourceId` i kalenderkoden.
+## Stegvis utrullning (verifiera mellan varje steg)
 
-### 6. Memory-uppdatering
-Lägg till `mem://constraints/no-synthetic-calendar-events-v1` och uppdatera index. Skriver om `calendar-sync-consistency` så det är tydligt: en rad per (bokning, fas, datum), inga härledningar.
+### Steg 1 — RPC `recompute_booking_staff_for_day` (migration)
+Ren funktion. Påverkar inget än om vi inte kallar den.
 
-## Tekniska detaljer
+```sql
+CREATE OR REPLACE FUNCTION recompute_booking_staff_for_day(
+  p_booking_id text, p_date date
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_team text; v_org uuid; v_added int:=0; v_removed int:=0;
+BEGIN
+  SELECT resource_id, organization_id INTO v_team, v_org
+  FROM calendar_events
+  WHERE booking_id = p_booking_id AND source_date = p_date
+    AND event_type IN ('rig','rigDown')
+  ORDER BY event_type DESC LIMIT 1;
 
-**Filer som ändras:**
-- `supabase/functions/import-bookings/index.ts` — expandera `rigDates`/`rigdownDates` till alla schemalagda dagar (steg 3)
-- `src/services/staffCalendarService.ts` — sluta skapa synthetic events (steg 4)
-- `src/services/plannerCalendarDerivation.ts` — ta bort `pickNearestReal`/`inferProjectSynthetic`-derivering (steg 4)
-- `src/hooks/useEventDragDrop.ts` — en enda kodväg för flytt (steg 4)
-- `src/components/Calendar/MoveEventDateDialog.tsx` — ta bort synthetic-grenen (steg 4)
-- `src/services/calendarEventResolver.ts` — ta bort `isSyntheticCalendarEventId` + relaterad logik (steg 4)
+  WITH removed AS (
+    DELETE FROM booking_staff_assignments
+    WHERE booking_id = p_booking_id
+      AND assignment_date = p_date
+      AND team_id NOT IN ('activity','project','location')
+      AND (v_team IS NULL OR team_id <> v_team
+           OR staff_id NOT IN (
+             SELECT staff_id FROM staff_assignments
+             WHERE team_id = v_team AND assignment_date = p_date))
+    RETURNING 1
+  ) SELECT count(*) INTO v_removed FROM removed;
 
-**Migrationer:**
-- En SQL-migration för quick-fix Skolfest #2604-64 (steg 1)
-- En SQL-migration för backfill av alla saknade rader (steg 2) — körs en gång, idempotent
+  IF v_team IS NOT NULL THEN
+    WITH added AS (
+      INSERT INTO booking_staff_assignments
+        (booking_id, staff_id, team_id, assignment_date, organization_id)
+      SELECT p_booking_id, sa.staff_id, v_team, p_date, v_org
+      FROM staff_assignments sa
+      WHERE sa.team_id = v_team AND sa.assignment_date = p_date
+      ON CONFLICT (booking_id, staff_id, assignment_date) DO NOTHING
+      RETURNING 1
+    ) SELECT count(*) INTO v_added FROM added;
+  END IF;
 
-**Risker / saker att vara extra noga med:**
-- Backfill måste vara idempotent och får inte skapa duplicerade rader (unique på `(booking_id, event_type, source_date)` om det inte redan finns — vi lägger till indexet om det saknas).
-- `import-bookings` reconcilern måste fortsätta använda samma matchningsnyckel `(event_type, date)` så befintliga rader inte raderas.
-- Stora projekt har egen logik (`large_project_team_assignments`) som redan skriver riktiga overrides — den lämnas orörd.
+  RETURN jsonb_build_object('team',v_team,'added',v_added,'removed',v_removed);
+END $$;
+```
 
-**Inget som rörs:**
-- `staff_assignments` skrivväg (precis konsoliderad — enda writer är `staffAssignmentCore`).
-- Warehouse-kalendern (`warehouse_calendar_events`).
-- BOOKING-systemet eller `planning-api-proxy`.
+**Verifiering (manuell, READ-only):**
+- `SELECT recompute_booking_staff_for_day('<skolfest-id>','2026-04-27')` → returnerar `{team:'team-2',added:N,removed:0}`. Kontrollera BSA-rader matchar.
+- Kör mot ett par andra (booking, datum) som vi vet är OK → `added:0, removed:0` (idempotent).
+
+### Steg 2 — Conflict-merge i `updateCalendarEvent`
+Catcha 23505 (unique på `(booking_id, event_type, source_date)`). Vid kollision: uppdatera mål-raden, DELETE källraden, returnera `{merged:true}`.
+
+**Test:** Ny `src/test/calendarEventMerge.contract.test.ts` mockar Supabase, säkerställer att merge-grenen körs.
+
+### Steg 3 — Drag-drop använder RPC
+`useEventDragDrop.ts`:
+- UPDATE calendar_events (befintligt).
+- Spegla `bookings.<phase>date` ENDAST om `oldDate === bookingPhaseDate` (skydd mot multi-day överskrivning).
+- Anropa `recompute_booking_staff_for_day` för (booking, oldDate) och (booking, newDate).
+- Ta bort gammalt `handleBookingMove`-anrop.
+
+**Test:** `src/test/calendarTeamModel.contract.test.ts`
+- Dra team-1→team-2 → BSA på source rensas, target fylls (mockat).
+- Dra till tomt team → BSA tom, ingen blockering.
+- Dra till annat datum → BSA(old) tom, BSA(new)=teamets personal på det datumet.
+- Multi-day: dra "rigDown dag 2" → `bookings.rigdowndate` orörd.
+
+### Steg 4 — `MoveEventDateDialog` parar koden
+Samma två RPC-anrop. Inget gammalt staff-flytt-anrop kvar.
+
+### Steg 5 — Reconciler `import-bookings`
+Efter att den reconcilat `calendar_events`-rader för en bokning:
+- Samla alla datum som BSA + calendar_events finns på för bokningen.
+- För varje datum → `recompute_booking_staff_for_day`.
+Tar bort kvarvarande "spöken" och säkerställer alltid spegelegenskapen.
+
+**Test:** `supabase--test_edge_functions` på import-bookings (befintliga tester) + manuellt anrop via `supabase--curl_edge_functions` för Skolfest → kontrollera att BSA stämmer mot teamen efteråt.
+
+### Steg 6 — Engångs-normalisering (separat migration)
+Loop som kallar `recompute_booking_staff_for_day` för varje (booking, datum) som har calendar_events ELLER BSA i framtiden (cutoff: `assignment_date >= CURRENT_DATE - 30`). Idempotent. Säkerställer ren start.
+
+**Verifiering:** SELECT-diff före/efter på antal BSA-rader per team för en handfull bokningar. Skolfest 27/4 ska hamna på team-2 utan att vi rör datan manuellt.
+
+### Steg 7 — Deprecera `handle_booking_move`
+Ersätt funktionskroppen med en no-op som returnerar `{deprecated:true}`. Inga klienter får krascha. Loggar varning i Edge Function-loggar om någon fortfarande kallar den.
+
+### Steg 8 — Kontraktstest + memory
+- `src/test/calendarTeamModel.contract.test.ts` (från steg 3) failar om någon återinför "personal följer med bokning"-logik.
+- `mem://features/planning/calendar-team-model-v1` med modellen.
+- Uppdatera `.lovable/memory/index.md`.
+
+---
+
+## Filer
+
+```text
+NEW supabase/migrations/<ts>_recompute_booking_staff_for_day.sql        (steg 1)
+NEW supabase/migrations/<ts>_normalize_bsa_one_time.sql                 (steg 6)
+NEW supabase/migrations/<ts>_deprecate_handle_booking_move.sql          (steg 7)
+EDIT src/services/eventService.ts                                       (steg 2)
+EDIT src/hooks/useEventDragDrop.ts                                      (steg 3)
+EDIT src/components/Calendar/MoveEventDateDialog.tsx                    (steg 4)
+EDIT supabase/functions/import-bookings/index.ts                        (steg 5)
+NEW src/test/calendarEventMerge.contract.test.ts                        (steg 2)
+NEW src/test/calendarTeamModel.contract.test.ts                         (steg 3)
+NEW .lovable/memory/features/planning/calendar-team-model-v1.md         (steg 8)
+EDIT .lovable/memory/index.md                                           (steg 8)
+```
+
+## Säkerhetsnät
+- Alla migrationer är icke-destruktiva — `recompute` kan köras hur många gånger som helst.
+- Skyddade `team_id`-kategorier (`activity/project/location`) rörs aldrig.
+- `handle_booking_move` blir no-op men finns kvar → inga 404-RPC-fel.
+- Mellan steg 1 och steg 6 fungerar gammal kod fortfarande exakt som idag (vi har bara *lagt till* en oanvänd RPC).
+- Efter varje steg verifierar jag med READ-only SQL eller test innan nästa.
 
 ## Klart när
-- Skolfest #2604-64 visar rigDown 27/4 i team-2 efter F5.
-- Drag/team-byte funkar för alla rig-/rigdown-dagar oavsett om bokningen har en eller flera dagar — inget "hoppar tillbaka".
-- Inga `staff-…`-id:n finns kvar i koden, kontraktstestet failar om någon återinför dem.
+- Skolfest 27/4 ligger på team-2 efter normaliseringen — utan manuell datafix.
+- Drag av bokning mellan team uppdaterar BSA korrekt åt båda håll, hoppar inte tillbaka.
+- Drag mellan datum ger jobbet till personalen på nya datumets team.
+- Drag till tomt team funkar utan blockering, BSA blir tom.
+- Reconciler-körning är idempotent (andra körningen `added:0, removed:0` överallt).
+- Kontraktstest grönt.

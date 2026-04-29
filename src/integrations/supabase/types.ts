@@ -6996,6 +6996,10 @@ export type Database = {
         Returns: number
       }
       promote_stale_assistant_events: { Args: never; Returns: number }
+      recompute_booking_staff_for_day: {
+        Args: { p_booking_id: string; p_date: string }
+        Returns: Json
+      }
       sync_all_phase_times: {
         Args: never
         Returns: {
