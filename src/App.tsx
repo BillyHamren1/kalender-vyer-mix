@@ -2,7 +2,7 @@ import React, { createContext, lazy, Suspense, useState, useEffect } from 'react
 import { PlannerStoreProvider, usePlannerSync } from '@/stores/plannerStore';
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import { useSsoListener } from "@/hooks/useSsoListener";
@@ -20,8 +20,8 @@ import MyProjects from "./pages/MyProjects";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
-import ProjectLayout from "./pages/project/ProjectLayout";
-import LargeProjectLayout from "./pages/project/LargeProjectLayout";
+const ProjectLayout = lazyWithRecovery(() => import("./pages/project/ProjectLayout"));
+const LargeProjectLayout = lazyWithRecovery(() => import("./pages/project/LargeProjectLayout"));
 
 // Main system pages — lazy
 const InvoicingPage = lazyWithRecovery(() => import("./pages/InvoicingPage"));
@@ -128,6 +128,17 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Pause all polling/refetching while the tab is hidden. Resume on visibility.
+// This stops dashboards (planning/ops/warehouse) from hammering the network in the background
+// and dramatically reduces idle CPU/memory across the app.
+if (typeof document !== "undefined") {
+  focusManager.setEventListener((handleFocus) => {
+    const onVisibility = () => handleFocus(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  });
+}
 
 // Create and export CalendarContext
 interface CalendarContextType {
