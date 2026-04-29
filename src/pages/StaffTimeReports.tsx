@@ -51,6 +51,7 @@ interface StaffWithDayReport {
   latest_end: string | null;
   projects: ProjectInfo[];
   segments: DaySegment[];
+  journal: import('@/lib/staff/dayJournal').StaffDayJournal;
   latestPing: LatestPing | null;
 }
 
