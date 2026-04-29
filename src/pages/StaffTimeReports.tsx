@@ -653,16 +653,14 @@ const StaffTimeReports: React.FC = () => {
                 : isOpen
                   ? Math.max(0, (nowMs - new Date(e.entered_at).getTime()) / 3_600_000)
                   : 0;
-              let label = 'Plats';
-              if (e.booking_id) {
-                label = bookingMap.get(e.booking_id)?.label || 'Okänt projekt';
-              } else if (e.large_project_id) {
-                label = largeProjectMap.get(e.large_project_id) || 'Stort projekt';
-              } else if (e.location_id) {
-                label = locationBookingMap.get(e.location_id)?.label
-                  || locNameMap.get(e.location_id)
-                  || 'Lager';
-              }
+              // Use the same centralized resolver as time_reports so an LTE
+              // on an internal warehouse booking shows "FA Warehouse" too.
+              const resolved = resolveTimeReportLabel({
+                booking_id: e.booking_id,
+                large_project_id: e.large_project_id,
+                location_id: e.location_id,
+              });
+              const label = resolved.label === '—' ? 'Plats' : resolved.label;
               return {
                 id: e.id,
                 booking_id: e.booking_id,
