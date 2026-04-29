@@ -487,6 +487,21 @@ const translations = {
   'workday.totalTime': { sv: 'Total tid', en: 'Total time' },
   'workday.ending': { sv: 'Avslutar dagen…', en: 'Ending the day…' },
 
+  // Start day dialog
+  'startDay.title': { sv: 'Vart börjar du dagen?', en: 'Where are you starting your day?' },
+  'startDay.description': { sv: 'Välj projektet eller platsen du startar med. Vi kunde inte se det automatiskt via GPS.', en: 'Pick the project or location you’re starting at. We couldn’t detect it automatically via GPS.' },
+  'startDay.searchPlaceholder': { sv: 'Sök projekt eller kund…', en: 'Search project or client…' },
+  'startDay.suggested': { sv: 'Föreslagna (±1 dag)', en: 'Suggested (±1 day)' },
+  'startDay.allProjects': { sv: 'Alla projekt', en: 'All projects' },
+  'startDay.noMatch': { sv: 'Inga matchande projekt. Skriv manuellt nedan.', en: 'No matching projects. Enter manually below.' },
+  'startDay.manualToggle': { sv: 'Skriv manuellt istället', en: 'Enter manually instead' },
+  'startDay.manualLabel': { sv: 'Var är du? (Adress eller beskrivning)', en: 'Where are you? (Address or description)' },
+  'startDay.manualPlaceholder': { sv: 'T.ex. Storgatan 12, kund X, lager…', en: 'E.g. Main St 12, client X, warehouse…' },
+  'startDay.manualHelp': { sv: 'En flagga skapas så arbetsledare kan koppla rätt projekt åt dig senare.', en: 'A flag is created so a supervisor can link the right project for you later.' },
+  'startDay.back': { sv: 'Tillbaka', en: 'Back' },
+  'startDay.confirm': { sv: 'Starta dagen', en: 'Start the day' },
+  'startDay.starting': { sv: 'Startar…', en: 'Starting…' },
+
   // GPS sync debug
   'gpsSync.title': { sv: 'GPS-synk (debug)', en: 'GPS sync (debug)' },
   'gpsSync.pointsWaiting': { sv: '{count} {label} väntar på uppladdning', en: '{count} {label} waiting to upload' },

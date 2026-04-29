@@ -21,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Building2, MapPin, Search, Pencil, Calendar } from 'lucide-react';
 import type { MobileBooking } from '@/services/mobileApiService';
 import type { WorkTarget } from '@/hooks/useWorkSession';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 export type StartDaySelection =
   | { kind: 'target'; target: WorkTarget; label: string }
@@ -102,6 +103,7 @@ function buildTargets(bookings: MobileBooking[]): Array<{ key: string; label: st
 export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   open, onClose, onConfirm, bookings, starting,
 }) => {
+  const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [manualText, setManualText] = useState('');
   const [showManual, setShowManual] = useState(false);
@@ -134,9 +136,9 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
     <Dialog open={open} onOpenChange={(v) => { if (!v && !starting) onClose(); }}>
       <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Vart börjar du dagen?</DialogTitle>
+          <DialogTitle>{t('startDay.title')}</DialogTitle>
           <DialogDescription>
-            Välj projektet eller platsen du startar med. Vi kunde inte se det automatiskt via GPS.
+            {t('startDay.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -147,7 +149,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Sök projekt eller kund…"
+                placeholder={t('startDay.searchPlaceholder')}
                 className="pl-8"
                 disabled={starting}
               />
@@ -159,7 +161,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
-                      Föreslagna (±1 dag)
+                      {t('startDay.suggested')}
                     </h3>
                     <div className="space-y-1.5">
                       {nearby.map(item => (
@@ -172,7 +174,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
                 {others.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                      Alla projekt
+                      {t('startDay.allProjects')}
                     </h3>
                     <div className="space-y-1.5">
                       {others.map(item => (
@@ -184,7 +186,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
 
                 {filtered.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-6">
-                    Inga matchande projekt. Skriv manuellt nedan.
+                    {t('startDay.noMatch')}
                   </p>
                 )}
               </div>
@@ -197,7 +199,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
               className="w-full"
             >
               <Pencil className="w-4 h-4 mr-2" />
-              Skriv manuellt istället
+              {t('startDay.manualToggle')}
             </Button>
           </>
         )}
@@ -206,25 +208,25 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium block mb-1.5">
-                Var är du? (Adress eller beskrivning)
+                {t('startDay.manualLabel')}
               </label>
               <Input
                 value={manualText}
                 onChange={(e) => setManualText(e.target.value)}
-                placeholder="T.ex. Storgatan 12, kund X, lager…"
+                placeholder={t('startDay.manualPlaceholder')}
                 autoFocus
                 disabled={starting}
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                En flagga skapas så arbetsledare kan koppla rätt projekt åt dig senare.
+                {t('startDay.manualHelp')}
               </p>
             </div>
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setShowManual(false)} disabled={starting} className="flex-1">
-                Tillbaka
+                {t('startDay.back')}
               </Button>
               <Button onClick={handleManualSubmit} disabled={starting || !manualText.trim()} className="flex-1">
-                {starting ? 'Startar…' : 'Starta dagen'}
+                {starting ? t('startDay.starting') : t('startDay.confirm')}
               </Button>
             </div>
           </div>
