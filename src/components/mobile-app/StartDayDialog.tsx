@@ -136,9 +136,9 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
     <Dialog open={open} onOpenChange={(v) => { if (!v && !starting) onClose(); }}>
       <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Vart börjar du dagen?</DialogTitle>
+          <DialogTitle>{t('startDay.title')}</DialogTitle>
           <DialogDescription>
-            Välj projektet eller platsen du startar med. Vi kunde inte se det automatiskt via GPS.
+            {t('startDay.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -149,7 +149,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Sök projekt eller kund…"
+                placeholder={t('startDay.searchPlaceholder')}
                 className="pl-8"
                 disabled={starting}
               />
@@ -161,7 +161,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
-                      Föreslagna (±1 dag)
+                      {t('startDay.suggested')}
                     </h3>
                     <div className="space-y-1.5">
                       {nearby.map(item => (
@@ -174,7 +174,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
                 {others.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                      Alla projekt
+                      {t('startDay.allProjects')}
                     </h3>
                     <div className="space-y-1.5">
                       {others.map(item => (
@@ -186,7 +186,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
 
                 {filtered.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-6">
-                    Inga matchande projekt. Skriv manuellt nedan.
+                    {t('startDay.noMatch')}
                   </p>
                 )}
               </div>
@@ -199,7 +199,7 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
               className="w-full"
             >
               <Pencil className="w-4 h-4 mr-2" />
-              Skriv manuellt istället
+              {t('startDay.manualToggle')}
             </Button>
           </>
         )}
