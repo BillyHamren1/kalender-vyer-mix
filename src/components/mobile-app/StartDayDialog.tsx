@@ -113,7 +113,7 @@ function buildTargets(bookings: MobileBooking[]): Array<{ key: string; label: st
 }
 
 export const StartDayDialog: React.FC<StartDayDialogProps> = ({
-  open, onClose, onConfirm, bookings, starting,
+  open, onClose, onConfirm, bookings, locations = [], starting,
 }) => {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
@@ -121,6 +121,19 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   const [showManual, setShowManual] = useState(false);
 
   const allTargets = useMemo(() => buildTargets(bookings), [bookings]);
+
+  // Lager och andra fasta platser ska ALLTID finnas som val, oavsett
+  // planering. De renderas i en egen sektion överst.
+  const locationTargets = useMemo(
+    () => locations.map((loc) => ({
+      key: `location:${loc.id}`,
+      label: loc.name,
+      sublabel: loc.address || undefined,
+      target: { kind: 'location' as const, locationId: loc.id, name: loc.name },
+    })),
+    [locations]
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return allTargets;
@@ -129,6 +142,16 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
       (t.sublabel || '').toLowerCase().includes(q)
     );
   }, [allTargets, search]);
+
+  const filteredLocations = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return locationTargets;
+    return locationTargets.filter(t =>
+      t.label.toLowerCase().includes(q) ||
+      (t.sublabel || '').toLowerCase().includes(q)
+    );
+  }, [locationTargets, search]);
+
 
   const nearby = filtered.filter(t => t.nearby);
   const others = filtered.filter(t => !t.nearby);
