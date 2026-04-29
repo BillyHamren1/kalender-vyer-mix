@@ -112,7 +112,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
   const location = useLocation();
   const { t } = useLanguage();
   const { staff } = useMobileAuth();
-  const { current, start } = useWorkDay();
+  const { current, start, ensureActive } = useWorkDay();
   const { data: bookings = [] } = useMobileBookings();
   const { userPosition, orgLocations } = useGeofencingContext();
   const { requestStart } = useTimerStartFlow(bookings, staff?.id);
