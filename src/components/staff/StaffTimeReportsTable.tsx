@@ -260,7 +260,6 @@ const PresenceLineWithDate: React.FC<{ row: JournalTableRow; date: string }> = (
   return (
     <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
       På plats: <strong className="text-foreground">{arr} – {lft}</strong>
-      <span className="ml-1">({result.basePings}/{result.sample} pings vid bas)</span>
     </div>
   );
 };

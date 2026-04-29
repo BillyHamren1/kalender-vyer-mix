@@ -47,7 +47,6 @@ export const SessionDiscrepancyRows: React.FC<Props> = ({
   const { data: pings = [], isLoading } = useStaffPingsForDay(staffId, date, true);
 
   const visible = useMemo(() => {
-    if (!pings.length) return [];
     const facts = buildDayFacts({
       pings,
       reportedStart,
