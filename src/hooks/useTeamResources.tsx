@@ -167,7 +167,7 @@ export const useTeamResources = () => {
 
   // Get only the team resources (not room resources) and sort them correctly.
   // Excludes the deprecated Live column (team-11). Includes the virtual 'transport' resource.
-  const transportResource: Resource = { id: 'transport', title: 'Transporter', eventColor: '#3B82F6' };
+  const transportResource: Resource = { id: 'transport', title: 'Lager', eventColor: '#3B82F6' };
   
   const teamResources = [
     ...resources.filter(resource => resource.id.startsWith('team-') && resource.id !== 'team-11'),

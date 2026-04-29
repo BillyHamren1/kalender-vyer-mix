@@ -8,6 +8,7 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
 import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
+import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -101,15 +102,18 @@ const CustomCalendarPage = () => {
   // Task overlay events (only fetched when toggle is on)
   const { taskEvents } = useTaskCalendarEvents(showTasks);
 
-  // Transport events for the "Transporter" column
+  // Transport events for the "Lager" column (legacy: id 'transport')
   const { transportEvents } = useTransportCalendarEvents(hookCurrentDate);
 
-  // Merge calendar events + task overlay + transport events
+  // Internt Lagerprojekt — virtuella 07–16 events varje dag i Lager-kolumnen
+  const { internalLagerEvents } = useInternalLagerCalendarEvents(hookCurrentDate, viewMode);
+
+  // Merge calendar events + task overlay + transport events + internal lager
   const mergedEvents = useMemo(() => {
-    const base = [...events, ...transportEvents];
+    const base = [...events, ...transportEvents, ...internalLagerEvents];
     if (!showTasks || taskEvents.length === 0) return base;
     return [...base, ...taskEvents];
-  }, [events, taskEvents, transportEvents, showTasks]);
+  }, [events, taskEvents, transportEvents, internalLagerEvents, showTasks]);
 
   // Handle task overlay click → navigate to project execution context
   const handleEventClick = async (event: any) => {

@@ -5,7 +5,7 @@ import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouse
 import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-import { useWarehouseStaffActivations } from '@/hooks/useWarehouseStaffActivations';
+import { useWarehouseStaffActivations, useWarehouseAvailableStaff } from '@/hooks/useWarehouseStaffActivations';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { distributeWarehouseEvents } from '@/utils/warehouseTeamAvailability';
 
@@ -332,10 +332,11 @@ const WarehouseCalendarPage = () => {
     });
   };
 
-  // Only show activated warehouse staff in calendar
-  const { activeStaffIds } = useWarehouseStaffActivations();
+  // Personal som är tillgänglig i lagerkalendern denna dag/vecka:
+  // = aktiverad personal + personal planerad i Lager-kolumnen i planeringskalendern
+  const { activeStaffIds } = useWarehouseAvailableStaff(currentWeekStart, viewMode);
 
-  // Use the unified staff operations hook — filtered by activated staff
+  // Use the unified staff operations hook — filtered by available staff
   const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Lager', activeStaffIds);
 
   // Staff curtain state - simplified with position

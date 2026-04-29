@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { format, addDays, startOfWeek } from 'date-fns';
 
 export interface WarehouseStaffActivation {
   id: string;
@@ -136,3 +138,82 @@ export function useWarehouseStaffActivations() {
     deactivate: deactivate.mutate,
   };
 }
+
+/**
+ * Datum-medveten variant: returnerar staff_ids som ska ses som "tillgängliga"
+ * i lagerkalendern för ett givet datumintervall.
+ *
+ * Union av:
+ *   1. Permanenta/temporära aktiveringar via warehouse_staff_activations.
+ *   2. Personal som planerats i Lager-kolumnen i planeringskalendern
+ *      (staff_assignments.team_id = 'transport') inom intervallet.
+ *
+ * Används av WarehouseCalendarPage för att automatiskt visa personal som
+ * dragits in i Lager-kolumnen i planeringskalendern, utan manuell aktivering.
+ */
+export function useWarehouseAvailableStaff(
+  currentDate: Date,
+  view: 'day' | 'weekly' | 'monthly' | 'list' = 'weekly',
+) {
+  const queryClient = useQueryClient();
+  const { staffWithActivations, activeStaffIds: permanentlyActiveIds, isLoading: isLoadingActivations } =
+    useWarehouseActivations();
+
+  // Bestäm intervall
+  const { startKey, endKey } = useMemo(() => {
+    if (view === 'day') {
+      const k = format(currentDate, 'yyyy-MM-dd');
+      return { startKey: k, endKey: k };
+    }
+    const start = startOfWeek(currentDate, { weekStartsOn: 1 });
+    return {
+      startKey: format(start, 'yyyy-MM-dd'),
+      endKey: format(addDays(start, 6), 'yyyy-MM-dd'),
+    };
+  }, [currentDate, view]);
+
+  const { data: lagerAssignedStaffIds = [] } = useQuery({
+    queryKey: ['warehouse-lager-assigned-staff', startKey, endKey],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('staff_assignments')
+        .select('staff_id')
+        .eq('team_id', 'transport')
+        .gte('assignment_date', startKey)
+        .lte('assignment_date', endKey);
+      if (error) throw error;
+      return Array.from(new Set((data || []).map((r: any) => r.staff_id)));
+    },
+  });
+
+  // Realtime: invalidera när staff_assignments ändras
+  useEffect(() => {
+    const channel = supabase
+      .channel(`warehouse-lager-assignments-${startKey}-${endKey}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'staff_assignments' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['warehouse-lager-assigned-staff'] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, startKey, endKey]);
+
+  const activeStaffIds = useMemo(
+    () => Array.from(new Set([...permanentlyActiveIds, ...lagerAssignedStaffIds])),
+    [permanentlyActiveIds, lagerAssignedStaffIds],
+  );
+
+  return {
+    staffWithActivations,
+    activeStaffIds,
+    isLoading: isLoadingActivations,
+  };
+}
+
+// Internt alias så useWarehouseAvailableStaff kan återanvända baslogiken
+const useWarehouseActivations = useWarehouseStaffActivations;

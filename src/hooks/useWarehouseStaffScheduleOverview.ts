@@ -41,6 +41,7 @@ const getRange = (date: Date, view: WarehouseScheduleView) => {
 };
 
 const teamLabel = (teamId: string) => {
+  if (teamId === 'transport') return 'Lager';
   if (teamId.startsWith('lager-')) return `Lager ${teamId.replace('lager-', '')}`;
   if (teamId.startsWith('team-')) return `Team ${teamId.replace('team-', '')}`;
   return teamId;
@@ -200,6 +201,21 @@ export function useWarehouseStaffScheduleOverview(
               bookingNumber: event.booking_number,
               deliveryAddress: event.delivery_address,
             });
+          });
+        }
+
+        if (assignment.team_id === 'transport') {
+          // Lager-pass från planeringskalenderns Lager-kolumn (interna lagerprojektet 07–16)
+          group.items.push({
+            id: `transport-lager-${assignment.id}`,
+            date: assignment.assignment_date,
+            title: 'Lager – Lagerpass',
+            kind: 'warehouse',
+            resourceId: 'transport',
+            resourceLabel: 'Lager',
+            eventType: 'internal_task',
+            startTime: `${assignment.assignment_date}T07:00:00`,
+            endTime: `${assignment.assignment_date}T16:00:00`,
           });
         }
       });
