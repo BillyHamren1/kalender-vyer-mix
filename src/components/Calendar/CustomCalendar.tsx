@@ -60,6 +60,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const weekStartTime = currentDate.getTime();
   const [staffExpanded, setStaffExpanded] = useState(false);
+  const [expandedDay, setExpandedDay] = useState<Date | null>(null);
   const days = useWeekDays(currentDate);
 
   const {
