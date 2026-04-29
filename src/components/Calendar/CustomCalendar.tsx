@@ -166,7 +166,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const expandedDayDialog = (
     <Dialog open={!!expandedDay} onOpenChange={(open) => !open && setExpandedDay(null)}>
       <DialogContent
-        className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 border-0 bg-background overflow-auto"
+        className="theme-purple max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 border-0 bg-background overflow-auto"
         style={{ width: '100vw', height: '100vh' }}
       >
         <DialogTitle className="sr-only">
