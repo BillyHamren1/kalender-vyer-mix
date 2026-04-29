@@ -194,6 +194,7 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
       });
 
       if (refreshEvents) await refreshEvents();
+    } catch (error: any) {
       console.error('Error moving event via drag:', error);
       const detail = error?.message || error?.error_description || error?.hint || (typeof error === 'string' ? error : '');
       toast.error('Kunde inte flytta eventet', {
