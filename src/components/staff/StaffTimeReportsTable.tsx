@@ -9,6 +9,7 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { DayFactsPanel } from './DayFactsPanel';
 import { StaffDaySummaryRow } from './StaffDaySummaryRow';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
+import { JournalPlaceCell } from './JournalPlaceCell';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { computeWorkPresence, combineDayPresence } from '@/lib/staff/workPresence';
@@ -367,14 +368,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
 
                   {/* Plats */}
                   <td className="py-2 px-2 align-top text-muted-foreground">
-                    {r.address ? (
-                      <span className="inline-flex items-center gap-1 truncate">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{r.address}</span>
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/50">—</span>
-                    )}
+                    <JournalPlaceCell
+                      staffId={r.staffId}
+                      date={date}
+                      rowKind={r.kind}
+                      startIso={r.startIso}
+                      fallbackAddress={r.address}
+                    />
                   </td>
 
                   {/* Klockslag */}
