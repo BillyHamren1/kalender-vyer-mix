@@ -1147,7 +1147,8 @@ Deno.serve(async (req) => {
             quantity_packed: 1,
             packed_at: now,
             packed_by: verifiedBy,
-            ...(isFull ? { verified_at: now, verified_by: verifiedBy } : {}),
+            packed_by_staff_id: verifiedByStaffId || null,
+            ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
           })
           .select('id')
           .single()
