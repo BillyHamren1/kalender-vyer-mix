@@ -168,28 +168,32 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
         };
         toast.success(`${labels[eventType] || 'Dag'} tillagd`);
       } else {
-        if (!event.resourceId) {
-          toast.error('Resurs saknas');
-          setIsCreating(false);
-          return;
-        }
         const sourceDate = startDateTime.split('T')[0];
-        const { error: insertError } = await supabase
-          .from('calendar_events')
-          .insert({
-            title: event.title,
-            start_time: startDateTime,
-            end_time: endDateTime,
-            resource_id: event.resourceId,
-            booking_id: event.bookingId,
-            event_type: eventType,
-            organization_id: booking.organization_id,
-            booking_number: booking.booking_number,
-            delivery_address:
-              [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
-            source_date: sourceDate,
-          });
-        if (insertError) throw insertError;
+
+        // Only insert into calendar_events if we have a resource (team) to
+        // attach the row to — calendar_events.resource_id is NOT NULL.
+        // Without a team, we still update the booking row; the import-bookings
+        // reconciler will materialize the calendar_event on next sync.
+        if (event.resourceId) {
+          const { error: insertError } = await supabase
+            .from('calendar_events')
+            .insert({
+              title: event.title,
+              start_time: startDateTime,
+              end_time: endDateTime,
+              resource_id: event.resourceId,
+              booking_id: event.bookingId,
+              event_type: eventType,
+              organization_id: booking.organization_id,
+              booking_number: booking.booking_number,
+              delivery_address:
+                [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
+              source_date: sourceDate,
+            });
+          if (insertError) throw insertError;
+        } else {
+          console.log('[AddRiggDayDialog] no resourceId — skipping calendar_events insert, booking update will trigger reconciler');
+        }
 
         const bookingFieldMap = {
           rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
@@ -199,7 +203,7 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 
         const fields = bookingFieldMap[eventType as 'rig' | 'event' | 'rigDown'];
         if (fields) {
-          await supabase
+          const { error: bkErr } = await supabase
             .from('bookings')
             .update({
               [fields.date]: dateStr,
@@ -207,6 +211,7 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
               [fields.end]: endDateTime,
             })
             .eq('id', event.bookingId);
+          if (bkErr) throw bkErr;
         }
 
         const typeLabels = { rig: 'Riggdag', event: 'Eventdag', rigDown: 'Rivdag' } as const;
@@ -215,9 +220,12 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 
       onOpenChange(false);
       if (onUpdate) onUpdate();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating event day:', error);
-      toast.error('Kunde inte lägga till dagen');
+      const detail = error?.message || error?.hint || (typeof error === 'string' ? error : '');
+      toast.error('Kunde inte lägga till dagen', {
+        description: detail || undefined,
+      });
     } finally {
       setIsCreating(false);
     }

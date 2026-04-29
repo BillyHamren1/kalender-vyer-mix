@@ -5,6 +5,7 @@ import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { moveLargeProjectDay, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
+import { resolveCalendarEventId, isSyntheticCalendarEventId } from '@/services/calendarEventResolver';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 // Serializable subset stored in dataTransfer
@@ -121,62 +122,74 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
         return;
       }
 
-      // ── Synthetic single-booking fallback: write to bookings + let reconciler
-      // create the calendar_events row on next sync.
-      if (eventData.isSyntheticFallback || eventData.id.startsWith('synthetic-')) {
-        if (!eventData.bookingId || !eventData.eventType) {
-          toast.error('Kunde inte flytta — saknar bokningsreferens.');
-          return;
-        }
-        const bookingFields: Record<string, { date: string; start: string; end: string }> = {
-          rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
-          event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
-          rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
-        };
-        const fields = bookingFields[eventData.eventType];
-        if (fields) {
-          await supabase.from('bookings').update({
-            [fields.date]: targetDateStr,
-            [fields.start]: newStartISO,
-            [fields.end]: newEndISO,
-          }).eq('id', eventData.bookingId);
-        }
-        const targetDate = new Date(targetDateStr + 'T12:00:00Z');
-        toast.success('Bokning flyttad', {
-          description: `${eventData.title} → ${format(targetDate, 'EEE d MMM')}`,
-        });
-        if (refreshEvents) await refreshEvents();
+      // ── Normal booking move (synthetic OR real calendar_events id):
+      // 1) Always update bookings.<phase>_*_time + .<phase>date — this is the
+      //    authoritative write that import-bookings reconciles from.
+      // 2) Try to resolve a real calendar_events row; if one exists, update it
+      //    in place. If none exists yet, skip silently — the reconciler will
+      //    materialize it on next sync.
+      //
+      // This was previously only done for events flagged isSyntheticFallback,
+      // which meant staff-calendar derived rows (id starts with `staff-`) hit
+      // updateCalendarEvent with an id that doesn't exist → 0 rows + opaque
+      // "Kunde inte flytta eventet" toast. That's fixed here.
+      const phaseFields: Record<string, { date: string; start: string; end: string }> = {
+        rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+        event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+        rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+      };
+      const fields = eventData.eventType ? phaseFields[eventData.eventType] : undefined;
+
+      if (!eventData.bookingId || !fields) {
+        toast.error('Kunde inte flytta — saknar bokningsreferens.');
         return;
       }
 
-      // Update calendar event
-      await updateCalendarEvent(eventData.id, {
-        start: newStartISO,
-        end: newEndISO,
+      // 1. Update booking row (authoritative)
+      const { error: bkErr } = await supabase
+        .from('bookings')
+        .update({
+          [fields.date]: targetDateStr,
+          [fields.start]: newStartISO,
+          [fields.end]: newEndISO,
+        })
+        .eq('id', eventData.bookingId);
+      if (bkErr) {
+        console.error('[useEventDragDrop] bookings update failed', bkErr);
+        throw new Error(`Kunde inte uppdatera bokningen: ${bkErr.message}`);
+      }
+
+      // 2. Try to update an existing calendar_events row in place
+      const realEventId = await resolveCalendarEventId({
+        rawId: eventData.id,
+        bookingId: eventData.bookingId,
+        eventType: eventData.eventType,
+        sourceDate: currentDateStr,
       });
 
-      // Also update booking dates to stay in sync
-      if (eventData.bookingId && eventData.eventType) {
-        const bookingFields: Record<string, { date: string; start: string; end: string }> = {
-          rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
-          event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
-          rigDown: { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' },
-        };
-        const fields = bookingFields[eventData.eventType];
-        if (fields) {
-          await supabase
-            .from('bookings')
-            .update({
-              [fields.date]: targetDateStr,
-              [fields.start]: newStartISO,
-              [fields.end]: newEndISO,
-            })
-            .eq('id', eventData.bookingId);
+      if (realEventId) {
+        try {
+          await updateCalendarEvent(realEventId, {
+            start: newStartISO,
+            end: newEndISO,
+          });
+        } catch (err) {
+          // Booking write already succeeded; calendar_event row will be
+          // reconciled on next import-bookings tick. Surface a warning, not
+          // a blocking error.
+          console.warn('[useEventDragDrop] calendar_events update failed (non-fatal)', err);
         }
+      } else if (isSyntheticCalendarEventId(eventData.id)) {
+        // Expected: derived staff-calendar row with no underlying calendar_event yet.
+        console.log('[useEventDragDrop] no calendar_events row for', {
+          bookingId: eventData.bookingId,
+          eventType: eventData.eventType,
+          fromDate: currentDateStr,
+        }, '— relying on reconciler');
       }
 
       const targetDate = new Date(targetDateStr + 'T12:00:00Z');
-      toast.success('Event flyttat', {
+      toast.success('Riggdag flyttad', {
         description: `${eventData.title} → ${format(targetDate, 'EEE d MMM')}`,
       });
 
