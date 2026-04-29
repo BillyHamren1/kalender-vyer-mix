@@ -872,6 +872,7 @@ Deno.serve(async (req) => {
             parcel_id: parcelId,
             quantity: finalQty,
             scanned_by: scannedBy || null,
+            scanned_by_staff_id: scannedByStaffId || null,
             organization_id: ORG_ID,
           })
         if (error) throw error
