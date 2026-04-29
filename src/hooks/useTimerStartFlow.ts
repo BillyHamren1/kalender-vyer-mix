@@ -182,7 +182,7 @@ export function useTimerStartFlow(
   const performStart = useCallback(
     async (
       target: WorkTarget,
-      opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string },
+      opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string; offSiteReason?: string; offSiteDistance?: number },
     ): Promise<'started' | 'duplicate' | 'workday-failed'> => {
       // Starting a new activity timer ALWAYS ends an open travel row first.
       // NOTE on the new official model: restid är primärt GAPET mellan två
@@ -224,6 +224,39 @@ export function useTimerStartFlow(
       });
       if (ok) {
         toast.success(`Timer startad: ${opts.label}`);
+
+        // Off-site start: spara användarens anledning som workday_flag så
+        // arbetsledaren kan följa upp varför timern startades utan GPS-träff.
+        if (opts.offSiteReason) {
+          const targetId =
+            target.kind === 'booking'
+              ? target.bookingId
+              : target.kind === 'project'
+                ? target.largeProjectId
+                : target.locationId;
+          void mobileApi.createWorkdayFlag({
+            flag_type: 'geofence_presence_mismatch',
+            flag_date: new Date().toISOString().slice(0, 10),
+            title: `Startade off-site: ${opts.label}`,
+            description: opts.offSiteReason,
+            severity: 'warning',
+            needs_user_input: false,
+            related_booking_id: target.kind === 'booking' ? target.bookingId : undefined,
+            related_large_project_id: target.kind === 'project' ? target.largeProjectId : undefined,
+            related_location_id: target.kind === 'location' ? target.locationId : undefined,
+            context: {
+              source: 'distance_warning_override',
+              distance_meters: opts.offSiteDistance ?? null,
+              target_kind: target.kind,
+              target_id: targetId,
+              user_position: userPosition ?? null,
+              reason: opts.offSiteReason,
+            },
+          }).catch((err) => {
+            console.warn('[StartFlow] createWorkdayFlag (off-site) failed (non-fatal):', err);
+          });
+        }
+
         // Gap-baserad restid: härleds från senaste stoppade arbetssegment
         // (se src/lib/lastWorkSegment.ts). Bästa-effort, fire-and-forget.
         const startIso = opts.startedAtIso ?? new Date().toISOString();
@@ -249,7 +282,9 @@ export function useTimerStartFlow(
   const checkDistanceAndStart = useCallback(
     (target: WorkTarget, opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string }) => {
       const coords = resolveTargetCoords(target);
-      const doStart = () => { void performStart(target, opts); };
+      const doStart = (offSiteReason?: string, offSiteDistance?: number) => {
+        void performStart(target, { ...opts, offSiteReason, offSiteDistance });
+      };
       if (!userPosition || !coords) {
         doStart();
         return;
@@ -264,7 +299,9 @@ export function useTimerStartFlow(
         setDistanceWarning({
           placeName: coords.label || opts.label,
           distance: dist,
-          onConfirm: doStart,
+          // Tar emot OBLIGATORISK anledning från DistanceWarningDialog
+          // och vidarebefordrar den till performStart för flagg-loggning.
+          onConfirm: (reason: string) => doStart(reason, dist),
         });
       } else {
         doStart();
