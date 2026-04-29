@@ -162,18 +162,53 @@ export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
         throw err;
       }
 
-      // 2. Mirror canonical date/time onto bookings row
-      const { error: bkErr } = await supabase
+      // 2. Mirror canonical date/time onto bookings row — but ONLY if the
+      //    day we moved is the booking's PRIMARY date for this phase.
+      //    Multi-day rig/rigDown has extra calendar_events rows that should
+      //    NOT overwrite bookings.<phase>date when moved (that's just a
+      //    secondary day).
+      const { data: bk } = await supabase
         .from('bookings')
-        .update({
-          [fields.date]: targetDateStr,
-          [fields.start]: newStartISO,
-          [fields.end]: newEndISO,
-        })
-        .eq('id', eventData.bookingId);
-      if (bkErr) {
-        console.error('[useEventDragDrop] bookings update failed', bkErr);
-        throw new Error(`Kunde inte uppdatera bokningen: ${bkErr.message}`);
+        .select(`${fields.date}`)
+        .eq('id', eventData.bookingId)
+        .maybeSingle();
+      const primaryDate = (bk as any)?.[fields.date];
+      const isPrimaryDay = primaryDate && primaryDate === currentDateStr;
+
+      if (isPrimaryDay) {
+        const { error: bkErr } = await supabase
+          .from('bookings')
+          .update({
+            [fields.date]: targetDateStr,
+            [fields.start]: newStartISO,
+            [fields.end]: newEndISO,
+          })
+          .eq('id', eventData.bookingId);
+        if (bkErr) {
+          console.error('[useEventDragDrop] bookings update failed', bkErr);
+          throw new Error(`Kunde inte uppdatera bokningen: ${bkErr.message}`);
+        }
+      } else {
+        console.log('[useEventDragDrop] Skipping bookings mirror — not primary day', {
+          bookingId: eventData.bookingId, phase: eventData.eventType,
+          primaryDate, movedFrom: currentDateStr,
+        });
+      }
+
+      // 3. Räkna om BSA för båda dagarna (källa städas, mål fylls från teamet)
+      try {
+        await Promise.all([
+          supabase.rpc('recompute_booking_staff_for_day' as any, {
+            p_booking_id: eventData.bookingId,
+            p_date: currentDateStr,
+          }),
+          supabase.rpc('recompute_booking_staff_for_day' as any, {
+            p_booking_id: eventData.bookingId,
+            p_date: targetDateStr,
+          }),
+        ]);
+      } catch (rpcErr) {
+        console.warn('[useEventDragDrop] BSA recompute failed (non-fatal)', rpcErr);
       }
 
       const targetDate = new Date(targetDateStr + 'T12:00:00Z');
