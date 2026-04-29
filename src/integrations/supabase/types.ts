@@ -5680,6 +5680,45 @@ export type Database = {
           },
         ]
       }
+      timeline_action_audit: {
+        Row: {
+          action: string
+          actor_user_id: string
+          created_at: string
+          id: string
+          organization_id: string
+          payload: Json
+          report_date: string
+          staff_id: string
+          suggestion_id: string | null
+          time_report_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          payload?: Json
+          report_date: string
+          staff_id: string
+          suggestion_id?: string | null
+          time_report_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          payload?: Json
+          report_date?: string
+          staff_id?: string
+          suggestion_id?: string | null
+          time_report_id?: string | null
+        }
+        Relationships: []
+      }
       transport_assignments: {
         Row: {
           actual_arrival: string | null
