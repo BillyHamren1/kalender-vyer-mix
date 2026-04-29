@@ -114,8 +114,18 @@ export const HeaderStartEndDayButton: React.FC = () => {
   const { staff } = useMobileAuth();
   const { current, start } = useWorkDay();
   const { data: bookings = [] } = useMobileBookings();
-  const { userPosition } = useGeofencingContext();
+  const { userPosition, orgLocations } = useGeofencingContext();
   const { requestStart } = useTimerStartFlow(bookings, staff?.id);
+
+  // Fasta platser som ALLTID ska kunna väljas (t.ex. Lager). Vi visar bara
+  // de som markerats som `show_as_project` i admin — samma kriterium som
+  // jobblistan på /m/jobs använder.
+  const startDayLocations = useMemo(
+    () => orgLocations
+      .filter((loc: any) => loc.show_as_project === true)
+      .map((loc: any) => ({ id: loc.id, name: loc.name, address: loc.address ?? null })),
+    [orgLocations]
+  );
 
   const workdayOpen = !!current && !current.ended_at;
   const [startingDay, setStartingDay] = useState(false);
