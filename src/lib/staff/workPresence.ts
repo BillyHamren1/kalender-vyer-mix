@@ -81,20 +81,18 @@ export function computeWorkPresence(
     return { arrivedAt: null, leftAt: null, basePings: [], base: opts.base ?? null, sampleCount: 0 };
   }
 
-  // Resolve base: prefer provided; otherwise use the median of pings INSIDE
-  // the strict session window (not the grace zone) so a passing-by ping at
-  // 06:00 doesn't drag the centre off-site.
-  let base = opts.base ?? null;
+  // Resolve base. We REQUIRE a real coordinate from the caller (booking /
+  // project / location). If none is supplied we MUST NOT invent one from
+  // the pings themselves — doing so would silently treat the staff
+  // member's home as "the workplace" and produce false "Anlände 06:51 ·
+  // matchar rapport" lines. Without a base, we simply cannot say where
+  // they were.
+  const base = opts.base ?? null;
   if (!base) {
-    const strict = inWindow.filter(p => {
-      const t = new Date(p.recorded_at).getTime();
-      return t >= startMs && t <= endMs;
-    });
-    const seed = strict.length >= 3 ? strict : inWindow;
-    base = { lat: median(seed.map(p => p.lat)), lng: median(seed.map(p => p.lng)) };
+    return { arrivedAt: null, leftAt: null, basePings: [], base: null, sampleCount: inWindow.length };
   }
 
-  const basePings = inWindow.filter(p => haversineMeters(base!, { lat: p.lat, lng: p.lng }) <= threshold);
+  const basePings = inWindow.filter(p => haversineMeters(base, { lat: p.lat, lng: p.lng }) <= threshold);
 
   return {
     arrivedAt: basePings[0]?.recorded_at ?? null,
