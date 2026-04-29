@@ -174,18 +174,15 @@ export const buildPlannerCalendarEvents = ({
   }
 
   const realByBooking = new Map<string, RealCalendarEventRow[]>();
-  const bookingAssignmentsByBooking = new Map<string, BookingAssignmentRow[]>();
   for (const event of realEvents) {
     if (!event.booking_id) continue;
     const rows = realByBooking.get(event.booking_id) || [];
     rows.push(event);
     realByBooking.set(event.booking_id, rows);
   }
-  for (const assignment of bookingAssignments) {
-    const rows = bookingAssignmentsByBooking.get(assignment.booking_id) || [];
-    rows.push(assignment);
-    bookingAssignmentsByBooking.set(assignment.booking_id, rows);
-  }
+  // Suppress unused-var warnings — bookingAssignments kept in API for backward
+  // compat with callers (planner derivation no longer uses it).
+  void bookingAssignments;
 
   // Project team overrides: project|phase|date → team_id
   const projectTeamByKey = new Map<string, string>();
@@ -194,83 +191,6 @@ export const buildPlannerCalendarEvents = ({
     if (!phase) continue;
     projectTeamByKey.set(`${row.large_project_id}|${phase}|${row.assignment_date}`, row.team_id);
   }
-
-  const pickNearestReal = (rows: RealCalendarEventRow[], phase: PlannerPhase, date: string) => {
-    const samePhase = rows.filter((row) => normalizePhase(row.event_type) === phase && !!row.resource_id);
-    const sameDate = samePhase.find((row) => extractDate(row.source_date || row.start_time) === date);
-    if (sameDate) return sameDate;
-    if (samePhase.length > 0) {
-      return [...samePhase].sort((a, b) => (
-        dateDistance(extractDate(a.source_date || a.start_time), date) - dateDistance(extractDate(b.source_date || b.start_time), date)
-      ))[0];
-    }
-    const exactAny = rows.find((row) => extractDate(row.source_date || row.start_time) === date && !!row.resource_id);
-    if (exactAny) return exactAny;
-    return [...rows]
-      .filter((row) => !!row.resource_id)
-      .sort((a, b) => (
-        dateDistance(extractDate(a.source_date || a.start_time), date) - dateDistance(extractDate(b.source_date || b.start_time), date)
-      ))[0];
-  };
-
-  const inferBookingTeam = (booking: BookingRow, phase: PlannerPhase, date: string) => {
-    const assignment = (bookingAssignmentsByBooking.get(booking.id) || [])
-      .filter((row) => row.team_id && row.team_id !== 'project')
-      .sort((a, b) => dateDistance(a.assignment_date, date) - dateDistance(b.assignment_date, date))[0];
-    if (assignment?.team_id) return assignment.team_id;
-
-    const real = pickNearestReal(realByBooking.get(booking.id) || [], phase, date);
-    if (real?.resource_id) return real.resource_id;
-    return undefined;
-  };
-
-  const inferProjectSynthetic = (projectId: string, phase: PlannerPhase, date: string) => {
-    const linkedBookingIds = projectBookingIds.get(projectId) || [];
-    const linkedBookings = linkedBookingIds
-      .map((id) => bookingsById.get(id))
-      .filter((booking): booking is BookingRow => Boolean(booking));
-
-    const exactBooking = linkedBookings.find((booking) => getBookingPhaseDate(booking, phase) === date);
-    if (exactBooking) {
-      const times = getBookingPhaseTimes(exactBooking, phase);
-      return {
-        booking: exactBooking,
-        resourceId: inferBookingTeam(exactBooking, phase, date),
-        start: buildIso(date, times.start, DEFAULT_HOURS[phase][0]),
-        end: buildIso(date, times.end, DEFAULT_HOURS[phase][1]),
-      };
-    }
-
-    const exactReal = linkedBookingIds
-      .flatMap((bookingId) => realByBooking.get(bookingId) || [])
-      .find((row) => normalizePhase(row.event_type) === phase && extractDate(row.source_date || row.start_time) === date && !!row.resource_id);
-    if (exactReal) {
-      return {
-        booking: exactReal.booking_id ? bookingsById.get(exactReal.booking_id) : undefined,
-        resourceId: exactReal.resource_id || undefined,
-        start: exactReal.start_time,
-        end: exactReal.end_time,
-      };
-    }
-
-    const nearestReal = linkedBookingIds
-      .flatMap((bookingId) => realByBooking.get(bookingId) || [])
-      .filter((row) => normalizePhase(row.event_type) === phase && !!row.resource_id)
-      .sort((a, b) => (
-        dateDistance(extractDate(a.source_date || a.start_time), date) - dateDistance(extractDate(b.source_date || b.start_time), date)
-      ))[0];
-
-    if (nearestReal) {
-      return {
-        booking: nearestReal.booking_id ? bookingsById.get(nearestReal.booking_id) : undefined,
-        resourceId: nearestReal.resource_id || undefined,
-        start: buildIso(date, nearestReal.start_time, DEFAULT_HOURS[phase][0]),
-        end: buildIso(date, nearestReal.end_time, DEFAULT_HOURS[phase][1]),
-      };
-    }
-
-    return { booking: linkedBookings[0], resourceId: undefined, start: `${date}T${DEFAULT_HOURS[phase][0]}`, end: `${date}T${DEFAULT_HOURS[phase][1]}` };
-  };
 
   const events: CalendarEvent[] = [];
 
