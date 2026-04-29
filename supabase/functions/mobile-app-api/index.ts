@@ -778,13 +778,21 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // ──────────────────────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0];
 
+  // Mobilkalendern visar både historik och framtid. Vi tittar 60 dagar bakåt
+  // så att personal kan bläddra i tidigare veckor/månader och se passade jobb,
+  // men begränsar svarets storlek genom att inte hämta hela historiken.
+  const HISTORY_WINDOW_DAYS = 60;
+  const historyCutoffDate = new Date(Date.now() - HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0];
+
   // 1. BSA-based assignments (calendar scheduling)
   const { data: assignments, error: assignmentError } = await supabase
     .from('booking_staff_assignments')
     .select('booking_id, assignment_date, team_id')
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
-    .gte('assignment_date', today)
+    .gte('assignment_date', historyCutoffDate)
 
   if (assignmentError) {
     console.error('Assignment query error:', assignmentError)
