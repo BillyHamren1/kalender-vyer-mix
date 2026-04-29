@@ -49,6 +49,16 @@ export interface DayFact {
   awayDistanceMeters?: number;
 }
 
+export interface DayDiscrepancy {
+  at: string;
+  until?: string | null;
+  durationMin?: number;
+  label: string;
+  detail: string;
+  awayCoords?: { lat: number; lng: number } | null;
+  awayDistanceMeters?: number;
+}
+
 export interface BuildDayFactsInput {
   pings: Ping[];
   /** Reported session start (ISO) — typically time_report.start_iso. */
@@ -90,6 +100,11 @@ const awayLabel = (sub: AwaySubtype, baseLabel: string | null | undefined): stri
     case 'likely_lunch': return `Borta${from} (sannolik lunch)`;
     case 'extended': return `Borta${from}`;
   }
+};
+
+const nearlySameTime = (a?: string | null, b?: string | null, toleranceMin = 10) => {
+  if (!a || !b) return false;
+  return Math.abs(minutesBetween(a, b)) <= toleranceMin;
 };
 
 /**
@@ -294,4 +309,106 @@ export function buildDayFacts(input: BuildDayFactsInput): DayFact[] {
   }
 
   return facts;
+}
+
+export function buildDayDiscrepancies(input: {
+  facts: DayFact[];
+  reportedStart: string;
+  reportedEnd: string | null;
+  baseLabel?: string | null;
+}): DayDiscrepancy[] {
+  const facts = [...input.facts].sort(
+    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+  );
+  const out: DayDiscrepancy[] = [];
+
+  const arrival = facts.find((f) => f.kind === 'arrival');
+  const departure = [...facts].reverse().find((f) => f.kind === 'departure');
+
+  if (arrival) {
+    const reportedBeforeArrivalMin = minutesBetween(input.reportedStart, arrival.at);
+    if (reportedBeforeArrivalMin >= 15) {
+      out.push({
+        at: input.reportedStart,
+        until: arrival.at,
+        durationMin: reportedBeforeArrivalMin,
+        label: 'Rapporterad tid före ankomst',
+        detail: 'Rapporten startade innan GPS visar att personen var på arbetsplatsen.',
+      });
+    }
+  }
+
+  for (const fact of facts) {
+    if (fact.kind !== 'away' || !fact.until || !fact.durationMin) continue;
+    if (fact.awaySubtype === 'short_break' && fact.durationMin < 20) continue;
+    if (fact.durationMin < 30 && fact.awaySubtype !== 'likely_lunch') continue;
+
+    out.push({
+      at: fact.at,
+      until: fact.until,
+      durationMin: fact.durationMin,
+      label:
+        fact.awaySubtype === 'likely_lunch'
+          ? 'Sannolik lunch utan registrerad rast'
+          : 'Rapporterad tid medan personen var borta',
+      detail:
+        fact.awaySubtype === 'likely_lunch'
+          ? 'Personen var borta så länge att perioden ser ut som lunch eller rast. Kontrollera om rast saknas i rapporten.'
+          : 'Tidrapporten löper under en period där GPS visar att personen var borta från arbetsplatsen.',
+      awayCoords: fact.awayCoords,
+      awayDistanceMeters: fact.awayDistanceMeters,
+    });
+  }
+
+  if (departure && input.reportedEnd) {
+    const reportedAfterDepartureMin = minutesBetween(departure.at, input.reportedEnd);
+    if (reportedAfterDepartureMin >= 15) {
+      let merged = false;
+      for (let i = out.length - 1; i >= 0; i--) {
+        const item = out[i];
+        if (
+          item.until &&
+          nearlySameTime(item.until, input.reportedEnd, 10) &&
+          minutesBetween(departure.at, item.at) >= 0 &&
+          minutesBetween(departure.at, item.at) <= 15
+        ) {
+          out[i] = {
+            ...item,
+            at: departure.at,
+            until: input.reportedEnd,
+            durationMin: reportedAfterDepartureMin,
+            label: 'Rapporterad tid efter att personen lämnat arbetsplatsen',
+            detail: 'GPS visar att personen lämnade arbetsplatsen, men rapporten fortsätter efter det.',
+          };
+          merged = true;
+          break;
+        }
+      }
+
+      if (!merged) {
+        out.push({
+          at: departure.at,
+          until: input.reportedEnd,
+          durationMin: reportedAfterDepartureMin,
+          label: 'Rapporterad tid efter att personen lämnat arbetsplatsen',
+          detail: 'GPS visar att personen lämnade arbetsplatsen, men rapporten fortsätter efter det.',
+        });
+      }
+    }
+  }
+
+  if (out.length === 0) {
+    const generic = facts.find((f) => f.kind === 'report_vs_gps' && f.flagged);
+    if (generic) {
+      out.push({
+        at: generic.at,
+        until: input.reportedEnd,
+        durationMin: input.reportedEnd ? minutesBetween(generic.at, input.reportedEnd) : undefined,
+        label: generic.label,
+        detail: generic.detail || 'GPS-data räcker inte för att verifiera rapporten.',
+      });
+    }
+  }
+
+  return out.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 }
