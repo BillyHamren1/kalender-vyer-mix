@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { StaffPingDetailPanel } from './StaffPingDetailPanel';
+import { DayFactsPanel } from './DayFactsPanel';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
@@ -389,12 +389,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                   <tr className="bg-muted/20">
                     <td></td>
                     <td colSpan={5} className="py-2 px-2">
-                      <StaffPingDetailPanel
+                      <DayFactsPanel
                         staffId={r.staffId}
                         staffName={r.staffName}
                         date={date}
-                        fromIso={r.fromIso}
-                        toIso={r.toIso}
+                        reportedStart={r.startIso || r.fromIso}
+                        reportedEnd={r.isOpen ? null : (r.endIso || r.toIso)}
+                        baseLabel={r.address}
                       />
                     </td>
                   </tr>
