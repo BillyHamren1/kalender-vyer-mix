@@ -14,8 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
-import { DEFAULT_CHECKLIST, ChecklistTemplate } from "./defaultChecklist";
-import { calculateDeadline, BookingDates } from "./calculateDeadline";
 import { ChecklistItem, ChecklistItemData } from "./ChecklistItem";
 import { AddressAutocomplete } from "@/components/logistics/AddressAutocomplete";
 import { syncStandaloneProjectToCalendar } from "@/services/projectCalendarService";
