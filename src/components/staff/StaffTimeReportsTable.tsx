@@ -175,95 +175,83 @@ const minutesBetween = (a: string, b: string) =>
   Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000);
 
 /**
- * Inline GPS-derived "Anlände HH:MM · Lämnade HH:MM" line shown under the
- * description for day-start / day-end / session rows. Uses pings cached via
- * useStaffPingsForDay so multiple rows share the same network call.
+ * Inline factual line: "Kl 06:51 var personen vid <adress>".
  *
- * - For day-start: shows the very first ping near any work site.
- * - For day-end:   shows the very last ping near any work site.
- * - For session rows: shows arrival / departure inside that session window.
+ * No matching, no comparison, no scoring — just the question the admin
+ * actually asks: when the timer started/stopped, where was the phone?
  *
- * If the reported start/end differs from GPS by ≥15 min, the value is
- * highlighted in destructive color so the admin can spot the mismatch
- * without clicking or running an AI analysis.
+ * - day-start row → position at row.startIso (timer-start)
+ * - day-end row   → position at row.endIso (timer-end / now if open)
+ * - session row   → "Kl 06:51 → <addr>" och "Kl 16:02 → <addr>"
  */
-
-
 const PresenceLineWithDate: React.FC<{ row: JournalTableRow; date: string }> = ({ row, date }) => {
   const { data: pings = [], isLoading } = useStaffPingsForDay(row.staffId, date, true);
 
-  const result = useMemo(() => {
-    if (!pings.length) return null;
-
-    if (row.kind === 'day-start' || row.kind === 'day-end') {
-      const sessions = (row.allSessions || []).filter(s => s.kind !== 'travel');
-      if (!sessions.length) return null;
-      const perSession = sessions.map(s => computeWorkPresence(pings, s.start, s.end));
-      const combined = combineDayPresence(perSession);
-      const isStart = row.kind === 'day-start';
-      const gpsTime = isStart ? combined.arrivedAt : combined.leftAt;
-      if (!gpsTime) return null;
-      const reported = row.startIso;
-      const label = isStart ? 'Anlände' : 'Lämnade';
-      if (!reported) return { label, gpsTime, diffMin: null as number | null };
-      const diff = isStart
-        ? minutesBetween(gpsTime, reported)        // positive = report startade SENARE än ankomst
-        : minutesBetween(gpsTime, reported);       // positive = report stängd EFTER faktisk avgång
-      return { label, gpsTime, diffMin: diff };
+  const targets = useMemo(() => {
+    const out: Array<{ label: string; iso: string }> = [];
+    if (row.kind === 'day-start' && row.startIso) {
+      out.push({ label: `Kl ${format(new Date(row.startIso), 'HH:mm')}`, iso: row.startIso });
+    } else if (row.kind === 'day-end') {
+      const iso = row.endIso ?? (row.isOpen ? new Date().toISOString() : row.startIso);
+      if (iso) out.push({ label: row.isOpen ? 'Just nu' : `Kl ${format(new Date(iso), 'HH:mm')}`, iso });
+    } else if (row.sessionStart) {
+      out.push({ label: `Start ${format(new Date(row.sessionStart), 'HH:mm')}`, iso: row.sessionStart });
+      const endIso = row.sessionEnd ?? (row.isOpen ? null : null);
+      if (endIso) {
+        out.push({ label: `Slut ${format(new Date(endIso), 'HH:mm')}`, iso: endIso });
+      }
     }
+    return out;
+  }, [row]);
 
-    // Session row
-    if (!row.sessionStart) return null;
-    const presence = computeWorkPresence(pings, row.sessionStart, row.sessionEnd ?? null);
-    if (!presence.arrivedAt && !presence.leftAt) return null;
-    return {
-      label: 'På plats',
-      arrived: presence.arrivedAt,
-      left: presence.leftAt,
-    } as any;
-  }, [pings, row]);
+  const samples = useMemo(
+    () => targets.map(t => ({
+      label: t.label,
+      ping: findPingAtTime(pings, t.iso, 15),
+    })),
+    [targets, pings],
+  );
 
-  if (isLoading || !result) return null;
+  // Reverse-geocode each sample's coordinates (rounded → cached).
+  const addrs = useReverseGeocode(samples.map(s => s.ping?.coords ?? null));
 
-  // Day-start / day-end variant
-  if (result.label === 'Anlände' || result.label === 'Lämnade') {
-    const gps = format(new Date(result.gpsTime), 'HH:mm');
-    const diff = result.diffMin;
-    if (diff == null) {
-      return (
-        <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
-          {result.label} <strong className="text-foreground">{gps}</strong> (GPS)
-        </div>
-      );
-    }
-    if (Math.abs(diff) < 2) {
-      return (
-        <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
-          {result.label} <strong className="text-foreground">{gps}</strong> · matchar rapport
-        </div>
-      );
-    }
-    const sign = diff > 0 ? `+${diff}` : `${diff}`;
-    const flagged = Math.abs(diff) >= 15;
+  if (isLoading || samples.length === 0) return null;
+  if (samples.every(s => !s.ping)) {
     return (
-      <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
-        {result.label}{' '}
-        <strong className={flagged ? 'text-destructive' : 'text-foreground'}>{gps}</strong>
-        {' · rapport '}{result.label === 'Anlände' ? 'startad' : 'stängd'}{' '}
-        {format(new Date(row.startIso!), 'HH:mm')} ({sign} min)
+      <div className="text-[11px] text-muted-foreground mt-0.5">
+        Ingen GPS-ping nära denna tid
       </div>
     );
   }
 
-  // Session "På plats: HH:MM – HH:MM"
-  const arr = result.arrived ? format(new Date(result.arrived), 'HH:mm') : '—';
-  const lft = result.left ? format(new Date(result.left), 'HH:mm') : (row.isOpen ? 'pågår' : '—');
   return (
-    <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
-      På plats: <strong className="text-foreground">{arr} – {lft}</strong>
+    <div className="text-[11px] text-muted-foreground mt-0.5 flex flex-col gap-0.5">
+      {samples.map((s, i) => {
+        if (!s.ping) {
+          return (
+            <div key={i} className="flex items-center gap-1">
+              <span className="tabular-nums">{s.label}:</span>
+              <span className="italic">ingen GPS-ping</span>
+            </div>
+          );
+        }
+        const addr = addrs[i] ?? `${s.ping.coords.lat.toFixed(4)}, ${s.ping.coords.lng.toFixed(4)}`;
+        return (
+          <div key={i} className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="tabular-nums">{s.label}:</span>
+            <span className="text-foreground font-medium">{addr}</span>
+            {s.ping.stale && (
+              <span className="italic">
+                (ping {s.ping.ageMinutesFromTarget} min {s.ping.at < targets[i].iso ? 'innan' : 'efter'})
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };
+
 
 /**
  * Excel-style flat table: Namn | Beskrivning | Plats | Klockslag | Varaktighet
