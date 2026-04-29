@@ -220,7 +220,7 @@ export function useTimerStartFlow(
       }
       if (!workday) {
         toast.error(
-          'Kunde inte starta arbetsdagen. Försök igen — aktiviteten startades inte.',
+          'Kunde inte starta arbetspasset. Försök igen — aktiviteten startades inte.',
         );
         return 'workday-failed';
       }

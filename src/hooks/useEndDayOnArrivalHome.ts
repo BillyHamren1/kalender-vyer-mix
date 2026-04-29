@@ -279,7 +279,7 @@ export function useEndDayOnArrivalHome(
 
         const result = await endWorkdayFlow({ endedAtIso: chosenEndIso });
         if (!result.ok) {
-          toast.error(result.error || 'Kunde inte avsluta arbetsdagen på servern');
+          toast.error(result.error || 'Kunde inte avsluta arbetspasset på servern');
           return;
         }
 
