@@ -695,6 +695,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                     const date = format(dayDate, 'yyyy-MM-dd');
                     const dateRows = grouped.get(date) || [];
                     const dateAnomalyCount = anomalyCountByDate.get(date) || 0;
+                    const datePendingSuggestions = pendingSuggestionsByDate.get(date) || 0;
                     const dateTotalHours = dateRows.reduce((s, r) => s + r.hours_worked, 0);
                     const dateTravelHours = dateRows.filter(r => r.type === 'travel').reduce((s, r) => s + r.hours_worked, 0);
                     const hasOpenWork = dateRows.some(r => r.type === 'work' && !r.end_time);
@@ -749,6 +750,16 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                   >
                                     <AlertTriangle className="h-4 w-4" />
                                   </button>
+                                )}
+                                {datePendingSuggestions > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] gap-1 border-destructive/40 text-destructive bg-destructive/5"
+                                    title={`${datePendingSuggestions} korrigeringsförslag väntar`}
+                                  >
+                                    <Sparkles className="h-2.5 w-2.5" />
+                                    {datePendingSuggestions} förslag
+                                  </Badge>
                                 )}
                                 {(unlinkedAnomaliesByDate.get(date) || []).length > 0 && (
                                   <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
