@@ -693,7 +693,7 @@ Deno.serve(async (req) => {
       }
 
       case 'toggle_item': {
-        const { itemId, currentlyPacked, quantityToPack, verifiedBy } = params
+        const { itemId, currentlyPacked, quantityToPack, verifiedBy, verifiedByStaffId } = params
         const now = new Date().toISOString()
 
         // Get the packing_id for status flow
