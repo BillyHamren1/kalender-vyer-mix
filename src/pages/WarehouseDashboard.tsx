@@ -1,233 +1,213 @@
-import { useState, useMemo, useCallback } from "react";
-import { RefreshCw, Plus, Package } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Activity, AlertTriangle, CalendarClock, CheckCircle2, Clock3, Package, Plus, RefreshCw } from "lucide-react";
+import { format, differenceInCalendarDays, parseISO, isValid } from "date-fns";
+import { sv } from "date-fns/locale";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
-import { sv } from "date-fns/locale";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
-
-
-import WarehouseStaffActivationCard from "@/components/warehouse-dashboard/WarehouseStaffActivationCard";
-import WarehouseStaffTimeline from "@/components/warehouse-dashboard/WarehouseStaffTimeline";
-import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
-import WarehouseRecentPackingsWidgets from "@/components/warehouse-dashboard/WarehouseRecentPackingsWidgets";
-import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { useWarehouseOpsBoard, type OpsProject } from "@/hooks/useWarehouseOpsBoard";
+import OpsProjectCard from "@/components/warehouse-ops/OpsProjectCard";
+import OpsBoardSection from "@/components/warehouse-ops/OpsBoardSection";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
 import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
-import { toast } from "sonner";
 
+type Bucket = "active" | "overdue" | "today" | "soon" | "upcoming" | "done";
 
+function bucketize(p: OpsProject): Bucket {
+  if (p.signedAt) return "done";
+  // "Pågår nu" — någon scannat senaste 30 min ELLER status === in_progress med >0%
+  const lastAct = p.lastActivityAt ? parseISO(p.lastActivityAt) : null;
+  const minsSince = lastAct && isValid(lastAct) ? (Date.now() - lastAct.getTime()) / 60000 : Infinity;
+  if (minsSince <= 30 && !p.signedAt) return "active";
 
+  if (p.startDate) {
+    const d = parseISO(p.startDate);
+    if (isValid(d)) {
+      const days = differenceInCalendarDays(d, new Date());
+      if (days < 0 && p.percent < 100) return "overdue";
+      if (days === 0 || days === 1) return "today";
+      if (days <= 5) return "soon";
+    }
+  }
+  // No date → if status in_progress treat as active, else upcoming
+  if (p.status === "in_progress" && p.percent > 0 && p.percent < 100) return "active";
+  return "upcoming";
+}
 
 const WarehouseDashboard = () => {
-  const navigate = useNavigate();
-  const currentWeekStart = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }), []);
-  const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
-  // Dialog states
-  const [showCreateWizard, setShowCreateWizard] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-  const [showBookingDialog, setShowBookingDialog] = useState(false);
+  const { data: projects, isLoading, isFetching, refetch } = useWarehouseOpsBoard();
+  const [showCreate, setShowCreate] = useState(false);
+  const [filter, setFilter] = useState("");
 
-  // Timeline date state
-  const [timelineDate, setTimelineDate] = useState<Date>(new Date());
-  const goToNextDay = useCallback(() => setTimelineDate((d) => addDays(d, 1)), []);
-  const goToPrevDay = useCallback(() => setTimelineDate((d) => addDays(d, -1)), []);
-  const goToToday = useCallback(() => setTimelineDate(new Date()), []);
+  const buckets = useMemo(() => {
+    const empty: Record<Bucket, OpsProject[]> = {
+      active: [], overdue: [], today: [], soon: [], upcoming: [], done: [],
+    };
+    if (!projects) return empty;
+    const q = filter.trim().toLowerCase();
+    const filtered = q
+      ? projects.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            (p.client || "").toLowerCase().includes(q) ||
+            (p.bookingNumber || "").toLowerCase().includes(q)
+        )
+      : projects;
+    for (const p of filtered) empty[bucketize(p)].push(p);
+    // Sort each bucket
+    empty.active.sort((a, b) => (a.lastActivityAt || "") < (b.lastActivityAt || "") ? 1 : -1);
+    empty.overdue.sort((a, b) => (a.startDate || "") < (b.startDate || "") ? -1 : 1);
+    empty.today.sort((a, b) => (a.startDate || "") < (b.startDate || "") ? -1 : 1);
+    empty.soon.sort((a, b) => (a.startDate || "") < (b.startDate || "") ? -1 : 1);
+    empty.upcoming.sort((a, b) => (a.startDate || "9999") < (b.startDate || "9999") ? -1 : 1);
+    empty.done.sort((a, b) => (a.signedAt || "") < (b.signedAt || "") ? 1 : -1);
+    return empty;
+  }, [projects, filter]);
 
-  // Realtime subscriptions for warehouse dashboard
-  useRealtimeInvalidation({
-    channelName: 'warehouse-page-realtime',
-    tables: ['packing_projects', 'packing_list_items', 'transport_assignments', 'bookings'],
-    queryKeys: [
-      ['warehouse-recent-packings'],
-      ['warehouse-staff-utilization'],
-      ['warehouse-transports'],
-    ],
-  });
-
-  // Query hooks
-
-
-
-
-
-  // Transport assignments query - upcoming loadings/unloadings
-  const transportsQuery = useQuery<TransportItem[]>({
-    queryKey: ['warehouse-transports'],
-    queryFn: async () => {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const sevenDaysFromNow = format(addDays(new Date(), 7), 'yyyy-MM-dd');
-
-      const { data, error } = await supabase
-        .from('transport_assignments')
-        .select('id, booking_id, vehicle_id, transport_date, transport_time, status')
-        .gte('transport_date', today)
-        .lte('transport_date', sevenDaysFromNow)
-        .order('transport_date', { ascending: true });
-
-      if (error) throw error;
-
-      // Get bookings and vehicles in parallel
-      const bookingIds = [...new Set((data || []).map(t => t.booking_id))];
-      const vehicleIds = [...new Set((data || []).map(t => t.vehicle_id).filter(Boolean))];
-
-      const [bookingsRes, vehiclesRes] = await Promise.all([
-        supabase.from('bookings')
-          .select('id, client, booking_number, deliveryaddress, rigdaydate, rigdowndate')
-          .in('id', bookingIds),
-        vehicleIds.length > 0
-          ? supabase.from('vehicles').select('id, name').in('id', vehicleIds)
-          : Promise.resolve({ data: [] })
-      ]);
-
-      const bookingMap = new Map((bookingsRes.data || []).map(b => [b.id, b]));
-      const vehicleMap = new Map((vehiclesRes.data || []).map(v => [v.id, v.name]));
-
-      return (data || []).map(t => {
-        const booking = bookingMap.get(t.booking_id);
-        const isLastning = booking?.rigdaydate === t.transport_date;
-        return {
-          id: t.id,
-          bookingId: t.booking_id,
-          client: booking?.client || 'Okänd',
-          bookingNumber: booking?.booking_number || null,
-          transportDate: t.transport_date,
-          transportTime: t.transport_time,
-          deliveryAddress: booking?.deliveryaddress || null,
-          type: isLastning ? 'lastning' : 'lossning',
-          vehicleName: vehicleMap.get(t.vehicle_id) || null,
-          status: t.status || 'pending',
-        } as TransportItem;
-      });
-    },
-    refetchInterval: 300000,
-  });
-
-  const isLoading = transportsQuery.isLoading;
-
-  const refetchAll = () => {
-    transportsQuery.refetch();
-  };
-
-  const handleCreatePacking = async (bookingId: string, bookingClient: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('packing_projects')
-        .insert({
-          name: bookingClient,
-          booking_id: bookingId,
-          status: 'planning'
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      toast.success('Packning skapad');
-      refetchAll();
-      navigate(`/warehouse/packing/${data.id}`);
-    } catch (error) {
-      console.error('Error creating packing:', error);
-      toast.error('Kunde inte skapa packning');
-    }
-  };
-
-  const handleDialogCreatePacking = async (bookingId: string, bookingClient: string) => {
-    await handleCreatePacking(bookingId, bookingClient);
-    setShowBookingDialog(false);
-    setSelectedBookingId(null);
-  };
+  const total = projects?.length || 0;
+  const totalActive = buckets.active.length + buckets.overdue.length + buckets.today.length + buckets.soon.length + buckets.upcoming.length;
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: 'var(--gradient-page)' }}>
-      {/* Subtle radial overlay */}
+    <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: "var(--gradient-page)" }}>
       <div className="relative">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(184_60%_38%/0.04),transparent)]" />
-        
+
         <div className="relative p-6 max-w-[1600px] mx-auto">
-          {/* Header */}
           <PageHeader
             icon={Package}
-            title="Lagerdashboard"
-            subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
+            title="Lager Operations"
+            subtitle={`${format(new Date(), "EEEE d MMMM yyyy", { locale: sv })} · ${totalActive} pågående · ${buckets.done.length} klara`}
             variant="warehouse"
           >
             <Button
-              onClick={() => setShowCreateWizard(true)}
+              onClick={() => setShowCreate(true)}
               size="sm"
               className="bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20 font-medium rounded-lg px-4 h-8"
             >
               <Plus className="h-4 w-4 mr-1.5" />
               Skapa lageruppgift
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
-              onClick={refetchAll}
-              disabled={isLoading}
+              onClick={() => refetch()}
+              disabled={isFetching}
               className="border-border/60 h-8 rounded-lg"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
               Uppdatera
             </Button>
           </PageHeader>
 
-          {/* OFFICIELL ENDA INGÅNG: nya projekt från Planning.
-              Gamla IncomingPackingList har flyttats till
-              /admin/legacy-incoming-packing och är inte längre synlig
-              i normal warehouse-UI. */}
+          {/* Inbox: nya projekt från Planning */}
           <div className="mb-6">
             <WarehouseProjectInbox />
           </div>
 
-          {/* Recent packnings widgets */}
-          <div className="mb-6">
-            <WarehouseRecentPackingsWidgets />
-          </div>
-
-          {/* Tidsöversikt – timeline (full bredd) */}
-          <div className="mb-6 hidden lg:block">
-            <WarehouseStaffTimeline
-              date={timelineDate}
-              onNextDay={goToNextDay}
-              onPrevDay={goToPrevDay}
-              onToday={goToToday}
+          {/* Search/filter */}
+          <div className="mb-5 max-w-sm">
+            <Input
+              placeholder="Sök projekt, kund eller boknings#…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="h-9"
             />
           </div>
 
-          {/* Staff Activation + Transport */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <WarehouseStaffActivationCard />
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-36 rounded-xl" />
+              ))}
+            </div>
+          ) : total === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p>Inga aktiva lagerprojekt just nu.</p>
+            </div>
+          ) : (
+            <>
+              <OpsBoardSection
+                title="Pågår just nu"
+                icon={<Activity className="h-4 w-4 animate-pulse" />}
+                count={buckets.active.length}
+                tone="active"
+                emptyHint="Ingen scannar något just nu."
+              >
+                {buckets.active.map((p) => (
+                  <OpsProjectCard key={p.id} project={p} emphasis="active" />
+                ))}
+              </OpsBoardSection>
 
-            <TodaysTransportsCard 
-              transports={transportsQuery.data || []}
-              isLoading={transportsQuery.isLoading}
-            />
-          </div>
+              <OpsBoardSection
+                title="Försenade"
+                icon={<AlertTriangle className="h-4 w-4" />}
+                count={buckets.overdue.length}
+                tone="danger"
+                emptyHint="Inga försenade packningar."
+              >
+                {buckets.overdue.map((p) => (
+                  <OpsProjectCard key={p.id} project={p} emphasis="overdue" />
+                ))}
+              </OpsBoardSection>
+
+              <OpsBoardSection
+                title="Idag & imorgon"
+                icon={<Clock3 className="h-4 w-4" />}
+                count={buckets.today.length}
+                tone="warn"
+                emptyHint="Inga deadlines de närmaste 24 h."
+              >
+                {buckets.today.map((p) => (
+                  <OpsProjectCard key={p.id} project={p} emphasis="soon" />
+                ))}
+              </OpsBoardSection>
+
+              <OpsBoardSection
+                title="Snart (inom 5 dagar)"
+                icon={<CalendarClock className="h-4 w-4" />}
+                count={buckets.soon.length}
+                emptyHint="Inget på närmaste veckan."
+              >
+                {buckets.soon.map((p) => (
+                  <OpsProjectCard key={p.id} project={p} emphasis="soon" />
+                ))}
+              </OpsBoardSection>
+
+              <OpsBoardSection
+                title="Längre fram"
+                icon={<CalendarClock className="h-4 w-4" />}
+                count={buckets.upcoming.length}
+                emptyHint="Inga planerade projekt."
+              >
+                {buckets.upcoming.map((p) => (
+                  <OpsProjectCard key={p.id} project={p} emphasis="upcoming" />
+                ))}
+              </OpsBoardSection>
+
+              <OpsBoardSection
+                title="Klart senaste 48 h"
+                icon={<CheckCircle2 className="h-4 w-4" />}
+                count={buckets.done.length}
+                tone="ok"
+                emptyHint="Inga signerade packningar senaste 48 h."
+              >
+                {buckets.done.map((p) => (
+                  <OpsProjectCard key={p.id} project={p} emphasis="done" />
+                ))}
+              </OpsBoardSection>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Booking Products Dialog */}
-      <BookingProductsDialog
-        bookingId={selectedBookingId}
-        open={showBookingDialog}
-        onOpenChange={(open) => {
-          setShowBookingDialog(open);
-          if (!open) setSelectedBookingId(null);
-        }}
-        onCreatePacking={handleDialogCreatePacking}
-      />
-
-      {/* Create Internal Warehouse Task */}
       <CreateInternalTaskDialog
-        open={showCreateWizard}
-        onOpenChange={setShowCreateWizard}
+        open={showCreate}
+        onOpenChange={setShowCreate}
         onSuccess={() => {
-          setShowCreateWizard(false);
-          refetchAll();
+          setShowCreate(false);
+          refetch();
         }}
       />
     </div>
