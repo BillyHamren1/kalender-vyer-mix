@@ -3,23 +3,25 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { QrCode, Search, Calendar, Package, ClipboardCheck, Camera, Bug, Radio, Loader2, Tag, MapPin, CalendarDays } from 'lucide-react';
+import { QrCode, Search, Package, Camera, Bug, Loader2, Tag, MapPin, CalendarDays } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { VerificationView } from '@/components/scanner/VerificationView';
 import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
-import { QRScanner } from '@/components/scanner/QRScanner';
 import { ScannerDebugPanel } from '@/components/scanner/ScannerDebugPanel';
 import { ScannerModeIndicator } from '@/components/scanner/ScannerModeIndicator';
-import { ProductIdentifyCard } from '@/components/scanner/ProductIdentifyCard';
 import { IdentifyScannerOverlay } from '@/components/scanner/IdentifyScannerOverlay';
 import { parseScanResult, fetchActivePackings, identifyProduct } from '@/services/scannerService';
 import { PackingWithBooking } from '@/types/packing';
 import { useScannerController } from '@/hooks/scanner/useScannerController';
 import { ScanEvent } from '@/services/scanner/types';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { sv } from 'date-fns/locale';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
+import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
+import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
+import PackingDayView from '@/components/scanner/calendar/PackingDayView';
+import PackingWeekView from '@/components/scanner/calendar/PackingWeekView';
+import PackingMonthView from '@/components/scanner/calendar/PackingMonthView';
+import PackingCard from '@/components/scanner/calendar/PackingCard';
 
 type AppState = 'home' | 'verifying' | 'manual';
 
@@ -38,6 +40,19 @@ const MobileScannerApp: React.FC = () => {
   const [isIdentifying, setIsIdentifying] = useState(false);
   const [identifyInput, setIdentifyInput] = useState('');
   const [isIdentifyQRActive, setIsIdentifyQRActive] = useState(false);
+
+  // Calendar view state — persisted in localStorage (parity with time app)
+  const VIEW_MODE_KEY = 'scanner.calendarView';
+  const isViewMode = (v: unknown): v is CalendarViewMode =>
+    v === 'day' || v === 'week' || v === 'month';
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    return isViewMode(stored) ? stored : 'day';
+  });
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
   // Active scan handler ref — points to the correct handler based on current state
   const activeScanHandler = useRef<(value: string) => void>(() => {});
@@ -174,22 +189,12 @@ const MobileScannerApp: React.FC = () => {
     );
   }, [packings, searchQuery]);
 
-  // Group packings: in_progress first, then packed, then planning
-  const { inProgress, packed, upcoming } = useMemo(() => {
-    const inProgress = filteredPackings.filter(p => p.status === 'in_progress');
-    const packed = filteredPackings.filter(p => p.status === 'packed');
-    const upcoming = filteredPackings.filter(p => p.status === 'planning');
-    return { inProgress, packed, upcoming };
-  }, [filteredPackings]);
-
-  // Handle QR scan from camera
-  const handleHomeScan = useCallback((scannedValue: string) => {
-    // Close the camera overlay so the user can see results
-    setIsQRActive(false);
-    // Camera scans go through the same flow
-    scanner.submitManualScan(scannedValue, 'camera');
-    handleBarcodeScan(scannedValue);
-  }, [scanner, handleBarcodeScan]);
+  // Pinned in-progress packings (across all dates) — surfaced above calendar
+  // so users don't lose an active job when navigating away from today.
+  const inProgressPackings = useMemo(
+    () => filteredPackings.filter(p => p.status === 'in_progress'),
+    [filteredPackings],
+  );
 
   // Handle packing selection with mode
   const handleSelectPacking = (packingId: string, mode: 'verifying' | 'manual') => {
@@ -202,100 +207,6 @@ const MobileScannerApp: React.FC = () => {
     setState('home');
     setSelectedPackingId(null);
     setIsQRActive(false);
-  };
-
-  // Format date nicely
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return null;
-    try {
-      return format(new Date(dateString), 'd MMM', { locale: sv });
-    } catch {
-      return null;
-    }
-  };
-
-  // Get status badge style
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'in_progress':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
-            In progress
-          </span>
-        );
-      case 'packed':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
-            Packed ✓
-          </span>
-        );
-      case 'delivered':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-            Delivered
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-            Planning
-          </span>
-        );
-    }
-  };
-
-  // Render packing card
-  const renderPackingCard = (packing: PackingWithBooking) => {
-    const displayDate = formatDate(packing.booking?.rigdaydate) || formatDate(packing.booking?.eventdate);
-    
-    return (
-      <Card 
-        key={packing.id}
-        className="p-3 transition-all"
-      >
-        <div className="flex items-start justify-between gap-2 mb-2.5">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <span className="font-medium text-sm truncate">{packing.name}</span>
-            </div>
-            {packing.booking?.client && (
-              <p className="text-xs text-muted-foreground truncate pl-5">
-                {packing.booking.client}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            {getStatusBadge(packing.status)}
-            {displayDate && (
-              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {displayDate}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            size="sm" 
-            className="flex-1 gap-1.5 h-9"
-            onClick={() => handleSelectPacking(packing.id, 'verifying')}
-          >
-            <Camera className="h-3.5 w-3.5" />
-            <span className="text-xs">Scan</span>
-          </Button>
-          <Button 
-            size="sm" 
-            variant="outline"
-            className="flex-1 gap-1.5 h-9"
-            onClick={() => handleSelectPacking(packing.id, 'manual')}
-          >
-            <ClipboardCheck className="h-3.5 w-3.5" />
-            <span className="text-xs">Check off</span>
-          </Button>
-        </div>
-      </Card>
-    );
   };
 
   // Render based on state
@@ -501,40 +412,64 @@ const MobileScannerApp: React.FC = () => {
               {searchQuery ? 'No packing lists match the search' : 'No active packing lists'}
             </p>
           </div>
+        ) : searchQuery.trim() ? (
+          // Search active → flat results, ignore date filter
+          <div className="space-y-2">
+            {filteredPackings.map(p => (
+              <PackingCard key={p.id} packing={p} onSelect={handleSelectPacking} />
+            ))}
+          </div>
         ) : (
           <>
-            {inProgress.length > 0 && (
+            {/* Pinned: in-progress jobs across all dates */}
+            {inProgressPackings.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  In progress
+                  Pågående nu
                 </h2>
                 <div className="space-y-2">
-                  {inProgress.map(renderPackingCard)}
+                  {inProgressPackings.map(p => (
+                    <PackingCard key={p.id} packing={p} onSelect={handleSelectPacking} />
+                  ))}
                 </div>
               </section>
             )}
 
-            {packed.length > 0 && (
-              <section>
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Packed
-                </h2>
-                <div className="space-y-2">
-                  {packed.map(renderPackingCard)}
-                </div>
-              </section>
-            )}
-
-            {upcoming.length > 0 && (
-              <section>
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  {(inProgress.length > 0 || packed.length > 0) ? 'Upcoming' : 'Packing lists'}
-                </h2>
-                <div className="space-y-2">
-                  {upcoming.map(renderPackingCard)}
-                </div>
-              </section>
-            )}
+            {/* Calendar — Day / Week / Month, parity with time app */}
+            <section className="space-y-3">
+              <CalendarViewToggle value={viewMode} onChange={setViewMode} />
+              <CalendarDateNav
+                viewMode={viewMode}
+                selectedDate={selectedDate}
+                onChange={setSelectedDate}
+              />
+              {viewMode === 'day' && (
+                <PackingDayView
+                  date={selectedDate}
+                  packings={filteredPackings}
+                  onSelect={handleSelectPacking}
+                  onShowWeek={() => setViewMode('week')}
+                />
+              )}
+              {viewMode === 'week' && (
+                <PackingWeekView
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
+                  packings={filteredPackings}
+                  onSelect={handleSelectPacking}
+                />
+              )}
+              {viewMode === 'month' && (
+                <PackingMonthView
+                  selectedDate={selectedDate}
+                  onSelectDate={(d) => {
+                    setSelectedDate(d);
+                    setViewMode('day');
+                  }}
+                  packings={filteredPackings}
+                />
+              )}
+            </section>
           </>
         )}
       </main>
