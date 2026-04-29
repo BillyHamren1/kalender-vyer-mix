@@ -7,7 +7,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
-import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
+
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -102,18 +102,18 @@ const CustomCalendarPage = () => {
   // Task overlay events (only fetched when toggle is on)
   const { taskEvents } = useTaskCalendarEvents(showTasks);
 
-  // Transport events for the "Lager" column (legacy: id 'transport')
-  const { transportEvents } = useTransportCalendarEvents(hookCurrentDate);
-
-  // Internt Lagerprojekt — virtuella 07–16 events varje dag i Lager-kolumnen
+  // Lager-kolumnen (legacy id 'transport') är reserverad för det interna Lagerprojektet.
+  // Inga andra events (transportbokningar, vanliga calendar_events osv.) får placeras där.
   const { internalLagerEvents } = useInternalLagerCalendarEvents(hookCurrentDate, viewMode);
 
-  // Merge calendar events + task overlay + transport events + internal lager
+  // Merge calendar events + task overlay + internal lager.
+  // Filtrera bort allt övrigt som råkar peka på 'transport'-resursen.
   const mergedEvents = useMemo(() => {
-    const base = [...events, ...transportEvents, ...internalLagerEvents];
+    const filteredEvents = events.filter((e: any) => e.resourceId !== 'transport');
+    const base = [...filteredEvents, ...internalLagerEvents];
     if (!showTasks || taskEvents.length === 0) return base;
     return [...base, ...taskEvents];
-  }, [events, taskEvents, transportEvents, internalLagerEvents, showTasks]);
+  }, [events, taskEvents, internalLagerEvents, showTasks]);
 
   // Handle task overlay click → navigate to project execution context
   const handleEventClick = async (event: any) => {
