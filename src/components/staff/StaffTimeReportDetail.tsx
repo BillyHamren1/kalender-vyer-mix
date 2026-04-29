@@ -74,7 +74,30 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
   const isoWeek = getISOWeek(weekStart);
 
-  // Main data query
+  // Pending correction suggestions for the visible week (badge per day)
+  const { data: pendingSuggestions } = useQuery({
+    queryKey: ['pending-suggestions', staffId, monthStart, monthEnd],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('time_report_correction_suggestions')
+        .select('id, report_date')
+        .eq('staff_id', staffId)
+        .eq('status', 'pending')
+        .gte('report_date', monthStart)
+        .lte('report_date', monthEnd);
+      return data ?? [];
+    },
+  });
+  const pendingSuggestionsByDate = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of pendingSuggestions ?? []) {
+      m.set(s.report_date, (m.get(s.report_date) ?? 0) + 1);
+    }
+    return m;
+  }, [pendingSuggestions]);
+
+
   const { data: queryData, isLoading } = useQuery({
     queryKey: ['staff-time-reports-detail', staffId, monthStart],
     queryFn: async () => {
