@@ -174,14 +174,25 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { data: existingPacking } = await supabase
+    // Defensive: ignore soft-cancelled duplicates and deterministically pick the
+    // canonical row (oldest active). Logs a warning if multiple actives exist so
+    // we can spot drift in Edge Function logs.
+    const { data: activeMatches } = await supabase
       .from('packing_projects')
-      .select('id, name, status')
+      .select('id, name, status, created_at')
       .eq('booking_id', booking_id)
       .eq('organization_id', organization_id)
       .is('large_project_id', null)
-      .limit(1)
-      .maybeSingle()
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: true })
+      .limit(10)
+
+    if (activeMatches && activeMatches.length > 1) {
+      console.warn(
+        `[sync-booking-to-packing] Duplicate packing_projects detected for booking ${booking_id} (count=${activeMatches.length}); using oldest ${activeMatches[0].id}`
+      )
+    }
+    const existingPacking = activeMatches && activeMatches.length > 0 ? activeMatches[0] : null
 
     let packingId: string
     let action: string
