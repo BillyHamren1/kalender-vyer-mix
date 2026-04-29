@@ -62,8 +62,7 @@ export function useInternalLagerCalendarEvents(
         resourceId: 'transport',
         eventType: 'internal_task',
         bookingId: project.bookingId || undefined,
-        bookingNumber: project.bookingNumber || undefined,
-        booking_number: project.bookingNumber || undefined,
+        // bookingNumber medvetet utelämnad — kopplingen finns via bookingId, men numret ska inte visas i UI
         viewed: true,
         editable: false,
         startEditable: false,
@@ -74,7 +73,7 @@ export function useInternalLagerCalendarEvents(
           isInternalLager: true,
           projectId: project.id,
           booking_id: project.bookingId || undefined,
-          bookingNumber: project.bookingNumber || undefined,
+          hideBookingNumber: true,
           readOnly: true,
         },
       } as CalendarEvent);
