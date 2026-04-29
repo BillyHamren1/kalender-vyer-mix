@@ -875,6 +875,39 @@ async function reconcileCalendarEvents(
   let rigdownDates = bookingData.allRigdownDates && bookingData.allRigdownDates.length > 0
     ? bookingData.allRigdownDates : (bookingData.rigdowndate ? [bookingData.rigdowndate] : []);
 
+  // ── BSA-DRIVEN MULTI-DAY EXPANSION ──────────────────────────────────────
+  // BOOKING skickar oftast bara EN rigdaydate/rigdowndate även när personalen
+  // är inplanerad fler dagar. Förr härledde UI:t "synthetic" rader för dessa
+  // extra dagar — vilket innebar att team-byte/datum-byte aldrig sparades.
+  // Nu materialiserar vi en RIKTIG calendar_events-rad per dag som faktiskt
+  // har personal i booking_staff_assignments. Dagar mellan rig och event
+  // räknas som rig; dagar efter event räknas som rigDown.
+  try {
+    const { data: bsaRows } = await supabase
+      .from('booking_staff_assignments')
+      .select('assignment_date')
+      .eq('booking_id', bookingData.id);
+    const bsaDates: string[] = Array.from(new Set((bsaRows || []).map((r: any) => r.assignment_date)));
+    if (bsaDates.length > 0) {
+      const evDate = bookingData.eventdate as string | null;
+      const rigSet = new Set<string>(rigDates);
+      const evSet = new Set<string>(eventDates);
+      const downSet = new Set<string>(rigdownDates);
+      for (const d of bsaDates) {
+        if (rigSet.has(d) || evSet.has(d) || downSet.has(d)) continue;
+        // Klassificera dagen
+        if (evDate && d > evDate) downSet.add(d);
+        else rigSet.add(d);
+      }
+      rigDates = Array.from(rigSet).sort();
+      rigdownDates = Array.from(downSet).sort();
+      console.log(`[Calendar Reconcile] BSA expansion for ${bookingData.id}: rig=${rigDates.length}, rigDown=${rigdownDates.length}`);
+    }
+  } catch (bsaErr) {
+    console.error(`[Calendar Reconcile] BSA expansion failed:`, bsaErr);
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   // ── LARGE PROJECT OVERRIDE ──────────────────────────────────────────────
   // If this booking belongs to a "Projekt stort" (large_projects), the project
   // owns the authoritative multi-day schedule (start_date[], event_date[], end_date[]).
