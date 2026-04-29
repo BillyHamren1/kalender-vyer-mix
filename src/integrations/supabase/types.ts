@@ -1933,6 +1933,7 @@ export type Database = {
       large_project_cost_lines: {
         Row: {
           amount: number
+          budget_amount: number
           category: string
           cost_date: string | null
           created_at: string
@@ -1947,6 +1948,7 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          budget_amount?: number
           category: string
           cost_date?: string | null
           created_at?: string
@@ -1961,6 +1963,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          budget_amount?: number
           category?: string
           cost_date?: string | null
           created_at?: string
