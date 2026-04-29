@@ -103,6 +103,7 @@ function buildTargets(bookings: MobileBooking[]): Array<{ key: string; label: st
 export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   open, onClose, onConfirm, bookings, starting,
 }) => {
+  const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [manualText, setManualText] = useState('');
   const [showManual, setShowManual] = useState(false);
