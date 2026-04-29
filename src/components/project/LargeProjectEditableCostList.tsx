@@ -216,6 +216,19 @@ export function LargeProjectEditableCostList({
               <span className="text-xs font-normal text-muted-foreground">
                 ({items.length} rader{cat === 'assembly' && reportedHoursTotal > 0 ? ` + ${reportedHoursTotal.toFixed(1)}h rapporterat` : ''})
               </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 ml-1 text-muted-foreground hover:text-foreground"
+                title={`Lägg till rad i ${meta.label}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isOpen) setExpanded((s) => ({ ...s, [cat]: true }));
+                  addLine({ category: cat, description: '', amount: 0, cost_date: new Date().toISOString().slice(0, 10) });
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </TableCell>
           <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(budgets[cat])}</TableCell>
