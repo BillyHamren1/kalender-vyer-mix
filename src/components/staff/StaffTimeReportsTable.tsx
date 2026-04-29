@@ -183,11 +183,7 @@ const minutesBetween = (a: string, b: string) =>
  * highlighted in destructive color so the admin can spot the mismatch
  * without clicking or running an AI analysis.
  */
-const PresenceLine: React.FC<{ row: JournalTableRow }> = ({ row }) => {
-  const { data: pings = [], isLoading } = useStaffPingsForDay(row.staffId, '__date__placeholder__', false);
-  // We need the date string from the parent — accept it via prop wrapper below.
-  return null; // Replaced by PresenceLineWithDate
-};
+
 
 const PresenceLineWithDate: React.FC<{ row: JournalTableRow; date: string }> = ({ row, date }) => {
   const { data: pings = [], isLoading } = useStaffPingsForDay(row.staffId, date, true);
