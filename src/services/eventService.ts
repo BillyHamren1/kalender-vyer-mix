@@ -340,12 +340,65 @@ export const updateCalendarEvent = async (
   if (updates.title) updateData.title = updates.title;
   if (updates.delivery_address) updateData.delivery_address = updates.delivery_address;
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('calendar_events')
     .update(updateData)
     .eq('id', eventId)
     .select()
     .single();
+
+  // Hantera unique-conflict (booking_id, event_type, source_date):
+  // Om mål-datumet redan har en rad → MERGE: uppdatera mål-raden med våra
+  // nya värden och radera källraden. Returnera mål-raden.
+  if (error && (error as any).code === '23505') {
+    console.warn('[updateCalendarEvent] 23505 unique conflict — merging into existing target row');
+
+    // Läs källraden så vi vet booking_id + event_type + det datum vi siktade på
+    const { data: src, error: srcErr } = await supabase
+      .from('calendar_events')
+      .select('id, booking_id, event_type')
+      .eq('id', eventId)
+      .single();
+
+    if (srcErr || !src) throw error; // fall back to original error
+
+    const targetDate = updateData.source_date as string | undefined;
+    if (!targetDate || !src.booking_id || !src.event_type) throw error;
+
+    // Hitta mål-raden (samma booking + phase + datum)
+    const { data: targetRow, error: tErr } = await supabase
+      .from('calendar_events')
+      .select('id')
+      .eq('booking_id', src.booking_id)
+      .eq('event_type', src.event_type)
+      .eq('source_date', targetDate)
+      .neq('id', eventId)
+      .single();
+
+    if (tErr || !targetRow) throw error;
+
+    // Uppdatera mål-raden med samma payload
+    const { data: merged, error: mErr } = await supabase
+      .from('calendar_events')
+      .update(updateData)
+      .eq('id', targetRow.id)
+      .select()
+      .single();
+
+    if (mErr) throw mErr;
+
+    // Radera källraden (den vi inte längre behöver)
+    const { error: dErr } = await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('id', eventId);
+
+    if (dErr) console.warn('[updateCalendarEvent] failed to delete source row after merge', dErr);
+
+    data = merged;
+    error = null;
+    console.log('✅ [updateCalendarEvent] merged into existing row', { from: eventId, into: targetRow.id });
+  }
 
   if (error) {
     console.error('❌ Error updating calendar event:', error);
