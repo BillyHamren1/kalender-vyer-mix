@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   ChevronDown, ChevronRight, MapPin, LogIn, LogOut,
@@ -9,6 +9,8 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffPingDetailPanel } from './StaffPingDetailPanel';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
+import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
+import { computeWorkPresence, combineDayPresence } from '@/lib/staff/workPresence';
 
 const fmt = (iso: string | null) => {
   if (!iso) return '—';
