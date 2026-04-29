@@ -2873,7 +2873,10 @@ export type Database = {
           packing_id: string
           parcel_id: string | null
           quantity_packed: number
+          quantity_returned: number
           quantity_to_pack: number
+          returned_at: string | null
+          returned_by: string | null
           verified_at: string | null
           verified_by: string | null
         }
@@ -2890,7 +2893,10 @@ export type Database = {
           packing_id: string
           parcel_id?: string | null
           quantity_packed?: number
+          quantity_returned?: number
           quantity_to_pack?: number
+          returned_at?: string | null
+          returned_by?: string | null
           verified_at?: string | null
           verified_by?: string | null
         }
@@ -2907,7 +2913,10 @@ export type Database = {
           packing_id?: string
           parcel_id?: string | null
           quantity_packed?: number
+          quantity_returned?: number
           quantity_to_pack?: number
+          returned_at?: string | null
+          returned_by?: string | null
           verified_at?: string | null
           verified_by?: string | null
         }
