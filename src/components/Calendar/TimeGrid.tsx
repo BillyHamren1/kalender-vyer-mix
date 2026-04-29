@@ -51,6 +51,7 @@ interface TimeGridProps {
     onNavigateLeft: () => void;
     onNavigateRight: () => void;
   };
+  onTitleClick?: (date: Date) => void;
   setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }
 
@@ -224,6 +225,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   staffExpanded: staffExpandedProp = false,
   onToggleStaffExpanded,
   carouselNav,
+  onTitleClick,
   setEvents
 }) => {
   const [selectingForTeam, setSelectingForTeam] = useState<{ id: string; title: string } | null>(null);
@@ -516,7 +518,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             ) : (
               <div style={{ width: '32px' }}></div>
             )}
-            <span className="day-title">
+            <span
+              className={`day-title ${onTitleClick ? 'cursor-pointer hover:underline' : ''}`}
+              onClick={onTitleClick ? () => onTitleClick(day) : undefined}
+              role={onTitleClick ? 'button' : undefined}
+              title={onTitleClick ? 'Öppna dagen i helskärm' : undefined}
+            >
               {format(day, 'EEE d')}
             </span>
             <div className="flex items-center gap-1">

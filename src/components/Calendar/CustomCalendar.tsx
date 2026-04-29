@@ -9,6 +9,7 @@ import { useStableEvents } from '@/hooks/useMemoizedEvents';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { useEventDragDrop } from '@/hooks/useEventDragDrop';
 import { extractUTCDate } from '@/utils/dateUtils';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
@@ -59,6 +60,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const weekStartTime = currentDate.getTime();
   const [staffExpanded, setStaffExpanded] = useState(false);
+  const [expandedDay, setExpandedDay] = useState<Date | null>(null);
   const days = useWeekDays(currentDate);
 
   const {
@@ -150,6 +152,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       availableStaff: getAvailableStaffForDay(date),
       staffExpanded,
       onToggleStaffExpanded: () => setStaffExpanded(prev => !prev),
+      onTitleClick: (d: Date) => setExpandedDay(d),
       ...(isCenter ? {
         carouselNav: {
           onNavigateLeft: () => navigateCarousel('left'),
@@ -158,6 +161,31 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       } : {})
     };
   };
+
+  // Fullscreen popover för en specifik dag (öppnas via klick på dag-titeln)
+  const expandedDayDialog = (
+    <Dialog open={!!expandedDay} onOpenChange={(open) => !open && setExpandedDay(null)}>
+      <DialogContent
+        className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 border-0 bg-background overflow-auto"
+        style={{ width: '100vw', height: '100vh' }}
+      >
+        <DialogTitle className="sr-only">
+          {expandedDay ? format(expandedDay, 'EEEE d MMMM yyyy') : 'Dag'}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          Helskärmsvy för vald dag
+        </DialogDescription>
+        {expandedDay && (
+          <div className="w-full h-full p-4 overflow-auto">
+            <TimeGrid
+              {...buildTimeGridProps(expandedDay, true)}
+              onTitleClick={undefined}
+            />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 
   // Weekly/Monthly mode
   if (isWeeklyMode) {
@@ -184,6 +212,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
             })}
           </div>
         </div>
+        {expandedDayDialog}
       </EditControllerProvider>
     );
   }
@@ -236,6 +265,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
           </div>
         </div>
       </div>
+      {expandedDayDialog}
     </EditControllerProvider>
   );
 };
