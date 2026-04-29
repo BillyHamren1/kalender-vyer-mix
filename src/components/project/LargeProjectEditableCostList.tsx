@@ -337,21 +337,13 @@ export function LargeProjectEditableCostList({
               </>
             )}
 
-            {/* Add row + import panel */}
+            {/* Import panel + hint (the per-category "+" lives in the header row) */}
             <TableRow className="hover:bg-transparent">
               <TableCell />
               <TableCell colSpan={8} className="py-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7"
-                    onClick={() => addLine({ category: cat, description: '', amount: 0, cost_date: new Date().toISOString().slice(0, 10) })}
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Ny rad
-                  </Button>
                   {showImportPanel && (
-                    <div className="flex flex-wrap items-center gap-1.5 ml-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Sparkles className="h-3 w-3" /> Importera från bokningar:
                       </span>
