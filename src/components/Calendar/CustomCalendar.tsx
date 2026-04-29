@@ -182,6 +182,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
               onTitleClick={undefined}
               staffExpanded={true}
               onToggleStaffExpanded={undefined}
+              carouselNav={{
+                onNavigateLeft: () => setExpandedDay((d) => (d ? addDays(d, -1) : d)),
+                onNavigateRight: () => setExpandedDay((d) => (d ? addDays(d, 1) : d)),
+              }}
             />
           </div>
         )}
