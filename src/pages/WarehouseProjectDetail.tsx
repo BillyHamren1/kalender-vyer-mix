@@ -125,9 +125,18 @@ const WarehouseProjectDetail = () => {
                 <span className="text-xs font-mono px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
                   {project.project_number}
                 </span>
-                <Badge className={WAREHOUSE_PROJECT_STATUS_COLORS[project.status]}>
-                  {WAREHOUSE_PROJECT_STATUS_LABELS[project.status]}
-                </Badge>
+                <Select value={project.status} onValueChange={(v) => handleStatusChange(v as WarehouseProjectStatus)}>
+                  <SelectTrigger className={`h-7 w-auto gap-1.5 px-2.5 text-xs font-medium border-0 ${WAREHOUSE_PROJECT_STATUS_COLORS[project.status]}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(WAREHOUSE_PROJECT_STATUS_LABELS) as WarehouseProjectStatus[]).map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {WAREHOUSE_PROJECT_STATUS_LABELS[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <h1 className="text-2xl font-semibold text-[hsl(var(--heading))]">{project.name}</h1>
               {(project.start_date || project.end_date) && (
