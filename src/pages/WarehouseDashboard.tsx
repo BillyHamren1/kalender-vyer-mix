@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWarehouseOpsRange, type OpsMode } from "@/hooks/useWarehouseOpsRange";
 import OpsDateBar from "@/components/warehouse-ops/OpsDateBar";
-import OpsAttentionPanel from "@/components/warehouse-ops/OpsAttentionPanel";
+
 import OpsStatusBoard from "@/components/warehouse-ops/OpsStatusBoard";
 import OpsStaffTimeline from "@/components/warehouse-ops/OpsStaffTimeline";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
