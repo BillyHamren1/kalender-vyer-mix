@@ -159,15 +159,20 @@ export function buildDayFacts(input: BuildDayFactsInput): DayFact[] {
     }];
   }
 
-  // Resolve base: prefer provided; else median of pings in strict report window
-  let base = input.base ?? null;
+  // Resolve base. Require a real coordinate from the caller — if we don't
+  // know where the workplace is, we MUST NOT invent one from the median
+  // of the pings (that would just point to wherever the phone happened to
+  // be, e.g. the staff member's home, and produce a false "matchar
+  // rapport" verdict).
+  const base = input.base ?? null;
   if (!base) {
-    const strict = pings.filter(p => {
-      const t = new Date(p.recorded_at).getTime();
-      return t >= startMs && t <= endMs;
-    });
-    const seed = strict.length >= 3 ? strict : pings;
-    base = { lat: median(seed.map(p => p.lat)), lng: median(seed.map(p => p.lng)) };
+    return [{
+      kind: 'report_vs_gps',
+      at: input.reportedStart,
+      label: 'Plats okänd – GPS kan inte verifiera ankomst/avgång',
+      detail: 'Den rapporterade arbetsplatsen saknar koordinater, så vi kan inte jämföra rapporten mot GPS-pingen.',
+      flagged: true,
+    }];
   }
 
   const segments = segmentByBase(pings, base, threshold);
