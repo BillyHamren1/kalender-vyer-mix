@@ -71,8 +71,21 @@ export const buildJournalRows = (
 ): JournalTableRow[] => {
   const rows: JournalTableRow[] = [];
   const j = staff.journal;
+  const allSessions = j.sessions;
 
-  // Day start
+  // Helper: widen the ping window around a single timestamp so the expanded
+  // panel actually shows pings (was zero-width before, hence "Inga GPS-pings").
+  const widen = (iso: string | null, beforeMin = 30, afterMin = 30): { from: string | null; to: string | null } => {
+    if (!iso) return { from: null, to: null };
+    const t = new Date(iso).getTime();
+    return {
+      from: new Date(t - beforeMin * 60_000).toISOString(),
+      to: new Date(t + afterMin * 60_000).toISOString(),
+    };
+  };
+
+  // Day start — widen ±30 min around reported start so we can see actual arrival.
+  const startWin = widen(j.start.at, 30, 30);
   rows.push({
     staffId: staff.id,
     staffName: staff.name,
@@ -85,8 +98,9 @@ export const buildJournalRows = (
     endIso: j.start.at,
     isOpen: false,
     hours: null,
-    fromIso: j.start.at,
-    toIso: j.start.at,
+    fromIso: startWin.from,
+    toIso: startWin.to,
+    allSessions,
   });
 
   // Sessions
@@ -105,6 +119,8 @@ export const buildJournalRows = (
       hours: s.hours,
       fromIso: s.start,
       toIso: s.end,
+      sessionStart: s.start,
+      sessionEnd: s.end,
     });
   }
 
@@ -118,6 +134,11 @@ export const buildJournalRows = (
     (Date.now() - new Date(staff.latestPing!.updated_at!).getTime()) > STALE_PING_MS
   );
 
+  // Widen end window: 30 min before reported end, until "now" if open.
+  const endWin = j.end.isOpen
+    ? { from: j.end.at ? new Date(new Date(j.end.at).getTime() - 30 * 60_000).toISOString() : null, to: new Date().toISOString() }
+    : widen(j.end.at, 30, 30);
+
   rows.push({
     staffId: staff.id,
     staffName: staff.name,
@@ -130,10 +151,11 @@ export const buildJournalRows = (
     endIso: j.end.at,
     isOpen: j.end.isOpen,
     hours: staff.total_hours,
-    fromIso: j.end.at,
-    toIso: j.end.at,
+    fromIso: endWin.from,
+    toIso: endWin.to,
     stale,
     pingAgeMin,
+    allSessions,
   });
 
   return rows;
