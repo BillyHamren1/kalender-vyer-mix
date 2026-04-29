@@ -350,8 +350,8 @@ const MobileJobDetail = () => {
         onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
         placeName={distanceWarning?.placeName || ''}
         distanceMeters={distanceWarning?.distance || 0}
-        onConfirm={() => {
-          distanceWarning?.onConfirm();
+        onConfirm={(reason) => {
+          distanceWarning?.onConfirm(reason);
           dismissDistanceWarning();
         }}
       />
