@@ -19,6 +19,7 @@ import { matchSegmentsToPlaces } from "../_shared/timeline/matcher.ts";
 import { buildEvents } from "../_shared/timeline/eventBuilder.ts";
 import { buildSuggestions } from "../_shared/timeline/suggestionEngine.ts";
 import { computeInputSignature } from "../_shared/timeline/signature.ts";
+import { ACTIONS, type ResolveAction } from "../_shared/timeline/resolveActions.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -27,7 +28,7 @@ interface ComputeArgs { staff_id: string; date: string; force?: boolean }
 interface GetArgs { staff_id: string; date: string }
 interface ResolveArgs {
   suggestion_id: string;
-  action: "accept" | "ignore" | "mark_travel" | "mark_unclear" | "move";
+  action: ResolveAction;
   payload?: Record<string, unknown>;
 }
 
@@ -391,44 +392,41 @@ async function handleResolve(
   userId: string,
   args: ResolveArgs,
 ) {
-  if (!args.suggestion_id || !args.action) return json({ error: "suggestion_id and action required" }, 400);
+  if (!args.suggestion_id || !args.action) {
+    return json({ error: "suggestion_id and action required" }, 400);
+  }
   const orgId = await getCallerOrg(supabase, userId);
   if (!orgId) return json({ error: "no_org" }, 403);
   const admin = await isAdmin(supabase, userId);
   if (!admin) return json({ error: "forbidden" }, 403);
 
-  const { data: sug } = await supabase.from("time_report_correction_suggestions")
+  const { data: sug } = await supabase
+    .from("time_report_correction_suggestions")
     .select("*")
     .eq("id", args.suggestion_id)
     .eq("organization_id", orgId)
     .maybeSingle();
   if (!sug) return json({ error: "suggestion_not_found" }, 404);
-  if (sug.status !== "pending") return json({ error: "suggestion_not_pending", status: sug.status }, 409);
-
-  let resolvedAction = args.action;
-
-  if (args.action === "accept") {
-    // Apply suggested times to the time_report (admin path).
-    const updates: Record<string, unknown> = {};
-    if (sug.suggested_start_time) updates.start_time = sug.suggested_start_time;
-    if (sug.suggested_end_time)   updates.end_time   = sug.suggested_end_time;
-    if (sug.suggested_duration_min != null) updates.hours_worked = Number((sug.suggested_duration_min / 60).toFixed(2));
-    if (Object.keys(updates).length > 0) {
-      await supabase.from("time_reports").update(updates).eq("id", sug.time_report_id);
-    }
+  if (sug.status !== "pending") {
+    return json({ error: "suggestion_not_pending", status: sug.status }, 409);
   }
-  // Other actions (mark_travel, mark_unclear, move) are stage 3 — for now we
-  // just record the resolution. Stage 3 will hook into travel_time_logs etc.
 
-  await supabase.from("time_report_correction_suggestions").update({
-    status: args.action === "ignore" ? "ignored" : "accepted",
-    resolved_by: userId,
-    resolved_at: new Date().toISOString(),
-    resolved_action: resolvedAction,
-    resolution_payload: args.payload ?? null,
-  }).eq("id", args.suggestion_id);
+  const handler = ACTIONS[args.action];
+  if (!handler) return json({ error: "unknown_resolve_action", action: args.action }, 400);
 
-  return json({ ok: true, action: resolvedAction });
+  try {
+    const result = await handler({
+      supabase,
+      userId,
+      orgId,
+      suggestion: sug,
+      payload: args.payload ?? {},
+    });
+    return json(result);
+  } catch (err) {
+    console.error("[day-timeline-engine] resolve failed", err);
+    return json({ error: String((err as Error).message ?? err) }, 400);
+  }
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────
