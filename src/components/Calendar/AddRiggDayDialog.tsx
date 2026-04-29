@@ -314,11 +314,18 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
           </div>
 
           <div className="space-y-2">
-            <Label>Date</Label>
+            <div className="flex items-center justify-between">
+              <Label>Datum (välj en eller flera)</Label>
+              {selectedDates.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {selectedDates.length} dag{selectedDates.length === 1 ? '' : 'ar'} valda
+                </span>
+              )}
+            </div>
             <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
+              mode="multiple"
+              selected={selectedDates}
+              onSelect={(dates) => setSelectedDates(dates ?? [])}
               month={defaultMonth}
               onMonthChange={setDefaultMonth}
               className={cn("rounded-md border pointer-events-auto")}
@@ -345,6 +352,9 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
                 }
               }}
             />
+            <p className="text-xs text-muted-foreground">
+              Tips: klicka för att välja, klicka igen för att avmarkera. Alla valda dagar får samma tid och team.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -384,8 +394,12 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Avbryt
           </Button>
-          <Button onClick={handleCreate} disabled={isCreating || !selectedDate}>
-            {isCreating ? 'Lägger till...' : 'Lägg till'}
+          <Button onClick={handleCreate} disabled={isCreating || selectedDates.length === 0}>
+            {isCreating
+              ? 'Lägger till...'
+              : selectedDates.length > 1
+                ? `Lägg till ${selectedDates.length} dagar`
+                : 'Lägg till'}
           </Button>
         </div>
       </DialogContent>
