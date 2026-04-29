@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, MapPin, Briefcase, Car, Clock, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronRight, MapPin, Briefcase, Car, LogIn, LogOut, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
@@ -11,6 +11,96 @@ const fmt = (iso: string | null) => {
   try { return format(new Date(iso), 'HH:mm'); } catch { return '—'; }
 };
 
+/**
+ * Shared table-row layout for the day journal.
+ * Columns: [icon] Beskrivning · Plats (klickbar) · Klockslag · Varaktighet · Kommentar
+ * No colors, no badges. Bold = day rubric (start/end). Regular = sub-row.
+ */
+interface JournalRowProps {
+  icon: React.ElementType;
+  title: string;
+  bold?: boolean;
+  address: string | null;
+  time: string;
+  duration: React.ReactNode;
+  comment?: string | null;
+  expandable?: boolean;
+  expanded?: boolean;
+  onToggle?: () => void;
+  indent?: boolean;
+  warning?: boolean;
+  children?: React.ReactNode;
+}
+
+const JournalRow: React.FC<JournalRowProps> = ({
+  icon: Icon, title, bold, address, time, duration, comment,
+  expandable, expanded, onToggle, indent, warning, children,
+}) => {
+  const titleClass = bold
+    ? 'font-bold text-sm text-foreground'
+    : 'text-sm text-foreground';
+
+  const Wrapper: any = expandable ? 'button' : 'div';
+  const wrapperProps = expandable
+    ? { type: 'button', onClick: (e: any) => { e.stopPropagation(); onToggle?.(); } }
+    : {};
+
+  return (
+    <div className={indent ? 'ml-5' : ''}>
+      <Wrapper
+        {...wrapperProps}
+        className={`w-full grid grid-cols-[16px_16px_1fr_auto_auto] gap-2 items-center py-1.5 px-1 text-left ${
+          expandable ? 'hover:bg-muted/40 rounded-sm' : ''
+        }`}
+      >
+        {/* chevron slot */}
+        <span className="flex items-center justify-center">
+          {expandable ? (
+            expanded
+              ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+          ) : null}
+        </span>
+
+        {/* icon slot */}
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${warning ? 'text-destructive' : 'text-muted-foreground'}`} />
+
+        {/* title + address */}
+        <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
+          <span className={`${titleClass} truncate ${warning ? 'text-destructive' : ''}`}>
+            {title}
+          </span>
+          {address && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate">
+              <MapPin className="h-2.5 w-2.5" />
+              <span className="truncate">{address}</span>
+            </span>
+          )}
+          {comment && (
+            <span className="text-[11px] text-muted-foreground italic truncate">
+              · {comment}
+            </span>
+          )}
+        </div>
+
+        {/* time */}
+        <div className={`text-xs tabular-nums shrink-0 ${bold ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+          {time}
+        </div>
+
+        {/* duration */}
+        <div className={`text-xs tabular-nums shrink-0 min-w-[52px] text-right ${bold ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}>
+          {duration}
+        </div>
+      </Wrapper>
+
+      {expanded && children && (
+        <div className="ml-6 pb-1.5">{children}</div>
+      )}
+    </div>
+  );
+};
+
 interface DayHeaderRowProps {
   variant: 'start' | 'end';
   header: DayHeader;
@@ -19,65 +109,44 @@ interface DayHeaderRowProps {
   date: string;
 }
 
-/**
- * Bold rubric-style row marking the start or end of the work day.
- * No color — just typography.
- */
 export const DayHeaderRow: React.FC<DayHeaderRowProps> = ({
   variant, header, totalHours, staffId, date,
 }) => {
-  const [showMap, setShowMap] = useState(false);
-  const title = variant === 'start' ? 'DAGEN STARTADE' : (header.isOpen ? 'PÅGÅR' : 'DAGEN AVSLUTADES');
+  const [expanded, setExpanded] = useState(false);
+  const isStart = variant === 'start';
+  const title = isStart ? 'Dagen startade' : (header.isOpen ? 'Pågår' : 'Dagen avslutades');
+  const Icon = isStart ? LogIn : LogOut;
+
+  const time = isStart
+    ? fmt(header.at)
+    : (header.isOpen ? '—' : fmt(header.at));
+
+  const duration = isStart
+    ? (header.isOpen ? <LiveDuration startedAt={header.at} /> : '')
+    : (totalHours != null ? formatHoursMinutes(totalHours) : '');
 
   return (
-    <div
-      className={`border-y border-border/80 py-2 ${variant === 'start' ? 'mt-1' : 'mt-2'}`}
+    <JournalRow
+      icon={Icon}
+      title={title}
+      bold
+      address={header.address}
+      time={time}
+      duration={duration}
+      expandable={!!header.at}
+      expanded={expanded}
+      onToggle={() => setExpanded(s => !s)}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[10px] font-semibold tracking-[0.12em] text-foreground/70">
-            {title}
-          </span>
-          <span className="font-bold text-sm tabular-nums text-foreground">
-            {variant === 'end' && header.isOpen ? '—' : fmt(header.at)}
-          </span>
-        </div>
-        {variant === 'end' && totalHours != null && (
-          <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Totalt</div>
-            <div className="font-bold text-sm tabular-nums text-foreground">
-              {formatHoursMinutes(totalHours)}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {header.address && (
-        <button
-          type="button"
-          className="mt-0.5 text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 group"
-          onClick={(e) => { e.stopPropagation(); setShowMap(s => !s); }}
-        >
-          <MapPin className="h-3 w-3" />
-          <span className="truncate">{header.address}</span>
-          <span className="text-[10px] opacity-60 group-hover:opacity-100">
-            {showMap ? 'dölj karta' : 'öppna karta'}
-          </span>
-        </button>
+      {header.at && (
+        <StaffPingDetailPanel
+          staffId={staffId}
+          staffName=""
+          date={date}
+          fromIso={header.at}
+          toIso={header.at}
+        />
       )}
-
-      {showMap && header.at && (
-        <div className="mt-1.5">
-          <StaffPingDetailPanel
-            staffId={staffId}
-            staffName=""
-            date={date}
-            fromIso={header.at}
-            toIso={header.at}
-          />
-        </div>
-      )}
-    </div>
+    </JournalRow>
   );
 };
 
@@ -100,61 +169,31 @@ export const ProjectSessionRow: React.FC<ProjectSessionRowProps> = ({
   const [open, setOpen] = useState(false);
   const Icon = sessionIcon(session.kind);
 
+  const time = `${fmt(session.start)} – ${session.isOpen ? 'pågår' : fmt(session.end)}`;
+  const duration = session.isOpen
+    ? <LiveDuration startedAt={session.start} />
+    : formatHoursMinutes(session.hours);
+
   return (
-    <div className="ml-3 border-l border-border pl-3">
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
-        className="w-full flex items-center justify-between gap-3 py-1.5 text-left hover:bg-muted/30 rounded-sm pr-2"
-      >
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {open ? (
-            <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-          )}
-          <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <div className="text-sm text-foreground truncate font-medium">
-              {session.label || 'Projekt'}
-            </div>
-            {session.address && (
-              <div className="text-[11px] text-muted-foreground truncate inline-flex items-center gap-1">
-                <MapPin className="h-2.5 w-2.5" />
-                {session.address}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="text-right shrink-0 tabular-nums">
-          <div className="text-xs text-muted-foreground">
-            {fmt(session.start)} → {session.isOpen
-              ? <span className="text-foreground font-medium">pågår</span>
-              : fmt(session.end)}
-          </div>
-          <div className="text-xs font-semibold text-foreground">
-            {session.isOpen ? (
-              <LiveDuration startedAt={session.start} />
-            ) : (
-              formatHoursMinutes(session.hours)
-            )}
-          </div>
-        </div>
-      </button>
-
-      {open && (
-        <div className="pb-2">
-          <StaffPingDetailPanel
-            staffId={staffId}
-            staffName={staffName}
-            date={date}
-            fromIso={session.start}
-            toIso={session.end}
-          />
-        </div>
-      )}
-    </div>
+    <JournalRow
+      icon={Icon}
+      title={session.label || 'Projekt'}
+      address={session.address}
+      time={time}
+      duration={duration}
+      expandable
+      expanded={open}
+      onToggle={() => setOpen(o => !o)}
+      indent
+    >
+      <StaffPingDetailPanel
+        staffId={staffId}
+        staffName={staffName}
+        date={date}
+        fromIso={session.start}
+        toIso={session.end}
+      />
+    </JournalRow>
   );
 };
 
@@ -166,26 +205,19 @@ interface MovementFlagRowProps {
   baseAddress: string | null;
 }
 
-/** Only row in the journal that uses warning color. */
 export const MovementFlagRow: React.FC<MovementFlagRowProps> = ({
   start, end, address, distanceMeters, baseAddress,
 }) => {
+  const time = `${fmt(start)} – ${end ? fmt(end) : 'pågår'}`;
   return (
-    <div className="ml-6 border-l-2 border-destructive/60 pl-3 py-1">
-      <div className="flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-1.5 min-w-0 text-destructive font-medium">
-          <AlertTriangle className="h-3 w-3 shrink-0" />
-          <span className="truncate">
-            Förflyttning · {address || `${distanceMeters}m från bas`}
-            {baseAddress && (
-              <span className="text-muted-foreground font-normal"> ({distanceMeters}m från {baseAddress})</span>
-            )}
-          </span>
-        </div>
-        <div className="text-right tabular-nums text-muted-foreground shrink-0">
-          {fmt(start)} → {end ? fmt(end) : 'pågår'}
-        </div>
-      </div>
-    </div>
+    <JournalRow
+      icon={AlertTriangle}
+      title={`Förflyttning · ${address || `${distanceMeters}m från bas`}`}
+      address={baseAddress ? `${distanceMeters}m från ${baseAddress}` : null}
+      time={time}
+      duration=""
+      indent
+      warning
+    />
   );
 };
