@@ -45,10 +45,13 @@ const StaffAccountsPanel: React.FC = () => {
   const [showPasswords, setShowPasswords] = useState(false);
   const [isCreatingBulk, setIsCreatingBulk] = useState(false);
 
-  // Fetch staff members
+  // Fetch staff members (delas med StaffManagement-sidans query – samma key återanvänder cache)
   const { data: staffMembers = [] } = useQuery({
     queryKey: ['staffMembers'],
     queryFn: fetchStaffMembers,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Fetch existing staff accounts
@@ -62,6 +65,9 @@ const StaffAccountsPanel: React.FC = () => {
       if (error) throw error;
       return data as StaffAccount[];
     },
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Get staff without accounts
