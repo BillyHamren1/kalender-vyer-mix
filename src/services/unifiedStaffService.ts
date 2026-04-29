@@ -93,31 +93,17 @@ class UnifiedStaffService {
     return result.success ? result.data : [];
   }
 
+  // Canonical write path — delegates to staffAssignmentCore so there is only
+  // ONE writer to public.staff_assignments. The legacy edge-function actions
+  // 'assign_staff_to_team' / 'remove_staff_assignment' are no longer used.
   async assignStaffToTeam(staffId: string, teamId: string, date: Date): Promise<void> {
-    const dateStr = date.toISOString().split('T')[0];
-    const result = await this.callStaffFunction('assign_staff_to_team', {
-      staff_id: staffId,
-      team_id: teamId,
-      date: dateStr
-    });
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to assign staff to team');
-    }
+    const { assignStaffToTeamCore } = await import('./staffAssignmentCore');
+    await assignStaffToTeamCore(staffId, teamId, date);
   }
 
   async removeStaffAssignment(staffId: string, date: Date, teamId?: string): Promise<void> {
-    const dateStr = date.toISOString().split('T')[0];
-    const result = await this.callStaffFunction('remove_staff_assignment', {
-      staff_id: staffId,
-      date: dateStr,
-      // Multi-team: if teamId is provided, only that one row is removed.
-      ...(teamId ? { team_id: teamId } : {}),
-    });
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to remove staff assignment');
-    }
+    const { removeStaffAssignmentCore } = await import('./staffAssignmentCore');
+    await removeStaffAssignmentCore(staffId, date, teamId);
   }
 
   async getAvailableStaff(date: Date): Promise<StaffMember[]> {

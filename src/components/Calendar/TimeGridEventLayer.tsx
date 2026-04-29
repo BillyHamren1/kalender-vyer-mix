@@ -1,0 +1,88 @@
+import React, { useCallback } from 'react';
+import type { CalendarEvent, Resource } from './ResourceData';
+import CustomEvent from './CustomEvent';
+import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
+import type { OverlapInfo } from './timeGridLayout';
+
+export const EventWrapper: React.FC<{
+  event: CalendarEvent;
+  position: { top: number; height: number };
+  overlapLayout?: OverlapInfo;
+  teamColumnWidth: number;
+  onEventClick: (event: CalendarEvent) => void;
+  onEventResize?: () => Promise<void>;
+  readOnly?: boolean;
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
+}> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly, setEvents }) => {
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (readOnly) {
+      e.preventDefault();
+      return;
+    }
+    const data: DraggedEventData = {
+      id: event.id,
+      title: event.title,
+      start: typeof event.start === 'string' ? event.start : new Date(event.start).toISOString(),
+      end: typeof event.end === 'string' ? event.end : new Date(event.end).toISOString(),
+      bookingId: event.bookingId,
+      eventType: event.eventType,
+      resourceId: event.resourceId,
+      isSyntheticFallback: !!(event.extendedProps as any)?.isSyntheticFallback,
+      largeProjectId: (event.extendedProps as any)?.largeProjectId,
+    };
+    e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
+    e.dataTransfer.effectAllowed = 'move';
+  }, [event, readOnly]);
+
+  const hasOverlap = !!(overlapLayout && overlapLayout.totalColumns > 1);
+  const overlapColumn = overlapLayout?.column ?? 0;
+  const overlapCount = overlapLayout?.totalColumns ?? 1;
+  const overlapWidthPercent = hasOverlap ? 60 : 100;
+  const maxLeftPercent = hasOverlap ? 40 : 0;
+  const leftPercent = hasOverlap && overlapCount > 1
+    ? (overlapColumn / (overlapCount - 1)) * maxLeftPercent
+    : 0;
+  const horizontalInset = 4;
+  const baseZ = hasOverlap ? 25 + overlapColumn : 25;
+
+  return (
+    <div
+      draggable={!readOnly}
+      onDragStart={handleDragStart}
+      className={hasOverlap ? 'cascaded-event' : undefined}
+      style={{
+        position: 'absolute',
+        top: `${position.top}px`,
+        height: `${position.height}px`,
+        left: `${horizontalInset + (leftPercent / 100) * Math.max(teamColumnWidth - horizontalInset * 2, 0)}px`,
+        width: `calc(${overlapWidthPercent}% - ${horizontalInset * 2}px)`,
+        zIndex: baseZ,
+        pointerEvents: 'auto',
+        cursor: readOnly ? 'default' : 'grab',
+      }}
+    >
+      <CustomEvent
+        event={event}
+        resource={{ id: event.resourceId, title: '' } as Resource}
+        style={{ width: '100%', height: '100%', position: 'relative' }}
+        onEventResize={onEventResize}
+        readOnly={readOnly}
+        setEvents={setEvents}
+      />
+    </div>
+  );
+});
+
+export const SimpleTimeSlot: React.FC<{
+  children: React.ReactNode;
+  isLast?: boolean;
+}> = React.memo(({ children, isLast }) => {
+  return (
+    <div
+      className={`time-slot-wrapper ${isLast ? 'is-last' : ''}`}
+      style={{ width: `100%`, minWidth: `100%`, position: 'relative' }}
+    >
+      {children}
+    </div>
+  );
+});
