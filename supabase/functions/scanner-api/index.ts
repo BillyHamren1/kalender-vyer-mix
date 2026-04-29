@@ -1100,7 +1100,7 @@ Deno.serve(async (req) => {
       }
 
       case 'add_unknown_product': {
-        const { packingId, sku, name, quantityToPack, verifiedBy } = params
+        const { packingId, sku, name, quantityToPack, verifiedBy, verifiedByStaffId } = params
         const qty = Math.max(1, parseInt(quantityToPack, 10) || 1)
         const productName = (name && String(name).trim()) || (sku ? `Okänd: ${sku}` : 'Okänd produkt')
 
