@@ -110,6 +110,9 @@ BACKEND_TESTS=(
   # mark_arrival_resolved och get_arrival_state måste behandla alla tre
   # target-kindar likadant på auth/validation-ytan.
   "supabase/functions/mobile-app-api/arrivalParity_test.ts"
+  # Day Event Timeline Engine (Etapp 1): pure functions för cluster, matcher,
+  # eventBuilder, suggestionEngine, smartFilter.
+  "supabase/functions/day-timeline-engine/engine.test.ts"
 )
 
 bold()  { printf "\033[1m%s\033[0m\n" "$*"; }
