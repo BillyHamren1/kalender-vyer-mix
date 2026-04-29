@@ -112,7 +112,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
   const location = useLocation();
   const { t } = useLanguage();
   const { staff } = useMobileAuth();
-  const { current, start } = useWorkDay();
+  const { current, start, ensureActive } = useWorkDay();
   const { data: bookings = [] } = useMobileBookings();
   const { userPosition, orgLocations } = useGeofencingContext();
   const { requestStart } = useTimerStartFlow(bookings, staff?.id);
@@ -148,6 +148,13 @@ export const HeaderStartEndDayButton: React.FC = () => {
       const match = findNearbyBooking(bookings, pos);
 
       if (match) {
+        // WORKDAY-FIRST: säkerställ dagtimer även om activity-timer redan
+        // skulle vara igång (då skulle requestStart returnera 'duplicate').
+        const wd = await ensureActive();
+        if (!wd) {
+          toast.error('Kunde inte starta arbetsdagen. Försök igen.');
+          return;
+        }
         const target = match.large_project_id && match.large_project_name
           ? { kind: 'project' as const, largeProjectId: match.large_project_id, name: match.large_project_name }
           : { kind: 'booking' as const, bookingId: match.id, client: match.client };
@@ -163,7 +170,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
     } finally {
       setStartingDay(false);
     }
-  }, [startingDay, workdayOpen, userPosition, bookings, requestStart]);
+  }, [startingDay, workdayOpen, userPosition, bookings, requestStart, ensureActive]);
 
   /**
    * Användaren har valt något i dialogen.
@@ -175,6 +182,15 @@ export const HeaderStartEndDayButton: React.FC = () => {
     setStartingDay(true);
     try {
       if (selection.kind === 'target') {
+        // WORKDAY-FIRST: säkerställ att dagtimern faktiskt startas innan vi
+        // delegerar till requestStart. requestStart kan returnera
+        // 'duplicate' (om en activity-timer redan finns lokalt) och då
+        // körs aldrig performStart → ingen workday skapas.
+        const wd = await ensureActive();
+        if (!wd) {
+          toast.error('Kunde inte starta arbetsdagen. Försök igen.');
+          return;
+        }
         const result = requestStart(selection.target, { label: selection.label });
         if (result === 'started' || result === 'duplicate') {
           toast.success(`Dagen startad på ${selection.label}`);
@@ -210,7 +226,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
     } finally {
       setStartingDay(false);
     }
-  }, [requestStart, start]);
+  }, [requestStart, start, ensureActive]);
 
   if (workdayOpen) {
     return (
