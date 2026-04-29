@@ -164,7 +164,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // === NORMAL MODE ===
         scanLog('verify_start', { packingId, sku: scannedValue });
         const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
-        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId);
+        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId, verifierStaffId);
         scanLog('verify_result', result);
 
         // === Special branch: product not in packing list — pause + prompt user ===
