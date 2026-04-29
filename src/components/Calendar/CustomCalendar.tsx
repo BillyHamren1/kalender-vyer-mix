@@ -1,6 +1,8 @@
 import React, { useRef, useMemo, useCallback, useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format, addDays } from 'date-fns';
+import { format, addDays, getWeek } from 'date-fns';
+import { sv } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import TimeGrid from './TimeGrid';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import { useCarouselState } from '@/hooks/useCarouselState';
