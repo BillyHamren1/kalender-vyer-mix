@@ -229,6 +229,58 @@ export const useEconomyOverviewData = () => {
         }
       }
 
+      // ── Local fallback: booking_products from our DB ──
+      // The external planning-api sometimes returns empty product_costs even when
+      // booking_products has rows locally. Aggregate revenue per booking and merge
+      // it into the batch data when the proxy summary is missing/zero.
+      if (allBookingIds.length > 0) {
+        try {
+          const { data: localProducts } = await supabase
+            .from('booking_products')
+            .select('booking_id, total_price, unit_price, quantity, purchase_cost')
+            .in('booking_id', allBookingIds);
+
+          if (localProducts && localProducts.length > 0) {
+            const localAgg: Record<string, { revenue: number; costs: number; count: number }> = {};
+            for (const p of localProducts as any[]) {
+              const bid = p.booking_id;
+              if (!bid) continue;
+              const rev = Number(p.total_price) || (Number(p.unit_price) || 0) * (Number(p.quantity) || 0);
+              const cost = (Number(p.purchase_cost) || 0) * (Number(p.quantity) || 0);
+              if (!localAgg[bid]) localAgg[bid] = { revenue: 0, costs: 0, count: 0 };
+              localAgg[bid].revenue += rev;
+              localAgg[bid].costs += cost;
+              localAgg[bid].count += 1;
+            }
+
+            for (const bid of Object.keys(localAgg)) {
+              const local = localAgg[bid];
+              if (local.revenue <= 0) continue;
+              const existing = multiBatchData[bid] || ({} as BatchEconomyData);
+              const proxyPc: any = existing.product_costs ?? null;
+              const proxyRevenue = Number(proxyPc?.summary?.revenue) || 0;
+              if (proxyRevenue > 0) continue; // proxy already has data — trust it
+              multiBatchData[bid] = {
+                ...existing,
+                product_costs: {
+                  ...(proxyPc || {}),
+                  summary: {
+                    ...(proxyPc?.summary || {}),
+                    revenue: local.revenue,
+                    costs: local.costs,
+                    margin: local.revenue - local.costs,
+                  },
+                  products: proxyPc?.products ?? [],
+                  _source: 'local_booking_products_fallback',
+                },
+              } as BatchEconomyData;
+            }
+          }
+        } catch (err) {
+          console.warn('[economy-overview] local booking_products fallback failed:', err);
+        }
+      }
+
       return entries.map((entry) => {
         // For projects with a single booking
         const primaryBookingId = entry.booking_ids[0] ?? null;
