@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, ChevronRight, Search, ChevronLeft, CalendarDays, WifiOff } from 'lucide-react';
+import { Clock, Search, ChevronLeft, ChevronRight, CalendarDays, WifiOff } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { PingPhoneButton } from './PingPhoneButton';
-import { DayHeaderRow, ProjectSessionRow } from './DayJournalRow';
+import { JournalTable, buildJournalRows, type JournalTableRow } from './StaffTimeReportsTable';
 import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal } from '@/lib/staff/dayJournal';
 
@@ -196,103 +195,21 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            <Skeleton key={i} className="h-10 w-full rounded-md" />
           ))}
         </div>
-      ) : (
-        <div className="space-y-1">
-          {filtered.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">
-              {search
-                ? 'Inga träffar'
-                : `Ingen personal har rapporterat tid ${dateLabel.toLowerCase()}`}
-            </div>
-          ) : (
-            filtered.map(staff => {
-              const liveStatus = resolveLiveStatus(staff.has_open_report, staff.latestPing);
-              const pingAgeMin = staff.latestPing?.updated_at
-                ? Math.floor((Date.now() - new Date(staff.latestPing.updated_at).getTime()) / 60000)
-                : null;
-
-              return (
-                <div
-                  key={staff.id}
-                  className="rounded-lg border border-border/40 hover:border-border transition-colors"
-                >
-                  {/* Compact person header — name + role + status only. Times live in journal rows. */}
-                  <div className="flex items-center gap-3 px-3 py-2 border-b border-border/40">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 relative bg-muted text-muted-foreground">
-                      {staff.name.charAt(0).toUpperCase()}
-                      {liveStatus === 'live' && (
-                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-foreground border-2 border-background" />
-                      )}
-                      {liveStatus === 'stale' && (
-                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive border-2 border-background" />
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm text-foreground truncate">{staff.name}</span>
-                      {staff.role && (
-                        <span className="text-[11px] text-muted-foreground">{staff.role}</span>
-                      )}
-                      {liveStatus === 'stale' && (
-                        <span
-                          className="text-[11px] font-medium text-destructive inline-flex items-center gap-1"
-                          title={pingAgeMin != null ? `Senaste signal för ${pingAgeMin} min sedan` : 'Ingen signal från telefonen'}
-                        >
-                          <WifiOff className="h-3 w-3" />
-                          Tappad signal{pingAgeMin != null ? ` · ${pingAgeMin}m` : ''}
-                        </span>
-                      )}
-                    </div>
-
-                    {liveStatus === 'stale' && (
-                      <PingPhoneButton staffId={staff.id} staffName={staff.name} />
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs gap-1 shrink-0"
-                      onClick={() => onSelectStaff(staff.id, staff.name)}
-                    >
-                      Detaljer
-                      <ChevronRight className="h-3 w-3" />
-                    </Button>
-                  </div>
-
-                  {/* Day journal — flat row list. Bold = day rubric, regular = sub-row. */}
-                  <div className="px-2 py-1">
-                    <DayHeaderRow
-                      variant="start"
-                      header={staff.journal.start}
-                      staffId={staff.id}
-                      date={dateStr}
-                    />
-
-                    {staff.journal.sessions.map(s => (
-                      <ProjectSessionRow
-                        key={s.key}
-                        session={s}
-                        staffId={staff.id}
-                        staffName={staff.name}
-                        date={dateStr}
-                      />
-                    ))}
-
-                    <DayHeaderRow
-                      variant="end"
-                      header={staff.journal.end}
-                      totalHours={staff.total_hours}
-                      staffId={staff.id}
-                      date={dateStr}
-                    />
-                  </div>
-                </div>
-              );
-            })
-          )}
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          {search
+            ? 'Inga träffar'
+            : `Ingen personal har rapporterat tid ${dateLabel.toLowerCase()}`}
         </div>
+      ) : (
+        <JournalTable
+          rows={filtered.flatMap(s => buildJournalRows(s))}
+          date={dateStr}
+          onSelectStaff={onSelectStaff}
+        />
       )}
     </PremiumCard>
   );
