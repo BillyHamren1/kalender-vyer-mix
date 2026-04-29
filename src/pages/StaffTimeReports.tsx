@@ -9,6 +9,13 @@ import { StaffTimeReportsList } from '@/components/staff/StaffTimeReportsList';
 import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { format } from 'date-fns';
+import {
+  buildStaffDayJournal,
+  type RawTimeReport,
+  type RawLocationEntry,
+  type RawTravelLog,
+  type RawWorkday,
+} from '@/lib/staff/dayJournal';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
@@ -51,6 +58,7 @@ interface StaffWithDayReport {
   latest_end: string | null;
   projects: ProjectInfo[];
   segments: DaySegment[];
+  journal: import('@/lib/staff/dayJournal').StaffDayJournal;
   latestPing: LatestPing | null;
 }
 
@@ -125,7 +133,7 @@ const StaffTimeReports: React.FC = () => {
         // must NOT bleed into today's view as 50h "still active" timers.
         supabase
           .from('workdays')
-          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes')
+          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note')
           .gte('started_at', dayStartIso)
           .lt('started_at', nextDayIso),
         // Latest GPS ping per staff (one row per staff_id by table design).
@@ -532,6 +540,78 @@ const StaffTimeReports: React.FC = () => {
             if (x.isOpen !== y.isOpen) return x.isOpen ? -1 : 1;
             return new Date(y.start).getTime() - new Date(x.start).getTime();
           });
+
+          // Build the per-staff journal (the new, hierarchical view).
+          const staffReports: RawTimeReport[] = (reports as any[])
+            .filter(r => r.staff_id === s.id && r.start_time)
+            .map(r => ({
+              id: r.id,
+              booking_id: r.booking_id,
+              start_iso: composeLocalIso(dateStr, r.start_time),
+              end_iso: r.end_time ? composeLocalIso(dateStr, r.end_time) : null,
+              hours: r.hours_worked || 0,
+            }));
+
+          const staffLTEs: RawLocationEntry[] = (locationEntries as any[])
+            .filter(e => e.staff_id === s.id)
+            .map(e => {
+              const isPresenceOnly = !e.booking_id && !e.large_project_id;
+              const isOpen = !e.exited_at;
+              const hours = e.total_minutes
+                ? e.total_minutes / 60
+                : isOpen
+                  ? Math.max(0, (nowMs - new Date(e.entered_at).getTime()) / 3_600_000)
+                  : 0;
+              let label = 'Plats';
+              if (e.booking_id) {
+                label = bookingMap.get(e.booking_id)?.label || 'Okänt projekt';
+              } else if (e.large_project_id) {
+                label = largeProjectMap.get(e.large_project_id) || 'Stort projekt';
+              } else if (e.location_id) {
+                label = locationBookingMap.get(e.location_id)?.label
+                  || locNameMap.get(e.location_id)
+                  || 'Lager';
+              }
+              return {
+                id: e.id,
+                booking_id: e.booking_id,
+                large_project_id: e.large_project_id,
+                location_id: e.location_id,
+                entered_at: e.entered_at,
+                exited_at: e.exited_at,
+                hours: isPresenceOnly ? 0 : hours,
+                label,
+                isPresenceOnly,
+              };
+            });
+
+          const staffTravel: RawTravelLog[] = (travel as any[])
+            .filter(t => t.staff_id === s.id && t.start_time)
+            .map(t => ({
+              id: t.id,
+              start_iso: t.start_time,
+              end_iso: t.end_time,
+              hours: t.hours_worked || 0,
+              to_address: t.to_address,
+            }));
+
+          const staffWorkdays: RawWorkday[] = (workdays as any[])
+            .filter(w => w.staff_id === s.id)
+            .map(w => ({
+              id: w.id,
+              started_at: w.started_at,
+              ended_at: w.ended_at,
+              admin_note: w.admin_note ?? null,
+            }));
+
+          const journal = buildStaffDayJournal({
+            reports: staffReports,
+            locationEntries: staffLTEs,
+            travel: staffTravel,
+            workdays: staffWorkdays,
+            latestPing: pingMap.get(s.id) || null,
+          });
+
           return {
             id: s.id,
             name: s.name,
@@ -551,6 +631,7 @@ const StaffTimeReports: React.FC = () => {
               }))
               .sort((x, y) => y.total_hours - x.total_hours),
             segments,
+            journal,
             latestPing: pingMap.get(s.id) || null,
           };
         })

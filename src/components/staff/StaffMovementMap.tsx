@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,9 @@ interface StaffMovementMapProps {
   staffId: string;
   /** ISO date YYYY-MM-DD */
   date: string;
+  /** Optional time-window filter (ISO timestamps). */
+  fromIso?: string | null;
+  toIso?: string | null;
   className?: string;
 }
 
@@ -27,10 +30,10 @@ interface StaffMovementMapProps {
  * Retention: history is removed ~7 days after the related time report is
  * approved, so very old reports may show "no data".
  */
-export const StaffMovementMap = ({ staffId, date, className }: StaffMovementMapProps) => {
+export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: StaffMovementMapProps) => {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const [points, setPoints] = useState<MovementPoint[]>([]);
+  const [allPoints, setAllPoints] = useState<MovementPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +47,7 @@ export const StaffMovementMap = ({ staffId, date, className }: StaffMovementMapP
       .getMovementForDay(staffId, date)
       .then((res) => {
         if (cancelled) return;
-        setPoints(res.points || []);
+        setAllPoints(res.points || []);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -58,6 +61,17 @@ export const StaffMovementMap = ({ staffId, date, className }: StaffMovementMapP
       cancelled = true;
     };
   }, [staffId, date]);
+
+  // Optional time-window filter
+  const points = useMemo(() => {
+    if (!fromIso && !toIso) return allPoints;
+    const fromMs = fromIso ? new Date(fromIso).getTime() : -Infinity;
+    const toMs = toIso ? new Date(toIso).getTime() : Infinity;
+    return allPoints.filter(p => {
+      const t = new Date(p.recorded_at).getTime();
+      return t >= fromMs && t <= toMs;
+    });
+  }, [allPoints, fromIso, toIso]);
 
   // Init map + draw polyline
   useEffect(() => {
