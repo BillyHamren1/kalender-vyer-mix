@@ -232,53 +232,72 @@ export function LargeProjectEditableCostList({
         {isOpen && (
           <>
             {/* Manual rows */}
-            {items.map((l) => (
-              <TableRow key={l.id} className="hover:bg-muted/20">
-                <TableCell />
-                <TableCell>
-                  <EditableCell
-                    value={l.cost_date}
-                    type="date"
-                    onSave={(v) => updateLine({ id: l.id, updates: { cost_date: v || null } })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <EditableCell
-                    value={l.description}
-                    placeholder="Beskrivning"
-                    onSave={(v) => updateLine({ id: l.id, updates: { description: v } })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <EditableCell
-                    value={l.supplier}
-                    placeholder="Leverantör"
-                    onSave={(v) => updateLine({ id: l.id, updates: { supplier: v || null } })}
-                  />
-                </TableCell>
-                <TableCell />
-                <TableCell />
-                <TableCell className="w-28">
-                  <EditableCell
-                    value={l.amount}
-                    type="number"
-                    align="right"
-                    onSave={(v) => updateLine({ id: l.id, updates: { amount: parseFloat(v) || 0 } })}
-                  />
-                </TableCell>
-                <TableCell />
-                <TableCell className="w-10">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeLine(l.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {items.map((l) => {
+              const lineBudget = Number(l.budget_amount) || 0;
+              const lineActual = Number(l.amount) || 0;
+              const lineDiff = lineBudget - lineActual;
+              return (
+                <TableRow key={l.id} className="hover:bg-muted/20">
+                  <TableCell />
+                  <TableCell>
+                    <EditableCell
+                      value={l.cost_date}
+                      type="date"
+                      onSave={(v) => updateLine({ id: l.id, updates: { cost_date: v || null } })}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <EditableCell
+                      value={l.description}
+                      placeholder="Beskrivning"
+                      onSave={(v) => updateLine({ id: l.id, updates: { description: v } })}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <EditableCell
+                      value={l.supplier}
+                      placeholder="Leverantör"
+                      onSave={(v) => updateLine({ id: l.id, updates: { supplier: v || null } })}
+                    />
+                  </TableCell>
+                  <TableCell />
+                  <TableCell className="w-28">
+                    <EditableCell
+                      value={lineBudget || null}
+                      type="number"
+                      align="right"
+                      placeholder="0"
+                      onSave={(v) => updateLine({ id: l.id, updates: { budget_amount: parseFloat(v) || 0 } })}
+                    />
+                  </TableCell>
+                  <TableCell className="w-28">
+                    <EditableCell
+                      value={lineActual || null}
+                      type="number"
+                      align="right"
+                      placeholder="0"
+                      onSave={(v) => updateLine({ id: l.id, updates: { amount: parseFloat(v) || 0 } })}
+                    />
+                  </TableCell>
+                  <TableCell className={cn(
+                    'text-right tabular-nums text-sm',
+                    lineDiff < 0 ? 'text-red-600' : lineDiff > 0 ? 'text-green-600' : 'text-muted-foreground'
+                  )}>
+                    {lineBudget || lineActual ? fmt(lineDiff) : ''}
+                  </TableCell>
+                  <TableCell className="w-10">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeLine(l.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
 
             {/* Reported time (read-only, only under assembly) */}
             {cat === 'assembly' && timeRows.length > 0 && (
