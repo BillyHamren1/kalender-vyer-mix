@@ -22,6 +22,7 @@ import PackingDayView from '@/components/scanner/calendar/PackingDayView';
 import PackingWeekView from '@/components/scanner/calendar/PackingWeekView';
 import PackingMonthView from '@/components/scanner/calendar/PackingMonthView';
 import PackingCard from '@/components/scanner/calendar/PackingCard';
+import ReturnView from '@/components/scanner/ReturnView';
 
 type AppState = 'home' | 'verifying' | 'manual' | 'returning';
 type Flow = 'out' | 'in';
@@ -454,7 +455,12 @@ const MobileScannerApp: React.FC = () => {
                 </h2>
                 <div className="space-y-2">
                   {inProgressPackings.map(p => (
-                    <PackingCard key={p.id} packing={p} onSelect={handleSelectPacking} />
+                    <PackingCard
+                      key={p.id}
+                      packing={p}
+                      kind={p.status === 'returning' ? 'in' : 'out'}
+                      onSelect={handleSelectPacking}
+                    />
                   ))}
                 </div>
               </section>
