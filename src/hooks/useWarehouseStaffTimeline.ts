@@ -33,6 +33,7 @@ export interface WarehouseTimelineStaff {
 }
 
 const teamLabel = (teamId: string) => {
+  if (teamId === 'transport') return 'Lager';
   if (teamId.startsWith('lager-')) return `Lager ${teamId.replace('lager-', '')}`;
   if (teamId.startsWith('team-')) return `Team ${teamId.replace('team-', '')}`;
   return teamId;
