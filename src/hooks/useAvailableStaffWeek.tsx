@@ -80,17 +80,33 @@ export const useAvailableStaffWeek = (
     const availableStaff = weekAvailableStaff?.[dateStr] || [];
 
     if (!weeklyStaffOperations) {
-      return availableStaff.map(s => ({ ...s, assignedTeamId: undefined, assignedTeamName: undefined }));
+      return availableStaff.map(s => ({
+        ...s,
+        assignedTeamIds: [],
+        assignedTeamNames: [],
+        assignedTeamId: undefined,
+        assignedTeamName: undefined,
+      }));
     }
 
     return availableStaff.map(staff => {
+      const teamIds: string[] = [];
+      const teamNames: string[] = [];
       for (const resource of resources) {
         const teamStaff = weeklyStaffOperations.getStaffForTeamAndDate(resource.id, date);
         if (teamStaff.some(ts => ts.id === staff.id)) {
-          return { ...staff, assignedTeamId: resource.id, assignedTeamName: resource.title };
+          teamIds.push(resource.id);
+          teamNames.push(resource.title);
         }
       }
-      return { ...staff, assignedTeamId: undefined, assignedTeamName: undefined };
+      return {
+        ...staff,
+        assignedTeamIds: teamIds,
+        assignedTeamNames: teamNames,
+        // Legacy mirror — first team only.
+        assignedTeamId: teamIds[0],
+        assignedTeamName: teamNames[0],
+      };
     });
   }, [weekAvailableStaff, weeklyStaffOperations, resources]);
 
