@@ -322,7 +322,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   };
 
   const handleStaffSelectionClick = (resourceId: string, resourceTitle: string) => {
-    setSelectingForTeam(prev => prev?.id === resourceId ? null : { id: resourceId, title: resourceTitle });
+    setSelectingForTeam(prev => {
+      const isOpening = prev?.id !== resourceId;
+      // När vi öppnar tilldelningsläge: se till att personal-listan är expanderad
+      if (isOpening && !staffExpandedProp && onToggleStaffExpanded) {
+        onToggleStaffExpanded();
+      }
+      return isOpening ? { id: resourceId, title: resourceTitle } : null;
+    });
   };
 
   const handleAvailableStaffClick = async (staffId: string) => {
