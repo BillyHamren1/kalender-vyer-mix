@@ -170,10 +170,12 @@ export function useWarehouseOpsBoard() {
           excluded: it.excluded,
           quantity_to_pack: Number(it.quantity_to_pack) || 0,
           quantity_packed: it.quantity_packed,
-          booking_products: {
-            id: it.booking_product_id,
-            parent_product_id: it.parent_product_id,
-          },
+          booking_products: it.booking_products
+            ? {
+                id: it.booking_products.id,
+                parent_product_id: it.booking_products.parent_product_id,
+              }
+            : null,
         }));
         const progress = computePackingProgress(progressInput);
 
