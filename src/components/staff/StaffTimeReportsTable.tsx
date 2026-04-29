@@ -386,18 +386,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                   <td className="py-2 px-2"></td>
                 </tr>
 
-                {/* Always-visible discrepancy rows under each session */}
-                {(r.kind === 'session-booking' || r.kind === 'session-large' || r.kind === 'session-location') && r.startIso && (
-                  <SessionDiscrepancyRows
-                    staffId={r.staffId}
-                    date={date}
-                    reportedStart={r.startIso}
-                    reportedEnd={r.isOpen ? null : r.endIso}
-                    baseLabel={r.address}
-                    leadingCells={1}
-                    totalCols={6}
-                  />
-                )}
+                {/* Per-session discrepancy noise was removed — replaced by
+                    one consolidated StaffDaySummaryRow rendered at the top
+                    of each staff member's block (see fragment below). */}
 
                 {isOpen && r.fromIso && (r.kind === 'day-start' || r.kind === 'day-end') && (
                   <tr className="bg-muted/20">
