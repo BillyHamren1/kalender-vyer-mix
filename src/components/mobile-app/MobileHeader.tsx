@@ -249,6 +249,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
         onClose={() => setDialogOpen(false)}
         onConfirm={handleDialogConfirm}
         bookings={bookings}
+        locations={startDayLocations}
         starting={startingDay}
       />
     </>
