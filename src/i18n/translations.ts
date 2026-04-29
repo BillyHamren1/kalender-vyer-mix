@@ -488,7 +488,7 @@ const translations = {
   'workday.ending': { sv: 'Avslutar dagen…', en: 'Ending the day…' },
 
   // Start day dialog
-  'startDay.title': { sv: 'Vart börjar du dagen?', en: 'Where are you starting your day?' },
+  'startDay.title': { sv: 'Vart börjar du arbetspasset?', en: 'Where are you starting your shift?' },
   'startDay.description': { sv: 'Välj projektet eller platsen du startar med. Vi kunde inte se det automatiskt via GPS.', en: 'Pick the project or location you’re starting at. We couldn’t detect it automatically via GPS.' },
   'startDay.searchPlaceholder': { sv: 'Sök projekt eller kund…', en: 'Search project or client…' },
   'startDay.suggested': { sv: 'Föreslagna (±1 dag)', en: 'Suggested (±1 day)' },
@@ -500,7 +500,7 @@ const translations = {
   'startDay.manualPlaceholder': { sv: 'T.ex. Storgatan 12, kund X, lager…', en: 'E.g. Main St 12, client X, warehouse…' },
   'startDay.manualHelp': { sv: 'En flagga skapas så arbetsledare kan koppla rätt projekt åt dig senare.', en: 'A flag is created so a supervisor can link the right project for you later.' },
   'startDay.back': { sv: 'Tillbaka', en: 'Back' },
-  'startDay.confirm': { sv: 'Starta dagen', en: 'Start the day' },
+  'startDay.confirm': { sv: 'Starta arbetspass', en: 'Start shift' },
   'startDay.starting': { sv: 'Startar…', en: 'Starting…' },
 
   // GPS sync debug
