@@ -7,6 +7,7 @@ import {
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { DayFactsPanel } from './DayFactsPanel';
+import { SessionDiscrepancyRows } from './SessionDiscrepancyRows';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
@@ -384,6 +385,19 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
 
                   <td className="py-2 px-2"></td>
                 </tr>
+
+                {/* Always-visible discrepancy rows under each session */}
+                {(r.kind === 'session-booking' || r.kind === 'session-large' || r.kind === 'session-location') && r.startIso && (
+                  <SessionDiscrepancyRows
+                    staffId={r.staffId}
+                    date={date}
+                    reportedStart={r.startIso}
+                    reportedEnd={r.isOpen ? null : r.endIso}
+                    baseLabel={r.address}
+                    leadingCells={1}
+                    totalCols={6}
+                  />
+                )}
 
                 {isOpen && r.fromIso && (
                   <tr className="bg-muted/20">

@@ -43,6 +43,10 @@ export interface DayFact {
   flagged?: boolean;
   /** Sub-classification for "away" rows. */
   awaySubtype?: AwaySubtype;
+  /** Median coordinate of the "away" period — used for reverse-geocoding. */
+  awayCoords?: { lat: number; lng: number } | null;
+  /** Approximate distance from base (m) for the away period. */
+  awayDistanceMeters?: number;
 }
 
 export interface BuildDayFactsInput {
@@ -219,6 +223,11 @@ export function buildDayFacts(input: BuildDayFactsInput): DayFact[] {
       });
     } else {
       const sub = classifyAway(dur);
+      const awayCentre = {
+        lat: median(s.pings.map(p => p.lat)),
+        lng: median(s.pings.map(p => p.lng)),
+      };
+      const dist = Math.round(haversineMeters(base, awayCentre));
       facts.push({
         kind: 'away',
         at: s.start,
@@ -227,6 +236,8 @@ export function buildDayFacts(input: BuildDayFactsInput): DayFact[] {
         label: awayLabel(sub, baseLabel),
         awaySubtype: sub,
         flagged: sub === 'extended',
+        awayCoords: awayCentre,
+        awayDistanceMeters: dist,
       });
     }
   }
