@@ -24,7 +24,7 @@ interface DayTimelineProps {
 
 const DEFAULT_START_HOUR = 6;
 const DEFAULT_END_HOUR = 22;
-const PX_PER_HOUR = 64;
+const PX_PER_HOUR = 40;
 const PX_PER_MINUTE = PX_PER_HOUR / 60;
 
 interface PositionedItem {
@@ -71,7 +71,7 @@ function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date):
     if (endMs <= startMs) continue;
 
     const topPx = ((startMs - dayStart.getTime()) / 60000) * PX_PER_MINUTE;
-    const heightPx = Math.max(((endMs - startMs) / 60000) * PX_PER_MINUTE, 28);
+    const heightPx = Math.max(((endMs - startMs) / 60000) * PX_PER_MINUTE, 22);
 
     if (startMs >= clusterEnd && cluster.length > 0) {
       flushCluster();
@@ -282,13 +282,13 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
                   )}
                 </div>
                 <div className="text-[12px] font-bold leading-tight truncate">{title}</div>
-                {heightPx > 50 && address && (
+                {heightPx > 36 && address && (
                   <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75 truncate">
                     <MapPin className="w-2.5 h-2.5 shrink-0" />
                     <span className="truncate">{address}</span>
                   </div>
                 )}
-                {isProject && heightPx > 64 && (
+                {isProject && heightPx > 48 && (
                   <div className="text-[10px] opacity-70 mt-0.5">
                     {item.shifts.length} {item.shifts.length === 1 ? 'bokning' : 'bokningar'}
                   </div>
