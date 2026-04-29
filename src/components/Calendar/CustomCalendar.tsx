@@ -180,6 +180,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
             <TimeGrid
               {...buildTimeGridProps(expandedDay, true)}
               onTitleClick={undefined}
+              staffExpanded={true}
+              onToggleStaffExpanded={undefined}
             />
           </div>
         )}
