@@ -7,7 +7,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
-import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
+
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
