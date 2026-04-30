@@ -111,13 +111,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
     <div className="w-full overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <colgroup>
-          <col style={{ width: '220px' }} />
-          <col style={{ width: '90px' }} />
-          <col style={{ width: '220px' }} />
-          <col style={{ width: '90px' }} />
-          <col style={{ width: '90px' }} />
-          <col style={{ width: '220px' }} />
-          <col style={{ width: '320px' }} />
+          <col style={{ width: '200px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '200px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '200px' }} />
+          <col style={{ width: '300px' }} />
         </colgroup>
         <tbody>
           {blocks.map((b) => {
