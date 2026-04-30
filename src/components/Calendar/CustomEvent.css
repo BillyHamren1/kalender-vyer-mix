@@ -12,14 +12,15 @@
   user-select: none;
 }
 
-/* Hover actions (+ och pilar) — dolda som default, visas vid hover/focus på eventet. */
+/* Hover actions (+ och pilar) — dolda som default, visas endast vid hover på eventet.
+   focus-within används medvetet INTE eftersom popovers/dialogs som triggas från
+   knapparna kan lämna :focus kvar på eventet och då visas knapparna konstant. */
 .event-hover-action {
   opacity: 0;
   transition: opacity 0.12s ease;
   pointer-events: none;
 }
-.custom-event:hover .event-hover-action,
-.custom-event:focus-within .event-hover-action {
+.custom-event:hover .event-hover-action {
   opacity: 1;
   pointer-events: auto;
 }
