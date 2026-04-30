@@ -10,6 +10,7 @@ import EventHoverCard from './EventHoverCard';
 // QuickTimeEditPopover removed from warehouse events — single-click no longer
 // opens a time picker (felt accidental). Edits go via double-click / context menu.
 import MoveEventDateDialog from './MoveEventDateDialog';
+import { MoveDayPopover } from './MoveDayPopover';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import './CustomEvent.css';
 
@@ -174,6 +175,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           >
             AVBOKAD
           </div>
+        )}
+        {/* Move-day popover — only for planning team events (not warehouse, not readOnly, not cancelled) */}
+        {!isCancelled && !isWarehouseEvent && !readOnly && event.bookingId && (
+          <MoveDayPopover event={event} />
         )}
         {/* Large project badge — inline, not overlapping */}
         {!isCancelled && event.extendedProps?.isLargeProject && (

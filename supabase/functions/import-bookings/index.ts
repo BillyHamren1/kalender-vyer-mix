@@ -844,6 +844,44 @@ async function reconcileCalendarEvents(
 ) {
   if (bookingData.status !== 'CONFIRMED') return;
 
+  // ── PLANNING-STATUS GUARD ──────────────────────────────────────────────
+  // Nyskapade projekt börjar med planning_status='needs_planning' och hanteras
+  // i UI-containern "Att planera" innan de hamnar i kalendern. Reconcilern
+  // får INTE materialisera calendar_events för dessa — användaren sätter
+  // tider och team manuellt i ProjectPlanningSheet, vilket flippar status
+  // till 'planned'. Befintliga projekt har redan satts till 'planned' av
+  // migrationen, så detta påverkar bara nya projekt.
+  try {
+    const { data: linkedProject } = await supabase
+      .from('projects')
+      .select('planning_status')
+      .eq('booking_id', bookingData.id)
+      .maybeSingle();
+    if (linkedProject?.planning_status === 'needs_planning') {
+      console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: linked project is needs_planning`);
+      return;
+    }
+    const { data: parentForLP } = await supabase
+      .from('bookings')
+      .select('large_project_id')
+      .eq('id', bookingData.id)
+      .maybeSingle();
+    if (parentForLP?.large_project_id) {
+      const { data: lp } = await supabase
+        .from('large_projects')
+        .select('planning_status')
+        .eq('id', parentForLP.large_project_id)
+        .maybeSingle();
+      if (lp?.planning_status === 'needs_planning') {
+        console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: large project ${parentForLP.large_project_id} is needs_planning`);
+        return;
+      }
+    }
+  } catch (planningGuardErr) {
+    console.error('[Calendar Reconcile] planning_status guard failed (continuing):', planningGuardErr);
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   // 1. Fetch ALL existing calendar events for this booking
   // NOTE: Exclude event_type='activity' — those are user-created activity syncs
   // (establishment_tasks → calendar_events) and must NOT be touched by the reconciler.
