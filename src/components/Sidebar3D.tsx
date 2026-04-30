@@ -50,10 +50,16 @@ const baseNavigationItems: NavItem[] = [
     title: "Logistikplanering",
     url: "/ops-control",
     icon: Users,
-    children: [
-      { title: "Personalplanering", url: "/calendar", icon: Calendar },
-      { title: "Transportplanering", url: "/logistics/planning", icon: Truck },
-    ],
+  },
+  {
+    title: "Personalplanering",
+    url: "/calendar",
+    icon: Calendar,
+  },
+  {
+    title: "Transportplanering",
+    url: "/logistics/planning",
+    icon: Truck,
   },
   {
     title: "Personal",
