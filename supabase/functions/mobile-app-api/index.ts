@@ -2684,7 +2684,7 @@ async function handleCreatePurchase(supabase: any, staffId: string, data: any, o
     .eq('id', staffId)
     .single()
 
-  // Get project for this booking
+  // Get project (normal/medium) for this booking
   const { data: project, error: projectError } = await supabase
     .from('projects')
     .select('id')
@@ -2699,12 +2699,33 @@ async function handleCreatePurchase(supabase: any, staffId: string, data: any, o
     )
   }
 
+  // If no normal project, check if booking belongs to a large project
+  let largeProjectId: string | null = null
   if (!project) {
-    return new Response(
-      JSON.stringify({ error: 'No project found for this booking' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select('large_project_id')
+      .eq('id', booking_id)
+      .maybeSingle()
+    if (bookingError) {
+      console.error('Booking lookup error:', bookingError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to look up booking' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (booking?.large_project_id) {
+      largeProjectId = booking.large_project_id
+    } else {
+      return new Response(
+        JSON.stringify({ error: 'No project found for this booking' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
   }
+
+  // Folder for receipt storage — project.id for normal, large_project_id for large
+  const storageFolderId = project?.id || largeProjectId!
 
   let receiptUrl = null
 
