@@ -97,7 +97,7 @@ const TeamStaffPickerPopover: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="max-h-72 overflow-y-auto py-1">
+        <div className="max-h-[70vh] overflow-y-auto py-0.5">
           {filtered.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground italic">
               Inga matchande personer
@@ -112,7 +112,7 @@ const TeamStaffPickerPopover: React.FC<Props> = ({
                   type="button"
                   disabled={isPending}
                   onClick={() => handlePick(s.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent transition-colors ${
+                  className={`w-full flex items-center gap-2 px-3 py-0.5 text-left text-sm hover:bg-accent transition-colors ${
                     isPending ? 'opacity-50' : ''
                   }`}
                 >
