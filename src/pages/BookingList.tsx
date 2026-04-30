@@ -223,10 +223,7 @@ const BookingList = () => {
     return content;
   };
   
-  // Load bookings on initial component mount
-  useEffect(() => {
-    loadBookings();
-  }, []);
+  // Initial fetch is handled by React Query (cached). No useEffect needed.
   
   const handleRowClick = (id: string) => {
     navigate(`/booking/${id}`);
