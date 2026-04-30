@@ -117,7 +117,6 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
           <col style={{ width: '90px' }} />
           <col style={{ width: '90px' }} />
           <col style={{ width: '220px' }} />
-          <col style={{ width: '380px' }} />
           <col style={{ width: '320px' }} />
         </colgroup>
         <tbody>
@@ -131,9 +130,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
 
             return (
               <React.Fragment key={b.staffId}>
-                {/* === RAD 1: Namn-header (lila) — spänner data-kolumnerna; AI-analys + Notiser har egna header-celler === */}
+                {/* === RAD 1: Namn-header (lila) — Analysera-knapp till höger, Notiser-header till höger === */}
                 <tr className="border-t-4 border-t-primary/30">
-                  <td colSpan={5} className="bg-primary/15 px-3 py-2">
+                  <td colSpan={5} className="bg-primary/30 px-3 py-1.5">
                     <button
                       type="button"
                       onClick={() => onSelectStaff(b.staffId, b.staffName)}
@@ -142,41 +141,35 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                       Namn: {b.staffName}
                     </button>
                   </td>
-                  <td className="bg-primary/15 px-3 py-2 text-right">
+                  <td className="bg-primary/30 px-3 py-1.5 text-right">
                     <AnalyzeDayButton staffId={b.staffId} staffName={b.staffName} date={date} />
                   </td>
-                  <td
-                    rowSpan={blockRowSpan}
-                    className="align-top p-0 border-l border-border/40 bg-muted/20"
-                  >
-                    <StaffDayAnalysisPanel staffId={b.staffId} date={date} />
-                  </td>
-                  <td className="bg-primary/15 px-3 py-2 text-center font-semibold text-foreground border-l border-border/40">
+                  <td className="bg-primary/30 px-3 py-1.5 text-center font-semibold text-foreground border-l border-border/40">
                     Notiser
                   </td>
                 </tr>
 
-                {/* === RAD 2: ARBETSDAG === */}
-                <tr className="border-b border-border/40 bg-primary/5">
-                  <td className="px-2 py-2 align-middle">
+                {/* === RAD 2: ARBETSDAG (ljuslila) === */}
+                <tr className="border-b border-border/40 bg-primary/10">
+                  <td className="px-2 py-1 align-middle">
                     <div className="flex items-center gap-2 font-bold text-foreground">
                       <Sun className="h-3.5 w-3.5 text-muted-foreground" />
                       ARBETSDAG
                     </div>
                   </td>
-                  <td className="px-2 py-2 tabular-nums font-semibold text-foreground">
+                  <td className="px-2 py-1 tabular-nums font-semibold text-foreground">
                     {fmt(b.dayStartIso)}
                   </td>
-                  <td className="px-2 py-2 text-[11px]">
+                  <td className="px-2 py-1 text-[11px]">
                     <GeoAtTime staffId={b.staffId} date={date} iso={b.dayStartIso} />
                   </td>
-                  <td className="px-2 py-2 tabular-nums font-bold text-foreground text-right">
+                  <td className="px-2 py-1 tabular-nums font-bold text-foreground text-right">
                     {totalDuration}
                   </td>
-                  <td className="px-2 py-2 tabular-nums font-semibold text-foreground">
+                  <td className="px-2 py-1 tabular-nums font-semibold text-foreground">
                     {b.dayIsOpen ? <span className="italic text-muted-foreground">pågår</span> : fmt(b.dayEndIso)}
                   </td>
-                  <td className="px-2 py-2 text-[11px]">
+                  <td className="px-2 py-1 text-[11px]">
                     <GeoAtTime
                       staffId={b.staffId}
                       date={date}
@@ -191,20 +184,20 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                   </td>
                 </tr>
 
-                {/* === RAD 3: Sub-header för projekten === */}
-                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border bg-muted/30">
-                  <th className="text-left font-semibold px-2 py-1.5">Projekt</th>
-                  <th className="text-left font-semibold px-2 py-1.5">Timerstart (tid)</th>
-                  <th className="text-left font-semibold px-2 py-1.5">Timerstart (geo)</th>
-                  <th className="text-right font-semibold px-2 py-1.5">Varaktighet</th>
-                  <th className="text-left font-semibold px-2 py-1.5">Timerslut (tid)</th>
-                  <th className="text-left font-semibold px-2 py-1.5">Timerslut (geo)</th>
+                {/* === RAD 3: Sub-header (grå) === */}
+                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border bg-muted/40">
+                  <th className="text-left font-semibold px-2 py-1">Projekt</th>
+                  <th className="text-left font-semibold px-2 py-1">Timerstart (tid)</th>
+                  <th className="text-left font-semibold px-2 py-1">Timerstart (geo)</th>
+                  <th className="text-right font-semibold px-2 py-1">Varaktighet</th>
+                  <th className="text-left font-semibold px-2 py-1">Timerslut (tid)</th>
+                  <th className="text-left font-semibold px-2 py-1">Timerslut (geo)</th>
                 </tr>
 
                 {/* === RAD 4+: Sessions === */}
                 {b.sessions.length === 0 ? (
                   <tr className="border-b border-border/40">
-                    <td colSpan={6} className="px-2 py-3 text-center text-[11px] text-muted-foreground italic">
+                    <td colSpan={6} className="px-2 py-1.5 text-center text-[11px] text-muted-foreground italic">
                       Inga timers registrerade
                     </td>
                   </tr>
@@ -218,23 +211,23 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                           : formatHoursMinutes(s.hours));
                     return (
                       <tr key={s.key} className="border-b border-border/40 hover:bg-muted/20">
-                        <td className="px-2 py-1.5 align-middle">
+                        <td className="px-2 py-1 align-middle">
                           <div className="flex items-center gap-2 min-w-0">
                             <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             <span className="truncate text-foreground">{s.label}</span>
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 tabular-nums text-foreground">{fmt(s.startIso)}</td>
-                        <td className="px-2 py-1.5 text-[11px]">
+                        <td className="px-2 py-1 tabular-nums text-foreground">{fmt(s.startIso)}</td>
+                        <td className="px-2 py-1 text-[11px]">
                           <GeoAtTime staffId={b.staffId} date={date} iso={s.startIso} />
                         </td>
-                        <td className="px-2 py-1.5 tabular-nums font-medium text-foreground text-right">
+                        <td className="px-2 py-1 tabular-nums font-medium text-foreground text-right">
                           {duration}
                         </td>
-                        <td className="px-2 py-1.5 tabular-nums text-foreground">
+                        <td className="px-2 py-1 tabular-nums text-foreground">
                           {s.isOpen ? <span className="italic text-muted-foreground">pågår</span> : fmt(s.endIso)}
                         </td>
-                        <td className="px-2 py-1.5 text-[11px]">
+                        <td className="px-2 py-1 text-[11px]">
                           <GeoAtTime
                             staffId={b.staffId}
                             date={date}
@@ -251,7 +244,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
 
           {blocks.length === 0 && (
             <tr>
-              <td colSpan={8} className="text-center py-12 text-muted-foreground text-sm">
+              <td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
                 Ingen personal har rapporterat tid
               </td>
             </tr>

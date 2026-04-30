@@ -76,8 +76,8 @@ export const StaffDayAnalysisPanel: React.FC<Props> = ({ staffId, date }) => {
 };
 
 /**
- * Notiser-kolumnen (separat). Visar workday_flags + assistent-frågor med svar.
- * Klickbara rader öppnar detaljdialog.
+ * Notiser-kolumnen. Visar regelbaserade tolkningar (från koden, inte AI)
+ * + workday_flags/assistent-frågor med svar. Klickbara notiser öppnar detalj.
  */
 export const StaffDayNotificationsPanel: React.FC<Props> = ({ staffId, date }) => {
   const { data: reality, isLoading: realityLoading } = useStaffDayReality(staffId, date);
@@ -89,21 +89,68 @@ export const StaffDayNotificationsPanel: React.FC<Props> = ({ staffId, date }) =
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-[11px] text-muted-foreground p-3">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Hämtar notiser…
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-3 py-1.5">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Hämtar…
       </div>
     );
   }
   if (!reality) {
-    return <div className="p-3 text-[11px] text-muted-foreground">Ingen data.</div>;
+    return <div className="px-3 py-1.5 text-[11px] text-muted-foreground">Ingen data.</div>;
   }
+
+  const hasContent = log.interpretations.length > 0 || log.notifications.length > 0;
 
   return (
     <>
-      <Column icon={Bell} title="Notiser & svar" count={log.notifications.length}>
-        <NotificationList items={log.notifications} onSelect={setSelected} />
-      </Column>
+      <div className="flex flex-col px-2 py-1.5 gap-1">
+        {!hasContent && (
+          <p className="text-[11px] text-muted-foreground">Inga notiser.</p>
+        )}
+        {log.interpretations.length > 0 && (
+          <ul className="flex flex-col gap-0.5">
+            {log.interpretations.map((it, i) => (
+              <li key={`int-${i}`} className="flex items-start gap-1.5 text-[11px] leading-tight">
+                <span className={`h-1.5 w-1.5 rounded-full ${SEV_DOT[it.severity]} shrink-0 mt-1.5`} />
+                <span className={SEV_TEXT[it.severity]}>{it.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {log.notifications.length > 0 && (
+          <ul className="flex flex-col gap-0.5">
+            {log.notifications.map((n) => (
+              <li key={n.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelected(n)}
+                  className="w-full text-left flex items-start gap-1.5 rounded px-1 py-0.5 hover:bg-accent/60 transition-colors"
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${SEV_DOT[n.severity]} shrink-0 mt-1.5`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="tabular-nums text-[10px] text-muted-foreground">{fmtDateTime(n.at)}</span>
+                      <span className={`text-[11px] font-medium ${SEV_TEXT[n.severity]} truncate`}>{n.question}</span>
+                      {n.needsUserInput && !n.resolved && (
+                        <span className="text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-semibold">väntar svar</span>
+                      )}
+                    </div>
+                    {n.resolved && (
+                      <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+                        <MessageSquare className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">
+                          {n.answer || 'Bekräftad'}
+                          {n.answerSource && <> · {ANSWER_SOURCE_LABEL[n.answerSource] || n.answerSource}</>}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <NotificationDetailDialog
         notification={selected}
         open={!!selected}
