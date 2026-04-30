@@ -305,6 +305,9 @@ const CustomCalendarPage = () => {
             </div>
           </div>
 
+          {/* Att planera-container — projekt som väntar på tider/team */}
+          {!isMobile && <UnplannedProjectsBanner />}
+
           {/* Content - flex-1 to fill remaining space */}
           <div className="flex-1 min-h-0 pt-4 px-4 pb-0 overflow-hidden bg-card rounded-2xl mx-2 mb-0 shadow-sm">
             {viewMode === 'day' ? (
