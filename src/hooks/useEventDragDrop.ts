@@ -23,7 +23,10 @@ export interface DraggedEventData {
 
 export const DRAG_DATA_TYPE = 'application/x-calendar-event';
 
-export const useEventDragDrop = (refreshEvents?: () => Promise<void>) => {
+export const useEventDragDrop = (
+  refreshEvents?: () => Promise<void>,
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>,
+) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
