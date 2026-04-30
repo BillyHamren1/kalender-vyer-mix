@@ -113,6 +113,12 @@ describe('eventsEqual', () => {
     const b = [makeEvent({ start: '2025-06-10T09:00:00Z' })];
     expect(eventsEqual(a, b)).toBe(false);
   });
+
+  it('different resourceId returns false', () => {
+    const a = [makeEvent({ resourceId: 'team-1' })];
+    const b = [makeEvent({ resourceId: 'team-2' })];
+    expect(eventsEqual(a, b)).toBe(false);
+  });
 });
 
 // ─── filterEventsByResourceAndDate ────────────────────────
