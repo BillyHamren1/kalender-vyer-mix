@@ -2437,6 +2437,7 @@ export type Database = {
           location: string | null
           name: string
           organization_id: string
+          planning_status: Database["public"]["Enums"]["project_planning_status"]
           project_leader: string | null
           project_number: string | null
           start_date: string[] | null
@@ -2462,6 +2463,7 @@ export type Database = {
           location?: string | null
           name: string
           organization_id?: string
+          planning_status?: Database["public"]["Enums"]["project_planning_status"]
           project_leader?: string | null
           project_number?: string | null
           start_date?: string[] | null
@@ -2487,6 +2489,7 @@ export type Database = {
           location?: string | null
           name?: string
           organization_id?: string
+          planning_status?: Database["public"]["Enums"]["project_planning_status"]
           project_leader?: string | null
           project_number?: string | null
           start_date?: string[] | null
@@ -4456,6 +4459,7 @@ export type Database = {
           location_id: string | null
           name: string
           organization_id: string
+          planning_status: Database["public"]["Enums"]["project_planning_status"]
           project_leader: string | null
           rig_end_time: string | null
           rig_start_time: string | null
@@ -4488,6 +4492,7 @@ export type Database = {
           location_id?: string | null
           name: string
           organization_id?: string
+          planning_status?: Database["public"]["Enums"]["project_planning_status"]
           project_leader?: string | null
           rig_end_time?: string | null
           rig_start_time?: string | null
@@ -4520,6 +4525,7 @@ export type Database = {
           location_id?: string | null
           name?: string
           organization_id?: string
+          planning_status?: Database["public"]["Enums"]["project_planning_status"]
           project_leader?: string | null
           rig_end_time?: string | null
           rig_start_time?: string | null
@@ -7312,6 +7318,7 @@ export type Database = {
         | "ready_for_handover"
         | "handed_over_to_booking"
         | "invoiced_in_booking"
+      project_planning_status: "needs_planning" | "planned"
       workday_review_status:
         | "draft"
         | "needs_review"
@@ -7495,6 +7502,7 @@ export const Constants = {
         "handed_over_to_booking",
         "invoiced_in_booking",
       ],
+      project_planning_status: ["needs_planning", "planned"],
       workday_review_status: [
         "draft",
         "needs_review",
