@@ -253,8 +253,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border">
-            <th className="text-left font-semibold py-2 px-2 w-[180px]">Namn</th>
-            <th className="text-left font-semibold py-2 px-2">Beskrivning</th>
+            <th className="text-left font-semibold py-2 px-2 w-[320px]">Namn</th>
             <th className="text-left font-semibold py-2 px-2 w-[280px]">Plats</th>
             <th className="text-left font-semibold py-2 px-2 w-[120px]">Klockslag</th>
             <th className="text-right font-semibold py-2 px-2 w-[90px]">Varaktighet</th>
@@ -286,45 +285,43 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                   }`}
                   onClick={() => toggle(r.rowId)}
                 >
-                  {/* Namn — only first row per person */}
+                  {/* Namn + Beskrivning */}
                   <td className="py-2 px-2 align-top">
-                    {r.isFirstForStaff && (
-                      <div className="flex flex-col gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); onSelectStaff(r.staffId, r.staffName); }}
-                          className="font-semibold text-foreground hover:underline text-left"
-                        >
-                          {r.staffName}
-                        </button>
-                        <AnalyzeDayButton staffId={r.staffId} staffName={r.staffName} date={date} />
-                      </div>
-                    )}
-                  </td>
-
-                  {/* Beskrivning */}
-                  <td className="py-2 px-2 align-top">
-                    <div className="flex flex-col min-w-0 gap-0.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-3 flex justify-center text-muted-foreground">
-                          {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                        </span>
-                        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <span className={`truncate ${bold ? 'font-bold text-foreground' : 'text-foreground'}`}>
-                          {r.description}
-                        </span>
-                        {r.stale && (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-destructive font-medium ml-2">
-                            <WifiOff className="h-3 w-3" />
-                            Tappad signal{r.pingAgeMin != null ? ` · ${r.pingAgeMin}m` : ''}
-                          </span>
-                        )}
-                      </div>
-                      {r.kind === 'day-end' && (
-                        <div className="pl-8">
-                          <PresenceLineWithDate row={r} date={date} />
+                    <div className="flex flex-col gap-1">
+                      {r.isFirstForStaff && (
+                        <div className="flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onSelectStaff(r.staffId, r.staffName); }}
+                            className="font-semibold text-foreground hover:underline text-left"
+                          >
+                            {r.staffName}
+                          </button>
+                          <AnalyzeDayButton staffId={r.staffId} staffName={r.staffName} date={date} />
                         </div>
                       )}
+                      <div className="flex flex-col min-w-0 gap-0.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-3 flex justify-center text-muted-foreground">
+                            {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          </span>
+                          <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className={`truncate ${bold ? 'font-bold text-foreground' : 'text-foreground'}`}>
+                            {r.description}
+                          </span>
+                          {r.stale && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-destructive font-medium ml-2">
+                              <WifiOff className="h-3 w-3" />
+                              Tappad signal{r.pingAgeMin != null ? ` · ${r.pingAgeMin}m` : ''}
+                            </span>
+                          )}
+                        </div>
+                        {r.kind === 'day-end' && (
+                          <div className="pl-8">
+                            <PresenceLineWithDate row={r} date={date} />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
 
