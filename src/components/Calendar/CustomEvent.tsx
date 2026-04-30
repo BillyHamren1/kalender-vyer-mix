@@ -176,6 +176,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             AVBOKAD
           </div>
         )}
+        {/* Move-day popover — only for planning team events (not warehouse, not readOnly, not cancelled) */}
+        {!isCancelled && !isWarehouseEvent && !readOnly && event.bookingId && (
+          <MoveDayPopover event={event} />
+        )}
         {/* Large project badge — inline, not overlapping */}
         {!isCancelled && event.extendedProps?.isLargeProject && (
           <div 
