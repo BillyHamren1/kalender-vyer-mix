@@ -124,15 +124,17 @@ const OpsControlCenter = () => {
 
         {/* BOTTOM AREA */}
         <div className="shrink-0 h-[260px] border-t border-border grid grid-cols-2 gap-0">
-          {/* Left: Job Queue */}
+          {/* Left: Live Projects */}
           <div className="border-r border-border overflow-y-auto p-3">
-            <OpsJobQueue
-              jobs={jobQueue}
-              isLoading={isLoadingJobQueue}
-              onFocusJob={handleFocusJob}
-              onOpenChat={handleOpenChat}
+            <OpsLiveProjects
+              items={livePacking.items}
+              counts={livePacking.counts}
+              pulseIds={livePacking.pulseIds}
+              isLoading={livePacking.isLoading}
+              markSeen={livePacking.markSeen}
             />
           </div>
+
 
           {/* Right: Activity & Comms */}
           <div className="overflow-y-auto p-3 space-y-4">
