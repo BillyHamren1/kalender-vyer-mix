@@ -7,7 +7,7 @@ import {
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { DayFactsPanel } from './DayFactsPanel';
-import { StaffDaySummaryRow } from './StaffDaySummaryRow';
+import { StaffDayAnalysisPanel } from './StaffDayAnalysisPanel';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import { JournalPlaceCell } from './JournalPlaceCell';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
