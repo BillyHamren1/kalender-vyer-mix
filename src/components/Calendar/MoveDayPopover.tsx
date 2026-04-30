@@ -13,11 +13,12 @@ import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useTeamResources } from '@/hooks/useTeamResources';
-import { useQueryClient } from '@tanstack/react-query';
 import type { CalendarEvent } from './ResourceData';
 
 interface Props {
   event: CalendarEvent;
+  setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
+  onUpdate?: () => Promise<void>;
 }
 
 /**
@@ -27,9 +28,8 @@ interface Props {
  *   - "Hela serien" → flyttar alla calendar_events för bookingen (eller alla
  *     syskonbokningar i large_project) till valt team
  */
-export const MoveDayPopover: React.FC<Props> = ({ event }) => {
+export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) => {
   const { teamResources } = useTeamResources();
-  const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
   const [pendingTeamTitle, setPendingTeamTitle] = useState<string>('');
@@ -57,8 +57,28 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
 
   const moveOneDay = async (newTeamId: string) => {
     setBusy(true);
+    let prevSnapshot: CalendarEvent[] | null = null;
     try {
       const sourceDate = (event as any).source_date || event.start.split('T')[0];
+
+      if (setEvents) {
+        setEvents((prev) => {
+          prevSnapshot = prev;
+          return prev.map((ev) => {
+            const sameLargeProjectDay =
+              (ev.extendedProps as any)?.largeProjectId &&
+              (ev.extendedProps as any)?.largeProjectId === (event.extendedProps as any)?.largeProjectId &&
+              ev.eventType === event.eventType &&
+              (typeof ev.start === 'string' ? ev.start : new Date(ev.start as any).toISOString()).split('T')[0] === sourceDate;
+
+            if (sameLargeProjectDay || ev.id === event.id) {
+              return { ...ev, resourceId: newTeamId };
+            }
+            return ev;
+          });
+        });
+      }
+
       const { error } = await supabase
         .from('calendar_events')
         .update({ resource_id: newTeamId })
@@ -66,8 +86,9 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
       if (error) throw error;
       if (event.bookingId) await recompute(event.bookingId, sourceDate);
       toast.success('Dagen flyttad');
-      qc.invalidateQueries({ queryKey: ['calendar-events'] });
+      if (onUpdate) void onUpdate();
     } catch (e: any) {
+      if (prevSnapshot && setEvents) setEvents(prevSnapshot);
       toast.error(e?.message || 'Kunde inte flytta dagen');
     } finally {
       setBusy(false);
@@ -82,7 +103,26 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
       return;
     }
     setBusy(true);
+    let prevSnapshot: CalendarEvent[] | null = null;
     try {
+      if (setEvents) {
+        setEvents((prev) => {
+          prevSnapshot = prev;
+          return prev.map((ev) => {
+            const sameLargeProject =
+              (ev.extendedProps as any)?.largeProjectId &&
+              (ev.extendedProps as any)?.largeProjectId === (event.extendedProps as any)?.largeProjectId &&
+              ev.eventType !== 'activity';
+            const sameBookingSeries = ev.bookingId === event.bookingId && ev.eventType !== 'activity';
+
+            if (sameLargeProject || sameBookingSeries) {
+              return { ...ev, resourceId: newTeamId };
+            }
+            return ev;
+          });
+        });
+      }
+
       const { data: thisBooking } = await supabase
         .from('bookings')
         .select('id, large_project_id')
@@ -125,8 +165,9 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
       }
 
       toast.success(`Flyttade ${targetIds.length} dag${targetIds.length === 1 ? '' : 'ar'}`);
-      qc.invalidateQueries({ queryKey: ['calendar-events'] });
+      if (onUpdate) void onUpdate();
     } catch (e: any) {
+      if (prevSnapshot && setEvents) setEvents(prevSnapshot);
       toast.error(e?.message || 'Kunde inte flytta hela serien');
     } finally {
       setBusy(false);
