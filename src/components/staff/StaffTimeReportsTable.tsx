@@ -94,7 +94,7 @@ const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }>
 
   if (!iso) return <span className="text-muted-foreground">—</span>;
   if (isLoading) return <span className="text-muted-foreground italic">…</span>;
-  if (!ping) return <span className="text-muted-foreground italic text-[11px]">ingen GPS</span>;
+  if (!ping) return <span className="text-muted-foreground italic">ingen GPS</span>;
   const addr = addrs[0] ?? `${ping.coords.lat.toFixed(4)}, ${ping.coords.lng.toFixed(4)}`;
   return <span className="text-foreground truncate" title={addr}>{addr}</span>;
 };
