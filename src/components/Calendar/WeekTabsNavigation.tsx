@@ -47,7 +47,7 @@ const WeekTabsNavigation: React.FC<WeekTabsNavigationProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-b from-muted/50 to-muted border-t border-border">
+    <div className="flex items-center justify-center gap-3 py-1 px-6 bg-gradient-to-b from-muted/50 to-muted border-t border-border">
       {weeks.map((week) => {
         const isActive = isSameWeek(week.weekStart, currentWeekStart, { weekStartsOn: 1 });
         
@@ -56,7 +56,7 @@ const WeekTabsNavigation: React.FC<WeekTabsNavigationProps> = ({
             key={week.key}
             onClick={() => handleClick(week.weekStart)}
             className={`
-              flex-1 text-sm font-medium px-4 py-3 rounded-xl transition-all duration-200
+              flex-1 text-sm font-medium px-4 py-1.5 rounded-lg transition-all duration-200
               ${isActive 
                 ? isWarehouse
                   ? 'bg-warehouse text-white shadow-lg shadow-warehouse/30 scale-105 ring-2 ring-warehouse/20'
