@@ -1,32 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export type AppRole = 'admin' | 'forsaljning' | 'projekt' | 'lager';
 
-interface UserRolesState {
-  roles: AppRole[];
-  isLoading: boolean;
-  error: string | null;
-}
+const ROLES_QUERY_KEY = 'user-roles';
 
 export const useUserRoles = () => {
   const { user } = useAuth();
-  const [state, setState] = useState<UserRolesState>({
-    roles: [],
-    isLoading: true,
-    error: null,
-  });
+  const queryClient = useQueryClient();
 
-  const fetchRoles = useCallback(async () => {
-    if (!user?.id) {
-      setState({ roles: [], isLoading: false, error: null });
-      return;
-    }
-
-    try {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
+  const query = useQuery<AppRole[]>({
+    queryKey: [ROLES_QUERY_KEY, user?.id ?? null],
+    queryFn: async () => {
+      if (!user?.id) return [];
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
@@ -34,53 +22,54 @@ export const useUserRoles = () => {
 
       if (error) {
         console.error('Error fetching user roles:', error);
-        setState({ roles: [], isLoading: false, error: error.message });
-        return;
+        throw error;
       }
+      return (data || []).map((r: { role: AppRole }) => r.role as AppRole);
+    },
+    enabled: !!user?.id,
+    // Keep roles warm so navigation between pages doesn't refetch / re-blank
+    staleTime: 10 * 60 * 1000, // 10 min
+    gcTime: 30 * 60 * 1000,    // 30 min
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 1,
+  });
 
-      const roles = (data || []).map(r => r.role as AppRole);
-      setState({ roles, isLoading: false, error: null });
-    } catch (err) {
-      console.error('Error in fetchRoles:', err);
-      setState({ 
-        roles: [], 
-        isLoading: false, 
-        error: err instanceof Error ? err.message : 'Unknown error' 
-      });
-    }
-  }, [user?.id]);
+  const roles: AppRole[] = query.data ?? [];
 
-  useEffect(() => {
-    fetchRoles();
-  }, [fetchRoles]);
+  // Treat as "loading" only if we have no cached roles yet AND a user exists.
+  // Once roles are cached for this user, isLoading is false on every navigation.
+  const hasCachedRoles = query.data !== undefined;
+  const isLoading = !!user?.id && !hasCachedRoles && query.isLoading;
 
-  // Check if user has a specific role
-  const hasRole = useCallback((role: AppRole): boolean => {
-    return state.roles.includes(role);
-  }, [state.roles]);
+  const hasRole = useCallback(
+    (role: AppRole): boolean => roles.includes(role),
+    [roles]
+  );
 
-  // Check if user has any of the specified roles
-  const hasAnyRole = useCallback((roles: AppRole[]): boolean => {
-    return roles.some(role => state.roles.includes(role));
-  }, [state.roles]);
+  const hasAnyRole = useCallback(
+    (rolesToCheck: AppRole[]): boolean => rolesToCheck.some((r) => roles.includes(r)),
+    [roles]
+  );
 
-  // Convenience checks
-  const isAdmin = state.roles.includes('admin');
-  const hasPlanningAccess = state.roles.includes('admin') || 
-                            state.roles.includes('projekt') || 
-                            state.roles.includes('lager');
-  const hasWarehouseAccess = state.roles.includes('admin') || 
-                             state.roles.includes('lager');
+  const isAdmin = roles.includes('admin');
+  const hasPlanningAccess =
+    roles.includes('admin') || roles.includes('projekt') || roles.includes('lager');
+  const hasWarehouseAccess = roles.includes('admin') || roles.includes('lager');
+
+  const refetch = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: [ROLES_QUERY_KEY, user?.id ?? null] });
+  }, [queryClient, user?.id]);
 
   return {
-    roles: state.roles,
-    isLoading: state.isLoading,
-    error: state.error,
+    roles,
+    isLoading,
+    error: query.error ? (query.error as Error).message : null,
     hasRole,
     hasAnyRole,
     isAdmin,
     hasPlanningAccess,
     hasWarehouseAccess,
-    refetch: fetchRoles,
+    refetch,
   };
 };
