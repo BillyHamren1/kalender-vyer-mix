@@ -38,6 +38,8 @@ interface CustomCalendarProps {
   onEventClick?: (event: CalendarEvent) => void;
   activatedStaffIds?: string[];
   activatedStaffByDate?: Record<string, string[]>;
+  daysOverride?: Date[];
+  getDayCardClassName?: (date: Date) => string | undefined;
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -59,13 +61,16 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   isEventReadOnly,
   onEventClick,
   activatedStaffIds,
-  activatedStaffByDate
+  activatedStaffByDate,
+  daysOverride,
+  getDayCardClassName,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const weekStartTime = currentDate.getTime();
   const [staffExpanded, setStaffExpanded] = useState(false);
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
-  const days = useWeekDays(currentDate);
+  const computedWeekDays = useWeekDays(currentDate);
+  const days = daysOverride ?? computedWeekDays;
 
   const {
     isDragging,
@@ -221,7 +226,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
               return (
                 <div
                   key={dateStr}
-                  className={`weekly-day-card ${isToday ? 'is-today' : ''}`}
+                  className={`weekly-day-card ${isToday ? 'is-today' : ''} ${getDayCardClassName?.(date) ?? ''}`.trim()}
                   onDragOver={handleDragOver}
                   onDragEnter={(e) => handleDragEnter(e, dateStr)}
                   onDragLeave={(e) => handleDragLeave(e, dateStr)}
