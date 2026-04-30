@@ -125,22 +125,63 @@ const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }>
 /**
  * Per-person-blockstruktur:
  *   Rad 1: Namn-header (lila bakgrund) + AI-analys + Notiser-kolumner spänner blocket
- *   Rad 2: ARBETSDAG | start tid | start geo | total | slut tid | slut geo
- *   Rad 3: Sub-header (PROJEKT | TIMERSTART (TID) | TIMERSTART (GEO) | VARAKTIGHET | TIMERSLUT (TID) | TIMERSLUT (GEO))
+ *   Rad 2: ARBETSDAG | start tid | start geo | total | slut tid | slut geo | åtgärder
+ *   Rad 3: Sub-header (Projekt | Timerstart | Geo (start) | Varaktighet | Timerslut | Geo (slut) | Åtgärder)
  *   Rad 4+: en rad per session
  */
 export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSelectStaff }) => {
+  const [editTarget, setEditTarget] = useState<
+    | null
+    | {
+        timeReportId: string;
+        staffName: string;
+        startTime: string | null;
+        endTime: string | null;
+        breakHours: number;
+        description: string | null;
+        approved: boolean;
+      }
+  >(null);
+
+  const [stopTarget, setStopTarget] = useState<
+    | null
+    | { target: StopTarget; staffName: string; sessionLabel: string }
+  >(null);
+
+  /** Pick the canonical stop target for a session's first source row. */
+  const sessionToStopTarget = (s: StaffBlockSession): StopTarget | null => {
+    if (!s.isOpen || !s.startIso) return null;
+    const first = s.sourceIds[0];
+    if (!first) return null;
+    if (first.startsWith('tr:') && s.editTimeReport?.id && s.editTimeReport.reportDate) {
+      return {
+        kind: 'time_report',
+        id: s.editTimeReport.id,
+        reportDate: s.editTimeReport.reportDate,
+        startIso: s.startIso,
+      };
+    }
+    if (first.startsWith('lt:')) {
+      return { kind: 'location_time_entries', id: first.slice(3), startIso: s.startIso };
+    }
+    if (first.startsWith('tv:')) {
+      return { kind: 'travel_time_logs', id: first.slice(3), startIso: s.startIso };
+    }
+    return null;
+  };
+
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <colgroup>
           <col style={{ width: '200px' }} />
+          <col style={{ width: '90px' }} />
+          <col style={{ width: '180px' }} />
+          <col style={{ width: '90px' }} />
+          <col style={{ width: '90px' }} />
+          <col style={{ width: '180px' }} />
           <col style={{ width: '110px' }} />
-          <col style={{ width: '200px' }} />
-          <col style={{ width: '110px' }} />
-          <col style={{ width: '110px' }} />
-          <col style={{ width: '200px' }} />
-          <col style={{ width: '300px' }} />
+          <col style={{ width: '280px' }} />
         </colgroup>
         <tbody>
           {blocks.map((b) => {
@@ -153,9 +194,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
 
             return (
               <React.Fragment key={b.staffId}>
-                {/* === RAD 1: Namn-header (lila) — Analysera-knapp till höger, Notiser-header till höger === */}
+                {/* === RAD 1: Namn-header === */}
                 <tr className="border-t-4 border-t-primary/30">
-                  <td colSpan={5} className="bg-primary/30 px-3 py-1.5">
+                  <td colSpan={6} className="bg-primary/30 px-3 py-1.5">
                     <button
                       type="button"
                       onClick={() => onSelectStaff(b.staffId, b.staffName)}
@@ -172,12 +213,10 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                   </td>
                 </tr>
 
-                {/* === RAD 2: ARBETSDAG (ljuslila) — fet, enhetlig text-sm rakt igenom === */}
+                {/* === RAD 2: ARBETSDAG === */}
                 <tr className="border-b border-border/40 bg-primary/10 text-sm">
                   <td className="px-2 py-1 align-middle whitespace-nowrap">
-                     <div className="font-bold text-foreground">
-                      ARBETSDAG
-                    </div>
+                    <div className="font-bold text-foreground">ARBETSDAG</div>
                   </td>
                   <td className="px-2 py-1 tabular-nums font-bold text-foreground whitespace-nowrap">
                     {fmt(b.dayStartIso)}
@@ -198,6 +237,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                       iso={b.dayIsOpen ? null : b.dayEndIso}
                     />
                   </td>
+                  <td className="px-2 py-1 whitespace-nowrap" />
                   <td
                     rowSpan={blockRowSpan - 1}
                     className="align-top p-0 border-l border-border/40 bg-muted/10"
@@ -206,7 +246,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                   </td>
                 </tr>
 
-                {/* === RAD 3: Sub-header (grå) — kompakt + nowrap så allt ryms på en rad === */}
+                {/* === RAD 3: Sub-header === */}
                 <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border bg-muted/40">
                   <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Projekt</th>
                   <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Timerstart</th>
@@ -214,23 +254,27 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                   <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">Varaktighet</th>
                   <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Timerslut</th>
                   <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Geo (slut)</th>
+                  <th className="text-center font-semibold px-2 py-1 whitespace-nowrap">Åtgärd</th>
                 </tr>
 
                 {/* === RAD 4+: Sessions === */}
                 {b.sessions.length === 0 ? (
                   <tr className="border-b border-border/40">
-                    <td colSpan={6} className="px-2 py-1.5 text-center text-[11px] text-muted-foreground italic">
+                    <td colSpan={7} className="px-2 py-1.5 text-center text-[11px] text-muted-foreground italic">
                       Inga timers registrerade
                     </td>
                   </tr>
                 ) : (
                   b.sessions.map((s) => {
-                    const Icon = sessionKindIcon(s.kind);
                     const duration = s.hours == null
                       ? '—'
                       : (s.isOpen && s.startIso
                           ? <LiveDuration startedAt={s.startIso} />
                           : formatHoursMinutes(s.hours));
+
+                    const stop = sessionToStopTarget(s);
+                    const canEdit = !!s.editTimeReport?.id;
+
                     return (
                       <tr key={s.key} className="border-b border-border/40 hover:bg-muted/20 text-sm">
                         <td className="px-2 py-1 align-middle">
@@ -255,6 +299,45 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                             iso={s.isOpen ? null : s.endIso}
                           />
                         </td>
+                        <td className="px-2 py-1 whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            {s.isOpen && stop && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 px-2 gap-1"
+                                onClick={() => setStopTarget({
+                                  target: stop,
+                                  staffName: b.staffName,
+                                  sessionLabel: s.label,
+                                })}
+                                title="Stoppa pågående timer"
+                              >
+                                <Square className="h-3 w-3 fill-current" />
+                                Stoppa
+                              </Button>
+                            )}
+                            {canEdit && s.editTimeReport && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={() => setEditTarget({
+                                  timeReportId: s.editTimeReport!.id,
+                                  staffName: b.staffName,
+                                  startTime: s.editTimeReport!.startHHmm,
+                                  endTime: s.editTimeReport!.endHHmm,
+                                  breakHours: s.editTimeReport!.breakHours,
+                                  description: s.editTimeReport!.description,
+                                  approved: s.editTimeReport!.approved,
+                                })}
+                                title="Redigera tider"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })
@@ -265,13 +348,35 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
 
           {blocks.length === 0 && (
             <tr>
-              <td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
+              <td colSpan={8} className="text-center py-12 text-muted-foreground text-sm">
                 Ingen personal har rapporterat tid
               </td>
             </tr>
           )}
         </tbody>
       </table>
+
+      {editTarget && (
+        <EditTimeReportDialog
+          open={!!editTarget}
+          onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+          timeReportId={editTarget.timeReportId}
+          staffName={editTarget.staffName}
+          initialStartTime={editTarget.startTime}
+          initialEndTime={editTarget.endTime}
+          initialBreakHours={editTarget.breakHours}
+          initialDescription={editTarget.description}
+          isApproved={editTarget.approved}
+        />
+      )}
+
+      <StopTimerDialog
+        open={!!stopTarget}
+        onOpenChange={(o) => { if (!o) setStopTarget(null); }}
+        target={stopTarget?.target ?? null}
+        staffName={stopTarget?.staffName ?? ''}
+        sessionLabel={stopTarget?.sessionLabel ?? ''}
+      />
     </div>
   );
 };
