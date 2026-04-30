@@ -219,10 +219,37 @@ const AppContent = () => {
 const WebRoutes: React.FC = () => {
   const defaultRoute = getDefaultRoute();
 
+  // Soft fallback: a tiny top-of-screen indicator instead of blanking the entire app
+  // while a lazy chunk loads. Keeps the previous view feeling persistent.
   const routeFallback = (
-    <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
-      Laddar…
+    <div className="fixed top-0 left-0 right-0 z-[60] h-0.5 bg-primary/30 overflow-hidden">
+      <div className="h-full w-1/3 bg-primary animate-pulse" />
     </div>
+  );
+
+  // Persistent wrappers — kept as their own components so React Router
+  // does NOT unmount AuthProvider / ProtectedRoute / Layout when navigating
+  // between sibling child routes.
+  const ProtectedMainLayout: React.FC = () => (
+    <ProtectedRoute>
+      <MainSystemLayout>
+        <Outlet />
+      </MainSystemLayout>
+    </ProtectedRoute>
+  );
+
+  const ProtectedWarehouseLayout: React.FC = () => (
+    <ProtectedRoute>
+      <WarehouseSystemLayout>
+        <Outlet />
+      </WarehouseSystemLayout>
+    </ProtectedRoute>
+  );
+
+  const ProtectedBare: React.FC = () => (
+    <ProtectedRoute>
+      <Outlet />
+    </ProtectedRoute>
   );
 
   return (
@@ -255,71 +282,77 @@ const WebRoutes: React.FC = () => {
       <Route path="/*" element={
         <AuthProvider>
           <Routes>
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Navigate to={defaultRoute} replace />
-              </ProtectedRoute>
-            } />
-            <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/my-projects" element={<ProtectedRoute><MainSystemLayout><MyProjects /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/calendar" element={<ProtectedRoute><MainSystemLayout><CustomCalendarPage /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/staff-management" element={<ProtectedRoute><MainSystemLayout><StaffManagement /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/staff-dashboard" element={<ProtectedRoute><MainSystemLayout><StaffDashboard /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/communication" element={<ProtectedRoute><MainSystemLayout><CommunicationPage /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/ops-control" element={<ProtectedRoute><MainSystemLayout><OpsControlCenter /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/staff-management/time-reports" element={<ProtectedRoute><MainSystemLayout><StaffTimeReports /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/admin/time-review" element={<ProtectedRoute><MainSystemLayout><AdminTimeReview /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/staff/:staffId" element={<ProtectedRoute><MainSystemLayout><StaffDetail /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/projects" element={<ProtectedRoute><MainSystemLayout><ProjectManagement /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/projects/archive" element={<ProtectedRoute><MainSystemLayout><ProjectArchive /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/projects/closing" element={<ProtectedRoute><MainSystemLayout><ProjectClosing /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectLayout /></MainSystemLayout></ProtectedRoute>}>
-              <Route index element={<ProjectViewPage />} />
-              <Route path="execution" element={<EstablishmentPage />} />
-              <Route path="establishment" element={<EstablishmentPage />} />
-              <Route path="economy" element={<ProjectEconomyPage />} />
-            </Route>
-            <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/analytics" element={<ProtectedRoute><MainSystemLayout><AnalyticsDashboard /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
-            <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
-              <Route index element={<LargeProjectViewPage />} />
-              <Route path="establishment" element={<LargeEstablishmentPage />} />
-              <Route path="collaboration" element={<LargeCollaborationPage />} />
-              <Route path="economy" element={<LargeProjectEconomyPage />} />
-            </Route>
-            <Route path="/invoicing" element={<ProtectedRoute><MainSystemLayout><InvoicingPage /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
+            {/* Persistent main-system layout: AuthProvider + ProtectedRoute + Sidebar/FloatingInbox
+                stay mounted across navigation between these children. */}
+            <Route element={<ProtectedMainLayout />}>
+              <Route path="/" element={<Navigate to={defaultRoute} replace />} />
+              <Route path="/dashboard" element={<PlanningDashboard />} />
+              <Route path="/my-projects" element={<MyProjects />} />
+              <Route path="/calendar" element={<CustomCalendarPage />} />
+              <Route path="/staff-management" element={<StaffManagement />} />
+              <Route path="/staff-dashboard" element={<StaffDashboard />} />
+              <Route path="/communication" element={<CommunicationPage />} />
+              <Route path="/ops-control" element={<OpsControlCenter />} />
+              <Route path="/staff-management/time-approvals" element={<TimeReportApprovals />} />
+              <Route path="/staff-management/time-reports" element={<StaffTimeReports />} />
+              <Route path="/admin/time-review" element={<AdminTimeReview />} />
+              <Route path="/staff/:staffId" element={<StaffDetail />} />
+              <Route path="/booking/:bookingId" element={<BookingDetail />} />
+              <Route path="/booking-list" element={<BookingList />} />
+              <Route path="/projects" element={<ProjectManagement />} />
+              <Route path="/projects/archive" element={<ProjectArchive />} />
+              <Route path="/projects/closing" element={<ProjectClosing />} />
+              <Route path="/project/:projectId" element={<ProjectLayout />}>
+                <Route index element={<ProjectViewPage />} />
+                <Route path="execution" element={<EstablishmentPage />} />
+                <Route path="establishment" element={<EstablishmentPage />} />
+                <Route path="economy" element={<ProjectEconomyPage />} />
+              </Route>
+              <Route path="/economy" element={<EconomyOverview />} />
+              <Route path="/economy/:id" element={<ProjectEconomyDetail />} />
+              <Route path="/analytics" element={<AnalyticsDashboard />} />
+              <Route path="/large-project/:id" element={<LargeProjectLayout />}>
+                <Route index element={<LargeProjectViewPage />} />
+                <Route path="establishment" element={<LargeEstablishmentPage />} />
+                <Route path="collaboration" element={<LargeCollaborationPage />} />
+                <Route path="economy" element={<LargeProjectEconomyPage />} />
+              </Route>
+              <Route path="/invoicing" element={<InvoicingPage />} />
+              <Route path="/api-docs" element={<APIDocumentation />} />
 
-            {/* Logistics Routes */}
-            <Route path="/logistics" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/logistics/planning" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/logistics/routes" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/logistics/vehicles" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
+              {/* Logistics Routes */}
+              <Route path="/logistics" element={<LogisticsHub />} />
+              <Route path="/logistics/planning" element={<LogisticsHub />} />
+              <Route path="/logistics/routes" element={<LogisticsHub />} />
+              <Route path="/logistics/vehicles" element={<LogisticsHub />} />
 
-            {/* Warehouse System Routes */}
-            <Route path="/warehouse" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout></ProtectedRoute>} />
-            <Route path="/warehouse/calendar" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseCalendarPage /></WarehouseSystemLayout></ProtectedRoute>} />
-            <Route path="/warehouse/packing" element={<ProtectedRoute><WarehouseSystemLayout><PackingManagement /></WarehouseSystemLayout></ProtectedRoute>} />
-            <Route path="/warehouse/packing/:packingId" element={<ProtectedRoute><WarehouseSystemLayout><PackingDetail /></WarehouseSystemLayout></ProtectedRoute>} />
-            <Route path="/warehouse/packing/:packingId/verify" element={<ProtectedRoute><PackingVerify /></ProtectedRoute>} />
-            <Route path="/warehouse/projects/:warehouseProjectId" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseProjectDetail /></WarehouseSystemLayout></ProtectedRoute>} />
-            <Route path="/warehouse/economy" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseEconomy /></WarehouseSystemLayout></ProtectedRoute>} />
-            <Route path="/warehouse/inventory" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
-            <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
-            
+              {/* Hidden admin sync tools */}
+              <Route path="/admin/sync" element={<SyncReconciliation />} />
+              <Route path="/admin/staff-live" element={<StaffLiveDebug />} />
+              <Route path="/admin/legacy-incoming-packing" element={<LegacyIncomingPackingDebug />} />
+            </Route>
+
+            {/* Bare protected routes (no sidebar layout) */}
+            <Route element={<ProtectedBare />}>
+              <Route path="/jobs/:id" element={<JobDetail />} />
+              <Route path="/warehouse/packing/:packingId/verify" element={<PackingVerify />} />
+            </Route>
+
+            {/* Persistent warehouse layout */}
+            <Route element={<ProtectedWarehouseLayout />}>
+              <Route path="/warehouse" element={<WarehouseDashboard />} />
+              <Route path="/warehouse/calendar" element={<WarehouseCalendarPage />} />
+              <Route path="/warehouse/packing" element={<PackingManagement />} />
+              <Route path="/warehouse/packing/:packingId" element={<PackingDetail />} />
+              <Route path="/warehouse/projects/:warehouseProjectId" element={<WarehouseProjectDetail />} />
+              <Route path="/warehouse/economy" element={<WarehouseEconomy />} />
+              <Route path="/warehouse/inventory" element={<WarehouseInventoryPlaceholder />} />
+              <Route path="/warehouse/service" element={<WarehouseServicePlaceholder />} />
+            </Route>
+
             {/* Scanner App (accessible via web) */}
             <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
             <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
-
-            {/* Hidden admin sync tool */}
-            <Route path="/admin/sync" element={<ProtectedRoute><MainSystemLayout><SyncReconciliation /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/admin/staff-live" element={<ProtectedRoute><MainSystemLayout><StaffLiveDebug /></MainSystemLayout></ProtectedRoute>} />
-            <Route path="/admin/legacy-incoming-packing" element={<ProtectedRoute><MainSystemLayout><LegacyIncomingPackingDebug /></MainSystemLayout></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<NotFound />} />
