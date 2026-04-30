@@ -31,12 +31,26 @@ export interface ProjectSession {
   /** Sum of payable hours across merged rows. */
   hours: number;
   isOpen: boolean;
-  /** Source row ids (for debug / linking). */
+  /** Source row ids (for debug / linking). Prefixed: `tr:` / `lt:` / `tv:`. */
   sourceIds: string[];
   /** Optional address of the primary location (for the "öppna karta" link). */
   address?: string | null;
   baseLatitude?: number | null;
   baseLongitude?: number | null;
+  /**
+   * If this session is backed by at least one `time_reports` row, this is the
+   * canonical edit context for that row (the FIRST one if multiple). Allows
+   * admin inline-editing without an extra round-trip.
+   */
+  editTimeReport?: {
+    id: string;
+    approved: boolean;
+    breakHours: number;
+    description: string | null;
+    startHHmm: string | null;
+    endHHmm: string | null;
+    reportDate: string | null;
+  } | null;
 }
 
 export interface DayHeader {
