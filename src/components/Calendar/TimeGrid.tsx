@@ -117,7 +117,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           style={{ display: 'grid', gridTemplateColumns, gridTemplateRows: 'auto auto auto', width: totalWidth, flexShrink: 0 }}
         >
           <div className="time-grid-header-bg" style={{ gridColumn: '1 / -1', gridRow: 1 }} />
-          <div className="time-column-header"><div className="time-title">Time</div></div>
+          <div className="time-column-header" />
 
           <div
             className="day-header-teams"
