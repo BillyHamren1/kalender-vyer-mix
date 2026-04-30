@@ -51,13 +51,16 @@
 }
 
 /* Override the TimeGrid header background with the phase color */
-.project-weekly-day-card .time-grid-header-bg {
+.project-weekly-day-card .time-grid-header-bg,
+[class*="project-phase-"] .time-grid-header-bg {
   background: var(--phase-header-bg) !important;
   border-radius: 0;
 }
 
 .project-weekly-day-card .day-title,
-.project-weekly-day-card .time-title {
+.project-weekly-day-card .time-title,
+[class*="project-phase-"] .day-title,
+[class*="project-phase-"] .time-title {
   color: var(--phase-header-fg) !important;
   text-shadow: none;
 }
