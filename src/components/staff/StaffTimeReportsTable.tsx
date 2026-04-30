@@ -388,13 +388,22 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                     {duration}
                   </td>
 
-                  <td className="py-2 px-2"></td>
+                  {/* Daglig analys — rowSpan över alla rader för personen,
+                      renderas bara på första raden. */}
+                  {r.isFirstForStaff && (
+                    <td
+                      rowSpan={staffRowCount[r.staffId] || 1}
+                      className="align-top p-0 border-l border-border/40 bg-muted/20 w-[520px]"
+                    >
+                      <StaffDayAnalysisPanel staffId={r.staffId} date={date} />
+                    </td>
+                  )}
                 </tr>
 
                 {isOpen && r.fromIso && (r.kind === 'day-start' || r.kind === 'day-end') && (
                   <tr className="bg-muted/20">
                     <td></td>
-                    <td colSpan={5} className="py-2 px-2">
+                    <td colSpan={4} className="py-2 px-2">
                       <DayFactsPanel
                         staffId={r.staffId}
                         staffName={r.staffName}
@@ -405,21 +414,6 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                       />
                     </td>
                   </tr>
-                )}
-
-                {/* Consolidated per-person summary banner — rendered AFTER the
-                    last row of each person, so the name/rows always come first
-                    and it never visually leaks into the next person's block. */}
-                {isLastForStaff && summarySessions && summarySessions.length > 0 && (
-                  <StaffDaySummaryRow
-                    staffId={r.staffId}
-                    staffName={r.staffName}
-                    date={date}
-                    sessions={summarySessions}
-                    latestPingAt={summaryLatestPing}
-                    leadingCells={1}
-                    totalCols={6}
-                  />
                 )}
               </React.Fragment>
             );
