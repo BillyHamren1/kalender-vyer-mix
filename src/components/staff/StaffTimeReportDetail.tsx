@@ -672,13 +672,13 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           <div className="overflow-x-auto -mx-1">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Kund</TableHead>
-                  <TableHead>Start</TableHead>
-                  <TableHead>Slut</TableHead>
-                  <TableHead className="text-right">Timmar</TableHead>
-                  <TableHead className="text-right">Övertid</TableHead>
-                  <TableHead>Status</TableHead>
+                <TableRow className="bg-primary/10 hover:bg-primary/10">
+                  <TableHead className="font-bold text-foreground">Kund</TableHead>
+                  <TableHead className="font-bold text-foreground">Start</TableHead>
+                  <TableHead className="font-bold text-foreground">Slut</TableHead>
+                  <TableHead className="text-right font-bold text-foreground">Timmar</TableHead>
+                  <TableHead className="text-right font-bold text-foreground">Övertid</TableHead>
+                  <TableHead className="font-bold text-foreground">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
