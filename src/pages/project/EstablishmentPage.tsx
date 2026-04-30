@@ -8,7 +8,7 @@ import { GanttChart, List, Users } from "lucide-react";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
-import UnifiedProjectGantt from "@/components/project/UnifiedProjectGantt";
+import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import type { OverviewFilter } from "@/components/project/planning/ProjectControlPanel";
 import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
@@ -164,8 +164,8 @@ const EstablishmentPage = () => {
         onFilterChange={handleOverviewFilter}
       />
 
-      {/* LEVEL 1.5: Tidsplan — synkar med personalkalendern */}
-      <UnifiedProjectGantt projectId={project.id} bookingId={bookingId} isLargeProject={false} />
+      {/* LEVEL 1.5: Projektkalender — speglar personalkalendern */}
+      <ProjectCalendarView projectId={project.id} bookingId={bookingId} isLargeProject={false} />
 
       {/* LEVEL 2: Workspace */}
       <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
