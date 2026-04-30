@@ -44,6 +44,7 @@ const fmtDateTime = (iso: string | null | undefined) => {
 export const StaffDayAnalysisPanel: React.FC<Props> = ({ staffId, date }) => {
   const { data: reality, isLoading: realityLoading } = useStaffDayReality(staffId, date);
   const { data: rawFlags = [], isLoading: flagsLoading } = useDayWorkdayFlags(staffId, date);
+  const [selected, setSelected] = useState<NotificationEntry | null>(null);
 
   const log = useMemo(() => buildDayEventLog(reality, rawFlags), [reality, rawFlags]);
   const isLoading = realityLoading || flagsLoading;
@@ -61,17 +62,24 @@ export const StaffDayAnalysisPanel: React.FC<Props> = ({ staffId, date }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-border/40 h-full">
-      <Column icon={Activity} title="Tolkning" count={log.interpretations.length}>
-        <InterpretationList items={log.interpretations} />
-      </Column>
-      <Column icon={Lightbulb} title="Åtgärdsförslag" count={log.suggestions.length}>
-        <SuggestionList items={log.suggestions} />
-      </Column>
-      <Column icon={Bell} title="Notiser & svar" count={log.notifications.length}>
-        <NotificationList items={log.notifications} />
-      </Column>
-    </div>
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-border/40 h-full">
+        <Column icon={Activity} title="Tolkning" count={log.interpretations.length}>
+          <InterpretationList items={log.interpretations} />
+        </Column>
+        <Column icon={Lightbulb} title="Åtgärdsförslag" count={log.suggestions.length}>
+          <SuggestionList items={log.suggestions} />
+        </Column>
+        <Column icon={Bell} title="Notiser & svar" count={log.notifications.length}>
+          <NotificationList items={log.notifications} onSelect={setSelected} />
+        </Column>
+      </div>
+      <NotificationDetailDialog
+        notification={selected}
+        open={!!selected}
+        onOpenChange={(o) => { if (!o) setSelected(null); }}
+      />
+    </>
   );
 };
 
