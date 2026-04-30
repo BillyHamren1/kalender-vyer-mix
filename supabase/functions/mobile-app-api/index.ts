@@ -2957,6 +2957,7 @@ async function handleAdminCloseOpenEntry(
   )
 }
 
+async function handleGetProject(supabase: any, data: { booking_id: string }, organizationId: string) {
   const { booking_id } = data
 
   if (!booking_id) {
