@@ -346,6 +346,10 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleAdminCreateTimeReport(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'admin_delete_time_report':
         return await handleAdminDeleteTimeReport(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_update_time_report':
+        return await handleAdminUpdateTimeReport(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_close_open_entry':
+        return await handleAdminCloseOpenEntry(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'get_project':
         return await handleGetProject(supabase, data, organizationId)
       case 'get_project_comments':
