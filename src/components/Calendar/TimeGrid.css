@@ -312,17 +312,23 @@
 }
 
 .assigned-staff-header-list {
-  display: flex;
-  flex-direction: column;
-  flex-wrap: nowrap;
-  gap: 1px;
-  align-items: flex-start;
-  align-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: 1px 6px;
+  align-items: start;
+  justify-items: start;
   max-height: 74px;
   min-height: 74px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
+}
+
+.assigned-staff-header-list > * {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
 }
 
 .assigned-staff-header-list::-webkit-scrollbar {
