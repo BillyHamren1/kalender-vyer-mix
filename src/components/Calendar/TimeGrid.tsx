@@ -45,7 +45,7 @@ interface TimeGridProps {
   setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }
 
-const TIME_COLUMN_WIDTH = 50;
+const TIME_COLUMN_WIDTH = 28;
 const TEAM_COLUMN_WIDTH = 95;
 const ASSIGNED_STAFF_ROW_HEIGHT = 88;
 
