@@ -173,13 +173,7 @@ const LargeEstablishmentPage = () => {
 
   return (
     <div className="space-y-3">
-      {/* LEVEL 1: Project overview */}
-      <ProjectControlPanel
-        analytics={analytics}
-        staffPool={staffPool}
-        onTaskClick={handleControlPanelTaskClick}
-        onFilterChange={handleOverviewFilter}
-      />
+      {/* LEVEL 1 (ProjectControlPanel) borttagen — överflödig översikt på stora projekt */}
 
       {/* LEVEL 1.5: Projektkalender — speglar personalkalendern */}
       <ProjectCalendarView projectId={project.id} isLargeProject={true} />
