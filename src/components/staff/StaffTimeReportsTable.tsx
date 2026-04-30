@@ -187,7 +187,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                     <GeoAtTime
                       staffId={b.staffId}
                       date={date}
-                      iso={b.dayIsOpen ? new Date().toISOString() : b.dayEndIso}
+                      iso={b.dayIsOpen ? null : b.dayEndIso}
                     />
                   </td>
                   <td
