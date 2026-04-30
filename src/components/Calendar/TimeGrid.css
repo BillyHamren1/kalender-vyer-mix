@@ -316,7 +316,7 @@
   flex-direction: column;
   flex-wrap: nowrap;
   gap: 1px;
-  align-items: center;
+  align-items: flex-start;
   align-content: flex-start;
   max-height: 74px;
   min-height: 74px;
