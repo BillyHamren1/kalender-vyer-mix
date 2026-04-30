@@ -118,6 +118,8 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
           deliveryAddress: event.delivery_address,
           // Hide "Projekt" badge inside the project calendar itself — context is already obvious
           isLargeProject: false,
+          // Force navigation to booking detail (we are already inside the project)
+          forceBookingDetail: true,
         },
       }));
   }, [events, isLargeProject]);
