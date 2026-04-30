@@ -151,12 +151,21 @@ export interface BuildJournalInput {
 export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal {
   const sessions = new Map<string, ProjectSession>();
 
+  // Track which sessions are backed by an authoritative time_report. Once a
+  // session has a TR, subsequent LTE upserts for the same key must NOT add
+  // hours, flip isOpen back to true, or null out the end — a stray open LTE
+  // (presence not yet closed by geofence) for the same booking must not
+  // double-count hours or make a closed session look "pågår".
+  const trBacked = new Set<string>();
+
   const upsert = (
     key: string,
     base: Omit<ProjectSession, 'sourceIds' | 'hours' | 'editTimeReport'> & {
       hours: number;
       sourceId: string;
       editTimeReport?: ProjectSession['editTimeReport'];
+      /** True when this upsert originates from a time_reports row. */
+      fromTimeReport?: boolean;
     },
   ) => {
     const existing = sessions.get(key);
@@ -175,11 +184,49 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
         baseLongitude: base.baseLongitude ?? null,
         editTimeReport: base.editTimeReport ?? null,
       });
+      if (base.fromTimeReport) trBacked.add(key);
       return;
     }
+
+    // Always allow earliest start to win (covers a stray LTE that started
+    // slightly earlier than the TR).
     if (new Date(base.start).getTime() < new Date(existing.start).getTime()) {
       existing.start = base.start;
     }
+    existing.sourceIds.push(base.sourceId);
+    if (!existing.address && base.address) existing.address = base.address;
+
+    // If this upsert IS a time_report, it becomes authoritative for hours/end.
+    if (base.fromTimeReport) {
+      const wasTrBacked = trBacked.has(key);
+      trBacked.add(key);
+      if (!wasTrBacked) {
+        // First TR for this key: replace the LTE-derived hours/end/isOpen
+        // entirely instead of summing with the (presence-only) LTE estimate.
+        existing.hours = base.hours;
+        existing.end = base.end;
+        existing.isOpen = base.isOpen;
+      } else {
+        // Multiple TR fragments for same key → sum + extend envelope.
+        existing.hours += base.hours;
+        if (base.end === null) {
+          existing.end = null;
+          existing.isOpen = true;
+        } else if (existing.end !== null && new Date(base.end).getTime() > new Date(existing.end).getTime()) {
+          existing.end = base.end;
+        }
+      }
+      if (!existing.editTimeReport && base.editTimeReport) {
+        existing.editTimeReport = base.editTimeReport;
+      }
+      return;
+    }
+
+    // Non-TR upsert (LTE) on a TR-backed session → enrich only, do not affect
+    // hours/end/isOpen. The time_report is the single source of truth.
+    if (trBacked.has(key)) return;
+
+    // Pure-LTE session merge (legacy path).
     if (base.end === null) {
       existing.end = null;
       existing.isOpen = true;
@@ -189,13 +236,6 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
       }
     }
     existing.hours += base.hours;
-    existing.sourceIds.push(base.sourceId);
-    if (!existing.address && base.address) existing.address = base.address;
-    // Keep the first edit context — admins editing a merged session edit the
-    // primary row; multi-row sessions remain rare in practice.
-    if (!existing.editTimeReport && base.editTimeReport) {
-      existing.editTimeReport = base.editTimeReport;
-    }
   };
 
   // Time reports → keyed by (large_project | booking | location | id) so a
@@ -223,6 +263,7 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
       hours: r.hours,
       isOpen: !r.end_iso,
       sourceId: `tr:${r.id}`,
+      fromTimeReport: true,
       editTimeReport: {
         id: r.id,
         approved: !!r.approved,
