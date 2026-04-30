@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { ArrowLeftRight, Loader2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -13,24 +21,28 @@ interface Props {
 }
 
 /**
- * Liten "⇄ Flytta team"-knapp på event:et.
- * Två lägen: "Flytta denna dag" eller "Flytta alla dagar i projektet".
- *
- * - Denna dag → uppdaterar bara denna calendar_events-rad (resource_id) och
- *   triggar recompute_booking_staff_for_day så BSA speglas korrekt.
- * - Alla dagar → hämtar alla calendar_events för samma booking (eller alla
- *   syskonbokningar i large_project) och flyttar var och en till valt team
- *   per dag.
+ * Två pilar (← →) i nedre högra hörnet av eventet — flyttar till föregående
+ * eller nästa team i listan. Klick öppnar en dialog där användaren väljer:
+ *   - "Endast denna dag" → uppdaterar bara denna calendar_events-rad
+ *   - "Hela serien" → flyttar alla calendar_events för bookingen (eller alla
+ *     syskonbokningar i large_project) till valt team
  */
 export const MoveDayPopover: React.FC<Props> = ({ event }) => {
   const { teamResources } = useTeamResources();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
+  const [pendingTeamTitle, setPendingTeamTitle] = useState<string>('');
 
-  const teams = teamResources.filter((r: any) =>
-    r.id !== 'team-11' && r.id !== 'transport' && r.id !== event.resourceId
+  // Sortera ut bara riktiga team-kolumner (inte transport/lager-bryggan eller team-11)
+  const teams = teamResources.filter(
+    (r: any) => r.id !== 'team-11' && r.id !== 'transport'
   );
+
+  const currentIdx = teams.findIndex((t: any) => t.id === event.resourceId);
+  const prevTeam = currentIdx > 0 ? teams[currentIdx - 1] : null;
+  const nextTeam =
+    currentIdx >= 0 && currentIdx < teams.length - 1 ? teams[currentIdx + 1] : null;
 
   const recompute = async (bookingId: string, sourceDate: string) => {
     try {
@@ -39,7 +51,6 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
         p_assignment_date: sourceDate,
       });
     } catch (e) {
-      // RPC kan saknas i vissa miljöer — då räcker resource_id-uppdateringen.
       console.warn('[MoveDayPopover] recompute_booking_staff_for_day failed (continuing):', e);
     }
   };
@@ -56,22 +67,22 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
       if (event.bookingId) await recompute(event.bookingId, sourceDate);
       toast.success('Dagen flyttad');
       qc.invalidateQueries({ queryKey: ['calendar-events'] });
-      setOpen(false);
     } catch (e: any) {
       toast.error(e?.message || 'Kunde inte flytta dagen');
     } finally {
       setBusy(false);
+      setPendingTeamId(null);
     }
   };
 
   const moveAllDays = async (newTeamId: string) => {
     if (!event.bookingId) {
       toast.error('Saknar booking-koppling');
+      setPendingTeamId(null);
       return;
     }
     setBusy(true);
     try {
-      // Hitta alla bokningar i samma "projekt" (large_project_id eller bara bokningen själv)
       const { data: thisBooking } = await supabase
         .from('bookings')
         .select('id, large_project_id')
@@ -84,17 +95,16 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
           .from('bookings')
           .select('id')
           .eq('large_project_id', thisBooking.large_project_id);
-        bookingIds = (siblings || []).map(s => s.id);
+        bookingIds = (siblings || []).map((s) => s.id);
       }
 
-      // Hämta alla calendar_events för dessa bokningar (rig + rigDown)
       const { data: events } = await supabase
         .from('calendar_events')
         .select('id, booking_id, source_date, start_time')
         .in('booking_id', bookingIds)
         .neq('event_type', 'activity');
 
-      const targetIds = (events || []).map(e => e.id);
+      const targetIds = (events || []).map((e) => e.id);
       if (targetIds.length === 0) {
         toast.info('Inga events att flytta');
         return;
@@ -106,7 +116,6 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
         .in('id', targetIds);
       if (error) throw error;
 
-      // Recompute BSA per (booking, date)
       const seen = new Set<string>();
       for (const ev of events || []) {
         const key = `${ev.booking_id}|${ev.source_date}`;
@@ -117,70 +126,83 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
 
       toast.success(`Flyttade ${targetIds.length} dag${targetIds.length === 1 ? '' : 'ar'}`);
       qc.invalidateQueries({ queryKey: ['calendar-events'] });
-      setOpen(false);
     } catch (e: any) {
-      toast.error(e?.message || 'Kunde inte flytta alla dagar');
+      toast.error(e?.message || 'Kunde inte flytta hela serien');
     } finally {
       setBusy(false);
+      setPendingTeamId(null);
     }
   };
 
+  const requestMove = (team: { id: string; title: string } | null) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!team) return;
+    setPendingTeamId(team.id);
+    setPendingTeamTitle(team.title);
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setOpen(true); }}
-          className="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 z-20"
-          title="Flytta team"
-        >
-          <ArrowLeftRight className="h-3 w-3 text-primary" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="end"
-        className="w-56 p-2"
+    <>
+      <div
+        className="absolute bottom-0.5 right-0.5 flex items-center gap-0.5 z-20"
         onClick={(e) => e.stopPropagation()}
       >
-        {busy ? (
-          <div className="flex items-center gap-2 py-2 justify-center text-xs text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" /> Flyttar…
-          </div>
-        ) : (
-          <div className="space-y-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-2 py-1">
-              Flytta till
-            </div>
-            {teams.map((t: any) => (
-              <div key={t.id} className="rounded-md border border-border/50 p-1.5 space-y-1">
-                <div className="text-xs font-medium px-1">{t.title}</div>
-                <div className="grid grid-cols-2 gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[11px] justify-center"
-                    onClick={() => moveOneDay(t.id)}
-                  >
-                    Denna dag
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[11px] justify-center"
-                    onClick={() => moveAllDays(t.id)}
-                  >
-                    Alla dagar
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {teams.length === 0 && (
-              <div className="text-xs text-muted-foreground px-2 py-2">Inga andra team</div>
-            )}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+        <button
+          type="button"
+          onClick={requestMove(prevTeam)}
+          disabled={!prevTeam || busy}
+          className="p-0.5 rounded bg-white/70 hover:bg-primary/20 disabled:opacity-30 disabled:cursor-not-allowed"
+          title={prevTeam ? `Flytta till ${prevTeam.title}` : 'Inget team till vänster'}
+        >
+          <ChevronLeft className="h-3 w-3 text-primary" />
+        </button>
+        <button
+          type="button"
+          onClick={requestMove(nextTeam)}
+          disabled={!nextTeam || busy}
+          className="p-0.5 rounded bg-white/70 hover:bg-primary/20 disabled:opacity-30 disabled:cursor-not-allowed"
+          title={nextTeam ? `Flytta till ${nextTeam.title}` : 'Inget team till höger'}
+        >
+          <ChevronRight className="h-3 w-3 text-primary" />
+        </button>
+      </div>
+
+      <AlertDialog
+        open={pendingTeamId !== null}
+        onOpenChange={(o) => !o && setPendingTeamId(null)}
+      >
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Byta team till {pendingTeamTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vill du flytta endast denna dag, eller alla dagar i serien (samma projekt)?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel disabled={busy}>Avbryt</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                if (pendingTeamId) moveOneDay(pendingTeamId);
+              }}
+            >
+              {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Endast denna dag
+            </AlertDialogAction>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                if (pendingTeamId) moveAllDays(pendingTeamId);
+              }}
+            >
+              {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Hela serien
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
