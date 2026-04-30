@@ -285,7 +285,7 @@ const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow
             <p className="text-sm text-muted-foreground py-4 text-center">
               {query ? 'Inga matchande stora projekt' : 'Inga stora projekt'}
             </p>
-          ) : filtered.map(item => <ProjectRow key={`large-${item.id}`} item={item} />)}
+          ) : filtered.map(item => <ProjectRow key={`large-${item.id}`} item={item} compact />)}
         </div>
         {query && filtered.length > 0 && (
           <p className="text-xs text-muted-foreground mt-2">{filtered.length} träffar</p>
