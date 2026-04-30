@@ -72,7 +72,7 @@ const StaffItem: React.FC<StaffItemProps> = ({
           title={staff.name}
         >
           <div
-            className="px-1 text-[11px] font-medium leading-tight transition-colors duration-150 hover:text-primary"
+            className="text-[11px] font-medium leading-tight transition-colors duration-150 hover:text-primary text-left"
             style={{
               color: 'hsl(var(--foreground))',
               paddingTop: '0px',
