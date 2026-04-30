@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { Briefcase, Car, MapPin, Sun } from 'lucide-react';
+import { Briefcase, Car, MapPin, Pencil, Square } from 'lucide-react';
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffDayAnalysisPanel, StaffDayNotificationsPanel } from './StaffDayAnalysisPanel';
@@ -10,6 +10,9 @@ import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { findPingAtTime } from '@/lib/staff/pingAtTime';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { AddressMapDialog } from './AddressMapDialog';
+import { EditTimeReportDialog } from './EditTimeReportDialog';
+import { StopTimerDialog, type StopTarget } from './StopTimerDialog';
+import { Button } from '@/components/ui/button';
 
 const fmt = (iso: string | null) => {
   if (!iso) return '—';
@@ -26,6 +29,10 @@ interface StaffBlockSession {
   endIso: string | null;
   isOpen: boolean;
   hours: number | null;
+  /** Underlying source ids (`tr:` / `lt:` / `tv:` prefixed). */
+  sourceIds: string[];
+  /** Edit context for the canonical backing time_reports row, if any. */
+  editTimeReport: ProjectSession['editTimeReport'];
 }
 
 export interface StaffBlock {
@@ -74,6 +81,8 @@ export const buildStaffBlock = (
       endIso: s.end,
       isOpen: s.isOpen,
       hours: s.hours,
+      sourceIds: s.sourceIds,
+      editTimeReport: s.editTimeReport ?? null,
     })),
   };
 };
