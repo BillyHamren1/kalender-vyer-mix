@@ -156,7 +156,7 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
         type="button"
         onClick={requestMove(nextTeam)}
         disabled={!nextTeam || busy}
-        className="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 disabled:opacity-30 disabled:cursor-not-allowed z-20"
+        className="event-hover-action absolute bottom-0.5 right-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 disabled:opacity-30 disabled:cursor-not-allowed z-20"
         title={nextTeam ? `Flytta till ${nextTeam.title}` : 'Inget team till höger'}
       >
         <ChevronRight className="h-3 w-3 text-primary" />
