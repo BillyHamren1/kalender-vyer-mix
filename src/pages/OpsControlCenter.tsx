@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useOpsControl } from '@/hooks/useOpsControl';
-import OpsStaffTimeline from '@/components/ops-control/OpsStaffTimeline';
+import OpsPlanningDayPanel from '@/components/ops-control/OpsPlanningDayPanel';
 import OpsLiveProjects from '@/components/ops-control/OpsLiveProjects';
 import OpsActivityComms from '@/components/ops-control/OpsActivityComms';
 import OpsLiveMap from '@/components/ops-control/OpsLiveMap';
@@ -95,18 +95,9 @@ const OpsControlCenter = () => {
 
         {/* MAIN AREA */}
         <div className="flex-1 min-h-0 grid grid-cols-2 gap-0">
-          {/* Left: Staff Timeline */}
+          {/* Left: Personalkalender — dagsvy med teamvy (samma som Planning) */}
           <div className="border-r border-border overflow-hidden p-3">
-            <OpsStaffTimeline
-              timeline={timeline}
-              isLoading={isLoadingTimeline}
-              onOpenDM={handleOpenDM}
-              onOptimizeRoute={handleOptimizeRoute}
-              date={timelineDate}
-              onNextDay={goToNextDay}
-              onPrevDay={goToPrevDay}
-              onToday={goToToday}
-            />
+            <OpsPlanningDayPanel />
           </div>
 
           {/* Right: Live Map */}
