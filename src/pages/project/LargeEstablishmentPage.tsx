@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 
-type ViewMode = "gantt" | "list" | "people";
+type ViewMode = "list" | "people";
 
 interface SelectedTask {
   id: string;
