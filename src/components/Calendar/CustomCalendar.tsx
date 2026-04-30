@@ -40,6 +40,7 @@ interface CustomCalendarProps {
   activatedStaffByDate?: Record<string, string[]>;
   daysOverride?: Date[];
   getDayCardClassName?: (date: Date) => string | undefined;
+  timeGridFullWidth?: boolean;
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -64,6 +65,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   activatedStaffByDate,
   daysOverride,
   getDayCardClassName,
+  timeGridFullWidth = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const weekStartTime = currentDate.getTime();
@@ -157,7 +159,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       isEventReadOnly,
       onEventClick,
       setEvents,
-      fullWidth,
+      fullWidth: timeGridFullWidth || fullWidth,
       availableStaff: getAvailableStaffForDay(date),
       staffExpanded,
       onToggleStaffExpanded: () => setStaffExpanded(prev => !prev),
