@@ -1,0 +1,77 @@
+.project-calendar-shell {
+  background: hsl(var(--background));
+}
+
+.project-weekly-horizontal-grid {
+  padding-top: 4px;
+}
+
+.project-weekly-day-card {
+  min-width: 540px;
+  max-width: 540px;
+}
+
+.project-weekly-day-card .day-card {
+  border-radius: 0;
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
+}
+
+.project-weekly-day-card .day-card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.project-weekly-day-card .time-grid-with-staff-header {
+  min-height: 100%;
+}
+
+.project-weekly-day-card.project-phase-rig .time-grid-with-staff-header {
+  --calendar-primary: 126 58% 84%;
+  --calendar-primary-foreground: 145 38% 24%;
+}
+
+.project-weekly-day-card.project-phase-event .time-grid-with-staff-header {
+  --calendar-primary: 52 95% 85%;
+  --calendar-primary-foreground: 38 48% 22%;
+}
+
+.project-weekly-day-card.project-phase-rigDown .time-grid-with-staff-header {
+  --calendar-primary: 0 78% 89%;
+  --calendar-primary-foreground: 0 44% 26%;
+}
+
+.project-weekly-day-card.project-phase-none .time-grid-with-staff-header {
+  --calendar-primary: var(--muted);
+  --calendar-primary-foreground: var(--muted-foreground);
+}
+
+.project-weekly-day-card .time-grid-header-bg {
+  border-radius: 0;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--calendar-primary)) 0%,
+    hsl(var(--calendar-primary)) 100%
+  );
+}
+
+.project-weekly-day-card .time-column-header {
+  border-right-color: hsl(var(--calendar-primary-foreground) / 0.15);
+}
+
+.project-weekly-day-card .day-title,
+.project-weekly-day-card .time-title {
+  text-shadow: none;
+}
+
+.project-weekly-day-card .team-header-cell {
+  background: hsl(var(--background));
+}
+
+.project-weekly-day-card .team-header-cell:hover {
+  background: hsl(var(--muted) / 0.35);
+}
+
+.project-weekly-day-card .staff-assignment-header-row:hover {
+  background: hsl(var(--muted) / 0.18);
+}
