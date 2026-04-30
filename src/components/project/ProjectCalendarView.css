@@ -8,10 +8,11 @@
   width: 100%;
 }
 
-/* Match staff calendar widths — wide cards, no hard cap */
+/* Wider day cards than default; keep flex behavior from base .weekly-day-card */
 .project-weekly-day-card {
-  min-width: 640px;
-  flex: 1 1 640px;
+  min-width: 640px !important;
+  max-width: none !important;
+  flex: 1 1 640px !important;
 }
 
 .project-weekly-day-card .day-card {
