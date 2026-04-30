@@ -101,11 +101,44 @@ export const useEventDragDrop = (
     if (currentDateStr === targetDateStr) return;
 
     setIsMoving(true);
+
+    // ── Snapshot for rollback if the server rejects ──
+    let prevSnapshot: CalendarEvent[] | null = null;
+
     try {
       const startTimeStr = extractUTCTime(eventData.start);
       const endTimeStr = extractUTCTime(eventData.end);
       const newStartISO = buildUTCDateTime(targetDateStr, startTimeStr);
       const newEndISO = buildUTCDateTime(targetDateStr, endTimeStr);
+
+      // ── OPTIMISTIC UI: flytta eventet direkt så att användaren ser
+      //    förflyttningen omedelbart. Servern körs i bakgrunden; vid fel
+      //    rullar vi tillbaka och gör en refresh.
+      if (setEvents) {
+        setEvents(prev => {
+          prevSnapshot = prev;
+          if (eventData.largeProjectId && eventData.eventType) {
+            // Flytta alla events som tillhör samma projektdag (samma fas + datum)
+            return prev.map(ev => {
+              const lpId = (ev.extendedProps as any)?.largeProjectId;
+              const evDateStr = (typeof ev.start === 'string' ? ev.start : new Date(ev.start as any).toISOString()).split('T')[0];
+              if (
+                lpId === eventData.largeProjectId &&
+                ev.eventType === eventData.eventType &&
+                evDateStr === currentDateStr
+              ) {
+                return { ...ev, start: newStartISO, end: newEndISO };
+              }
+              return ev;
+            });
+          }
+          return prev.map(ev =>
+            ev.id === eventData.id
+              ? { ...ev, start: newStartISO, end: newEndISO }
+              : ev
+          );
+        });
+      }
 
       // ── Large project: move the whole project-day across all linked bookings
       if (eventData.largeProjectId && eventData.eventType) {
@@ -121,15 +154,12 @@ export const useEventDragDrop = (
         toast.success('Projektdag flyttad', {
           description: `${eventData.title} → ${format(targetDate, 'EEE d MMM')}`,
         });
-        if (refreshEvents) await refreshEvents();
+        // Refresh i bakgrunden — UI är redan uppdaterat optimistiskt.
+        if (refreshEvents) void refreshEvents();
         return;
       }
 
       // ── Normal booking move (date change).
-      // calendar_events is the single source of truth: every visible row has a
-      // real DB row (backfill + import-bookings expansion guarantee this). We
-      // resolve the real id, update calendar_events in place, and mirror the
-      // canonical date/time onto the bookings row.
       const phaseFields: Record<string, { date: string; start: string; end: string }> = {
         rig: { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
         event: { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
@@ -139,25 +169,37 @@ export const useEventDragDrop = (
 
       if (!eventData.bookingId || !fields) {
         toast.error('Kunde inte flytta — saknar bokningsreferens.');
+        if (prevSnapshot && setEvents) setEvents(prevSnapshot);
         return;
       }
 
-      const realEventId = await resolveCalendarEventId({
-        rawId: eventData.id,
-        bookingId: eventData.bookingId,
-        eventType: eventData.eventType,
-        sourceDate: currentDateStr,
-      });
+      // Parallellisera resolve + bookings-fetch (oberoende av varandra).
+      const [realEventId, bkRes] = await Promise.all([
+        resolveCalendarEventId({
+          rawId: eventData.id,
+          bookingId: eventData.bookingId,
+          eventType: eventData.eventType,
+          sourceDate: currentDateStr,
+        }),
+        supabase
+          .from('bookings')
+          .select(`${fields.date}`)
+          .eq('id', eventData.bookingId)
+          .maybeSingle(),
+      ]);
 
       if (!realEventId) {
-        // Should not happen post-backfill — surface clearly so we catch any miss.
         toast.error('Kunde inte hitta kalenderhändelsen att flytta', {
           description: `Bokning ${eventData.bookingId} (${eventData.eventType} ${currentDateStr}) saknar rad i calendar_events. Kör backfill.`,
         });
+        if (prevSnapshot && setEvents) setEvents(prevSnapshot);
         return;
       }
 
-      // 1. Update the calendar_events row in place (date + time on the row)
+      const primaryDate = (bkRes.data as any)?.[fields.date];
+      const isPrimaryDay = primaryDate && primaryDate === currentDateStr;
+
+      // 1. Update the calendar_events row in place
       try {
         await updateCalendarEvent(realEventId, { start: newStartISO, end: newEndISO });
       } catch (err) {
@@ -165,32 +207,27 @@ export const useEventDragDrop = (
         throw err;
       }
 
-      // 2. Mirror canonical date/time onto bookings row — but ONLY if the
-      //    day we moved is the booking's PRIMARY date for this phase.
-      //    Multi-day rig/rigDown has extra calendar_events rows that should
-      //    NOT overwrite bookings.<phase>date when moved (that's just a
-      //    secondary day).
-      const { data: bk } = await supabase
-        .from('bookings')
-        .select(`${fields.date}`)
-        .eq('id', eventData.bookingId)
-        .maybeSingle();
-      const primaryDate = (bk as any)?.[fields.date];
-      const isPrimaryDay = primaryDate && primaryDate === currentDateStr;
-
+      // 2. Mirror canonical date/time onto bookings — only for primary day.
+      // 3. BSA-recompute för båda dagarna.
+      // Allt detta körs parallellt — de är oberoende av varandra.
+      const tasks: Promise<unknown>[] = [];
       if (isPrimaryDay) {
-        const { error: bkErr } = await supabase
-          .from('bookings')
-          .update({
-            [fields.date]: targetDateStr,
-            [fields.start]: newStartISO,
-            [fields.end]: newEndISO,
-          })
-          .eq('id', eventData.bookingId);
-        if (bkErr) {
-          console.error('[useEventDragDrop] bookings update failed', bkErr);
-          throw new Error(`Kunde inte uppdatera bokningen: ${bkErr.message}`);
-        }
+        tasks.push(
+          supabase
+            .from('bookings')
+            .update({
+              [fields.date]: targetDateStr,
+              [fields.start]: newStartISO,
+              [fields.end]: newEndISO,
+            })
+            .eq('id', eventData.bookingId)
+            .then(({ error: bkErr }) => {
+              if (bkErr) {
+                console.error('[useEventDragDrop] bookings update failed', bkErr);
+                throw new Error(`Kunde inte uppdatera bokningen: ${bkErr.message}`);
+              }
+            })
+        );
       } else {
         console.log('[useEventDragDrop] Skipping bookings mirror — not primary day', {
           bookingId: eventData.bookingId, phase: eventData.eventType,
@@ -198,39 +235,43 @@ export const useEventDragDrop = (
         });
       }
 
-      // 3. Räkna om BSA för båda dagarna (källa städas, mål fylls från teamet)
-      try {
-        await Promise.all([
-          supabase.rpc('recompute_booking_staff_for_day' as any, {
-            p_booking_id: eventData.bookingId,
-            p_date: currentDateStr,
-          }),
-          supabase.rpc('recompute_booking_staff_for_day' as any, {
-            p_booking_id: eventData.bookingId,
-            p_date: targetDateStr,
-          }),
-        ]);
-      } catch (rpcErr) {
-        console.warn('[useEventDragDrop] BSA recompute failed (non-fatal)', rpcErr);
-      }
+      tasks.push(
+        supabase.rpc('recompute_booking_staff_for_day' as any, {
+          p_booking_id: eventData.bookingId,
+          p_date: currentDateStr,
+        }).then(() => {}, (rpcErr: any) => {
+          console.warn('[useEventDragDrop] BSA recompute (source) failed (non-fatal)', rpcErr);
+        }),
+        supabase.rpc('recompute_booking_staff_for_day' as any, {
+          p_booking_id: eventData.bookingId,
+          p_date: targetDateStr,
+        }).then(() => {}, (rpcErr: any) => {
+          console.warn('[useEventDragDrop] BSA recompute (target) failed (non-fatal)', rpcErr);
+        }),
+      );
+
+      await Promise.all(tasks);
 
       const targetDate = new Date(targetDateStr + 'T12:00:00Z');
       toast.success('Riggdag flyttad', {
         description: `${eventData.title} → ${format(targetDate, 'EEE d MMM')}`,
       });
 
-      if (refreshEvents) await refreshEvents();
+      // Refresh i bakgrunden — UI är redan synkat optimistiskt.
+      if (refreshEvents) void refreshEvents();
     } catch (error: any) {
       console.error('Error moving event via drag:', error);
+      // Rollback optimistic update
+      if (prevSnapshot && setEvents) setEvents(prevSnapshot);
       const detail = error?.message || error?.error_description || error?.hint || (typeof error === 'string' ? error : '');
       toast.error('Kunde inte flytta eventet', {
         description: detail ? `Detaljer: ${detail}` : 'Försök igen — om felet kvarstår, skicka mig texten i konsolen.',
       });
-      if (refreshEvents) await refreshEvents();
+      if (refreshEvents) void refreshEvents();
     } finally {
       setIsMoving(false);
     }
-  }, [refreshEvents]);
+  }, [refreshEvents, setEvents]);
 
   return {
     isDragging,
