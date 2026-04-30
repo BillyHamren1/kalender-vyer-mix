@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import {
@@ -10,6 +10,7 @@ import {
   buildDayEventLog,
   type DayInterpretation, type DaySuggestion, type NotificationEntry,
 } from '@/lib/staff/dayEventLog';
+import { NotificationDetailDialog } from './NotificationDetailDialog';
 
 interface Props {
   staffId: string;
