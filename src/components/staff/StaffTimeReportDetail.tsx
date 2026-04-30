@@ -672,13 +672,13 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           <div className="overflow-x-auto -mx-1">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Kund</TableHead>
-                  <TableHead>Start</TableHead>
-                  <TableHead>Slut</TableHead>
-                  <TableHead className="text-right">Timmar</TableHead>
-                  <TableHead className="text-right">Övertid</TableHead>
-                  <TableHead>Status</TableHead>
+                <TableRow className="bg-primary/10 hover:bg-primary/10">
+                  <TableHead className="font-bold text-foreground">Kund</TableHead>
+                  <TableHead className="font-bold text-foreground">Start</TableHead>
+                  <TableHead className="font-bold text-foreground">Slut</TableHead>
+                  <TableHead className="text-right font-bold text-foreground">Timmar</TableHead>
+                  <TableHead className="text-right font-bold text-foreground">Övertid</TableHead>
+                  <TableHead className="font-bold text-foreground">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -706,10 +706,10 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                       <React.Fragment key={date}>
                         {/* Date header row — clickable only if there's data */}
                         <TableRow
-                          className={`border-t-2 ${
+                          className={`border-t-4 border-t-primary/30 ${
                             hasAnyReport
-                              ? 'bg-muted/70 hover:bg-muted cursor-pointer'
-                              : 'bg-muted/30'
+                              ? 'bg-primary/30 hover:bg-primary/40 cursor-pointer'
+                              : 'bg-primary/10'
                           } ${dayIsToday ? 'border-l-4 border-l-primary' : ''}`}
                           onClick={hasAnyReport ? () => setDailyOverviewDate(date) : undefined}
                         >
