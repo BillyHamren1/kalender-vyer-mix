@@ -71,11 +71,10 @@ const StaffItem: React.FC<StaffItemProps> = ({
           onDoubleClick={handleDoubleClick}
           title={staff.name}
         >
-          <div 
-            className="px-2 rounded-full text-[11px] font-medium leading-tight shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105"
-            style={{ 
-              backgroundColor: staffColor,
-              color: textColor,
+          <div
+            className="px-1 text-[11px] font-medium leading-tight transition-colors duration-150 hover:text-primary"
+            style={{
+              color: 'hsl(var(--foreground))',
               paddingTop: '0px',
               paddingBottom: '0px',
             }}
