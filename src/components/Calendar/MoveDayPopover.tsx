@@ -143,29 +143,24 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
 
   return (
     <>
-      <div
-        className="absolute bottom-0.5 right-0.5 flex items-center gap-0.5 z-20"
-        onClick={(e) => e.stopPropagation()}
+      <button
+        type="button"
+        onClick={requestMove(prevTeam)}
+        disabled={!prevTeam || busy}
+        className="absolute bottom-0.5 left-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 disabled:opacity-30 disabled:cursor-not-allowed z-20"
+        title={prevTeam ? `Flytta till ${prevTeam.title}` : 'Inget team till vänster'}
       >
-        <button
-          type="button"
-          onClick={requestMove(prevTeam)}
-          disabled={!prevTeam || busy}
-          className="p-0.5 rounded bg-white/70 hover:bg-primary/20 disabled:opacity-30 disabled:cursor-not-allowed"
-          title={prevTeam ? `Flytta till ${prevTeam.title}` : 'Inget team till vänster'}
-        >
-          <ChevronLeft className="h-3 w-3 text-primary" />
-        </button>
-        <button
-          type="button"
-          onClick={requestMove(nextTeam)}
-          disabled={!nextTeam || busy}
-          className="p-0.5 rounded bg-white/70 hover:bg-primary/20 disabled:opacity-30 disabled:cursor-not-allowed"
-          title={nextTeam ? `Flytta till ${nextTeam.title}` : 'Inget team till höger'}
-        >
-          <ChevronRight className="h-3 w-3 text-primary" />
-        </button>
-      </div>
+        <ChevronLeft className="h-3 w-3 text-primary" />
+      </button>
+      <button
+        type="button"
+        onClick={requestMove(nextTeam)}
+        disabled={!nextTeam || busy}
+        className="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 disabled:opacity-30 disabled:cursor-not-allowed z-20"
+        title={nextTeam ? `Flytta till ${nextTeam.title}` : 'Inget team till höger'}
+      >
+        <ChevronRight className="h-3 w-3 text-primary" />
+      </button>
 
       <AlertDialog
         open={pendingTeamId !== null}
