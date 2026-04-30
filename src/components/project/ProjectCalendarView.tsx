@@ -181,7 +181,11 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                         events={calendarEvents}
                         getEventsForDayAndResource={getEventsForDayAndResource}
                         weeklyStaffOperations={{
-                          getStaffForTeamAndDate: (teamId: string, targetDate: Date) => getStaffForTeamAndDate(teamId, targetDate),
+                          getStaffForTeamAndDate: (teamId: string, targetDate: Date) =>
+                            getStaffForTeamAndDate(teamId, targetDate).map((staff) => ({
+                              id: staff.staffId,
+                              name: staff.name,
+                            })),
                         }}
                         isEventReadOnly={() => true}
                         fullWidth={false}
