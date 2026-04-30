@@ -15,8 +15,9 @@
   flex: 1 1 640px !important;
 }
 
-.project-weekly-day-card .day-card {
-  border-radius: 0;
+.project-weekly-day-card .day-card,
+.project-weekly-day-card .time-grid-with-staff-header {
+  border-radius: 0 !important;
   border: 1px solid hsl(var(--border));
   box-shadow: none;
 }
