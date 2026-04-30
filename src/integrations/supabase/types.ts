@@ -7260,6 +7260,7 @@ export type Database = {
         Args: { _date: string; _end: string; _start: string }
         Returns: unknown
       }
+      trunc_to_second_immutable: { Args: { ts: string }; Returns: string }
       unarchive_dm_thread: {
         Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
         Returns: number
