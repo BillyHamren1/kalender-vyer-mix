@@ -197,7 +197,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 {format(expandedDay, 'EEEE d MMMM', { locale: sv })}
               </span>
             </div>
-            <div className="flex-1 p-4 overflow-auto">
+            <div className={`flex-1 p-4 overflow-auto ${getDayCardClassName?.(expandedDay) ?? ''}`.trim()}>
               <TimeGrid
                 {...buildTimeGridProps(expandedDay, true)}
                 onTitleClick={undefined}
