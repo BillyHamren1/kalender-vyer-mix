@@ -320,9 +320,11 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                           </span>
                         )}
                       </div>
-                      <div className="pl-8">
-                        <PresenceLineWithDate row={r} date={date} />
-                      </div>
+                      {r.kind !== 'day-start' && (
+                        <div className="pl-8">
+                          <PresenceLineWithDate row={r} date={date} />
+                        </div>
+                      )}
                     </div>
                   </td>
 
