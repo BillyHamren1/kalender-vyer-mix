@@ -11,6 +11,7 @@ import EventHoverCard from './EventHoverCard';
 // opens a time picker (felt accidental). Edits go via double-click / context menu.
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { MoveDayPopover } from './MoveDayPopover';
+import { AddDayButton } from './AddDayButton';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import './CustomEvent.css';
 
