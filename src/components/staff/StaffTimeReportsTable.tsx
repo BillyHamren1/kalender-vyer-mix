@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { Briefcase, Car, MapPin, Sun } from 'lucide-react';
 import { LiveDuration } from './LiveDuration';
@@ -9,6 +9,7 @@ import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { findPingAtTime } from '@/lib/staff/pingAtTime';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
+import { AddressMapDialog } from './AddressMapDialog';
 
 const fmt = (iso: string | null) => {
   if (!iso) return '—';
