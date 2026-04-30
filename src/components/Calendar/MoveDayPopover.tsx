@@ -131,7 +131,7 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setOpen(true); }}
-          className="absolute top-0.5 right-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 z-20"
+          className="absolute bottom-0.5 left-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 z-20"
           title="Flytta team"
         >
           <ArrowLeftRight className="h-3 w-3 text-primary" />
