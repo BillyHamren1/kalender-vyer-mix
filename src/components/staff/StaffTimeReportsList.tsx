@@ -91,12 +91,12 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   const totalHours = staffList.reduce((s, x) => s + x.total_hours, 0);
 
   return (
-    <PremiumCard
-      icon={Clock}
-      title="Tidrapporter"
-      subtitle={`${staffList.length} ${staffList.length === 1 ? 'person rapporterade' : 'personer rapporterade'} · ${subLabel}`}
-      count={staffList.length}
-    >
+    <div className="rounded-xl border bg-card p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {staffList.length} {staffList.length === 1 ? 'person rapporterade' : 'personer rapporterade'} · {subLabel}
+        </p>
+      </div>
       {/* Date navigation */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <Button
