@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useOpsControl } from '@/hooks/useOpsControl';
-import OpsMetricsBar from '@/components/ops-control/OpsMetricsBar';
 import OpsStaffTimeline from '@/components/ops-control/OpsStaffTimeline';
-import OpsJobQueue from '@/components/ops-control/OpsJobQueue';
+import OpsLiveProjects from '@/components/ops-control/OpsLiveProjects';
 import OpsActivityComms from '@/components/ops-control/OpsActivityComms';
 import OpsLiveMap from '@/components/ops-control/OpsLiveMap';
 import OpsJobChat from '@/components/ops-control/OpsJobChat';
@@ -10,7 +9,8 @@ import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
 import OpsBroadcastDialog from '@/components/ops-control/OpsBroadcastDialog';
 import OpsStaffRoute from '@/components/ops-control/OpsStaffRoute';
 import OrganizationLocationsManager from '@/components/ops-control/OrganizationLocationsManager';
-import { OpsJobQueueItem, OpsTimelineAssignment } from '@/services/opsControlService';
+import { useLivePackingFeed } from '@/hooks/useLivePackingFeed';
+import { OpsTimelineAssignment } from '@/services/opsControlService';
 import { optimizeStaffRoute, StaffRouteResult } from '@/services/staffRouteService';
 import { Radio } from 'lucide-react';
 import LogisticsWeeklyWeatherWidget from '@/components/logistics/widgets/LogisticsWeeklyWeatherWidget';
@@ -25,30 +25,22 @@ type SidePanel =
 
 const OpsControlCenter = () => {
   const {
-    metrics, isLoadingMetrics,
     timeline, isLoadingTimeline,
     timelineDate, goToNextDay, goToPrevDay, goToToday,
-    jobQueue, isLoadingJobQueue,
+    jobQueue,
     locations, isLoadingLocations,
     mapJobs, isLoadingMapJobs,
     messages, isLoadingMessages,
     activity, isLoadingActivity,
   } = useOpsControl();
 
+  const livePacking = useLivePackingFeed();
+
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [routePolyline, setRoutePolyline] = useState<GeoJSON.LineString | null>(null);
 
-  const handleFocusJob = useCallback((job: OpsJobQueueItem) => {
-    if (job.latitude && job.longitude) {
-      setFocusCoords({ lat: job.latitude, lng: job.longitude });
-    }
-  }, []);
-
-  const handleOpenChat = useCallback((bookingId: string, label: string) => {
-    setSidePanel({ type: 'job-chat', bookingId, label });
-  }, []);
 
   const handleOpenDM = useCallback((staffId: string, staffName: string) => {
     const staff = timeline.find(s => s.id === staffId);
@@ -132,15 +124,17 @@ const OpsControlCenter = () => {
 
         {/* BOTTOM AREA */}
         <div className="shrink-0 h-[260px] border-t border-border grid grid-cols-2 gap-0">
-          {/* Left: Job Queue */}
+          {/* Left: Live Projects */}
           <div className="border-r border-border overflow-y-auto p-3">
-            <OpsJobQueue
-              jobs={jobQueue}
-              isLoading={isLoadingJobQueue}
-              onFocusJob={handleFocusJob}
-              onOpenChat={handleOpenChat}
+            <OpsLiveProjects
+              items={livePacking.items}
+              counts={livePacking.counts}
+              pulseIds={livePacking.pulseIds}
+              isLoading={livePacking.isLoading}
+              markSeen={livePacking.markSeen}
             />
           </div>
+
 
           {/* Right: Activity & Comms */}
           <div className="overflow-y-auto p-3 space-y-4">

@@ -1,70 +1,102 @@
 ## Mål
 
-Två problem i `Planera projekt`-dialogen (`src/components/project/ProjectPlanningSheet.tsx`):
+Byt ut **Jobbkö**-widgeten (nere till vänster i `/ops-control`) mot en **Live Projekt**-widget som följer projekt genom hela packprocessen:
 
-1. **Tar över hela skärmen** – idag ett höger-`Sheet` som täcker en stor del av vyn, så kalendern bakom göms.
-2. **Bara en dag per fas** – Riggning/Event/Demontering visas som exakt en rad var, härlett från `rigdaydate` / `eventdate` / `rigdowndate`. Användaren kan inte lägga till fler riggdagar eller demonteringsdagar.
+```
+Planering → Pågående → Slutförd (UT) → I produktion → Tillbaka → Påbörjad → Slutförd (IN)
+```
 
-## Ändringar (bara denna fil)
+Visa notisbubblor när det sker uppdateringar (foton, utlägg, kommentarer, kvitton, statusbyten) — i realtid via Supabase Realtime.
 
-### 1. Byt panel-typ: Sheet → flytande, icke-modal sidopanel
-- Ersätt `<Sheet>` / `<SheetContent>` med en egen container:
-  - `position: fixed`, `right-4 top-20 bottom-4`, `w-[420px] max-w-[90vw]`
-  - `z-40`, `bg-background`, `border`, `rounded-lg`, `shadow-xl`, `overflow-y-auto`
-  - **Ingen backdrop / overlay** – kalendern bakom förblir synlig och klickbar.
-  - Stäng-knapp (X) uppe till höger.
-- Behåll samma props (`open`, `onClose`); rendera bara `null` när `!open`.
-- Behåll `SheetHeader/Title/Description`-stilen visuellt men som vanliga `div`.
+---
 
-### 2. Lägg till "+ Lägg till dag" per fas
-- Gruppera `days` per `kind` (`rig` / `event` / `rigDown`) i renderingen, sektion per fas med rubrik + en lista med dagar + en `+ Lägg till dag`-knapp.
-- Ny knapp `addDay(kind)`:
-  - Default-datum = sista befintliga dagen i fasen + 1 dag, annars första bokningens motsvarande datum, annars idag.
-  - Defaulttider per fas (samma konstanter som idag).
-  - Default-team = `masterTeam` om `useSameTeamForAll`, annars `team-1`.
-- Lägg till **datum-input** (`type="date"`) per dag-rad så användaren kan justera datumet på extra dagar (görs synligt även för original-raderna för enhetlighet).
-- Ny knapp **ta bort dag** (papperskorg) per rad – men dölj den om det är fasens enda kvarvarande dag (för att inte tappa fasen helt; om man vill ta bort hela fasen kan vi tillåta det också – föreslår: tillåt att radera, faserna är valfria).
-- Sortera fortfarande hela `days`-listan efter datum vid spara.
+## Vad användaren ser
 
-### 3. Spara: stötta flera dagar per fas
-- Loopen som skapar `calendar_events` funkar redan per dag → ingen ändring i kärnlogik.
-- `bookings.<phase>_*_time`-uppdateringen tar idag första matchande dag per fas. Behåll det (tider per dag är ändå redan i `calendar_events`); använd `days.find(d => d.kind === 'rig')` på den tidigaste rig-dagen efter sortering – byt till `days.filter(...).sort()[0]` för tydlighet.
-- Inget DB-schemat ändras.
+Vänsterspalten i bottenbaren på `/ops-control` får rubriken **"LIVE PROJEKT — N aktiva"** istället för Jobbkö.
 
-### 4. Övrigt
-- Filen blir fortfarande < 200 rader → ingen ytterligare splittring krävs.
-- Inga andra filer ändras. Inga migrations. Inga edge functions.
-
-## Tekniska detaljer
+Varje rad = ett `packing_projects` med status ≠ `planning`/`completed`/`cancelled` (alltså live i flödet):
 
 ```text
-Före:                                After:
-┌─────────────────────────┐         Kalender (synlig hela tiden)
-│ Sheet (höger, ~50vw)    │              ┌──────────────────┐
-│ skymmer kalendern       │              │ Planera projekt  │
-│                         │              │  Riggning        │
-│  Riggning  tors 2 juli  │              │   • tors 2 juli  │
-│  Event     lör 4 juli   │              │   • fre 3 juli   │  ← ny
-│  Demont.   mån 6 juli   │              │   [+ Lägg till dag]│
-│                         │              │  Event           │
-└─────────────────────────┘              │   • lör 4 juli   │
-                                         │   [+ Lägg till dag]│
-                                         │  Demontering     │
-                                         │   • mån 6 juli   │
-                                         │   • tis 7 juli   │  ← ny
-                                         │   [+ Lägg till dag]│
-                                         │ [Avbryt] [Spara] │
-                                         └──────────────────┘
-                                         (flytande, ingen overlay)
+[●] 5/5 Westers Catering AB                I produktion   📷 2  💸 1  💬 3  >
+    📍 Stockholm · Anna Berg                                            14:22
 ```
 
-State-form per dag oförändrad:
-```ts
-{ date, kind: 'rig'|'event'|'rigDown', startTime, endTime, teamId }
-```
+- Vänster färgad prick = nuvarande fas (blå=pågående, lila=i produktion, orange=tillbaka, grön=påbörjad återinlämning, etc — samma färgkarta som `PACKING_STATUS_COLORS`)
+- Statusbadge visar nuvarande fas (svenska labels från `PACKING_STATUS_LABELS`)
+- **Räknare/badges** för nya händelser sedan senaste visning:
+  - 📷 nya filer (`packing_files` + `project_files`/`large_project_files` om kopplat)
+  - 💸 nya utlägg (`packing_purchases` + `project_purchases`/`large_project_purchases`)
+  - 💬 nya kommentarer (`packing_comments` + `packing_task_comments`)
+  - ⚡ statusbyte (pulserande dot 30 sekunder efter `updated_at` ändring)
+- Klick på rad → expanderar och visar tidslinje (vilken fas den passerat + tidpunkt) samt knappar **Öppna packning**, **Öppna projekt**.
+- Sortering: senast uppdaterade överst (mest "live" känsla).
+- Tom state: "Inga aktiva projekt just nu".
 
-Spara-loopen iterar redan över alla `days` → en rad i `calendar_events` per (dag × bokning × fas), så multipla dagar per fas hanteras automatiskt så snart UI tillåter dem.
+Filter-pills överst: **Alla · UT-flöde · I produktion · IN-flöde** (mappning mot statuskluster).
 
-## Risker
-- Att panelen är icke-modal innebär att användaren kan klicka i kalendern medan den är öppen. Det är önskat (de vill se kalendern). Vi sparar dock state inom panelen tills `Spara` klickas – inga side effects förrän dess.
-- Default-datumet vid `+ Lägg till dag` kan krocka med befintlig dag i samma fas – det är OK, calendar_events-tabellen tillåter flera per dag/fas/booking.
+---
+
+## Realtid + notiser
+
+- Supabase `postgres_changes` subscription på:
+  - `packing_projects` (status, updated_at)
+  - `packing_files`, `packing_comments`, `packing_purchases`, `packing_task_comments`
+  - För kopplade projekt: `project_files`/`project_purchases` filtrerat på `project_id` som matchar `packing_projects.booking_id` eller `large_project_files`/`large_project_purchases` på `large_project_id`
+- Vid INSERT → öka räknaren på rätt rad + spela liten subtil pulsanimation + (valfritt) toast längst ner till höger: *"Anna laddade upp ett kvitto på Westers Catering"*.
+- Räknare nollställs när användaren klickar/expanderar raden (lagras i `localStorage` per `packing_id` med tidsstämpel).
+
+---
+
+## Teknisk plan
+
+### Nya filer
+
+1. **`src/services/livePackingFeedService.ts`**
+   - `fetchLivePackingProjects(orgId)`: hämtar `packing_projects` med `status IN ('in_progress','packed','delivered','back','returning')` joinat med booking-info (klient, adress) via befintlig `bookings`-relation och leverer `LivePackingItem[]`.
+   - `fetchActivityCounts(packingIds, sinceMap)`: räknar nya händelser i de fyra child-tabellerna sedan respektive `seenAt`-timestamp.
+
+2. **`src/hooks/useLivePackingFeed.ts`**
+   - `useQuery` för listan (5 min stale).
+   - `useEffect` som sätter upp Realtime-channels för de nämnda tabellerna, invaliderar query + bumpar lokal `eventCounter` per packing_id.
+   - Returnerar `{ items, counts, isLoading, markSeen(packingId) }`.
+   - `markSeen` skriver `livePackingSeen.<packingId>` till localStorage med `Date.now()`.
+
+3. **`src/components/ops-control/OpsLiveProjects.tsx`**
+   - Tar `items`, `counts`, `markSeen`.
+   - Renderar filter-pills, lista, expanderbar rad enligt skissen ovan.
+   - Använder `PACKING_STATUS_LABELS` / `PACKING_STATUS_COLORS` från `src/types/packing.ts`.
+   - Klick → `navigate('/packing/' + packingId)` (öppna packning) eller projekt-deeplink.
+
+### Ändrade filer
+
+4. **`src/pages/OpsControlCenter.tsx`**
+   - Byt ut `<OpsJobQueue ... />` mot `<OpsLiveProjects ... />` i bottom-area vänster kolumn.
+   - Rensa `handleFocusJob` / `handleOpenChat` om de inte används av något annat.
+
+5. **`src/hooks/useOpsControl.ts`**
+   - Ta bort `jobQueue`/`isLoadingJobQueue` från default returnen (om inget annat använder dem) — alternativt behåll tills vidare för bakåtkompatibilitet.
+
+### Behålls orört
+
+- `OpsStaffTimeline` (tidsöversikten i bild 2) — den är inte vad användaren vill ta bort.
+- `OpsJobQueue.tsx` lämnas i repot men oanvänd (kan rensas i nästa svep).
+
+---
+
+## Edge cases
+
+- Packing utan booking → visa bara `name` + status.
+- Stora projekt (`large_project_id`) → öppna `/large-project/{id}` istället för booking.
+- Status `completed`/`cancelled` filtreras bort (inte längre "live").
+- localStorage tomt för en packing → räknare visar totalt antal under sista 24h.
+- Realtime-fel → tyst fallback till 30s polling.
+
+---
+
+## Acceptanskriterier
+
+- [ ] "Jobbkö"-rutan är ersatt med "Live Projekt" i `/ops-control`.
+- [ ] Listan visar bara packing_projects i live-faserna, sorterat på senast uppdaterade.
+- [ ] När en testanvändare laddar upp en fil eller utlägg på ett listat projekt → räknare bumpas inom ~2s utan reload.
+- [ ] Klick expanderar rad och nollställer räknarna.
+- [ ] Statusbyte (t.ex. `packed → delivered`) syns med pulserande indikator + uppdaterad badge.
