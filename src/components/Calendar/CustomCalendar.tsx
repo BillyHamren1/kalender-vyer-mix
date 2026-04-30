@@ -82,7 +82,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     handleDragEnter,
     handleDragLeave,
     handleDrop,
-  } = useEventDragDrop(refreshEvents);
+  } = useEventDragDrop(refreshEvents, setEvents);
 
   const stableEvents = useStableEvents(events);
 
