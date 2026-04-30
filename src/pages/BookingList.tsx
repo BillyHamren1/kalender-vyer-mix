@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Table,
@@ -31,18 +32,55 @@ import ChangeHighlight from '@/components/booking/ChangeHighlight';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 
+const BOOKINGS_QUERY_KEY = ['bookings', 'list'] as const;
+const BOOKING_CHANGES_QUERY_KEY = ['booking-changes', 'list'] as const;
+
 const BookingList = () => {
   const navigate = useNavigate();
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const queryClient = useQueryClient();
+
+  // React Query: bookings list — cached so revisiting the page is instant.
+  const bookingsQuery = useQuery({
+    queryKey: BOOKINGS_QUERY_KEY,
+    queryFn: () => fetchBookings(),
+    staleTime: 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // React Query: recent changes — depends on the booking IDs we have.
+  const bookingIds = (bookingsQuery.data ?? []).map((b) => b.id);
+  const changesQuery = useQuery({
+    queryKey: [...BOOKING_CHANGES_QUERY_KEY, bookingIds.length],
+    queryFn: () => fetchRecentBookingChanges(bookingIds),
+    enabled: bookingIds.length > 0,
+    staleTime: 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Local mirror of bookings so existing optimistic updates (mark as viewed) keep working.
+  // Seeded from the cached query data; updates when the query data changes.
+  const [bookings, setBookings] = useState<Booking[]>(bookingsQuery.data ?? []);
+  useEffect(() => {
+    if (bookingsQuery.data) setBookings(bookingsQuery.data);
+  }, [bookingsQuery.data]);
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = bookingsQuery.isLoading && !bookingsQuery.data;
   const [recentlyUpdatedBookingIds, setRecentlyUpdatedBookingIds] = useState<string[]>([]);
   const [statusChangedBookingIds, setStatusChangedBookingIds] = useState<string[]>([]);
   const [showPlannedBookings, setShowPlannedBookings] = useState(false);
   const [plannedBookings, setPlannedBookings] = useState<Booking[]>([]);
   const [isLoadingPlanned, setIsLoadingPlanned] = useState(false);
-  const [bookingChanges, setBookingChanges] = useState<BookingChange[]>([]);
-  
+  const bookingChanges: BookingChange[] = changesQuery.data ?? [];
+  const setBookingChanges = (updater: (prev: BookingChange[]) => BookingChange[]) => {
+    queryClient.setQueryData<BookingChange[]>(
+      [...BOOKING_CHANGES_QUERY_KEY, bookingIds.length],
+      (prev) => updater(prev ?? [])
+    );
+  };
+
   // New state for planned bookings filters
   const [plannedDaysAhead, setPlannedDaysAhead] = useState<number>(30);
   const [plannedStatusFilter, setPlannedStatusFilter] = useState<string>("confirmed");
@@ -50,38 +88,24 @@ const BookingList = () => {
 
   // Manual import state
   const [isImporting, setIsImporting] = useState(false);
-  
-  // Manual refresh function
+
+  // Manual refresh function — invalidate the cached query so it refetches.
   const handleManualRefresh = async () => {
     setIsImporting(true);
     try {
       await importBookings({ syncMode: 'incremental' }, false);
-      await loadBookings();
+      await queryClient.invalidateQueries({ queryKey: BOOKINGS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: BOOKING_CHANGES_QUERY_KEY });
     } finally {
       setIsImporting(false);
     }
   };
 
-  // Function to load bookings - now loads ALL bookings, not just confirmed ones
+  // Kept for any explicit reload paths inside this page.
   const loadBookings = async () => {
-    try {
-      setIsLoading(true);
-      const data = await fetchBookings();
-      setBookings(data);
-      
-      // Fetch recent changes for all bookings
-      const bookingIds = data.map(booking => booking.id);
-      const changes = await fetchRecentBookingChanges(bookingIds);
-      setBookingChanges(changes);
-      
-      return data.length > 0;
-    } catch (error) {
-      console.error('Failed to load bookings:', error);
-      toast.error('Failed to load bookings');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
+    await queryClient.invalidateQueries({ queryKey: BOOKINGS_QUERY_KEY });
+    await queryClient.invalidateQueries({ queryKey: BOOKING_CHANGES_QUERY_KEY });
+    return true;
   };
   
   // Updated function to load planned bookings with custom filters
