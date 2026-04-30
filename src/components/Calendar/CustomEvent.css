@@ -1,7 +1,7 @@
 
 .custom-event {
   position: relative;
-  padding: 4px 8px 14px 8px; /* extra padding-bottom så texten ej krockar med tid-pillen */
+  padding: 16px 8px 14px 8px; /* extra padding-top för plus-knapp + padding-bottom för tid-pillen */
   border-radius: 4px;
   border: 1px solid hsl(var(--border));
   box-shadow: 0 1px 2px hsl(var(--foreground) / 0.08);
