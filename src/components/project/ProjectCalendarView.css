@@ -29,33 +29,39 @@
   min-height: 100%;
 }
 
-/* Header keeps the SAME purple as the staff calendar (default --primary).
-   Phase is only expressed via the booking event cards inside the grid. */
-
-/* Phase color tokens used for event cards & subtle day tint */
+/* Phase header colors — EXACT same hex as rig/event/rigDown events
+   in personalkalendern (see src/components/Calendar/ResourceData.ts) */
 .project-weekly-day-card.project-phase-rig {
-  --phase-color: 126 58% 84%;
-  --phase-foreground: 145 38% 24%;
+  --phase-header-bg: #F2FCE2;       /* Light green (rig) */
+  --phase-header-fg: #1f3a24;
 }
 .project-weekly-day-card.project-phase-event {
-  --phase-color: 52 95% 85%;
-  --phase-foreground: 38 48% 22%;
+  --phase-header-bg: #FEF7CD;       /* Yellow (event) */
+  --phase-header-fg: #3a2e0a;
 }
 .project-weekly-day-card.project-phase-rigDown {
-  --phase-color: 0 78% 89%;
-  --phase-foreground: 0 44% 26%;
+  --phase-header-bg: #FEE2E2;       /* Light red (rigDown) */
+  --phase-header-fg: #4a1d1d;
 }
 .project-weekly-day-card.project-phase-none {
-  --phase-color: var(--muted);
-  --phase-foreground: var(--muted-foreground);
+  --phase-header-bg: hsl(var(--muted));
+  --phase-header-fg: hsl(var(--muted-foreground));
 }
 
-/* Color the booking event cards by phase */
-.project-weekly-day-card .calendar-event,
-.project-weekly-day-card .event-card {
-  background: hsl(var(--phase-color)) !important;
-  color: hsl(var(--phase-foreground)) !important;
-  border-color: hsl(var(--phase-foreground) / 0.2) !important;
+/* Override the TimeGrid header background with the phase color */
+.project-weekly-day-card .time-grid-header-bg {
+  background: var(--phase-header-bg) !important;
+  border-radius: 0;
+}
+
+.project-weekly-day-card .day-title,
+.project-weekly-day-card .time-title {
+  color: var(--phase-header-fg) !important;
+  text-shadow: none;
+}
+
+.project-weekly-day-card .time-column-header {
+  border-right-color: rgba(0, 0, 0, 0.1);
 }
 
 .project-weekly-day-card .team-header-cell {
