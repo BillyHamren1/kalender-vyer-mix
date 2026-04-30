@@ -12,6 +12,18 @@
   user-select: none;
 }
 
+/* Hover actions (+ och pilar) — dolda som default, visas vid hover/focus på eventet. */
+.event-hover-action {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.custom-event:hover .event-hover-action,
+.custom-event:focus-within .event-hover-action {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Flytta FullCalendars inbyggda tidstext till nedre kanten av eventet, mitten.
    Plus-knapp ligger nere till vänster och pilarna nere till höger, så tiden
    centreras mellan dem. Gäller både personalplaneringen och projektkalendern. */

@@ -30,7 +30,7 @@ export const AddDayButton: React.FC<Props> = ({ event, onUpdate }) => {
           e.stopPropagation();
           setOpen(true);
         }}
-        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 z-20"
+        className="event-hover-action absolute top-0.5 right-0.5 p-0.5 rounded bg-white/70 hover:bg-primary/20 z-20"
         title="Lägg till dag"
       >
         <Plus className="h-3 w-3 text-primary" />
