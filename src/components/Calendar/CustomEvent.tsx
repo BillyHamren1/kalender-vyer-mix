@@ -181,7 +181,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         {!isCancelled && !isWarehouseEvent && !readOnly && event.bookingId && (
           <>
             <AddDayButton event={event} />
-            <MoveDayPopover event={event} />
+            <MoveDayPopover event={event} setEvents={setEvents} onUpdate={onEventResize} />
           </>
         )}
         {/* Large project badge — inline, not overlapping */}
