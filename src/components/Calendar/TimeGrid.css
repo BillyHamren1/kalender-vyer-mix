@@ -292,7 +292,7 @@
 
 .staff-header-assignment-area {
   width: 100%;
-  padding: 6px 10px;
+  padding: 6px 4px 6px 2px;
   position: relative;
   display: flex;
   flex-direction: column;
