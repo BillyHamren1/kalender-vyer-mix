@@ -134,9 +134,56 @@ export const MoveDayPopover: React.FC<Props> = ({ event }) => {
     }
   };
 
-  const requestMove = (team: { id: string; title: string } | null) => (e: React.MouseEvent) => {
+  /**
+   * Räkna hur många calendar_events som finns i SAMMA fas (rig/event/rigDown)
+   * för bookingen — eller, om bookingen tillhör ett large_project, för alla
+   * syskonbokningar. Om bara 1 → ingen serie att fråga om, flytta direkt.
+   */
+  const countSeriesEventsInPhase = async (): Promise<number> => {
+    if (!event.bookingId || !event.eventType) return 0;
+    try {
+      const { data: thisBooking } = await supabase
+        .from('bookings')
+        .select('id, large_project_id')
+        .eq('id', event.bookingId)
+        .single();
+
+      let bookingIds: string[] = [event.bookingId];
+      if (thisBooking?.large_project_id) {
+        const { data: siblings } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('large_project_id', thisBooking.large_project_id);
+        bookingIds = (siblings || []).map((s) => s.id);
+      }
+
+      const { count } = await supabase
+        .from('calendar_events')
+        .select('id', { count: 'exact', head: true })
+        .in('booking_id', bookingIds)
+        .eq('event_type', event.eventType);
+
+      return count || 0;
+    } catch (err) {
+      console.warn('[MoveDayPopover] countSeriesEventsInPhase failed:', err);
+      return 0;
+    }
+  };
+
+  const requestMove = (team: { id: string; title: string } | null) => async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!team) return;
+    if (!team || busy) return;
+
+    // Om det bara finns ett event i denna fas för hela serien — flytta direkt utan dialog.
+    setBusy(true);
+    const seriesCount = await countSeriesEventsInPhase();
+    setBusy(false);
+
+    if (seriesCount <= 1) {
+      void moveOneDay(team.id);
+      return;
+    }
+
     setPendingTeamId(team.id);
     setPendingTeamTitle(team.title);
   };
