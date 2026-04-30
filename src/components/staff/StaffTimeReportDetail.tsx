@@ -706,10 +706,10 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                       <React.Fragment key={date}>
                         {/* Date header row — clickable only if there's data */}
                         <TableRow
-                          className={`border-t-2 ${
+                          className={`border-t-4 border-t-primary/30 ${
                             hasAnyReport
-                              ? 'bg-muted/70 hover:bg-muted cursor-pointer'
-                              : 'bg-muted/30'
+                              ? 'bg-primary/30 hover:bg-primary/40 cursor-pointer'
+                              : 'bg-primary/10'
                           } ${dayIsToday ? 'border-l-4 border-l-primary' : ''}`}
                           onClick={hasAnyReport ? () => setDailyOverviewDate(date) : undefined}
                         >
