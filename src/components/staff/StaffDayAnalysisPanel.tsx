@@ -132,37 +132,42 @@ const SuggestionList: React.FC<{ items: DaySuggestion[] }> = ({ items }) => {
   );
 };
 
-const NotificationList: React.FC<{ items: NotificationEntry[] }> = ({ items }) => {
+const NotificationList: React.FC<{
+  items: NotificationEntry[];
+  onSelect: (n: NotificationEntry) => void;
+}> = ({ items, onSelect }) => {
   if (items.length === 0) {
     return <p className="text-[11px] text-muted-foreground">Inga notiser denna dag.</p>;
   }
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-1">
       {items.map((n) => (
-        <li key={n.id} className="flex items-start gap-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${SEV_DOT[n.severity]} shrink-0 mt-1.5`} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-1.5 flex-wrap">
-              <span className="tabular-nums text-[10px] text-muted-foreground">{fmtDateTime(n.at)}</span>
-              <span className={`text-[11px] font-medium ${SEV_TEXT[n.severity]}`}>{n.question}</span>
-              {n.needsUserInput && !n.resolved && (
-                <span className="text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-semibold">väntar svar</span>
-              )}
-            </div>
-            {n.detail && <p className="text-[10px] text-muted-foreground/80 leading-snug">{n.detail}</p>}
-            {n.resolved && (
-              <div className="mt-0.5 flex items-start gap-1 text-[10px]">
-                <MessageSquare className="h-2.5 w-2.5 mt-0.5 text-muted-foreground shrink-0" />
-                <div className="flex-1">
-                  <span className="text-foreground">{n.answer || 'Bekräftad utan kommentar'}</span>
-                  <span className="text-muted-foreground">
-                    {' · '}{n.answerSource ? ANSWER_SOURCE_LABEL[n.answerSource] || n.answerSource : '—'}
-                    {n.resolvedAt && <> · {fmtDateTime(n.resolvedAt)}</>}
+        <li key={n.id}>
+          <button
+            type="button"
+            onClick={() => onSelect(n)}
+            className="w-full text-left flex items-start gap-1.5 rounded px-1.5 py-1 hover:bg-accent/60 transition-colors"
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${SEV_DOT[n.severity]} shrink-0 mt-1.5`} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-1.5 flex-wrap">
+                <span className="tabular-nums text-[10px] text-muted-foreground">{fmtDateTime(n.at)}</span>
+                <span className={`text-[11px] font-medium ${SEV_TEXT[n.severity]} truncate`}>{n.question}</span>
+                {n.needsUserInput && !n.resolved && (
+                  <span className="text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-semibold">väntar svar</span>
+                )}
+              </div>
+              {n.resolved && (
+                <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+                  <MessageSquare className="h-2.5 w-2.5 shrink-0" />
+                  <span className="truncate">
+                    {n.answer || 'Bekräftad'}
+                    {n.answerSource && <> · {ANSWER_SOURCE_LABEL[n.answerSource] || n.answerSource}</>}
                   </span>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </button>
         </li>
       ))}
     </ul>
