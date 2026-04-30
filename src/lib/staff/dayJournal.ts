@@ -31,12 +31,26 @@ export interface ProjectSession {
   /** Sum of payable hours across merged rows. */
   hours: number;
   isOpen: boolean;
-  /** Source row ids (for debug / linking). */
+  /** Source row ids (for debug / linking). Prefixed: `tr:` / `lt:` / `tv:`. */
   sourceIds: string[];
   /** Optional address of the primary location (for the "öppna karta" link). */
   address?: string | null;
   baseLatitude?: number | null;
   baseLongitude?: number | null;
+  /**
+   * If this session is backed by at least one `time_reports` row, this is the
+   * canonical edit context for that row (the FIRST one if multiple). Allows
+   * admin inline-editing without an extra round-trip.
+   */
+  editTimeReport?: {
+    id: string;
+    approved: boolean;
+    breakHours: number;
+    description: string | null;
+    startHHmm: string | null;
+    endHHmm: string | null;
+    reportDate: string | null;
+  } | null;
 }
 
 export interface DayHeader {
@@ -75,6 +89,14 @@ export interface RawTimeReport {
   hours: number;
   /** Pre-resolved label from the caller (uses centralized resolver). */
   label?: string;
+  /** Optional admin-edit context (passed through to the session for inline editing). */
+  approved?: boolean;
+  break_hours?: number;
+  description?: string | null;
+  report_date?: string;
+  /** 'HH:mm' — needed by the edit dialog so admin can revise the wall-clock value. */
+  start_time_hhmm?: string | null;
+  end_time_hhmm?: string | null;
 }
 
 export interface RawLocationEntry {
@@ -131,7 +153,11 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
 
   const upsert = (
     key: string,
-    base: Omit<ProjectSession, 'sourceIds' | 'hours'> & { hours: number; sourceId: string },
+    base: Omit<ProjectSession, 'sourceIds' | 'hours' | 'editTimeReport'> & {
+      hours: number;
+      sourceId: string;
+      editTimeReport?: ProjectSession['editTimeReport'];
+    },
   ) => {
     const existing = sessions.get(key);
     if (!existing) {
@@ -147,6 +173,7 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
         address: base.address ?? null,
         baseLatitude: base.baseLatitude ?? null,
         baseLongitude: base.baseLongitude ?? null,
+        editTimeReport: base.editTimeReport ?? null,
       });
       return;
     }
@@ -164,6 +191,11 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     existing.hours += base.hours;
     existing.sourceIds.push(base.sourceId);
     if (!existing.address && base.address) existing.address = base.address;
+    // Keep the first edit context — admins editing a merged session edit the
+    // primary row; multi-row sessions remain rare in practice.
+    if (!existing.editTimeReport && base.editTimeReport) {
+      existing.editTimeReport = base.editTimeReport;
+    }
   };
 
   // Time reports → keyed by (large_project | booking | location | id) so a
@@ -191,6 +223,15 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
       hours: r.hours,
       isOpen: !r.end_iso,
       sourceId: `tr:${r.id}`,
+      editTimeReport: {
+        id: r.id,
+        approved: !!r.approved,
+        breakHours: r.break_hours ?? 0,
+        description: r.description ?? null,
+        startHHmm: r.start_time_hhmm ?? null,
+        endHHmm: r.end_time_hhmm ?? null,
+        reportDate: r.report_date ?? null,
+      },
     });
   }
 

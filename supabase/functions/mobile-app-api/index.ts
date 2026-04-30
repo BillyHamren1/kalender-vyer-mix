@@ -346,6 +346,10 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleAdminCreateTimeReport(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'admin_delete_time_report':
         return await handleAdminDeleteTimeReport(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_update_time_report':
+        return await handleAdminUpdateTimeReport(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_close_open_entry':
+        return await handleAdminCloseOpenEntry(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'get_project':
         return await handleGetProject(supabase, data, organizationId)
       case 'get_project_comments':
@@ -2626,6 +2630,330 @@ async function handleAdminCreateTimeReport(
   return new Response(
     JSON.stringify({ success: true, time_report: report }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ----------------------------------------------------------------------------
+// admin_update_time_report
+// Edit start/end/break/overtime/description on ANY staff member's
+// time_report. Mirrors `update_time_report` but with admin role-check
+// and a `force` flag that lets admin bypass the approved-lock (logged).
+// ----------------------------------------------------------------------------
+async function handleAdminUpdateTimeReport(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  const {
+    time_report_id,
+    start_time,
+    end_time,
+    overtime_hours,
+    break_time,
+    description,
+    force,
+  } = data || {}
+
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (!time_report_id) {
+    return new Response(
+      JSON.stringify({ error: 'time_report_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from('time_reports')
+    .select('id, staff_id, approved, hours_worked, overtime_hours, break_time, start_time, end_time, description, organization_id, report_date')
+    .eq('id', time_report_id)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (fetchErr || !existing) {
+    return new Response(
+      JSON.stringify({ error: 'Time report not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (existing.approved && !force) {
+    return new Response(
+      JSON.stringify({ error: 'Tidrapporten är attesterad. Skicka force=true för att åsidosätta.' , approved_lock: true }),
+      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const finalStartTime = start_time !== undefined ? start_time : existing.start_time
+  const finalEndTime = end_time !== undefined ? end_time : existing.end_time
+  const finalBreak = break_time !== undefined ? parseFloat(break_time) : Number(existing.break_time || 0)
+  const finalOvertime = overtime_hours !== undefined ? parseFloat(overtime_hours) : Number(existing.overtime_hours || 0)
+
+  if (isNaN(finalBreak) || finalBreak < 0 || finalBreak * 60 > 240) {
+    return new Response(
+      JSON.stringify({ error: 'Ogiltig rast (0–240 min)' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (isNaN(finalOvertime) || finalOvertime < 0 || finalOvertime > 16) {
+    return new Response(
+      JSON.stringify({ error: 'Ogiltig övertid (0–16 h)' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  let calculatedHours: number | null = null
+  if (finalStartTime && finalEndTime) {
+    const [sh, sm] = String(finalStartTime).split(':').map(Number)
+    const [eh, em] = String(finalEndTime).split(':').map(Number)
+    if (![sh, sm, eh, em].every(Number.isFinite)) {
+      return new Response(
+        JSON.stringify({ error: 'Ogiltigt tidsformat' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (sh * 60 + sm === eh * 60 + em) {
+      return new Response(
+        JSON.stringify({ error: 'Sluttid kan inte vara samma som starttid' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    let rawHours = (eh + em / 60) - (sh + sm / 60)
+    if (rawHours < 0) rawHours += 24
+    calculatedHours = Math.round((rawHours - finalBreak) * 100) / 100
+    if (calculatedHours <= 0 || calculatedHours > 16) {
+      return new Response(
+        JSON.stringify({ error: 'Arbetad tid efter rast måste vara 0–16h' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  const previousValues: Record<string, any> = {}
+  const newValues: Record<string, any> = {}
+  const updates: Record<string, any> = {}
+
+  if (calculatedHours !== null && calculatedHours !== existing.hours_worked) {
+    previousValues.hours_worked = existing.hours_worked
+    newValues.hours_worked = calculatedHours
+    updates.hours_worked = calculatedHours
+  }
+  if (finalOvertime !== Number(existing.overtime_hours || 0)) {
+    previousValues.overtime_hours = existing.overtime_hours || 0
+    newValues.overtime_hours = finalOvertime
+    updates.overtime_hours = finalOvertime
+  }
+  if (finalBreak !== Number(existing.break_time || 0)) {
+    previousValues.break_time = existing.break_time || 0
+    newValues.break_time = finalBreak
+    updates.break_time = finalBreak
+  }
+  if (start_time !== undefined && start_time !== existing.start_time) {
+    previousValues.start_time = existing.start_time
+    newValues.start_time = start_time || null
+    updates.start_time = start_time || null
+  }
+  if (end_time !== undefined && end_time !== existing.end_time) {
+    previousValues.end_time = existing.end_time
+    newValues.end_time = end_time || null
+    updates.end_time = end_time || null
+  }
+  if (description !== undefined && description !== existing.description) {
+    previousValues.description = existing.description
+    newValues.description = description || null
+    updates.description = description || null
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return new Response(
+      JSON.stringify({ success: true, message: 'No changes' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Overlap-check (skip for force=approved-override to ease historical fixes)
+  if (finalStartTime && finalEndTime && !force) {
+    const newInterval = buildShiftInterval(existing.report_date, finalStartTime, finalEndTime)
+    if (newInterval) {
+      const baseDate = new Date(`${existing.report_date}T00:00:00Z`)
+      const prevDate = new Date(baseDate.getTime() - 86_400_000).toISOString().slice(0, 10)
+      const nextDate = new Date(baseDate.getTime() + 86_400_000).toISOString().slice(0, 10)
+      const { data: candidates } = await supabase
+        .from('time_reports')
+        .select('id, report_date, start_time, end_time')
+        .eq('staff_id', existing.staff_id)
+        .neq('id', time_report_id)
+        .in('report_date', [prevDate, existing.report_date, nextDate])
+        .eq('is_subdivision', false)
+        .not('start_time', 'is', null)
+        .not('end_time', 'is', null)
+      const hasOverlap = (candidates || []).some((r: any) => {
+        const other = buildShiftInterval(r.report_date, r.start_time, r.end_time)
+        return other ? intervalsOverlap(newInterval, other) : false
+      })
+      if (hasOverlap) {
+        return new Response(
+          JSON.stringify({ error: 'Personalen har redan en tidrapport som överlappar detta tidsintervall' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from('time_reports')
+    .update(updates)
+    .eq('id', time_report_id)
+    .select()
+    .single()
+
+  if (updateErr) {
+    console.error('[admin-update-time-report] update error:', updateErr)
+    return new Response(
+      JSON.stringify({ error: updateErr.message || 'Failed to update time report' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Audit log
+  await supabase.from('time_report_edit_log').insert({
+    time_report_id,
+    edited_by_type: 'admin',
+    edited_by_name: 'Admin (web)',
+    edited_by_id: callerUserId,
+    previous_values: { ...previousValues, _approved_override: !!(existing.approved && force) },
+    new_values: newValues,
+    organization_id: organizationId,
+  })
+
+  console.log(`[admin-update-time-report] ${time_report_id} updated by ${callerUserId} (force=${!!force}, approved=${!!existing.approved})`)
+  return new Response(
+    JSON.stringify({ success: true, time_report: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ----------------------------------------------------------------------------
+// admin_close_open_entry
+// Close a still-open `location_time_entries` or `travel_time_logs` row
+// (i.e. "Stoppa pågående timer") for any staff member. The mobile-side
+// `useGeofencing` save-then-stop path is for the device that owns the
+// timer; admin needs a separate verb to terminate orphaned timers.
+//
+// Body: { table: 'location_time_entries' | 'travel_time_logs', id, end_iso }
+// ----------------------------------------------------------------------------
+async function handleAdminCloseOpenEntry(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  const { table, id, end_iso } = data || {}
+
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (!id || !end_iso) {
+    return new Response(
+      JSON.stringify({ error: 'id and end_iso required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (table !== 'location_time_entries' && table !== 'travel_time_logs') {
+    return new Response(
+      JSON.stringify({ error: 'table must be location_time_entries or travel_time_logs' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const endDate = new Date(end_iso)
+  if (isNaN(endDate.getTime())) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid end_iso' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (table === 'location_time_entries') {
+    const { data: row, error: fErr } = await supabase
+      .from('location_time_entries')
+      .select('id, entered_at, exited_at, organization_id')
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .single()
+    if (fErr || !row) {
+      return new Response(JSON.stringify({ error: 'Entry not found' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    if (row.exited_at) {
+      return new Response(JSON.stringify({ error: 'Entry already closed' }), {
+        status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    if (endDate.getTime() <= new Date(row.entered_at).getTime()) {
+      return new Response(JSON.stringify({ error: 'Sluttiden måste vara efter starttiden' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const { error: uErr } = await supabase
+      .from('location_time_entries')
+      .update({ exited_at: end_iso })
+      .eq('id', id)
+    if (uErr) {
+      console.error('[admin-close-open-entry] LTE update error:', uErr)
+      return new Response(JSON.stringify({ error: uErr.message }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  } else {
+    const { data: row, error: fErr } = await supabase
+      .from('travel_time_logs')
+      .select('id, start_time, end_time, organization_id')
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .single()
+    if (fErr || !row) {
+      return new Response(JSON.stringify({ error: 'Travel log not found' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    if (row.end_time) {
+      return new Response(JSON.stringify({ error: 'Travel log already closed' }), {
+        status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const startMs = row.start_time ? new Date(row.start_time).getTime() : 0
+    if (endDate.getTime() <= startMs) {
+      return new Response(JSON.stringify({ error: 'Sluttiden måste vara efter starttiden' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const hours = Math.round(((endDate.getTime() - startMs) / 3_600_000) * 100) / 100
+    const { error: uErr } = await supabase
+      .from('travel_time_logs')
+      .update({ end_time: end_iso, hours_worked: hours })
+      .eq('id', id)
+    if (uErr) {
+      console.error('[admin-close-open-entry] travel update error:', uErr)
+      return new Response(JSON.stringify({ error: uErr.message }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  console.log(`[admin-close-open-entry] ${table} ${id} closed by ${callerUserId} at ${end_iso}`)
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 

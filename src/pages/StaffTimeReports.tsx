@@ -112,7 +112,7 @@ const StaffTimeReports: React.FC = () => {
         // migration don't double up against the canonical location_time_entry.
         supabase
           .from('time_reports')
-          .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id')
+          .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
           .eq('report_date', dateStr)
           .eq('is_subdivision', false)
           .or('source.is.null,source.neq.location_auto'),
@@ -641,6 +641,12 @@ const StaffTimeReports: React.FC = () => {
               end_iso: r.end_time ? composeLocalIso(dateStr, r.end_time) : null,
               hours: r.hours_worked || 0,
               label: resolveTimeReportLabel(r as any).label,
+              approved: !!r.approved,
+              break_hours: Number(r.break_time || 0),
+              description: r.description ?? null,
+              report_date: r.report_date ?? dateStr,
+              start_time_hhmm: r.start_time ? String(r.start_time).slice(0, 5) : null,
+              end_time_hhmm: r.end_time ? String(r.end_time).slice(0, 5) : null,
             }));
 
           const staffLTEs: RawLocationEntry[] = (locationEntries as any[])

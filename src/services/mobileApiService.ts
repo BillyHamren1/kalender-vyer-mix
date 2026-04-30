@@ -382,6 +382,23 @@ export const mobileApi = {
   adminDeleteTimeReport: (timeReportId: string) =>
     callApi<{ success: boolean }>('admin_delete_time_report', { time_report_id: timeReportId }),
 
+  adminUpdateTimeReport: (data: {
+    time_report_id: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    overtime_hours?: number;
+    break_time?: number;
+    description?: string | null;
+    /** Bypass approved-lock and overlap-check (admin override). Logged in audit trail. */
+    force?: boolean;
+  }) => callApi<{ success: boolean; time_report: any }>('admin_update_time_report', data),
+
+  adminCloseOpenEntry: (data: {
+    table: 'location_time_entries' | 'travel_time_logs';
+    id: string;
+    end_iso: string;
+  }) => callApi<{ success: boolean }>('admin_close_open_entry', data),
+
   getProjectComments: (bookingId: string) =>
     callApi<{ comments: any[] }>('get_project_comments', { booking_id: bookingId }),
 
