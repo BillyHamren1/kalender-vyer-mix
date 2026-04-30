@@ -2744,7 +2744,7 @@ async function handleCreatePurchase(supabase: any, staffId: string, data: any, o
         extension = 'webp'
       }
 
-      const fileName = `receipts/${project.id}/${Date.now()}-receipt.${extension}`
+      const fileName = `receipts/${storageFolderId}/${Date.now()}-receipt.${extension}`
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('project-files')
@@ -2767,32 +2767,57 @@ async function handleCreatePurchase(supabase: any, staffId: string, data: any, o
     }
   }
 
-  // Create purchase record
-  const { data: purchase, error } = await supabase
-    .from('project_purchases')
-    .insert({
-      project_id: project.id,
-      description,
-      amount: parseFloat(amount),
-      supplier: supplier || null,
-      category: category || 'other',
-      receipt_url: receiptUrl,
-      purchase_date: new Date().toISOString().split('T')[0],
-      created_by: staffMember?.name || 'Mobile App',
-      organization_id: organizationId
-    })
-    .select()
-    .single()
+  // Create purchase record — route to large_project_purchases for large projects,
+  // otherwise to project_purchases for normal/medium projects.
+  let purchase: any = null
+  let insertError: any = null
+  if (largeProjectId) {
+    const res = await supabase
+      .from('large_project_purchases')
+      .insert({
+        large_project_id: largeProjectId,
+        description,
+        amount: parseFloat(amount),
+        supplier: supplier || null,
+        category: category || 'other',
+        receipt_url: receiptUrl,
+        purchase_date: new Date().toISOString().split('T')[0],
+        created_by: staffMember?.name || 'Mobile App',
+        organization_id: organizationId,
+      })
+      .select()
+      .single()
+    purchase = res.data
+    insertError = res.error
+  } else {
+    const res = await supabase
+      .from('project_purchases')
+      .insert({
+        project_id: project!.id,
+        description,
+        amount: parseFloat(amount),
+        supplier: supplier || null,
+        category: category || 'other',
+        receipt_url: receiptUrl,
+        purchase_date: new Date().toISOString().split('T')[0],
+        created_by: staffMember?.name || 'Mobile App',
+        organization_id: organizationId,
+      })
+      .select()
+      .single()
+    purchase = res.data
+    insertError = res.error
+  }
 
-  if (error) {
-    console.error('Purchase creation error:', error)
+  if (insertError) {
+    console.error('Purchase creation error:', insertError)
     return new Response(
       JSON.stringify({ error: 'Failed to create purchase' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  console.log(`Purchase created: ${purchase.id} for project ${project.id}`)
+  console.log(`Purchase created: ${purchase.id} for ${largeProjectId ? `large_project ${largeProjectId}` : `project ${project!.id}`}`)
 
   // Sync purchase to EventFlow booking module
   try {
