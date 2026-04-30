@@ -8295,8 +8295,8 @@ async function handleCreateTravelFromGap(
   }
 
   // Cross-day → vi vägrar (gap-modellen rör enbart samma dag).
-  const startDate = new Date(start_time).toISOString().split('T')[0]
-  const endDate = new Date(end_time).toISOString().split('T')[0]
+  const startDate = startIso.split('T')[0]
+  const endDate = endIso.split('T')[0]
   if (startDate !== endDate) {
     return new Response(
       JSON.stringify({ skipped: true, reason: 'cross_day' }),
@@ -8304,15 +8304,15 @@ async function handleCreateTravelFromGap(
     )
   }
 
-  // ── Idempotens-koll ───────────────────────────────────────────────
+  // ── Idempotens-koll (sekund-trunkad) ──────────────────────────────
   const { data: existing, error: existingErr } = await supabase
     .from('travel_time_logs')
     .select('*')
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
     .eq('source', 'gap_derived')
-    .eq('start_time', new Date(start_time).toISOString())
-    .eq('end_time', new Date(end_time).toISOString())
+    .eq('start_time', startIso)
+    .eq('end_time', endIso)
     .maybeSingle()
 
   if (existingErr) {
@@ -8327,9 +8327,82 @@ async function handleCreateTravelFromGap(
     )
   }
 
+  // ── GPS-berikning: hämta närmsta ping vid start/end och reverse-geocoda ──
+  // Vi söker en ±15 min fönster runt varje ändpunkt i staff_location_history.
+  const WINDOW_MIN = 15
+  const winStartMin = new Date(startMs - WINDOW_MIN * 60_000).toISOString()
+  const winStartMax = new Date(startMs + WINDOW_MIN * 60_000).toISOString()
+  const winEndMin = new Date(endMs - WINDOW_MIN * 60_000).toISOString()
+  const winEndMax = new Date(endMs + WINDOW_MIN * 60_000).toISOString()
+
+  const pickClosest = (rows: any[], targetMs: number) => {
+    if (!rows || rows.length === 0) return null
+    let best: any = null
+    let bestDelta = Infinity
+    for (const r of rows) {
+      const t = new Date(r.recorded_at).getTime()
+      const d = Math.abs(t - targetMs)
+      if (d < bestDelta) { bestDelta = d; best = r }
+    }
+    return best
+  }
+
+  const [{ data: pingsAroundStart }, { data: pingsAroundEnd }] = await Promise.all([
+    supabase.from('staff_location_history')
+      .select('lat,lng,recorded_at')
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .gte('recorded_at', winStartMin)
+      .lte('recorded_at', winStartMax)
+      .order('recorded_at', { ascending: true })
+      .limit(50),
+    supabase.from('staff_location_history')
+      .select('lat,lng,recorded_at')
+      .eq('staff_id', staffId)
+      .eq('organization_id', organizationId)
+      .gte('recorded_at', winEndMin)
+      .lte('recorded_at', winEndMax)
+      .order('recorded_at', { ascending: true })
+      .limit(50),
+  ])
+
+  const fromPing = pickClosest(pingsAroundStart || [], startMs)
+  const toPing = pickClosest(pingsAroundEnd || [], endMs)
+
+  // Mapbox reverse-geocode (best effort, blockerar inte insert vid fel).
+  const mapboxToken = Deno.env.get('MAPBOX_PUBLIC_TOKEN') || Deno.env.get('MAPBOX_TOKEN') || null
+  async function reverseGeocode(lat: number | null | undefined, lng: number | null | undefined): Promise<string | null> {
+    if (!mapboxToken || lat == null || lng == null) return null
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&language=sv&limit=1&types=address,poi,neighborhood,locality,place`
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const data = await res.json()
+      const feature = data?.features?.[0]
+      if (!feature) return null
+      const place = (feature.context || []).find((c: any) =>
+        typeof c.id === 'string' && (c.id.startsWith('place.') || c.id.startsWith('locality.'))
+      )?.text
+      const name = feature.text
+      if (name && place && name !== place) return `${name}, ${place}`
+      return feature.place_name?.split(',').slice(0, 2).join(',').trim() ?? name ?? null
+    } catch (e) {
+      console.warn('[handleCreateTravelFromGap] reverseGeocode failed:', (e as Error)?.message)
+      return null
+    }
+  }
+
+  const fromLat = fromPing ? Number(fromPing.lat) : null
+  const fromLng = fromPing ? Number(fromPing.lng) : null
+  const toLat = toPing ? Number(toPing.lat) : null
+  const toLng = toPing ? Number(toPing.lng) : null
+
+  const [fromAddress, toAddress] = await Promise.all([
+    reverseGeocode(fromLat, fromLng),
+    reverseGeocode(toLat, toLng),
+  ])
+
   // ── Beslutsregler för needs_review ────────────────────────────────
-  // 10–180 min  → 'work', auto-godkännbar
-  // >180 min    → needs_review=true, måste granskas innan attest
   const needsReview = gapMin > 180
   const classification = needsReview ? 'unclassified' : 'work'
   const hours = Number((gapMin / 60).toFixed(2))
@@ -8342,8 +8415,8 @@ async function handleCreateTravelFromGap(
     staff_id: staffId,
     organization_id: organizationId,
     report_date: startDate,
-    start_time: new Date(start_time).toISOString(),
-    end_time: new Date(end_time).toISOString(),
+    start_time: startIso,
+    end_time: endIso,
     hours_worked: hours,
     description,
     auto_detected: true,
@@ -8354,6 +8427,12 @@ async function handleCreateTravelFromGap(
     previous_target_id,
     next_target_type,
     next_target_id,
+    from_latitude: fromLat,
+    from_longitude: fromLng,
+    to_latitude: toLat,
+    to_longitude: toLng,
+    from_address: fromAddress,
+    to_address: toAddress,
   }
 
   const { data: inserted, error: insertErr } = await supabase
@@ -8363,7 +8442,6 @@ async function handleCreateTravelFromGap(
     .single()
 
   if (insertErr) {
-    // 23505 = unique violation → race med en parallell anropare. Hämta och returnera den existerande raden.
     if ((insertErr as any)?.code === '23505') {
       const { data: raceRow } = await supabase
         .from('travel_time_logs')
@@ -8371,8 +8449,8 @@ async function handleCreateTravelFromGap(
         .eq('staff_id', staffId)
         .eq('organization_id', organizationId)
         .eq('source', 'gap_derived')
-        .eq('start_time', new Date(start_time).toISOString())
-        .eq('end_time', new Date(end_time).toISOString())
+        .eq('start_time', startIso)
+        .eq('end_time', endIso)
         .maybeSingle()
       if (raceRow) {
         return new Response(
@@ -8389,7 +8467,7 @@ async function handleCreateTravelFromGap(
   }
 
   console.log(
-    `[handleCreateTravelFromGap] created ${inserted.id} (${gapMin} min, needs_review=${needsReview}) for staff ${staffId}`,
+    `[handleCreateTravelFromGap] created ${inserted.id} (${gapMin} min, needs_review=${needsReview}, from="${fromAddress}", to="${toAddress}") for staff ${staffId}`,
   )
   return new Response(
     JSON.stringify({ success: true, travel_log: inserted, gap_minutes: gapMin, needs_review: needsReview }),
