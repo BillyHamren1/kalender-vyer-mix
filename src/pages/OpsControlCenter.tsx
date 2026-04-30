@@ -25,30 +25,22 @@ type SidePanel =
 
 const OpsControlCenter = () => {
   const {
-    metrics, isLoadingMetrics,
     timeline, isLoadingTimeline,
     timelineDate, goToNextDay, goToPrevDay, goToToday,
-    jobQueue, isLoadingJobQueue,
+    jobQueue,
     locations, isLoadingLocations,
     mapJobs, isLoadingMapJobs,
     messages, isLoadingMessages,
     activity, isLoadingActivity,
   } = useOpsControl();
 
+  const livePacking = useLivePackingFeed();
+
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [routePolyline, setRoutePolyline] = useState<GeoJSON.LineString | null>(null);
 
-  const handleFocusJob = useCallback((job: OpsJobQueueItem) => {
-    if (job.latitude && job.longitude) {
-      setFocusCoords({ lat: job.latitude, lng: job.longitude });
-    }
-  }, []);
-
-  const handleOpenChat = useCallback((bookingId: string, label: string) => {
-    setSidePanel({ type: 'job-chat', bookingId, label });
-  }, []);
 
   const handleOpenDM = useCallback((staffId: string, staffName: string) => {
     const staff = timeline.find(s => s.id === staffId);
