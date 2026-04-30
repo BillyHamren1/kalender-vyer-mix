@@ -108,7 +108,7 @@ const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }>
       >
         {addr}
       </button>
-      <AddressMapDialog open={open} onOpenChange={setOpen} address={addr} coords={ping.coords} />
+      <AddressMapDialog open={open} onOpenChange={setOpen} address={addr} coords={ping.coords} staffId={staffId} date={date} />
     </>
   );
 };
