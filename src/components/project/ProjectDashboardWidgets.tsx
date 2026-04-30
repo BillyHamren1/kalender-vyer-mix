@@ -230,7 +230,7 @@ const ProjectDashboardWidgets = () => {
 
 interface LargeProjectsListProps {
   items: UnifiedItem[];
-  ProjectRow: React.FC<{ item: UnifiedItem }>;
+  ProjectRow: React.FC<{ item: UnifiedItem; compact?: boolean }>;
 }
 
 const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow }) => {
