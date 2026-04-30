@@ -166,8 +166,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                 {/* === RAD 2: ARBETSDAG (ljuslila) — fet, enhetlig text-sm rakt igenom === */}
                 <tr className="border-b border-border/40 bg-primary/10 text-sm">
                   <td className="px-2 py-1 align-middle whitespace-nowrap">
-                    <div className="flex items-center gap-2 font-bold text-foreground">
-                      <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+                     <div className="font-bold text-foreground">
                       ARBETSDAG
                     </div>
                   </td>
@@ -226,8 +225,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                     return (
                       <tr key={s.key} className="border-b border-border/40 hover:bg-muted/20 text-sm">
                         <td className="px-2 py-1 align-middle">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
                             <span className="truncate text-foreground">{s.label}</span>
                           </div>
                         </td>
