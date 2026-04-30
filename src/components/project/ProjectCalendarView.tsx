@@ -124,7 +124,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
   if (!projectId) return null;
 
   return (
-    <Card className="border-border/60 overflow-hidden">
+    <Card className="border-border/60 overflow-hidden rounded-none">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <CalIcon className="h-4 w-4 text-primary" />
