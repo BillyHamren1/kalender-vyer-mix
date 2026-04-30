@@ -1,7 +1,7 @@
 
 .custom-event {
   position: relative;
-  padding: 4px 8px;
+  padding: 4px 8px 14px 8px; /* extra padding-bottom så texten ej krockar med tid-pillen */
   border-radius: 4px;
   border: 1px solid hsl(var(--border));
   box-shadow: 0 1px 2px hsl(var(--foreground) / 0.08);
@@ -10,6 +10,27 @@
   overflow: hidden;
   cursor: pointer;
   user-select: none;
+}
+
+/* Flytta FullCalendars inbyggda tidstext till nedre vänstra hörnet av eventet.
+   Gäller både personalplaneringen (/calendar) och projektkalendern (samma CustomEvent). */
+.fc-timegrid-event .fc-event-time,
+.fc-daygrid-event .fc-event-time {
+  position: absolute !important;
+  bottom: 2px;
+  left: 4px;
+  right: auto;
+  top: auto;
+  font-size: 9px !important;
+  font-weight: 600;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: hsl(var(--background) / 0.75);
+  backdrop-filter: blur(2px);
+  color: #000000 !important;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .custom-event .event-content {
