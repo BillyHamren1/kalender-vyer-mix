@@ -110,10 +110,9 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
           prevSnapshot = prev;
           return prev.map((ev) => {
             const sameLargeProject =
-              (ev.extendedProps as any)?.largeProjectId &&
-              (ev.extendedProps as any)?.largeProjectId === (event.extendedProps as any)?.largeProjectId &&
-              ev.eventType !== 'activity';
-            const sameBookingSeries = ev.bookingId === event.bookingId && ev.eventType !== 'activity';
+              Boolean((ev.extendedProps as any)?.largeProjectId) &&
+              (ev.extendedProps as any)?.largeProjectId === (event.extendedProps as any)?.largeProjectId;
+            const sameBookingSeries = ev.bookingId === event.bookingId;
 
             if (sameLargeProject || sameBookingSeries) {
               return { ...ev, resourceId: newTeamId };
