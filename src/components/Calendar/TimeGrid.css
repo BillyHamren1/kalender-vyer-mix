@@ -340,8 +340,6 @@
   text-align: left;
   break-inside: avoid;
 }
-  width: 100%;
-}
 
 .assigned-staff-header-list::-webkit-scrollbar {
   width: 4px;
