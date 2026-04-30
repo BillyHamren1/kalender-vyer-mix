@@ -41,10 +41,12 @@ const fmtDateTime = (iso: string | null | undefined) => {
   try { return format(new Date(iso), 'd MMM HH:mm', { locale: sv }); } catch { return '—'; }
 };
 
+/**
+ * AI-analys-kolumnen: Tolkning + Åtgärdsförslag (Notiser visas i egen kolumn).
+ */
 export const StaffDayAnalysisPanel: React.FC<Props> = ({ staffId, date }) => {
   const { data: reality, isLoading: realityLoading } = useStaffDayReality(staffId, date);
   const { data: rawFlags = [], isLoading: flagsLoading } = useDayWorkdayFlags(staffId, date);
-  const [selected, setSelected] = useState<NotificationEntry | null>(null);
 
   const log = useMemo(() => buildDayEventLog(reality, rawFlags), [reality, rawFlags]);
   const isLoading = realityLoading || flagsLoading;
@@ -62,18 +64,46 @@ export const StaffDayAnalysisPanel: React.FC<Props> = ({ staffId, date }) => {
   }
 
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-border/40 h-full">
-        <Column icon={Activity} title="Tolkning" count={log.interpretations.length}>
-          <InterpretationList items={log.interpretations} />
-        </Column>
-        <Column icon={Lightbulb} title="Åtgärdsförslag" count={log.suggestions.length}>
-          <SuggestionList items={log.suggestions} />
-        </Column>
-        <Column icon={Bell} title="Notiser & svar" count={log.notifications.length}>
-          <NotificationList items={log.notifications} onSelect={setSelected} />
-        </Column>
+    <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x md:divide-border/40 h-full">
+      <Column icon={Activity} title="Tolkning" count={log.interpretations.length}>
+        <InterpretationList items={log.interpretations} />
+      </Column>
+      <Column icon={Lightbulb} title="Åtgärdsförslag" count={log.suggestions.length}>
+        <SuggestionList items={log.suggestions} />
+      </Column>
+    </div>
+  );
+};
+
+/**
+ * Notiser-kolumnen (separat). Visar workday_flags + assistent-frågor med svar.
+ * Klickbara rader öppnar detaljdialog.
+ */
+export const StaffDayNotificationsPanel: React.FC<Props> = ({ staffId, date }) => {
+  const { data: reality, isLoading: realityLoading } = useStaffDayReality(staffId, date);
+  const { data: rawFlags = [], isLoading: flagsLoading } = useDayWorkdayFlags(staffId, date);
+  const [selected, setSelected] = useState<NotificationEntry | null>(null);
+
+  const log = useMemo(() => buildDayEventLog(reality, rawFlags), [reality, rawFlags]);
+  const isLoading = realityLoading || flagsLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground p-3">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Hämtar notiser…
       </div>
+    );
+  }
+  if (!reality) {
+    return <div className="p-3 text-[11px] text-muted-foreground">Ingen data.</div>;
+  }
+
+  return (
+    <>
+      <Column icon={Bell} title="Notiser & svar" count={log.notifications.length}>
+        <NotificationList items={log.notifications} onSelect={setSelected} />
+      </Column>
       <NotificationDetailDialog
         notification={selected}
         open={!!selected}
@@ -89,7 +119,7 @@ const Column: React.FC<{
   count?: number;
   children: React.ReactNode;
 }> = ({ icon: Icon, title, count, children }) => (
-  <div className="flex flex-col min-h-0 px-3 py-2">
+  <div className="flex flex-col min-h-0 px-3 py-2 h-full">
     <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
       <Icon className="h-3 w-3" />
       <span>{title}</span>
