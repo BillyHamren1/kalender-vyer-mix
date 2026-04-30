@@ -131,39 +131,7 @@ export const buildJournalRows = (
     });
   }
 
-  // Day end
-  const STALE_PING_MS = 10 * 60 * 1000;
-  const pingAgeMin = staff.latestPing?.updated_at
-    ? Math.floor((Date.now() - new Date(staff.latestPing.updated_at).getTime()) / 60000)
-    : null;
-  const stale = staff.has_open_report && (
-    !staff.latestPing?.updated_at ||
-    (Date.now() - new Date(staff.latestPing!.updated_at!).getTime()) > STALE_PING_MS
-  );
-
-  // Widen end window: 30 min before reported end, until "now" if open.
-  const endWin = j.end.isOpen
-    ? { from: j.end.at ? new Date(new Date(j.end.at).getTime() - 30 * 60_000).toISOString() : null, to: new Date().toISOString() }
-    : widen(j.end.at, 30, 30);
-
-  rows.push({
-    staffId: staff.id,
-    staffName: staff.name,
-    isFirstForStaff: false,
-    rowId: `${staff.id}-end`,
-    kind: 'day-end',
-    description: j.end.isOpen ? 'Pågår' : 'Dagen avslutades',
-    address: j.end.address,
-    startIso: j.end.at,
-    endIso: j.end.at,
-    isOpen: j.end.isOpen,
-    hours: staff.total_hours,
-    fromIso: endWin.from,
-    toIso: endWin.to,
-    stale,
-    pingAgeMin,
-    allSessions,
-  });
+  // Day-end row removed — duration is shown on the "Arbetspass" (day-start) row.
 
   return rows;
 };
