@@ -80,6 +80,9 @@ export const useEventNavigation = () => {
   const handleEventClick = async (info: any) => {
     const bookingId = getBookingId(info);
     const largeProjectId = getLargeProjectId(info);
+    const forceBookingDetail =
+      info.event.extendedProps?.forceBookingDetail ||
+      info.event._def?.extendedProps?.forceBookingDetail;
 
     attachContextMenu(info);
 
@@ -93,6 +96,11 @@ export const useEventNavigation = () => {
     try {
       setLastViewedDate(info.event.start);
       setLastPath(window.location.pathname);
+
+      if (forceBookingDetail) {
+        navigate(`/booking/${bookingId}`);
+        return;
+      }
 
       const openedProject = await navigateToProjectFromBooking(bookingId, largeProjectId);
       if (openedProject) return;
