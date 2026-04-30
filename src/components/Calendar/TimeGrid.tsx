@@ -122,7 +122,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           <div
             className="day-header-teams"
             style={{
-              gridColumn: '2 / -1',
+              gridColumn: `2 / ${rightTimeColumn}`,
               width: fullWidth ? 'auto' : `${totalTeamColumnsWidth}px`,
               maxWidth: fullWidth ? 'none' : `${totalTeamColumnsWidth}px`,
             }}
