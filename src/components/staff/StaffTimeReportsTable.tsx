@@ -210,24 +210,24 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                           ? <LiveDuration startedAt={s.startIso} />
                           : formatHoursMinutes(s.hours));
                     return (
-                      <tr key={s.key} className="border-b border-border/40 hover:bg-muted/20">
+                      <tr key={s.key} className="border-b border-border/40 hover:bg-muted/20 text-sm">
                         <td className="px-2 py-1 align-middle">
                           <div className="flex items-center gap-2 min-w-0">
                             <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             <span className="truncate text-foreground">{s.label}</span>
                           </div>
                         </td>
-                        <td className="px-2 py-1 tabular-nums text-foreground">{fmt(s.startIso)}</td>
-                        <td className="px-2 py-1 text-[11px]">
+                        <td className="px-2 py-1 tabular-nums text-foreground whitespace-nowrap">{fmt(s.startIso)}</td>
+                        <td className="px-2 py-1 text-foreground whitespace-nowrap">
                           <GeoAtTime staffId={b.staffId} date={date} iso={s.startIso} />
                         </td>
-                        <td className="px-2 py-1 tabular-nums font-medium text-foreground text-right">
+                        <td className="px-2 py-1 tabular-nums font-medium text-foreground text-right whitespace-nowrap">
                           {duration}
                         </td>
-                        <td className="px-2 py-1 tabular-nums text-foreground">
+                        <td className="px-2 py-1 tabular-nums text-foreground whitespace-nowrap">
                           {s.isOpen ? <span className="italic text-muted-foreground">pågår</span> : fmt(s.endIso)}
                         </td>
-                        <td className="px-2 py-1 text-[11px]">
+                        <td className="px-2 py-1 text-foreground whitespace-nowrap">
                           <GeoAtTime
                             staffId={b.staffId}
                             date={date}
