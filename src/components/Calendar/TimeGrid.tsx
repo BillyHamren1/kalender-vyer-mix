@@ -304,6 +304,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               </SimpleTimeSlot>
             );
           })}
+
+          {/* Höger tids-kolumn (spegelvänd) */}
+          <div className="time-labels-column time-labels-column--right" style={{ gridColumn: rightTimeColumn }}>
+            {timeSlots.map((slot) => (
+              <div key={`r-${slot.time}`} className="time-label-slot">{slot.displayTime}</div>
+            ))}
+          </div>
         </div>
       </div>
     </>
