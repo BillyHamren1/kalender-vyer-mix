@@ -7,7 +7,7 @@ import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import LargeProjectTeam from "@/components/project/LargeProjectTeam";
-import UnifiedProjectGantt from "@/components/project/UnifiedProjectGantt";
+import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
@@ -62,7 +62,7 @@ const LargeProjectViewPage = () => {
               )}
             </TabsTrigger>
             <TabsTrigger value="gantt" className={tabTriggerClass}>
-              Schema
+              Kalender
             </TabsTrigger>
             <TabsTrigger value="files" className={tabTriggerClass}>
               Filer
@@ -99,7 +99,7 @@ const LargeProjectViewPage = () => {
         </TabsContent>
 
         <TabsContent value="gantt">
-          <UnifiedProjectGantt projectId={project.id} isLargeProject={true} />
+          <ProjectCalendarView projectId={project.id} isLargeProject={true} />
         </TabsContent>
 
         <TabsContent value="files">
