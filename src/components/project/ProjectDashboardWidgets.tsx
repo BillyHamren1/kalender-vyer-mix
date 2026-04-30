@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, AlertCircle, CalendarDays } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, AlertCircle, CalendarDays, Layers, Search } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
@@ -192,7 +193,6 @@ const ProjectDashboardWidgets = () => {
     <div className="space-y-4">
 
       {/* Two Widget Cards */}
-      {/* Two Widget Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-5">
@@ -222,7 +222,76 @@ const ProjectDashboardWidgets = () => {
           </CardContent>
         </Card>
       </div>
+
+      <LargeProjectsList items={unified.filter(i => i.type === 'large' && i.status !== 'cancelled')} ProjectRow={ProjectRow} />
     </div>
+  );
+};
+
+interface LargeProjectsListProps {
+  items: UnifiedItem[];
+  ProjectRow: React.FC<{ item: UnifiedItem }>;
+}
+
+const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow }) => {
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
+
+  const sorted = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const upcoming = items
+      .filter(i => i.date && i.date >= today)
+      .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+    const past = items
+      .filter(i => !i.date || i.date < today)
+      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+    return [...upcoming, ...past];
+  }, [items]);
+
+  const filtered = useMemo(() => {
+    if (!query) return sorted.slice(0, 10);
+    return sorted.filter(i =>
+      i.name.toLowerCase().includes(query) ||
+      (i.subtitle ?? '').toLowerCase().includes(query)
+    );
+  }, [sorted, query]);
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Stora projekt</h3>
+            <Badge variant="outline" className="text-[10px]">{items.length}</Badge>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Sök stort projekt…"
+              className="pl-7 h-8 text-sm"
+            />
+          </div>
+        </div>
+        {!query && (
+          <p className="text-xs text-muted-foreground mb-2">
+            Visar de 10 nästkommande. Sök för att hitta fler.
+          </p>
+        )}
+        <div className="divide-y divide-border/50">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              {query ? 'Inga matchande stora projekt' : 'Inga stora projekt'}
+            </p>
+          ) : filtered.map(item => <ProjectRow key={`large-${item.id}`} item={item} />)}
+        </div>
+        {query && filtered.length > 0 && (
+          <p className="text-xs text-muted-foreground mt-2">{filtered.length} träffar</p>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
