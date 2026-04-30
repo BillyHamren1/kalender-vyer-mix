@@ -254,13 +254,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           {resources.map((resource, index) => {
             const resourceEvents = getEventsForDayAndResource(day, resource.id);
             return (
-              <SimpleTimeSlot key={`timeslots-${resource.id}`} isLast={index === resources.length - 1}>
+              <SimpleTimeSlot
+                key={`timeslots-${resource.id}`}
+                isLast={index === resources.length - 1}
+                gridColumn={index + 2}
+                fullWidth={fullWidth}
+                fixedWidth={fullWidth ? undefined : TEAM_COLUMN_WIDTH}
+              >
                 <div
                   className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
                   style={{
-                    gridColumn: index + 2,
-                    width: fullWidth ? 'auto' : `${TEAM_COLUMN_WIDTH}px`,
-                    minWidth: fullWidth ? '120px' : `${TEAM_COLUMN_WIDTH}px`,
+                    width: '100%',
+                    minWidth: 0,
                     position: 'relative',
                   }}
                 >

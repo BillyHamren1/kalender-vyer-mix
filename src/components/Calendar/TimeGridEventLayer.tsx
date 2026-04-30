@@ -76,11 +76,20 @@ export const EventWrapper: React.FC<{
 export const SimpleTimeSlot: React.FC<{
   children: React.ReactNode;
   isLast?: boolean;
-}> = React.memo(({ children, isLast }) => {
+  gridColumn?: number;
+  fullWidth?: boolean;
+  fixedWidth?: number;
+}> = React.memo(({ children, isLast, gridColumn, fullWidth, fixedWidth }) => {
   return (
     <div
       className={`time-slot-wrapper ${isLast ? 'is-last' : ''}`}
-      style={{ width: `100%`, minWidth: `100%`, position: 'relative' }}
+      style={{
+        gridColumn,
+        width: fullWidth ? 'auto' : (fixedWidth ? `${fixedWidth}px` : '100%'),
+        minWidth: fullWidth ? 0 : (fixedWidth ? `${fixedWidth}px` : '100%'),
+        position: 'relative',
+        overflow: 'hidden',
+      }}
     >
       {children}
     </div>
