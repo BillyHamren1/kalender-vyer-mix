@@ -131,19 +131,19 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
 
             return (
               <React.Fragment key={b.staffId}>
-                {/* === RAD 1: Namn-header (lila) + AI-analys + Notiser (rowSpan över hela blocket) === */}
+                {/* === RAD 1: Namn-header (lila) — spänner data-kolumnerna; AI-analys + Notiser har egna header-celler === */}
                 <tr className="border-t-4 border-t-primary/30">
-                  <td colSpan={6} className="bg-primary/15 px-3 py-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => onSelectStaff(b.staffId, b.staffName)}
-                        className="font-semibold text-foreground hover:underline text-base"
-                      >
-                        {b.staffName}
-                      </button>
-                      <AnalyzeDayButton staffId={b.staffId} staffName={b.staffName} date={date} />
-                    </div>
+                  <td colSpan={5} className="bg-primary/15 px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => onSelectStaff(b.staffId, b.staffName)}
+                      className="font-semibold text-foreground hover:underline text-base"
+                    >
+                      Namn: {b.staffName}
+                    </button>
+                  </td>
+                  <td className="bg-primary/15 px-3 py-2 text-right">
+                    <AnalyzeDayButton staffId={b.staffId} staffName={b.staffName} date={date} />
                   </td>
                   <td
                     rowSpan={blockRowSpan}
@@ -151,16 +151,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                   >
                     <StaffDayAnalysisPanel staffId={b.staffId} date={date} />
                   </td>
-                  <td
-                    rowSpan={blockRowSpan}
-                    className="align-top p-0 border-l border-border/40 bg-muted/10"
-                  >
-                    <StaffDayNotificationsPanel staffId={b.staffId} date={date} />
+                  <td className="bg-primary/15 px-3 py-2 text-center font-semibold text-foreground border-l border-border/40">
+                    Notiser
                   </td>
                 </tr>
 
                 {/* === RAD 2: ARBETSDAG === */}
-                <tr className="border-b border-border/40 bg-muted/10">
+                <tr className="border-b border-border/40 bg-primary/5">
                   <td className="px-2 py-2 align-middle">
                     <div className="flex items-center gap-2 font-bold text-foreground">
                       <Sun className="h-3.5 w-3.5 text-muted-foreground" />
@@ -185,6 +182,12 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                       date={date}
                       iso={b.dayIsOpen ? new Date().toISOString() : b.dayEndIso}
                     />
+                  </td>
+                  <td
+                    rowSpan={blockRowSpan - 1}
+                    className="align-top p-0 border-l border-border/40 bg-muted/10"
+                  >
+                    <StaffDayNotificationsPanel staffId={b.staffId} date={date} />
                   </td>
                 </tr>
 
