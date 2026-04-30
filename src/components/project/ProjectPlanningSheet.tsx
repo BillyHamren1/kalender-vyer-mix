@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Save, Calendar as CalIcon } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { Loader2, Save, Calendar as CalIcon, X, Plus, Trash2 } from 'lucide-react';
+import { format, parseISO, addDays } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,9 +20,9 @@ type DayKind = Phase | 'event';
 interface PlanningDay {
   date: string;
   kind: DayKind;
-  startTime: string;   // 'HH:mm'
-  endTime: string;     // 'HH:mm'
-  teamId: string;      // 'team-1' .. 'team-5' | 'transport'
+  startTime: string;
+  endTime: string;
+  teamId: string;
 }
 
 interface Props {
@@ -33,19 +32,32 @@ interface Props {
   onClose: () => void;
 }
 
-const DEFAULT_RIG_START = '08:00';
-const DEFAULT_RIG_END = '16:00';
-const DEFAULT_DOWN_START = '08:00';
-const DEFAULT_DOWN_END = '16:00';
-const DEFAULT_EVENT_START = '17:00';
-const DEFAULT_EVENT_END = '23:00';
+const DEFAULTS: Record<DayKind, { start: string; end: string }> = {
+  rig: { start: '08:00', end: '16:00' },
+  event: { start: '17:00', end: '23:00' },
+  rigDown: { start: '08:00', end: '16:00' },
+};
+
+const PHASE_ORDER: DayKind[] = ['rig', 'event', 'rigDown'];
+const phaseLabel = (k: DayKind) => k === 'rig' ? 'Riggning' : k === 'rigDown' ? 'Demontering' : 'Event';
+
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const nextDayIso = (iso: string): string => {
+  try {
+    const d = addDays(parseISO(iso), 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  } catch {
+    return todayIso();
+  }
+};
 
 /**
- * Planeringssheet: användaren sätter team + tider per dag innan
- * projektet materialiseras i kalendern. När hen sparar:
- *  1) calendar_events skapas (en per dag/fas/booking)
- *  2) bookings.rig_*_time / rigdown_*_time uppdateras
- *  3) planning_status flippas till 'planned'
+ * Flytande, icke-modal planeringspanel — kalendern bakom syns hela tiden.
+ * Stöder flera dagar per fas (Riggning/Event/Demontering).
  */
 export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, open, onClose }) => {
   const qc = useQueryClient();
@@ -54,7 +66,6 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
   const [useSameTeamForAll, setUseSameTeamForAll] = useState(true);
   const [days, setDays] = useState<PlanningDay[]>([]);
 
-  // Hämta projektets bokning(ar) och datum
   const { data: ctx, isLoading } = useQuery({
     enabled: open,
     queryKey: ['project-planning-ctx', projectKind, projectId],
@@ -93,25 +104,17 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
     },
   });
 
-  // Härled dagar från första bokningens datum
   useEffect(() => {
     if (!ctx || ctx.bookings.length === 0) return;
     const b = ctx.bookings[0];
     const list: PlanningDay[] = [];
-    if (b.rigdaydate) {
-      list.push({ date: b.rigdaydate, kind: 'rig', startTime: DEFAULT_RIG_START, endTime: DEFAULT_RIG_END, teamId: 'team-1' });
-    }
-    if (b.eventdate) {
-      list.push({ date: b.eventdate, kind: 'event', startTime: DEFAULT_EVENT_START, endTime: DEFAULT_EVENT_END, teamId: 'team-1' });
-    }
-    if (b.rigdowndate) {
-      list.push({ date: b.rigdowndate, kind: 'rigDown', startTime: DEFAULT_DOWN_START, endTime: DEFAULT_DOWN_END, teamId: 'team-1' });
-    }
+    if (b.rigdaydate) list.push({ date: b.rigdaydate, kind: 'rig', ...DEFAULTS.rig, teamId: 'team-1', startTime: DEFAULTS.rig.start, endTime: DEFAULTS.rig.end });
+    if (b.eventdate) list.push({ date: b.eventdate, kind: 'event', startTime: DEFAULTS.event.start, endTime: DEFAULTS.event.end, teamId: 'team-1' });
+    if (b.rigdowndate) list.push({ date: b.rigdowndate, kind: 'rigDown', startTime: DEFAULTS.rigDown.start, endTime: DEFAULTS.rigDown.end, teamId: 'team-1' });
     list.sort((a, z) => a.date.localeCompare(z.date));
     setDays(list);
   }, [ctx]);
 
-  // När toggle är på — synka alla dagar till första riggdagens team
   const masterTeam = days[0]?.teamId ?? 'team-1';
   useEffect(() => {
     if (!useSameTeamForAll) return;
@@ -123,11 +126,31 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
     setDays(prev => {
       const next = [...prev];
       next[idx] = { ...next[idx], ...patch };
-      // Om "samma team för alla" är på och man ändrar team — uppdatera alla
       if (useSameTeamForAll && patch.teamId) {
         return next.map(d => ({ ...d, teamId: patch.teamId! }));
       }
       return next;
+    });
+  };
+
+  const removeDay = (idx: number) => {
+    setDays(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const addDayForPhase = (kind: DayKind) => {
+    setDays(prev => {
+      const inPhase = prev.filter(d => d.kind === kind).sort((a, z) => a.date.localeCompare(z.date));
+      const lastDate = inPhase.length > 0 ? inPhase[inPhase.length - 1].date : (ctx?.bookings?.[0]?.[kind === 'rig' ? 'rigdaydate' : kind === 'event' ? 'eventdate' : 'rigdowndate'] ?? todayIso());
+      const newDate = inPhase.length > 0 ? nextDayIso(lastDate) : lastDate;
+      const team = useSameTeamForAll ? masterTeam : 'team-1';
+      const next: PlanningDay = {
+        date: newDate,
+        kind,
+        startTime: DEFAULTS[kind].start,
+        endTime: DEFAULTS[kind].end,
+        teamId: team,
+      };
+      return [...prev, next];
     });
   };
 
@@ -137,6 +160,13 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
       .map((r: any) => ({ id: r.id, title: r.title }));
   }, [teamResources]);
 
+  const groupedByPhase = useMemo(() => {
+    const map: Record<DayKind, { day: PlanningDay; idx: number }[]> = { rig: [], event: [], rigDown: [] };
+    days.forEach((d, idx) => map[d.kind].push({ day: d, idx }));
+    PHASE_ORDER.forEach(p => map[p].sort((a, z) => a.day.date.localeCompare(z.day.date)));
+    return map;
+  }, [days]);
+
   const handleSave = async () => {
     if (!ctx || ctx.bookings.length === 0) {
       toast.error('Ingen bokning kopplad');
@@ -144,10 +174,8 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
     }
     setSaving(true);
     try {
-      // För stort projekt: skapa events per fas+datum för VARJE underliggande bokning
-      // (samma princip som reconcilern). För medel: bara en bokning.
       for (const day of days) {
-        if (day.kind === 'event') continue; // event-dagar skrivs ej längre till calendar_events
+        if (day.kind === 'event') continue;
         for (const b of ctx.bookings) {
           await addCalendarEvent({
             title: b.client || ctx.projectName || 'Projekt',
@@ -162,28 +190,26 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
         }
       }
 
-      // Uppdatera bookings tider (så reconcilern har korrekta tider om den körs igen)
-      const rigDay = days.find(d => d.kind === 'rig');
-      const downDay = days.find(d => d.kind === 'rigDown');
-      const eventDay = days.find(d => d.kind === 'event');
+      const sortedRig = days.filter(d => d.kind === 'rig').sort((a, z) => a.date.localeCompare(z.date));
+      const sortedDown = days.filter(d => d.kind === 'rigDown').sort((a, z) => a.date.localeCompare(z.date));
+      const sortedEvent = days.filter(d => d.kind === 'event').sort((a, z) => a.date.localeCompare(z.date));
       const updates: any = {};
-      if (rigDay) {
-        updates.rig_start_time = `${rigDay.startTime}:00`;
-        updates.rig_end_time = `${rigDay.endTime}:00`;
+      if (sortedRig[0]) {
+        updates.rig_start_time = `${sortedRig[0].startTime}:00`;
+        updates.rig_end_time = `${sortedRig[0].endTime}:00`;
       }
-      if (downDay) {
-        updates.rigdown_start_time = `${downDay.startTime}:00`;
-        updates.rigdown_end_time = `${downDay.endTime}:00`;
+      if (sortedDown[0]) {
+        updates.rigdown_start_time = `${sortedDown[0].startTime}:00`;
+        updates.rigdown_end_time = `${sortedDown[0].endTime}:00`;
       }
-      if (eventDay) {
-        updates.event_start_time = `${eventDay.startTime}:00`;
-        updates.event_end_time = `${eventDay.endTime}:00`;
+      if (sortedEvent[0]) {
+        updates.event_start_time = `${sortedEvent[0].startTime}:00`;
+        updates.event_end_time = `${sortedEvent[0].endTime}:00`;
       }
       if (Object.keys(updates).length > 0) {
         await supabase.from('bookings').update(updates).in('id', ctx.bookings.map(b => b.id));
       }
 
-      // Flippa planning_status → 'planned'
       const table = projectKind === 'medium' ? 'projects' : 'large_projects';
       const { error: flipErr } = await supabase
         .from(table)
@@ -203,21 +229,30 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
     }
   };
 
-  const phaseLabel = (k: DayKind) => k === 'rig' ? 'Riggning' : k === 'rigDown' ? 'Demontering' : 'Event';
+  if (!open) return null;
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
+    <div
+      role="dialog"
+      aria-label="Planera projekt"
+      className="fixed right-4 top-20 bottom-4 w-[440px] max-w-[92vw] z-40 bg-background border border-border rounded-lg shadow-xl flex flex-col"
+    >
+      <div className="flex items-start justify-between gap-2 p-4 border-b border-border/60">
+        <div>
+          <div className="flex items-center gap-2 font-semibold">
             <CalIcon className="h-5 w-5 text-primary" />
             Planera projekt
-          </SheetTitle>
-          <SheetDescription>
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">
             Sätt tider och team per dag. Eventen skapas i kalendern när du sparar.
-          </SheetDescription>
-        </SheetHeader>
+          </div>
+        </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose} aria-label="Stäng">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
 
+      <div className="flex-1 overflow-y-auto p-4">
         {isLoading || !ctx ? (
           <div className="flex items-center gap-2 py-12 justify-center text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Laddar projekt…
@@ -227,7 +262,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
             Projektet saknar kopplad bokning — ingen planering möjlig.
           </div>
         ) : (
-          <div className="mt-6 space-y-5">
+          <div className="space-y-4">
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-sm">
               <div className="font-medium text-foreground">{ctx.projectName}</div>
               <div className="text-xs text-muted-foreground mt-1">
@@ -244,75 +279,109 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
               <Switch id="same-team" checked={useSameTeamForAll} onCheckedChange={setUseSameTeamForAll} />
             </div>
 
-            <div className="space-y-3">
-              {days.map((day, idx) => (
-                <div key={`${day.date}-${day.kind}`} className="rounded-lg border border-border/60 p-3 space-y-2 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px]">
-                        {phaseLabel(day.kind)}
-                      </Badge>
-                      <span className="text-sm font-medium">
-                        {format(parseISO(day.date), 'EEE d MMM', { locale: sv })}
-                      </span>
-                    </div>
+            {PHASE_ORDER.map(phase => {
+              const rows = groupedByPhase[phase];
+              return (
+                <div key={phase} className="rounded-lg border border-border/60 bg-card">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
+                    <Badge variant="outline" className="text-[11px]">{phaseLabel(phase)}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => addDayForPhase(phase)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Lägg till dag
+                    </Button>
                   </div>
-
-                  <div className="grid grid-cols-3 gap-2 items-end">
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Start</Label>
-                      <Input
-                        type="time"
-                        value={day.startTime}
-                        onChange={(e) => updateDay(idx, { startTime: e.target.value })}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Slut</Label>
-                      <Input
-                        type="time"
-                        value={day.endTime}
-                        onChange={(e) => updateDay(idx, { endTime: e.target.value })}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">
-                        {day.kind === 'event' ? 'Team (visas ej i kalender)' : 'Team'}
-                      </Label>
-                      <Select
-                        value={day.teamId}
-                        onValueChange={(v) => updateDay(idx, { teamId: v })}
-                        disabled={day.kind === 'event'}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {teamOptions.map(t => (
-                            <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="p-3 space-y-3">
+                    {rows.length === 0 ? (
+                      <div className="text-xs text-muted-foreground italic">Inga dagar — klicka "Lägg till dag"</div>
+                    ) : rows.map(({ day, idx }) => (
+                      <div key={`${day.kind}-${idx}`} className="space-y-2 rounded-md border border-border/40 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1">
+                            <Label className="text-[11px] text-muted-foreground">Datum</Label>
+                            <Input
+                              type="date"
+                              value={day.date}
+                              onChange={(e) => updateDay(idx, { date: e.target.value })}
+                              className="h-8 text-sm"
+                            />
+                            <div className="text-[11px] text-muted-foreground mt-1">
+                              {(() => { try { return format(parseISO(day.date), 'EEE d MMM', { locale: sv }); } catch { return ''; } })()}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => removeDay(idx)}
+                            aria-label="Ta bort dag"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 items-end">
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Start</Label>
+                            <Input
+                              type="time"
+                              value={day.startTime}
+                              onChange={(e) => updateDay(idx, { startTime: e.target.value })}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Slut</Label>
+                            <Input
+                              type="time"
+                              value={day.endTime}
+                              onChange={(e) => updateDay(idx, { endTime: e.target.value })}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">
+                              {day.kind === 'event' ? 'Team (ej i kal.)' : 'Team'}
+                            </Label>
+                            <Select
+                              value={day.teamId}
+                              onValueChange={(v) => updateDay(idx, { teamId: v })}
+                              disabled={day.kind === 'event'}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teamOptions.map(t => (
+                                  <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-border/40">
-              <Button variant="outline" onClick={onClose} disabled={saving}>
-                Avbryt
-              </Button>
-              <Button onClick={handleSave} disabled={saving || days.length === 0}>
-                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                Spara & lägg i kalendern
-              </Button>
-            </div>
+              );
+            })}
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+      </div>
+
+      {ctx && ctx.bookings.length > 0 && (
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-border/60">
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Avbryt
+          </Button>
+          <Button onClick={handleSave} disabled={saving || days.length === 0}>
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Spara & lägg i kalendern
+          </Button>
+        </div>
+      )}
+    </div>
   );
 };
