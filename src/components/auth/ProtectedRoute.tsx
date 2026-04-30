@@ -33,8 +33,23 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles
     }
   }, [skipRoleCheckStorage, isSsoUserStorage]);
 
-  // Show loading while auth or roles are loading
-  if (authLoading || (user && rolesLoading)) {
+  // Show full-screen loader ONLY during the initial auth bootstrap.
+  // Once we have a user, useUserRoles uses cached roles instantly on subsequent navigations,
+  // so we must NOT blank the previous view while it silently revalidates.
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Laddar...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // First-ever role load for this user (no cache yet) — show a soft loader.
+  // After this, useUserRoles.isLoading stays false because roles are cached.
+  if (user && rolesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
