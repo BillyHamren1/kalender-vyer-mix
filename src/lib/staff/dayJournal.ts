@@ -263,6 +263,7 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
       hours: r.hours,
       isOpen: !r.end_iso,
       sourceId: `tr:${r.id}`,
+      fromTimeReport: true,
       editTimeReport: {
         id: r.id,
         approved: !!r.approved,
