@@ -153,7 +153,11 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
 
   const upsert = (
     key: string,
-    base: Omit<ProjectSession, 'sourceIds' | 'hours'> & { hours: number; sourceId: string },
+    base: Omit<ProjectSession, 'sourceIds' | 'hours' | 'editTimeReport'> & {
+      hours: number;
+      sourceId: string;
+      editTimeReport?: ProjectSession['editTimeReport'];
+    },
   ) => {
     const existing = sessions.get(key);
     if (!existing) {
@@ -169,6 +173,7 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
         address: base.address ?? null,
         baseLatitude: base.baseLatitude ?? null,
         baseLongitude: base.baseLongitude ?? null,
+        editTimeReport: base.editTimeReport ?? null,
       });
       return;
     }
@@ -186,6 +191,11 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     existing.hours += base.hours;
     existing.sourceIds.push(base.sourceId);
     if (!existing.address && base.address) existing.address = base.address;
+    // Keep the first edit context — admins editing a merged session edit the
+    // primary row; multi-row sessions remain rare in practice.
+    if (!existing.editTimeReport && base.editTimeReport) {
+      existing.editTimeReport = base.editTimeReport;
+    }
   };
 
   // Time reports → keyed by (large_project | booking | location | id) so a
@@ -213,6 +223,15 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
       hours: r.hours,
       isOpen: !r.end_iso,
       sourceId: `tr:${r.id}`,
+      editTimeReport: {
+        id: r.id,
+        approved: !!r.approved,
+        breakHours: r.break_hours ?? 0,
+        description: r.description ?? null,
+        startHHmm: r.start_time_hhmm ?? null,
+        endHHmm: r.end_time_hhmm ?? null,
+        reportDate: r.report_date ?? null,
+      },
     });
   }
 
