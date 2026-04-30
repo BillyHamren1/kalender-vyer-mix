@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -138,11 +138,6 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
     const key = `${format(day, 'yyyy-MM-dd')}|${resourceId}`;
     return eventsByDateAndResource.get(key) ?? [];
   };
-
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   if (!projectId) return null;
 
