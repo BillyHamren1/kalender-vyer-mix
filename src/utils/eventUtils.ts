@@ -71,7 +71,12 @@ export function eventsEqual(a: CalendarEvent[], b: CalendarEvent[]): boolean {
   if (a.length !== b.length) return false;
   
   for (let i = 0; i < a.length; i++) {
-    if (a[i].id !== b[i].id || a[i].start !== b[i].start || a[i].end !== b[i].end) {
+    if (
+      a[i].id !== b[i].id ||
+      a[i].resourceId !== b[i].resourceId ||
+      a[i].start !== b[i].start ||
+      a[i].end !== b[i].end
+    ) {
       return false;
     }
   }
