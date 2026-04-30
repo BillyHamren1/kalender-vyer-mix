@@ -12,13 +12,15 @@
   user-select: none;
 }
 
-/* Flytta FullCalendars inbyggda tidstext till nedre vänstra hörnet av eventet.
-   Gäller både personalplaneringen (/calendar) och projektkalendern (samma CustomEvent). */
+/* Flytta FullCalendars inbyggda tidstext till nedre kanten av eventet, mitten.
+   Plus-knapp ligger nere till vänster och pilarna nere till höger, så tiden
+   centreras mellan dem. Gäller både personalplaneringen och projektkalendern. */
 .fc-timegrid-event .fc-event-time,
 .fc-daygrid-event .fc-event-time {
   position: absolute !important;
   bottom: 2px;
-  left: 4px;
+  left: 50%;
+  transform: translateX(-50%);
   right: auto;
   top: auto;
   font-size: 9px !important;
