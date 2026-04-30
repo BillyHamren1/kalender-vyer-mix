@@ -148,12 +148,12 @@ const ProjectDashboardWidgets = () => {
     navigate('/calendar');
   };
 
-  const ProjectRow = ({ item }: { item: UnifiedItem }) => {
+  const ProjectRow = ({ item, compact = false }: { item: UnifiedItem; compact?: boolean }) => {
     const calendarTarget = item.rigDate ?? item.date;
     return (
       <div
         onClick={() => navigate(item.navigateTo)}
-        className="flex items-center justify-between py-2.5 px-1 cursor-pointer hover:bg-muted/40 rounded-md transition-colors group"
+        className={`flex items-center justify-between ${compact ? 'py-1' : 'py-2.5'} px-1 cursor-pointer hover:bg-muted/40 rounded-md transition-colors group`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-medium shrink-0 ${TYPE_BADGE_CLASSES[item.type]}`}>
