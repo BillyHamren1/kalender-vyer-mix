@@ -68,6 +68,11 @@ export interface NotificationEntry {
   resolvedAt?: string | null;
   answer?: string | null;        // resolution_note
   answerSource?: 'staff' | 'admin' | 'auto' | null;
+  resolvedBy?: string | null;
+  /** Raw context jsonb (may include answered_lat/lng, address, decision, etc.) */
+  context?: Record<string, any> | null;
+  /** Raw row for debug / fallback */
+  raw?: any;
 }
 
 export interface DayEventLog {
@@ -99,6 +104,9 @@ export const flagToNotification = (f: any): NotificationEntry => ({
   resolvedAt: f.resolved_at || null,
   answer: f.resolution_note || null,
   answerSource: (f.resolution_source as any) || null,
+  resolvedBy: f.resolved_by || null,
+  context: f.context || null,
+  raw: f,
 });
 
 /** Build the chronological event timeline from DayReality. */
