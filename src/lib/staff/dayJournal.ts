@@ -75,6 +75,14 @@ export interface RawTimeReport {
   hours: number;
   /** Pre-resolved label from the caller (uses centralized resolver). */
   label?: string;
+  /** Optional admin-edit context (passed through to the session for inline editing). */
+  approved?: boolean;
+  break_hours?: number;
+  description?: string | null;
+  report_date?: string;
+  /** 'HH:mm' — needed by the edit dialog so admin can revise the wall-clock value. */
+  start_time_hhmm?: string | null;
+  end_time_hhmm?: string | null;
 }
 
 export interface RawLocationEntry {
