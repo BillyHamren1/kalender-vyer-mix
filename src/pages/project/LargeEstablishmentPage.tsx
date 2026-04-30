@@ -62,7 +62,7 @@ const LargeEstablishmentPage = () => {
         });
     }
   }, [location.state]);
-  const [viewMode, setViewMode] = useState<ViewMode>("gantt");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
