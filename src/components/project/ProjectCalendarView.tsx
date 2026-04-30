@@ -177,7 +177,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                     void refetch();
                   },
                 }}
-                isEventReadOnly={() => true}
+                isEventReadOnly={() => false}
               />
             </div>
           </div>
