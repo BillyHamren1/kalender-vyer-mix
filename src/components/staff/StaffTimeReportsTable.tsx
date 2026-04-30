@@ -274,6 +274,12 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
     });
   };
 
+  const staffRowCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of rows) counts[r.staffId] = (counts[r.staffId] || 0) + 1;
+    return counts;
+  }, [rows]);
+
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full text-sm border-collapse">
@@ -284,7 +290,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
             <th className="text-left font-semibold py-2 px-2 w-[280px]">Plats</th>
             <th className="text-left font-semibold py-2 px-2 w-[120px]">Klockslag</th>
             <th className="text-right font-semibold py-2 px-2 w-[90px]">Varaktighet</th>
-            <th className="w-[80px]"></th>
+            <th className="text-left font-semibold py-2 px-2 w-[520px] border-l border-border/40">Daglig analys</th>
           </tr>
         </thead>
         <tbody>
