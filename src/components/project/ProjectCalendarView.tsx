@@ -188,7 +188,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                             })),
                         }}
                         isEventReadOnly={() => true}
-                        fullWidth={false}
+                        fullWidth={true}
                       />
                     </div>
                   );

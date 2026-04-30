@@ -1,14 +1,17 @@
 .project-calendar-shell {
   background: hsl(var(--background));
+  width: 100%;
 }
 
 .project-weekly-horizontal-grid {
   padding-top: 4px;
+  width: 100%;
 }
 
+/* Match staff calendar widths — wide cards, no hard cap */
 .project-weekly-day-card {
-  min-width: 540px;
-  max-width: 540px;
+  min-width: 640px;
+  flex: 1 1 640px;
 }
 
 .project-weekly-day-card .day-card {
@@ -26,42 +29,33 @@
   min-height: 100%;
 }
 
-.project-weekly-day-card.project-phase-rig .time-grid-with-staff-header {
-  --calendar-primary: 126 58% 84%;
-  --calendar-primary-foreground: 145 38% 24%;
+/* Header keeps the SAME purple as the staff calendar (default --primary).
+   Phase is only expressed via the booking event cards inside the grid. */
+
+/* Phase color tokens used for event cards & subtle day tint */
+.project-weekly-day-card.project-phase-rig {
+  --phase-color: 126 58% 84%;
+  --phase-foreground: 145 38% 24%;
+}
+.project-weekly-day-card.project-phase-event {
+  --phase-color: 52 95% 85%;
+  --phase-foreground: 38 48% 22%;
+}
+.project-weekly-day-card.project-phase-rigDown {
+  --phase-color: 0 78% 89%;
+  --phase-foreground: 0 44% 26%;
+}
+.project-weekly-day-card.project-phase-none {
+  --phase-color: var(--muted);
+  --phase-foreground: var(--muted-foreground);
 }
 
-.project-weekly-day-card.project-phase-event .time-grid-with-staff-header {
-  --calendar-primary: 52 95% 85%;
-  --calendar-primary-foreground: 38 48% 22%;
-}
-
-.project-weekly-day-card.project-phase-rigDown .time-grid-with-staff-header {
-  --calendar-primary: 0 78% 89%;
-  --calendar-primary-foreground: 0 44% 26%;
-}
-
-.project-weekly-day-card.project-phase-none .time-grid-with-staff-header {
-  --calendar-primary: var(--muted);
-  --calendar-primary-foreground: var(--muted-foreground);
-}
-
-.project-weekly-day-card .time-grid-header-bg {
-  border-radius: 0;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--calendar-primary)) 0%,
-    hsl(var(--calendar-primary)) 100%
-  );
-}
-
-.project-weekly-day-card .time-column-header {
-  border-right-color: hsl(var(--calendar-primary-foreground) / 0.15);
-}
-
-.project-weekly-day-card .day-title,
-.project-weekly-day-card .time-title {
-  text-shadow: none;
+/* Color the booking event cards by phase */
+.project-weekly-day-card .calendar-event,
+.project-weekly-day-card .event-card {
+  background: hsl(var(--phase-color)) !important;
+  color: hsl(var(--phase-foreground)) !important;
+  border-color: hsl(var(--phase-foreground) / 0.2) !important;
 }
 
 .project-weekly-day-card .team-header-cell {
