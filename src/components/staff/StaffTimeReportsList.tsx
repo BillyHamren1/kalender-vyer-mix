@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { JournalTable, buildJournalRows, type JournalTableRow } from './StaffTimeReportsTable';
+import { JournalTable, buildStaffBlock } from './StaffTimeReportsTable';
 import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal } from '@/lib/staff/dayJournal';
 
@@ -206,7 +206,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
         </div>
       ) : (
         <JournalTable
-          rows={filtered.flatMap(s => buildJournalRows(s))}
+          blocks={filtered.map(s => buildStaffBlock(s))}
           date={dateStr}
           onSelectStaff={onSelectStaff}
         />
