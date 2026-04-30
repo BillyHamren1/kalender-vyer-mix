@@ -94,7 +94,7 @@ const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }>
 
   if (!iso) return <span className="text-muted-foreground">—</span>;
   if (isLoading) return <span className="text-muted-foreground italic">…</span>;
-  if (!ping) return <span className="text-muted-foreground italic text-[11px]">ingen GPS</span>;
+  if (!ping) return <span className="text-muted-foreground italic">ingen GPS</span>;
   const addr = addrs[0] ?? `${ping.coords.lat.toFixed(4)}, ${ping.coords.lng.toFixed(4)}`;
   return <span className="text-foreground truncate" title={addr}>{addr}</span>;
 };
@@ -111,13 +111,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
     <div className="w-full overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <colgroup>
-          <col style={{ width: '220px' }} />
-          <col style={{ width: '90px' }} />
-          <col style={{ width: '220px' }} />
-          <col style={{ width: '90px' }} />
-          <col style={{ width: '90px' }} />
-          <col style={{ width: '220px' }} />
-          <col style={{ width: '320px' }} />
+          <col style={{ width: '200px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '200px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '200px' }} />
+          <col style={{ width: '300px' }} />
         </colgroup>
         <tbody>
           {blocks.map((b) => {
@@ -149,27 +149,27 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                   </td>
                 </tr>
 
-                {/* === RAD 2: ARBETSDAG (ljuslila) === */}
-                <tr className="border-b border-border/40 bg-primary/10">
-                  <td className="px-2 py-1 align-middle">
+                {/* === RAD 2: ARBETSDAG (ljuslila) — fet, enhetlig text-sm rakt igenom === */}
+                <tr className="border-b border-border/40 bg-primary/10 text-sm">
+                  <td className="px-2 py-1 align-middle whitespace-nowrap">
                     <div className="flex items-center gap-2 font-bold text-foreground">
                       <Sun className="h-3.5 w-3.5 text-muted-foreground" />
                       ARBETSDAG
                     </div>
                   </td>
-                  <td className="px-2 py-1 tabular-nums font-semibold text-foreground">
+                  <td className="px-2 py-1 tabular-nums font-bold text-foreground whitespace-nowrap">
                     {fmt(b.dayStartIso)}
                   </td>
-                  <td className="px-2 py-1 text-[11px]">
+                  <td className="px-2 py-1 font-bold text-foreground whitespace-nowrap">
                     <GeoAtTime staffId={b.staffId} date={date} iso={b.dayStartIso} />
                   </td>
-                  <td className="px-2 py-1 tabular-nums font-bold text-foreground text-right">
+                  <td className="px-2 py-1 tabular-nums font-bold text-foreground text-right whitespace-nowrap">
                     {totalDuration}
                   </td>
-                  <td className="px-2 py-1 tabular-nums font-semibold text-foreground">
-                    {b.dayIsOpen ? <span className="italic text-muted-foreground">pågår</span> : fmt(b.dayEndIso)}
+                  <td className="px-2 py-1 tabular-nums font-bold text-foreground whitespace-nowrap">
+                    {b.dayIsOpen ? <span className="italic font-bold text-muted-foreground">pågår</span> : fmt(b.dayEndIso)}
                   </td>
-                  <td className="px-2 py-1 text-[11px]">
+                  <td className="px-2 py-1 font-bold text-foreground whitespace-nowrap">
                     <GeoAtTime
                       staffId={b.staffId}
                       date={date}
@@ -184,14 +184,14 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                   </td>
                 </tr>
 
-                {/* === RAD 3: Sub-header (grå) === */}
+                {/* === RAD 3: Sub-header (grå) — kompakt + nowrap så allt ryms på en rad === */}
                 <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border bg-muted/40">
-                  <th className="text-left font-semibold px-2 py-1">Projekt</th>
-                  <th className="text-left font-semibold px-2 py-1">Timerstart (tid)</th>
-                  <th className="text-left font-semibold px-2 py-1">Timerstart (geo)</th>
-                  <th className="text-right font-semibold px-2 py-1">Varaktighet</th>
-                  <th className="text-left font-semibold px-2 py-1">Timerslut (tid)</th>
-                  <th className="text-left font-semibold px-2 py-1">Timerslut (geo)</th>
+                  <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Projekt</th>
+                  <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Timerstart</th>
+                  <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Geo (start)</th>
+                  <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">Varaktighet</th>
+                  <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Timerslut</th>
+                  <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Geo (slut)</th>
                 </tr>
 
                 {/* === RAD 4+: Sessions === */}
@@ -210,24 +210,24 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                           ? <LiveDuration startedAt={s.startIso} />
                           : formatHoursMinutes(s.hours));
                     return (
-                      <tr key={s.key} className="border-b border-border/40 hover:bg-muted/20">
+                      <tr key={s.key} className="border-b border-border/40 hover:bg-muted/20 text-sm">
                         <td className="px-2 py-1 align-middle">
                           <div className="flex items-center gap-2 min-w-0">
                             <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             <span className="truncate text-foreground">{s.label}</span>
                           </div>
                         </td>
-                        <td className="px-2 py-1 tabular-nums text-foreground">{fmt(s.startIso)}</td>
-                        <td className="px-2 py-1 text-[11px]">
+                        <td className="px-2 py-1 tabular-nums text-foreground whitespace-nowrap">{fmt(s.startIso)}</td>
+                        <td className="px-2 py-1 text-foreground whitespace-nowrap">
                           <GeoAtTime staffId={b.staffId} date={date} iso={s.startIso} />
                         </td>
-                        <td className="px-2 py-1 tabular-nums font-medium text-foreground text-right">
+                        <td className="px-2 py-1 tabular-nums font-medium text-foreground text-right whitespace-nowrap">
                           {duration}
                         </td>
-                        <td className="px-2 py-1 tabular-nums text-foreground">
+                        <td className="px-2 py-1 tabular-nums text-foreground whitespace-nowrap">
                           {s.isOpen ? <span className="italic text-muted-foreground">pågår</span> : fmt(s.endIso)}
                         </td>
-                        <td className="px-2 py-1 text-[11px]">
+                        <td className="px-2 py-1 text-foreground whitespace-nowrap">
                           <GeoAtTime
                             staffId={b.staffId}
                             date={date}
