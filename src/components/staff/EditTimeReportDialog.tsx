@@ -87,7 +87,7 @@ export const EditTimeReportDialog: React.FC<EditTimeReportDialogProps> = ({
         force: isApproved ? true : undefined,
       });
       toast({ title: 'Tidrapport uppdaterad', description: staffName });
-      qc.invalidateQueries({ queryKey: ['staff-time-reports'] });
+      qc.invalidateQueries({ queryKey: ['staff-time-reports-day'] });
       qc.invalidateQueries({ queryKey: ['staff-time-reports-detail'] });
       onOpenChange(false);
     } catch (e: any) {

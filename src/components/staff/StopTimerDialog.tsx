@@ -86,7 +86,7 @@ export const StopTimerDialog: React.FC<StopTimerDialogProps> = ({
         });
       }
       toast({ title: 'Timer stoppad', description: `${staffName} · ${sessionLabel}` });
-      qc.invalidateQueries({ queryKey: ['staff-time-reports'] });
+      qc.invalidateQueries({ queryKey: ['staff-time-reports-day'] });
       qc.invalidateQueries({ queryKey: ['staff-time-reports-detail'] });
       onOpenChange(false);
     } catch (e: any) {
