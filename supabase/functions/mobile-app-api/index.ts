@@ -8262,9 +8262,23 @@ async function handleCreateTravelFromGap(
     )
   }
 
-  const startMs = new Date(start_time).getTime()
-  const endMs = new Date(end_time).getTime()
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+  // Trunkera till hel sekund så ms-drift aldrig kringgår dedupe-indexet.
+  const truncSec = (iso: string) => {
+    const ms = new Date(iso).getTime()
+    if (!Number.isFinite(ms)) return null
+    return new Date(Math.floor(ms / 1000) * 1000).toISOString()
+  }
+  const startIso = truncSec(start_time)
+  const endIso = truncSec(end_time)
+  if (!startIso || !endIso) {
+    return new Response(
+      JSON.stringify({ error: 'invalid time range' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  const startMs = new Date(startIso).getTime()
+  const endMs = new Date(endIso).getTime()
+  if (endMs <= startMs) {
     return new Response(
       JSON.stringify({ error: 'invalid time range' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
