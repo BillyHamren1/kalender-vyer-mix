@@ -1,18 +1,16 @@
 /**
  * useProjectStaffByDay
  * --------------------------------------------------------------------------
- * Speglar personalkalendern 1:1 in i projektkalendern.
+ * Speglar personalkalenderns team+dag-modell in i projektkalendern.
  *
- * Personal ses som "tillgänglig" på projektet på en given dag om hen har en
- * `staff_assignments`-rad för det datumet — oavsett vilket team. Det är
- * exakt samma deterministiska modell som calendar-team-model-v1: BSA =
- * staff_assignments × calendar_events.resource_id.
- *
- * Returnerar Map<YYYY-MM-DD, StaffOnDay[]> för enkel uppslagning per dag.
+ * Data kommer direkt från `staff_assignments`. För projektvyn behöver vi både:
+ *   1. personal per dag (översikt)
+ *   2. personal per team + dag (för samma grid som TimeGrid använder)
  */
 import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
 
 export interface StaffOnDay {
   staffId: string;
@@ -20,17 +18,20 @@ export interface StaffOnDay {
   teamId: string | null;
 }
 
+interface StaffMaps {
+  staffByDay: Map<string, StaffOnDay[]>;
+  staffByTeamAndDay: Map<string, StaffOnDay[]>;
+}
+
 export function useProjectStaffByDay(dates: string[]) {
   const queryClient = useQueryClient();
-
-  // Stabil nyckel oberoende av input-ordning
   const sortedDates = useMemo(() => [...dates].sort(), [dates.join(',')]);
   const datesKey = sortedDates.join(',');
 
   const query = useQuery({
     queryKey: ['project-staff-by-day', datesKey],
     enabled: sortedDates.length > 0,
-    queryFn: async (): Promise<Map<string, StaffOnDay[]>> => {
+    queryFn: async (): Promise<StaffMaps> => {
       const { data, error } = await supabase
         .from('staff_assignments')
         .select(`
@@ -39,41 +40,50 @@ export function useProjectStaffByDay(dates: string[]) {
           staff_id,
           staff_members ( id, name )
         `)
-        .in('assignment_date', sortedDates);
+        .in('assignment_date', sortedDates)
+        .order('created_at', { ascending: true });
 
       if (error) {
         console.error('[useProjectStaffByDay] fetch failed', error);
         throw error;
       }
 
-      const byDay = new Map<string, StaffOnDay[]>();
-      const seen = new Map<string, Set<string>>(); // dedupe per dag
+      const staffByDay = new Map<string, StaffOnDay[]>();
+      const staffByTeamAndDay = new Map<string, StaffOnDay[]>();
+      const seenByDay = new Map<string, Set<string>>();
+      const seenByTeamDay = new Map<string, Set<string>>();
 
       (data || []).forEach((row: any) => {
         const date: string = row.assignment_date;
-        const sm = row.staff_members;
-        if (!sm?.id) return;
+        const staff = row.staff_members;
+        const teamId: string | null = row.team_id ?? null;
+        if (!staff?.id || !date) return;
 
-        if (!byDay.has(date)) byDay.set(date, []);
-        if (!seen.has(date)) seen.set(date, new Set());
+        if (!staffByDay.has(date)) staffByDay.set(date, []);
+        if (!seenByDay.has(date)) seenByDay.set(date, new Set());
+        if (!seenByDay.get(date)!.has(staff.id)) {
+          seenByDay.get(date)!.add(staff.id);
+          staffByDay.get(date)!.push({ staffId: staff.id, name: staff.name, teamId });
+        }
 
-        if (seen.get(date)!.has(sm.id)) return;
-        seen.get(date)!.add(sm.id);
-
-        byDay.get(date)!.push({
-          staffId: sm.id,
-          name: sm.name,
-          teamId: row.team_id ?? null,
-        });
+        if (teamId) {
+          const teamDayKey = `${date}|${teamId}`;
+          if (!staffByTeamAndDay.has(teamDayKey)) staffByTeamAndDay.set(teamDayKey, []);
+          if (!seenByTeamDay.has(teamDayKey)) seenByTeamDay.set(teamDayKey, new Set());
+          if (!seenByTeamDay.get(teamDayKey)!.has(staff.id)) {
+            seenByTeamDay.get(teamDayKey)!.add(staff.id);
+            staffByTeamAndDay.get(teamDayKey)!.push({ staffId: staff.id, name: staff.name, teamId });
+          }
+        }
       });
 
-      // Sortera namn alfabetiskt per dag
-      byDay.forEach((list) => list.sort((a, b) => a.name.localeCompare(b.name, 'sv')));
-      return byDay;
+      staffByDay.forEach((list) => list.sort((a, b) => a.name.localeCompare(b.name, 'sv')));
+      staffByTeamAndDay.forEach((list) => list.sort((a, b) => a.name.localeCompare(b.name, 'sv')));
+
+      return { staffByDay, staffByTeamAndDay };
     },
   });
 
-  // Realtime: lyssna på staff_assignments-ändringar för datumen
   useEffect(() => {
     if (sortedDates.length === 0) return;
     const channel = supabase
@@ -86,13 +96,22 @@ export function useProjectStaffByDay(dates: string[]) {
         },
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
   }, [datesKey, queryClient, sortedDates.length]);
 
+  const staffByDay = query.data?.staffByDay ?? new Map<string, StaffOnDay[]>();
+  const staffByTeamAndDay = query.data?.staffByTeamAndDay ?? new Map<string, StaffOnDay[]>();
+
   return {
-    staffByDay: query.data ?? new Map<string, StaffOnDay[]>(),
+    staffByDay,
+    staffByTeamAndDay,
     isLoading: query.isLoading,
+    getStaffForTeamAndDate: (teamId: string, date: Date) => {
+      const key = `${format(date, 'yyyy-MM-dd')}|${teamId}`;
+      return staffByTeamAndDay.get(key) ?? [];
+    },
   };
 }
