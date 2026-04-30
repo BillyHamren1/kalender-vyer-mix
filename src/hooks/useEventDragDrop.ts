@@ -213,20 +213,21 @@ export const useEventDragDrop = (
       const tasks: Promise<unknown>[] = [];
       if (isPrimaryDay) {
         tasks.push(
-          supabase
-            .from('bookings')
-            .update({
-              [fields.date]: targetDateStr,
-              [fields.start]: newStartISO,
-              [fields.end]: newEndISO,
-            })
-            .eq('id', eventData.bookingId)
-            .then(({ error: bkErr }) => {
-              if (bkErr) {
-                console.error('[useEventDragDrop] bookings update failed', bkErr);
-                throw new Error(`Kunde inte uppdatera bokningen: ${bkErr.message}`);
-              }
-            })
+          Promise.resolve(
+            supabase
+              .from('bookings')
+              .update({
+                [fields.date]: targetDateStr,
+                [fields.start]: newStartISO,
+                [fields.end]: newEndISO,
+              })
+              .eq('id', eventData.bookingId)
+          ).then(({ error: bkErr }: any) => {
+            if (bkErr) {
+              console.error('[useEventDragDrop] bookings update failed', bkErr);
+              throw new Error(`Kunde inte uppdatera bokningen: ${bkErr.message}`);
+            }
+          })
         );
       } else {
         console.log('[useEventDragDrop] Skipping bookings mirror — not primary day', {
@@ -236,16 +237,20 @@ export const useEventDragDrop = (
       }
 
       tasks.push(
-        supabase.rpc('recompute_booking_staff_for_day' as any, {
-          p_booking_id: eventData.bookingId,
-          p_date: currentDateStr,
-        }).then(() => {}, (rpcErr: any) => {
+        Promise.resolve(
+          supabase.rpc('recompute_booking_staff_for_day' as any, {
+            p_booking_id: eventData.bookingId,
+            p_date: currentDateStr,
+          })
+        ).then(() => {}, (rpcErr: any) => {
           console.warn('[useEventDragDrop] BSA recompute (source) failed (non-fatal)', rpcErr);
         }),
-        supabase.rpc('recompute_booking_staff_for_day' as any, {
-          p_booking_id: eventData.bookingId,
-          p_date: targetDateStr,
-        }).then(() => {}, (rpcErr: any) => {
+        Promise.resolve(
+          supabase.rpc('recompute_booking_staff_for_day' as any, {
+            p_booking_id: eventData.bookingId,
+            p_date: targetDateStr,
+          })
+        ).then(() => {}, (rpcErr: any) => {
           console.warn('[useEventDragDrop] BSA recompute (target) failed (non-fatal)', rpcErr);
         }),
       );
