@@ -5,13 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, RefreshCw, Calendar as CalIcon } from 'lucide-react';
-import TimeGrid from '@/components/Calendar/TimeGrid';
+import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import type { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import { fetchTeamResources } from '@/services/teamService';
 import { useProjectGanttEvents, type GanttPhase } from '@/hooks/useProjectGanttEvents';
 import { useProjectStaffByDay } from '@/hooks/useProjectStaffByDay';
-import { convertToISO8601, extractUTCDate, normalizePlannerEventType } from '@/utils/dateUtils';
-import '@/components/Calendar/Carousel3DStyles.css';
+import { convertToISO8601, normalizePlannerEventType } from '@/utils/dateUtils';
 import './ProjectCalendarView.css';
 
 interface Props {
@@ -122,23 +121,6 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
       }));
   }, [events, isLargeProject]);
 
-  const eventsByDateAndResource = useMemo(() => {
-    const index = new Map<string, CalendarEvent[]>();
-    calendarEvents.forEach((event) => {
-      const dateKey = extractUTCDate(event.start);
-      if (!dateKey || !event.resourceId) return;
-      const key = `${dateKey}|${event.resourceId}`;
-      if (!index.has(key)) index.set(key, []);
-      index.get(key)!.push(event);
-    });
-    return index;
-  }, [calendarEvents]);
-
-  const getEventsForDayAndResource = (day: Date, resourceId: string) => {
-    const key = `${format(day, 'yyyy-MM-dd')}|${resourceId}`;
-    return eventsByDateAndResource.get(key) ?? [];
-  };
-
   if (!projectId) return null;
 
   return (
@@ -165,35 +147,37 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
           </div>
         ) : (
           <div className="project-calendar-shell">
-            <div className="custom-calendar-container weekly-view" style={{ minHeight: '1020px', height: 'calc(100vh - 260px)' }}>
-              <div className="weekly-horizontal-grid project-weekly-horizontal-grid">
-                {days.map((day) => {
+            <div style={{ minHeight: '1020px', height: 'calc(100vh - 260px)' }}>
+              <CustomCalendar
+                events={calendarEvents}
+                resources={resources}
+                isLoading={false}
+                isMounted={true}
+                currentDate={days[0] ?? new Date()}
+                onDateSet={() => {}}
+                refreshEvents={async () => {
+                  await refetch();
+                }}
+                viewMode="weekly"
+                daysOverride={days}
+                timeGridFullWidth={true}
+                getDayCardClassName={(day) => {
                   const dateKey = format(day, 'yyyy-MM-dd');
                   const phase = getPrimaryPhase(phaseByDay.get(dateKey)?.phases ?? new Set());
-                  return (
-                    <div
-                      key={dateKey}
-                      className={`weekly-day-card project-weekly-day-card ${phase ? `project-phase-${phase}` : 'project-phase-none'}`}
-                    >
-                      <TimeGrid
-                        day={day}
-                        resources={resources}
-                        events={calendarEvents}
-                        getEventsForDayAndResource={getEventsForDayAndResource}
-                        weeklyStaffOperations={{
-                          getStaffForTeamAndDate: (teamId: string, targetDate: Date) =>
-                            getStaffForTeamAndDate(teamId, targetDate).map((staff) => ({
-                              id: staff.staffId,
-                              name: staff.name,
-                            })),
-                        }}
-                        isEventReadOnly={() => true}
-                        fullWidth={true}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+                  return `project-weekly-day-card ${phase ? `project-phase-${phase}` : 'project-phase-none'}`;
+                }}
+                weeklyStaffOperations={{
+                  getStaffForTeamAndDate: (teamId: string, targetDate: Date) =>
+                    getStaffForTeamAndDate(teamId, targetDate).map((staff) => ({
+                      id: staff.staffId,
+                      name: staff.name,
+                    })),
+                  forceRefresh: () => {
+                    void refetch();
+                  },
+                }}
+                isEventReadOnly={() => true}
+              />
             </div>
           </div>
         )}
