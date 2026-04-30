@@ -45,7 +45,7 @@ interface TimeGridProps {
   setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }
 
-const TIME_COLUMN_WIDTH = 50;
+const TIME_COLUMN_WIDTH = 28;
 const TEAM_COLUMN_WIDTH = 95;
 const ASSIGNED_STAFF_ROW_HEIGHT = 88;
 
@@ -103,9 +103,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   };
 
   const gridTemplateColumns = fullWidth
-    ? `${TIME_COLUMN_WIDTH}px repeat(${resources.length}, 1fr)`
-    : `${TIME_COLUMN_WIDTH}px ${resources.map(() => `${TEAM_COLUMN_WIDTH}px`).join(' ')}`;
-  const totalWidth = fullWidth ? '100%' : `${TIME_COLUMN_WIDTH + totalTeamColumnsWidth}px`;
+    ? `${TIME_COLUMN_WIDTH}px repeat(${resources.length}, 1fr) ${TIME_COLUMN_WIDTH}px`
+    : `${TIME_COLUMN_WIDTH}px ${resources.map(() => `${TEAM_COLUMN_WIDTH}px`).join(' ')} ${TIME_COLUMN_WIDTH}px`;
+  const totalWidth = fullWidth ? '100%' : `${TIME_COLUMN_WIDTH * 2 + totalTeamColumnsWidth}px`;
+  const rightTimeColumn = resources.length + 2;
 
   return (
     <>
@@ -121,7 +122,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           <div
             className="day-header-teams"
             style={{
-              gridColumn: '2 / -1',
+              gridColumn: `2 / ${rightTimeColumn}`,
               width: fullWidth ? 'auto' : `${totalTeamColumnsWidth}px`,
               maxWidth: fullWidth ? 'none' : `${totalTeamColumnsWidth}px`,
             }}
@@ -201,6 +202,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               </div>
             );
           })}
+          {/* Höger tids-cell rad 2 */}
+          <div className="time-column-header" style={{ gridRow: 2, gridColumn: rightTimeColumn }}>
+            <div className="time-title">Time</div>
+          </div>
 
           {/* Row 3: assigned staff per team */}
           <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, height: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
@@ -299,6 +304,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               </SimpleTimeSlot>
             );
           })}
+
+          {/* Höger tids-kolumn (spegelvänd) */}
+          <div className="time-labels-column time-labels-column--right" style={{ gridColumn: rightTimeColumn }}>
+            {timeSlots.map((slot) => (
+              <div key={`r-${slot.time}`} className="time-label-slot">{slot.displayTime}</div>
+            ))}
+          </div>
         </div>
       </div>
     </>

@@ -69,12 +69,13 @@ export function generateTimeSlots(): Array<{ time: string; displayTime: string }
   const slots: Array<{ time: string; displayTime: string }> = [];
   for (let hour = 5; hour <= 23; hour++) {
     const time = hour.toString().padStart(2, '0') + ':00';
-    slots.push({ time, displayTime: time });
+    const displayTime = hour.toString().padStart(2, '0');
+    slots.push({ time, displayTime });
   }
   for (let hour = 24; hour < 29; hour++) {
     const displayHour = hour - 24;
     const time = hour.toString();
-    const displayTime = displayHour.toString().padStart(2, '0') + ':00';
+    const displayTime = displayHour.toString().padStart(2, '0');
     slots.push({ time, displayTime });
   }
   return slots;
