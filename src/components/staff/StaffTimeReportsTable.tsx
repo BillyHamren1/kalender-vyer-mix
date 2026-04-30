@@ -404,13 +404,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                 {/* Consolidated per-person summary banner — rendered AFTER the
                     last row of each person, so the name/rows always come first
                     and it never visually leaks into the next person's block. */}
-                {isLastForStaff && r.allSessions && r.allSessions.length > 0 && (
+                {isLastForStaff && summarySessions && summarySessions.length > 0 && (
                   <StaffDaySummaryRow
                     staffId={r.staffId}
                     staffName={r.staffName}
                     date={date}
-                    sessions={r.allSessions}
-                    latestPingAt={r.latestPingAt ?? null}
+                    sessions={summarySessions}
+                    latestPingAt={summaryLatestPing}
                     leadingCells={1}
                     totalCols={6}
                   />
