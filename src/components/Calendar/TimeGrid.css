@@ -216,7 +216,7 @@
 .team-header-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   width: 100%;
   gap: 4px;
   min-width: 0;
@@ -230,6 +230,7 @@
   min-width: 0;
   white-space: nowrap;
   letter-spacing: 0.2px;
+  text-align: left;
 }
 
 /* Add staff button - Plain + icon */
