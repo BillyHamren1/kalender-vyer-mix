@@ -7,7 +7,7 @@ import {
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { DayFactsPanel } from './DayFactsPanel';
-import { StaffDaySummaryRow } from './StaffDaySummaryRow';
+import { StaffDayAnalysisPanel } from './StaffDayAnalysisPanel';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import { JournalPlaceCell } from './JournalPlaceCell';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
@@ -274,6 +274,12 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
     });
   };
 
+  const staffRowCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of rows) counts[r.staffId] = (counts[r.staffId] || 0) + 1;
+    return counts;
+  }, [rows]);
+
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full text-sm border-collapse">
@@ -284,7 +290,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
             <th className="text-left font-semibold py-2 px-2 w-[280px]">Plats</th>
             <th className="text-left font-semibold py-2 px-2 w-[120px]">Klockslag</th>
             <th className="text-right font-semibold py-2 px-2 w-[90px]">Varaktighet</th>
-            <th className="w-[80px]"></th>
+            <th className="text-left font-semibold py-2 px-2 w-[520px] border-l border-border/40">Daglig analys</th>
           </tr>
         </thead>
         <tbody>
@@ -292,15 +298,6 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
             const Icon = rowIcon(r.kind);
             const bold = isBoldRow(r.kind);
             const isOpen = expanded.has(r.rowId);
-            const nextRow = rows[idx + 1];
-            const isLastForStaff = !nextRow || nextRow.staffId !== r.staffId;
-            // allSessions/latestPingAt only sit on the first row per staff;
-            // resolve from that row when rendering the summary on the last row.
-            const firstRowForStaff = isLastForStaff
-              ? rows.find((rr) => rr.staffId === r.staffId && rr.isFirstForStaff)
-              : undefined;
-            const summarySessions = firstRowForStaff?.allSessions;
-            const summaryLatestPing = firstRowForStaff?.latestPingAt ?? null;
             const time = r.kind === 'day-end' && r.isOpen
               ? '—'
               : r.kind === 'day-start' || r.kind === 'day-end'
@@ -382,13 +379,22 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                     {duration}
                   </td>
 
-                  <td className="py-2 px-2"></td>
+                  {/* Daglig analys — rowSpan över alla rader för personen,
+                      renderas bara på första raden. */}
+                  {r.isFirstForStaff && (
+                    <td
+                      rowSpan={staffRowCount[r.staffId] || 1}
+                      className="align-top p-0 border-l border-border/40 bg-muted/20 w-[520px]"
+                    >
+                      <StaffDayAnalysisPanel staffId={r.staffId} date={date} />
+                    </td>
+                  )}
                 </tr>
 
                 {isOpen && r.fromIso && (r.kind === 'day-start' || r.kind === 'day-end') && (
                   <tr className="bg-muted/20">
                     <td></td>
-                    <td colSpan={5} className="py-2 px-2">
+                    <td colSpan={4} className="py-2 px-2">
                       <DayFactsPanel
                         staffId={r.staffId}
                         staffName={r.staffName}
@@ -399,21 +405,6 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                       />
                     </td>
                   </tr>
-                )}
-
-                {/* Consolidated per-person summary banner — rendered AFTER the
-                    last row of each person, so the name/rows always come first
-                    and it never visually leaks into the next person's block. */}
-                {isLastForStaff && summarySessions && summarySessions.length > 0 && (
-                  <StaffDaySummaryRow
-                    staffId={r.staffId}
-                    staffName={r.staffName}
-                    date={date}
-                    sessions={summarySessions}
-                    latestPingAt={summaryLatestPing}
-                    leadingCells={1}
-                    totalCols={6}
-                  />
                 )}
               </React.Fragment>
             );
