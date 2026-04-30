@@ -294,6 +294,13 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
             const isOpen = expanded.has(r.rowId);
             const nextRow = rows[idx + 1];
             const isLastForStaff = !nextRow || nextRow.staffId !== r.staffId;
+            // allSessions/latestPingAt only sit on the first row per staff;
+            // resolve from that row when rendering the summary on the last row.
+            const firstRowForStaff = isLastForStaff
+              ? rows.find((rr) => rr.staffId === r.staffId && rr.isFirstForStaff)
+              : undefined;
+            const summarySessions = firstRowForStaff?.allSessions;
+            const summaryLatestPing = firstRowForStaff?.latestPingAt ?? null;
             const time = r.kind === 'day-end' && r.isOpen
               ? '—'
               : r.kind === 'day-start' || r.kind === 'day-end'
