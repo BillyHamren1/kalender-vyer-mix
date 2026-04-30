@@ -160,6 +160,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                 }}
                 viewMode="weekly"
                 daysOverride={days}
+                timeGridFullWidth={true}
                 getDayCardClassName={(day) => {
                   const dateKey = format(day, 'yyyy-MM-dd');
                   const phase = getPrimaryPhase(phaseByDay.get(dateKey)?.phases ?? new Set());
