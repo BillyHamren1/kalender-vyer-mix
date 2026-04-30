@@ -211,6 +211,6 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
           onSelectStaff={onSelectStaff}
         />
       )}
-    </PremiumCard>
+    </div>
   );
 };
