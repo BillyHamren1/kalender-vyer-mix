@@ -47,7 +47,7 @@ const WeekTabsNavigation: React.FC<WeekTabsNavigationProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-center gap-3 py-1 px-6 bg-gradient-to-b from-muted/50 to-muted border-t border-border">
+    <div className="flex items-center justify-center gap-3 py-0 px-6 bg-gradient-to-b from-muted/50 to-muted border-t border-border">
       {weeks.map((week) => {
         const isActive = isSameWeek(week.weekStart, currentWeekStart, { weekStartsOn: 1 });
         

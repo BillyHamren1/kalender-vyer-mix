@@ -305,7 +305,7 @@ const CustomCalendarPage = () => {
           </div>
 
           {/* Content - flex-1 to fill remaining space */}
-          <div className="flex-1 min-h-0 p-4 overflow-hidden bg-card rounded-2xl mx-2 mb-2 shadow-sm">
+          <div className="flex-1 min-h-0 pt-4 px-4 pb-0 overflow-hidden bg-card rounded-2xl mx-2 mb-0 shadow-sm">
             {viewMode === 'day' ? (
               // Day View - 3D Carousel with single focused day and side cards
               isMobile ? (
