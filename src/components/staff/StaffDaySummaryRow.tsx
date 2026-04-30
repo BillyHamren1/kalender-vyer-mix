@@ -37,23 +37,18 @@ const fmtDateTime = (iso: string | null | undefined) => {
   try { return format(new Date(iso), 'd MMM HH:mm', { locale: sv }); } catch { return '—'; }
 };
 
+// Dämpad palett — bara amber/destructive sticker ut; info & success blir tysta.
 const SEV_TEXT: Record<string, string> = {
-  info: 'text-muted-foreground',
-  success: 'text-emerald-600 dark:text-emerald-400',
+  info: 'text-foreground',
+  success: 'text-foreground',
   warning: 'text-amber-700 dark:text-amber-400',
   critical: 'text-destructive',
 };
 const SEV_DOT: Record<string, string> = {
   info: 'bg-muted-foreground/40',
-  success: 'bg-emerald-500',
+  success: 'bg-muted-foreground/40',
   warning: 'bg-amber-500',
   critical: 'bg-destructive',
-};
-const SEV_PILL: Record<string, string> = {
-  info: 'bg-muted text-muted-foreground',
-  success: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
-  warning: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-  critical: 'bg-destructive/10 text-destructive',
 };
 
 const EVENT_ICON: Record<EventKind, React.ComponentType<{ className?: string }>> = {
@@ -91,7 +86,7 @@ export const StaffDaySummaryRow: React.FC<Props> = ({
 
   if (isLoading) {
     return (
-      <tr className="bg-muted/20 border-b border-border/40">
+      <tr className="bg-muted/30 border-b-4 border-b-primary/20">
         {Array.from({ length: leadingCells }).map((_, i) => (
           <td key={`pad-${i}`} className="py-2 px-2"></td>
         ))}
@@ -107,54 +102,32 @@ export const StaffDaySummaryRow: React.FC<Props> = ({
 
   if (!reality) return null;
 
-  const criticalCount = log.interpretations.filter(i => i.severity === 'critical').length
-    + log.suggestions.filter(s => s.severity === 'critical').length;
-  const warningCount = log.interpretations.filter(i => i.severity === 'warning').length
-    + log.suggestions.filter(s => s.severity === 'warning').length;
-  const pendingNotifs = log.notifications.filter(n => n.needsUserInput && !n.resolved).length;
-
   return (
-    <tr className="bg-muted/20 border-b border-border/40">
+    <tr className="bg-muted/30 border-b-4 border-b-primary/20">
       {Array.from({ length: leadingCells }).map((_, i) => (
         <td key={`pad-${i}`} className="py-2 px-2"></td>
       ))}
       <td colSpan={contentCols} className="py-3 px-3">
-        {/* Header bar — namn + datum + KPI-pills, full bredd */}
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary px-2.5 py-1 text-xs font-semibold">
-              <Activity className="h-3 w-3" />
-              {staffName}
-            </span>
-            <span className="text-[11px] text-muted-foreground capitalize">
-              {fmtDateLong(date)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Pill icon={Clock} label={`${log.events.length} händelser`} tone="info" />
-            {warningCount > 0 && <Pill icon={Lightbulb} label={`${warningCount} att granska`} tone="warning" />}
-            {criticalCount > 0 && <Pill icon={Lightbulb} label={`${criticalCount} kritiska`} tone="critical" />}
-            <Pill icon={Bell} label={pendingNotifs > 0 ? `${pendingNotifs} väntar svar` : `${log.notifications.length} notiser`} tone={pendingNotifs > 0 ? 'warning' : 'info'} />
-          </div>
+        {/* Header — bara namn + datum, dämpat */}
+        <div className="mb-2 text-[11px] text-muted-foreground">
+          <span className="font-semibold text-foreground">{staffName}</span>
+          <span className="capitalize"> · {fmtDateLong(date)}</span>
         </div>
 
-        {/* 4-kolumns layout som matchar resten av appen */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <CompactCard icon={Clock} title="Händelselogg" count={log.events.length}>
+        {/* Platt 4-kolumns sektion — inga inre kort, bara dividers */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 md:divide-x md:divide-border/40 border border-border/40 rounded-md bg-background/40">
+          <Column icon={Clock} title="Händelselogg" count={log.events.length}>
             <EventTimeline events={log.events} />
-          </CompactCard>
-
-          <CompactCard icon={Activity} title="Tolkning" count={log.interpretations.length}>
+          </Column>
+          <Column icon={Activity} title="Tolkning" count={log.interpretations.length}>
             <InterpretationList items={log.interpretations} />
-          </CompactCard>
-
-          <CompactCard icon={Lightbulb} title="Åtgärdsförslag" count={log.suggestions.length}>
+          </Column>
+          <Column icon={Lightbulb} title="Åtgärdsförslag" count={log.suggestions.length}>
             <SuggestionList items={log.suggestions} />
-          </CompactCard>
-
-          <CompactCard icon={Bell} title="Notiser & svar" count={log.notifications.length}>
+          </Column>
+          <Column icon={Bell} title="Notiser & svar" count={log.notifications.length}>
             <NotificationList items={log.notifications} />
-          </CompactCard>
+          </Column>
         </div>
       </td>
     </tr>
@@ -163,21 +136,19 @@ export const StaffDaySummaryRow: React.FC<Props> = ({
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const Pill: React.FC<{ icon: React.ComponentType<{ className?: string }>; label: string; tone: 'info' | 'success' | 'warning' | 'critical' }> = ({ icon: Icon, label, tone }) => (
-  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${SEV_PILL[tone]}`}>
-    <Icon className="h-3 w-3" />
-    {label}
-  </span>
-);
-
-const CompactCard: React.FC<{ icon: React.ComponentType<{ className?: string }>; title: string; count?: number; children: React.ReactNode }> = ({ icon: Icon, title, count, children }) => (
-  <div className="rounded-md border border-border/60 bg-background/60 p-2.5 flex flex-col min-h-0">
-    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2 pb-1.5 border-b border-border/40">
+const Column: React.FC<{
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  count?: number;
+  children: React.ReactNode;
+}> = ({ icon: Icon, title, count, children }) => (
+  <div className="flex flex-col min-h-0 px-3 py-2">
+    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
       <Icon className="h-3 w-3" />
       <span>{title}</span>
-      {count != null && <span className="text-muted-foreground/60 ml-auto tabular-nums">{count}</span>}
+      {count != null && <span className="ml-auto tabular-nums text-muted-foreground/60">{count}</span>}
     </div>
-    <div className="max-h-[260px] overflow-y-auto pr-1 -mr-1">
+    <div className="max-h-[220px] overflow-y-auto pr-1 -mr-1">
       {children}
     </div>
   </div>
@@ -205,8 +176,8 @@ const EventTimeline: React.FC<{ events: DayEvent[] }> = ({ events }) => {
             </span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
-                <Icon className={`h-3 w-3 shrink-0 ${SEV_TEXT[e.severity]}`} />
-                <span className={`text-[11px] font-medium truncate ${e.severity === 'critical' ? 'text-destructive' : 'text-foreground'}`}>
+                <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className={`text-[11px] font-medium truncate ${SEV_TEXT[e.severity]}`}>
                   {e.label}
                 </span>
                 {e.durationMin != null && e.durationMin > 0 && (
@@ -277,7 +248,7 @@ const NotificationList: React.FC<{ items: NotificationEntry[] }> = ({ items }) =
             {n.detail && <p className="text-[10px] text-muted-foreground/80 leading-snug">{n.detail}</p>}
             {n.resolved && (
               <div className="mt-0.5 flex items-start gap-1 text-[10px]">
-                <MessageSquare className="h-2.5 w-2.5 mt-0.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <MessageSquare className="h-2.5 w-2.5 mt-0.5 text-muted-foreground shrink-0" />
                 <div className="flex-1">
                   <span className="text-foreground">{n.answer || 'Bekräftad utan kommentar'}</span>
                   <span className="text-muted-foreground">

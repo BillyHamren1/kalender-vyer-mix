@@ -288,10 +288,19 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
+          {rows.map((r, idx) => {
             const Icon = rowIcon(r.kind);
             const bold = isBoldRow(r.kind);
             const isOpen = expanded.has(r.rowId);
+            const nextRow = rows[idx + 1];
+            const isLastForStaff = !nextRow || nextRow.staffId !== r.staffId;
+            // allSessions/latestPingAt only sit on the first row per staff;
+            // resolve from that row when rendering the summary on the last row.
+            const firstRowForStaff = isLastForStaff
+              ? rows.find((rr) => rr.staffId === r.staffId && rr.isFirstForStaff)
+              : undefined;
+            const summarySessions = firstRowForStaff?.allSessions;
+            const summaryLatestPing = firstRowForStaff?.latestPingAt ?? null;
             const time = r.kind === 'day-end' && r.isOpen
               ? '—'
               : r.kind === 'day-start' || r.kind === 'day-end'
@@ -306,23 +315,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
 
             return (
               <React.Fragment key={r.rowId}>
-                {/* Consolidated per-person summary banner — once, above the
-                    first row. Surfaces open-timer status, stale GPS and
-                    deviations in ONE place instead of red rows everywhere. */}
-                {r.isFirstForStaff && r.allSessions && r.allSessions.length > 0 && (
-                  <StaffDaySummaryRow
-                    staffId={r.staffId}
-                    staffName={r.staffName}
-                    date={date}
-                    sessions={r.allSessions}
-                    latestPingAt={r.latestPingAt ?? null}
-                    leadingCells={1}
-                    totalCols={6}
-                  />
-                )}
                 <tr
                   className={`border-b border-border/40 hover:bg-muted/30 cursor-pointer ${
-                    r.isFirstForStaff ? 'border-t-2 border-t-border' : ''
+                    r.isFirstForStaff ? 'border-t-4 border-t-primary/20' : ''
                   }`}
                   onClick={() => toggle(r.rowId)}
                 >
@@ -390,10 +385,6 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                   <td className="py-2 px-2"></td>
                 </tr>
 
-                {/* Per-session discrepancy noise was removed — replaced by
-                    one consolidated StaffDaySummaryRow rendered at the top
-                    of each staff member's block (see fragment below). */}
-
                 {isOpen && r.fromIso && (r.kind === 'day-start' || r.kind === 'day-end') && (
                   <tr className="bg-muted/20">
                     <td></td>
@@ -408,6 +399,21 @@ export const JournalTable: React.FC<JournalTableProps> = ({ rows, date, onSelect
                       />
                     </td>
                   </tr>
+                )}
+
+                {/* Consolidated per-person summary banner — rendered AFTER the
+                    last row of each person, so the name/rows always come first
+                    and it never visually leaks into the next person's block. */}
+                {isLastForStaff && summarySessions && summarySessions.length > 0 && (
+                  <StaffDaySummaryRow
+                    staffId={r.staffId}
+                    staffName={r.staffName}
+                    date={date}
+                    sessions={summarySessions}
+                    latestPingAt={summaryLatestPing}
+                    leadingCells={1}
+                    totalCols={6}
+                  />
                 )}
               </React.Fragment>
             );
