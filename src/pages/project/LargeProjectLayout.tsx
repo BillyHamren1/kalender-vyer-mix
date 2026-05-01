@@ -230,6 +230,34 @@ const LargeProjectLayout = () => {
     setIsEditingName(false);
   };
 
+  const handleStartEditSubtitle = () => {
+    setEditSubtitle((project as any)?.description || "");
+    setIsEditingSubtitle(true);
+    setTimeout(() => subtitleInputRef.current?.focus(), 50);
+  };
+
+  const handleSaveSubtitle = async () => {
+    const trimmed = editSubtitle.trim();
+    const current = ((project as any)?.description || "").trim();
+    if (trimmed === current) {
+      setIsEditingSubtitle(false);
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('large_projects')
+        .update({ description: trimmed || null })
+        .eq('id', id!);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['large-project-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte uppdatera rubrik');
+    }
+    setIsEditingSubtitle(false);
+  };
+
   return (
     <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
