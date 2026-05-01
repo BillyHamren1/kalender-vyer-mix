@@ -19,6 +19,7 @@ import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendar
  * Endast en dag, navigering med < Idag >.
  */
 const OpsPlanningDayPanel: React.FC = () => {
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState<Date>(() => startOfDay(new Date()));
 
   const {
