@@ -177,16 +177,49 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
       for (const day of days) {
         if (day.kind === 'event') continue;
         for (const b of ctx.bookings) {
-          await addCalendarEvent({
+          // Identitet = (booking_id, event_type, source_date, organization_id).
+          // Om en rad redan finns för denna fas+datum (t.ex. från bookings-import
+          // eller en tidigare planering) ska vi uppdatera den, inte krascha på
+          // uq_calendar_event_identity. Vi gör därför update→insert per dag.
+          const { data: existing, error: existingErr } = await supabase
+            .from('calendar_events')
+            .select('id')
+            .eq('booking_id', b.id)
+            .eq('event_type', day.kind)
+            .eq('source_date', day.date)
+            .maybeSingle();
+          if (existingErr) throw existingErr;
+
+          const payload = {
             title: b.client || ctx.projectName || 'Projekt',
-            start: `${day.date}T${day.startTime}:00+00:00`,
-            end: `${day.date}T${day.endTime}:00+00:00`,
-            resourceId: day.teamId,
-            bookingId: b.id,
-            eventType: day.kind as any,
+            start_time: `${day.date}T${day.startTime}:00+00:00`,
+            end_time: `${day.date}T${day.endTime}:00+00:00`,
+            resource_id: day.teamId,
+            booking_id: b.id,
+            event_type: day.kind,
             delivery_address: b.deliveryaddress || null,
             booking_number: b.booking_number || null,
-          } as any);
+            source_date: day.date,
+          };
+
+          if (existing?.id) {
+            const { error: updErr } = await supabase
+              .from('calendar_events')
+              .update(payload)
+              .eq('id', existing.id);
+            if (updErr) throw updErr;
+          } else {
+            await addCalendarEvent({
+              title: payload.title,
+              start: payload.start_time,
+              end: payload.end_time,
+              resourceId: day.teamId,
+              bookingId: b.id,
+              eventType: day.kind as any,
+              delivery_address: payload.delivery_address,
+              booking_number: payload.booking_number,
+            } as any);
+          }
         }
       }
 
