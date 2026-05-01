@@ -269,13 +269,14 @@ const LargeProjectLayout = () => {
                   </h1>
                 )}
                 <Badge variant="outline" className="text-xs">Stort projekt</Badge>
-                {project.project_number && (
-                  <Badge variant="secondary" className="text-xs font-mono">{project.project_number}</Badge>
-                )}
               </div>
-              <p className="text-sm text-muted-foreground">
-                {bookings.length} bokningar
-                {project.address ? ` • ${project.address}` : project.location ? ` • ${project.location}` : ""}
+              <p className="text-sm text-muted-foreground font-mono">
+                {project.project_number ? `#${project.project_number}` : null}
+                {project.project_number && (bookings.length || project.address || project.location) ? " · " : ""}
+                <span className="font-sans">
+                  {bookings.length} bokningar
+                  {project.address ? ` • ${project.address}` : project.location ? ` • ${project.location}` : ""}
+                </span>
               </p>
             </div>
           </div>
