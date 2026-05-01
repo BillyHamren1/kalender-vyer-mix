@@ -27,6 +27,7 @@ const ProjectLayout = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
+  const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
 
   const detail = useProjectDetail(projectId || "");
   const { project, isLoading } = detail;
