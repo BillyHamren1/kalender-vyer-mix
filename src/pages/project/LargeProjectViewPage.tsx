@@ -6,7 +6,7 @@ import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
-import LargeProjectTeam from "@/components/project/LargeProjectTeam";
+
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
@@ -29,18 +29,13 @@ const LargeProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Project team + Overview dashboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <ProjectOverviewHeader
-            tasks={tasks}
-            filesCount={files.length}
-            commentsCount={0}
-            activities={[]}
-          />
-        </div>
-        <LargeProjectTeam largeProjectId={project.id} />
-      </div>
+      {/* Overview dashboard */}
+      <ProjectOverviewHeader
+        tasks={tasks}
+        filesCount={files.length}
+        commentsCount={0}
+        activities={[]}
+      />
 
       {/* Anslagstavla — interna anteckningar (ETT enhetligt fält) */}
       <ProjectInternalNotes
