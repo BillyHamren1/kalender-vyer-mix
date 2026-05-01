@@ -64,7 +64,7 @@ const ProjectLayout = () => {
 
   if (isLoading) {
     return (
-      <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
+      <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/3" />
