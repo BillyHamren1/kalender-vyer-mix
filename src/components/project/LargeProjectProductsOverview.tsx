@@ -52,7 +52,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
   const cleanName = (name: string) => name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
 
   const subTabClass =
-    "relative px-3 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary text-sm font-medium transition-colors hover:text-foreground";
+    "relative px-3 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-foreground text-sm font-medium transition-colors hover:text-foreground";
 
   // Flat list: main product rows + their accessory rows nested directly under
   type FlatRow = {
@@ -93,7 +93,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
           <TabsTrigger value="list" className={subTabClass}>
             Lista
             {flatRows.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-foreground">
                 {flatRows.length}
               </span>
             )}
@@ -101,7 +101,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
           <TabsTrigger value="all" className={subTabClass}>
             Grupperat
             {totalCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-foreground">
                 {totalCount}
               </span>
             )}
@@ -117,7 +117,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
               <TabsTrigger key={b.booking_id} value={b.booking_id} className={subTabClass}>
                 {label}
                 {count > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-foreground">
                     {count}
                   </span>
                 )}
@@ -158,8 +158,8 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
                     <div
                       className={
                         row.isAccessory
-                          ? "px-3 py-1.5 rounded-md border border-border/50 bg-background text-sm text-muted-foreground"
-                          : "px-3 py-1.5 rounded-md border border-primary/30 bg-primary/5 text-sm font-medium text-primary"
+                          ? "px-3 py-1.5 rounded-md border border-border bg-background text-sm text-foreground"
+                          : "px-3 py-1.5 rounded-md border border-border bg-background text-sm font-medium text-foreground"
                       }
                     >
                       {row.isAccessory ? (
@@ -178,18 +178,18 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
                     <button
                       type="button"
                       disabled
-                      className="h-7 w-7 rounded-md border border-border/60 text-muted-foreground/60 flex items-center justify-center text-sm leading-none cursor-not-allowed"
+                      className="h-7 w-7 rounded-md border border-border bg-background text-foreground flex items-center justify-center text-sm leading-none cursor-not-allowed"
                       tabIndex={-1}
                     >
                       −
                     </button>
-                    <div className="h-7 w-12 rounded-md border border-border/60 bg-background flex items-center justify-center text-sm tabular-nums">
+                    <div className="h-7 w-12 rounded-md border border-border bg-background text-foreground flex items-center justify-center text-sm tabular-nums">
                       {row.quantity}
                     </div>
                     <button
                       type="button"
                       disabled
-                      className="h-7 w-7 rounded-md border border-border/60 text-muted-foreground/60 flex items-center justify-center text-sm leading-none cursor-not-allowed"
+                      className="h-7 w-7 rounded-md border border-border bg-background text-foreground flex items-center justify-center text-sm leading-none cursor-not-allowed"
                       tabIndex={-1}
                     >
                       +
@@ -197,16 +197,16 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
                   </div>
 
                   {/* Pris */}
-                  <div className="h-8 rounded-md border border-border/60 bg-background px-2 flex items-center justify-end text-sm tabular-nums text-muted-foreground/70" />
+                  <div className="h-8 rounded-md border border-border bg-background px-2 flex items-center justify-end text-sm tabular-nums text-foreground" />
 
                   {/* Rabatt % */}
-                  <div className="h-8 rounded-md border border-border/60 bg-background px-2 flex items-center justify-end text-sm tabular-nums text-muted-foreground/70" />
+                  <div className="h-8 rounded-md border border-border bg-background px-2 flex items-center justify-end text-sm tabular-nums text-foreground" />
 
                   {/* Rabatt kr */}
-                  <div className="h-8 rounded-md border border-border/60 bg-background px-2 flex items-center justify-end text-sm tabular-nums text-muted-foreground/70" />
+                  <div className="h-8 rounded-md border border-border bg-background px-2 flex items-center justify-end text-sm tabular-nums text-foreground" />
 
                   {/* Moms */}
-                  <div className="h-8 rounded-md border border-border/60 bg-background px-2 flex items-center justify-between text-sm text-muted-foreground/80">
+                  <div className="h-8 rounded-md border border-border bg-background px-2 flex items-center justify-between text-sm text-foreground">
                     <span>25%</span>
                     <span aria-hidden className="text-xs">▾</span>
                   </div>
