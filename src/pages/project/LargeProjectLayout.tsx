@@ -524,6 +524,7 @@ const LargeProjectLayout = () => {
             {linkedView === 'products' ? (
               <LargeProjectProductsOverview bookings={bookings} />
             ) : (
+            <>
             {bookings.length === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center">
