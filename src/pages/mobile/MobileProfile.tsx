@@ -2,7 +2,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getGpsSettings } from '@/hooks/useGeofencing';
 import { useMobileTimeReports, useMobileTravelLogs } from '@/hooks/useMobileData';
-import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight, MessageSquare, Car, Globe, AlertTriangle } from 'lucide-react';
+import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight, MessageSquare, Car, Globe, AlertTriangle, Sun } from 'lucide-react';
 import { MobileProfileHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
@@ -11,6 +11,8 @@ import { format, parseISO } from 'date-fns';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv, enUS } from 'date-fns/locale';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useWorkDay } from '@/hooks/useWorkDay';
+import { useState } from 'react';
 
 
 const MobileProfile = () => {
@@ -20,8 +22,22 @@ const MobileProfile = () => {
   const { data: timeReports = [], isLoading: isLoadingReports } = useMobileTimeReports();
   const { data: travelLogs = [], isLoading: isLoadingTravel } = useMobileTravelLogs();
   const { t, locale, setLocale } = useLanguage();
+  const { current: currentWorkday } = useWorkDay();
+  const [endDayConfirm, setEndDayConfirm] = useState(false);
 
   const dateFnsLocale = locale === 'en' ? enUS : sv;
+
+  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
+
+  const handleEndDay = () => {
+    if (!endDayConfirm) {
+      setEndDayConfirm(true);
+      window.setTimeout(() => setEndDayConfirm(false), 4000);
+      return;
+    }
+    setEndDayConfirm(false);
+    window.dispatchEvent(new CustomEvent('request-end-day'));
+  };
 
   const handleLogout = () => {
     logout();
@@ -177,6 +193,32 @@ const MobileProfile = () => {
 
         {/* GPS sync — internal debug */}
         <LocationSyncDebugCard />
+
+        {/* End workday — deliberate two-tap action so users don't conflate it
+            with stopping an activity timer. Only visible when a workday is open. */}
+        {workdayOpen && (
+          <div className="rounded-2xl border border-destructive/30 bg-card p-4 space-y-2 shadow-md">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-destructive/10 shrink-0">
+                <Sun className="w-5 h-5 text-destructive" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-foreground">Avsluta arbetsdagen</h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Stoppar dagstimern och alla aktiva aktiviteter. Tidrapporter sparas separat när du avslutar varje aktivitet.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant={endDayConfirm ? 'destructive' : 'outline'}
+              className="w-full h-11 rounded-xl text-sm gap-2 font-semibold border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all active:scale-[0.98]"
+              onClick={handleEndDay}
+            >
+              <LogOut className="w-4.5 h-4.5" />
+              {endDayConfirm ? 'Tryck igen för att bekräfta' : 'Avsluta dagen'}
+            </Button>
+          </div>
+        )}
 
         {/* Logout */}
         <Button
