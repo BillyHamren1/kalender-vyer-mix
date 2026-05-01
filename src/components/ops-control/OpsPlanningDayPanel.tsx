@@ -83,9 +83,14 @@ const OpsPlanningDayPanel: React.FC = () => {
         <div className="flex items-center justify-between mb-2 shrink-0">
           <button
             type="button"
-            onClick={() => navigate('/calendar')}
+            onClick={() => {
+              try {
+                sessionStorage.setItem('calendarDate', currentDate.toISOString());
+              } catch { /* noop */ }
+              navigate('/calendar');
+            }}
             className="group flex items-center gap-1.5 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-            title="Öppna hela personalkalendern"
+            title="Öppna hela personalkalendern på denna dag"
           >
             PERSONALKALENDER
             <Maximize2 className="h-3 w-3 opacity-60 group-hover:opacity-100" />
