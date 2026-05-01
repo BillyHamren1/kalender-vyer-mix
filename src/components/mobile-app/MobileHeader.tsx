@@ -229,18 +229,13 @@ export const HeaderStartEndDayButton: React.FC = () => {
   }, [requestStart, start, ensureActive]);
 
   if (workdayOpen) {
+    // End-day button intentionally moved to the Profile page.
+    // Two adjacent stop buttons (timer stop vs. day stop) confused users into
+    // thinking they were double-reporting. Day-end is a deliberate action and
+    // belongs on Profile alongside Logout.
     return (
       <div className="flex items-center gap-2">
         <WorkDayHeaderTimer />
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('request-end-day'))}
-          className="p-2.5 rounded-xl bg-destructive/90 text-destructive-foreground active:scale-95 transition-all"
-          title={t('workday.endDayTitle')}
-          aria-label={t('workday.endDay')}
-        >
-          <LogOut className="w-4.5 h-4.5" />
-        </button>
       </div>
     );
   }
