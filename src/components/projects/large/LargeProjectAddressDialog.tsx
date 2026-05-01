@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -34,33 +33,6 @@ interface LargeProjectAddressDialogProps {
 
 const DEFAULT_RADIUS_METERS = 100;
 
-async function geocodeProjectAddress(address: string) {
-  const { data, error } = await supabase.functions.invoke("mapbox-token");
-  if (error || !data?.token) {
-    throw new Error("Kunde inte hämta adressuppslag för projektet");
-  }
-
-  const response = await fetch(
-    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json` +
-      `?access_token=${data.token}&country=se&language=sv&limit=1&autocomplete=false&types=address,place,locality,neighborhood,postcode`
-  );
-
-  if (!response.ok) {
-    throw new Error("Adressuppslag misslyckades");
-  }
-
-  const json = await response.json();
-  const match = Array.isArray(json.features) ? json.features[0] : null;
-  if (!match?.center || match.center.length < 2) {
-    throw new Error("Kunde inte hitta projektets adress");
-  }
-
-  return {
-    longitude: Number(match.center[0]),
-    latitude: Number(match.center[1]),
-  };
-}
-
 export default function LargeProjectAddressDialog({
   open,
   onOpenChange,
@@ -84,26 +56,10 @@ export default function LargeProjectAddressDialog({
   const handleSave = async () => {
     setSaving(true);
     try {
-      let latitude = initialLatitude ?? null;
-      let longitude = initialLongitude ?? null;
-
-      if (!normalizedAddress) {
-        latitude = null;
-        longitude = null;
-      } else if (
-        normalizedAddress !== normalizedInitialAddress ||
-        latitude == null ||
-        longitude == null
-      ) {
-        const resolved = await geocodeProjectAddress(normalizedAddress);
-        latitude = resolved.latitude;
-        longitude = resolved.longitude;
-      }
-
       await onSave({
         address: normalizedAddress,
-        latitude,
-        longitude,
+        latitude: normalizedAddress && normalizedAddress === normalizedInitialAddress ? (initialLatitude ?? null) : null,
+        longitude: normalizedAddress && normalizedAddress === normalizedInitialAddress ? (initialLongitude ?? null) : null,
         radius_meters: initialRadiusMeters ?? DEFAULT_RADIUS_METERS,
         geofence_mode: "circle",
         geofence_polygon: null,
