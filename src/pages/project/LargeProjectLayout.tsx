@@ -39,6 +39,9 @@ const LargeProjectLayout = () => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
+  const [editSubtitle, setEditSubtitle] = useState("");
+  const subtitleInputRef = useRef<HTMLInputElement>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
   const toggleBookingExpanded = useCallback((bookingId: string) => {
     setExpandedBookingIds(prev => {
@@ -227,6 +230,34 @@ const LargeProjectLayout = () => {
     setIsEditingName(false);
   };
 
+  const handleStartEditSubtitle = () => {
+    setEditSubtitle((project as any)?.description || "");
+    setIsEditingSubtitle(true);
+    setTimeout(() => subtitleInputRef.current?.focus(), 50);
+  };
+
+  const handleSaveSubtitle = async () => {
+    const trimmed = editSubtitle.trim();
+    const current = ((project as any)?.description || "").trim();
+    if (trimmed === current) {
+      setIsEditingSubtitle(false);
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('large_projects')
+        .update({ description: trimmed || null })
+        .eq('id', id!);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['large-project-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+    } catch (err) {
+      console.error(err);
+      toast.error('Kunde inte uppdatera rubrik');
+    }
+    setIsEditingSubtitle(false);
+  };
+
   return (
     <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
@@ -270,14 +301,38 @@ const LargeProjectLayout = () => {
                 )}
                 <Badge variant="outline" className="text-xs">Stort projekt</Badge>
               </div>
-              <p className="text-sm text-muted-foreground font-mono">
-                {project.project_number ? `#${project.project_number}` : null}
-                {project.project_number && (bookings.length || project.address || project.location) ? " · " : ""}
-                <span className="font-sans">
-                  {bookings.length} bokningar
-                  {project.address ? ` • ${project.address}` : project.location ? ` • ${project.location}` : ""}
-                </span>
-              </p>
+              <div className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                {project.project_number && (
+                  <span className="font-mono">#{project.project_number}</span>
+                )}
+                {project.project_number && <span>·</span>}
+                {isEditingSubtitle ? (
+                  <Input
+                    ref={subtitleInputRef}
+                    value={editSubtitle}
+                    onChange={(e) => setEditSubtitle(e.target.value)}
+                    onBlur={handleSaveSubtitle}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveSubtitle();
+                      if (e.key === 'Escape') setIsEditingSubtitle(false);
+                    }}
+                    placeholder="Lägg till rubrik..."
+                    className="h-6 px-1.5 py-0 text-sm w-64 border-0 shadow-none focus-visible:ring-1 bg-transparent"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartEditSubtitle}
+                    className={cn(
+                      "hover:text-foreground transition-colors text-left truncate max-w-[400px]",
+                      !(project as any).description && "italic text-muted-foreground/70"
+                    )}
+                    title="Klicka för att ändra rubrik"
+                  >
+                    {(project as any).description || "Lägg till rubrik..."}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           <ProjectStatusDropdown
