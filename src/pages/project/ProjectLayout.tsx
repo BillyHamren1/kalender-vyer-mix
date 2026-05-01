@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import ProjectActionMenu from "@/components/project/ProjectActionMenu";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
-import LargeProjectAddressDialog from "@/components/projects/large/LargeProjectAddressDialog";
+import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { cancelProject } from "@/services/projectService";
 import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
@@ -196,13 +196,17 @@ const ProjectLayout = () => {
           </CardContent>
         </Card>
 
-        <LargeProjectAddressDialog
+        <ProjectAddressMapDialog
           open={isAddressDialogOpen}
           onOpenChange={setIsAddressDialogOpen}
-          initialAddress={(project as any).deliveryaddress ?? null}
-          initialLatitude={(project as any).delivery_latitude ?? null}
-          initialLongitude={(project as any).delivery_longitude ?? null}
-          initialRadiusMeters={(project as any).address_radius_meters ?? 100}
+          initial={{
+            address: (project as any).deliveryaddress ?? "",
+            latitude: (project as any).delivery_latitude ?? null,
+            longitude: (project as any).delivery_longitude ?? null,
+            radius_meters: (project as any).address_radius_meters ?? 100,
+            geofence_mode: ((project as any).address_geofence_mode as any) ?? "circle",
+            geofence_polygon: ((project as any).address_geofence_polygon as any) ?? null,
+          }}
           onSave={handleAddressDialogSave}
         />
 
