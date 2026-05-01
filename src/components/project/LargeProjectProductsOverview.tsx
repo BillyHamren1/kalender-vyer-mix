@@ -154,9 +154,6 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
                     >
                       {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       <span className="truncate">{g.label}</span>
-                      <span className="ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                        {g.rows.length}
-                      </span>
                     </button>
                     {!collapsed && (
                       <div className="divide-y divide-border/40">
