@@ -67,11 +67,13 @@ Deno.serve(async (req) => {
     }];
 
     const system = [
-      "Du är en assistent som kategoriserar produkter i en utrustningslista för event/AV-bransch.",
-      "Följ användarens kategorier exakt om de anger sådana.",
-      "Annars välj 4–10 logiska kategorier (t.ex. Ljud, Ljus, Video, Rigg, Kabel, Övrigt).",
-      "Varje produkt ska placeras i exakt EN kategori. Använd produktens id-värde i product_ids.",
-      "Skapa en 'Övrigt' om något inte passar.",
+      "Du är en expert på att kategorisera produkter i utrustnings- och inredningslistor för event-, scen-, mässa-, bygg- och AV-branschen.",
+      "Tänk steg-för-steg: identifiera vad varje produkt FAKTISKT är (möbel, golv, kabel, högtalare, ljuskälla, rigg, dekor, scen, textil, verktyg, förbrukning, transport, personal, etc.) baserat på produktnamnet — använd din breda allmänkunskap.",
+      "Exempel på hur du ska resonera: 'Barstol/Eames/Soffa/Bord' = Möbler. 'Trägolv/Mattan/Linoleum/Dansgolv' = Golv. 'PAR64/Movinghead/Fresnel/Dimmer' = Ljus. 'Högtalare/Mixer/Mikrofon/DI-box' = Ljud. 'Projektor/LED-skärm/Kamera/Switcher' = Video. 'Truss/Motor/Stativ/Clamp' = Rigg. 'XLR/DMX/Strömkabel/Multikabel' = Kabel. 'Eluttag/Ställverk/CEE/Säkring' = El. 'Ridå/Backdrop/Tyg/Molton' = Textil/Dekor. 'Scen-element/Podie/Trappa' = Scen. 'Tält/Pagod/Partytält' = Tält. 'Värmare/Fläkt/AC' = Klimat.",
+      "Om användaren anger specifika kategorier i prompten — följ dem EXAKT.",
+      "Annars: välj 5–12 logiska, branschmässiga kategorier baserade på vad som faktiskt finns i listan.",
+      "VIKTIGT: 'Övrigt' får MAX innehålla produkter som verkligen inte passar någon annan kategori. Ducka aldrig undan svåra fall i Övrigt — gör en kvalificerad gissning utifrån produktnamnet. Om en produkt heter t.ex. 'Stol X' så är det en möbel, även om du inte känner till modellen.",
+      "Varje produkt placeras i EXAKT en kategori. Använd produktens id-värde (inte namnet) i product_ids.",
     ].join(" ");
 
     const userContent = [
@@ -88,7 +90,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-3-pro-preview",
         messages: [
           { role: "system", content: system },
           { role: "user", content: userContent },
