@@ -29,12 +29,18 @@ interface BookingProduct {
 
 interface ProjectProductsListProps {
   bookingId: string;
+  showGroupingControls?: boolean;
+  showSummary?: boolean;
 }
 
 const cleanName = (name: string) =>
   name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
 
-const ProjectProductsList = ({ bookingId }: ProjectProductsListProps) => {
+const ProjectProductsList = ({
+  bookingId,
+  showGroupingControls = true,
+  showSummary = true,
+}: ProjectProductsListProps) => {
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [moveDialog, setMoveDialog] = useState<{ productId: string; name: string } | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -194,27 +200,29 @@ const ProjectProductsList = ({ bookingId }: ProjectProductsListProps) => {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3">
-        <Button
-          size="sm"
-          variant={grouping ? "outline" : "default"}
-          onClick={() => setGroupDialogOpen(true)}
-          disabled={generate.isPending}
-        >
-          <Sparkles className="w-4 h-4 mr-2" />
-          {grouping ? "Gruppera om" : "Gruppera med AI"}
-        </Button>
-        {grouping && (
+      {showGroupingControls && (
+        <div className="flex items-center gap-2 mb-3">
           <Button
             size="sm"
-            variant="ghost"
-            onClick={() => clear.mutate()}
-            title="Ta bort gruppering"
+            variant={grouping ? "outline" : "default"}
+            onClick={() => setGroupDialogOpen(true)}
+            disabled={generate.isPending}
           >
-            <Trash2 className="w-4 h-4" />
+            <Sparkles className="w-4 h-4 mr-2" />
+            {grouping ? "Gruppera om" : "Gruppera med AI"}
           </Button>
-        )}
-      </div>
+          {grouping && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => clear.mutate()}
+              title="Ta bort gruppering"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      )}
 
       {groupedView ? (
         <div className="space-y-2">
@@ -252,12 +260,14 @@ const ProjectProductsList = ({ bookingId }: ProjectProductsListProps) => {
         </div>
       )}
 
-      <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-4 text-xs text-muted-foreground">
-        <span>{visibleProducts.length} produkter</span>
-        {totalWeight > 0 && <span>{Math.round(totalWeight)} kg</span>}
-        {totalVolume > 0 && <span>{totalVolume.toFixed(1)} m³</span>}
-        {grouping && <span>· {grouping.groups.length} kategorier</span>}
-      </div>
+      {showSummary && (
+        <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-4 text-xs text-muted-foreground">
+          <span>{visibleProducts.length} produkter</span>
+          {totalWeight > 0 && <span>{Math.round(totalWeight)} kg</span>}
+          {totalVolume > 0 && <span>{totalVolume.toFixed(1)} m³</span>}
+          {grouping && <span>· {grouping.groups.length} kategorier</span>}
+        </div>
+      )}
 
       <GroupProductsDialog
         open={groupDialogOpen}
