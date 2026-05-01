@@ -52,7 +52,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
   const cleanName = (name: string) => name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
 
   const subTabClass =
-    "relative px-3 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary text-sm font-medium transition-colors hover:text-foreground";
+    "relative px-3 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-foreground text-sm font-medium transition-colors hover:text-foreground";
 
   // Flat list: main product rows + their accessory rows nested directly under
   type FlatRow = {
