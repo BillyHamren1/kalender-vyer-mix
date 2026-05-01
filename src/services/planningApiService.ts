@@ -140,7 +140,7 @@ export const updateBookingDatesViaApi = (bookingId: string, data: {
   event_end_time?: string | null;
   rigdown_start_time?: string | null;
   rigdown_end_time?: string | null;
-}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
 
 /**
  * Update delivery details via the Booking system.
@@ -154,19 +154,19 @@ export const updateDeliveryViaApi = (bookingId: string, data: {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
-}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
 
 /**
  * Update internal notes via the Booking system.
  */
 export const updateInternalNotesViaApi = (bookingId: string, notes: string) =>
-  callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data: { internalnotes: notes } });
+  callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data: { internalnotes: notes } });
 
 /**
  * Update booking status via the Booking system.
  */
 export const updateBookingStatusViaApi = (bookingId: string, status: string) =>
-  callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data: { status } });
+  callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data: { status } });
 
 /**
  * Update logistics fields via the Booking system.
@@ -176,7 +176,7 @@ export const updateLogisticsViaApi = (bookingId: string, data: {
   ground_nails_allowed?: boolean;
   exact_time_needed?: boolean;
   exact_time_info?: string;
-}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
 
 // ===== Product CRUD via Booking API =====
 
