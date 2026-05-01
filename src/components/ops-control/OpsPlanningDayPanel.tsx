@@ -81,9 +81,15 @@ const OpsPlanningDayPanel: React.FC = () => {
       <div className="flex flex-col h-full min-h-0">
         {/* Header */}
         <div className="flex items-center justify-between mb-2 shrink-0">
-          <h3 className="text-xs font-semibold tracking-wider text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => navigate('/calendar')}
+            className="group flex items-center gap-1.5 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            title="Öppna hela personalkalendern"
+          >
             PERSONALKALENDER
-          </h3>
+            <Maximize2 className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+          </button>
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
