@@ -82,6 +82,7 @@ export function useProjectGanttEvents(args: UseProjectGanttEventsArgs) {
     queryFn: async (): Promise<{ scope: ResolvedScope; events: GanttCalendarEvent[] }> => {
       const scope = await resolveScope(args);
 
+      // Build the filter set
       const allIds = [
         ...scope.bookingIds,
         ...(scope.standaloneBookingId ? [scope.standaloneBookingId] : []),
@@ -100,55 +101,10 @@ export function useProjectGanttEvents(args: UseProjectGanttEventsArgs) {
         throw error;
       }
 
-      const realEvents = (data || []) as GanttCalendarEvent[];
-
-      // Synthesize EVENT-day rows from bookings.eventdate.
-      // Personalkalendern sparar inte eventdagen i calendar_events
-      // (mem://features/planning/staff-calendar-no-event-day-v1), men
-      // projektkalendern SKA visa den. Vi syntetiserar en virtuell rad per
-      // booking, placerad på samma resource_id (team) som rig-raden.
-      if (scope.bookingIds.length > 0) {
-        const { data: bookingRows } = await supabase
-          .from('bookings')
-          .select('id, booking_number, eventdate, event_start_time, event_end_time, deliveryaddress, client')
-          .in('id', scope.bookingIds);
-
-        const rigByBooking = new Map<string, GanttCalendarEvent>();
-        for (const ev of realEvents) {
-          if (ev.event_type === 'rig' && !rigByBooking.has(ev.booking_id)) {
-            rigByBooking.set(ev.booking_id, ev);
-          }
-        }
-        const hasEventRow = new Set(
-          realEvents.filter((e) => e.event_type === 'event').map((e) => `${e.booking_id}|${e.source_date}`),
-        );
-
-        for (const b of bookingRows || []) {
-          if (!b.eventdate) continue;
-          const key = `${b.id}|${b.eventdate}`;
-          if (hasEventRow.has(key)) continue;
-
-          const rig = rigByBooking.get(b.id);
-          const startHHMM = (b.event_start_time as string | null)?.slice(0, 5) || '09:00';
-          const endHHMM = (b.event_end_time as string | null)?.slice(0, 5) || '17:00';
-
-          realEvents.push({
-            id: `virtual-event-${b.id}-${b.eventdate}`,
-            booking_id: b.id,
-            event_type: 'event',
-            source_date: b.eventdate as string,
-            start_time: `${b.eventdate}T${startHHMM}:00`,
-            end_time: `${b.eventdate}T${endHHMM}:00`,
-            resource_id: rig?.resource_id ?? null,
-            delivery_address: (b.deliveryaddress as string | null) ?? rig?.delivery_address ?? null,
-            booking_number: (b.booking_number as string | null) ?? rig?.booking_number ?? null,
-            title: (b.client as string | null) ?? rig?.title ?? null,
-          });
-        }
-        realEvents.sort((a, b) => a.source_date.localeCompare(b.source_date));
-      }
-
-      return { scope, events: realEvents };
+      return {
+        scope,
+        events: (data || []) as GanttCalendarEvent[],
+      };
     },
   });
 
