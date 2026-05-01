@@ -25,7 +25,6 @@ import ProjectAddressMapDialog from "@/components/projects/large/ProjectAddressM
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
   { key: "establishment", label: "Planering", icon: HardHat, path: "/establishment" },
-  { key: "collaboration", label: "Samarbete", icon: MessageSquare, path: "/collaboration" },
   { key: "economy", label: "Projektöversikt", icon: Wallet, path: "/economy" },
 ];
 
@@ -196,8 +195,6 @@ const LargeProjectLayout = () => {
   const currentPath = location.pathname;
   const activeKey = currentPath.endsWith("/establishment")
     ? "establishment"
-    : currentPath.endsWith("/collaboration")
-    ? "collaboration"
     : currentPath.endsWith("/economy")
     ? "economy"
     : "overview";
