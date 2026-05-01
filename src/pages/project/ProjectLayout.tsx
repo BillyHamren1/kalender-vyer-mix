@@ -155,7 +155,7 @@ const ProjectLayout = () => {
                     isActive
                       ? {
                           background: "var(--gradient-icon)",
-                          boxShadow: "0 4px 14px -2px hsl(184 60% 38% / 0.4), 0 2px 6px -1px hsl(184 60% 38% / 0.2)",
+                          boxShadow: "0 4px 14px -2px hsl(var(--primary) / 0.4), 0 2px 6px -1px hsl(var(--primary) / 0.2)",
                         }
                       : undefined
                   }
