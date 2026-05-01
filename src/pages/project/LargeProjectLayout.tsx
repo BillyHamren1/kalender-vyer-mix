@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { propagateProjectDatesToBookings, arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -520,31 +520,25 @@ const LargeProjectLayout = () => {
             />
 
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
+              <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+                <Button
+                  variant={linkedView === 'bookings' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-9 px-6 text-sm gap-2"
                   onClick={() => setLinkedView('bookings')}
-                  className={cn(
-                    "text-sm font-semibold uppercase tracking-wider px-2 py-1 rounded transition-colors",
-                    linkedView === 'bookings'
-                      ? "text-foreground bg-muted"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
                 >
+                  <ClipboardList className="h-4 w-4" />
                   Bokningar ({bookings.length})
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant={linkedView === 'products' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-9 px-6 text-sm gap-2"
                   onClick={() => setLinkedView('products')}
-                  className={cn(
-                    "text-sm font-semibold uppercase tracking-wider px-2 py-1 rounded transition-colors",
-                    linkedView === 'products'
-                      ? "text-foreground bg-muted"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
                 >
+                  <Package className="h-4 w-4" />
                   Produkter
-                </button>
+                </Button>
               </div>
               {linkedView === 'bookings' && (
                 <div className="flex gap-2">
