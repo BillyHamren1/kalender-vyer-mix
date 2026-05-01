@@ -32,9 +32,12 @@ const formatTimeFromISO = (time: string | null | undefined): string => {
 };
 
 /**
- * Compact date format matching design: "25,26,27/5 -26" or "30/5,1/6 -26".
- * Groups by month, joins days with comma, appends /M after each month group,
- * and a single -YY suffix at the end (using the last date's year).
+ * Compact date format. Collapses consecutive days into ranges with en-dash.
+ * Examples:
+ *   - "15–27/5 -26"        (consecutive run within one month)
+ *   - "15,17,18–20/5 -26"  (mixed singles and runs)
+ *   - "30–31/5,1–2/6 -26"  (runs spanning months)
+ *   - "1/6 -26"            (single day)
  */
 const formatDatesCompact = (dates: string[]): string => {
   if (!dates.length) return '';
@@ -48,25 +51,39 @@ const formatDatesCompact = (dates: string[]): string => {
 
   if (!parsed.length) return '';
 
-  // Group consecutive entries by month/year
-  const groups: { y: number; m: number; days: number[] }[] = [];
+  // Group entries by month/year
+  const monthGroups: { y: number; m: number; days: number[] }[] = [];
   for (const p of parsed) {
-    const last = groups[groups.length - 1];
+    const last = monthGroups[monthGroups.length - 1];
     if (last && last.y === p.y && last.m === p.m) {
       last.days.push(p.day);
     } else {
-      groups.push({ y: p.y, m: p.m, days: [p.day] });
+      monthGroups.push({ y: p.y, m: p.m, days: [p.day] });
     }
   }
 
+  // Collapse consecutive day-runs inside each month into ranges
+  const formatMonth = (g: { m: number; days: number[] }) => {
+    const runs: string[] = [];
+    let runStart = g.days[0];
+    let runEnd = g.days[0];
+    for (let i = 1; i < g.days.length; i++) {
+      const d = g.days[i];
+      if (d === runEnd + 1) {
+        runEnd = d;
+      } else {
+        runs.push(runStart === runEnd ? `${runStart}` : `${runStart}–${runEnd}`);
+        runStart = d;
+        runEnd = d;
+      }
+    }
+    runs.push(runStart === runEnd ? `${runStart}` : `${runStart}–${runEnd}`);
+    return `${runs.join(',')}/${g.m}`;
+  };
+
   const lastYear = parsed[parsed.length - 1].y;
   const yy = String(lastYear).slice(-2);
-
-  const body = groups
-    .map((g) => `${g.days.join(',')}/${g.m}`)
-    .join(',');
-
-  return `${body} -${yy}`;
+  return `${monthGroups.map(formatMonth).join(',')} -${yy}`;
 };
 
 const LargeProjectScheduleEditable = ({
