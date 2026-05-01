@@ -22,8 +22,22 @@ const MobileProfile = () => {
   const { data: timeReports = [], isLoading: isLoadingReports } = useMobileTimeReports();
   const { data: travelLogs = [], isLoading: isLoadingTravel } = useMobileTravelLogs();
   const { t, locale, setLocale } = useLanguage();
+  const { current: currentWorkday } = useWorkDay();
+  const [endDayConfirm, setEndDayConfirm] = useState(false);
 
   const dateFnsLocale = locale === 'en' ? enUS : sv;
+
+  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
+
+  const handleEndDay = () => {
+    if (!endDayConfirm) {
+      setEndDayConfirm(true);
+      window.setTimeout(() => setEndDayConfirm(false), 4000);
+      return;
+    }
+    setEndDayConfirm(false);
+    window.dispatchEvent(new CustomEvent('request-end-day'));
+  };
 
   const handleLogout = () => {
     logout();
