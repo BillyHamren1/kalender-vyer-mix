@@ -93,7 +93,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
           <TabsTrigger value="list" className={subTabClass}>
             Lista
             {flatRows.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-foreground">
                 {flatRows.length}
               </span>
             )}
@@ -101,7 +101,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
           <TabsTrigger value="all" className={subTabClass}>
             Grupperat
             {totalCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-foreground">
                 {totalCount}
               </span>
             )}
@@ -117,7 +117,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
               <TabsTrigger key={b.booking_id} value={b.booking_id} className={subTabClass}>
                 {label}
                 {count > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-foreground">
                     {count}
                   </span>
                 )}
