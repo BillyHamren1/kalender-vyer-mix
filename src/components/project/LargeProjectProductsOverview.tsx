@@ -54,12 +54,37 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
   const subTabClass =
     "relative px-3 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary text-sm font-medium transition-colors hover:text-foreground";
 
+  // Flat list: one row per main product per booking (accessories hidden — included in package)
+  const flatRows = bookings.flatMap(b => {
+    const bProducts = allProducts.filter(p => p.booking_id === b.booking_id);
+    const mainProducts = bProducts.filter(p => !p.parent_product_id && !p.is_package_component);
+    const client = b.booking?.client || "—";
+    const deliveryParts = [b.booking?.deliveryaddress, b.booking?.delivery_postal_code, b.booking?.delivery_city]
+      .filter(Boolean)
+      .join(", ");
+    return mainProducts.map(p => ({
+      id: `${b.booking_id}-${p.id}`,
+      name: cleanName(p.name),
+      quantity: p.quantity,
+      client,
+      delivery: deliveryParts || "—",
+    }));
+  });
+
   return (
-    <Tabs defaultValue="all" className="space-y-4">
+    <Tabs defaultValue="list" className="space-y-4">
       <div className="border-b border-border/40 overflow-x-auto">
         <TabsList className="h-auto p-0 bg-transparent gap-0">
+          <TabsTrigger value="list" className={subTabClass}>
+            Lista
+            {flatRows.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                {flatRows.length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="all" className={subTabClass}>
-            Alla
+            Grupperat
             {totalCount > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
                 {totalCount}
