@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { propagateProjectDatesToBookings, arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -264,11 +264,23 @@ const LargeProjectLayout = () => {
     <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/projects")} className="rounded-xl">
-              <ArrowLeft className="h-5 w-5" />
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm mb-5">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/projects")}
+              className="rounded-lg h-8 w-8 -ml-1"
+              aria-label="Tillbaka"
+            >
+              <ArrowLeft className="h-4 w-4" />
             </Button>
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shadow-[hsl(270_45%_55%)]/15 shrink-0"
+              style={{ background: 'linear-gradient(135deg, hsl(270 45% 60%) 0%, hsl(280 50% 45%) 100%)' }}
+            >
+              <FolderKanban className="text-white" style={{ width: 18, height: 18 }} />
+            </div>
             <div>
               <div className="flex items-center gap-2">
                 {isEditingName ? (
@@ -281,7 +293,7 @@ const LargeProjectLayout = () => {
                         if (e.key === 'Enter') handleSaveName();
                         if (e.key === 'Escape') setIsEditingName(false);
                       }}
-                      className="text-2xl font-bold h-9 px-2 w-64"
+                      className="text-xl font-bold h-8 px-2 w-64"
                     />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSaveName}>
                       <Check className="h-4 w-4 text-green-600" />
@@ -292,7 +304,7 @@ const LargeProjectLayout = () => {
                   </div>
                 ) : (
                   <h1
-                    className="text-2xl font-bold tracking-tight cursor-pointer group flex items-center gap-1.5"
+                    className="text-xl font-bold tracking-tight leading-none cursor-pointer group flex items-center gap-1.5"
                     style={{ color: "hsl(var(--heading))" }}
                     onClick={handleStartEditName}
                     title="Klicka för att ändra namn"
@@ -303,7 +315,7 @@ const LargeProjectLayout = () => {
                 )}
                 <Badge variant="outline" className="text-xs">Stort projekt</Badge>
               </div>
-              <div className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
+              <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
                 {project.project_number && (
                   <span>#{project.project_number}</span>
                 )}
@@ -319,7 +331,7 @@ const LargeProjectLayout = () => {
                       if (e.key === 'Escape') setIsEditingSubtitle(false);
                     }}
                     placeholder="Lägg till rubrik..."
-                    className="h-6 px-1.5 py-0 text-sm w-64 border-0 shadow-none focus-visible:ring-1 bg-transparent"
+                    className="h-6 px-1.5 py-0 text-xs w-64 border-0 shadow-none focus-visible:ring-1 bg-transparent"
                   />
                 ) : (
                   <button
