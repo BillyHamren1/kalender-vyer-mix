@@ -34,25 +34,9 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
     enabled: bookingIds.length > 0,
   });
 
-  if (bookingIds.length === 0) {
-    return (
-      <div className="py-8 text-center text-muted-foreground text-sm">
-        Inga bokningar kopplade till projektet.
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="space-y-2 py-4">
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-6 w-full" />)}
-      </div>
-    );
-  }
-
   const cleanName = (name: string) => name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
 
-  // Group rows per booking (company)
+  // Group rows per booking (company) — must run before any early return to keep hook order stable
   const groups = useMemo(() => {
     const q = search.trim().toLowerCase();
     return bookings.map(b => {
@@ -85,6 +69,22 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
       return { bookingId: b.booking_id, label, rows: filtered, totalRows: rows.length };
     }).filter(g => g.rows.length > 0);
   }, [bookings, allProducts, search]);
+
+  if (bookingIds.length === 0) {
+    return (
+      <div className="py-8 text-center text-muted-foreground text-sm">
+        Inga bokningar kopplade till projektet.
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2 py-4">
+        {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-6 w-full" />)}
+      </div>
+    );
+  }
 
   const totalVisibleRows = groups.reduce((s, g) => s + g.rows.length, 0);
 
