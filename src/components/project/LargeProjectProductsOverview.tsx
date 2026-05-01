@@ -54,21 +54,36 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
   const subTabClass =
     "relative px-3 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary text-sm font-medium transition-colors hover:text-foreground";
 
-  // Flat list: one row per main product per booking (accessories hidden — included in package)
-  const flatRows = bookings.flatMap(b => {
+  // Flat list: main product rows + their accessory rows nested directly under
+  type FlatRow = {
+    id: string;
+    name: string;
+    quantity: number;
+    isAccessory: boolean;
+    hasAccessories: boolean;
+  };
+  const flatRows: FlatRow[] = bookings.flatMap(b => {
     const bProducts = allProducts.filter(p => p.booking_id === b.booking_id);
     const mainProducts = bProducts.filter(p => !p.parent_product_id && !p.is_package_component);
-    const client = b.booking?.client || "—";
-    const deliveryParts = [b.booking?.deliveryaddress, b.booking?.delivery_postal_code, b.booking?.delivery_city]
-      .filter(Boolean)
-      .join(", ");
-    return mainProducts.map(p => ({
-      id: `${b.booking_id}-${p.id}`,
-      name: cleanName(p.name),
-      quantity: p.quantity,
-      client,
-      delivery: deliveryParts || "—",
-    }));
+    const allChildren = bProducts.filter(p => p.parent_product_id);
+    return mainProducts.flatMap(p => {
+      const accessories = allChildren.filter(c => c.parent_product_id === p.id);
+      const mainRow: FlatRow = {
+        id: `${b.booking_id}-${p.id}`,
+        name: cleanName(p.name),
+        quantity: p.quantity,
+        isAccessory: false,
+        hasAccessories: accessories.length > 0,
+      };
+      const accRows: FlatRow[] = accessories.map(c => ({
+        id: `${b.booking_id}-${p.id}-${c.id}`,
+        name: cleanName(c.name),
+        quantity: c.quantity,
+        isAccessory: true,
+        hasAccessories: false,
+      }));
+      return [mainRow, ...accRows];
+    });
   });
 
   return (
