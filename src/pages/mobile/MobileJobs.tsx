@@ -32,6 +32,8 @@ const MobileJobs = () => {
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
   const { data: shifts = [] } = useScheduledShifts();
   const { t } = useLanguage();
+  const { current: currentWorkday } = useWorkDay();
+  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
 
 
   // Calendar view state — persisted in localStorage
