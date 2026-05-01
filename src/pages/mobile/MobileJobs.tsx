@@ -20,6 +20,7 @@ import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, UserCircle2 } fro
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useWorkDay } from '@/hooks/useWorkDay';
 
 const VIEW_MODE_KEY = 'mobile.calendarView';
 const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
