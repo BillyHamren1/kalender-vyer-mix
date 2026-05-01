@@ -165,6 +165,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                 isEventReadOnly={() => false}
                 daysOverride={projectDays}
                 getDayCardClassName={getDayCardClassName}
+                timeGridFullWidth
               />
             )}
           </div>
