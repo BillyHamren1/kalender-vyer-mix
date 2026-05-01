@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import ProjectActionMenu from "@/components/project/ProjectActionMenu";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
-import ProjectAddressMapDialog from "@/components/projects/large/ProjectAddressMapDialog";
+import LargeProjectAddressDialog from "@/components/projects/large/LargeProjectAddressDialog";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { cancelProject } from "@/services/projectService";
 import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
@@ -187,29 +187,22 @@ const ProjectLayout = () => {
                     📍 {Number((project as any).delivery_latitude).toFixed(4)}, {Number((project as any).delivery_longitude).toFixed(4)}
                   </Badge>
                 )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsAddressDialogOpen(true)}
-                  className="h-7"
-                >
-                  <MapPin className="h-3.5 w-3.5 mr-1" />
-                  Karta & staket
+                <Button size="sm" variant="outline" onClick={() => setIsAddressDialogOpen(true)} className="h-7">
+                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                  Redigera adress
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <ProjectAddressMapDialog
+        <LargeProjectAddressDialog
           open={isAddressDialogOpen}
           onOpenChange={setIsAddressDialogOpen}
           initialAddress={(project as any).deliveryaddress ?? null}
           initialLatitude={(project as any).delivery_latitude ?? null}
           initialLongitude={(project as any).delivery_longitude ?? null}
           initialRadiusMeters={(project as any).address_radius_meters ?? 100}
-          initialGeofenceMode={((project as any).address_geofence_mode as 'circle' | 'polygon') ?? 'circle'}
-          initialGeofencePolygon={(project as any).address_geofence_polygon ?? null}
           onSave={handleAddressDialogSave}
         />
 
