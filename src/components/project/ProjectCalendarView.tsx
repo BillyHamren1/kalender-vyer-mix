@@ -46,14 +46,27 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
     [projectEvents],
   );
 
-  // 2. Lista över projektets unika dagar (sorterade), härlett från events.
-  const projectDays = useMemo<Date[]>(() => {
-    const set = new Set<string>();
+  // 2. Lista över projektets unika dagar (sorterade) + fas per dag.
+  // Prioritet om flera fas-typer på samma dag: rig > rigDown > event.
+  const { projectDays, phaseByDay } = useMemo(() => {
+    const phaseMap = new Map<string, 'rig' | 'event' | 'rigDown'>();
+    const prio = { rig: 3, rigDown: 2, event: 1 } as const;
     projectEvents.forEach((e) => {
-      if (e.source_date) set.add(e.source_date);
+      if (!e.source_date || !e.event_type) return;
+      const current = phaseMap.get(e.source_date);
+      if (!current || prio[e.event_type] > prio[current]) {
+        phaseMap.set(e.source_date, e.event_type);
+      }
     });
-    return Array.from(set).sort().map((s) => parseISO(s));
+    const days = Array.from(phaseMap.keys()).sort().map((s) => parseISO(s));
+    return { projectDays: days, phaseByDay: phaseMap };
   }, [projectEvents]);
+
+  const getDayCardClassName = (date: Date): string => {
+    const key = format(date, 'yyyy-MM-dd');
+    const phase = phaseByDay.get(key);
+    return `project-weekly-day-card project-phase-${phase ?? 'none'}`;
+  };
 
   // 3. Samma hooks som personalkalendern.
   const {
