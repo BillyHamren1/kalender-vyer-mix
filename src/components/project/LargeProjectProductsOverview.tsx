@@ -134,23 +134,87 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
             Inga produkter hittades.
           </div>
         ) : (
-          <div className="rounded-md border border-border/40 overflow-hidden">
-            <div className="grid grid-cols-[1fr_80px_1fr_1.5fr] gap-4 px-4 py-2.5 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="overflow-x-auto">
+            {/* Header */}
+            <div className="grid grid-cols-[minmax(280px,2fr)_140px_120px_110px_110px_110px_110px] gap-3 px-2 pb-3 text-xs font-medium text-muted-foreground">
               <div>Produkt</div>
-              <div className="text-right">Antal</div>
-              <div>Kund</div>
-              <div>Levadress</div>
+              <div className="text-center">Antal</div>
+              <div className="text-right">Pris</div>
+              <div className="text-right">Rabatt %</div>
+              <div className="text-right">Rabatt kr</div>
+              <div className="text-right">Moms</div>
+              <div className="text-right">Summa</div>
             </div>
+
+            {/* Rows */}
             <div className="divide-y divide-border/40">
               {flatRows.map(row => (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[1fr_80px_1fr_1.5fr] gap-4 px-4 py-2.5 text-sm hover:bg-muted/20 transition-colors"
+                  className="grid grid-cols-[minmax(280px,2fr)_140px_120px_110px_110px_110px_110px] gap-3 items-center px-2 py-2"
                 >
-                  <div className="font-medium text-foreground truncate" title={row.name}>{row.name}</div>
-                  <div className="text-right tabular-nums text-muted-foreground">{row.quantity} st</div>
-                  <div className="text-muted-foreground truncate" title={row.client}>{row.client}</div>
-                  <div className="text-muted-foreground truncate" title={row.delivery}>{row.delivery}</div>
+                  {/* Produkt */}
+                  <div className={row.isAccessory ? "pl-6" : ""}>
+                    <div
+                      className={
+                        row.isAccessory
+                          ? "px-3 py-1.5 rounded-md border border-border/50 bg-background text-sm text-muted-foreground"
+                          : "px-3 py-1.5 rounded-md border border-primary/30 bg-primary/5 text-sm font-medium text-primary"
+                      }
+                    >
+                      {row.isAccessory ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span aria-hidden>↳</span>
+                          <span>{row.name}</span>
+                        </span>
+                      ) : (
+                        row.name
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Antal stepper (UI only) */}
+                  <div className="flex items-center justify-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled
+                      className="h-7 w-7 rounded-md border border-border/60 text-muted-foreground/60 flex items-center justify-center text-sm leading-none cursor-not-allowed"
+                      tabIndex={-1}
+                    >
+                      −
+                    </button>
+                    <div className="h-7 w-12 rounded-md border border-border/60 bg-background flex items-center justify-center text-sm tabular-nums">
+                      {row.quantity}
+                    </div>
+                    <button
+                      type="button"
+                      disabled
+                      className="h-7 w-7 rounded-md border border-border/60 text-muted-foreground/60 flex items-center justify-center text-sm leading-none cursor-not-allowed"
+                      tabIndex={-1}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {/* Pris */}
+                  <div className="h-8 rounded-md border border-border/60 bg-background px-2 flex items-center justify-end text-sm tabular-nums text-muted-foreground/70" />
+
+                  {/* Rabatt % */}
+                  <div className="h-8 rounded-md border border-border/60 bg-background px-2 flex items-center justify-end text-sm tabular-nums text-muted-foreground/70" />
+
+                  {/* Rabatt kr */}
+                  <div className="h-8 rounded-md border border-border/60 bg-background px-2 flex items-center justify-end text-sm tabular-nums text-muted-foreground/70" />
+
+                  {/* Moms */}
+                  <div className="h-8 rounded-md border border-border/60 bg-background px-2 flex items-center justify-between text-sm text-muted-foreground/80">
+                    <span>25%</span>
+                    <span aria-hidden className="text-xs">▾</span>
+                  </div>
+
+                  {/* Summa */}
+                  <div className="text-right text-sm tabular-nums text-foreground pr-1">
+                    0 kr
+                  </div>
                 </div>
               ))}
             </div>
@@ -158,7 +222,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
         )}
         <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-4 text-xs text-muted-foreground">
           <span>{flatRows.length} rader</span>
-          <span>Tillbehör är inkluderade i respektive paket</span>
+          <span>Tillbehör visas indenterade under respektive paket</span>
         </div>
       </TabsContent>
 
