@@ -1,6 +1,7 @@
 .project-calendar-shell {
   background: hsl(var(--background));
   width: 100%;
+  height: 100%;
 }
 
 .project-weekly-horizontal-grid {
@@ -8,31 +9,21 @@
   width: 100%;
 }
 
-/* Wider day cards than default; keep flex behavior from base .weekly-day-card */
+/* Wider day cards than default; keep flex behavior from base .weekly-day-card.
+   Let kortet växa fritt så hela bredden av .project-calendar-shell används
+   (ingen vit yta till höger). */
 .project-weekly-day-card {
-  min-width: 640px !important;
+  min-width: 520px !important;
   max-width: none !important;
-  flex: 1 1 640px !important;
+  flex: 1 1 0 !important;
 }
 
-.project-weekly-day-card .day-card,
-.project-weekly-day-card .time-grid-with-staff-header {
-  border-radius: 0 !important;
-  border: 1px solid hsl(var(--border));
-  box-shadow: none;
-}
-
-.project-weekly-day-card .day-card:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.project-weekly-day-card .time-grid-with-staff-header {
-  min-height: 100%;
-}
+/* Behåll personalkalenderns rundade hörn + skuggor. Vi rör inte .day-card här
+   – det är samma look som personalkalendern. */
 
 /* Phase header colors — EXACT same hex as rig/event/rigDown events
-   in personalkalendern (see src/components/Calendar/ResourceData.ts) */
+   in personalkalendern (see src/components/Calendar/ResourceData.ts).
+   Gäller ENDAST den översta titel-baren (där "Mon 18" + people-badge står). */
 .project-weekly-day-card.project-phase-rig {
   --phase-header-bg: #F2FCE2;       /* Light green (rig) */
   --phase-header-fg: #1f3a24;
@@ -50,11 +41,10 @@
   --phase-header-fg: hsl(var(--muted-foreground));
 }
 
-/* Override BARA dagtitel-baren (där "Mon 18" + people-badge står).
-   Team-rad och personal-rad behåller personalkalenderns lila styling. */
+/* Override ENDAST dagtitel-baren. Team-rad och personal-rad behåller
+   personalkalenderns lila styling. */
 .project-weekly-day-card .time-grid-header-bg {
   background: var(--phase-header-bg) !important;
-  border-radius: 0;
 }
 
 /* Dagtitel + TIME-label får mörk fas-text (läsbart på pastellbakgrund) */
@@ -62,4 +52,16 @@
 .project-weekly-day-card .time-title {
   color: var(--phase-header-fg) !important;
   text-shadow: none;
+}
+
+/* Den kompakta teams-pillen i headern (TeamVisibilityControl compact)
+   är hårdkodad mot lila/vit. Tvinga mörk kontrast på pastellfärgade
+   projektheaders så den faktiskt syns. */
+.project-weekly-day-card .time-grid-header-bg ~ * .day-header-content button[class*="bg-white"],
+.project-weekly-day-card .day-header-content > div > button {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: var(--phase-header-fg) !important;
+}
+.project-weekly-day-card .day-header-content > div > button:hover {
+  background: rgba(0, 0, 0, 0.16) !important;
 }
