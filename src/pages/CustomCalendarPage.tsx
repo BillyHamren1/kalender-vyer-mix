@@ -12,6 +12,7 @@ import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendar
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PageHeader } from '@/components/ui/PageHeader';
+import ProjectsOverviewMapButton from '@/components/maps/ProjectsOverviewMapButton';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
@@ -293,6 +294,7 @@ const CustomCalendarPage = () => {
               />
             </div>
             <div className="flex items-center gap-2 ml-4 shrink-0">
+              <ProjectsOverviewMapButton weekStart={currentWeekStart} />
               <ListChecks className="h-4 w-4 text-muted-foreground" />
               <Label htmlFor="show-tasks" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
                 Visa uppgifter
