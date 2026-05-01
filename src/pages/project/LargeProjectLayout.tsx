@@ -303,7 +303,7 @@ const LargeProjectLayout = () => {
               </div>
               <div className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
                 {project.project_number && (
-                  <span className="font-mono">#{project.project_number}</span>
+                  <span>#{project.project_number}</span>
                 )}
                 {project.project_number && <span>·</span>}
                 {isEditingSubtitle ? (
