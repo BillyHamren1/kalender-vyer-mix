@@ -115,10 +115,10 @@ const LargeEstablishmentPage = () => {
     setSheetOpen(true);
   }, []);
 
-  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
+  const handleOpenInChat = useCallback((_taskId: string, _taskTitle: string) => {
+    // Samarbete-fliken är borttagen — anslagstavlan ligger på Översikt.
     setSheetOpen(false);
-    // Navigate to sibling collaboration route, passing task ref
-    navigate("../collaboration", { state: { linkedTaskRef: { taskId, taskTitle } } });
+    navigate("..");
   }, [navigate]);
 
   const handleControlPanelTaskClick = useCallback((taskId: string) => {
