@@ -7,7 +7,7 @@ import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 
-import ProjectCalendarView from "@/components/project/ProjectCalendarView";
+
 
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
