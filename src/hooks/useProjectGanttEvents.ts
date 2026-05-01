@@ -140,9 +140,9 @@ export function useProjectGanttEvents(args: UseProjectGanttEventsArgs) {
             start_time: `${b.eventdate}T${startHHMM}:00`,
             end_time: `${b.eventdate}T${endHHMM}:00`,
             resource_id: rig?.resource_id ?? null,
-            delivery_address: (b.delivery_address as string | null) ?? rig?.delivery_address ?? null,
+            delivery_address: (b.deliveryaddress as string | null) ?? rig?.delivery_address ?? null,
             booking_number: (b.booking_number as string | null) ?? rig?.booking_number ?? null,
-            title: (b.customer_name as string | null) ?? rig?.title ?? null,
+            title: (b.client as string | null) ?? rig?.title ?? null,
           });
         }
         realEvents.sort((a, b) => a.source_date.localeCompare(b.source_date));
