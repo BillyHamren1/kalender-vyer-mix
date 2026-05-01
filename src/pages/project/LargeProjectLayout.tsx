@@ -161,7 +161,7 @@ const LargeProjectLayout = () => {
 
   if (isLoading) {
     return (
-      <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
+      <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
         <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/3" />
@@ -228,7 +228,7 @@ const LargeProjectLayout = () => {
   };
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
+    <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
@@ -305,7 +305,7 @@ const LargeProjectLayout = () => {
                     isActive
                       ? {
                           background: "var(--gradient-icon)",
-                          boxShadow: "0 4px 14px -2px hsl(184 60% 38% / 0.4), 0 2px 6px -1px hsl(184 60% 38% / 0.2)",
+                          boxShadow: "0 4px 14px -2px hsl(var(--primary) / 0.4), 0 2px 6px -1px hsl(var(--primary) / 0.2)",
                         }
                       : undefined
                   }
