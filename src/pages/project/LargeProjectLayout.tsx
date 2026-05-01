@@ -522,7 +522,7 @@ const LargeProjectLayout = () => {
               )}
             </div>
             {linkedView === 'products' ? (
-              <LargeProjectProductsOverview bookings={bookings} />
+              <LargeProjectProductsOverview bookings={bookings} largeProjectId={id || ""} />
             ) : (
             <>
             {bookings.length === 0 ? (
