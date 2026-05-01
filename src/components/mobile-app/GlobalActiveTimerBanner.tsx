@@ -493,6 +493,25 @@ const TimerRow: React.FC<{
   const s = elapsed % 60;
   const isLocation = !!timer.locationId;
 
+  // Two-tap confirmation — first tap arms ("Tryck igen"), second tap stops.
+  // Prevents accidental taps that users mistake for double-reporting.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const id = window.setTimeout(() => setArmed(false), 4000);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+
+  const handleClick = () => {
+    if (isSaving) return;
+    if (!armed) {
+      setArmed(true);
+      return;
+    }
+    setArmed(false);
+    onStop(timerKey, timer);
+  };
+
   return (
     <div className="flex items-center gap-3 p-3 rounded-2xl border border-primary/20 bg-primary/5">
       <div className="flex-1 min-w-0">
@@ -510,14 +529,16 @@ const TimerRow: React.FC<{
       </div>
       <Button
         size="sm"
-        variant="destructive"
+        variant={armed ? 'destructive' : 'outline'}
         className="rounded-xl h-9 gap-1 text-xs font-semibold"
-        onClick={() => onStop(timerKey, timer)}
+        onClick={handleClick}
         disabled={isSaving}
-        title="Avsluta aktiviteten — sparar tidrapporten"
+        title={armed ? 'Tryck igen för att avsluta aktiviteten' : 'Avsluta aktiviteten — sparar tidrapporten'}
       >
-        {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}
-        {isSaving ? 'Sparar…' : 'Avsluta aktivitet'}
+        {isSaving
+          ? <Loader2 className="w-3 h-3 animate-spin" />
+          : <Square className="w-3 h-3" />}
+        {isSaving ? 'Sparar…' : armed ? 'Tryck igen' : 'Stopp'}
       </Button>
     </div>
   );
