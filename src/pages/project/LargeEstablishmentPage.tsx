@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { List, Users } from "lucide-react";
+import { List, Users, CalendarDays, ClipboardList } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
@@ -63,6 +63,7 @@ const LargeEstablishmentPage = () => {
     }
   }, [location.state]);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [pageMode, setPageMode] = useState<"plan" | "calendar">("plan");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
@@ -171,60 +172,82 @@ const LargeEstablishmentPage = () => {
 
   return (
     <div className="space-y-3">
-      {/* LEVEL 1 (ProjectControlPanel) borttagen — överflödig översikt på stora projekt */}
+      {/* Top toggle: Planera vs Kalender */}
+      <div className="flex items-center justify-center">
+        <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+          <Button
+            variant={pageMode === "plan" ? "default" : "ghost"}
+            size="sm"
+            className="h-8 px-3 text-xs gap-1.5"
+            onClick={() => setPageMode("plan")}
+          >
+            <ClipboardList className="h-3.5 w-3.5" />
+            Planera
+          </Button>
+          <Button
+            variant={pageMode === "calendar" ? "default" : "ghost"}
+            size="sm"
+            className="h-8 px-3 text-xs gap-1.5"
+            onClick={() => setPageMode("calendar")}
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            Kalender
+          </Button>
+        </div>
+      </div>
 
-      {/* LEVEL 1.5: Projektkalender — speglar personalkalendern */}
-      <ProjectCalendarView projectId={project.id} isLargeProject={true} />
-
-      {/* LEVEL 2: Workspace — answers "what's the full picture?" */}
-      <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
-        <div className="border-b border-border/40 px-3 py-2 flex items-center justify-end">
-          <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-            <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-2.5 text-xs gap-1"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-3.5 w-3.5" />
-              Lista
-            </Button>
-            <Button
-              variant={viewMode === "people" ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-2.5 text-xs gap-1"
-              onClick={() => setViewMode("people")}
-            >
-              <Users className="h-3.5 w-3.5" />
-              Personal
-            </Button>
+      {pageMode === "calendar" ? (
+        <ProjectCalendarView projectId={project.id} isLargeProject={true} />
+      ) : (
+        <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
+          <div className="border-b border-border/40 px-3 py-2 flex items-center justify-end">
+            <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+              <Button
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("list")}
+              >
+                <List className="h-3.5 w-3.5" />
+                Lista
+              </Button>
+              <Button
+                variant={viewMode === "people" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("people")}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Personal
+              </Button>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-0 p-3 space-y-2">
-          <PlanningFilterBar
-            tasks={analytics.tasks}
-            filters={filters}
-            onFiltersChange={setFilters}
-            staffPool={staffPool}
-            filteredCount={filteredTasks.length}
-          />
-          {viewMode === "list" ? (
-            <PlanningTaskList
-              tasks={filteredTasks}
+          <div className="mt-0 p-3 space-y-2">
+            <PlanningFilterBar
+              tasks={analytics.tasks}
+              filters={filters}
+              onFiltersChange={setFilters}
               staffPool={staffPool}
-              onTaskClick={handleTaskClick}
-              largeProjectId={project.id}
+              filteredCount={filteredTasks.length}
             />
-          ) : (
-            <PeopleOverview
-              analytics={analytics}
-              staffPool={staffPool}
-              onTaskClick={handleControlPanelTaskClick}
-            />
-          )}
-        </div>
-      </Card>
+            {viewMode === "list" ? (
+              <PlanningTaskList
+                tasks={filteredTasks}
+                staffPool={staffPool}
+                onTaskClick={handleTaskClick}
+                largeProjectId={project.id}
+              />
+            ) : (
+              <PeopleOverview
+                analytics={analytics}
+                staffPool={staffPool}
+                onTaskClick={handleControlPanelTaskClick}
+              />
+            )}
+          </div>
+        </Card>
+      )}
 
       <EstablishmentTaskDetailSheet
         open={sheetOpen}
