@@ -159,3 +159,6 @@ verify_jwt = false
 
 [functions.packing-status-cron]
 verify_jwt = false
+
+[functions.group-products-ai]
+verify_jwt = false
