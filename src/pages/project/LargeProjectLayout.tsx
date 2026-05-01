@@ -512,12 +512,12 @@ const LargeProjectLayout = () => {
               onSave={handleAddressDialogSave}
             />
 
-            <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="relative flex items-center justify-center">
               <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
                 <Button
                   variant={linkedView === 'bookings' ? 'default' : 'ghost'}
                   size="sm"
-                  className="h-9 px-6 text-sm gap-2"
+                  className="h-9 w-40 px-6 text-sm gap-2"
                   onClick={() => setLinkedView('bookings')}
                 >
                   <ClipboardList className="h-4 w-4" />
@@ -526,7 +526,7 @@ const LargeProjectLayout = () => {
                 <Button
                   variant={linkedView === 'products' ? 'default' : 'ghost'}
                   size="sm"
-                  className="h-9 px-6 text-sm gap-2"
+                  className="h-9 w-40 px-6 text-sm gap-2"
                   onClick={() => setLinkedView('products')}
                 >
                   <Package className="h-4 w-4" />
@@ -534,7 +534,7 @@ const LargeProjectLayout = () => {
                 </Button>
               </div>
               {linkedView === 'bookings' && (
-                <div className="flex gap-2">
+                <div className="absolute right-0 flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => setIsAddBookingOpen(true)}>
                     <Plus className="w-4 h-4 mr-1" />
                     Lägg till bokning
