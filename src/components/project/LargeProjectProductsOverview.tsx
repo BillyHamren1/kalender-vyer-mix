@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
