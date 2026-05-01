@@ -90,7 +90,7 @@ const ProjectLayout = () => {
     }
   };
 
-
+  if (isLoading) {
     return (
       <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
