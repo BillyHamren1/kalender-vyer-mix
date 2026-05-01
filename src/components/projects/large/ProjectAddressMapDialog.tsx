@@ -186,6 +186,23 @@ export default function ProjectAddressMapDialog({
     if (!containerNode) return;
     if (mapRef.current) return;
 
+    // Vänta tills containern faktiskt har mått (>0×0). Radix Dialog animerar
+    // in DialogContent → containern kan rapportera 0 height/width första
+    // tick:en. Initierar vi mapbox då blir canvas 0×0 → karta = grå utan
+    // tiles, OCH map.resize() senare räddar inte alltid det (vissa style
+    // layers cachas mot initial size).
+    if (containerNode.clientWidth === 0 || containerNode.clientHeight === 0) {
+      const ro = new ResizeObserver(() => {
+        if (containerNode.clientWidth > 0 && containerNode.clientHeight > 0) {
+          ro.disconnect();
+          // Bumpa retryCounter → effekten kör om sig själv, nu med mått.
+          setRetryCounter((n) => n + 1);
+        }
+      });
+      ro.observe(containerNode);
+      return () => { try { ro.disconnect(); } catch { /* noop */ } };
+    }
+
     setMapStatus('loading-map');
     setMapError(null);
 
