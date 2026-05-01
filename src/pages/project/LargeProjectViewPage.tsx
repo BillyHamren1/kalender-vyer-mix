@@ -45,12 +45,9 @@ const LargeProjectViewPage = () => {
       />
 
       {/* Tabbed content */}
-      <Tabs defaultValue="gantt" className="space-y-6">
+      <Tabs defaultValue="files" className="space-y-6">
         <div className="border-b border-border/40 overflow-x-auto">
           <TabsList className="h-auto p-0 bg-transparent gap-0">
-            <TabsTrigger value="gantt" className={tabTriggerClass}>
-              Kalender
-            </TabsTrigger>
             <TabsTrigger value="files" className={tabTriggerClass}>
               Filer
               {files.length > 0 && (
@@ -72,10 +69,6 @@ const LargeProjectViewPage = () => {
             </TabsTrigger>
           </TabsList>
         </div>
-
-        <TabsContent value="gantt">
-          <ProjectCalendarView projectId={project.id} isLargeProject={true} />
-        </TabsContent>
 
         <TabsContent value="files">
           <ProjectFiles
