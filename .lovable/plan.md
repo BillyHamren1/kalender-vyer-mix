@@ -1,45 +1,58 @@
-Jag har lokaliserat exakt det du pekar på. Det handlar inte om namnen utan om tre separata UI-fel i projektkalendern.
+## Vad som ska ändras
 
-Plan
+`src/components/project/LargeProjectScheduleEditable.tsx` ska byggas om från det stora 3-korts-utseendet (bild 1) till den kompakta en-rads-stripen i bild 2.
 
-1. Återställ samma kortform som personalkalendern
-- Ta bort projekt-specifik CSS som gör dagkortet kantigt.
-- Behåll bara fasfärgningen i själva toppraden (grön/gul/röd), men låt kortet i övrigt använda samma rundade hörn som vanliga kalendern.
-- Resultat: den gröna kalendern får samma rundade form som den lila, istället för platt/square look.
+## Ny layout (bild 2)
 
-2. Ta bort det tomma vita området till höger
-- Projektkalendern renderas idag i breda dagkort, men själva TimeGriden kör fortfarande fast kolumnbredd. Därför fyller inte innehållet hela kortets bredd.
-- Slå på fullbreddslayout för projektkalenderns TimeGrid så teamkolumnerna stretchar ut över hela kortet och högra TIME-kolumnen hamnar längst ut.
-- Resultat: inget dött vitt fält till höger.
+En enda horisontell rad inuti header-kortet:
 
-3. Gör “lägg till kolumner”-kontrollen tydlig igen
-- Den kompakta team/people-kontrollen är hårdkodad med vit text och vit translucent bakgrund. På den ljusgröna headern blir den nästan osynlig.
-- Anpassa den för projektkalenderns ljusa fasbakgrunder så ikon, siffra och pill får mörk kontrast och syns tydligt.
-- Säkerställ att den fortfarande öppnar samma teamväljare så fler kolumner kan visas precis som i vanliga kalendern.
+```text
+[📅 DATUM]  [ 25,26,27/5 -26 ]   [ 29,30,31/5 -26 ]   [ 1/6 -26 ]
+                UPPMONTERING         EVENEMANG          NEDMONTERING
+```
 
-4. Behåll övrig projektlogik oförändrad
-- Ingen ändring i vilka projekt-dagar som visas.
-- Ingen ändring i booking-filtrering eller staff-logik.
-- Bara visuell/layout-paritet med personalkalendern.
+Specifikation:
+- Vänster: en kalender-ikon + texten "DATUM" i versaler, muted färg, liten storlek. Ingen ram.
+- Tre pills till höger, lika breda (`flex-1`), med:
+  - Tunn rundad border (`rounded-full` eller `rounded-lg`), `bg-card`, lätt border (`border-border/40`).
+  - Centrerad text: stort/fet datum-rad överst (t.ex. `25,26,27/5 -26`), liten versal-label under (`UPPMONTERING` / `EVENEMANG` / `NEDMONTERING`).
+- Inga ikoner inuti pillsen, ingen countdown ("Om X dagar"), inga tider, inget streck mellan pillsen.
+- Tomt tillstånd per pill: visa `—` på datum-raden istället för "Lägg till datum"-knapp; hela pillen är fortfarande klickbar och öppnar `EditDateDialog` (oförändrad logik).
+- Hela pillen är klickbar (cursor-pointer, hover: lite mörkare border). `EditDateDialog`-integrationen och `onUpdateScheduleMulti`-anropet behålls exakt som idag.
 
-Tekniska detaljer
+## Datumformat
 
-Berörda filer:
-- `src/components/project/ProjectCalendarView.css`
-- `src/components/project/ProjectCalendarView.tsx`
-- `src/components/Calendar/TeamVisibilityControl.tsx`
-- eventuellt en liten justering i `src/components/Calendar/TimeGrid.css` om det behövs för kontrast/paritet
+Matchar bild 2: kompakt komma-separerad lista av dagar + månad/år.
+- Flera dagar samma månad: `25,26,27/5 -26`
+- En dag: `1/6 -26`
+- Spänner över flera månader: `30/5,1/6 -26`
 
-Identifierade rotorsaker:
-- `ProjectCalendarView.css` sätter idag `border-radius: 0 !important` på `.day-card` och `.time-grid-with-staff-header`, vilket tar bort de rundade hörnen.
-- `ProjectCalendarView.tsx` skickar inte in fullbreddsläge till `CustomCalendar`, så `TimeGrid` använder fast kolumnbredd och lämnar tom yta i projektkortet.
-- `TeamVisibilityControl.tsx` använder kompaktknappen `bg-white/20 text-white`, vilket fungerar på lila header men nästan försvinner på ljusgrön/röd/gul header.
+Ny helper `formatDatesCompact(dates)` ersätter `formatDateSpan` för denna vy. Tar dagar, grupperar per månad, joinar dagar med komma, lägger till `/M -YY` på sista gruppen i varje månad.
 
-QA efter implementation
-- Kontrollera att projektkalenderns dagkort har rundade hörn.
-- Kontrollera att högersidan inte längre har tom vit yta.
-- Kontrollera att people/teams-knappen syns tydligt i toppraden.
-- Kontrollera att det fortfarande går att visa fler teamkolumner från den knappen.
-- Kontrollera att teamens `+`-knappar fortfarande syns och fungerar.
+## Labels
 
-Om du godkänner kör jag exakt denna fix.
+Ändras till de exakta från bild 2 (versaler, tracking-wider):
+- `RIGG` → `UPPMONTERING`
+- `EVENT` → `EVENEMANG`
+- `NEDRIVNING` → `NEDMONTERING`
+
+(Internt `editKey` `rig`/`event`/`rigDown` är oförändrat så ingen annan kod påverkas.)
+
+## Det som tas bort
+
+- Ikoner per kort (Truck/PartyPopper/ArrowDownToLine).
+- Countdown-text ("Om X dagar", "Idag", "Imorgon").
+- Tids-raden (08:00–17:00).
+- "X dagar"-raden.
+- Streck-separator mellan korten.
+- Pencil hover-ikon.
+- Today/past-styling (bakgrund/opacity-skiftet) — behålls inte i den nya minimalistiska stripen.
+
+## Filer som rörs
+
+- `src/components/project/LargeProjectScheduleEditable.tsx` — full omskrivning av render + ny `formatDatesCompact` helper. Props-signaturen och `onUpdateScheduleMulti`-kontraktet är oförändrade, så `LargeProjectLayout.tsx` behöver inte ändras.
+
+## Inte i scope
+
+- Ingen ändring av tids-redigering i `EditDateDialog` (tider sparas fortfarande via dialogen även om de inte visas i pillsen).
+- Ingen ändring av `LargeProjectLayout.tsx` eller övriga konsumenter.
