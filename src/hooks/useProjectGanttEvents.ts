@@ -110,7 +110,7 @@ export function useProjectGanttEvents(args: UseProjectGanttEventsArgs) {
       if (scope.bookingIds.length > 0) {
         const { data: bookingRows } = await supabase
           .from('bookings')
-          .select('id, booking_number, eventdate, event_start_time, event_end_time, delivery_address, customer_name')
+          .select('id, booking_number, eventdate, event_start_time, event_end_time, deliveryaddress, client')
           .in('id', scope.bookingIds);
 
         const rigByBooking = new Map<string, GanttCalendarEvent>();
