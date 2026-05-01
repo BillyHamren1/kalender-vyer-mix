@@ -66,7 +66,31 @@ const ProjectLayout = () => {
     }
   };
 
-  if (isLoading) {
+  const handleAddressDialogSave = async (data: {
+    address: string;
+    latitude: number | null;
+    longitude: number | null;
+    radius_meters: number;
+    geofence_mode: 'circle' | 'polygon';
+    geofence_polygon: GeoJSON.Polygon | null;
+  }) => {
+    try {
+      await detail.updateProject({
+        deliveryaddress: data.address || null,
+        delivery_latitude: data.latitude,
+        delivery_longitude: data.longitude,
+        address_radius_meters: data.radius_meters,
+        address_geofence_mode: data.geofence_mode,
+        address_geofence_polygon: data.geofence_polygon as any,
+      } as any);
+      toast.success('Adress och staket sparade');
+    } catch (e: any) {
+      toast.error(e?.message || 'Kunde inte spara adress');
+      throw e;
+    }
+  };
+
+
     return (
       <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
