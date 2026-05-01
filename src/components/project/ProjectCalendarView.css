@@ -65,3 +65,11 @@
 .project-weekly-day-card .day-header-content > div > button:hover {
   background: rgba(0, 0, 0, 0.16) !important;
 }
+
+/* Dölj högra spegel-tidskolumnen i projektkalendern (header + slots).
+   Personalkalendern behåller sin TIME-kolumn — endast projektvyn döljs. */
+.project-weekly-day-card .time-column-header:last-child,
+.project-weekly-day-card .time-labels-column--right {
+  display: none !important;
+}
+
