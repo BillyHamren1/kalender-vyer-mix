@@ -159,12 +159,12 @@ const ProjectProductsList = ({
     );
     return (
       <div key={product.id}>
-        <div className="flex items-center justify-between py-2">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center py-2 gap-2">
           <span className="text-sm font-medium text-foreground">{cleanName(product.name)}</span>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground tabular-nums">
-              {product.quantity} st
-            </span>
+          <span className="text-xs font-medium text-muted-foreground tabular-nums justify-self-center">
+            {product.quantity} st
+          </span>
+          <div className="justify-self-end">
             {withMenu && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -186,12 +186,15 @@ const ProjectProductsList = ({
           </div>
         </div>
         {accessories.map((child) => (
-          <div key={child.id} className="flex items-center justify-between py-1 pl-5 pb-1.5">
+          <div key={child.id} className="grid grid-cols-[1fr_auto_1fr] items-center py-1 pl-5 pb-1.5 gap-2">
             <span className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
               {cleanName(child.name)}
             </span>
-            <span className="text-xs text-muted-foreground tabular-nums">{child.quantity} st</span>
+            <span className="text-xs text-muted-foreground tabular-nums justify-self-center">
+              {child.quantity} st
+            </span>
+            <span />
           </div>
         ))}
       </div>
