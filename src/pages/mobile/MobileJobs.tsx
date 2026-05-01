@@ -20,6 +20,7 @@ import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, UserCircle2 } fro
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useWorkDay } from '@/hooks/useWorkDay';
 
 const VIEW_MODE_KEY = 'mobile.calendarView';
 const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
@@ -31,6 +32,8 @@ const MobileJobs = () => {
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
   const { data: shifts = [] } = useScheduledShifts();
   const { t } = useLanguage();
+  const { current: currentWorkday } = useWorkDay();
+  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
 
 
   // Calendar view state — persisted in localStorage
@@ -173,7 +176,15 @@ const MobileJobs = () => {
                 {staff?.name?.split(' ')[0] || 'Hej'}
               </h1>
             </div>
-            <UserCircle2 className="w-7 h-7 text-primary-foreground/90 shrink-0" />
+            <div className="relative shrink-0">
+              <UserCircle2 className="w-7 h-7 text-primary-foreground/90" />
+              {workdayOpen && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-destructive ring-2 ring-primary"
+                  aria-label="Arbetsdagen pågår — öppna profilen för att avsluta"
+                />
+              )}
+            </div>
           </button>
         </div>
       </HeaderShell>
