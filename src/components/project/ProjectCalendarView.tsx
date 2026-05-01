@@ -22,7 +22,7 @@ import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-import { useProjectGanttEvents } from '@/hooks/useProjectGanttEvents';
+import { useProjectCalendarDays } from '@/hooks/useProjectCalendarDays';
 import './ProjectCalendarView.css';
 
 interface Props {
