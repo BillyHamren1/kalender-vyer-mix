@@ -600,6 +600,8 @@ const LargeProjectLayout = () => {
                 </div>
               </Card>
             )}
+            </>
+            )}
           </div>
         )}
 
