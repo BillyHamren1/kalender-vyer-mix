@@ -3,6 +3,7 @@ import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 import ProjectProductsList from "@/components/project/ProjectProductsList";
 import type { LargeProjectBooking } from "@/types/largeProject";
@@ -120,28 +121,30 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
             Inga produkter hittades.
           </div>
         ) : (
-          <div className="divide-y divide-border/60">
-            {flatRows.map(row => (
-              <div
-                key={row.id}
-                className="flex items-center justify-between gap-4 py-3 px-1"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-[11px] px-2 py-0.5 font-medium shrink-0 rounded-full inline-flex items-center bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]">
-                    {row.quantity} st
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate text-foreground">{row.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{row.client}</p>
+          <Card className="border-border/50 shadow-sm overflow-hidden">
+            <div className="divide-y divide-border/40 bg-card">
+              {flatRows.map(row => (
+                <div
+                  key={row.id}
+                  className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="inline-flex shrink-0 items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
+                      {row.quantity} st
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{row.client}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate max-w-[280px]" title={row.delivery}>{row.delivery}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0 text-sm text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5" />
-                  <span className="truncate max-w-[280px]" title={row.delivery}>{row.delivery}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </Card>
         )}
         <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-4 text-xs text-muted-foreground">
           <span>{flatRows.length} rader</span>
