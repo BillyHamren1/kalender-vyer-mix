@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 import ProjectAddressMapDialog from "@/components/projects/large/ProjectAddressMapDialog";
+import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
@@ -43,6 +44,7 @@ const LargeProjectLayout = () => {
   const [editSubtitle, setEditSubtitle] = useState("");
   const subtitleInputRef = useRef<HTMLInputElement>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
+  const [linkedView, setLinkedView] = useState<'bookings' | 'products'>('bookings');
   const toggleBookingExpanded = useCallback((bookingId: string) => {
     setExpandedBookingIds(prev => {
       const next = new Set(prev);
@@ -483,17 +485,46 @@ const LargeProjectLayout = () => {
               onSave={handleAddressDialogSave}
             />
 
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Kopplade bokningar ({bookings.length})
-              </h3>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setIsAddBookingOpen(true)}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  Lägg till bokning
-                </Button>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLinkedView('bookings')}
+                  className={cn(
+                    "text-sm font-semibold uppercase tracking-wider px-2 py-1 rounded transition-colors",
+                    linkedView === 'bookings'
+                      ? "text-foreground bg-muted"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Bokningar ({bookings.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLinkedView('products')}
+                  className={cn(
+                    "text-sm font-semibold uppercase tracking-wider px-2 py-1 rounded transition-colors",
+                    linkedView === 'products'
+                      ? "text-foreground bg-muted"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Produkter
+                </button>
               </div>
+              {linkedView === 'bookings' && (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setIsAddBookingOpen(true)}>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Lägg till bokning
+                  </Button>
+                </div>
+              )}
             </div>
+            {linkedView === 'products' ? (
+              <LargeProjectProductsOverview bookings={bookings} />
+            ) : (
+            <>
             {bookings.length === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center">
@@ -568,6 +599,8 @@ const LargeProjectLayout = () => {
                   })}
                 </div>
               </Card>
+            )}
+            </>
             )}
           </div>
         )}
