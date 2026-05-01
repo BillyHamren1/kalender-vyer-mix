@@ -877,6 +877,23 @@ async function reconcileCalendarEvents(
         return;
       }
     }
+
+    // NEW: Skydda nya oplanerade bokningar. Om bokningen varken har ett länkat
+    // project eller large_project ÄNNU, och inga calendar_events finns för den,
+    // så är det en ny bokning som ska igenom "Att planera"-flödet. Frontend
+    // skapar projektet asynkront (med default needs_planning), men reconcilern
+    // kan hinna före. Skippa då tills någon koppling/planering finns.
+    if (!linkedProject && !parentForLP?.large_project_id) {
+      const { count: existingCeCount } = await supabase
+        .from('calendar_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('booking_id', bookingData.id)
+        .neq('event_type', 'activity');
+      if (!existingCeCount || existingCeCount === 0) {
+        console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: no linked project/large_project and no existing events (awaiting manual planning)`);
+        return;
+      }
+    }
   } catch (planningGuardErr) {
     console.error('[Calendar Reconcile] planning_status guard failed (continuing):', planningGuardErr);
   }
