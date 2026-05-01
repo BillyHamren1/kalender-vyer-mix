@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 import ProjectAddressMapDialog from "@/components/projects/large/ProjectAddressMapDialog";
+import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
