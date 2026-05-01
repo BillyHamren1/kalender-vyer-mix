@@ -132,31 +132,33 @@ const LargeProjectScheduleEditable = ({
                   <Pencil className="h-3 w-3 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors" />
                 </div>
 
-                {hasDates ? (
-                  <>
-                    <p className="font-semibold text-sm text-foreground tracking-tight">
-                      {formatDateSpan(item.dates)}
-                    </p>
-                    {item.dates.length > 1 && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {item.dates.length} dagar
+                <div className="min-h-[68px] flex flex-col justify-start">
+                  {hasDates ? (
+                    <>
+                      <p className="font-semibold text-sm text-foreground tracking-tight">
+                        {formatDateSpan(item.dates)}
                       </p>
-                    )}
-                    {hasTime && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {startDisplay}–{endDisplay}
+                      {item.dates.length > 1 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {item.dates.length} dagar
+                        </p>
+                      )}
+                      {hasTime && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {startDisplay}–{endDisplay}
+                        </p>
+                      )}
+                      <p className={`text-xs mt-0.5 ${today ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+                        {getCountdownText(item.dates)}
                       </p>
-                    )}
-                    <p className={`text-xs mt-0.5 ${today ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-                      {getCountdownText(item.dates)}
-                    </p>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <Plus className="h-3.5 w-3.5 text-primary" />
-                    <p className="text-xs text-primary font-medium">Lägg till datum</p>
-                  </div>
-                )}
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Plus className="h-3.5 w-3.5 text-primary" />
+                      <p className="text-xs text-primary font-medium">Lägg till datum</p>
+                    </div>
+                  )}
+                </div>
               </div>
               {index < items.length - 1 && (
                 <div className="w-6 h-px bg-border/40 flex-shrink-0 mx-1" />
