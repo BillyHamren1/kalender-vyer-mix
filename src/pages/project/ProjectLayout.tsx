@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MapPin, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import ProjectActionMenu from "@/components/project/ProjectActionMenu";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
+import ProjectAddressMapDialog from "@/components/projects/large/ProjectAddressMapDialog";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { cancelProject } from "@/services/projectService";
 import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
@@ -24,6 +27,7 @@ const ProjectLayout = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
+  const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
 
   const detail = useProjectDetail(projectId || "");
   const { project, isLoading } = detail;
@@ -59,6 +63,30 @@ const ProjectLayout = () => {
       navigate('/projects');
     } catch (err: any) {
       toast.error(err.message || 'Kunde inte avboka projekt');
+    }
+  };
+
+  const handleAddressDialogSave = async (data: {
+    address: string;
+    latitude: number | null;
+    longitude: number | null;
+    radius_meters: number;
+    geofence_mode: 'circle' | 'polygon';
+    geofence_polygon: GeoJSON.Polygon | null;
+  }) => {
+    try {
+      await detail.updateProject({
+        deliveryaddress: data.address || null,
+        delivery_latitude: data.latitude,
+        delivery_longitude: data.longitude,
+        address_radius_meters: data.radius_meters,
+        address_geofence_mode: data.geofence_mode,
+        address_geofence_polygon: data.geofence_polygon as any,
+      } as any);
+      toast.success('Adress och staket sparade');
+    } catch (e: any) {
+      toast.error(e?.message || 'Kunde inte spara adress');
+      throw e;
     }
   };
 
@@ -134,6 +162,56 @@ const ProjectLayout = () => {
             />
           </div>
         </div>
+
+        {/* Address card — samma flöde som stora projekt */}
+        <Card className="border-border/50 shadow-sm mb-4">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAddressDialogOpen(true)}
+                className="flex items-center gap-2 text-sm hover:text-foreground transition-colors group min-w-0"
+              >
+                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className={cn(
+                  'truncate',
+                  (project as any).deliveryaddress ? 'text-foreground' : 'text-muted-foreground italic'
+                )}>
+                  {(project as any).deliveryaddress || 'Ingen adress – klicka för att lägga till'}
+                </span>
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {(project as any).delivery_latitude && (project as any).delivery_longitude && (
+                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                    📍 {Number((project as any).delivery_latitude).toFixed(4)}, {Number((project as any).delivery_longitude).toFixed(4)}
+                  </Badge>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsAddressDialogOpen(true)}
+                  className="h-7"
+                >
+                  <MapPin className="h-3.5 w-3.5 mr-1" />
+                  Karta & staket
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <ProjectAddressMapDialog
+          open={isAddressDialogOpen}
+          onOpenChange={setIsAddressDialogOpen}
+          initialAddress={(project as any).deliveryaddress ?? null}
+          initialLatitude={(project as any).delivery_latitude ?? null}
+          initialLongitude={(project as any).delivery_longitude ?? null}
+          initialRadiusMeters={(project as any).address_radius_meters ?? 100}
+          initialGeofenceMode={((project as any).address_geofence_mode as 'circle' | 'polygon') ?? 'circle'}
+          initialGeofencePolygon={(project as any).address_geofence_polygon ?? null}
+          onSave={handleAddressDialogSave}
+        />
 
         {/* 3-page navigation */}
         <nav className="mb-6">

@@ -257,6 +257,12 @@ export default function ProjectAddressMapDialog({
         window.clearTimeout(loadTimeoutRef.current);
         loadTimeoutRef.current = null;
       }
+      // Radix Dialog animerar in DialogContent, så containern kan ha mäts
+      // till 0×0 när Map skapades → grå karta utan tiles. Tvinga resize
+      // när den faktiskt har mått, och igen efter en kort delay för att
+      // täcka in dialog-animationen (≈200ms).
+      try { map.resize(); } catch { /* noop */ }
+      window.setTimeout(() => { try { map.resize(); } catch { /* noop */ } }, 250);
       setMapStatus('ready');
       setMapError(null);
 
@@ -316,7 +322,15 @@ export default function ProjectAddressMapDialog({
     map.on('draw.update', onDrawUpdate);
     map.on('draw.delete', onDrawDelete);
 
+    // Observe container size and resize the map when it changes (Radix
+    // dialog animation/responsive layout can change the box after init).
+    const ro = new ResizeObserver(() => {
+      try { map.resize(); } catch { /* noop */ }
+    });
+    ro.observe(containerNode);
+
     return () => {
+      try { ro.disconnect(); } catch { /* noop */ }
       if (loadTimeoutRef.current) {
         window.clearTimeout(loadTimeoutRef.current);
         loadTimeoutRef.current = null;

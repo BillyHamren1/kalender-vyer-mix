@@ -4438,6 +4438,9 @@ export type Database = {
       }
       projects: {
         Row: {
+          address_geofence_mode: string | null
+          address_geofence_polygon: Json | null
+          address_radius_meters: number | null
           booking_id: string | null
           client: string | null
           contact_email: string | null
@@ -4471,6 +4474,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address_geofence_mode?: string | null
+          address_geofence_polygon?: Json | null
+          address_radius_meters?: number | null
           booking_id?: string | null
           client?: string | null
           contact_email?: string | null
@@ -4504,6 +4510,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address_geofence_mode?: string | null
+          address_geofence_polygon?: Json | null
+          address_radius_meters?: number | null
           booking_id?: string | null
           client?: string | null
           contact_email?: string | null
