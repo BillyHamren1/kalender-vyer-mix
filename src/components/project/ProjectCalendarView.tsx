@@ -22,7 +22,7 @@ import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-import { useProjectGanttEvents } from '@/hooks/useProjectGanttEvents';
+import { useProjectCalendarDays } from '@/hooks/useProjectCalendarDays';
 import './ProjectCalendarView.css';
 
 interface Props {
@@ -35,7 +35,7 @@ const DEFAULT_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport'];
 
 const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
   // 1. Hämta projektets events.
-  const { events: projectEvents, refetch: refetchProject } = useProjectGanttEvents({
+  const { events: projectEvents, refetch: refetchProject } = useProjectCalendarDays({
     projectId,
     bookingId,
     isLargeProject,

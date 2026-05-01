@@ -1,25 +1,28 @@
 /**
- * useProjectGanttEvents
+ * useProjectCalendarDays
  * --------------------------------------------------------------------------
  * Read calendar_events for a project (single booking, large project with many
  * sibling bookings, or standalone project where booking_id = `project-<uuid>`)
  * and keep them live via Supabase Realtime.
  *
- * The Gantt UI consumes the returned `events` array directly — same source of
- * truth as the staff calendar. Writes go through `eventService.updateCalendarEvent`
- * which already mirrors via `timeSync.syncFromCalendarEvent` so siblings stay
- * in lockstep (see mem://features/planning/phase-time-sync-v1).
+ * Used by ProjectCalendarView to determine which days to render in the
+ * project calendar (a filtered lens over the staff calendar's CustomCalendar).
+ * Same source of truth as personalkalendern. Writes go through the standard
+ * eventService path which mirrors via timeSync.syncFromCalendarEvent so
+ * siblings stay in lockstep (see mem://features/planning/phase-time-sync-v1).
+ *
+ * Renamed from useProjectGanttEvents — there is no longer a Gantt UI.
  */
 import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-export type GanttPhase = 'rig' | 'event' | 'rigDown';
+export type ProjectCalendarPhase = 'rig' | 'event' | 'rigDown';
 
-export interface GanttCalendarEvent {
+export interface ProjectCalendarEvent {
   id: string;
   booking_id: string;
-  event_type: GanttPhase;
+  event_type: ProjectCalendarPhase;
   source_date: string;        // YYYY-MM-DD
   start_time: string;         // ISO
   end_time: string;           // ISO
@@ -29,7 +32,7 @@ export interface GanttCalendarEvent {
   title: string | null;
 }
 
-export interface UseProjectGanttEventsArgs {
+export interface UseProjectCalendarDaysArgs {
   projectId: string | null | undefined;       // medium project id (UUID) OR large_project_id
   bookingId?: string | null;                  // optional explicit booking id (single project)
   isLargeProject?: boolean;
@@ -40,7 +43,7 @@ interface ResolvedScope {
   standaloneBookingId: string | null;         // `project-<uuid>` fallback
 }
 
-async function resolveScope(args: UseProjectGanttEventsArgs): Promise<ResolvedScope> {
+async function resolveScope(args: UseProjectCalendarDaysArgs): Promise<ResolvedScope> {
   const { projectId, bookingId, isLargeProject } = args;
   if (!projectId) return { bookingIds: [], standaloneBookingId: null };
 
@@ -51,7 +54,7 @@ async function resolveScope(args: UseProjectGanttEventsArgs): Promise<ResolvedSc
       .select('id')
       .eq('large_project_id', projectId);
     if (error) {
-      console.warn('[useProjectGanttEvents] sibling lookup failed', error);
+      console.warn('[useProjectCalendarDays] sibling lookup failed', error);
       return { bookingIds: [], standaloneBookingId: null };
     }
     return {
@@ -68,21 +71,20 @@ async function resolveScope(args: UseProjectGanttEventsArgs): Promise<ResolvedSc
   return { bookingIds: [], standaloneBookingId: `project-${projectId}` };
 }
 
-export function useProjectGanttEvents(args: UseProjectGanttEventsArgs) {
+export function useProjectCalendarDays(args: UseProjectCalendarDaysArgs) {
   const queryClient = useQueryClient();
 
   const queryKey = useMemo(
-    () => ['project-gantt-events', args.projectId, args.bookingId ?? null, args.isLargeProject ?? false],
+    () => ['project-calendar-days', args.projectId, args.bookingId ?? null, args.isLargeProject ?? false],
     [args.projectId, args.bookingId, args.isLargeProject],
   );
 
   const query = useQuery({
     queryKey,
     enabled: !!args.projectId,
-    queryFn: async (): Promise<{ scope: ResolvedScope; events: GanttCalendarEvent[] }> => {
+    queryFn: async (): Promise<{ scope: ResolvedScope; events: ProjectCalendarEvent[] }> => {
       const scope = await resolveScope(args);
 
-      // Build the filter set
       const allIds = [
         ...scope.bookingIds,
         ...(scope.standaloneBookingId ? [scope.standaloneBookingId] : []),
@@ -97,18 +99,17 @@ export function useProjectGanttEvents(args: UseProjectGanttEventsArgs) {
         .order('source_date', { ascending: true });
 
       if (error) {
-        console.error('[useProjectGanttEvents] fetch failed', error);
+        console.error('[useProjectCalendarDays] fetch failed', error);
         throw error;
       }
 
       return {
         scope,
-        events: (data || []) as GanttCalendarEvent[],
+        events: (data || []) as ProjectCalendarEvent[],
       };
     },
   });
 
-  // Realtime: re-fetch whenever any of these booking_ids change.
   const idsKey = (query.data?.scope.bookingIds.join(',') ?? '') +
     '|' + (query.data?.scope.standaloneBookingId ?? '');
 
@@ -120,7 +121,7 @@ export function useProjectGanttEvents(args: UseProjectGanttEventsArgs) {
     if (ids.length === 0) return;
 
     const channel = supabase
-      .channel(`project-gantt-${args.projectId}`)
+      .channel(`project-calendar-${args.projectId}`)
       .on(
         'postgres_changes',
         {
