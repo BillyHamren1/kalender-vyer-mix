@@ -194,6 +194,32 @@ const MobileProfile = () => {
         {/* GPS sync — internal debug */}
         <LocationSyncDebugCard />
 
+        {/* End workday — deliberate two-tap action so users don't conflate it
+            with stopping an activity timer. Only visible when a workday is open. */}
+        {workdayOpen && (
+          <div className="rounded-2xl border border-destructive/30 bg-card p-4 space-y-2 shadow-md">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-destructive/10 shrink-0">
+                <Sun className="w-5 h-5 text-destructive" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-foreground">Avsluta arbetsdagen</h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Stoppar dagstimern och alla aktiva aktiviteter. Tidrapporter sparas separat när du avslutar varje aktivitet.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant={endDayConfirm ? 'destructive' : 'outline'}
+              className="w-full h-11 rounded-xl text-sm gap-2 font-semibold border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all active:scale-[0.98]"
+              onClick={handleEndDay}
+            >
+              <LogOut className="w-4.5 h-4.5" />
+              {endDayConfirm ? 'Tryck igen för att bekräfta' : 'Avsluta dagen'}
+            </Button>
+          </div>
+        )}
+
         {/* Logout */}
         <Button
           variant="outline"
