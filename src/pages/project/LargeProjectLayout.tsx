@@ -267,7 +267,35 @@ const LargeProjectLayout = () => {
     endTime: string,
   ) => {
     const dateFieldMap = { rig: 'start_date', event: 'event_date', rigDown: 'end_date' } as const;
-    await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
+    const bookingIds = bookings.map(b => b.booking_id);
+
+    // SAFETY: Booking system (source of truth) MUST be written first.
+    // Only after that succeeds do we update the local large_projects mirror
+    // and the Gantt period. This prevents the UI from showing dates as
+    // "saved" when the actual booking write failed.
+    if (dates.length > 0 && bookingIds.length > 0) {
+      try {
+        await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
+      } catch (err: any) {
+        console.error('Error propagating schedule to bookings:', err);
+        // Force refetch so UI reverts to actual server state.
+        queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+        queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
+        const msg = err?.message || 'Okänt fel';
+        toast.error(`Datumen sparades INTE i bokningssystemet: ${msg}`);
+        return;
+      }
+    }
+
+    // Booking write OK → mirror to local large_projects + Gantt
+    try {
+      await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
+    } catch (err) {
+      console.error('Local mirror update failed:', err);
+      queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+      toast.error('Datumen sparades i bokningssystemet men lokal spegel misslyckades — laddar om');
+      return;
+    }
 
     try {
       const ganttKeyMap = { rig: 'establishment', event: 'event', rigDown: 'deestablishment' } as const;
@@ -285,19 +313,9 @@ const LargeProjectLayout = () => {
       console.warn('Could not sync Gantt period from schedule cards:', err);
     }
 
-    const bookingIds = bookings.map(b => b.booking_id);
-    if (dates.length === 0 || bookingIds.length === 0) {
-      queryClient.invalidateQueries({ queryKey: ['large-project', id] });
-      return;
-    }
-    try {
-      await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
-      queryClient.invalidateQueries({ queryKey: ['large-project', id] });
-      toast.success('Schema uppdaterat för alla bokningar');
-    } catch (err) {
-      console.error('Error propagating schedule:', err);
-      toast.error('Kunde inte uppdatera alla bokningar');
-    }
+    queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+    if (dates.length === 0 || bookingIds.length === 0) return;
+    toast.success('Schema uppdaterat för alla bokningar');
   };
 
   return (
