@@ -150,10 +150,10 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
                     <button
                       type="button"
                       onClick={() => toggleGroup(g.bookingId)}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-foreground bg-muted/40 hover:bg-muted/60 transition-colors"
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground bg-muted/70 hover:bg-muted transition-colors border-y border-border/60"
                     >
-                      {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      <span className="truncate">{g.label}</span>
+                      {collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+                      <span className="truncate flex-1">{g.label}</span>
                     </button>
                     {!collapsed && (
                       <div className="divide-y divide-border/40">
