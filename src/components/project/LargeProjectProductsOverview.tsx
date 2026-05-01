@@ -119,23 +119,24 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
             Inga produkter hittades.
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
+          <div className="divide-y divide-border/60">
             {flatRows.map(row => (
               <div
                 key={row.id}
-                className="flex items-center justify-between py-2.5 px-1 hover:bg-muted/40 rounded-md transition-colors group"
+                className="flex items-center justify-between gap-4 py-3 px-1"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="text-[10px] px-1.5 py-0 font-medium shrink-0 rounded-md inline-flex items-center border bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-[11px] px-2 py-0.5 font-medium shrink-0 rounded-full inline-flex items-center bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]">
                     {row.quantity} st
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate text-foreground">{row.name}</p>
+                    <p className="text-sm font-semibold truncate text-foreground">{row.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{row.client}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground">
-                  <span className="truncate max-w-[260px]" title={row.delivery}>{row.delivery}</span>
+                <div className="flex items-center gap-1.5 shrink-0 text-sm text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5" />
+                  <span className="truncate max-w-[280px]" title={row.delivery}>{row.delivery}</span>
                 </div>
               </div>
             ))}
