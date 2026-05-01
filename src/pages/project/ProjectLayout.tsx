@@ -163,6 +163,56 @@ const ProjectLayout = () => {
           </div>
         </div>
 
+        {/* Address card — samma flöde som stora projekt */}
+        <Card className="border-border/50 shadow-sm mb-4">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAddressDialogOpen(true)}
+                className="flex items-center gap-2 text-sm hover:text-foreground transition-colors group min-w-0"
+              >
+                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className={cn(
+                  'truncate',
+                  (project as any).deliveryaddress ? 'text-foreground' : 'text-muted-foreground italic'
+                )}>
+                  {(project as any).deliveryaddress || 'Ingen adress – klicka för att lägga till'}
+                </span>
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {(project as any).delivery_latitude && (project as any).delivery_longitude && (
+                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                    📍 {Number((project as any).delivery_latitude).toFixed(4)}, {Number((project as any).delivery_longitude).toFixed(4)}
+                  </Badge>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsAddressDialogOpen(true)}
+                  className="h-7"
+                >
+                  <MapPin className="h-3.5 w-3.5 mr-1" />
+                  Karta & staket
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <ProjectAddressMapDialog
+          open={isAddressDialogOpen}
+          onOpenChange={setIsAddressDialogOpen}
+          initialAddress={(project as any).deliveryaddress ?? null}
+          initialLatitude={(project as any).delivery_latitude ?? null}
+          initialLongitude={(project as any).delivery_longitude ?? null}
+          initialRadiusMeters={(project as any).address_radius_meters ?? 100}
+          initialGeofenceMode={((project as any).address_geofence_mode as 'circle' | 'polygon') ?? 'circle'}
+          initialGeofencePolygon={(project as any).address_geofence_polygon ?? null}
+          onSave={handleAddressDialogSave}
+        />
+
         {/* 3-page navigation */}
         <nav className="mb-6">
           <div className="bg-card rounded-2xl border border-border/40 shadow-2xl p-1.5 flex gap-1.5">
