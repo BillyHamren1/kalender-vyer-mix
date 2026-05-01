@@ -178,19 +178,19 @@ const LargeEstablishmentPage = () => {
           <Button
             variant={pageMode === "plan" ? "default" : "ghost"}
             size="sm"
-            className="h-8 px-3 text-xs gap-1.5"
+            className="h-9 px-6 text-sm gap-2"
             onClick={() => setPageMode("plan")}
           >
-            <ClipboardList className="h-3.5 w-3.5" />
+            <ClipboardList className="h-4 w-4" />
             Planera
           </Button>
           <Button
             variant={pageMode === "calendar" ? "default" : "ghost"}
             size="sm"
-            className="h-8 px-3 text-xs gap-1.5"
+            className="h-9 px-6 text-sm gap-2"
             onClick={() => setPageMode("calendar")}
           >
-            <CalendarDays className="h-3.5 w-3.5" />
+            <CalendarDays className="h-4 w-4" />
             Kalender
           </Button>
         </div>
