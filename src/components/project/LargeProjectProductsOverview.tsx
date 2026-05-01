@@ -11,9 +11,23 @@ interface LargeProjectProductsOverviewProps {
   bookings: LargeProjectBooking[];
 }
 
+const cleanName = (name: string) =>
+  name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
+
 const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverviewProps) => {
   const bookingIds = bookings.map(b => b.booking_id);
   const [search, setSearch] = useState("");
+
+  const bookingMap = useMemo(() => {
+    const map = new Map<string, { client: string; deliveryaddress: string }>();
+    bookings.forEach(lpb => {
+      map.set(lpb.booking_id, {
+        client: lpb.booking?.client || "",
+        deliveryaddress: lpb.booking?.deliveryaddress || "",
+      });
+    });
+    return map;
+  }, [bookings]);
 
   const { data: allProducts = [], isLoading } = useQuery({
     queryKey: ["large-project-all-products", ...bookingIds],
@@ -21,7 +35,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
       if (bookingIds.length === 0) return [];
       const { data, error } = await supabase
         .from("booking_products")
-        .select("id, name, parent_product_id, is_package_component, sort_index, booking_id")
+        .select("id, name, quantity, parent_product_id, is_package_component, sort_index, booking_id")
         .in("booking_id", bookingIds)
         .order("sort_index", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -30,15 +44,22 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
     enabled: bookingIds.length > 0,
   });
 
-  const cleanName = (name: string) => name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
-
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const flat = allProducts
       .filter(p => !p.parent_product_id && !p.is_package_component)
-      .map(p => ({ id: p.id, name: cleanName(p.name) }));
+      .map(p => {
+        const b = bookingMap.get(p.booking_id) || { client: "", deliveryaddress: "" };
+        return {
+          id: p.id,
+          name: cleanName(p.name),
+          quantity: p.quantity ?? 1,
+          client: b.client,
+          deliveryaddress: b.deliveryaddress,
+        };
+      });
     return q ? flat.filter(r => r.name.toLowerCase().includes(q)) : flat;
-  }, [allProducts, search]);
+  }, [allProducts, bookingMap, search]);
 
   if (bookingIds.length === 0) {
     return (
@@ -75,17 +96,28 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
       ) : (
         <Card className="border-border/50 shadow-sm overflow-hidden w-full">
           <div className="bg-card">
-            <div className="border-b border-border/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Produkt
+            <div className="grid grid-cols-[2fr_80px_1.5fr_2fr] gap-4 border-b border-border/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div>Produkt</div>
+              <div>Antal</div>
+              <div>Kund</div>
+              <div>Levadress</div>
             </div>
             <div className="divide-y divide-border/40">
               {rows.map(row => (
                 <div
                   key={row.id}
-                  className="px-4 py-3 text-sm font-medium text-foreground"
-                  title={row.name}
+                  className="grid grid-cols-[2fr_80px_1.5fr_2fr] gap-4 px-4 py-3 text-sm"
                 >
-                  {row.name}
+                  <div className="font-medium text-foreground truncate" title={row.name}>
+                    {row.name}
+                  </div>
+                  <div className="tabular-nums text-foreground">{row.quantity} st</div>
+                  <div className="text-muted-foreground truncate" title={row.client}>
+                    {row.client || "—"}
+                  </div>
+                  <div className="text-muted-foreground truncate" title={row.deliveryaddress}>
+                    {row.deliveryaddress || "—"}
+                  </div>
                 </div>
               ))}
             </div>
