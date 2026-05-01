@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
+import ProjectProductsList from "@/components/project/ProjectProductsList";
 import type { LargeProjectBooking } from "@/types/largeProject";
 
 interface LargeProjectProductsOverviewProps {
@@ -41,81 +44,168 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
     );
   }
 
+  const visibleProducts = allProducts.filter(p => p.is_package_component !== true);
+  const totalCount = visibleProducts.length;
+  const totalWeight = visibleProducts.reduce((s, p) => s + (p.estimated_weight_kg || 0) * p.quantity, 0);
+  const totalVolume = visibleProducts.reduce((s, p) => s + (p.estimated_volume_m3 || 0) * p.quantity, 0);
+
   const cleanName = (name: string) => name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
-  const flatRows = allProducts
-    .filter(product => !product.parent_product_id && product.is_package_component !== true)
-    .map(product => ({
-      id: `${product.booking_id}-${product.id}`,
-      name: cleanName(product.name),
-      quantity: product.quantity,
+
+  const subTabClass =
+    "relative px-3 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary text-sm font-medium transition-colors hover:text-foreground";
+
+  // Flat list: one row per main product per booking (accessories hidden — included in package)
+  const flatRows = bookings.flatMap(b => {
+    const bProducts = allProducts.filter(p => p.booking_id === b.booking_id);
+    const mainProducts = bProducts.filter(p => !p.parent_product_id && !p.is_package_component);
+    const client = b.booking?.client || "—";
+    const deliveryParts = [b.booking?.deliveryaddress, b.booking?.delivery_postal_code, b.booking?.delivery_city]
+      .filter(Boolean)
+      .join(", ");
+    return mainProducts.map(p => ({
+      id: `${b.booking_id}-${p.id}`,
+      name: cleanName(p.name),
+      quantity: p.quantity,
+      client,
+      delivery: deliveryParts || "—",
     }));
+  });
 
-  return flatRows.length === 0 ? (
-    <div className="py-8 text-center text-muted-foreground text-sm">
-      Inga produkter hittades.
-    </div>
-  ) : (
-    <div className="overflow-x-auto">
-      <div className="min-w-[1180px]">
-        <div className="grid grid-cols-[minmax(420px,2.4fr)_170px_160px_150px_150px_150px_120px] gap-4 px-3 pb-4 text-[13px] font-medium text-[#6b7280]">
-          <div>Produkt</div>
-          <div className="text-center">Antal</div>
-          <div className="text-left">Pris</div>
-          <div className="text-left">Rabatt %</div>
-          <div className="text-left">Rabatt kr</div>
-          <div className="text-left">Moms</div>
-          <div className="text-right">Summa</div>
-        </div>
+  return (
+    <Tabs defaultValue="list" className="space-y-4">
+      <div className="border-b border-border/40 overflow-x-auto">
+        <TabsList className="h-auto p-0 bg-transparent gap-0">
+          <TabsTrigger value="list" className={subTabClass}>
+            Lista
+            {flatRows.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                {flatRows.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="all" className={subTabClass}>
+            Grupperat
+            {totalCount > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                {totalCount}
+              </span>
+            )}
+          </TabsTrigger>
+          {bookings.map(b => {
+            const label = getLargeProjectBookingLabel({
+              booking_id: b.booking_id,
+              display_name: b.display_name,
+              booking: b.booking ? { client: b.booking.client, booking_number: b.booking.booking_number } : null,
+            });
+            const count = allProducts.filter(p => p.booking_id === b.booking_id && p.is_package_component !== true).length;
+            return (
+              <TabsTrigger key={b.booking_id} value={b.booking_id} className={subTabClass}>
+                {label}
+                {count > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                    {count}
+                  </span>
+                )}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </div>
 
-        <div className="space-y-2">
-          {flatRows.map((row) => (
-            <div
-              key={row.id}
-              className="grid grid-cols-[minmax(420px,2.4fr)_170px_160px_150px_150px_150px_120px] gap-4 items-center px-3 py-1"
-            >
-              <div className="min-w-0 rounded-md border border-[#e5e7eb] bg-white px-4 py-2.5 text-[15px] text-[#111827]">
-                <span className="block truncate">{row.name}</span>
-              </div>
-
-              <div className="flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  disabled
-                  tabIndex={-1}
-                  className="flex h-9 w-9 items-center justify-center rounded-md border border-[#e5e7eb] bg-white text-[20px] leading-none text-[#111827]"
+      {/* Lista - flat extraherad lista (tillbehör göms i paketet) */}
+      <TabsContent value="list">
+        {flatRows.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground text-sm">
+            Inga produkter hittades.
+          </div>
+        ) : (
+          <div className="rounded-md border border-border/40 overflow-hidden">
+            <div className="grid grid-cols-[1fr_80px_1fr_1.5fr] gap-4 px-4 py-2.5 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <div>Produkt</div>
+              <div className="text-right">Antal</div>
+              <div>Kund</div>
+              <div>Levadress</div>
+            </div>
+            <div className="divide-y divide-border/40">
+              {flatRows.map(row => (
+                <div
+                  key={row.id}
+                  className="grid grid-cols-[1fr_80px_1fr_1.5fr] gap-4 px-4 py-2.5 text-sm hover:bg-muted/20 transition-colors"
                 >
-                  −
-                </button>
-                <div className="flex h-9 min-w-14 items-center justify-center rounded-md border border-[#e5e7eb] bg-white px-3 text-[15px] tabular-nums text-[#111827]">
-                  {row.quantity}
+                  <div className="font-medium text-foreground truncate" title={row.name}>{row.name}</div>
+                  <div className="text-right tabular-nums text-muted-foreground">{row.quantity} st</div>
+                  <div className="text-muted-foreground truncate" title={row.client}>{row.client}</div>
+                  <div className="text-muted-foreground truncate" title={row.delivery}>{row.delivery}</div>
                 </div>
-                <button
-                  type="button"
-                  disabled
-                  tabIndex={-1}
-                  className="flex h-9 w-9 items-center justify-center rounded-md border border-[#e5e7eb] bg-white text-[20px] leading-none text-[#111827]"
-                >
-                  +
-                </button>
-              </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-4 text-xs text-muted-foreground">
+          <span>{flatRows.length} rader</span>
+          <span>Tillbehör är inkluderade i respektive paket</span>
+        </div>
+      </TabsContent>
 
-              <div className="h-9 rounded-md border border-[#e5e7eb] bg-white" />
-              <div className="h-9 rounded-md border border-[#e5e7eb] bg-white" />
-              <div className="h-9 rounded-md border border-[#e5e7eb] bg-white" />
+      {/* Grupperat - by booking */}
+      <TabsContent value="all">
+        {bookings.map(b => {
+          const bProducts = allProducts.filter(p => p.booking_id === b.booking_id);
+          if (bProducts.length === 0) return null;
+          const mainProducts = bProducts.filter(p => !p.parent_product_id && !p.is_package_component);
+          const allChildren = bProducts.filter(p => p.parent_product_id || p.is_package_component);
+          const label = getLargeProjectBookingLabel({
+            booking_id: b.booking_id,
+            display_name: b.display_name,
+            booking: b.booking ? { client: b.booking.client, booking_number: b.booking.booking_number } : null,
+          });
 
-              <div className="flex h-9 items-center justify-between rounded-md border border-[#e5e7eb] bg-white px-3 text-[15px] text-[#111827]">
-                <span>25%</span>
-                <span aria-hidden className="text-[10px]">▾</span>
-              </div>
-
-              <div className="pr-2 text-right text-[15px] tabular-nums text-[#111827]">
-                0 kr
+          return (
+            <div key={b.booking_id} className="mb-6">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{label}</h4>
+              <div className="divide-y divide-border/40">
+                {mainProducts.map(product => {
+                  const accessories = allChildren.filter(
+                    c => c.parent_product_id === product.id && c.is_package_component !== true
+                  );
+                  return (
+                    <div key={product.id}>
+                      <div className="flex items-center justify-between py-2">
+                        <span className="text-sm font-medium text-foreground">{cleanName(product.name)}</span>
+                        <span className="text-xs font-medium text-muted-foreground tabular-nums">{product.quantity} st</span>
+                      </div>
+                      {accessories.map(child => (
+                        <div key={child.id} className="flex items-center justify-between py-1 pl-5 pb-1.5">
+                          <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
+                            {cleanName(child.name)}
+                          </span>
+                          <span className="text-xs text-muted-foreground tabular-nums">{child.quantity} st</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          ))}
+          );
+        })}
+
+        {/* Summary footer */}
+        <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-4 text-xs text-muted-foreground">
+          <span>{totalCount} produkter</span>
+          {totalWeight > 0 && <span>{Math.round(totalWeight)} kg</span>}
+          {totalVolume > 0 && <span>{totalVolume.toFixed(1)} m³</span>}
         </div>
-      </div>
-    </div>
+      </TabsContent>
+
+      {/* Per booking */}
+      {bookings.map(b => (
+        <TabsContent key={b.booking_id} value={b.booking_id}>
+          <ProjectProductsList bookingId={b.booking_id} />
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 };
 
