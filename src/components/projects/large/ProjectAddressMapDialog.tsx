@@ -322,7 +322,15 @@ export default function ProjectAddressMapDialog({
     map.on('draw.update', onDrawUpdate);
     map.on('draw.delete', onDrawDelete);
 
+    // Observe container size and resize the map when it changes (Radix
+    // dialog animation/responsive layout can change the box after init).
+    const ro = new ResizeObserver(() => {
+      try { map.resize(); } catch { /* noop */ }
+    });
+    ro.observe(containerNode);
+
     return () => {
+      try { ro.disconnect(); } catch { /* noop */ }
       if (loadTimeoutRef.current) {
         window.clearTimeout(loadTimeoutRef.current);
         loadTimeoutRef.current = null;
