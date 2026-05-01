@@ -57,7 +57,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
   ) : (
     <div className="overflow-x-auto">
       <div className="min-w-[1180px]">
-        <div className="grid grid-cols-[minmax(420px,2.4fr)_170px_160px_150px_150px_150px_120px] gap-4 border-b border-border/60 px-3 pb-4 text-[13px] font-medium text-muted-foreground">
+        <div className="grid grid-cols-[minmax(420px,2.4fr)_170px_160px_150px_150px_150px_120px] gap-4 px-3 pb-4 text-[13px] font-medium text-[#6b7280]">
           <div>Produkt</div>
           <div className="text-center">Antal</div>
           <div className="text-left">Pris</div>
@@ -67,13 +67,13 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
           <div className="text-right">Summa</div>
         </div>
 
-        <div className="divide-y divide-border/60">
+        <div className="space-y-2">
           {flatRows.map((row) => (
             <div
               key={row.id}
-              className="grid grid-cols-[minmax(420px,2.4fr)_170px_160px_150px_150px_150px_120px] gap-4 items-center px-3 py-3"
+              className="grid grid-cols-[minmax(420px,2.4fr)_170px_160px_150px_150px_150px_120px] gap-4 items-center px-3 py-1"
             >
-              <div className="min-w-0 rounded-md border border-input bg-background px-4 py-3 text-[15px] font-semibold text-foreground">
+              <div className="min-w-0 rounded-md border border-[#e5e7eb] bg-white px-4 py-2.5 text-[15px] text-[#111827]">
                 <span className="block truncate">{row.name}</span>
               </div>
 
@@ -82,33 +82,33 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
                   type="button"
                   disabled
                   tabIndex={-1}
-                  className="flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background text-[24px] leading-none text-foreground"
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-[#e5e7eb] bg-white text-[20px] leading-none text-[#111827]"
                 >
                   −
                 </button>
-                <div className="flex h-10 min-w-16 items-center justify-center rounded-md border border-input bg-background px-3 text-[15px] font-medium tabular-nums text-foreground">
+                <div className="flex h-9 min-w-14 items-center justify-center rounded-md border border-[#e5e7eb] bg-white px-3 text-[15px] tabular-nums text-[#111827]">
                   {row.quantity}
                 </div>
                 <button
                   type="button"
                   disabled
                   tabIndex={-1}
-                  className="flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background text-[24px] leading-none text-foreground"
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-[#e5e7eb] bg-white text-[20px] leading-none text-[#111827]"
                 >
                   +
                 </button>
               </div>
 
-              <div className="h-10 rounded-md border border-input bg-background" />
-              <div className="h-10 rounded-md border border-input bg-background" />
-              <div className="h-10 rounded-md border border-input bg-background" />
+              <div className="h-9 rounded-md border border-[#e5e7eb] bg-white" />
+              <div className="h-9 rounded-md border border-[#e5e7eb] bg-white" />
+              <div className="h-9 rounded-md border border-[#e5e7eb] bg-white" />
 
-              <div className="flex h-10 items-center justify-between rounded-md border border-input bg-background px-3 text-[15px] text-foreground">
+              <div className="flex h-9 items-center justify-between rounded-md border border-[#e5e7eb] bg-white px-3 text-[15px] text-[#111827]">
                 <span>25%</span>
                 <span aria-hidden className="text-[10px]">▾</span>
               </div>
 
-              <div className="pr-2 text-right text-[15px] font-medium tabular-nums text-foreground">
+              <div className="pr-2 text-right text-[15px] tabular-nums text-[#111827]">
                 0 kr
               </div>
             </div>
