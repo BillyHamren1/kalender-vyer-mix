@@ -135,14 +135,11 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
         </div>
       ) : (
         <Card className="border-border/50 shadow-sm overflow-hidden w-full">
-          <div className="overflow-x-auto bg-card">
-            <div className="min-w-[860px]">
-              <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,1.6fr)_minmax(0,2fr)] gap-6 border-b border-border/60 px-4 py-3 text-sm font-semibold text-foreground">
-                <span>Produkt:</span>
-                <span>Antal:</span>
-                <span>Kund:</span>
-                <span>Levadress:</span>
-              </div>
+          <div className="bg-card">
+            <div className="border-b border-border/60 px-4 py-5 text-sm font-semibold text-foreground">
+              Produkt:
+            </div>
+            <div>
               {groups.map(g => {
                 const collapsed = isGroupCollapsed(g.bookingId);
                 return (
@@ -150,7 +147,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
                     <button
                       type="button"
                       onClick={() => toggleGroup(g.bookingId)}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground bg-muted/70 hover:bg-muted transition-colors border-y border-border/60"
+                      className="flex w-full items-center gap-2 border-b border-border/60 bg-muted/40 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:bg-muted/70"
                     >
                       {collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
                       <span className="truncate flex-1">{g.label}</span>
@@ -160,12 +157,10 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
                         {g.rows.map(row => (
                           <div
                             key={row.id}
-                            className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,1.6fr)_minmax(0,2fr)] items-center gap-6 px-4 py-3 text-sm text-foreground"
+                            className="px-4 py-4 text-sm font-medium text-foreground"
+                            title={row.name}
                           >
-                            <span className="truncate font-medium" title={row.name}>{row.name}</span>
-                            <span className="tabular-nums text-muted-foreground">{row.quantity} st</span>
-                            <span className="truncate text-muted-foreground" title={row.client}>{row.client}</span>
-                            <span className="truncate text-muted-foreground" title={row.delivery}>{row.delivery}</span>
+                            {row.name}
                           </div>
                         ))}
                       </div>
