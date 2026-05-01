@@ -53,7 +53,7 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
   const cleanName = (name: string) => name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
 
   const subTabClass =
-    "relative px-3 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary text-sm font-medium transition-colors hover:text-foreground";
+    "relative h-auto rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary text-sm font-medium transition-colors hover:text-foreground";
 
   // Flat list: one row per main product per booking (accessories hidden — included in package)
   const flatRows = bookings.flatMap(b => {
@@ -74,44 +74,46 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
 
   return (
     <Tabs defaultValue="list" className="space-y-4">
-      <div className="border-b border-border/40 overflow-x-auto">
-        <TabsList className="h-auto p-0 bg-transparent gap-0">
-          <TabsTrigger value="list" className={subTabClass}>
-            Lista
-            {flatRows.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                {flatRows.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="all" className={subTabClass}>
-            Grupperat
-            {totalCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                {totalCount}
-              </span>
-            )}
-          </TabsTrigger>
-          {bookings.map(b => {
-            const label = getLargeProjectBookingLabel({
-              booking_id: b.booking_id,
-              display_name: b.display_name,
-              booking: b.booking ? { client: b.booking.client, booking_number: b.booking.booking_number } : null,
-            });
-            const count = allProducts.filter(p => p.booking_id === b.booking_id && p.is_package_component !== true).length;
-            return (
-              <TabsTrigger key={b.booking_id} value={b.booking_id} className={subTabClass}>
-                {label}
-                {count > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                    {count}
-                  </span>
-                )}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </div>
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto bg-card">
+          <TabsList className="h-auto min-w-max p-0 bg-transparent gap-0 px-4 border-b border-border/60 w-full justify-start">
+            <TabsTrigger value="list" className={subTabClass}>
+              Lista
+              {flatRows.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                  {flatRows.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="all" className={subTabClass}>
+              Grupperat
+              {totalCount > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                  {totalCount}
+                </span>
+              )}
+            </TabsTrigger>
+            {bookings.map(b => {
+              const label = getLargeProjectBookingLabel({
+                booking_id: b.booking_id,
+                display_name: b.display_name,
+                booking: b.booking ? { client: b.booking.client, booking_number: b.booking.booking_number } : null,
+              });
+              const count = allProducts.filter(p => p.booking_id === b.booking_id && p.is_package_component !== true).length;
+              return (
+                <TabsTrigger key={b.booking_id} value={b.booking_id} className={subTabClass}>
+                  {label}
+                  {count > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                      {count}
+                    </span>
+                  )}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
+      </Card>
 
       {/* Lista - flat extraherad lista (tillbehör göms i paketet) */}
       <TabsContent value="list">
