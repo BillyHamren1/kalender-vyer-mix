@@ -1,7 +1,7 @@
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
-import ProjectTaskList from "@/components/project/ProjectTaskList";
+
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
@@ -45,17 +45,9 @@ const LargeProjectViewPage = () => {
       />
 
       {/* Tabbed content */}
-      <Tabs defaultValue="tasks" className="space-y-6">
+      <Tabs defaultValue="gantt" className="space-y-6">
         <div className="border-b border-border/40 overflow-x-auto">
           <TabsList className="h-auto p-0 bg-transparent gap-0">
-            <TabsTrigger value="tasks" className={tabTriggerClass}>
-              Uppgifter
-              {tasks.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {tasks.length}
-                </span>
-              )}
-            </TabsTrigger>
             <TabsTrigger value="gantt" className={tabTriggerClass}>
               Kalender
             </TabsTrigger>
@@ -80,18 +72,6 @@ const LargeProjectViewPage = () => {
             </TabsTrigger>
           </TabsList>
         </div>
-
-        <TabsContent value="tasks">
-          <ProjectTaskList
-            tasks={tasks}
-            onAddTask={detail.addTask}
-            onUpdateTask={detail.updateTask}
-            onDeleteTask={detail.deleteTask}
-            bookingId={bookingId}
-            executionHref="establishment"
-            onOpenInChat={undefined}
-          />
-        </TabsContent>
 
         <TabsContent value="gantt">
           <ProjectCalendarView projectId={project.id} isLargeProject={true} />
