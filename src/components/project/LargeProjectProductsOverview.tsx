@@ -1,10 +1,12 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Search, ChevronDown, ChevronRight } from "lucide-react";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
-import ProjectProductsList from "@/components/project/ProjectProductsList";
 import type { LargeProjectBooking } from "@/types/largeProject";
 
 interface LargeProjectProductsOverviewProps {
