@@ -75,7 +75,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
   } = useRealTimeCalendarEvents();
 
   const { teamResources } = useTeamResources();
-  const staffOps = useUnifiedStaffOperations(selectedDate || new Date(), 'day', 'Montage');
+  const staffOps = useUnifiedStaffOperations(selectedDate || new Date(), 'daily', 'Montage');
 
   // 5. Filtrera events: bara de som tillhör projektets bookings.
   const filteredEvents = useMemo(() => {
