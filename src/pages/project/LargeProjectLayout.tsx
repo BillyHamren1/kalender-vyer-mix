@@ -301,14 +301,38 @@ const LargeProjectLayout = () => {
                 )}
                 <Badge variant="outline" className="text-xs">Stort projekt</Badge>
               </div>
-              <p className="text-sm text-muted-foreground font-mono">
-                {project.project_number ? `#${project.project_number}` : null}
-                {project.project_number && (bookings.length || project.address || project.location) ? " · " : ""}
-                <span className="font-sans">
-                  {bookings.length} bokningar
-                  {project.address ? ` • ${project.address}` : project.location ? ` • ${project.location}` : ""}
-                </span>
-              </p>
+              <div className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                {project.project_number && (
+                  <span className="font-mono">#{project.project_number}</span>
+                )}
+                {project.project_number && <span>·</span>}
+                {isEditingSubtitle ? (
+                  <Input
+                    ref={subtitleInputRef}
+                    value={editSubtitle}
+                    onChange={(e) => setEditSubtitle(e.target.value)}
+                    onBlur={handleSaveSubtitle}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveSubtitle();
+                      if (e.key === 'Escape') setIsEditingSubtitle(false);
+                    }}
+                    placeholder="Lägg till rubrik..."
+                    className="h-6 px-1.5 py-0 text-sm w-64 border-0 shadow-none focus-visible:ring-1 bg-transparent"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartEditSubtitle}
+                    className={cn(
+                      "hover:text-foreground transition-colors text-left truncate max-w-[400px]",
+                      !(project as any).description && "italic text-muted-foreground/70"
+                    )}
+                    title="Klicka för att ändra rubrik"
+                  >
+                    {(project as any).description || "Lägg till rubrik..."}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           <ProjectStatusDropdown
