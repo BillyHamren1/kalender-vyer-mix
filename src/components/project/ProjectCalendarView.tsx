@@ -35,7 +35,7 @@ const DEFAULT_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport'];
 
 const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
   // 1. Hämta projektets events.
-  const { events: projectEvents, refetch: refetchProject } = useProjectGanttEvents({
+  const { events: projectEvents, refetch: refetchProject } = useProjectCalendarDays({
     projectId,
     bookingId,
     isLargeProject,
