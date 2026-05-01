@@ -55,18 +55,22 @@ const UnifiedProjectGantt = ({ projectId, bookingId, isLargeProject }: Props) =>
   const lanes = useMemo(() => buildGanttLanes(events), [events]);
   const range = useMemo(() => getOverallRange(lanes), [lanes]);
 
+  // Only show days that actually have a planned phase cell — skip empty days
+  // between rig / event / rigDown.
   const days = useMemo(() => {
-    if (!range) return [] as Date[];
-    const start = parseISO(range.minDate);
-    const end = parseISO(range.maxDate);
-    const total = differenceInCalendarDays(end, start) + 1;
-    return Array.from({ length: Math.max(total, 1) }, (_, i) => addDays(start, i));
-  }, [range]);
+    const uniqueDates = Array.from(
+      new Set(lanes.flatMap((l) => l.cells.map((c) => c.date))),
+    ).sort();
+    return uniqueDates.map((d) => parseISO(d));
+  }, [lanes]);
 
-  const colIndex = (date: string) => {
-    if (!range) return 0;
-    return differenceInCalendarDays(parseISO(date), parseISO(range.minDate));
-  };
+  const dateToIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    days.forEach((d, i) => map.set(format(d, 'yyyy-MM-dd'), i));
+    return map;
+  }, [days]);
+
+  const colIndex = (date: string) => dateToIndex.get(date) ?? 0;
 
   async function persistCellTime(cell: GanttCell, startTime: string, endTime: string) {
     setSavingCellKey(`${cell.phase}|${cell.date}`);
