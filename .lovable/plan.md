@@ -1,58 +1,81 @@
-## Vad som ska ändras
+Jag har hittat det faktiska felet.
 
-`src/components/project/LargeProjectScheduleEditable.tsx` ska byggas om från det stora 3-korts-utseendet (bild 1) till den kompakta en-rads-stripen i bild 2.
+Problemet är inte bara att ett API-anrop failar — det farliga är att sidan först sparar datumen lokalt i `large_projects`, och först därefter försöker skriva till bokningssystemet. När `planning-api-proxy` returnerar `400 {"error":"Unknown type: update_booking"}`, blir resultatet att UI:t ser sparat ut trots att source-of-truth inte har uppdaterats.
 
-## Ny layout (bild 2)
+Do I know what the issue is?
+Ja.
 
-En enda horisontell rad inuti header-kortet:
+Exakt problem
+- `src/pages/project/LargeProjectLayout.tsx` kör `detail.updateProject(...)` direkt i början av `handleScheduleUpdate`.
+- Först efter det försöker den köra `propagateProjectDatesToBookings(...)`.
+- `propagateProjectDatesToBookings` använder `updateBookingDatesViaApi(...)` i `src/services/planningApiService.ts`.
+- Den tjänsten skickar `type: 'update_booking'` till `planning-api-proxy`.
+- Den deployade proxyn/external planning API svarar nu med `Unknown type: update_booking`.
+- Därför sparas datum bara i lokal projekt-UI/state, inte i bokningssystemet/databasen som är sanningen.
 
+Plan
+
+1. Gör sparflödet transaktionellt ur användarens perspektiv
+- Ändra `handleScheduleUpdate` i `src/pages/project/LargeProjectLayout.tsx` så att den inte uppdaterar `large_projects` först.
+- Kör bokningsskrivningen först.
+- Uppdatera lokal `large_projects`-spegel och Gantt först efter att bokningsskrivningen faktiskt lyckats.
+- Om bokningsskrivningen failar ska inga lokala datum stå kvar som “sparade”.
+
+2. Lägg in tydlig rollback/failsafe
+- Om någon lokal uppdatering ändå redan hunnit ske, revert:a den eller invalidatea queryn direkt så att UI:t laddar om servervärden.
+- Byt success/error-hantering så att toast och visning matchar verklig persistens.
+- Säkerställ att användaren aldrig lämnas i ett läge där datum ser sparade ut fast de inte är det.
+
+3. Isolera booking write contractet
+- Gå igenom `src/services/planningApiService.ts` och samla booking-write-funktionerna bakom en tydlig wrapper.
+- Förbered koden så att booking update-kontraktet kan justeras på ett ställe när vi verifierat vad den deployade externa `planning-api` faktiskt accepterar.
+- Behåll övriga typer (`purchases`, `supplier_invoices`, osv.) orörda.
+
+4. Fixa den verkliga skrivvägen mot bokningssystemet
+- Uppdatera `planning-api-proxy` och/eller frontend-kontraktet så att booking-uppdateringar använder den request-form som den nuvarande deployade externa `planning-api` faktiskt stödjer.
+- Jag kommer verifiera mot befintliga mönster i projektet innan ändringen görs brett, eftersom tidigare försök på just detta har gått fram och tillbaka.
+- Målet är att datumändringar för `rig`, `event` och `rigDown` verkligen persisteras i source-of-truth.
+
+5. Säkerställ att import/spegeln uppdateras efter lyckad write
+- Behåll eller justera `import-bookings`-triggern i `src/services/largeProjectScheduleSync.ts` så att kalender/event-spegeln fortfarande regenereras efter lyckad bokningsuppdatering.
+- Ingen import ska köras som “maskerar” ett misslyckat write.
+
+6. Lägg på skydd för framtida regressions
+- Lägg till defensiv felhantering kring save-flödet så att samma problem inte kan uppstå igen för andra booking writes.
+- Om det är rimligt i scope: återanvänd samma säkra princip även för andra hooks som använder `updateBookingDatesViaApi`, så att de inte visar falskt sparad state.
+
+Tekniska detaljer
+- Berörda filer:
+  - `src/pages/project/LargeProjectLayout.tsx`
+  - `src/services/largeProjectScheduleSync.ts`
+  - `src/services/planningApiService.ts`
+  - eventuellt `supabase/functions/planning-api-proxy/index.ts`
+  - eventuellt även `src/hooks/booking/useBookingDates.tsx` om samma osäkra mönster behöver hårdnas där
+
+- Bekräftad felkedja:
 ```text
-[📅 DATUM]  [ 25,26,27/5 -26 ]   [ 29,30,31/5 -26 ]   [ 1/6 -26 ]
-                UPPMONTERING         EVENEMANG          NEDMONTERING
+LargeProjectScheduleEditable
+  -> handleScheduleUpdate()
+    -> detail.updateProject(...)          [lokalt/UI ser sparat ut]
+    -> propagateProjectDatesToBookings()
+      -> updateBookingDatesViaApi()
+        -> planning-api-proxy
+          -> external planning-api
+             -> 400 Unknown type: update_booking
 ```
 
-Specifikation:
-- Vänster: en kalender-ikon + texten "DATUM" i versaler, muted färg, liten storlek. Ingen ram.
-- Tre pills till höger, lika breda (`flex-1`), med:
-  - Tunn rundad border (`rounded-full` eller `rounded-lg`), `bg-card`, lätt border (`border-border/40`).
-  - Centrerad text: stort/fet datum-rad överst (t.ex. `25,26,27/5 -26`), liten versal-label under (`UPPMONTERING` / `EVENEMANG` / `NEDMONTERING`).
-- Inga ikoner inuti pillsen, ingen countdown ("Om X dagar"), inga tider, inget streck mellan pillsen.
-- Tomt tillstånd per pill: visa `—` på datum-raden istället för "Lägg till datum"-knapp; hela pillen är fortfarande klickbar och öppnar `EditDateDialog` (oförändrad logik).
-- Hela pillen är klickbar (cursor-pointer, hover: lite mörkare border). `EditDateDialog`-integrationen och `onUpdateScheduleMulti`-anropet behålls exakt som idag.
+- Säkerhetsprincip för fixen:
+```text
+source-of-truth write först
+  -> om OK: uppdatera local mirror + invalidate queries + success toast
+  -> om FAIL: ingen kvarvarande lokal "sparad" state
+```
 
-## Datumformat
+När du godkänner planen implementerar jag detta direkt.
 
-Matchar bild 2: kompakt komma-separerad lista av dagar + månad/år.
-- Flera dagar samma månad: `25,26,27/5 -26`
-- En dag: `1/6 -26`
-- Spänner över flera månader: `30/5,1/6 -26`
-
-Ny helper `formatDatesCompact(dates)` ersätter `formatDateSpan` för denna vy. Tar dagar, grupperar per månad, joinar dagar med komma, lägger till `/M -YY` på sista gruppen i varje månad.
-
-## Labels
-
-Ändras till de exakta från bild 2 (versaler, tracking-wider):
-- `RIGG` → `UPPMONTERING`
-- `EVENT` → `EVENEMANG`
-- `NEDRIVNING` → `NEDMONTERING`
-
-(Internt `editKey` `rig`/`event`/`rigDown` är oförändrat så ingen annan kod påverkas.)
-
-## Det som tas bort
-
-- Ikoner per kort (Truck/PartyPopper/ArrowDownToLine).
-- Countdown-text ("Om X dagar", "Idag", "Imorgon").
-- Tids-raden (08:00–17:00).
-- "X dagar"-raden.
-- Streck-separator mellan korten.
-- Pencil hover-ikon.
-- Today/past-styling (bakgrund/opacity-skiftet) — behålls inte i den nya minimalistiska stripen.
-
-## Filer som rörs
-
-- `src/components/project/LargeProjectScheduleEditable.tsx` — full omskrivning av render + ny `formatDatesCompact` helper. Props-signaturen och `onUpdateScheduleMulti`-kontraktet är oförändrade, så `LargeProjectLayout.tsx` behöver inte ändras.
-
-## Inte i scope
-
-- Ingen ändring av tids-redigering i `EditDateDialog` (tider sparas fortfarande via dialogen även om de inte visas i pillsen).
-- Ingen ändring av `LargeProjectLayout.tsx` eller övriga konsumenter.
+<lov-actions>
+  <lov-open-history>View History</lov-open-history>
+</lov-actions>
+<lov-actions>
+<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
+</lov-actions>
