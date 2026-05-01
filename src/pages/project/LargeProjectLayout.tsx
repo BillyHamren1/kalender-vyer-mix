@@ -260,6 +260,46 @@ const LargeProjectLayout = () => {
     setIsEditingSubtitle(false);
   };
 
+  const handleScheduleUpdate = async (
+    dateType: 'rig' | 'event' | 'rigDown',
+    dates: string[],
+    startTime: string,
+    endTime: string,
+  ) => {
+    const dateFieldMap = { rig: 'start_date', event: 'event_date', rigDown: 'end_date' } as const;
+    await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
+
+    try {
+      const ganttKeyMap = { rig: 'establishment', event: 'event', rigDown: 'deestablishment' } as const;
+      const ganttKey = ganttKeyMap[dateType];
+      const { start, end } = arrayToPeriod(dates);
+      if (start && end) {
+        await supabase
+          .from('large_project_gantt_steps')
+          .update({ start_date: start, end_date: end })
+          .eq('large_project_id', id!)
+          .eq('step_key', ganttKey);
+        queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
+      }
+    } catch (err) {
+      console.warn('Could not sync Gantt period from schedule cards:', err);
+    }
+
+    const bookingIds = bookings.map(b => b.booking_id);
+    if (dates.length === 0 || bookingIds.length === 0) {
+      queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+      return;
+    }
+    try {
+      await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
+      queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+      toast.success('Schema uppdaterat för alla bokningar');
+    } catch (err) {
+      console.error('Error propagating schedule:', err);
+      toast.error('Kunde inte uppdatera alla bokningar');
+    }
+  };
+
   return (
     <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
