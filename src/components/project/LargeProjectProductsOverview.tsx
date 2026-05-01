@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -122,27 +121,28 @@ const LargeProjectProductsOverview = ({ bookings }: LargeProjectProductsOverview
           </div>
         ) : (
           <Card className="border-border/50 shadow-sm overflow-hidden">
-            <div className="divide-y divide-border/40 bg-card">
-              {flatRows.map(row => (
-                <div
-                  key={row.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="inline-flex shrink-0 items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
-                      {row.quantity} st
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{row.client}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate max-w-[280px]" title={row.delivery}>{row.delivery}</span>
-                  </div>
+            <div className="overflow-x-auto bg-card">
+              <div className="min-w-[860px]">
+                <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,1.6fr)_minmax(0,2fr)] gap-6 border-b border-border/60 px-4 py-3 text-sm font-semibold text-foreground">
+                  <span>Produkt:</span>
+                  <span>Antal:</span>
+                  <span>Kund:</span>
+                  <span>Levadress:</span>
                 </div>
-              ))}
+                <div className="divide-y divide-border/40">
+                  {flatRows.map(row => (
+                    <div
+                      key={row.id}
+                      className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,1.6fr)_minmax(0,2fr)] items-center gap-6 px-4 py-4 text-sm text-foreground"
+                    >
+                      <span className="truncate font-medium" title={row.name}>{row.name}</span>
+                      <span className="tabular-nums text-muted-foreground">{row.quantity} st</span>
+                      <span className="truncate text-muted-foreground" title={row.client}>{row.client}</span>
+                      <span className="truncate text-muted-foreground" title={row.delivery}>{row.delivery}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </Card>
         )}
