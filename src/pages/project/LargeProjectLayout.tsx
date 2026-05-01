@@ -260,99 +260,157 @@ const LargeProjectLayout = () => {
     setIsEditingSubtitle(false);
   };
 
+  const handleScheduleUpdate = async (
+    dateType: 'rig' | 'event' | 'rigDown',
+    dates: string[],
+    startTime: string,
+    endTime: string,
+  ) => {
+    const dateFieldMap = { rig: 'start_date', event: 'event_date', rigDown: 'end_date' } as const;
+    await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
+
+    try {
+      const ganttKeyMap = { rig: 'establishment', event: 'event', rigDown: 'deestablishment' } as const;
+      const ganttKey = ganttKeyMap[dateType];
+      const { start, end } = arrayToPeriod(dates);
+      if (start && end) {
+        await supabase
+          .from('large_project_gantt_steps')
+          .update({ start_date: start, end_date: end })
+          .eq('large_project_id', id!)
+          .eq('step_key', ganttKey);
+        queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
+      }
+    } catch (err) {
+      console.warn('Could not sync Gantt period from schedule cards:', err);
+    }
+
+    const bookingIds = bookings.map(b => b.booking_id);
+    if (dates.length === 0 || bookingIds.length === 0) {
+      queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+      return;
+    }
+    try {
+      await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
+      queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+      toast.success('Schema uppdaterat för alla bokningar');
+    } catch (err) {
+      console.error('Error propagating schedule:', err);
+      toast.error('Kunde inte uppdatera alla bokningar');
+    }
+  };
+
   return (
     <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm mb-5">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/projects")}
-              className="rounded-lg h-8 w-8 -ml-1"
-              aria-label="Tillbaka"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shadow-[hsl(270_45%_55%)]/15 shrink-0"
-              style={{ background: 'linear-gradient(135deg, hsl(270 45% 60%) 0%, hsl(280 50% 45%) 100%)' }}
-            >
-              <FolderKanban className="text-white" style={{ width: 18, height: 18 }} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                {isEditingName ? (
-                  <div className="flex items-center gap-1.5">
+        <div className="px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm mb-5">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/projects")}
+                className="rounded-lg h-8 w-8 -ml-1"
+                aria-label="Tillbaka"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shadow-[hsl(270_45%_55%)]/15 shrink-0"
+                style={{ background: 'linear-gradient(135deg, hsl(270 45% 60%) 0%, hsl(280 50% 45%) 100%)' }}
+              >
+                <FolderKanban className="text-white" style={{ width: 18, height: 18 }} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  {isEditingName ? (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        ref={nameInputRef}
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveName();
+                          if (e.key === 'Escape') setIsEditingName(false);
+                        }}
+                        className="text-xl font-bold h-8 px-2 w-64"
+                      />
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSaveName}>
+                        <Check className="h-4 w-4 text-green-600" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
+                        <X className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <h1
+                      className="text-xl font-bold tracking-tight leading-none cursor-pointer group flex items-center gap-1.5"
+                      style={{ color: "hsl(var(--heading))" }}
+                      onClick={handleStartEditName}
+                      title="Klicka för att ändra namn"
+                    >
+                      {project.name}
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </h1>
+                  )}
+                  <Badge variant="outline" className="text-xs">Stort projekt</Badge>
+                </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
+                  {project.project_number && (
+                    <span>#{project.project_number}</span>
+                  )}
+                  {project.project_number && <span>·</span>}
+                  {isEditingSubtitle ? (
                     <Input
-                      ref={nameInputRef}
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
+                      ref={subtitleInputRef}
+                      value={editSubtitle}
+                      onChange={(e) => setEditSubtitle(e.target.value)}
+                      onBlur={handleSaveSubtitle}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveName();
-                        if (e.key === 'Escape') setIsEditingName(false);
+                        if (e.key === 'Enter') handleSaveSubtitle();
+                        if (e.key === 'Escape') setIsEditingSubtitle(false);
                       }}
-                      className="text-xl font-bold h-8 px-2 w-64"
+                      placeholder="Lägg till rubrik..."
+                      className="h-6 px-1.5 py-0 text-xs w-64 border-0 shadow-none focus-visible:ring-1 bg-transparent"
                     />
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSaveName}>
-                      <Check className="h-4 w-4 text-green-600" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
-                ) : (
-                  <h1
-                    className="text-xl font-bold tracking-tight leading-none cursor-pointer group flex items-center gap-1.5"
-                    style={{ color: "hsl(var(--heading))" }}
-                    onClick={handleStartEditName}
-                    title="Klicka för att ändra namn"
-                  >
-                    {project.name}
-                    <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </h1>
-                )}
-                <Badge variant="outline" className="text-xs">Stort projekt</Badge>
-              </div>
-              <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
-                {project.project_number && (
-                  <span>#{project.project_number}</span>
-                )}
-                {project.project_number && <span>·</span>}
-                {isEditingSubtitle ? (
-                  <Input
-                    ref={subtitleInputRef}
-                    value={editSubtitle}
-                    onChange={(e) => setEditSubtitle(e.target.value)}
-                    onBlur={handleSaveSubtitle}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveSubtitle();
-                      if (e.key === 'Escape') setIsEditingSubtitle(false);
-                    }}
-                    placeholder="Lägg till rubrik..."
-                    className="h-6 px-1.5 py-0 text-xs w-64 border-0 shadow-none focus-visible:ring-1 bg-transparent"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleStartEditSubtitle}
-                    className={cn(
-                      "hover:text-foreground transition-colors text-left truncate max-w-[400px]",
-                      !(project as any).description && "italic text-muted-foreground/70"
-                    )}
-                    title="Klicka för att ändra rubrik"
-                  >
-                    {(project as any).description || "Lägg till rubrik..."}
-                  </button>
-                )}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStartEditSubtitle}
+                      className={cn(
+                        "hover:text-foreground transition-colors text-left truncate max-w-[400px]",
+                        !(project as any).description && "italic text-muted-foreground/70"
+                      )}
+                      title="Klicka för att ändra rubrik"
+                    >
+                      {(project as any).description || "Lägg till rubrik..."}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
+            <ProjectStatusDropdown
+              status={statusMap[project.status] || "planning"}
+              onStatusChange={(status) => detail.updateStatus(status as any)}
+            />
           </div>
-          <ProjectStatusDropdown
-            status={statusMap[project.status] || "planning"}
-            onStatusChange={(status) => detail.updateStatus(status as any)}
-          />
+
+          {/* Datumkort flyttade in i headern */}
+          <div className="mt-4 pt-4 border-t border-border/40">
+            <LargeProjectScheduleEditable
+              startDates={project.start_date}
+              eventDates={project.event_date}
+              endDates={project.end_date}
+              startStartTime={derivedTimes.startStart}
+              startEndTime={derivedTimes.startEnd}
+              eventStartTime={derivedTimes.eventStart}
+              eventEndTime={derivedTimes.eventEnd}
+              endStartTime={derivedTimes.endStart}
+              endEndTime={derivedTimes.endEnd}
+              onUpdateScheduleMulti={handleScheduleUpdate}
+            />
+          </div>
         </div>
 
         {/* 3-page navigation */}
@@ -391,61 +449,7 @@ const LargeProjectLayout = () => {
         {/* Booking info – show on overview page */}
         {activeKey === "overview" && (
           <div className="space-y-4 mb-6">
-            {/* Schedule date cards */}
-            <LargeProjectScheduleEditable
-              startDates={project.start_date}
-              eventDates={project.event_date}
-              endDates={project.end_date}
-              startStartTime={derivedTimes.startStart}
-              startEndTime={derivedTimes.startEnd}
-              eventStartTime={derivedTimes.eventStart}
-              eventEndTime={derivedTimes.eventEnd}
-              endStartTime={derivedTimes.endStart}
-              endEndTime={derivedTimes.endEnd}
-              onUpdateScheduleMulti={async (dateType, dates, startTime, endTime) => {
-                // 1. Update project-level date arrays
-                const dateFieldMap = { rig: 'start_date', event: 'event_date', rigDown: 'end_date' } as const;
-                await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
-
-                // 2. Sync Gantt step (period = min/max of array) so Gantt always reflects project
-                try {
-                  const ganttKeyMap = { rig: 'establishment', event: 'event', rigDown: 'deestablishment' } as const;
-                  const ganttKey = ganttKeyMap[dateType];
-                  const { start, end } = arrayToPeriod(dates);
-                  if (start && end) {
-                    await supabase
-                      .from('large_project_gantt_steps')
-                      .update({ start_date: start, end_date: end })
-                      .eq('large_project_id', id!)
-                      .eq('step_key', ganttKey);
-                    queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
-                  }
-                } catch (err) {
-                  console.warn('Could not sync Gantt period from schedule cards:', err);
-                }
-
-                // 3. Propagate FULL array + times to all sub-bookings (+ regenerate calendar events)
-                const bookingIds = bookings.map(b => b.booking_id);
-                if (dates.length === 0 || bookingIds.length === 0) {
-                  queryClient.invalidateQueries({ queryKey: ['large-project', id] });
-                  return;
-                }
-                try {
-                  await propagateProjectDatesToBookings({
-                    bookingIds,
-                    dateType,
-                    dates,
-                    startTime,
-                    endTime,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['large-project', id] });
-                  toast.success('Schema uppdaterat för alla bokningar');
-                } catch (err) {
-                  console.error('Error propagating schedule:', err);
-                  toast.error('Kunde inte uppdatera alla bokningar');
-                }
-              }}
-            />
+            {/* Schema-datumkort har flyttats till headern ovan */}
 
             {/* Address card */}
             <Card className="border-border/50 shadow-sm">
