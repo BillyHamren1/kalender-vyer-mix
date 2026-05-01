@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 
 export type GroupingScope = "large_project" | "booking";
 
@@ -21,6 +22,7 @@ export interface ProductGroupingRow {
 
 export const useProductGrouping = (scope: GroupingScope, scopeId: string | undefined) => {
   const qc = useQueryClient();
+  const { organizationId } = useCurrentOrg();
 
   const query = useQuery({
     queryKey: ["product-grouping", scope, scopeId],
@@ -35,11 +37,37 @@ export const useProductGrouping = (scope: GroupingScope, scopeId: string | undef
       if (error) throw error;
       if (!data) return null;
       return {
-        ...data,
+        id: data.id,
+        scope: data.scope as GroupingScope,
+        scope_id: data.scope_id,
+        prompt: data.prompt,
+        updated_at: data.updated_at,
         groups: Array.isArray(data.groups) ? (data.groups as unknown as ProductGroup[]) : [],
       };
     },
     enabled: !!scopeId,
+  });
+
+  const save = useMutation({
+    mutationFn: async ({ prompt, groups }: { prompt: string; groups: ProductGroup[] }) => {
+      if (!scopeId) throw new Error("Ingen scope_id");
+      if (!organizationId) throw new Error("Saknar organisation");
+      const { error } = await supabase
+        .from("product_groupings")
+        .upsert(
+          {
+            scope,
+            scope_id: scopeId,
+            prompt,
+            groups: groups as any,
+            organization_id: organizationId,
+          },
+          { onConflict: "scope,scope_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product-grouping", scope, scopeId] }),
+    onError: (e: any) => toast.error(e?.message || "Kunde inte spara grupperingen"),
   });
 
   const generate = useMutation({
@@ -60,35 +88,6 @@ export const useProductGrouping = (scope: GroupingScope, scopeId: string | undef
       return groups;
     },
     onError: (e: any) => toast.error(e?.message || "AI-gruppering misslyckades"),
-  });
-
-  const save = useMutation({
-    mutationFn: async ({ prompt, groups }: { prompt: string; groups: ProductGroup[] }) => {
-      if (!scopeId) throw new Error("Ingen scope_id");
-      // Resolve organization id (RLS requirement)
-      const { data: orgRows } = await supabase
-        .from("user_organizations")
-        .select("organization_id")
-        .limit(1);
-      const organization_id = orgRows?.[0]?.organization_id;
-      if (!organization_id) throw new Error("Saknar organisation");
-
-      const { error } = await supabase
-        .from("product_groupings")
-        .upsert(
-          {
-            scope,
-            scope_id: scopeId,
-            prompt,
-            groups: groups as any,
-            organization_id,
-          },
-          { onConflict: "scope,scope_id" }
-        );
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["product-grouping", scope, scopeId] }),
-    onError: (e: any) => toast.error(e?.message || "Kunde inte spara grupperingen"),
   });
 
   const clear = useMutation({
