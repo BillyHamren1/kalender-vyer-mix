@@ -288,17 +288,6 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [], 
         )}
       </div>
 
-      {/* Equipment */}
-      <div className="px-5 pb-2 border-t border-border/40">
-        <div className="flex items-center gap-2 mt-4 mb-3">
-          <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10">
-            <Package className="h-4 w-4 text-primary" />
-          </div>
-          <h2 className="text-base font-semibold text-foreground tracking-tight">Utrustning</h2>
-        </div>
-        <ProjectProductsList bookingId={booking.id} />
-      </div>
-
     </Card>
   );
 };
