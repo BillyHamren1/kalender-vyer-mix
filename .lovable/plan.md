@@ -1,40 +1,31 @@
-Du har rätt. Det som ska fixas är inte att ta bort kolumnerna — det är att ta bort bolags-/bokningsnamn inne i själva produktkolumnen, samtidigt som layouten med fyra kolumner ska vara kvar.
+## Problem
 
-Plan:
-1. Återställ tabellayouten med fyra kolumner
-- `LargeProjectProductsOverview` ska åter visa:
-  - Produkt
-  - Antal
-  - Kund
-  - Levadress
-- Varje rad ska vara en produkt radvis över dessa fyra kolumner.
+Min förra ändring färglade inte bara dagtitel-baren — den nollade också den lila accenten på team-cellerna (`Team 1/2/3/4/Lager`-raden) och hover-tonen på personalraden. Resultat (bild 1): kalendern såg "av-stylad" ut jämfört med personalkalendern (bild 2).
 
-2. Ta bort företagsnamn från produktkolumnen
-- Produktkolumnen ska bara innehålla produktnamnet.
-- Inga grupphuvuden, inga bolagsnamn, inga bokningsnamn, inga extra etiketter ovanför produktraderna i just produktkolumnen.
+## Vad som ska göras
 
-3. Behåll kund och leveransadress i sina egna kolumner
-- `Kund` ska hämtas från bokningen (`booking.client`).
-- `Levadress` ska hämtas från bokningen (`booking.deliveryaddress`).
-- `Antal` ska hämtas från produkten (`quantity`).
-- Produktdata ska alltså mappas ihop med respektive bokning, men utan att bokningen renderas som rubrik i listan.
+Endast **översta raden** (`.time-grid-header-bg` — där "Mon 18" + people-badge står) ska byta bakgrund till fas-färgen. **Team-raden** och **personal-raden** ska se ut precis som i personalkalendern (lila gradient/accenter).
 
-4. Behåll sökningen produkt-fokuserad
-- Sökfältet ska fortsätta filtrera på produktnamn.
-- Placeholder kan fortsätta vara `Sök produkt...`.
-- Sökningen ska inte bygga på kundnamn, adress eller bolagsrubriker.
+## Ändring
 
-5. Verifiera slutresultatet visuellt
-- Säkerställa att produktvyn ser ut som din referensbild:
-  - fyra kolumner kvar
-  - bara produkter i produktkolumnen
-  - kund/adress visas endast i sina egna kolumner
-  - inga företagsrubriker inne i listan
+Ta bort dessa override-regler från `src/components/project/ProjectCalendarView.css`:
 
-Tekniskt
-- Fil som ska ändras: `src/components/project/LargeProjectProductsOverview.tsx`
-- Queryn behöver utökas igen så att produkter hämtar `quantity` tillsammans med nuvarande produktfält.
-- Komponenten behöver bygga en lookup från `bookings` på `booking_id` för att kunna visa kund och levadress per produkt-rad.
-- Den nuvarande platta en-kolumnsvyn ersätts med en enkel grid/tabellrad per produkt, utan tidigare grupp-collapse-logik.
+```text
+.project-weekly-day-card .team-header-cell        { background: ... }   ← TA BORT
+.project-weekly-day-card .team-header-cell:hover  { background: ... }   ← TA BORT
+.project-weekly-day-card .staff-assignment-header-row:hover { ... }     ← TA BORT
+.project-weekly-day-card .time-column-header { border-right-color: ... } ← TA BORT
+```
 
-När du godkänner gör jag exakt detta — återställer kolumnerna och tar endast bort företagsnamn ur produktkolumnen.
+Behåll bara:
+- Bredare day-cards (oförändrat)
+- Fas-färg-variabler (`--phase-header-bg`, `--phase-header-fg`) per `.project-phase-rig/event/rigDown`
+- `.time-grid-header-bg` får `background: var(--phase-header-bg)` (bara den översta baren)
+- `.day-title` och `.time-title` får mörk fas-text (läsbart på pastellbakgrund)
+
+Inga ändringar i komponentfiler, ingen ändring av `getDayCardClassName`-prop.
+
+## Resultat
+
+- Dagtitel-bar: grön på rig-dagar, gul på event-dagar, ljusröd på rigDown-dagar (matchar event-färgerna i personalkalendern)
+- Team-rad + personal-rad: identisk med bild 2 (lila accenter bevaras)

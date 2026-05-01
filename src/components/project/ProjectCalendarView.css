@@ -50,33 +50,16 @@
   --phase-header-fg: hsl(var(--muted-foreground));
 }
 
-/* Override the TimeGrid header background with the phase color */
-.project-weekly-day-card .time-grid-header-bg,
-[class*="project-phase-"] .time-grid-header-bg {
+/* Override BARA dagtitel-baren (där "Mon 18" + people-badge står).
+   Team-rad och personal-rad behåller personalkalenderns lila styling. */
+.project-weekly-day-card .time-grid-header-bg {
   background: var(--phase-header-bg) !important;
   border-radius: 0;
 }
 
+/* Dagtitel + TIME-label får mörk fas-text (läsbart på pastellbakgrund) */
 .project-weekly-day-card .day-title,
-.project-weekly-day-card .time-title,
-[class*="project-phase-"] .day-title,
-[class*="project-phase-"] .time-title {
+.project-weekly-day-card .time-title {
   color: var(--phase-header-fg) !important;
   text-shadow: none;
-}
-
-.project-weekly-day-card .time-column-header {
-  border-right-color: rgba(0, 0, 0, 0.1);
-}
-
-.project-weekly-day-card .team-header-cell {
-  background: hsl(var(--background));
-}
-
-.project-weekly-day-card .team-header-cell:hover {
-  background: hsl(var(--muted) / 0.35);
-}
-
-.project-weekly-day-card .staff-assignment-header-row:hover {
-  background: hsl(var(--muted) / 0.18);
 }
