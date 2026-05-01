@@ -1,25 +1,16 @@
 /**
- * ProjectAddressMapDialog
- * ───────────────────────
- * Dialog för att redigera ett stort projekts adress + geofence.
+ * ProjectAddressMapDialog (rewritten 2026-05-01)
+ * ──────────────────────────────────────────────
+ * Enkel adress + geofence-editor för ett stort projekt.
  *
- *  • Adressfält med Mapbox-typeahead som visar FLERA kandidater
- *    (löser problemet att "sportvägen 1, tranås" annars hamnar i
- *    Örnsköldsvik om vi blint tar `features[0]`).
- *  • Mapbox-karta visar pin för aktuell position. Klick på kartan
- *    flyttar pin → koordinater uppdateras (manuell justering).
- *  • Geofence-läge: cirkel (radie i meter) eller polygon (rita med
- *    Mapbox Draw).
- *  • Sparar address, address_latitude, address_longitude,
- *    address_radius_meters, address_geofence_mode, address_geofence_polygon.
- *
- * ROBUSTHET (2026-04):
- *  • Karta init har explicit error/timeout state — ingen evig spinner.
- *  • map.on('error', ...) fångar token-/style-/tile-fel och visar UI.
- *  • Saftytimeout (8s): om `load` aldrig fyrar markeras kartan som
- *    misslyckad istället för att spinnern hänger för alltid.
- *  • Retry-knapp river ner mapRef och försöker igen.
- *  • Adressfältet/typeahead är användbart även om kartan failar.
+ * Designprinciper:
+ *  • Visar ENDAST projektets adress/pin. Inga förinställda förslag,
+ *    ingen typeahead som visar slumpmässiga H-orter.
+ *  • Adress är ett fritt textfält. En explicit "Sök på karta"-knapp
+ *    geokodar exakt det användaren skrivit (en gång).
+ *  • Klick på kartan eller drag av markören flyttar pin.
+ *  • Cirkel-radie eller polygon-staket. Polygon ritas via Mapbox Draw.
+ *  • Robust init: timeout, error state, retry. Ingen evig spinner.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
@@ -37,14 +28,6 @@ import { Slider } from '@/components/ui/slider';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Loader2, MapPin, Search, Trash2, Pencil, AlertTriangle, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface MapboxFeature {
-  id: string;
-  place_name: string;
-  text: string;
-  center: [number, number]; // [lng, lat]
-  context?: Array<{ id: string; text: string }>;
-}
 
 export interface ProjectAddressMapDialogProps {
   open: boolean;
@@ -65,7 +48,7 @@ export interface ProjectAddressMapDialogProps {
   }) => Promise<void> | void;
 }
 
-const DEFAULT_CENTER: [number, number] = [15.5, 62.0]; // Sweden centroid
+const DEFAULT_CENTER: [number, number] = [15.5, 62.0]; // Sverige centroid
 const MAP_LOAD_TIMEOUT_MS = 8000;
 
 type MapStatus = 'idle' | 'loading-token' | 'loading-map' | 'ready' | 'error';
@@ -86,11 +69,6 @@ export default function ProjectAddressMapDialog({
   initialGeofencePolygon,
   onSave,
 }: ProjectAddressMapDialogProps) {
-  // Callback ref — Radix Dialog mounts the content asynchronously, so a plain
-  // useRef will be `null` the first time the init effect runs after `open`
-  // flips true. Storing the node in state forces the effect to re-run the
-  // moment the <div> actually mounts. Without this, the second open of the
-  // dialog hangs on "Laddar karta…" because mapStatus stays at 'idle'.
   const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainerNode(node);
@@ -115,26 +93,21 @@ export default function ProjectAddressMapDialog({
   const [mode, setMode] = useState<'circle' | 'polygon'>(initialGeofenceMode ?? 'circle');
   const [polygon, setPolygon] = useState<GeoJSON.Polygon | null>(initialGeofencePolygon ?? null);
 
-  const [searchInput, setSearchInput] = useState(initialAddress ?? '');
-  const [suggestions, setSuggestions] = useState<MapboxFeature[]>([]);
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
-  const searchDebounceRef = useRef<number | null>(null);
 
-  // Reset state when dialog opens
+  // Reset state vid öppning
   useEffect(() => {
     if (!open) return;
     setAddress(initialAddress ?? '');
-    setSearchInput(initialAddress ?? '');
     setCoords({ lat: initialLatitude ?? null, lng: initialLongitude ?? null });
     setRadius(initialRadiusMeters ?? 100);
     setMode(initialGeofenceMode ?? 'circle');
     setPolygon(initialGeofencePolygon ?? null);
-    setSuggestions([]);
     setMapError(null);
   }, [open, initialAddress, initialLatitude, initialLongitude, initialRadiusMeters, initialGeofenceMode, initialGeofencePolygon]);
 
-  // Fetch token (re-fetched on retry too)
+  // Hämta token
   useEffect(() => {
     if (!open) return;
     if (token) return;
@@ -145,8 +118,7 @@ export default function ProjectAddressMapDialog({
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error || !data?.token) {
-          console.error('[ProjectAddressMapDialog] mapbox-token failed:', error);
-          setMapError('Kunde inte hämta Mapbox-token. Kontrollera att MAPBOX_PUBLIC_TOKEN är satt.');
+          setMapError('Kunde inte hämta Mapbox-token.');
           setMapStatus('error');
           return;
         }
@@ -154,21 +126,15 @@ export default function ProjectAddressMapDialog({
       })
       .catch((err) => {
         if (cancelled) return;
-        console.error('[ProjectAddressMapDialog] mapbox-token threw:', err);
         setMapError(err?.message || 'Kunde inte hämta Mapbox-token');
         setMapStatus('error');
       });
     return () => { cancelled = true; };
   }, [open, token, retryCounter]);
 
-  // Init map when dialog open + token ready.
-  // KRITISKT: Vi måste rensa kartan helt när dialogen stängs. Radix Dialog
-  // kan behålla content-noden mellan open/close, så cleanup-returen från
-  // föregående open-cykel kanske inte hinner köra innan vi öppnar igen.
-  // Då blir vi sittande med en gammal mapRef + mapStatus='idle' → evig spinner.
+  // Init karta
   useEffect(() => {
     if (!open) {
-      // Säkerställ att inget hänger kvar mellan öppningar.
       if (loadTimeoutRef.current) {
         window.clearTimeout(loadTimeoutRef.current);
         loadTimeoutRef.current = null;
@@ -186,16 +152,10 @@ export default function ProjectAddressMapDialog({
     if (!containerNode) return;
     if (mapRef.current) return;
 
-    // Vänta tills containern faktiskt har mått (>0×0). Radix Dialog animerar
-    // in DialogContent → containern kan rapportera 0 height/width första
-    // tick:en. Initierar vi mapbox då blir canvas 0×0 → karta = grå utan
-    // tiles, OCH map.resize() senare räddar inte alltid det (vissa style
-    // layers cachas mot initial size).
     if (containerNode.clientWidth === 0 || containerNode.clientHeight === 0) {
       const ro = new ResizeObserver(() => {
         if (containerNode.clientWidth > 0 && containerNode.clientHeight > 0) {
           ro.disconnect();
-          // Bumpa retryCounter → effekten kör om sig själv, nu med mått.
           setRetryCounter((n) => n + 1);
         }
       });
@@ -206,11 +166,8 @@ export default function ProjectAddressMapDialog({
     setMapStatus('loading-map');
     setMapError(null);
 
-    try {
-      mapboxgl.accessToken = token;
-    } catch (e) {
-      console.error('[ProjectAddressMapDialog] failed to set accessToken:', e);
-      setMapError('Mapbox-token kunde inte sättas');
+    try { mapboxgl.accessToken = token; } catch (e: any) {
+      setMapError(e?.message || 'Mapbox-token kunde inte sättas');
       setMapStatus('error');
       return;
     }
@@ -224,11 +181,10 @@ export default function ProjectAddressMapDialog({
         container: containerNode,
         style: MAP_STYLES[mapStyle],
         center: initialCenter,
-        zoom: coords.lat != null ? 14 : 4.5,
+        zoom: coords.lat != null ? 15 : 4.5,
         attributionControl: false,
       });
     } catch (e: any) {
-      console.error('[ProjectAddressMapDialog] mapboxgl.Map ctor failed:', e);
       setMapError(e?.message || 'Kunde inte skapa kartan');
       setMapStatus('error');
       return;
@@ -245,22 +201,15 @@ export default function ProjectAddressMapDialog({
     drawRef.current = draw;
     map.addControl(draw as any, 'top-left');
 
-    // Safety timeout — if `load` never fires, surface an error instead of
-    // an eternal spinner. Common causes: network blocked, invalid token,
-    // tile CDN unreachable.
     loadTimeoutRef.current = window.setTimeout(() => {
       if (mapRef.current === map && mapStatus !== 'ready') {
-        console.warn('[ProjectAddressMapDialog] map load timeout');
-        setMapError('Kartan tog för lång tid att ladda. Kontrollera nätverk och Mapbox-token.');
+        setMapError('Kartan tog för lång tid att ladda. Kontrollera nätverk och token.');
         setMapStatus('error');
       }
     }, MAP_LOAD_TIMEOUT_MS);
 
     const onError = (e: any) => {
       const msg = e?.error?.message || e?.message || 'Okänt kartfel';
-      console.error('[ProjectAddressMapDialog] map error:', msg, e);
-      // Only flip to error if we are not yet ready (post-ready errors are
-      // tile-specific and shouldn't kill the UI).
       setMapStatus((prev) => {
         if (prev === 'ready') return prev;
         setMapError(msg);
@@ -274,16 +223,11 @@ export default function ProjectAddressMapDialog({
         window.clearTimeout(loadTimeoutRef.current);
         loadTimeoutRef.current = null;
       }
-      // Radix Dialog animerar in DialogContent, så containern kan ha mäts
-      // till 0×0 när Map skapades → grå karta utan tiles. Tvinga resize
-      // när den faktiskt har mått, och igen efter en kort delay för att
-      // täcka in dialog-animationen (≈200ms).
       try { map.resize(); } catch { /* noop */ }
       window.setTimeout(() => { try { map.resize(); } catch { /* noop */ } }, 250);
       setMapStatus('ready');
       setMapError(null);
 
-      // Initial marker
       if (coords.lat != null && coords.lng != null) {
         const m = new mapboxgl.Marker({ color: '#2dd4bf', draggable: true })
           .setLngLat([coords.lng, coords.lat])
@@ -295,28 +239,21 @@ export default function ProjectAddressMapDialog({
         });
       }
 
-      // Initial polygon
       if (initialGeofencePolygon) {
         try {
           draw.add({ type: 'Feature', geometry: initialGeofencePolygon, properties: {} } as any);
-        } catch (e) {
-          console.warn('Failed to load initial polygon:', e);
-        }
+        } catch { /* noop */ }
       }
 
-      // Initial radius circle (only safe after style.load)
       ensureRadiusCircle(map, coords.lat, coords.lng, radius, mode);
     });
 
-    // Click-to-place pin (only in circle mode)
     map.on('click', (e) => {
       if (mode !== 'circle') return;
       const { lng, lat } = e.lngLat;
       setCoords({ lat, lng });
     });
 
-    // Polygon draw events — auto-switch mode to 'polygon' when user draws,
-    // otherwise the polygon is silently dropped on save (geofence_mode stays 'circle').
     const onDrawCreate = () => {
       const fc = draw.getAll();
       const poly = fc.features.find((f) => f.geometry.type === 'Polygon');
@@ -339,8 +276,6 @@ export default function ProjectAddressMapDialog({
     map.on('draw.update', onDrawUpdate);
     map.on('draw.delete', onDrawDelete);
 
-    // Observe container size and resize the map when it changes (Radix
-    // dialog animation/responsive layout can change the box after init).
     const ro = new ResizeObserver(() => {
       try { map.resize(); } catch { /* noop */ }
     });
@@ -362,13 +297,11 @@ export default function ProjectAddressMapDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, token, retryCounter, containerNode]);
 
-  // Byt kartstil utan att återskapa kartan. setStyle() rensar custom sources/layers,
-  // så vi måste återställa radiecirkeln och ev. ritad polygon när style.load fyrar.
+  // Stilbyte
   useEffect(() => {
     const map = mapRef.current;
     if (!map || mapStatus !== 'ready') return;
     const target = MAP_STYLES[mapStyle];
-    // @ts-ignore — getStyle().sprite/.glyphs varierar; jämför hellre via name.
     const currentName = (map.getStyle()?.name || '').toLowerCase();
     const wantSatellite = mapStyle === 'satellite';
     const isSatellite = currentName.includes('satellite');
@@ -376,22 +309,18 @@ export default function ProjectAddressMapDialog({
 
     map.setStyle(target);
     map.once('style.load', () => {
-      // Återställ radiecirkeln (markören och NavigationControl bevaras automatiskt).
       ensureRadiusCircle(map, coords.lat, coords.lng, radius, mode);
-      // Återinför ritad polygon om någon finns (Draw-kontrollen kan tappa state vid setStyle).
       try {
         if (polygon && drawRef.current) {
           drawRef.current.deleteAll();
           drawRef.current.add({ type: 'Feature', geometry: polygon, properties: {} } as any);
         }
-      } catch (e) {
-        console.warn('[ProjectAddressMapDialog] re-add polygon after style change failed:', e);
-      }
+      } catch { /* noop */ }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyle, mapStatus]);
 
-  // Update marker + radius circle when coords/radius/mode change
+  // Sync marker + radie när coords ändras
   useEffect(() => {
     const map = mapRef.current;
     if (!map || mapStatus !== 'ready') return;
@@ -417,42 +346,43 @@ export default function ProjectAddressMapDialog({
     ensureRadiusCircle(map, coords.lat, coords.lng, radius, mode);
   }, [coords, radius, mode, mapStatus]);
 
-  // Address typeahead (debounced) — works even if the map failed
-  useEffect(() => {
-    if (!token) return;
-    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
-    const q = searchInput.trim();
-    if (q.length < 3) { setSuggestions([]); return; }
-    searchDebounceRef.current = window.setTimeout(async () => {
-      setSearching(true);
-      try {
-        const url =
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json` +
-          `?access_token=${token}&country=se&language=sv&limit=6&autocomplete=true`;
-        const res = await fetch(url);
-        const json = await res.json();
-        setSuggestions(Array.isArray(json.features) ? json.features : []);
-      } catch (err) {
-        console.warn('Typeahead failed:', err);
-      } finally {
-        setSearching(false);
-      }
-    }, 250);
-  }, [searchInput, token]);
-
-  const pickSuggestion = useCallback((f: MapboxFeature) => {
-    const [lng, lat] = f.center;
-    setAddress(f.place_name);
-    setSearchInput(f.place_name);
-    setCoords({ lat, lng });
-    setSuggestions([]);
-    if (mapRef.current && mapStatus === 'ready') {
-      mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 800 });
+  // Manuell adressökning — geokoda EXAKT det användaren skrivit, en gång.
+  const searchAddress = useCallback(async () => {
+    if (!token) {
+      toast.error('Kartan är inte redo ännu');
+      return;
     }
-  }, [mapStatus]);
+    const q = address.trim();
+    if (q.length < 3) {
+      toast.error('Skriv in en adress (minst 3 tecken)');
+      return;
+    }
+    setSearching(true);
+    try {
+      const url =
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json` +
+        `?access_token=${token}&country=se&language=sv&limit=1&autocomplete=false&types=address,place,locality,neighborhood,postcode`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const f = Array.isArray(json.features) && json.features[0];
+      if (!f) {
+        toast.error('Hittade ingen träff. Justera adressen eller klicka på kartan.');
+        return;
+      }
+      const [lng, lat] = f.center;
+      setCoords({ lat, lng });
+      if (mapRef.current && mapStatus === 'ready') {
+        mapRef.current.flyTo({ center: [lng, lat], zoom: 16, duration: 800 });
+      }
+      toast.success(`Hittad: ${f.place_name}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Sökningen misslyckades');
+    } finally {
+      setSearching(false);
+    }
+  }, [address, token, mapStatus]);
 
   const handleRetry = useCallback(() => {
-    // Tear down current map and re-init.
     if (loadTimeoutRef.current) {
       window.clearTimeout(loadTimeoutRef.current);
       loadTimeoutRef.current = null;
@@ -465,16 +395,12 @@ export default function ProjectAddressMapDialog({
     }
     setMapError(null);
     setMapStatus('idle');
-    // Force token re-fetch as well in case it expired.
     setToken(null);
     setRetryCounter((n) => n + 1);
   }, []);
 
   const handleSave = async () => {
-    // If a polygon was drawn, save it as polygon mode regardless of UI toggle —
-    // it's almost certainly what the user wanted (and prevents silent loss).
     const effectiveMode: 'circle' | 'polygon' = polygon ? 'polygon' : mode;
-
     if (effectiveMode === 'polygon' && !polygon) {
       toast.error('Rita ett polygon-staket först, eller välj cirkelläge');
       return;
@@ -491,7 +417,6 @@ export default function ProjectAddressMapDialog({
       });
       onOpenChange(false);
     } catch (e: any) {
-      console.error('Save failed:', e);
       toast.error(e?.message || 'Kunde inte spara');
     } finally {
       setSaving(false);
@@ -516,20 +441,17 @@ export default function ProjectAddressMapDialog({
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-0">
-          {/* Map */}
+          {/* Karta */}
           <div className="relative h-[480px] bg-muted">
             <div ref={containerRef} className="absolute inset-0" />
 
-            {/* Stilväxlare: Karta / Satellit */}
             {mapStatus === 'ready' && (
               <div className="absolute top-3 left-3 z-10 flex rounded-md overflow-hidden border border-border bg-card/95 backdrop-blur shadow-md text-xs font-medium">
                 <button
                   type="button"
                   onClick={() => setMapStyle('streets')}
                   className={`px-2.5 py-1.5 transition-colors ${
-                    mapStyle === 'streets'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-foreground hover:bg-accent'
+                    mapStyle === 'streets' ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-accent'
                   }`}
                 >
                   Karta
@@ -538,9 +460,7 @@ export default function ProjectAddressMapDialog({
                   type="button"
                   onClick={() => setMapStyle('satellite')}
                   className={`px-2.5 py-1.5 transition-colors border-l border-border ${
-                    mapStyle === 'satellite'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-foreground hover:bg-accent'
+                    mapStyle === 'satellite' ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-accent'
                   }`}
                 >
                   Satellit
@@ -551,28 +471,20 @@ export default function ProjectAddressMapDialog({
             {showLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/70 text-xs text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <span>
-                  {mapStatus === 'loading-token' ? 'Hämtar Mapbox-token…' : 'Laddar karta…'}
-                </span>
+                <span>{mapStatus === 'loading-token' ? 'Hämtar Mapbox-token…' : 'Laddar karta…'}</span>
               </div>
             )}
 
             {showError && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/90 px-6 text-center">
                 <AlertTriangle className="h-7 w-7 text-destructive" />
-                <div className="text-sm font-medium text-foreground">
-                  Kartan kunde inte laddas
-                </div>
+                <div className="text-sm font-medium text-foreground">Kartan kunde inte laddas</div>
                 <div className="text-xs text-muted-foreground max-w-xs">
                   {mapError || 'Okänt fel vid kartinit.'}
                 </div>
                 <Button size="sm" variant="outline" onClick={handleRetry} className="mt-1">
-                  <RotateCw className="h-3.5 w-3.5 mr-1.5" />
-                  Försök igen
+                  <RotateCw className="h-3.5 w-3.5 mr-1.5" /> Försök igen
                 </Button>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Du kan fortfarande söka adress och spara koordinater i panelen till höger.
-                </p>
               </div>
             )}
 
@@ -585,56 +497,36 @@ export default function ProjectAddressMapDialog({
 
           {/* Sidebar */}
           <div className="p-5 space-y-4 border-l border-border max-h-[480px] overflow-y-auto">
-            {/* Address typeahead */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Sök adress
-              </Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="t.ex. Sportvägen 1, Tranås"
-                  className="pl-8"
-                />
-                {searching && (
-                  <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
-                )}
-              </div>
-              {suggestions.length > 0 && (
-                <div className="border border-border rounded-md bg-popover shadow-sm max-h-56 overflow-y-auto">
-                  {suggestions.map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => pickSuggestion(f)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors border-b border-border last:border-b-0"
-                    >
-                      <div className="font-medium text-foreground">{f.text}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-1">{f.place_name}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                Välj rätt träff i listan, eller klicka på kartan för att flytta pin.
-              </p>
-            </div>
-
-            {/* Selected address */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Adress (sparas)
+                Projektets adress
               </Label>
               <Input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="Adress..."
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchAddress(); } }}
+                placeholder="t.ex. Sportvägen 1, Tranås"
               />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={searchAddress}
+                disabled={searching || !address.trim()}
+                className="w-full h-8 text-xs"
+              >
+                {searching ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Search className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Sök på karta
+              </Button>
+              <p className="text-[11px] text-muted-foreground">
+                Skriv adressen och klicka "Sök på karta", eller klicka direkt på kartan för att placera pin.
+              </p>
             </div>
 
-            {/* Geofence mode */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Staket
@@ -668,7 +560,7 @@ export default function ProjectAddressMapDialog({
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground flex items-start gap-1.5">
                   <Pencil className="h-3 w-3 mt-0.5 shrink-0" />
-                  Använd polygon-verktyget uppe till vänster på kartan. Klicka för att lägga punkter, dubbelklicka för att avsluta.
+                  Använd polygon-verktyget uppe till vänster på kartan. Klicka för punkter, dubbelklicka för att avsluta.
                 </p>
                 {polygon && (
                   <Button variant="ghost" size="sm" onClick={clearPolygon} className="h-7 text-xs">
@@ -694,7 +586,7 @@ export default function ProjectAddressMapDialog({
   );
 }
 
-// ── Helper: render a circle source/layer for the radius preview ─────
+// ── Helper: rendera radiecirkel ────────────────────────────────────
 function ensureRadiusCircle(
   map: mapboxgl.Map,
   lat: number | null,
@@ -702,9 +594,7 @@ function ensureRadiusCircle(
   radiusM: number,
   mode: 'circle' | 'polygon',
 ) {
-  // Defensive: never touch sources/layers before the style is ready.
   if (!map.isStyleLoaded()) return;
-
   const SRC = 'project-radius-src';
   const LAYER_FILL = 'project-radius-fill';
   const LAYER_LINE = 'project-radius-line';
@@ -745,9 +635,7 @@ function ensureRadiusCircle(
       id: LAYER_LINE, type: 'line', source: SRC,
       paint: { 'line-color': '#0d9488', 'line-width': 2 },
     });
-  } catch (e) {
-    console.warn('[ensureRadiusCircle] failed:', e);
-  }
+  } catch { /* noop */ }
 }
 
 function circlePolygon(center: [number, number], radiusM: number, points = 64): number[][] {
