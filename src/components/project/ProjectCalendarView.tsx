@@ -164,6 +164,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                 allTeams={teamResources}
                 isEventReadOnly={() => false}
                 daysOverride={projectDays}
+                getDayCardClassName={getDayCardClassName}
               />
             )}
           </div>
