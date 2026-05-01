@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
-import LargeProjectAddressDialog from "@/components/projects/large/LargeProjectAddressDialog";
+import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 
 const navItems = [
@@ -503,13 +503,17 @@ const LargeProjectLayout = () => {
               </CardContent>
             </Card>
 
-            <LargeProjectAddressDialog
+            <ProjectAddressMapDialog
               open={isAddressDialogOpen}
               onOpenChange={setIsAddressDialogOpen}
-              initialAddress={project.address}
-              initialLatitude={project.address_latitude}
-              initialLongitude={project.address_longitude}
-              initialRadiusMeters={(project as any).address_radius_meters ?? 100}
+              initial={{
+                address: project.address ?? "",
+                latitude: project.address_latitude ?? null,
+                longitude: project.address_longitude ?? null,
+                radius_meters: (project as any).address_radius_meters ?? 100,
+                geofence_mode: ((project as any).address_geofence_mode as any) ?? "circle",
+                geofence_polygon: ((project as any).address_geofence_polygon as any) ?? null,
+              }}
               onSave={handleAddressDialogSave}
             />
 
