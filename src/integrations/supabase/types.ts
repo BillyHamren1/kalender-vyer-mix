@@ -3590,6 +3590,42 @@ export type Database = {
           },
         ]
       }
+      product_groupings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          groups: Json
+          id: string
+          organization_id: string
+          prompt: string | null
+          scope: string
+          scope_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          groups?: Json
+          id?: string
+          organization_id: string
+          prompt?: string | null
+          scope: string
+          scope_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          groups?: Json
+          id?: string
+          organization_id?: string
+          prompt?: string | null
+          scope?: string
+          scope_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null

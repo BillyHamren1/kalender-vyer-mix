@@ -112,7 +112,7 @@ const LargeProjectViewPage = () => {
         </TabsContent>
 
         <TabsContent value="products">
-          <LargeProjectProductsOverview bookings={(project as any)?.bookings || []} />
+          <LargeProjectProductsOverview bookings={(project as any)?.bookings || []} largeProjectId={project.id} />
         </TabsContent>
 
         <TabsContent value="transport">
