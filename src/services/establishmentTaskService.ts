@@ -357,79 +357,19 @@ export const deleteEstablishmentTask = async (id: string): Promise<void> => {
 };
 
 export const generateDefaultTasks = async (
-  bookingId: string,
-  rigDate: string,
-  eventDate: string
+  _bookingId: string,
+  _rigDate: string,
+  _eventDate: string
 ): Promise<EstablishmentTask[]> => {
-  const rig = new Date(rigDate);
-  const event = new Date(eventDate);
-
-  const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
-
-  const defaults = [
-    { title: 'Lastning på lager', category: 'material', start_date: fmt(subDays(rig, 1)), end_date: fmt(subDays(rig, 1)), sort_order: 0 },
-    { title: 'Transport till plats', category: 'transport', start_date: fmt(rig), end_date: fmt(rig), sort_order: 1 },
-    { title: 'Personal anländer', category: 'personal', start_date: fmt(rig), end_date: fmt(rig), sort_order: 2 },
-    { title: 'Lossning & uppställning', category: 'installation', start_date: fmt(rig), end_date: fmt(rig), sort_order: 3 },
-    { title: 'Montering dag 1', category: 'installation', start_date: fmt(rig), end_date: fmt(rig), sort_order: 4 },
-    { title: 'Montering dag 2', category: 'installation', start_date: fmt(addDays(rig, 1)), end_date: fmt(addDays(rig, 1)), sort_order: 5 },
-    { title: 'Slutkontroll & städning', category: 'kontroll', start_date: fmt(subDays(event, 1)), end_date: fmt(subDays(event, 1)), sort_order: 6 },
-    { title: 'Överlämning till kund', category: 'kontroll', start_date: fmt(event), end_date: fmt(event), sort_order: 7 },
-  ];
-
-  const rows = defaults.map(d => ({
-    booking_id: bookingId,
-    source: 'default',
-    status: 'todo' as TaskStatus,
-    readiness: 'missing_information' as TaskReadiness,
-    priority: 'medium' as TaskPriority,
-    ...d,
-  }));
-
-  const { data, error } = await supabase
-    .from('establishment_tasks')
-    .insert(rows)
-    .select();
-
-  if (error) throw error;
-  return (data || []) as EstablishmentTask[];
+  // Defaultuppgifter borttagna — inga automatiska uppgifter skapas längre.
+  return [];
 };
 
 export const generateDefaultTasksForProject = async (
-  largeProjectId: string,
-  startDate: string,
-  endDate: string
+  _largeProjectId: string,
+  _startDate: string,
+  _endDate: string
 ): Promise<EstablishmentTask[]> => {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
-
-  const defaults = [
-    { title: 'Lastning på lager', category: 'material', start_date: fmt(subDays(start, 1)), end_date: fmt(subDays(start, 1)), sort_order: 0 },
-    { title: 'Transport till plats', category: 'transport', start_date: fmt(start), end_date: fmt(start), sort_order: 1 },
-    { title: 'Personal anländer', category: 'personal', start_date: fmt(start), end_date: fmt(start), sort_order: 2 },
-    { title: 'Lossning & uppställning', category: 'installation', start_date: fmt(start), end_date: fmt(start), sort_order: 3 },
-    { title: 'Montering dag 1', category: 'installation', start_date: fmt(start), end_date: fmt(start), sort_order: 4 },
-    { title: 'Montering dag 2', category: 'installation', start_date: fmt(addDays(start, 1)), end_date: fmt(addDays(start, 1)), sort_order: 5 },
-    { title: 'Slutkontroll & städning', category: 'kontroll', start_date: fmt(subDays(end, 1)), end_date: fmt(subDays(end, 1)), sort_order: 6 },
-    { title: 'Överlämning till kund', category: 'kontroll', start_date: fmt(end), end_date: fmt(end), sort_order: 7 },
-  ];
-
-  const rows = defaults.map(d => ({
-    large_project_id: largeProjectId,
-    source: 'default',
-    status: 'todo' as TaskStatus,
-    readiness: 'missing_information' as TaskReadiness,
-    priority: 'medium' as TaskPriority,
-    ...d,
-  }));
-
-  const { data, error } = await supabase
-    .from('establishment_tasks')
-    .insert(rows)
-    .select();
-
-  if (error) throw error;
-  return (data || []) as EstablishmentTask[];
+  // Defaultuppgifter borttagna — inga automatiska uppgifter skapas längre.
+  return [];
 };
