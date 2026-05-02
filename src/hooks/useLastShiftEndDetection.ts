@@ -74,14 +74,21 @@ export function useLastShiftEndDetection(enabled: boolean) {
   /** Decide if `detail` corresponds to dagens sista pass. */
   const evaluateExit = useCallback((detail: WorkplaceExitDetail): LastShiftExitContext | null => {
     const allShifts = shiftsRef.current;
-    if (!allShifts.length) return null;
-
     const now = Date.now();
     const today = todayKey();
 
     // Pass that have ended today (incl. ±2h tolerance window).
     const todaysShifts = allShifts.filter((s) => extractUTCDate(s.start_time) === today);
-    if (todaysShifts.length === 0) return null;
+
+    // SPECIAL CASE — internt Lager / location-only dag:
+    // Personal som jobbat på en fast plats (t.ex. internt Lager-projekt)
+    // har ofta inget BSA-schemalagt pass alls för dagen. Vi vill ändå
+    // fråga "Vill du avsluta dagen?" när de lämnar workplacen, så att
+    // tidrapporten inte blir hängande öppen.
+    if (todaysShifts.length === 0) {
+      if (detail.kind !== 'location') return null;
+      return { ...detail, shiftEndIso: null };
+    }
 
     // Sort by end_time desc — pick the latest pass of the day.
     const sorted = [...todaysShifts].sort(
