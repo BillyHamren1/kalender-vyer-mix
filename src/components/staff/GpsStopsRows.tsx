@@ -181,12 +181,15 @@ export const GpsStopsRows: React.FC<Props> = ({
                       const cls = m.kind === 'in'
                         ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
                         : 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30';
-                      const verb = m.kind === 'in' ? 'Loggade in' : 'Loggade ut';
+                      const verb = m.kind === 'in' ? 'Timer startad' : 'Timer stoppad';
+                      const tooltip = m.kind === 'in'
+                        ? `Tidrapport för "${m.label}" startad kl ${m.time} (inte nödvändigtvis ankomsttid)`
+                        : `Tidrapport för "${m.label}" stoppad kl ${m.time} (inte nödvändigtvis avgångstid — se GPS-stoppen för faktisk närvaro)`;
                       return (
                         <span
                           key={mi}
                           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${cls}`}
-                          title={`${verb} på "${m.label}" kl ${m.time}`}
+                          title={tooltip}
                         >
                           <Icon className="h-3 w-3" />
                           <span className="tabular-nums">{m.time}</span>
