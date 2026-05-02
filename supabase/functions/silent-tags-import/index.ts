@@ -102,6 +102,8 @@ Deno.serve(async (req) => {
     const orgStat = {
       org_id: orgId,
       bookings: 0,
+      external_products: 0,
+      external_products_with_tags: 0,
       products_updated: 0,
       products_no_match: 0,
       products_no_change: 0,
