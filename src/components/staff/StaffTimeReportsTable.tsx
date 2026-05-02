@@ -379,6 +379,12 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                   date={date}
                   leadingCells={1}
                   totalCols={7}
+                  sessions={b.sessions.map(s => ({
+                    label: s.label,
+                    startIso: s.startIso,
+                    endIso: s.endIso,
+                    isOpen: s.isOpen,
+                  }))}
                 />
               </React.Fragment>
             );
