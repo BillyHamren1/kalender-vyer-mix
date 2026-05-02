@@ -64,7 +64,8 @@ export const BulkAiTagDialog = ({
       setSelected(new Set(Object.keys(merged)));
       toast.success(`AI föreslog taggar för ${Object.keys(merged).length} av ${untagged.length} produkter`);
     } catch (e: any) {
-      toast.error(e?.message || "AI-körning misslyckades");
+      const msg = e?.context?.error || e?.message || "AI-körning misslyckades";
+      toast.error(msg);
     } finally {
       setRunning(false);
     }

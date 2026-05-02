@@ -61,7 +61,8 @@ export const ProductTagEditorDialog = ({
         toast.success(`AI föreslog: ${sug.join(", ")}`);
       }
     } catch (e: any) {
-      toast.error(e?.message || "AI-förslag misslyckades");
+      const msg = e?.context?.error || e?.message || "AI-förslag misslyckades";
+      toast.error(msg);
     } finally {
       setAiLoading(false);
     }
