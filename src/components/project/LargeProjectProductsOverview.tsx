@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Sparkles, ChevronDown, ChevronRight, MoreHorizontal, Trash2, Tag, Users, List } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Search, Sparkles, ChevronDown, ChevronRight, MoreHorizontal, Trash2, Tag, Users, List, Wand2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,8 @@ import type { LargeProjectBooking } from "@/types/largeProject";
 import { useProductGrouping, type ProductGroup } from "@/hooks/useProductGrouping";
 import { GroupProductsDialog } from "@/components/project/GroupProductsDialog";
 import { MoveProductDialog } from "@/components/project/MoveProductDialog";
+import { ProductTagEditorDialog } from "@/components/project/ProductTagEditorDialog";
+import { BulkAiTagDialog } from "@/components/project/BulkAiTagDialog";
 import { toast } from "sonner";
 
 interface LargeProjectProductsOverviewProps {
@@ -35,16 +38,46 @@ type GroupMode = "none" | "ai" | "tag" | "client";
 const cleanName = (name: string) =>
   name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
 
+const norm = (s: string) => s.toLowerCase().trim();
+const mergeTags = (imported: string[], local: string[]): string[] => {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of [...imported, ...local]) {
+    const k = norm(t);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(t.trim());
+  }
+  return out;
+};
+
+// Vocabulary key per large project (lokalt cachat tills vidare)
+const vocabKey = (lpId: string) => `product-tag-vocab:${lpId}`;
+
 const LargeProjectProductsOverview = ({
   bookings,
   largeProjectId,
 }: LargeProjectProductsOverviewProps) => {
   const bookingIds = bookings.map((b) => b.booking_id);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [moveDialog, setMoveDialog] = useState<{ productId: string; name: string } | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [tagEditor, setTagEditor] = useState<{
+    id: string; name: string; imported: string[]; local: string[];
+  } | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [vocab, setVocab] = useState<string>(() => {
+    try { return localStorage.getItem(vocabKey(largeProjectId)) || ""; }
+    catch { return ""; }
+  });
+
+  const persistVocab = (v: string) => {
+    setVocab(v);
+    try { localStorage.setItem(vocabKey(largeProjectId), v); } catch { /* ignore */ }
+  };
 
   const bookingMap = useMemo(() => {
     const map = new Map<string, { client: string; deliveryaddress: string }>();
@@ -57,13 +90,15 @@ const LargeProjectProductsOverview = ({
     return map;
   }, [bookings]);
 
+  const productsQueryKey = ["large-project-all-products", ...bookingIds];
+
   const { data: allProducts = [], isLoading } = useQuery({
-    queryKey: ["large-project-all-products", ...bookingIds],
+    queryKey: productsQueryKey,
     queryFn: async () => {
       if (bookingIds.length === 0) return [];
       const { data, error } = await supabase
         .from("booking_products")
-        .select("id, name, quantity, parent_product_id, is_package_component, sort_index, booking_id, tags")
+        .select("id, name, quantity, parent_product_id, is_package_component, sort_index, booking_id, tags, local_tags")
         .in("booking_id", bookingIds)
         .order("sort_index", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -79,13 +114,17 @@ const LargeProjectProductsOverview = ({
       .filter((p) => !p.parent_product_id && !p.is_package_component)
       .map((p) => {
         const b = bookingMap.get(p.booking_id) || { client: "", deliveryaddress: "" };
+        const importedTags = Array.isArray((p as any).tags) ? ((p as any).tags as string[]) : [];
+        const localTags = Array.isArray((p as any).local_tags) ? ((p as any).local_tags as string[]) : [];
         return {
           id: p.id,
           name: cleanName(p.name),
           quantity: p.quantity ?? 1,
           client: b.client,
           deliveryaddress: b.deliveryaddress,
-          tags: Array.isArray((p as any).tags) ? ((p as any).tags as string[]) : [],
+          importedTags,
+          localTags,
+          tags: mergeTags(importedTags, localTags),
         };
       });
   }, [allProducts, bookingMap]);
@@ -97,6 +136,11 @@ const LargeProjectProductsOverview = ({
 
   const visibleIds = useMemo(() => new Set(filteredRows.map((r) => r.id)), [filteredRows]);
   const productById = useMemo(() => new Map(flatRows.map((r) => [r.id, r])), [flatRows]);
+
+  const untaggedCount = useMemo(
+    () => flatRows.filter((r) => r.tags.length === 0).length,
+    [flatRows]
+  );
 
   // AI grouped view
   const aiGroupedView = useMemo(() => {
@@ -132,14 +176,12 @@ const LargeProjectProductsOverview = ({
         if (tags.length === 0) {
           push("Ingen tagg", row);
         } else {
-          // Place product in every tag bucket so items with multiple tags appear in each
           for (const t of tags) push(t, row);
         }
       }
     }
     return order
       .sort((a, b) => {
-        // Push fallback buckets to the end
         const fallback = (s: string) => s === "Ingen tagg" || s === "Okänd kund";
         if (fallback(a) && !fallback(b)) return 1;
         if (!fallback(a) && fallback(b)) return -1;
@@ -194,6 +236,20 @@ const LargeProjectProductsOverview = ({
       const next = new Set(prev);
       next.has(gid) ? next.delete(gid) : next.add(gid);
       return next;
+    });
+  };
+
+  const handleTagsSaved = (productId: string, newLocalTags: string[]) => {
+    queryClient.setQueryData(productsQueryKey, (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((p: any) => p.id === productId ? { ...p, local_tags: newLocalTags } : p);
+    });
+  };
+
+  const handleBulkApplied = (applied: Record<string, string[]>) => {
+    queryClient.setQueryData(productsQueryKey, (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((p: any) => applied[p.id] ? { ...p, local_tags: applied[p.id] } : p);
     });
   };
 
@@ -258,6 +314,17 @@ const LargeProjectProductsOverview = ({
           </SelectContent>
         </Select>
 
+        {untaggedCount > 0 && (
+          <Button
+            variant="outline"
+            onClick={() => setBulkOpen(true)}
+            title="Tagga otaggade produkter med AI"
+          >
+            <Wand2 className="w-4 h-4 mr-2" />
+            Tagga otaggade ({untaggedCount})
+          </Button>
+        )}
+
         {groupMode === "ai" && (
           <>
             <Button
@@ -292,9 +359,10 @@ const LargeProjectProductsOverview = ({
       ) : (
         <Card className="border-border/50 shadow-sm overflow-hidden w-full">
           <div className="bg-card">
-            <div className="grid grid-cols-[2fr_80px_1.5fr_2fr_40px] gap-4 border-b border-border/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="grid grid-cols-[2fr_80px_1.3fr_1.3fr_1.5fr_40px] gap-4 border-b border-border/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <div>Produkt</div>
               <div>Antal</div>
+              <div>Taggar</div>
               <div>Kund</div>
               <div>Levadress</div>
               <div></div>
@@ -332,6 +400,10 @@ const LargeProjectProductsOverview = ({
                                   ? () => setMoveDialog({ productId: row.id, name: row.name })
                                   : null
                               }
+                              onTag={() => setTagEditor({
+                                id: row.id, name: row.name,
+                                imported: row.importedTags, local: row.localTags,
+                              })}
                             />
                           ))}
                         </div>
@@ -343,7 +415,15 @@ const LargeProjectProductsOverview = ({
             ) : (
               <div className="divide-y divide-border/40">
                 {filteredRows.map((row) => (
-                  <ProductRow key={row.id} row={row} onMove={null} />
+                  <ProductRow
+                    key={row.id}
+                    row={row}
+                    onMove={null}
+                    onTag={() => setTagEditor({
+                      id: row.id, name: row.name,
+                      imported: row.importedTags, local: row.localTags,
+                    })}
+                  />
                 ))}
               </div>
             )}
@@ -354,6 +434,7 @@ const LargeProjectProductsOverview = ({
       <div className="pt-2 border-t border-border/40 text-xs text-muted-foreground">
         {filteredRows.length} produkter
         {groupedView && ` · ${groupedView.length} kategorier`}
+        {untaggedCount > 0 && ` · ${untaggedCount} utan tagg`}
       </div>
 
       <GroupProductsDialog
@@ -378,6 +459,33 @@ const LargeProjectProductsOverview = ({
           onCreateGroup={(name) => createAndMove(moveDialog.productId, name)}
         />
       )}
+
+      {tagEditor && (
+        <ProductTagEditorDialog
+          open
+          onOpenChange={(o) => !o && setTagEditor(null)}
+          productId={tagEditor.id}
+          productName={tagEditor.name}
+          importedTags={tagEditor.imported}
+          localTags={tagEditor.local}
+          vocabulary={vocab}
+          onSaved={(t) => handleTagsSaved(tagEditor.id, t)}
+        />
+      )}
+
+      <BulkAiTagDialog
+        open={bulkOpen}
+        onOpenChange={(o) => {
+          setBulkOpen(o);
+        }}
+        untagged={flatRows.filter((r) => r.tags.length === 0).map((r) => ({ id: r.id, name: r.name }))}
+        defaultVocabulary={vocab}
+        onApplied={(applied) => {
+          handleBulkApplied(applied);
+          // Persist last-used vocabulary for next time
+          // (vocabulary state inside dialog isn't lifted; we accept this for now)
+        }}
+      />
     </div>
   );
 };
@@ -388,14 +496,50 @@ interface RowData {
   quantity: number;
   client: string;
   deliveryaddress: string;
+  tags: string[];
+  importedTags: string[];
+  localTags: string[];
 }
 
-const ProductRow = ({ row, onMove }: { row: RowData; onMove: (() => void) | null }) => (
-  <div className="grid grid-cols-[2fr_80px_1.5fr_2fr_40px] gap-4 px-4 py-3 text-sm">
+const ProductRow = ({
+  row, onMove, onTag,
+}: {
+  row: RowData;
+  onMove: (() => void) | null;
+  onTag: () => void;
+}) => (
+  <div className="grid grid-cols-[2fr_80px_1.3fr_1.3fr_1.5fr_40px] gap-4 px-4 py-3 text-sm items-center">
     <div className="font-medium text-foreground truncate" title={row.name}>
       {row.name}
     </div>
     <div className="tabular-nums text-foreground">{row.quantity} st</div>
+    <div className="flex flex-wrap gap-1 min-w-0">
+      {row.tags.length === 0 ? (
+        <button
+          onClick={onTag}
+          className="text-xs text-muted-foreground hover:text-foreground italic underline-offset-2 hover:underline"
+        >
+          + tagga
+        </button>
+      ) : (
+        row.tags.slice(0, 3).map((t) => {
+          const isLocal = row.localTags.some((lt) => lt.toLowerCase() === t.toLowerCase());
+          return (
+            <Badge
+              key={t}
+              variant={isLocal ? "default" : "secondary"}
+              className="text-[10px] px-1.5 py-0 h-5"
+              title={isLocal ? "Manuell tagg" : "Från Booking"}
+            >
+              {t}
+            </Badge>
+          );
+        })
+      )}
+      {row.tags.length > 3 && (
+        <span className="text-[10px] text-muted-foreground">+{row.tags.length - 3}</span>
+      )}
+    </div>
     <div className="text-muted-foreground truncate" title={row.client}>
       {row.client || "—"}
     </div>
@@ -403,18 +547,21 @@ const ProductRow = ({ row, onMove }: { row: RowData; onMove: (() => void) | null
       {row.deliveryaddress || "—"}
     </div>
     <div className="flex justify-end">
-      {onMove && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7">
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onTag}>
+            <Tag className="w-4 h-4 mr-2" /> Redigera taggar
+          </DropdownMenuItem>
+          {onMove && (
             <DropdownMenuItem onClick={onMove}>Flytta till annan kategori</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   </div>
 );
