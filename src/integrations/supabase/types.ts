@@ -435,6 +435,7 @@ export type Database = {
           inventory_package_id: string | null
           is_package_component: boolean | null
           labor_cost: number | null
+          local_tags: string[]
           material_cost: number | null
           name: string
           notes: string | null
@@ -467,6 +468,7 @@ export type Database = {
           inventory_package_id?: string | null
           is_package_component?: boolean | null
           labor_cost?: number | null
+          local_tags?: string[]
           material_cost?: number | null
           name: string
           notes?: string | null
@@ -499,6 +501,7 @@ export type Database = {
           inventory_package_id?: string | null
           is_package_component?: boolean | null
           labor_cost?: number | null
+          local_tags?: string[]
           material_cost?: number | null
           name?: string
           notes?: string | null
