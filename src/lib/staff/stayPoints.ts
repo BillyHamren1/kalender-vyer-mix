@@ -98,13 +98,14 @@ export function clusterStayPoints(
     })
     .filter(s => s.durationMin >= minDur);
 
-  // Merge only truly adjacent stop fragments at the same place.
-  // This keeps brief GPS jitter from creating 2–3 rows for one visit,
-  // but avoids stitching together separate returns to the same address
-  // hours later.
+  // Merge consecutive stops that are at the same physical place.
+  // Adjacency in the array already means "no other distinct place between
+  // them" — if the user had gone elsewhere, that would itself have produced
+  // a stop. So we only need a generous place radius and a sanity gap cap
+  // (a multi-hour gap is treated as a real return visit).
   return mergeAdjacentSamePlace(raw, {
-    mergeRadiusMeters: Math.max(150, Math.round(radius * 1.8)),
-    maxGapMin: 12,
+    mergeRadiusMeters: Math.max(300, Math.round(radius * 2.5)),
+    maxGapMin: 90,
   });
 }
 
