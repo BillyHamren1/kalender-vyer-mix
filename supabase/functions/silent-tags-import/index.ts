@@ -33,8 +33,18 @@ interface ExternalBooking {
   products?: ExternalProduct[]
 }
 
-const normalizeName = (n: string | undefined): string =>
-  (n || '').trim().toLowerCase()
+// Aggressive name normalization: strips hierarchy prefixes (↳ └ → ├ │ • ▸ ▶ -),
+// collapses whitespace, lowercases. Mirrors UI cleanName behavior so external
+// API names (which may include tree glyphs) match locally stored names.
+const normalizeName = (n: string | undefined): string => {
+  if (!n) return ''
+  return n
+    .replace(/[↳└→├│•▸▶⤷⌐¬]/g, ' ')
+    .replace(/^[\s\-–—]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
