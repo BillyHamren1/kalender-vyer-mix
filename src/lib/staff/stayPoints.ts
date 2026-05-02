@@ -79,7 +79,7 @@ export function clusterStayPoints(
   }
   if (current) clusters.push(current);
 
-  return clusters
+  const raw = clusters
     .map<StayPoint>(c => {
       const start = c.pings[0].recorded_at;
       const end = c.pings[c.pings.length - 1].recorded_at;
@@ -92,4 +92,38 @@ export function clusterStayPoints(
       };
     })
     .filter(s => s.durationMin >= minDur);
+
+  // Merge consecutive stops that are at the same physical place.
+  // GPS jitter / brief signal loss often splits one real visit into
+  // multiple clusters. If two stops are within ~`mergeRadius` m of each
+  // other we treat them as one continuous visit (arrived = first start,
+  // left = last end), regardless of the gap between them.
+  return mergeAdjacentSamePlace(raw, Math.max(radius * 2, 200));
+}
+
+function mergeAdjacentSamePlace(stops: StayPoint[], mergeRadius: number): StayPoint[] {
+  if (stops.length <= 1) return stops;
+  const out: StayPoint[] = [];
+  let cur = { ...stops[0] };
+  for (let i = 1; i < stops.length; i++) {
+    const next = stops[i];
+    const d = haversineMeters(cur.centre, next.centre);
+    if (d <= mergeRadius) {
+      cur = {
+        start: cur.start,
+        end: next.end,
+        durationMin: minutesBetween(cur.start, next.end),
+        centre: {
+          lat: (cur.centre.lat + next.centre.lat) / 2,
+          lng: (cur.centre.lng + next.centre.lng) / 2,
+        },
+        pingCount: cur.pingCount + next.pingCount,
+      };
+    } else {
+      out.push(cur);
+      cur = { ...next };
+    }
+  }
+  out.push(cur);
+  return out;
 }
