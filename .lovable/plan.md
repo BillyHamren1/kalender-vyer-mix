@@ -1,44 +1,60 @@
-Målet är att göra listan begriplig: en fysisk vistelse på samma plats ska visas som en rad med första ankomst och sista avfärd, i stället för flera korta on/off-fragment.
+Jag vet vad felet är: den här sidan använder rätt komponent, men sammanslagningen sker på fel signal.
 
-Plan:
+Problemet är inte att tabellen ligger på fel sida. `/staff-management/time-reports` renderar `GpsStopsRows` direkt, och den använder `clusterStayPoints(...)` från `src/lib/staff/stayPoints.ts`.
 
-1. Byt strategi i `src/lib/staff/stayPoints.ts`
-- Sluta förlita oss på att först skapa små kluster och sedan bara slå ihop redan godkända stopp.
-- I stället byggs “besök” direkt från råa GPS-pings med gap-tolerans:
-  - samma plats = inom rimlig radie
-  - kort bortfall i signal = fortfarande samma besök
-  - faktisk förflyttning till annan plats = nytt besök
-- Ankomst = första ping i besöket.
-- Lämnade = sista ping i besöket.
-- På plats = total tid mellan första och sista ping.
+Det som är fel är detta:
+- tabellen visar rader per geokodad adress
+- den nuvarande merge-logiken slår bara ihop stopp om deras koordinat-centra ligger nära varandra
+- i din skärmbild är flera rader redan samma adress i UI, men deras centra verkar ändå ligga för långt ifrån varandra för att passera merge-gränsen
 
-2. Gör sammanslagningen robust mot mellanluckor
-- Nuvarande logik tappar ofta besök därför att mellanrummet mellan fragment inte längre finns kvar i datat när småkluster filtrerats bort.
-- Jag ändrar logiken så att luckor utan pings på samma adress fortfarande kan höra till samma besök, så länge ingen tydlig annan plats inträffar emellan.
-- Det löser exakt fallet i din bild där t.ex. `09:34 → 10:31`, `10:51 → 11:02`, `11:10 → 11:17` ska bli en enda rad: `09:34 → 11:17`.
+Därför ser du fortfarande:
+- `David Andrians väg` två gånger i rad
+- `Drottninggatan` tre gånger i rad
 
-3. Behåll separata återbesök
-- Om personen faktiskt lämnar platsen, åker till annan plats och sedan kommer tillbaka senare, då ska det fortfarande bli två besök.
-- Exempel: `David Adrians väg` på morgonen och samma adress igen senare ska inte slås ihop över en annan plats däremellan.
+Alltså: koden körs, men den slår ihop på koordinatcentrum i stället för på det användaren faktiskt ser som samma plats.
 
-4. Låt UI:t fortsätta visa samma tabell men med rätt rader
-- `src/components/staff/GpsStopsRows.tsx` ska fortsätta visa samma kolumner: `Ankom`, `Lämnade`, `Adress`, `På plats`.
-- Endast underlaget ändras så att antalet rader minskar till faktiska besök.
+Plan
 
-5. Verifiera mot det faktiska dagsmönstret
-- Jag testar mot mönstret från din skärmbild / nätverkssvaret så att resultatet blir i princip:
-  - `07:05 → 08:38` David Adrians väg
-  - `08:58 → 09:14` Hammarbacken
-  - `09:34 → 11:17` Drottninggatan
-  - `11:37 → 12:06` David Adrians väg
-  - osv
-- Om det fortfarande blir flera rader för samma fysiska vistelse, justerar jag trösklarna innan jag lämnar över.
+1. Lägg till ett andra, deterministiskt merge-steg i `GpsStopsRows.tsx`
+- Efter `clusterStayPoints(...)` och efter reverse geocoding byggs en visningslista som slår ihop konsekutiva rader med samma normaliserade adress.
+- Den här listan blir det som faktiskt renderas i tabellen.
+- Starttid tas från första raden, sluttid från sista raden, och varaktigheten räknas över hela spannet.
 
-Tekniska detaljer:
-- Filer som påverkas:
-  - `src/lib/staff/stayPoints.ts`
-  - eventuellt liten följdjustering i `src/components/staff/GpsStopsRows.tsx`
-- Rotorsaken just nu är sannolikt att logiken först filtrerar bort korta mellansegment och sedan försöker slå ihop redan reducerade stopp. Då blir “sammanhängande besök” felrepresenterat trots att råpings faktiskt visar en enda vistelse.
-- Jag har verifierat att GPS-listan hämtar data via `get_movement_for_day` och att problemet därför sitter i klientens besöks-beräkning, inte i renderingen av tabellen.
+2. Behåll skyddet för riktiga återbesök
+- Endast konsekutiva rader med samma adress slås ihop.
+- Om personen åker till en annan adress emellan och sedan återvänder, ska det fortfarande bli en ny separat rad.
+- Det gör att t.ex. `David Andrians väg` på morgonen inte slås ihop med `David Andrians väg` senare efter andra besök.
 
-När du godkänner implementerar jag detta direkt.
+3. Lägg in fallback när adress ännu inte är upplöst
+- Om reverse geocoding inte är klar eller returnerar null, använd fortsatt koordinatbaserad rad som fallback.
+- När adressen väl kommer tillbaka ska listan räknas om och raderna kollapsa automatiskt.
+
+4. Justera den underliggande spatiala logiken bara där den fortfarande stör
+- Om det behövs finjusteras `stayPoints.ts` så att centret inte förorenas av "på väg bort"-pings.
+- Men huvudfixen ligger i presentationslagret, eftersom problemet du visar är att UI:t redan anser att raderna är samma adress.
+
+5. Säkerställ med konkreta scenarier
+- Fall 1: `07:05–07:15` + `07:26–07:34` på `David Andrians väg` blir en rad.
+- Fall 2: `08:58–09:14` + `09:36–10:31` + `10:51–11:02` på `Drottninggatan` blir en rad.
+- Fall 3: `11:10–11:17 David Andrians väg` förblir separat eftersom andra adresser låg emellan.
+
+Tekniska detaljer
+- Fil att ändra primärt: `src/components/staff/GpsStopsRows.tsx`
+- Fil att eventuellt finjustera sekundärt: `src/lib/staff/stayPoints.ts`
+- Ny hjälplogik:
+  - normalisera adresssträngar
+  - bygga `displayStops` från `stops + addrs`
+  - rendera `displayStops` i stället för råa `stops`
+- Jag lägger också till ett litet testfall för merge-reglerna så att samma fel inte kommer tillbaka.
+
+Förväntat resultat efter fix
+- Tabellen på exakt den sida du visar kommer få färre rader.
+- Samma adress i direkt följd kollapsas till en enda rad.
+- Riktiga återbesök efter andra adresser förblir separata.
+
+<lov-actions>
+  <lov-open-history>View History</lov-open-history>
+</lov-actions>
+<lov-actions>
+<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
+</lov-actions>
