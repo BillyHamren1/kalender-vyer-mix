@@ -110,15 +110,15 @@ export const BulkAiTagDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="w-[min(96vw,56rem)] max-w-none overflow-hidden p-0 sm:max-h-[88vh]">
+        <DialogHeader className="border-b px-6 py-5 pr-12">
           <DialogTitle>Tagga otaggade produkter med AI</DialogTitle>
           <DialogDescription>
             {untagged.length} produkter saknar tagg. Skriv fritt vad AI:n ska tänka på — t.ex. "Tagga möbler som möbler", "2EL räknas som EL", "Behandla allt med 'duk' i namnet som tält".
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 py-5">
           <div>
             <div className="text-xs font-medium text-muted-foreground mb-1">Instruktioner till AI:n (valfritt)</div>
             <Textarea
@@ -148,7 +148,7 @@ export const BulkAiTagDialog = ({
                   </Button>
                 </div>
               </div>
-              <ScrollArea className="h-[320px] rounded border border-border/50 p-2">
+              <ScrollArea className="h-[min(42vh,24rem)] rounded-md border border-border/50 bg-background/40 p-2">
                 <div className="space-y-1">
                   {Object.entries(results).map(([id, tags]) => {
                     const p = productMap.get(id);
@@ -183,7 +183,7 @@ export const BulkAiTagDialog = ({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t px-6 py-4">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Stäng</Button>
           {hasResults && (
             <Button onClick={applySelected} disabled={saving || selected.size === 0}>
