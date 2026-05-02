@@ -66,10 +66,12 @@ Deno.serve(async (req) => {
     })
   }
 
-  // Parse body: { organization_ids?: string[], dry_run?: boolean }
-  let body: { organization_ids?: string[]; dry_run?: boolean } = {}
+  // Parse body: { organization_ids?: string[], dry_run?: boolean, start_offset?: number, max_pages?: number }
+  let body: { organization_ids?: string[]; dry_run?: boolean; start_offset?: number; max_pages?: number } = {}
   try { body = await req.json() } catch { /* allow empty */ }
   const dryRun = !!body.dry_run
+  const startOffset = Math.max(0, body.start_offset ?? 0)
+  const maxPages = Math.max(1, body.max_pages ?? 999)
 
   // Resolve target orgs
   let orgIds: string[] = body.organization_ids ?? []
@@ -86,6 +88,7 @@ Deno.serve(async (req) => {
     orgIds = (orgs || []).map((o) => o.id)
   }
 
+  const background = !!(body as any).background
   const summary: Record<string, unknown> = {
     orgs_processed: 0,
     bookings_seen: 0,
@@ -98,6 +101,7 @@ Deno.serve(async (req) => {
     per_org: [] as unknown[],
   }
 
+  const job = async () => {
   for (const orgId of orgIds) {
     const orgStat = {
       org_id: orgId,
@@ -112,9 +116,12 @@ Deno.serve(async (req) => {
 
     // Paginate through external API
     const PAGE_SIZE = 100
-    let offset = 0
-    while (true) {
+    let offset = startOffset
+    let pagesDone = 0
+    let lastOffsetSeen = startOffset
+    while (pagesDone < maxPages) {
       const url = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?organization_id=${orgId}&limit=${PAGE_SIZE}&offset=${offset}`
+      lastOffsetSeen = offset
       let externalJson: { data?: ExternalBooking[] } | null = null
       try {
         const res = await fetch(url, {
@@ -212,8 +219,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (bookings.length < PAGE_SIZE) break
+      const lastBatch = bookings.length < PAGE_SIZE
       offset += PAGE_SIZE
+      pagesDone += 1
+      ;(orgStat as any).next_offset = lastBatch ? null : offset
+      ;(orgStat as any).done = lastBatch
+      if (lastBatch) break
     }
 
     summary.orgs_processed = (summary.orgs_processed as number) + 1
@@ -225,7 +236,19 @@ Deno.serve(async (req) => {
     summary.products_skipped_no_tags_change = (summary.products_skipped_no_tags_change as number) + orgStat.products_no_change
     ;(summary.per_org as unknown[]).push(orgStat)
   }
+    console.log('[silent-tags-import] DONE', JSON.stringify(summary))
+  }
 
+  if (background) {
+    // Fire and forget — survives even if HTTP client times out
+    // @ts-ignore EdgeRuntime is provided by Supabase Edge Functions
+    EdgeRuntime.waitUntil(job())
+    return new Response(JSON.stringify({ ok: true, started: true, mode: 'background' }, null, 2), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  await job()
   return new Response(JSON.stringify({ ok: true, dry_run: dryRun, summary }, null, 2), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
