@@ -130,7 +130,7 @@ export const BulkAiTagDialog = ({
           </div>
 
           {!hasResults ? (
-            <Button onClick={runAi} disabled={running || !vocab.trim()} className="w-full">
+            <Button onClick={runAi} disabled={running} className="w-full">
               {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
               Kör AI på {untagged.length} produkter
             </Button>
