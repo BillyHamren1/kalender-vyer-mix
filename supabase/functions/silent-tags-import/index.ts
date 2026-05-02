@@ -217,8 +217,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (bookings.length < PAGE_SIZE) break
+      const lastBatch = bookings.length < PAGE_SIZE
       offset += PAGE_SIZE
+      pagesDone += 1
+      ;(orgStat as any).next_offset = lastBatch ? null : offset
+      ;(orgStat as any).done = lastBatch
+      if (lastBatch) break
     }
 
     summary.orgs_processed = (summary.orgs_processed as number) + 1
