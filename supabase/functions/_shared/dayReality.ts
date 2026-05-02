@@ -438,8 +438,21 @@ export function buildDayReality(input: DayRealityInput): DayReality {
         if (id === s.targetId) continue;
         if (!bestOther || v.count > bestOther.count) bestOther = v;
       }
+      // Co-location guard: if the "other" site sits within ~150m of the
+      // reported site, treat them as the same physical place (e.g. internal
+      // "Lager" project pinned to the same address as "FA Warehouse" location).
+      const SAME_PLACE_METERS = 150;
+      const isSamePhysicalPlace = !!(
+        bestOther &&
+        s.site &&
+        haversineMeters(
+          { lat: s.site.lat, lng: s.site.lng },
+          { lat: bestOther.site.lat, lng: bestOther.site.lng }
+        ) <= SAME_PLACE_METERS
+      );
       if (
         bestOther &&
+        !isSamePhysicalPlace &&
         bestOther.count >= 5 &&
         bestOther.count > reportedCount * 2
       ) {
