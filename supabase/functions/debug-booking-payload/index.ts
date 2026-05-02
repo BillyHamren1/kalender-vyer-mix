@@ -8,7 +8,9 @@ Deno.serve(async (req) => {
 
   try {
     const apiKey = Deno.env.get('IMPORT_API_KEY') ?? ''
-    const apiUrl = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?limit=3`
+    const url = new URL(req.url)
+    const org = url.searchParams.get('org') || '08186612-9d04-4e86-9bef-3111a377cc53'
+    const apiUrl = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?organization_id=${org}&limit=5`
 
     const res = await fetch(apiUrl, {
       headers: { 'apikey': apiKey, 'x-api-key': apiKey, 'Authorization': `Bearer ${apiKey}` },
