@@ -60,20 +60,22 @@ Deno.serve(async (req) => {
   let temporariesExpired = 0;
 
   try {
-    // 1+2. Pull night pings from the lookback window.
+    // 1+2. Pull night pings (cursor pagination on recorded_at to bypass
+    // Supabase's 1000-row response cap; previous range()-loop silently
+    // stopped after the first 1000 rows).
     const buckets = new Map<string, { staff_id: string; org: string; date: string; key: string; lat: number; lng: number; count: number }>();
 
-    let from = 0;
-    const page = 5000;
+    const PAGE = 1000;
+    let cursor = since;
     while (true) {
       const { data: rows, error } = await supabase
         .from('staff_location_history')
         .select('staff_id, organization_id, lat, lng, recorded_at')
-        .gte('recorded_at', since)
+        .gte('recorded_at', cursor)
         .not('lat', 'is', null)
         .not('lng', 'is', null)
-        .range(from, from + page - 1)
-        .order('recorded_at', { ascending: true });
+        .order('recorded_at', { ascending: true })
+        .limit(PAGE);
 
       if (error) {
         console.error('[infer-home] scan failed:', error);
@@ -117,8 +119,10 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (rows.length < page) break;
-      from += page;
+      if (rows.length < PAGE) break;
+      // Advance cursor: last recorded_at + 1ms to avoid re-fetching boundary row.
+      const lastTs = new Date(rows[rows.length - 1].recorded_at).getTime();
+      cursor = new Date(lastTs + 1).toISOString();
     }
 
     // 3. Per (staff, date) keep dominant cluster, then upsert observations.
