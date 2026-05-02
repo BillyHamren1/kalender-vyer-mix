@@ -748,6 +748,8 @@ interface ProductData {
   package_components?: any;
   discount?: number;
   vat_rate?: number;
+  tags?: string[];
+  tags_en?: string[];
 }
 
 /**
@@ -2946,6 +2948,8 @@ serve(async (req) => {
                     package_components: product.package_components || null,
                     discount: product.discount ?? 0,
                     vat_rate: product.vat_rate ?? 25,
+                    tags: Array.isArray(product.tags) ? product.tags : [],
+                    tags_en: Array.isArray(product.tags_en) ? product.tags_en : [],
                   }
 
                   const { data: insertedProduct, error: productError } = await supabase
@@ -3488,6 +3492,8 @@ serve(async (req) => {
                 package_components: product.package_components || null,
                 discount: product.discount ?? 0,
                 vat_rate: product.vat_rate ?? 25,
+                tags: Array.isArray(product.tags) ? product.tags : [],
+                tags_en: Array.isArray(product.tags_en) ? product.tags_en : [],
               }
 
               // ── MERGE: UPDATE existing or INSERT new ────────────────────────────

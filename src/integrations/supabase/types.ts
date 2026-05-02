@@ -447,6 +447,8 @@ export type Database = {
           setup_hours: number | null
           sku: string | null
           sort_index: number | null
+          tags: string[] | null
+          tags_en: string[] | null
           total_price: number | null
           unit_price: number | null
           vat_rate: number | null
@@ -477,6 +479,8 @@ export type Database = {
           setup_hours?: number | null
           sku?: string | null
           sort_index?: number | null
+          tags?: string[] | null
+          tags_en?: string[] | null
           total_price?: number | null
           unit_price?: number | null
           vat_rate?: number | null
@@ -507,6 +511,8 @@ export type Database = {
           setup_hours?: number | null
           sku?: string | null
           sort_index?: number | null
+          tags?: string[] | null
+          tags_en?: string[] | null
           total_price?: number | null
           unit_price?: number | null
           vat_rate?: number | null
