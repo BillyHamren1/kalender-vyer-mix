@@ -89,6 +89,8 @@ Deno.serve(async (req) => {
   const summary: Record<string, unknown> = {
     orgs_processed: 0,
     bookings_seen: 0,
+    external_products_total: 0,
+    external_products_with_tags: 0,
     products_updated: 0,
     products_skipped_no_match: 0,
     products_skipped_no_tags_change: 0,
