@@ -522,19 +522,15 @@ const ProductRow = ({
           + tagga
         </button>
       ) : (
-        row.tags.slice(0, 3).map((t) => {
-          const isLocal = row.localTags.some((lt) => lt.toLowerCase() === t.toLowerCase());
-          return (
-            <Badge
-              key={t}
-              variant={isLocal ? "default" : "secondary"}
-              className="text-[10px] px-1.5 py-0 h-5"
-              title={isLocal ? "Manuell tagg" : "Från Booking"}
-            >
-              {t}
-            </Badge>
-          );
-        })
+        row.tags.slice(0, 3).map((t) => (
+          <Badge
+            key={t}
+            variant="default"
+            className="text-[10px] px-1.5 py-0 h-5"
+          >
+            {t}
+          </Badge>
+        ))
       )}
       {row.tags.length > 3 && (
         <span className="text-[10px] text-muted-foreground">+{row.tags.length - 3}</span>
