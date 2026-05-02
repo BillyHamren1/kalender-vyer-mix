@@ -145,6 +145,13 @@ export function useWorkDay(): UseWorkDayResult {
           }
           if (row.ended_at) {
             setCurrent((c) => (c?.id === row.id ? null : c));
+            // Server-side close (e.g. AI auto-stop or nightly watchdog) →
+            // mirror the same event the explicit end-flow dispatches so the
+            // header day-clock pill can clear its localStorage and the rest
+            // of the UI flips to "Starta dagen".
+            window.dispatchEvent(
+              new CustomEvent('workday-ended', { detail: { endedAtIso: row.ended_at } })
+            );
           } else {
             setCurrent(row);
           }
