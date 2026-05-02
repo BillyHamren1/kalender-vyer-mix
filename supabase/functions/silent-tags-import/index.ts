@@ -66,10 +66,12 @@ Deno.serve(async (req) => {
     })
   }
 
-  // Parse body: { organization_ids?: string[], dry_run?: boolean }
-  let body: { organization_ids?: string[]; dry_run?: boolean } = {}
+  // Parse body: { organization_ids?: string[], dry_run?: boolean, start_offset?: number, max_pages?: number }
+  let body: { organization_ids?: string[]; dry_run?: boolean; start_offset?: number; max_pages?: number } = {}
   try { body = await req.json() } catch { /* allow empty */ }
   const dryRun = !!body.dry_run
+  const startOffset = Math.max(0, body.start_offset ?? 0)
+  const maxPages = Math.max(1, body.max_pages ?? 999)
 
   // Resolve target orgs
   let orgIds: string[] = body.organization_ids ?? []
