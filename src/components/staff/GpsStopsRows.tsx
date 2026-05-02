@@ -37,12 +37,70 @@ export const GpsStopsRows: React.FC<Props> = ({
 
   const { data: pings = [], isLoading } = useStaffPingsForDay(staffId, date, true);
 
-  const stops = useMemo(
+  const rawStops = useMemo(
     () => clusterStayPoints(pings, { radiusMeters: 250, minDurationMin: 5 }),
     [pings],
   );
 
-  const addrs = useReverseGeocode(stops.map(s => s.centre));
+  const rawAddrs = useReverseGeocode(rawStops.map(s => s.centre));
+
+  // Slå ihop konsekutiva besök som har EXAKT samma normaliserade adress.
+  // Detta är presentationslagrets sista skydd: även om koordinatcentra spretat
+  // för långt isär för stayPoints-mergen, så är det ändå samma fysiska plats
+  // ur användarens perspektiv när reverse-geocodingen returnerar samma sträng.
+  // Ej-upplösta adresser (null) faller tillbaka till koordinaten — då slås de
+  // ihop på koordinatnyckel istället, så vi inte felaktigt kollapsar två
+  // olika "loading"-rader.
+  const { stops, addrs } = useMemo(() => {
+    if (rawStops.length === 0) return { stops: rawStops, addrs: rawAddrs };
+    const norm = (s: string | null, fallback: { lat: number; lng: number }) =>
+      (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+        || `__coord:${fallback.lat.toFixed(3)},${fallback.lng.toFixed(3)}`;
+
+    const outStops: typeof rawStops = [];
+    const outAddrs: (string | null)[] = [];
+    let curStop = { ...rawStops[0] };
+    let curAddr = rawAddrs[0] ?? null;
+    let curKey = norm(curAddr, curStop.centre);
+    let curPings = curStop.pingCount;
+    let curLatSum = curStop.centre.lat * curPings;
+    let curLngSum = curStop.centre.lng * curPings;
+
+    for (let i = 1; i < rawStops.length; i++) {
+      const next = rawStops[i];
+      const nextAddr = rawAddrs[i] ?? null;
+      const nextKey = norm(nextAddr, next.centre);
+      if (nextKey === curKey) {
+        const totalPings = curPings + next.pingCount;
+        curLatSum += next.centre.lat * next.pingCount;
+        curLngSum += next.centre.lng * next.pingCount;
+        curStop = {
+          start: curStop.start,
+          end: next.end,
+          durationMin: Math.max(0, Math.round(
+            (new Date(next.end).getTime() - new Date(curStop.start).getTime()) / 60000,
+          )),
+          centre: { lat: curLatSum / totalPings, lng: curLngSum / totalPings },
+          pingCount: totalPings,
+        };
+        curPings = totalPings;
+        curAddr = curAddr ?? nextAddr;
+      } else {
+        outStops.push(curStop);
+        outAddrs.push(curAddr);
+        curStop = { ...next };
+        curAddr = nextAddr;
+        curKey = nextKey;
+        curPings = next.pingCount;
+        curLatSum = next.centre.lat * next.pingCount;
+        curLngSum = next.centre.lng * next.pingCount;
+      }
+    }
+    outStops.push(curStop);
+    outAddrs.push(curAddr);
+    return { stops: outStops, addrs: outAddrs };
+  }, [rawStops, rawAddrs]);
+
   const contentCols = totalCols - leadingCells;
 
   if (isLoading || stops.length === 0) {
