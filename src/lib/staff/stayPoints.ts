@@ -32,6 +32,11 @@ export interface StayPointOptions {
   minDurationMin?: number;
 }
 
+interface MergeOptions {
+  mergeRadiusMeters: number;
+  maxGapMin: number;
+}
+
 const median = (xs: number[]): number => {
   if (xs.length === 0) return 0;
   const s = [...xs].sort((a, b) => a - b);
@@ -93,46 +98,39 @@ export function clusterStayPoints(
     })
     .filter(s => s.durationMin >= minDur);
 
-  // Merge consecutive stops that are at the same physical place.
-  // GPS jitter / brief signal loss / urban canyons often split one real
-  // visit into several clusters with centroids 200-400 m apart, sometimes
-  // with brief "drive-by" clusters in between. We collapse them into one
-  // visit (arrived = first start, left = last end).
-  return mergeAdjacentSamePlace(raw, 500);
+  // Merge only truly adjacent stop fragments at the same place.
+  // This keeps brief GPS jitter from creating 2–3 rows for one visit,
+  // but avoids stitching together separate returns to the same address
+  // hours later.
+  return mergeAdjacentSamePlace(raw, {
+    mergeRadiusMeters: Math.max(150, Math.round(radius * 1.8)),
+    maxGapMin: 12,
+  });
 }
 
-function mergeAdjacentSamePlace(stops: StayPoint[], mergeRadius: number): StayPoint[] {
+function mergeAdjacentSamePlace(stops: StayPoint[], opts: MergeOptions): StayPoint[] {
   if (stops.length <= 1) return stops;
+
+  const { mergeRadiusMeters, maxGapMin } = opts;
   const out: StayPoint[] = [];
   let cur = { ...stops[0] };
+
   for (let i = 1; i < stops.length; i++) {
     const next = stops[i];
-    // Look ahead: if a later stop is at the same place as `cur`, absorb
-    // both `next` and that later stop into `cur` (the in-between stop was
-    // a brief detour).
-    const dDirect = haversineMeters(cur.centre, next.centre);
-    let mergeUpTo = -1;
-    if (dDirect <= mergeRadius) {
-      mergeUpTo = i;
-    } else {
-      for (let j = i + 1; j < Math.min(stops.length, i + 3); j++) {
-        if (haversineMeters(cur.centre, stops[j].centre) <= mergeRadius) {
-          mergeUpTo = j;
-          break;
-        }
-      }
-    }
+    const gapMin = Math.max(0, minutesBetween(cur.end, next.start));
+    const samePlace = haversineMeters(cur.centre, next.centre) <= mergeRadiusMeters;
 
-    if (mergeUpTo >= i) {
-      const last = stops[mergeUpTo];
+    if (samePlace && gapMin <= maxGapMin) {
       cur = {
         start: cur.start,
-        end: last.end,
-        durationMin: minutesBetween(cur.start, last.end),
-        centre: cur.centre,
-        pingCount: cur.pingCount + stops.slice(i, mergeUpTo + 1).reduce((s, x) => s + x.pingCount, 0),
+        end: next.end,
+        durationMin: minutesBetween(cur.start, next.end),
+        centre: {
+          lat: (cur.centre.lat * cur.pingCount + next.centre.lat * next.pingCount) / (cur.pingCount + next.pingCount),
+          lng: (cur.centre.lng * cur.pingCount + next.centre.lng * next.pingCount) / (cur.pingCount + next.pingCount),
+        },
+        pingCount: cur.pingCount + next.pingCount,
       };
-      i = mergeUpTo;
     } else {
       out.push(cur);
       cur = { ...next };
