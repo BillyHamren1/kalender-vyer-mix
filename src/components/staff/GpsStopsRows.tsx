@@ -83,9 +83,8 @@ export const GpsStopsRows: React.FC<Props> = ({
           <th className="px-2 py-1" />
           <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Ankom</th>
           <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Lämnade</th>
-          <th className="text-left font-semibold px-2 py-1" colSpan={contentCols - 4}>Adress</th>
+          <th className="text-left font-semibold px-2 py-1" colSpan={contentCols - 3}>Adress</th>
           <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">På plats</th>
-          <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">GPS-pings</th>
         </tr>
       )}
 
@@ -112,7 +111,7 @@ export const GpsStopsRows: React.FC<Props> = ({
                 {fmt(s.end)}
               </span>
             </td>
-            <td className="px-2 py-1 align-top" colSpan={contentCols - 4}>
+            <td className="px-2 py-1 align-top" colSpan={contentCols - 3}>
               <button
                 type="button"
                 onClick={(e) => {
@@ -128,9 +127,6 @@ export const GpsStopsRows: React.FC<Props> = ({
             </td>
             <td className="px-2 py-1 tabular-nums font-semibold text-foreground whitespace-nowrap text-right align-top">
               {fmtDur(s.durationMin)}
-            </td>
-            <td className="px-2 py-1 tabular-nums text-muted-foreground whitespace-nowrap text-right align-top">
-              {s.pingCount}
             </td>
           </tr>
         );
