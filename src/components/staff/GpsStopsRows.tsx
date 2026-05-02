@@ -38,7 +38,7 @@ export const GpsStopsRows: React.FC<Props> = ({
   const { data: pings = [], isLoading } = useStaffPingsForDay(staffId, date, true);
 
   const stops = useMemo(
-    () => clusterStayPoints(pings, { radiusMeters: 120, minDurationMin: 5 }),
+    () => clusterStayPoints(pings, { radiusMeters: 250, minDurationMin: 5 }),
     [pings],
   );
 
