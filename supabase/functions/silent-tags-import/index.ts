@@ -114,9 +114,12 @@ Deno.serve(async (req) => {
 
     // Paginate through external API
     const PAGE_SIZE = 100
-    let offset = 0
-    while (true) {
+    let offset = startOffset
+    let pagesDone = 0
+    let lastOffsetSeen = startOffset
+    while (pagesDone < maxPages) {
       const url = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?organization_id=${orgId}&limit=${PAGE_SIZE}&offset=${offset}`
+      lastOffsetSeen = offset
       let externalJson: { data?: ExternalBooking[] } | null = null
       try {
         const res = await fetch(url, {
