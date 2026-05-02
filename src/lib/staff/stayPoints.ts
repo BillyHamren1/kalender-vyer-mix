@@ -94,11 +94,11 @@ export function clusterStayPoints(
     .filter(s => s.durationMin >= minDur);
 
   // Merge consecutive stops that are at the same physical place.
-  // GPS jitter / brief signal loss often splits one real visit into
-  // multiple clusters. If two stops are within ~`mergeRadius` m of each
-  // other we treat them as one continuous visit (arrived = first start,
-  // left = last end), regardless of the gap between them.
-  return mergeAdjacentSamePlace(raw, Math.max(radius * 2, 200));
+  // GPS jitter / brief signal loss / urban canyons often split one real
+  // visit into several clusters with centroids 200-400 m apart, sometimes
+  // with brief "drive-by" clusters in between. We collapse them into one
+  // visit (arrived = first start, left = last end).
+  return mergeAdjacentSamePlace(raw, 500);
 }
 
 function mergeAdjacentSamePlace(stops: StayPoint[], mergeRadius: number): StayPoint[] {
@@ -107,18 +107,32 @@ function mergeAdjacentSamePlace(stops: StayPoint[], mergeRadius: number): StayPo
   let cur = { ...stops[0] };
   for (let i = 1; i < stops.length; i++) {
     const next = stops[i];
-    const d = haversineMeters(cur.centre, next.centre);
-    if (d <= mergeRadius) {
+    // Look ahead: if a later stop is at the same place as `cur`, absorb
+    // both `next` and that later stop into `cur` (the in-between stop was
+    // a brief detour).
+    const dDirect = haversineMeters(cur.centre, next.centre);
+    let mergeUpTo = -1;
+    if (dDirect <= mergeRadius) {
+      mergeUpTo = i;
+    } else {
+      for (let j = i + 1; j < Math.min(stops.length, i + 3); j++) {
+        if (haversineMeters(cur.centre, stops[j].centre) <= mergeRadius) {
+          mergeUpTo = j;
+          break;
+        }
+      }
+    }
+
+    if (mergeUpTo >= i) {
+      const last = stops[mergeUpTo];
       cur = {
         start: cur.start,
-        end: next.end,
-        durationMin: minutesBetween(cur.start, next.end),
-        centre: {
-          lat: (cur.centre.lat + next.centre.lat) / 2,
-          lng: (cur.centre.lng + next.centre.lng) / 2,
-        },
-        pingCount: cur.pingCount + next.pingCount,
+        end: last.end,
+        durationMin: minutesBetween(cur.start, last.end),
+        centre: cur.centre,
+        pingCount: cur.pingCount + stops.slice(i, mergeUpTo + 1).reduce((s, x) => s + x.pingCount, 0),
       };
+      i = mergeUpTo;
     } else {
       out.push(cur);
       cur = { ...next };
