@@ -136,25 +136,30 @@ export function clusterStayPoints(
     // Pingen ligger utanför ankaret — kandidat för platsbyte.
     pendingAway.push(p);
 
-    const awayDurationMin = pendingAway.length > 1
-      ? minutesBetween(pendingAway[0].recorded_at, pendingAway[pendingAway.length - 1].recorded_at)
+    // Titta bara på de senaste pingsen för att avgöra om personen
+    // stabiliserat sig på en NY plats. Annars samlas pings under hela
+    // bilresan i bufferten och vi missar att besöket vid destinationen
+    // börjat. Sliding window = de senaste CONFIRM_AWAY_PINGS pingsen.
+    const window = pendingAway.slice(-CONFIRM_AWAY_PINGS);
+    const windowDurationMin = window.length > 1
+      ? minutesBetween(window[0].recorded_at, window[window.length - 1].recorded_at)
       : 0;
-
-    const awayCentre = centreOfPings(pendingAway);
-    const awaySpread = pendingAway.length > 1
-      ? Math.max(...pendingAway.map(q => haversineMeters(awayCentre, { lat: q.lat, lng: q.lng })))
+    const windowCentre = centreOfPings(window);
+    const windowSpread = window.length > 1
+      ? Math.max(...window.map(q => haversineMeters(windowCentre, { lat: q.lat, lng: q.lng })))
       : 0;
 
     const stableElsewhere =
-      pendingAway.length >= CONFIRM_AWAY_PINGS &&
-      awayDurationMin >= CONFIRM_AWAY_MIN &&
-      awaySpread <= radius;
+      window.length >= CONFIRM_AWAY_PINGS &&
+      windowDurationMin >= CONFIRM_AWAY_MIN &&
+      windowSpread <= radius;
 
     if (stableElsewhere) {
       // Personen är nu på en ny plats. Stäng nuvarande besök och starta
-      // ett nytt med pendingAway-pingsen som frö.
+      // ett nytt med endast de senast stabiliserade pingsen som frö —
+      // pings under själva resan kastas så de inte förorenar ankaret.
       closeCurrent();
-      startVisit(pendingAway);
+      startVisit(window);
       pendingAway = [];
     }
     // Annars: vänta in fler pings för att avgöra om det är riktigt eller brus.
