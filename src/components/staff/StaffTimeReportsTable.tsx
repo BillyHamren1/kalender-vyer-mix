@@ -186,8 +186,9 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
         </colgroup>
         <tbody>
           {blocks.map((b) => {
-            // Rader inom personblocket: 1 namn-header + 1 arbetsdag + 1 sub-header + N sessioner
-            const blockRowSpan = 3 + Math.max(b.sessions.length, 1);
+            // Rader inom personblocket: 1 namn-header + 1 arbetsdag + 1 sub-header + N sessioner + 1 GPS-stopp toggle
+            // (GPS-stopp expanderade rader sticker ut utanför Notiser-cellen — kosmetiskt OK)
+            const blockRowSpan = 4 + Math.max(b.sessions.length, 1);
 
             const anySessionOpen = b.sessions.some((s) => s.isOpen);
             // Workday is "open" only matters when *some* activity is also open.
@@ -371,6 +372,14 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                     );
                   })
                 )}
+
+                {/* === RAD N+1: GPS-stopp (faktiska kluster, oavsett om timer rapporterats) === */}
+                <GpsStopsRows
+                  staffId={b.staffId}
+                  date={date}
+                  leadingCells={1}
+                  totalCols={7}
+                />
               </React.Fragment>
             );
           })}
