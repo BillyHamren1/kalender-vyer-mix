@@ -20,12 +20,14 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY missing')
 
     // Validate caller is an authenticated user (RLS context)
+    const authHeader = req.headers.get('Authorization') ?? ''
+    const token = authHeader.replace('Bearer ', '').trim()
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }
+      { auth: { persistSession: false } }
     )
-    const { data: userData } = await supabase.auth.getUser()
+    const { data: userData } = await supabase.auth.getUser(token)
     if (!userData?.user) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
