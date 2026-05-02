@@ -17,8 +17,7 @@ Deno.serve(async (req) => {
 
     const json = await res.json()
     const bookings = Array.isArray(json) ? json : (json.data || json.bookings || [])
-
-    const summary = bookings.slice(0, 3).map((b: any) => {
+    return new Response(JSON.stringify({ status: res.status, top_level_keys: Object.keys(json || {}), bookings_count: bookings.length, raw_first_booking: bookings[0] ?? null, raw_root_sample: JSON.stringify(json).slice(0, 1500) }, null, 2), {
       const products = b.products || b.booking_products || []
       const firstProductsWithTags = products.slice(0, 5).map((p: any) => ({
         name: p.name,
