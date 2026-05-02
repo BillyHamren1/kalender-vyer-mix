@@ -21,10 +21,12 @@ Deno.serve(async (req) => {
     try { json = JSON.parse(text) } catch { /* */ }
 
     const bookings = Array.isArray(json) ? json : (json?.data || json?.bookings || [])
-    const sampleProducts = (bookings[0]?.products || bookings[0]?.booking_products || []).slice(0, 5).map((p: any) => ({
-      name: p.name,
-      keys: Object.keys(p),
-      tags: p.tags ?? p.labels ?? p.categories ?? p.tag ?? null,
+    const allProducts = bookings.flatMap((b: any) => b.products || [])
+    const withTags = allProducts.filter((p: any) => Array.isArray(p.tags) && p.tags.length > 0).slice(0, 10)
+    const sampleProducts = withTags.map((p: any) => ({
+      name: p.product_name || p.name,
+      tags: p.tags,
+      tags_en: p.tags_en,
     }))
 
     return new Response(JSON.stringify({
