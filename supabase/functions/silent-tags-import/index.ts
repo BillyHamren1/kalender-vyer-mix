@@ -218,6 +218,8 @@ Deno.serve(async (req) => {
 
     summary.orgs_processed = (summary.orgs_processed as number) + 1
     summary.bookings_seen = (summary.bookings_seen as number) + orgStat.bookings
+    summary.external_products_total = (summary.external_products_total as number) + orgStat.external_products
+    summary.external_products_with_tags = (summary.external_products_with_tags as number) + orgStat.external_products_with_tags
     summary.products_updated = (summary.products_updated as number) + orgStat.products_updated
     summary.products_skipped_no_match = (summary.products_skipped_no_match as number) + orgStat.products_no_match
     summary.products_skipped_no_tags_change = (summary.products_skipped_no_tags_change as number) + orgStat.products_no_change
