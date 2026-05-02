@@ -1,4 +1,3 @@
-// Temporary debug function: fetch a single booking from Booking API and return product keys + sample tag value
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -15,23 +14,26 @@ Deno.serve(async (req) => {
       headers: { 'apikey': apiKey, 'x-api-key': apiKey, 'Authorization': `Bearer ${apiKey}` },
     })
 
-    const json = await res.json()
-    const bookings = Array.isArray(json) ? json : (json.data || json.bookings || [])
-    return new Response(JSON.stringify({ status: res.status, top_level_keys: Object.keys(json || {}), bookings_count: bookings.length, raw_first_booking: bookings[0] ?? null, raw_root_sample: JSON.stringify(json).slice(0, 1500) }, null, 2), {
-      const products = b.products || b.booking_products || []
-      const firstProductsWithTags = products.slice(0, 5).map((p: any) => ({
-        name: p.name,
-        keys: Object.keys(p),
-        tags: p.tags ?? p.labels ?? p.categories ?? p.tag ?? null,
-      }))
-      return {
-        booking_id: b.id ?? b.booking_id,
-        product_count: products.length,
-        sample_products: firstProductsWithTags,
-      }
-    })
+    const text = await res.text()
+    let json: any = null
+    try { json = JSON.parse(text) } catch { /* */ }
 
-    return new Response(JSON.stringify({ summary, raw_first: bookings[0] ?? null }, null, 2), {
+    const bookings = Array.isArray(json) ? json : (json?.data || json?.bookings || [])
+    const sampleProducts = (bookings[0]?.products || bookings[0]?.booking_products || []).slice(0, 5).map((p: any) => ({
+      name: p.name,
+      keys: Object.keys(p),
+      tags: p.tags ?? p.labels ?? p.categories ?? p.tag ?? null,
+    }))
+
+    return new Response(JSON.stringify({
+      status: res.status,
+      api_key_present: apiKey.length > 0,
+      api_key_len: apiKey.length,
+      top_level_keys: json ? Object.keys(json) : null,
+      bookings_count: bookings.length,
+      sample_products: sampleProducts,
+      raw_preview: text.slice(0, 2000),
+    }, null, 2), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
