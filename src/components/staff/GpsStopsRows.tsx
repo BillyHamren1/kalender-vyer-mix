@@ -132,13 +132,24 @@ export const GpsStopsRows: React.FC<Props> = ({
           >
             {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             <MapPin className="h-3 w-3" />
-            <span className="font-medium">GPS-stopp under dagen</span>
+            <span className="font-medium">Faktiska besök (GPS)</span>
             <span className="tabular-nums text-muted-foreground/80">
-              ({stops.length} st · {fmtDur(stops.reduce((sum, s) => sum + s.durationMin, 0))} totalt)
+              ({stops.length} adress{stops.length === 1 ? '' : 'er'} · {fmtDur(stops.reduce((sum, s) => sum + s.durationMin, 0))} totalt)
             </span>
           </button>
         </td>
       </tr>
+
+      {expanded && (
+        <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border bg-muted/30">
+          <th className="px-2 py-1" />
+          <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Ankom</th>
+          <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Lämnade</th>
+          <th className="text-left font-semibold px-2 py-1" colSpan={contentCols - 4}>Adress</th>
+          <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">På plats</th>
+          <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">GPS-pings</th>
+        </tr>
+      )}
 
       {expanded && stops.map((s, i) => {
         const addr = addrs[i] ?? `${s.centre.lat.toFixed(4)}, ${s.centre.lng.toFixed(4)}`;
@@ -157,10 +168,19 @@ export const GpsStopsRows: React.FC<Props> = ({
             {Array.from({ length: leadingCells }).map((_, idx) => (
               <td key={`pad-${idx}`} className="px-2 py-1" />
             ))}
-            <td className="px-2 py-1 tabular-nums text-muted-foreground whitespace-nowrap align-top">
-              {fmt(s.start)}–{fmt(s.end)}
+            <td className="px-2 py-1 tabular-nums font-medium text-foreground whitespace-nowrap align-top">
+              <span className="inline-flex items-center gap-1">
+                <LogIn className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                {fmt(s.start)}
+              </span>
             </td>
-            <td className="px-2 py-1 align-top" colSpan={contentCols - 3}>
+            <td className="px-2 py-1 tabular-nums font-medium text-foreground whitespace-nowrap align-top">
+              <span className="inline-flex items-center gap-1">
+                <LogOut className="h-3 w-3 text-rose-600 dark:text-rose-400" />
+                {fmt(s.end)}
+              </span>
+            </td>
+            <td className="px-2 py-1 align-top" colSpan={contentCols - 4}>
               <div className="flex flex-col gap-1">
                 <button
                   type="button"
@@ -184,7 +204,7 @@ export const GpsStopsRows: React.FC<Props> = ({
                       const verb = m.kind === 'in' ? 'Timer startad' : 'Timer stoppad';
                       const tooltip = m.kind === 'in'
                         ? `Tidrapport för "${m.label}" startad kl ${m.time} (inte nödvändigtvis ankomsttid)`
-                        : `Tidrapport för "${m.label}" stoppad kl ${m.time} (inte nödvändigtvis avgångstid — se GPS-stoppen för faktisk närvaro)`;
+                        : `Tidrapport för "${m.label}" stoppad kl ${m.time} (inte nödvändigtvis avgångstid — se faktiska besök ovan)`;
                       return (
                         <span
                           key={mi}
@@ -201,11 +221,11 @@ export const GpsStopsRows: React.FC<Props> = ({
                 )}
               </div>
             </td>
-            <td className="px-2 py-1 tabular-nums text-foreground whitespace-nowrap text-right align-top">
+            <td className="px-2 py-1 tabular-nums font-semibold text-foreground whitespace-nowrap text-right align-top">
               {fmtDur(s.durationMin)}
             </td>
             <td className="px-2 py-1 tabular-nums text-muted-foreground whitespace-nowrap text-right align-top">
-              {s.pingCount} pings
+              {s.pingCount}
             </td>
           </tr>
         );
