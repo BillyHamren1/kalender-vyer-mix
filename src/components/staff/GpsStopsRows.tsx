@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { MapPin, ChevronDown, ChevronRight, LogIn, LogOut } from 'lucide-react';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
-import { clusterStayPoints, type StayPoint } from '@/lib/staff/stayPoints';
+import { clusterStayPoints } from '@/lib/staff/stayPoints';
 import { AddressMapDialog } from './AddressMapDialog';
 
 interface Props {
