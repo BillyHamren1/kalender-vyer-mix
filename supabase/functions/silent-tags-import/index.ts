@@ -178,6 +178,8 @@ Deno.serve(async (req) => {
         }
 
         for (const ep of b.products || []) {
+          orgStat.external_products++
+          if (Array.isArray(ep.tags) && ep.tags.length > 0) orgStat.external_products_with_tags++
           const name = normalizeName(ep.product_name || ep.name)
           if (!name) continue
           const local = byName.get(name)
