@@ -188,9 +188,26 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
             // Rader inom personblocket: 1 namn-header + 1 arbetsdag + 1 sub-header + N sessioner
             const blockRowSpan = 3 + Math.max(b.sessions.length, 1);
 
-            const totalDuration = b.dayIsOpen && b.dayStartIso
+            const anySessionOpen = b.sessions.some((s) => s.isOpen);
+            // Workday is "open" only matters when *some* activity is also open.
+            // If all activities are stopped but workday wasn't ended, the day
+            // is effectively idle — don't keep ticking the live clock.
+            const dayActuallyRunning = b.dayIsOpen && anySessionOpen;
+            const dayWaitingToClose = b.dayIsOpen && !anySessionOpen;
+
+            const totalDuration = dayActuallyRunning && b.dayStartIso
               ? <LiveDuration startedAt={b.dayStartIso} />
               : formatHoursMinutes(b.totalHours);
+
+            // Last activity end (if day is waiting) — use as effective day end label
+            const lastActivityEnd = (() => {
+              if (!dayWaitingToClose) return null;
+              const ends = b.sessions
+                .map((s) => s.endIso)
+                .filter((e): e is string => !!e)
+                .sort();
+              return ends.length > 0 ? ends[ends.length - 1] : null;
+            })();
 
             return (
               <React.Fragment key={b.staffId}>
@@ -228,13 +245,24 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                     {totalDuration}
                   </td>
                   <td className="px-2 py-1 tabular-nums font-bold text-foreground whitespace-nowrap">
-                    {b.dayIsOpen ? <span className="italic font-bold text-muted-foreground">pågår</span> : fmt(b.dayEndIso)}
+                    {dayActuallyRunning ? (
+                      <span className="italic font-bold text-muted-foreground">pågår</span>
+                    ) : dayWaitingToClose ? (
+                      <span
+                        className="italic font-bold text-amber-600"
+                        title="Alla aktiviteter avslutade, men arbetsdagen markerades aldrig som avslutad."
+                      >
+                        {lastActivityEnd ? `${fmt(lastActivityEnd)} (ej avslutad)` : 'ej avslutad'}
+                      </span>
+                    ) : (
+                      fmt(b.dayEndIso)
+                    )}
                   </td>
                   <td className="px-2 py-1 font-bold text-foreground whitespace-nowrap">
                     <GeoAtTime
                       staffId={b.staffId}
                       date={date}
-                      iso={b.dayIsOpen ? null : b.dayEndIso}
+                      iso={dayActuallyRunning ? null : (b.dayEndIso ?? lastActivityEnd)}
                     />
                   </td>
                   <td className="px-2 py-1 whitespace-nowrap" />
