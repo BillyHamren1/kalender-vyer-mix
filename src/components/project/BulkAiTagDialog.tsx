@@ -50,8 +50,7 @@ export const BulkAiTagDialog = ({
         const { data, error } = await supabase.functions.invoke("suggest-product-tags", {
           body: {
             products: chunk,
-            vocabulary: vocab,
-            allow_new: false,
+            instructions: vocab,
           },
         });
         if (error) throw error;
