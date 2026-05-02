@@ -2946,6 +2946,8 @@ serve(async (req) => {
                     package_components: product.package_components || null,
                     discount: product.discount ?? 0,
                     vat_rate: product.vat_rate ?? 25,
+                    tags: Array.isArray(product.tags) ? product.tags : [],
+                    tags_en: Array.isArray(product.tags_en) ? product.tags_en : [],
                   }
 
                   const { data: insertedProduct, error: productError } = await supabase
