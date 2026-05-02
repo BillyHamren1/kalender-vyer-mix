@@ -88,6 +88,7 @@ Deno.serve(async (req) => {
     orgIds = (orgs || []).map((o) => o.id)
   }
 
+  const background = !!(body as any).background
   const summary: Record<string, unknown> = {
     orgs_processed: 0,
     bookings_seen: 0,
