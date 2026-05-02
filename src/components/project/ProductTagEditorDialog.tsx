@@ -49,8 +49,7 @@ export const ProductTagEditorDialog = ({
       const { data, error } = await supabase.functions.invoke("suggest-product-tags", {
         body: {
           products: [{ id: productId, name: productName }],
-          vocabulary,
-          allow_new: false,
+          instructions: vocabulary,
         },
       });
       if (error) throw error;

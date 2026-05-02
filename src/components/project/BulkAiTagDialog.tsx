@@ -50,8 +50,7 @@ export const BulkAiTagDialog = ({
         const { data, error } = await supabase.functions.invoke("suggest-product-tags", {
           body: {
             products: chunk,
-            vocabulary: vocab,
-            allow_new: false,
+            instructions: vocab,
           },
         });
         if (error) throw error;
@@ -114,24 +113,24 @@ export const BulkAiTagDialog = ({
         <DialogHeader>
           <DialogTitle>Tagga otaggade produkter med AI</DialogTitle>
           <DialogDescription>
-            {untagged.length} produkter saknar tagg. Skriv vilka taggar AI får använda (komma- eller radseparerade).
+            {untagged.length} produkter saknar tagg. Skriv fritt vad AI:n ska tänka på — t.ex. "Tagga möbler som möbler", "2EL räknas som EL", "Behandla allt med 'duk' i namnet som tält".
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div>
-            <div className="text-xs font-medium text-muted-foreground mb-1">Tillåtna taggar</div>
+            <div className="text-xs font-medium text-muted-foreground mb-1">Instruktioner till AI:n (valfritt)</div>
             <Textarea
               value={vocab}
               onChange={(e) => setVocab(e.target.value)}
-              placeholder="t.ex. tält, golv, ljud, ljus, scen, möbler, värme, el, transport"
-              rows={4}
+              placeholder={'Lämna tomt för auto-klassning, eller skriv egna regler:\n\nTagga alla möbler som "möbler".\n2EL räknas som "el".\nAllt med "kabel" i namnet → "kabel".'}
+              rows={5}
               disabled={running}
             />
           </div>
 
           {!hasResults ? (
-            <Button onClick={runAi} disabled={running || !vocab.trim()} className="w-full">
+            <Button onClick={runAi} disabled={running} className="w-full">
               {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
               Kör AI på {untagged.length} produkter
             </Button>

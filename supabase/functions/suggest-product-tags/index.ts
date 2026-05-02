@@ -1,5 +1,9 @@
 // Suggest tags for products using Lovable AI Gateway.
-// Body: { products: [{ id, name }], vocabulary?: string, allow_new?: boolean }
+// Body: { products: [{ id, name }], vocabulary?: string, instructions?: string }
+// `vocabulary`/`instructions` is treated as a free-form instruction the user
+// gives the AI (e.g. "Tagga alla möbler som möbler. Tagga 2EL som EL.")
+// rather than a strict whitelist — earlier hard-filtering meant a single
+// natural-language sentence killed every suggestion.
 // Returns: { suggestions: [{ id, tags: string[] }] }
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -30,8 +34,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}))
     const products = Array.isArray(body?.products) ? body.products : []
-    const vocabulary: string = (body?.vocabulary || '').toString().trim()
-    const allowNew: boolean = !!body?.allow_new
+    const instructions: string = (body?.instructions ?? body?.vocabulary ?? '').toString().trim()
 
     if (products.length === 0) {
       return new Response(JSON.stringify({ suggestions: [] }), {
@@ -46,21 +49,19 @@ Deno.serve(async (req) => {
 
     const sysParts: string[] = [
       'Du är en assistent som klassificerar produkter i ett event-/uthyrningsföretags lager.',
-      'För varje produkt, returnera 1–3 korta taggar (svenska, gemener, max 2 ord per tagg).',
+      'För VARJE produkt i listan ska du returnera 1–3 korta taggar (svenska, gemener, max 2 ord per tagg).',
+      'Returnera ALLTID minst en tagg per produkt — gissa hellre kategori utifrån produktnamnet än lämna tomt.',
+      'Vanliga kategorier (välj fritt, du är inte låst till dessa): tält, golv, ljud, ljus, scen, möbler, värme, el, kabel, transport, kök, bar, dekor, säkerhet, tak, scen-konstruktion.',
       'Returnera ALLTID via funktionsanropet, aldrig prosa.',
     ]
-    if (vocabulary) {
+    if (instructions) {
       sysParts.push(
-        `Tillåtna taggar (välj endast bland dessa, separerade av komma/radbryt):\n${vocabulary}`
+        'Användarens egna instruktioner (följ dessa noga, de gäller ovanpå standardreglerna):\n' +
+          instructions,
       )
-      if (!allowNew) {
-        sysParts.push('Hitta INTE på nya taggar utanför listan. Om inget passar, returnera tom lista för den produkten.')
-      } else {
-        sysParts.push('Du får föreslå nya taggar om inget i listan passar, men föredra befintliga.')
-      }
     }
 
-    const userPrompt = 'Klassificera följande produkter:\n' +
+    const userPrompt = 'Klassificera följande produkter. Returnera EN rad i suggestions per produkt-id:\n' +
       cleanProducts.map((p) => `- [${p.id}] ${p.name}`).join('\n')
 
     const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -130,23 +131,25 @@ Deno.serve(async (req) => {
       const args = JSON.parse(toolCall?.function?.arguments ?? '{}')
       suggestions = Array.isArray(args?.suggestions) ? args.suggestions : []
     } catch (e) {
-      console.error('Failed to parse tool args', e)
+      console.error('Failed to parse tool args', e, 'raw:', JSON.stringify(aiJson).slice(0, 500))
     }
 
-    // Sanitize tags
+    if (suggestions.length === 0) {
+      console.warn(
+        '[suggest-product-tags] AI returned 0 suggestions for',
+        cleanProducts.length,
+        'products. raw:',
+        JSON.stringify(aiJson?.choices?.[0]?.message ?? {}).slice(0, 500),
+      )
+    }
+
+    // Light sanitation only — no whitelist filtering.
     const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ').slice(0, 30)
-    const allowed = vocabulary && !allowNew
-      ? new Set(vocabulary.split(/[,\n]/).map((t) => norm(t)).filter(Boolean))
-      : null
     suggestions = suggestions
       .filter((s) => s && typeof s.id === 'string' && Array.isArray(s.tags))
       .map((s) => ({
         id: s.id,
-        tags: Array.from(new Set(s.tags.map(norm).filter((t) => {
-          if (!t) return false
-          if (allowed && !allowed.has(t)) return false
-          return true
-        }))).slice(0, 3),
+        tags: Array.from(new Set(s.tags.map(norm).filter(Boolean))).slice(0, 3),
       }))
 
     return new Response(JSON.stringify({ suggestions }), {
