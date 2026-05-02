@@ -748,6 +748,8 @@ interface ProductData {
   package_components?: any;
   discount?: number;
   vat_rate?: number;
+  tags?: string[];
+  tags_en?: string[];
 }
 
 /**
