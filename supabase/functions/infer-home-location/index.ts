@@ -59,21 +59,32 @@ Deno.serve(async (req) => {
   let temporariesUpserted = 0;
   let temporariesExpired = 0;
 
+  // Reuse Intl formatters across all rows — instantiating per-row is the
+  // single biggest CPU cost (was killing the worker on 60k pings).
+  const hourFmt = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm', hour: '2-digit', hour12: false,
+  });
+  const dateFmt = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+
   try {
-    // 1+2. Pull night pings from the lookback window.
+    // 1+2. Pull night pings (cursor pagination on recorded_at to bypass
+    // Supabase's 1000-row response cap; previous range()-loop silently
+    // stopped after the first 1000 rows).
     const buckets = new Map<string, { staff_id: string; org: string; date: string; key: string; lat: number; lng: number; count: number }>();
 
-    let from = 0;
-    const page = 5000;
+    const PAGE = 1000;
+    let cursor = since;
     while (true) {
       const { data: rows, error } = await supabase
         .from('staff_location_history')
         .select('staff_id, organization_id, lat, lng, recorded_at')
-        .gte('recorded_at', since)
+        .gte('recorded_at', cursor)
         .not('lat', 'is', null)
         .not('lng', 'is', null)
-        .range(from, from + page - 1)
-        .order('recorded_at', { ascending: true });
+        .order('recorded_at', { ascending: true })
+        .limit(PAGE);
 
       if (error) {
         console.error('[infer-home] scan failed:', error);
@@ -84,20 +95,9 @@ Deno.serve(async (req) => {
 
       for (const r of rows) {
         const ts = new Date(r.recorded_at);
-        const hourStr = new Intl.DateTimeFormat('sv-SE', {
-          timeZone: 'Europe/Stockholm',
-          hour: '2-digit',
-          hour12: false,
-        }).format(ts);
-        const hour = parseInt(hourStr, 10);
+        const hour = parseInt(hourFmt.format(ts), 10);
         if (hour < NIGHT_START_HOUR || hour >= NIGHT_END_HOUR) continue;
-
-        const dateStr = new Intl.DateTimeFormat('sv-SE', {
-          timeZone: 'Europe/Stockholm',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        }).format(ts);
+        const dateStr = dateFmt.format(ts);
 
         const snap = snapKey(r.lat as number, r.lng as number);
         const bucketKey = `${r.staff_id}|${dateStr}|${snap.key}`;
@@ -117,11 +117,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (rows.length < page) break;
-      from += page;
+      if (rows.length < PAGE) break;
+      const lastTs = new Date(rows[rows.length - 1].recorded_at).getTime();
+      cursor = new Date(lastTs + 1).toISOString();
     }
 
-    // 3. Per (staff, date) keep dominant cluster, then upsert observations.
+    // 3. Per (staff, date) keep dominant cluster, then BATCH-upsert.
     const dominant = new Map<string, any>();
     for (const b of buckets.values()) {
       const k = `${b.staff_id}|${b.date}`;
@@ -129,22 +130,22 @@ Deno.serve(async (req) => {
       if (!cur || b.count > cur.count) dominant.set(k, b);
     }
 
-    for (const b of dominant.values()) {
+    const obsRows = Array.from(dominant.values()).map((b) => ({
+      staff_id: b.staff_id,
+      organization_id: b.org,
+      observed_date: b.date,
+      lat: b.lat,
+      lng: b.lng,
+      cluster_key: b.key,
+      dwell_minutes: b.count,
+    }));
+
+    for (let i = 0; i < obsRows.length; i += 500) {
+      const slice = obsRows.slice(i, i + 500);
       const { error } = await supabase
         .from('staff_home_observations')
-        .upsert(
-          {
-            staff_id: b.staff_id,
-            organization_id: b.org,
-            observed_date: b.date,
-            lat: b.lat,
-            lng: b.lng,
-            cluster_key: b.key,
-            dwell_minutes: b.count,
-          },
-          { onConflict: 'staff_id,observed_date,cluster_key' },
-        );
-      if (!error) observationsWritten++;
+        .upsert(slice, { onConflict: 'staff_id,observed_date,cluster_key' });
+      if (!error) observationsWritten += slice.length;
     }
 
     // 4. For each staff with fresh observations, derive home rows.
