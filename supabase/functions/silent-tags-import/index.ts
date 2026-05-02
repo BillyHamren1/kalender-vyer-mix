@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
     per_org: [] as unknown[],
   }
 
+  const job = async () => {
   for (const orgId of orgIds) {
     const orgStat = {
       org_id: orgId,
