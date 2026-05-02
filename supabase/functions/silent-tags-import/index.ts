@@ -236,7 +236,19 @@ Deno.serve(async (req) => {
     summary.products_skipped_no_tags_change = (summary.products_skipped_no_tags_change as number) + orgStat.products_no_change
     ;(summary.per_org as unknown[]).push(orgStat)
   }
+    console.log('[silent-tags-import] DONE', JSON.stringify(summary))
+  }
 
+  if (background) {
+    // Fire and forget — survives even if HTTP client times out
+    // @ts-ignore EdgeRuntime is provided by Supabase Edge Functions
+    EdgeRuntime.waitUntil(job())
+    return new Response(JSON.stringify({ ok: true, started: true, mode: 'background' }, null, 2), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  await job()
   return new Response(JSON.stringify({ ok: true, dry_run: dryRun, summary }, null, 2), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
