@@ -52,6 +52,7 @@ const AdminTimeReview: React.FC = () => {
       switch (topFilter) {
         case 'total':          return true;
         case 'ongoing':        return r.workdayStart && !r.workdayEnd;
+        case 'notStarted':     return r.result.anomalies.some((a) => a.kind === 'planned_no_start');
         case 'needsReview':    return r.reviewStatus === 'needs_review' || r.result.status === 'critical';
         case 'readyToApprove': return r.reviewStatus !== 'approved' && r.result.status === 'ok' && r.workdayEnd;
         case 'approved':       return r.reviewStatus === 'approved';
