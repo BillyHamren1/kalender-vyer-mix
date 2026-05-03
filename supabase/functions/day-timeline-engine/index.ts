@@ -43,12 +43,18 @@ Deno.serve(async (req) => {
     const action = body.action ?? "compute";
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-    // Caller auth (admin or self)
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData } = await supabase.auth.getUser(token);
-    if (!userData?.user) return json({ error: "unauthorized" }, 401);
-    const userId = userData.user.id;
+    // Caller auth (admin or self) — with service/cron bypass
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    const providedSecret = req.headers.get("x-engine-secret");
+    const isCron = !!cronSecret && providedSecret === cronSecret;
+    let userId = "";
+    if (!isCron) {
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const token = authHeader.replace("Bearer ", "");
+      const { data: userData } = await supabase.auth.getUser(token);
+      if (!userData?.user) return json({ error: "unauthorized" }, 401);
+      userId = userData.user.id;
+    }
 
     if (action === "compute") return await handleCompute(supabase, userId, body as ComputeArgs);
     if (action === "get")     return await handleGet(supabase, userId, body as GetArgs);
@@ -87,13 +93,20 @@ async function handleCompute(
   args: ComputeArgs,
 ) {
   if (!args.staff_id || !args.date) return json({ error: "staff_id and date required" }, 400);
-  const orgId = await getCallerOrg(supabase, userId);
-  if (!orgId) return json({ error: "no_org" }, 403);
-  const admin = await isAdmin(supabase, userId);
-  if (!admin) {
-    // Allow self-compute
-    const { data: me } = await supabase.from("staff_members").select("id").eq("user_id", userId).maybeSingle();
-    if (!me || me.id !== args.staff_id) return json({ error: "forbidden" }, 403);
+  let orgId: string | undefined;
+  if (userId) {
+    orgId = await getCallerOrg(supabase, userId);
+    if (!orgId) return json({ error: "no_org" }, 403);
+    const admin = await isAdmin(supabase, userId);
+    if (!admin) {
+      const { data: me } = await supabase.from("staff_members").select("id").eq("user_id", userId).maybeSingle();
+      if (!me || me.id !== args.staff_id) return json({ error: "forbidden" }, 403);
+    }
+  } else {
+    // Cron/service path — derive org from staff_members
+    const { data: sm } = await supabase.from("staff_members").select("organization_id").eq("id", args.staff_id).maybeSingle();
+    orgId = sm?.organization_id as string | undefined;
+    if (!orgId) return json({ error: "no_org_for_staff" }, 403);
   }
 
   // Load all sources in parallel
