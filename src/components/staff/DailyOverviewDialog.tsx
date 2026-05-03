@@ -515,16 +515,10 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
               <span>Dagöversikt — {formatDialogDate(date)}</span>
               <span className="text-sm font-normal text-muted-foreground">· {staffName}</span>
             </DialogTitle>
-            {reviewRow && (
-              <DayApprovalAction
-                workdayId={reviewRow.workdayId}
-                workday={reviewRow.workdayStart ? { started_at: reviewRow.workdayStart, ended_at: reviewRow.workdayEnd } : null}
-                result={reviewRow.result}
-                reviewStatus={reviewRow.reviewStatus}
-                variant="full"
-                onApproved={() => onOpenChange(false)}
-              />
-            )}
+          </div>
+        </DialogHeader>
+        {/* Note: Day approval CTA lives inside TimeReportReviewTable header. */}
+        {false && reviewRow}
           </div>
         </DialogHeader>
 
