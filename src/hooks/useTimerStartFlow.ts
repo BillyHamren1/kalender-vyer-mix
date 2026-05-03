@@ -150,11 +150,26 @@ interface PendingStart {
   suppressToast?: boolean;
 }
 
+/**
+ * Resultat-statusar som kan rapporteras tillbaka från ett distance-confirm.
+ * Distance-dialogen visar UI-fel och håller sig öppen om status inte är
+ * 'started' eller 'already_running'.
+ */
+export type DistanceConfirmStatus =
+  | 'started'
+  | 'already_running'
+  | 'workday_failed'
+  | 'start_failed';
+
 interface DistanceWarning {
   placeName: string;
   distance: number;
-  /** Användarens (obligatoriska) anledning skickas in vid bekräft. */
-  onConfirm: (reason: string) => void;
+  /**
+   * Awaitable confirm. Anropas med användarens (obligatoriska) anledning
+   * och kör performStart till klart. Returnerar riktig status så att
+   * dialog-wrappern kan visa fel och hålla sig öppen vid misslyckande.
+   */
+  onConfirm: (reason: string) => Promise<DistanceConfirmStatus>;
 }
 
 export function useTimerStartFlow(
