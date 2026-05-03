@@ -170,7 +170,7 @@ export function buildPlaceVisits(
         pendingAway = [];
       }
       current.pings.push(p);
-      refreshUnknownAnchor();
+      // ankaret uppdateras inte — håll segmentet stabilt vid initial centre.
       continue;
     }
 
