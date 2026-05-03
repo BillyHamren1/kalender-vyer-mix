@@ -14,8 +14,7 @@ import type {
   TimeReportRow,
   WorkdayRow,
 } from "../_shared/timeline/types.ts";
-import { clusterPings } from "../_shared/timeline/cluster.ts";
-import { matchSegmentsToPlaces } from "../_shared/timeline/matcher.ts";
+import { buildPlaceVisits, buildTravelGaps, visitsToSegments } from "../_shared/timeline/pingSegments.ts";
 import { buildEvents } from "../_shared/timeline/eventBuilder.ts";
 import { buildSuggestions } from "../_shared/timeline/suggestionEngine.ts";
 import { computeInputSignature } from "../_shared/timeline/signature.ts";
