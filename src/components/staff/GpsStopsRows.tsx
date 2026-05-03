@@ -48,10 +48,6 @@ const COORD_CELL_DECIMALS = 3; // ~110m grid
 
 const coordCellKey = (lat: number, lng: number) =>
   `cell:${lat.toFixed(COORD_CELL_DECIMALS)},${lng.toFixed(COORD_CELL_DECIMALS)}`;
-  const m = key.match(/^cell:(-?\d+\.\d+),(-?\d+\.\d+)$/);
-  if (!m) return null;
-  return { lat: Number(m[1]), lng: Number(m[2]) };
-};
 
 /**
  * Hitta närmsta kända plats inom dess radius (eller default 200m).
