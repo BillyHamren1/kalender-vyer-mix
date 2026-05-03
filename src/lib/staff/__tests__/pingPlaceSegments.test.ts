@@ -64,3 +64,35 @@ describe('buildPlaceVisits', () => {
     expect(visits[0].placeKey).not.toBe(visits[1].placeKey);
   });
 });
+
+describe('resolvePlaceAt', () => {
+  // Bygg en dag: 03:00–04:00 FA Warehouse, 05:00–08:00 okänd plats, 09:00–10:00 FA igen.
+  const pings: Ping[] = [];
+  for (let i = 0; i < 60; i++) pings.push(at(i, FA.lat, FA.lng));
+  for (let i = 120; i < 300; i += 5) pings.push(at(i, 59.2947, 18.0796));
+  for (let i = 360; i < 420; i++) pings.push(at(i, FA.lat, FA.lng));
+  const visits = buildPlaceVisits(pings, [FA], { minDurationMin: 5 });
+
+  it('iso mitt i en känd vistelse mappar till knownSite (inte Mapbox-text)', () => {
+    const mid = new Date(Date.UTC(2026, 4, 3, 3, 30, 0)).toISOString();
+    const v = resolvePlaceAt(visits, mid);
+    expect(v?.knownSite?.id).toBe('fa');
+  });
+
+  it('iso vid exakt start/end matchar samma vistelse', () => {
+    expect(resolvePlaceAt(visits, visits[0].start)?.knownSite?.id).toBe('fa');
+    expect(resolvePlaceAt(visits, visits[0].end)?.knownSite?.id).toBe('fa');
+  });
+
+  it('iso i ett gap faller tillbaka till närmsta inom toleransen', () => {
+    // Mellan vistelse 1 (slutar ~03:59) och vistelse 2 (start ~05:00) — fråga 04:05.
+    const inGap = new Date(Date.UTC(2026, 4, 3, 4, 5, 0)).toISOString();
+    const v = resolvePlaceAt(visits, inGap, 15);
+    expect(v?.knownSite?.id).toBe('fa'); // närmsta är FA-vistelsen som slutade kl 03:59
+  });
+
+  it('iso helt utanför pingfönstret returnerar null', () => {
+    const wayOff = new Date(Date.UTC(2026, 4, 3, 23, 0, 0)).toISOString();
+    expect(resolvePlaceAt(visits, wayOff)).toBeNull();
+  });
+});
