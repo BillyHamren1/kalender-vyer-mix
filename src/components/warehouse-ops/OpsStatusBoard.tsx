@@ -120,8 +120,6 @@ const OpsStatusBoard = ({ jobs }: Props) => {
       if (
         j.direction === "out" &&
         (j.status === "planning" || j.status === "in_progress") &&
-        !!j.anchorDate &&
-        j.anchorDate <= todayStr &&
         j.percent < 100
       ) {
         map.get("out_today")!.push(j);
