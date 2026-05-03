@@ -103,7 +103,11 @@ const GlobalActiveTimerBanner: React.FC = () => {
   }, [startingDay, workdayOpen, startWorkday, t]);
 
 
-  const [timers, setTimers] = useState<Map<string, ActiveTimer>>(loadTimersFromStorage);
+  // PRIMARY UI SOURCE: live activeTimers from the single GeofencingProvider.
+  // Reactive — start/stop in useGeofencing setActiveTimers() rerenders this
+  // banner immediately (no localStorage polling lag for new timers).
+  const { activeTimers } = useGeofencingContext();
+  const timers = activeTimers;
   const [, setTick] = useState(0);
   const [pendingStop, setPendingStop] = useState<PendingStop | null>(null);
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
@@ -117,37 +121,24 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // queue processor to stop draining AND to skip the final endWorkdayFlow.
   const eodCancelledRef = useRef(false);
 
+  // Drain helper: wait until provider's activeTimers map is empty (post-EOD).
+  // Mirrors what loadTimersFromStorage used to check, but reads from the
+  // live ref so we don't depend on localStorage flushing.
+  const timersRef = useRef(timers);
+  useEffect(() => { timersRef.current = timers; }, [timers]);
   const waitForLocalTimerDrain = useCallback(async () => {
     for (let i = 0; i < 12; i += 1) {
-      if (loadTimersFromStorage().size === 0) return true;
+      if (timersRef.current.size === 0) return true;
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    return loadTimersFromStorage().size === 0;
+    return timersRef.current.size === 0;
   }, []);
 
+  // 1Hz tick for the elapsed clock display only — does NOT drive timer
+  // membership (that comes reactively from the provider).
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTimers(loadTimersFromStorage());
-      setTick(t => t + 1);
-    }, 1000);
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const handler = () => setTimers(loadTimersFromStorage());
-    // Cross-tab/storage events: ONLY react when our timer key changed.
-    // Without this filter every unrelated localStorage write (theme,
-    // chat draft, etc.) re-renders the banner and re-reads the timers,
-    // which has caused phantom "flicker" / sync-state confusion.
-    const storageHandler = (e: StorageEvent) => {
-      if (e.key === null || e.key === TIMERS_KEY) handler();
-    };
-    window.addEventListener('timer-state-changed', handler);
-    window.addEventListener('storage', storageHandler);
-    return () => {
-      window.removeEventListener('timer-state-changed', handler);
-      window.removeEventListener('storage', storageHandler);
-    };
   }, []);
 
   // C8 — Restore any pending-stop dialog state if app was killed mid-confirmation
