@@ -106,12 +106,11 @@ const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }>
   const { resolveAt, isLoading, hasPings } = useDayPlaceVisits(staffId, date, !!iso);
   const hit = useMemo(() => resolveAt(iso), [resolveAt, iso]);
 
-  // Reverse-geocode endast okända vistelser eller resor (kända platser har namn).
-  const fallbackTarget =
-    hit.kind === 'visit' && !hit.visit.knownSite ? hit.visit.centre :
-    hit.kind === 'travel' ? null :
-    null;
-  const fallbackLabels = useReverseGeocode([fallbackTarget]);
+  // Reverse-geocode okända vistelser ELLER okända ändpunkter på en resa.
+  const fromCoord = hit.kind === 'travel' && !hit.travel.from.knownSite ? hit.travel.from.centre : null;
+  const toCoord   = hit.kind === 'travel' && !hit.travel.to.knownSite   ? hit.travel.to.centre   : null;
+  const visitCoord = hit.kind === 'visit' && !hit.visit.knownSite ? hit.visit.centre : null;
+  const fallbackLabels = useReverseGeocode([visitCoord, fromCoord, toCoord]);
   const [open, setOpen] = useState(false);
 
   if (!iso) return <span className="text-muted-foreground">—</span>;
@@ -126,8 +125,8 @@ const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }>
   }
 
   if (hit.kind === 'travel') {
-    const fromName = hit.travel.from.knownSite?.name ?? 'plats';
-    const toName = hit.travel.to.knownSite?.name ?? 'plats';
+    const fromName = hit.travel.from.knownSite?.name ?? fallbackLabels[1] ?? 'okänd plats';
+    const toName   = hit.travel.to.knownSite?.name   ?? fallbackLabels[2] ?? 'okänd plats';
     return (
       <span
         className="text-muted-foreground italic inline-flex items-center gap-1 truncate"

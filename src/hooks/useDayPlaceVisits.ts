@@ -1,11 +1,10 @@
 import { useMemo } from 'react';
 import { useStaffPingsForDay } from './useStaffPingsForDay';
-import { useOrganizationLocations } from './useOrganizationLocations';
+import { useDayKnownSites } from './useDayKnownSites';
 import {
   buildPlaceVisits,
   buildDayTimeline,
   resolvePlaceAt,
-  type KnownSite,
   type PlaceVisit,
   type TravelGap,
   type DayTimelineHit,
@@ -18,19 +17,16 @@ import type { Ping } from '@/lib/staff/movementDetection';
  * Returnerar både:
  *   - `visits` (vistelser)
  *   - `travels` (förflyttningar mellan vistelser, baserade på råpings)
- *   - `resolveAt(iso)` strikt: 'visit' | 'travel' | 'unknown' (ingen tolerans)
+ *   - `resolveAt(iso)` med liten ±90s tolerans (täcker rundningsdiff)
  *   - `resolveVisitLoose(iso)` legacy med 15 min tolerans
+ *
+ * Kända platser inkluderar nu BÅDE org-locations OCH dagens bokningar/
+ * stora projekt — så Westers/Craft etc. matchas med rätt namn istället
+ * för att degraderas till "okänd plats" och senare till "Resa".
  */
 export function useDayPlaceVisits(staffId: string, date: string, enabled = true) {
-  const { data: pings = [], isLoading } = useStaffPingsForDay(staffId, date, enabled);
-  const { data: orgLocations = [] } = useOrganizationLocations();
-
-  const knownSites: KnownSite[] = useMemo(
-    () => orgLocations.map(l => ({
-      id: l.id, name: l.name, lat: l.lat, lng: l.lng, radiusMeters: l.radiusMeters,
-    })),
-    [orgLocations],
-  );
+  const { data: pings = [], isLoading: pingsLoading } = useStaffPingsForDay(staffId, date, enabled);
+  const { knownSites, isLoading: sitesLoading } = useDayKnownSites(staffId, date, enabled);
 
   const visits: PlaceVisit[] = useMemo(
     () => buildPlaceVisits(pings, knownSites),
@@ -54,9 +50,10 @@ export function useDayPlaceVisits(staffId: string, date: string, enabled = true)
     travels: timeline.travels,
     resolveAt,
     resolveVisitLoose,
-    isLoading,
+    isLoading: pingsLoading || sitesLoading,
     hasPings: pings.length > 0,
     pings: pings as Ping[],
+    knownSites,
   };
 }
 

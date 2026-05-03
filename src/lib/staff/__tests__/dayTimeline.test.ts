@@ -135,3 +135,28 @@ describe('buildDayTimeline — edge cases', () => {
     expect(tl.resolveAt(null).kind).toBe('unknown');
   });
 });
+
+describe('resolveAt — Ivars-regression: timer rundad till hela sekunder strax före första in-radius-ping', () => {
+  const WESTERS: KnownSite = { id: 'w', name: 'Westers', lat: 59.325704, lng: 18.069867, radiusMeters: 200 };
+  const base = Date.UTC(2026, 4, 3, 10, 10, 20);
+  const pings: Ping[] = [];
+  for (let i = 0; i < 60 * 4; i += 1) {
+    pings.push({
+      lat: WESTERS.lat, lng: WESTERS.lng, accuracy: 5,
+      recorded_at: new Date(base + i * 60_000 + 43).toISOString(),
+    });
+  }
+  const visits = buildPlaceVisits(pings, [WESTERS], { minDurationMin: 5 });
+  const tl = buildDayTimeline(pings, visits);
+
+  it('time_reports.start_time exakt på heltal-sekund (utan ms) räknas som visit', () => {
+    const hit = tl.resolveAt(new Date(base).toISOString());
+    expect(hit.kind).toBe('visit');
+    if (hit.kind === 'visit') expect(hit.visit.knownSite?.id).toBe('w');
+  });
+
+  it('en tid 5 minuter före första ping snäpper INTE in i visit (tolerans är liten)', () => {
+    const hit = tl.resolveAt(new Date(base - 5 * 60_000).toISOString());
+    expect(hit.kind).not.toBe('visit');
+  });
+});

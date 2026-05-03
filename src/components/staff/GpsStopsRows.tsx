@@ -3,8 +3,8 @@ import { format } from 'date-fns';
 import { MapPin, ChevronDown, ChevronRight, LogIn, LogOut, Car } from 'lucide-react';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
-import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
-import { buildPlaceVisits, buildDayTimeline, type KnownSite, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
+import { useDayKnownSites } from '@/hooks/useDayKnownSites';
+import { buildPlaceVisits, buildDayTimeline, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
 import type { Ping } from '@/lib/staff/movementDetection';
 import { AddressMapDialog } from './AddressMapDialog';
 
@@ -103,14 +103,7 @@ export const GpsStopsRows: React.FC<Props> = ({
   >(null);
 
   const { data: pings = [], isLoading } = useStaffPingsForDay(staffId, date, true);
-  const { data: orgLocations = [] } = useOrganizationLocations();
-
-  const knownSites: KnownSite[] = useMemo(
-    () => orgLocations.map(l => ({
-      id: l.id, name: l.name, lat: l.lat, lng: l.lng, radiusMeters: l.radiusMeters,
-    })),
-    [orgLocations],
-  );
+  const { knownSites } = useDayKnownSites(staffId, date, true);
 
   const visits: PlaceVisit[] = useMemo(
     () => buildPlaceVisits(pings, knownSites),
