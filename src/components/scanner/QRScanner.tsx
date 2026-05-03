@@ -350,6 +350,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       console.warn('[QRScanner] torch toggle failed:', e);
     }
   }, [torchOn]);
+
+  const runScanLoop = useCallback(() => {
     let lastScanTime = 0;
     let lastDiagLog = 0;
     let frameCount = 0;
