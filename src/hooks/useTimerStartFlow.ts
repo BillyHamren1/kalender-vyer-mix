@@ -174,30 +174,39 @@ export function useTimerStartFlow(
   }, []);
 
   /**
+   * Unified outcome for ALL start entry-points (`requestStart`,
+   * `tryStartFromArrival`). Callers must await and only show success UI
+   * when the status is `started` or `already_running`.
+   *
+   *   started         — workday active + activity timer created in provider
+   *   already_running — same target was already active (no-op success)
+   *   conflict        — TimerConflictDialog opened; resolution is async
+   *   blocked         — DistanceWarningDialog opened; resolution is async
+   *                     (caller should NOT toast success yet)
+   *   workday_failed  — workday could not be ensured; activity NOT started
+   *   start_failed    — startSession returned false (race / engine refused)
+   */
+  type StartStatus =
+    | 'started'
+    | 'already_running'
+    | 'conflict'
+    | 'blocked'
+    | 'workday_failed'
+    | 'start_failed';
+
+  /**
    * Actually create the timer through the unified engine.
    *
    * WORKDAY-FIRST (HARD REQUIREMENT):
    *   We ALWAYS await `ensureWorkDayActive()` before starting an activity.
-   *   If the workday cannot be ensured (network/server error, no staff,
-   *   etc.) the activity MUST NOT start. The workday is the primary
-   *   signal — activity segments only exist on top of it. No soft-fail.
-   *
-   * Returns:
-   *   'started'        — workday active + activity timer created
-   *   'duplicate'      — same target already running (no-op)
-   *   'workday-failed' — workday could not be ensured; activity NOT started
+   *   If the workday cannot be ensured the activity MUST NOT start.
    */
   const performStart = useCallback(
     async (
       target: WorkTarget,
       opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string; offSiteReason?: string; offSiteDistance?: number },
-    ): Promise<'started' | 'duplicate' | 'workday-failed'> => {
-      // Starting a new activity timer ALWAYS ends an open travel row first.
-      // NOTE on the new official model: restid är primärt GAPET mellan två
-      // aktiviteter (Projekt A stopp → Projekt B start). Live GPS-travel är
-      // numera ett LEGACY/ASSIST-spår (se useTravelDetection). Att stänga
-      // en eventuell öppen GPS-travel-rad här är fortsatt korrekt — det
-      // hindrar dubbel-tid när gap-modellen ändå kommer att täcka resan.
+    ): Promise<Extract<StartStatus, 'started' | 'already_running' | 'workday_failed' | 'start_failed'>> => {
+      // End any open GPS-travel row when starting a new activity.
       if (userPosition) {
         const detail: StopTravelEventDetail = {
           lat: userPosition.lat,
@@ -207,10 +216,7 @@ export function useTimerStartFlow(
         window.dispatchEvent(new CustomEvent(STOP_TRAVEL_EVENT, { detail }));
       }
 
-      // WORKDAY-FIRST hard gate. Activity may not start without an active
-      // workday. The server is idempotent so an already-open workday is a
-      // cheap no-op; a real failure here means we genuinely have no
-      // workday and must abort the activity start.
+      // WORKDAY-FIRST hard gate.
       let workday: Awaited<ReturnType<typeof ensureWorkDayActive>> = null;
       try {
         workday = await ensureWorkDayActive(opts.startedAtIso);
@@ -222,7 +228,7 @@ export function useTimerStartFlow(
         toast.error(
           'Kunde inte starta arbetspasset. Försök igen — aktiviteten startades inte.',
         );
-        return 'workday-failed';
+        return 'workday_failed';
       }
 
       const ok = startSession(target, {
@@ -230,72 +236,83 @@ export function useTimerStartFlow(
         taskId: opts.taskId,
         taskTitle: opts.taskTitle,
       });
-      if (ok) {
-        toast.success(`Timer startad: ${opts.label}`);
+      if (!ok) {
+        // startSession returns false on duplicate (already in activeTimers).
+        // We treat that as already_running — UI may show a soft "already on"
+        // hint but never a fresh-start success.
+        toast.message('Timer redan aktiv för platsen');
+        return 'already_running';
+      }
 
-        // Off-site start: spara användarens anledning som workday_flag så
-        // arbetsledaren kan följa upp varför timern startades utan GPS-träff.
-        if (opts.offSiteReason) {
-          const targetId =
-            target.kind === 'booking'
-              ? target.bookingId
-              : target.kind === 'project'
-                ? target.largeProjectId
-                : target.locationId;
-          void mobileApi.createWorkdayFlag({
-            flag_type: 'geofence_presence_mismatch',
-            flag_date: new Date().toISOString().slice(0, 10),
-            title: `Startade off-site: ${opts.label}`,
-            description: opts.offSiteReason,
-            severity: 'warning',
-            needs_user_input: false,
-            related_booking_id: target.kind === 'booking' ? target.bookingId : undefined,
-            related_large_project_id: target.kind === 'project' ? target.largeProjectId : undefined,
-            related_location_id: target.kind === 'location' ? target.locationId : undefined,
-            context: {
-              source: 'distance_warning_override',
-              distance_meters: opts.offSiteDistance ?? null,
-              target_kind: target.kind,
-              target_id: targetId,
-              user_position: userPosition ?? null,
-              reason: opts.offSiteReason,
-            },
-          }).catch((err) => {
-            console.warn('[StartFlow] createWorkdayFlag (off-site) failed (non-fatal):', err);
-          });
-        }
+      toast.success(`Timer startad: ${opts.label}`);
 
-        // Gap-baserad restid: härleds från senaste stoppade arbetssegment
-        // (se src/lib/lastWorkSegment.ts). Bästa-effort, fire-and-forget.
-        const startIso = opts.startedAtIso ?? new Date().toISOString();
-        const nextTargetId =
+      // Off-site flag (best-effort, non-blocking)
+      if (opts.offSiteReason) {
+        const targetId =
           target.kind === 'booking'
             ? target.bookingId
             : target.kind === 'project'
               ? target.largeProjectId
               : target.locationId;
-        void maybeCreateGapTravel(startIso, {
-          targetType: target.kind,
-          targetId: nextTargetId,
-          label: opts.label,
+        void mobileApi.createWorkdayFlag({
+          flag_type: 'geofence_presence_mismatch',
+          flag_date: new Date().toISOString().slice(0, 10),
+          title: `Startade off-site: ${opts.label}`,
+          description: opts.offSiteReason,
+          severity: 'warning',
+          needs_user_input: false,
+          related_booking_id: target.kind === 'booking' ? target.bookingId : undefined,
+          related_large_project_id: target.kind === 'project' ? target.largeProjectId : undefined,
+          related_location_id: target.kind === 'location' ? target.locationId : undefined,
+          context: {
+            source: 'distance_warning_override',
+            distance_meters: opts.offSiteDistance ?? null,
+            target_kind: target.kind,
+            target_id: targetId,
+            user_position: userPosition ?? null,
+            reason: opts.offSiteReason,
+          },
+        }).catch((err) => {
+          console.warn('[StartFlow] createWorkdayFlag (off-site) failed (non-fatal):', err);
         });
-        return 'started';
       }
-      toast.message('Timer redan aktiv för platsen');
-      return 'duplicate';
+
+      // Gap-derived travel (best-effort, fire-and-forget)
+      const startIso = opts.startedAtIso ?? new Date().toISOString();
+      const nextTargetId =
+        target.kind === 'booking'
+          ? target.bookingId
+          : target.kind === 'project'
+            ? target.largeProjectId
+            : target.locationId;
+      void maybeCreateGapTravel(startIso, {
+        targetType: target.kind,
+        targetId: nextTargetId,
+        label: opts.label,
+      });
+      return 'started';
     },
     [startSession, userPosition, ensureWorkDayActive],
   );
 
+  /**
+   * Distance-aware wrapper around performStart.
+   *
+   * If we have GPS + target coords AND the user is far away, we open the
+   * DistanceWarningDialog and resolve with `'blocked'`. The dialog's confirm
+   * handler triggers a fresh performStart that runs to completion later.
+   *
+   * Returns the actual outcome from performStart in the no-warning path so
+   * the caller knows whether to show success UI.
+   */
   const checkDistanceAndStart = useCallback(
-    (target: WorkTarget, opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string }) => {
+    async (
+      target: WorkTarget,
+      opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string },
+    ): Promise<Extract<StartStatus, 'started' | 'already_running' | 'workday_failed' | 'start_failed' | 'blocked'>> => {
       const coords = resolveTargetCoords(target);
-      const doStart = (offSiteReason?: string, offSiteDistance?: number) => {
-        void performStart(target, { ...opts, offSiteReason, offSiteDistance });
-      };
       if (!userPosition || !coords) {
-        doStart();
-        return;
+        return performStart(target, opts);
       }
       const dist = haversineDistance(
         userPosition.lat,
@@ -307,41 +324,44 @@ export function useTimerStartFlow(
         setDistanceWarning({
           placeName: coords.label || opts.label,
           distance: dist,
-          // Tar emot OBLIGATORISK anledning från DistanceWarningDialog
-          // och vidarebefordrar den till performStart för flagg-loggning.
-          onConfirm: (reason: string) => doStart(reason, dist),
+          // Confirm with mandatory reason → fire-and-forget perform.
+          // Result is reported through normal toast/UI inside performStart.
+          onConfirm: (reason: string) => {
+            void performStart(target, { ...opts, offSiteReason: reason, offSiteDistance: dist });
+          },
         });
-      } else {
-        doStart();
+        return 'blocked';
       }
+      return performStart(target, opts);
     },
     [resolveTargetCoords, userPosition, performStart],
   );
 
   /**
-   * Public entry-point. Returns one of:
-   *   • 'started'    — timer was created (or distance dialog opened first)
-   *   • 'duplicate'  — same target already running, nothing to do
-   *   • 'conflict'   — TimerConflictDialog will be shown; resolution is async
+   * Public entry-point — fully async.
+   *
+   * Resolves only after the entire start chain has settled (workday ensure
+   * + startSession + provider activeTimers updated) OR a UI dialog has
+   * taken over (conflict / distance). Callers MUST await and gate any
+   * success UI on `started` / `already_running`.
    */
   const requestStart = useCallback(
-    (
+    async (
       target: WorkTarget,
       opts: RequestStartOptions = {},
-    ): 'started' | 'duplicate' | 'conflict' => {
+    ): Promise<StartStatus> => {
       const label = opts.label ?? labelFor(target);
       const evalResult = evaluateStartConflict(target, activeTimers);
 
-      if (evalResult.status === 'duplicate') return 'duplicate';
+      if (evalResult.status === 'duplicate') return 'already_running';
 
       if (evalResult.status === 'allow') {
-        checkDistanceAndStart(target, {
+        return checkDistanceAndStart(target, {
           startedAtIso: opts.startedAtIso,
           label,
           taskId: opts.taskId,
           taskTitle: opts.taskTitle,
         });
-        return 'started';
       }
 
       // switch — defer until user confirms in TimerConflictDialog
@@ -420,29 +440,19 @@ export function useTimerStartFlow(
   /**
    * Awaitable start used by the arrival-prompt confirm flow.
    *
-   * Unlike `requestStart`, this resolves with the *actual* outcome of the
-   * start chain (workday-ensure + activity start). The arrival prompt is a
-   * helper — it must only be marked as resolved if the real start succeeded.
-   *
-   * - Skips the distance dialog (user has just confirmed they arrived).
-   * - Treats a target-conflict as a "deferred" outcome so the caller can
-   *   keep the prompt open until the conflict dialog resolves.
-   *
-   * Returns:
-   *   'started'        — workday + activity started successfully
-   *   'duplicate'      — same target already running (treat as success for arrival)
-   *   'workday-failed' — workday could not be ensured; activity NOT started
-   *   'conflict'       — conflict dialog opened; resolution is async
+   * Same StartStatus contract as `requestStart`. Skips the distance dialog
+   * (user has just confirmed they arrived). The arrival prompt must only
+   * mark itself resolved on `started` / `already_running`.
    */
   const tryStartFromArrival = useCallback(
     async (
       target: WorkTarget,
       opts: RequestStartOptions = {},
-    ): Promise<'started' | 'duplicate' | 'workday-failed' | 'conflict'> => {
+    ): Promise<StartStatus> => {
       const label = opts.label ?? labelFor(target);
       const evalResult = evaluateStartConflict(target, activeTimers);
 
-      if (evalResult.status === 'duplicate') return 'duplicate';
+      if (evalResult.status === 'duplicate') return 'already_running';
 
       if (evalResult.status === 'switch') {
         // Defer to TimerConflictDialog; arrival caller must NOT mark resolved.
@@ -457,7 +467,8 @@ export function useTimerStartFlow(
         return 'conflict';
       }
 
-      // allow → run the real start chain and surface its outcome.
+      // allow → run the real start chain (no distance dialog) and return
+      // the actual outcome.
       return performStart(target, {
         startedAtIso: opts.startedAtIso,
         label,

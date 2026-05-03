@@ -106,7 +106,17 @@ export interface AutoStartActivityArgs {
   arrivedAtIso: string;
 }
 export interface AutoStartActivityOutcome {
-  status: 'started' | 'duplicate' | 'workday-failed' | 'conflict';
+  /**
+   * Aligned with useTimerStartFlow.StartStatus. Geofence-paths only need to
+   * distinguish "real progress" (started/already_running) from defer/abort.
+   */
+  status:
+    | 'started'
+    | 'already_running'
+    | 'workday_failed'
+    | 'conflict'
+    | 'blocked'
+    | 'start_failed';
 }
 export type AutoStartActivityFn =
   (args: AutoStartActivityArgs) => Promise<AutoStartActivityOutcome>;
@@ -813,7 +823,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           if (startFn) {
             void startFn({ kind: 'project', targetId: lpId, label: lpName, arrivedAtIso })
               .then((res) => {
-                if (res.status === 'conflict' || res.status === 'workday-failed') {
+                if (res.status === 'conflict' || res.status === 'workday_failed') {
                   setGeofenceEvent({
                     type: 'enter', booking, distance: Math.round(dist),
                     locationType: 'project', largeProjectId: lpId,
@@ -906,7 +916,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           if (startFn) {
             void startFn({ kind: 'booking', targetId: booking.id, label: booking.client || 'Uppdrag', arrivedAtIso })
               .then((res) => {
-                if (res.status === 'conflict' || res.status === 'workday-failed') fallbackPrompt();
+                if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
               })
               .catch((err) => {
                 console.warn('[Geofence] auto-start booking failed:', err);
@@ -1002,7 +1012,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         if (startFn) {
           void startFn({ kind: 'location', targetId: loc.id, label: loc.name, arrivedAtIso })
             .then((res) => {
-              if (res.status === 'conflict' || res.status === 'workday-failed') fallbackPrompt();
+              if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
             })
             .catch((err) => {
               console.warn('[Geofence] auto-start location failed:', err);
