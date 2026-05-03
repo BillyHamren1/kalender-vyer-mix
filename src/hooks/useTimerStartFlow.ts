@@ -133,6 +133,12 @@ export interface RequestStartOptions {
   /** Optional task metadata persisted on the resulting time_report. */
   taskId?: string;
   taskTitle?: string;
+  /**
+   * Suppress the default "Timer startad: …" / "Timer redan aktiv …" toasts.
+   * Used by callers (e.g. arrival prompt) som vill visa egen, mer detaljerad
+   * feedback ("Arbetsdag startad från 09:44" + "Projekt X är aktivt").
+   */
+  suppressToast?: boolean;
 }
 
 interface PendingStart {
@@ -141,6 +147,7 @@ interface PendingStart {
   startedAtIso?: string;
   taskId?: string;
   taskTitle?: string;
+  suppressToast?: boolean;
 }
 
 interface DistanceWarning {
