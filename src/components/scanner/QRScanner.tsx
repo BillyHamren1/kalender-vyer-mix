@@ -10,12 +10,28 @@ import { Capacitor } from '@capacitor/core';
 import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
 import { reportDiagnostic } from '@/services/diagnostics/diagnostics';
 
+export interface QRScannerFeedback {
+  /** Increments every time parent received a scan and processed it */
+  nonce: number;
+  success: boolean;
+  /** Short message to overlay on the camera (product name or error) */
+  message?: string;
+  /** Reason for failure (e.g. "duplicate", "unknown", "complete") */
+  subMessage?: string;
+}
+
 interface QRScannerProps {
   onScan: (result: string) => void;
   onClose: () => void;
   isActive: boolean;
   /** Skip camera initialization entirely (e.g. on Zebra devices using DataWedge) */
   skipCamera?: boolean;
+  /** External scan-result feedback to show as overlay on the live camera */
+  feedback?: QRScannerFeedback | null;
+  /** When true, render as half-height inline panel instead of full-screen modal */
+  compact?: boolean;
+  /** Optional title shown in the header */
+  title?: string;
 }
 
 /**
