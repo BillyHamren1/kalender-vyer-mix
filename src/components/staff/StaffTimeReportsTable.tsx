@@ -219,36 +219,82 @@ const StaffBlockRows: React.FC<{
 
   const actualRows = useMemo<ActualDayRow[]>(() => {
     if (visits.length === 0) return [];
-    const labelForVisit = (visit: (typeof visits)[number], index: number) => (
-      visit.knownSite?.name
-      ?? visitLabels[index]
-      ?? `${visit.centre.lat.toFixed(4)}, ${visit.centre.lng.toFixed(4)}`
-    );
+    const labelForVisit = (visit: (typeof visits)[number]) => {
+      const idx = visits.indexOf(visit);
+      return (
+        visit.knownSite?.name
+        ?? visitLabels[idx]
+        ?? `${visit.centre.lat.toFixed(4)}, ${visit.centre.lng.toFixed(4)}`
+      );
+    };
+
+    // Konsolidera: slå ihop intilliggande vistelser på SAMMA plats
+    // (även om GPS-bruset råkat skapa en kort "resa" mellan dem) och
+    // släng resor där from/to är samma plats.
+    type Consolidated = {
+      visit: (typeof visits)[number];
+      start: string;
+      end: string;
+      durationMin: number;
+    };
+    const consolidated: Consolidated[] = [];
+    const keptTravels: (typeof travels[number] | null)[] = [];
+
+    for (let i = 0; i < visits.length; i += 1) {
+      const v = visits[i];
+      const last = consolidated[consolidated.length - 1];
+      const sameAsLast =
+        last &&
+        ((last.visit.knownSite && v.knownSite && last.visit.knownSite.id === v.knownSite.id) ||
+          (!last.visit.knownSite && !v.knownSite && labelForVisit(last.visit) === labelForVisit(v)));
+
+      if (sameAsLast) {
+        // Förläng föregående vistelse — ignorera den korta "resan" emellan.
+        keptTravels[keptTravels.length - 1] = null;
+        last.end = v.end;
+        last.durationMin = Math.max(
+          0,
+          Math.round((new Date(last.end).getTime() - new Date(last.start).getTime()) / 60000),
+        );
+      } else {
+        consolidated.push({ visit: v, start: v.start, end: v.end, durationMin: v.durationMin });
+      }
+
+      const travel = travels[i] ?? null;
+      // Filtrera resor där from === to (samma plats).
+      if (travel) {
+        const sameEndpoints =
+          (travel.from.knownSite && travel.to.knownSite && travel.from.knownSite.id === travel.to.knownSite.id) ||
+          labelForVisit(travel.from) === labelForVisit(travel.to);
+        keptTravels.push(sameEndpoints ? null : travel);
+      } else {
+        keptTravels.push(null);
+      }
+    }
 
     const rows: ActualDayRow[] = [];
-    for (let i = 0; i < visits.length; i += 1) {
-      const visit = visits[i];
+    for (let i = 0; i < consolidated.length; i += 1) {
+      const c = consolidated[i];
       rows.push({
         source: 'gps',
-        key: `visit:${visit.placeKey}:${visit.start}`,
+        key: `visit:${c.visit.placeKey}:${c.start}`,
         kind: 'visit',
-        label: labelForVisit(visit, i),
-        startIso: visit.start,
-        endIso: visit.end,
-        hours: visit.durationMin / 60,
+        label: labelForVisit(c.visit),
+        startIso: c.start,
+        endIso: c.end,
+        hours: c.durationMin / 60,
       });
 
-      const travel = travels[i];
+      const travel = keptTravels[i];
       if (travel) {
-        const fromIndex = visits.indexOf(travel.from);
-        const toIndex = visits.indexOf(travel.to);
-        const fromLabel = labelForVisit(travel.from, fromIndex);
-        const toLabel = labelForVisit(travel.to, toIndex);
+        const fromLabel = labelForVisit(travel.from);
+        const toLabel = labelForVisit(travel.to);
+        if (fromLabel === toLabel) continue;
         rows.push({
           source: 'gps',
           key: travel.key,
           kind: 'travel',
-          label: `Förflyttning: ${fromLabel} → ${toLabel}`,
+          label: `Resa: ${fromLabel} → ${toLabel}`,
           startIso: travel.start,
           endIso: travel.end,
           hours: travel.durationMin / 60,
