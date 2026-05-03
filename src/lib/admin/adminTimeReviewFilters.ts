@@ -12,6 +12,9 @@ import type { EmptyKind } from '@/components/admin/time-review/EmptyState';
 export const computeCounts = (rows: DayReviewRow[]): SummaryCounts => ({
   total: rows.length,
   ongoing: rows.filter((r) => r.workdayStart && !r.workdayEnd).length,
+  notStarted: rows.filter((r) =>
+    r.result.anomalies.some((a) => a.kind === 'planned_no_start'),
+  ).length,
   needsReview: rows.filter(
     (r) => r.reviewStatus === 'needs_review' || r.result.status === 'critical',
   ).length,
