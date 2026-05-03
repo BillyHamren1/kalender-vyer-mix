@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { Briefcase, Car, MapPin, Pencil, Square } from 'lucide-react';
+import { Briefcase, Car, MapPin, Pencil, Square, LogIn, LogOut } from 'lucide-react';
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffDayAnalysisPanel, StaffDayNotificationsPanel } from './StaffDayAnalysisPanel';
@@ -267,41 +267,57 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                 </tr>
 
                 {/* === RAD 2: ARBETSDAG === */}
-                <tr className="border-b border-border/40 bg-primary/10 text-sm">
-                  <td className="px-2 py-1 align-middle whitespace-nowrap">
-                    <div className="font-bold text-foreground">ARBETSDAG</div>
+                <tr className="border-b-2 border-primary/30 bg-primary/10 text-sm">
+                  <td className="px-2 py-2 align-middle whitespace-nowrap">
+                    <div className="font-bold text-foreground uppercase tracking-wide text-[11px]">Arbetsdag</div>
+                    <div className="text-[10px] text-muted-foreground">{b.dayIsOpen ? 'pågår' : 'avslutad'}</div>
                   </td>
-                  <td className="px-2 py-1 tabular-nums font-bold text-foreground whitespace-nowrap">
-                    {fmt(b.dayStartIso)}
+                  <td colSpan={2} className="px-2 py-2 whitespace-nowrap">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                      <LogIn className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                      Startade
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="tabular-nums font-bold text-foreground text-base">{fmt(b.dayStartIso)}</span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                        <GeoAtTime staffId={b.staffId} date={date} iso={b.dayStartIso} />
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-2 py-1 font-bold text-foreground whitespace-nowrap">
-                    <GeoAtTime staffId={b.staffId} date={date} iso={b.dayStartIso} />
-                  </td>
-                  <td className="px-2 py-1 tabular-nums font-bold text-foreground text-right whitespace-nowrap">
+                  <td className="px-2 py-2 tabular-nums font-bold text-foreground text-right whitespace-nowrap">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-normal">Total</div>
                     {totalDuration}
                   </td>
-                  <td className="px-2 py-1 tabular-nums font-bold text-foreground whitespace-nowrap">
-                    {dayActuallyRunning ? (
-                      <span className="italic font-bold text-muted-foreground">pågår</span>
-                    ) : dayWaitingToClose ? (
-                      <span
-                        className="italic font-bold text-amber-600"
-                        title="Alla aktiviteter avslutade, men arbetsdagen markerades aldrig som avslutad."
-                      >
-                        {lastActivityEnd ? `${fmt(lastActivityEnd)} (ej avslutad)` : 'ej avslutad'}
+                  <td colSpan={2} className="px-2 py-2 whitespace-nowrap">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                      <LogOut className="h-3 w-3 text-rose-600 dark:text-rose-400" />
+                      Avslutade
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="tabular-nums font-bold text-foreground text-base">
+                        {dayActuallyRunning ? (
+                          <span className="italic font-bold text-muted-foreground">pågår</span>
+                        ) : dayWaitingToClose ? (
+                          <span
+                            className="italic font-bold text-amber-600"
+                            title="Alla aktiviteter avslutade, men arbetsdagen markerades aldrig som avslutad."
+                          >
+                            {lastActivityEnd ? `${fmt(lastActivityEnd)} (ej avslutad)` : 'ej avslutad'}
+                          </span>
+                        ) : (
+                          fmt(b.dayEndIso)
+                        )}
                       </span>
-                    ) : (
-                      fmt(b.dayEndIso)
-                    )}
+                      <span className="text-xs text-muted-foreground truncate max-w-[180px] font-normal">
+                        <GeoAtTime
+                          staffId={b.staffId}
+                          date={date}
+                          iso={dayActuallyRunning ? null : (b.dayEndIso ?? lastActivityEnd)}
+                        />
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-2 py-1 font-bold text-foreground whitespace-nowrap">
-                    <GeoAtTime
-                      staffId={b.staffId}
-                      date={date}
-                      iso={dayActuallyRunning ? null : (b.dayEndIso ?? lastActivityEnd)}
-                    />
-                  </td>
-                  <td className="px-2 py-1 whitespace-nowrap" />
+                  <td className="px-2 py-2 whitespace-nowrap" />
                   <td
                     rowSpan={blockRowSpan - 1}
                     className="align-top p-0 border-l border-border/40 bg-muted/10"
