@@ -13,7 +13,7 @@ import { EditTimeReportDialog } from './EditTimeReportDialog';
 import { StopTimerDialog, type StopTarget } from './StopTimerDialog';
 import { Button } from '@/components/ui/button';
 import { TimeReportClosureInfo } from './TimeReportClosureInfo';
-import { buildActualDayRows } from '@/lib/staff/actualDayRows';
+import { buildActualDayRows, type ActualDayRow } from '@/lib/staff/actualDayRows';
 
 const fmt = (iso: string | null) => {
   if (!iso) return '—';
