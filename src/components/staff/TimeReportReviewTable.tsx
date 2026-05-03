@@ -310,7 +310,7 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                               <Pencil className="h-3 w-3" /> Justera
                             </Button>
                           )}
-                          {onApproveEntry && entry.status !== 'gap' && entry.status !== 'approved' && entry.status !== 'ongoing' && entry.kind !== 'gap' && (
+                          {onApproveEntry && entry.kind !== 'gap' && entry.status !== 'approved' && entry.status !== 'ongoing' && (
                             <Button
                               variant="ghost"
                               size="sm"
