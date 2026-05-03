@@ -122,7 +122,8 @@ export type AnomalyKind =
   | 'needs_review'
   | 'open_timer_stale'
   | 'overlap'
-  | 'missing_logout';
+  | 'missing_logout'
+  | 'planned_no_start';
 
 export type AnomalySeverity = 'info' | 'warning' | 'critical';
 
@@ -337,6 +338,26 @@ export function evaluateAdminTimeReview(
       label: 'Oallokerad tid',
       detail: `${unallocatedMinutes} min inom arbetsdagen saknar aktivitet eller restid.`,
       minutes: unallocatedMinutes,
+    });
+  }
+
+  // Planerad men har inte startat någon timer / rapport.
+  // Triggar när det finns planerade jobb och planeradStart har passerat
+  // (med tolerans), men inga workEntries och ingen öppen timer.
+  if (
+    plannedStart &&
+    !firstActualStart &&
+    !openTimerStart &&
+    realEntries.length === 0 &&
+    now.getTime() > plannedStart.getTime() + lateTol * 60_000
+  ) {
+    const lateMin = diffMinutes(now, plannedStart);
+    anomalies.push({
+      kind: 'planned_no_start',
+      severity: lateMin > 60 ? 'critical' : 'warning',
+      label: 'Ej startat',
+      detail: `Planerad start ${lateMin} min sedan men ingen timer/rapport finns.`,
+      minutes: lateMin,
     });
   }
 
