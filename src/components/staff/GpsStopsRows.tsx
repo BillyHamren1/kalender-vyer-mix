@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { MapPin, ChevronDown, ChevronRight, LogIn, LogOut } from 'lucide-react';
+import { MapPin, ChevronDown, ChevronRight, LogIn, LogOut, Car } from 'lucide-react';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
-import { buildPlaceVisits, type KnownSite, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { buildPlaceVisits, buildDayTimeline, type KnownSite, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
 import type { Ping } from '@/lib/staff/movementDetection';
 import { AddressMapDialog } from './AddressMapDialog';
 
