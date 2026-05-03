@@ -51,6 +51,8 @@ export interface BuildOptions {
   minDurationMin?: number;
   /** Hur många "borta-pings" i rad som krävs för att godta en flytt. Default 2. */
   confirmAwayPings?: number;
+  /** Max tillåtet glapp mellan två råpings i samma vistelse. Default 20 min. */
+  maxPingGapMin?: number;
 }
 
 const minutesBetween = (a: string, b: string) =>
@@ -99,6 +101,7 @@ export function buildPlaceVisits(
   const unknownRadius = Math.max(40, opts.unknownRadiusMeters ?? 150);
   const minDuration = Math.max(0, opts.minDurationMin ?? 5);
   const confirmAway = Math.max(1, opts.confirmAwayPings ?? 2);
+  const maxPingGapMs = Math.max(1, opts.maxPingGapMin ?? 20) * 60_000;
 
   if (rawPings.length === 0) return [];
 
@@ -123,7 +126,10 @@ export function buildPlaceVisits(
     };
   };
 
-  const closeCurrent = () => {
+  const closeCurrent = (absorbPendingAway = false) => {
+    if (absorbPendingAway && current && pendingAway.length) {
+      current.pings.push(...pendingAway);
+    }
     if (current) closed.push(current);
     current = null;
     pendingAway = [];
@@ -139,6 +145,14 @@ export function buildPlaceVisits(
     const matchedSite = matchKnownSite(p, knownSites);
 
     if (!current) {
+      startSegment([p], matchedSite);
+      continue;
+    }
+
+    const previousPing = pendingAway[pendingAway.length - 1] ?? current.pings[current.pings.length - 1];
+    const gapMs = new Date(p.recorded_at).getTime() - new Date(previousPing.recorded_at).getTime();
+    if (gapMs > maxPingGapMs) {
+      closeCurrent(true);
       startSegment([p], matchedSite);
       continue;
     }
@@ -233,6 +247,8 @@ export function buildPlaceVisits(
 
   // Slå ihop direkt angränsande vistelser med SAMMA stabila identitet.
   // Kända platser: samma siteId. Okända: centre inom 2× unknownRadius.
+  // Men: slå aldrig ihop över ett långt pingglapp — då vet vi inte att
+  // personen faktiskt stannade kvar hela tiden.
   const merged: PlaceVisit[] = [];
   for (const v of visits) {
     const last = merged[merged.length - 1];
@@ -241,8 +257,10 @@ export function buildPlaceVisits(
     const sameKnown = last.knownSite && v.knownSite && last.knownSite.id === v.knownSite.id;
     const sameUnknown = !last.knownSite && !v.knownSite &&
       haversineMeters(last.centre, v.centre) <= unknownRadius * 2;
+    const gapMs = new Date(v.start).getTime() - new Date(last.end).getTime();
+    const closeEnoughInTime = gapMs >= 0 && gapMs <= maxPingGapMs;
 
-    if (sameKnown || sameUnknown) {
+    if ((sameKnown || sameUnknown) && closeEnoughInTime) {
       const totalPings = last.pingCount + v.pingCount;
       const blended = sameKnown
         ? last.centre
