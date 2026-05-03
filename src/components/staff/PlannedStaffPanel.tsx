@@ -115,16 +115,16 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
         if (b) {
           if (b.rigdaydate === dateStr) {
             phase = 'rigg';
-            start = combine(dateStr, b.rig_start_time);
-            end = combine(dateStr, b.rig_end_time);
+            start = parseTime(b.rig_start_time);
+            end = parseTime(b.rig_end_time);
           } else if (b.eventdate === dateStr) {
             phase = 'event';
-            start = combine(dateStr, b.event_start_time);
-            end = combine(dateStr, b.event_end_time);
+            start = parseTime(b.event_start_time);
+            end = parseTime(b.event_end_time);
           } else if (b.rigdowndate === dateStr) {
             phase = 'nedrigg';
-            start = combine(dateStr, b.rigdown_start_time);
-            end = combine(dateStr, b.rigdown_end_time);
+            start = parseTime(b.rigdown_start_time);
+            end = parseTime(b.rigdown_end_time);
           }
           if (start && !end) end = new Date(start.getTime() + 60 * 60_000);
         }
