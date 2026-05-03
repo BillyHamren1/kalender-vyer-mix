@@ -191,8 +191,8 @@ export const HeaderStartEndDayButton: React.FC = () => {
           toast.error('Kunde inte starta arbetspasset. Försök igen.');
           return;
         }
-        const result = requestStart(selection.target, { label: selection.label });
-        if (result === 'started' || result === 'duplicate') {
+        const result = await requestStart(selection.target, { label: selection.label });
+        if (result === 'started' || result === 'already_running') {
           toast.success(`Arbetspass startat på ${selection.label}`);
           setDialogOpen(false);
         } else if (result === 'conflict') {
