@@ -93,13 +93,20 @@ async function handleCompute(
   args: ComputeArgs,
 ) {
   if (!args.staff_id || !args.date) return json({ error: "staff_id and date required" }, 400);
-  const orgId = await getCallerOrg(supabase, userId);
-  if (!orgId) return json({ error: "no_org" }, 403);
-  const admin = await isAdmin(supabase, userId);
-  if (!admin) {
-    // Allow self-compute
-    const { data: me } = await supabase.from("staff_members").select("id").eq("user_id", userId).maybeSingle();
-    if (!me || me.id !== args.staff_id) return json({ error: "forbidden" }, 403);
+  let orgId: string | undefined;
+  if (userId) {
+    orgId = await getCallerOrg(supabase, userId);
+    if (!orgId) return json({ error: "no_org" }, 403);
+    const admin = await isAdmin(supabase, userId);
+    if (!admin) {
+      const { data: me } = await supabase.from("staff_members").select("id").eq("user_id", userId).maybeSingle();
+      if (!me || me.id !== args.staff_id) return json({ error: "forbidden" }, 403);
+    }
+  } else {
+    // Cron/service path — derive org from staff_members
+    const { data: sm } = await supabase.from("staff_members").select("organization_id").eq("id", args.staff_id).maybeSingle();
+    orgId = sm?.organization_id as string | undefined;
+    if (!orgId) return json({ error: "no_org_for_staff" }, 403);
   }
 
   // Load all sources in parallel
