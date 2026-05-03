@@ -11,7 +11,6 @@ import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { AddressMapDialog } from './AddressMapDialog';
 import { EditTimeReportDialog } from './EditTimeReportDialog';
 import { StopTimerDialog, type StopTarget } from './StopTimerDialog';
-import { GpsStopsRows } from './GpsStopsRows';
 import { Button } from '@/components/ui/button';
 import { TimeReportClosureInfo } from './TimeReportClosureInfo';
 
@@ -558,12 +557,6 @@ const StaffBlockRows: React.FC<{
         })
       )}
 
-      <GpsStopsRows
-        staffId={b.staffId}
-        date={date}
-        leadingCells={1}
-        totalCols={7}
-      />
     </>
   );
 };
