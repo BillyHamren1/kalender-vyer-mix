@@ -29,6 +29,8 @@ const OpsDateBar = ({ anchorDate, mode, onChange, summary }: Props) => {
     { label: "Idag", date: today, m: "day", active: mode === "day" && isSameDay(anchorDate, today) },
     { label: "Imorgon", date: tomorrow, m: "day", active: mode === "day" && isSameDay(anchorDate, tomorrow) },
     { label: "Vecka", date: anchorDate, m: "week", active: mode === "week" },
+    { label: "Nästa 7 dgr", date: today, m: "next7", active: mode === "next7" },
+    { label: "Nästa 30 dgr", date: today, m: "next30", active: mode === "next30" },
   ];
 
   const lastScan = summary?.lastScanAt ? new Date(summary.lastScanAt) : null;
@@ -59,6 +61,10 @@ const OpsDateBar = ({ anchorDate, mode, onChange, summary }: Props) => {
               <CalendarIcon className="h-4 w-4" />
               {mode === "week"
                 ? `v.${format(anchorDate, "ww", { locale: sv })} ${format(anchorDate, "yyyy")}`
+                : mode === "next7"
+                ? `Nästa 7 dgr från ${format(anchorDate, "d MMM", { locale: sv })}`
+                : mode === "next30"
+                ? `Nästa 30 dgr från ${format(anchorDate, "d MMM", { locale: sv })}`
                 : format(anchorDate, "EEE d MMM", { locale: sv })}
             </Button>
           </PopoverTrigger>

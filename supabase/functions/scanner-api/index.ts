@@ -257,9 +257,11 @@ Deno.serve(async (req) => {
     switch (action) {
       case 'list_active_packings': {
         // Fetch packings that are actionable: planning, in_progress, packed
-        const fourteenDaysFromNow = new Date()
-        fourteenDaysFromNow.setDate(fourteenDaysFromNow.getDate() + 14)
-        const cutoffDate = fourteenDaysFromNow.toISOString().split('T')[0]
+        // Horizon: 60 dagar framåt så att lager kan planera packningar i förväg.
+        const horizonDays = Number(params?.horizonDays) || 60
+        const horizon = new Date()
+        horizon.setDate(horizon.getDate() + horizonDays)
+        const cutoffDate = horizon.toISOString().split('T')[0]
 
         const { data: allPackings, error } = await supabase
           .from('packing_projects')
@@ -267,7 +269,7 @@ Deno.serve(async (req) => {
           .eq('organization_id', ORG_ID)
           .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning'])
           .order('created_at', { ascending: false })
-          .limit(150)
+          .limit(500)
 
         if (error) throw error
 
@@ -305,7 +307,7 @@ Deno.serve(async (req) => {
             return downDate <= cutoffDate
           }
           return false
-        }).slice(0, 80)
+        }).slice(0, 300)
 
         return new Response(JSON.stringify(filtered), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }

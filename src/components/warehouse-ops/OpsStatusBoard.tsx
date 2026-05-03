@@ -38,18 +38,16 @@ interface Column {
 const COLUMNS: Column[] = [
   {
     key: "out_today",
-    title: "UT idag",
+    title: "UT planerat",
     short: "UT",
     accent: "border-l-blue-500",
     icon: ArrowUpRight,
-    description: "Ska ut idag eller tidigare, ej klart",
-    filter: (j, today) =>
+    description: "Planerade UT-jobb i intervallet (sorterat på datum)",
+    filter: (j) =>
       j.direction === "out" &&
       (j.status === "planning" || j.status === "in_progress") &&
-      !!j.anchorDate &&
-      j.anchorDate <= today &&
       j.percent < 100,
-    emptyText: "Inget på UT-listan",
+    emptyText: "Inget planerat UT",
   },
   {
     key: "in_progress",
@@ -122,8 +120,6 @@ const OpsStatusBoard = ({ jobs }: Props) => {
       if (
         j.direction === "out" &&
         (j.status === "planning" || j.status === "in_progress") &&
-        !!j.anchorDate &&
-        j.anchorDate <= todayStr &&
         j.percent < 100
       ) {
         map.get("out_today")!.push(j);
@@ -222,9 +218,10 @@ const JobCard = ({ job, onClick }: { job: OpsJob; onClick: () => void }) => {
         </div>
         <div className="text-right shrink-0">
           <div className="text-xs font-bold tabular-nums">{job.percent}%</div>
-          {job.anchorTime && (
+          {job.anchorDate && (
             <div className="text-[10px] text-muted-foreground tabular-nums">
-              {job.anchorTime.slice(0, 5)}
+              {format(parseISO(job.anchorDate), "EEE d MMM", { locale: sv })}
+              {job.anchorTime ? ` ${job.anchorTime.slice(0, 5)}` : ""}
             </div>
           )}
         </div>
