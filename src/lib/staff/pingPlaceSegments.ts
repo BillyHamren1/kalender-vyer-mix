@@ -1,23 +1,11 @@
 /**
  * pingPlaceSegments — ren motor för "var har personen faktiskt varit idag?".
  *
- * Tar in:
- *   - råa GPS-pings (oavsett ordning)
- *   - kända arbetsplatser (organization_locations + ev. radie)
+ * MIRROR — supabase/functions/_shared/timeline/pingSegments.ts måste hållas
+ * i synk med denna fil. Ändra alltid båda i samma commit.
+ * Se mem://constraints/gps-visit-exact-ping-membership-v1.
  *
- * Returnerar kronologiska "vistelser" där varje vistelse har:
- *   - start  = första ping på platsen   (IN)
- *   - end    = sista ping på platsen   (UT)
- *   - en stabil platsidentitet         (siteId om känd, annars cluster-ankaret)
- *   - antal pings + representativ koordinat
- *
- * Designprinciper:
- *   1. Råpingen är sanningen.
- *   2. Plats avgörs FÖRE klustring — inte i efterhand via reverse geocode.
- *   3. Samma fysiska plats ska aldrig kunna splittras p.g.a. att två pings
- *      råkar hamna i olika koordinatceller. Vi använder en växande cluster-
- *      ankarlogik (samma plats = inom radie från nuvarande ankare).
- *   4. Mapbox-text används aldrig som identitet — bara som label.
+ * UI får ALDRIG återskapa ping-medlemskap via tidsfilter — använd `visit.pings`.
  */
 import { haversineMeters, type Ping } from './movementDetection';
 
