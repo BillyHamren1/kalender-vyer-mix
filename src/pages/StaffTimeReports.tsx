@@ -17,6 +17,7 @@ import {
   type RawTravelLog,
   type RawWorkday,
 } from '@/lib/staff/dayJournal';
+import { calculateDayMetrics, type DayMetrics } from '@/lib/staff/dayMetrics';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
