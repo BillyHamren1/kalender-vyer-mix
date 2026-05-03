@@ -380,7 +380,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                         </td>
                         <td className="px-2 py-1 tabular-nums text-foreground whitespace-nowrap">{fmt(s.startIso)}</td>
                         <td className="px-2 py-1 text-foreground whitespace-nowrap">
-                          <GeoAtTime staffId={b.staffId} date={date} iso={s.startIso} />
+                          <GeoAtTime staffId={b.staffId} date={date} iso={s.startIso} intent="arrival" />
                         </td>
                         <td className="px-2 py-1 tabular-nums font-medium text-foreground text-right whitespace-nowrap">
                           {duration}
