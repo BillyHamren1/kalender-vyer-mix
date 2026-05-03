@@ -24,6 +24,7 @@ import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget, resolveTargetKey, type WorkTarget } from '@/hooks/useWorkSession';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
+import { useWorkDay } from '@/hooks/useWorkDay';
 import { format, parseISO } from 'date-fns';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
