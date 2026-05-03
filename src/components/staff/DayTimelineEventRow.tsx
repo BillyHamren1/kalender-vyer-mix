@@ -101,6 +101,11 @@ export function DayTimelineEventRow({ event, selected, onSelect }: Props) {
                   Låg säkerhet {Math.round((event.confidence ?? 0) * 100)}%
                 </Badge>
               )}
+              {event.event_type === "stay_segment" && event.planned === false && (
+                <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">
+                  Ej planerat
+                </Badge>
+              )}
               {expandable && (
                 open
                   ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
