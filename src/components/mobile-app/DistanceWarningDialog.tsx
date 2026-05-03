@@ -19,15 +19,20 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 
 interface DistanceWarningDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   placeName: string;
   distanceMeters: number;
-  /** Anropas med användarens (obligatoriska) anledning. */
-  onConfirm: (reason: string) => void;
+  /**
+   * Anropas med användarens (obligatoriska) anledning. Awaitas så att
+   * knappen kan visa loader medan startflödet kör. Om resultatet är
+   * sant → dialogen stängs. Om falsk → dialogen står kvar så användaren
+   * kan retrya / läsa felet i toasten.
+   */
+  onConfirm: (reason: string) => Promise<boolean>;
 }
 
 const formatDistance = (meters: number) => {
@@ -41,22 +46,34 @@ const DistanceWarningDialog = ({
   open, onOpenChange, placeName, distanceMeters, onConfirm,
 }: DistanceWarningDialogProps) => {
   const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // Reset reason whenever the dialog opens fresh
   useEffect(() => {
-    if (open) setReason('');
+    if (open) {
+      setReason('');
+      setSubmitting(false);
+    }
   }, [open]);
 
   const trimmed = reason.trim();
-  const canConfirm = trimmed.length >= MIN_REASON_LENGTH;
+  const canConfirm = trimmed.length >= MIN_REASON_LENGTH && !submitting;
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!canConfirm) return;
-    onConfirm(trimmed);
+    setSubmitting(true);
+    try {
+      const ok = await onConfirm(trimmed);
+      if (ok) {
+        onOpenChange(false);
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={(o) => { if (!submitting) onOpenChange(o); }}>
       <AlertDialogContent className="max-w-[380px] rounded-2xl">
         <AlertDialogHeader>
           <div className="flex items-center gap-2">
@@ -76,17 +93,19 @@ const DistanceWarningDialog = ({
             placeholder="T.ex. GPS strular, jag är på plats men i källaren, tar över för kollega…"
             rows={3}
             autoFocus
+            disabled={submitting}
             className="resize-none"
           />
-          {!canConfirm && trimmed.length > 0 && (
+          {!canConfirm && trimmed.length > 0 && trimmed.length < MIN_REASON_LENGTH && (
             <p className="text-[11px] text-muted-foreground">Minst {MIN_REASON_LENGTH} tecken.</p>
           )}
         </div>
 
         <AlertDialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Avbryt</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>Avbryt</Button>
           <Button onClick={handleConfirm} disabled={!canConfirm}>
-            Starta ändå
+            {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            {submitting ? 'Startar…' : 'Starta ändå'}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
