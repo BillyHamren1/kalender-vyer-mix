@@ -80,9 +80,10 @@ export function buildPlaceVisits(
   opts: BuildOptions = {},
 ): PlaceVisit[] {
   const unknownRadius = Math.max(40, opts.unknownRadiusMeters ?? 150);
-  const minDuration = Math.max(0, opts.minDurationMin ?? 5);
-  const confirmAway = Math.max(1, opts.confirmAwayPings ?? 2);
+  const minDuration = Math.max(1, opts.minDurationMin ?? MIN_VISIT_DURATION_MIN);
+  const confirmAway = Math.max(2, opts.confirmAwayPings ?? 4);
   const maxPingGapMs = Math.max(1, opts.maxPingGapMin ?? 20) * 60_000;
+  const mergeGapMaxMs = Math.max(1, opts.mergeGapMaxMin ?? 15) * 60_000;
 
   if (rawPings.length === 0) return [];
 
