@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.transistorsoft.fetch</string>
+		<string>com.transistorsoft.customtask</string>
+		<string>com.transistorsoft.react.background.fetch</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -20,8 +26,37 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>telprompt</string>
+		<string>mailto</string>
+		<string>sms</string>
+		<string>maps</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>EventFlow Time uses the camera to capture receipts and job-site photos linked to your time reports.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>EventFlow Time uses your location in the background to automatically detect arrivals at job sites, track travel time, and end your workday — even when the app is closed.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>EventFlow Time uses your location in the background to automatically detect arrivals at job sites, track travel time, and end your workday — even when the app is closed.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>EventFlow Time uses your location to verify work site attendance and log your hours accurately.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>EventFlow Time uses motion data to detect when you are travelling versus stationary, improving accuracy of automatic travel logging.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>EventFlow Time may save photos related to your time reports and expenses.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>EventFlow Time may access the photo library when attaching images to time reports and expenses.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>processing</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -45,39 +80,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-		<string>fetch</string>
-		<string>processing</string>
-	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>com.transistorsoft.fetch</string>
-		<string>com.transistorsoft.customtask</string>
-		<string>com.transistorsoft.react.background.fetch</string>
-	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>EventFlow Time uses the camera to capture receipts and job-site photos linked to your time reports.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>EventFlow Time may access the photo library when attaching images to time reports and expenses.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>EventFlow Time may save photos related to your time reports and expenses.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>EventFlow Time uses your location to verify work site attendance and log your hours accurately.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>EventFlow Time uses your location in the background to automatically detect arrivals at job sites, track travel time, and end your workday — even when the app is closed.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>EventFlow Time uses your location in the background to automatically detect arrivals at job sites, track travel time, and end your workday — even when the app is closed.</string>
-	<key>NSMotionUsageDescription</key>
-	<string>EventFlow Time uses motion data to detect when you are travelling versus stationary, improving accuracy of automatic travel logging.</string>
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-		<string>tel</string>
-		<string>telprompt</string>
-		<string>mailto</string>
-		<string>sms</string>
-		<string>maps</string>
-	</array>
 </dict>
 </plist>

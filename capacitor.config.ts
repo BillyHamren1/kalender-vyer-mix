@@ -22,7 +22,6 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'never',
     backgroundColor: '#0F7C7C',
-    allowsLinkPreview: false,
     infoPlist: {
       NSCameraUsageDescription: 'EventFlow Time uses the camera to capture images related to work tasks.',
       NSPhotoLibraryUsageDescription: 'EventFlow Time uses the photo library when selecting or attaching images related to work tasks.',
