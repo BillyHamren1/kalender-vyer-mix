@@ -360,6 +360,8 @@ export function evaluateAdminTimeReview(
       minutes: lateMin,
     });
   }
+
+  if (pendingAssistantEventsCount > 0) {
     anomalies.push({
       kind: 'needs_review',
       severity: 'warning',
