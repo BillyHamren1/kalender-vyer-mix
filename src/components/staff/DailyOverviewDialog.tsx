@@ -517,21 +517,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
             </DialogTitle>
           </div>
         </DialogHeader>
-        {/* Note: Day approval CTA lives inside TimeReportReviewTable header. */}
-        {false && reviewRow}
-          </div>
-        </DialogHeader>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <SummaryCard icon={<Clock className="h-4 w-4" />} label="Första start" value={toHHMM(firstStart)} />
-          <SummaryCard
-            icon={<Clock className="h-4 w-4" />}
-            label="Sista slut"
-            value={ongoingCount > 0 ? 'Pågår' : toHHMM(lastEnd)}
-          />
-          <SummaryCard icon={<Briefcase className="h-4 w-4" />} label="Arbetstid" value={formatHoursMinutes(totalWork)} />
-          <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
-        </div>
+        {/* Day approval CTA lives inside TimeReportReviewTable header. */}
 
         {/* Payroll-style review table — primary view, GPS hidden by default */}
         {date && (
