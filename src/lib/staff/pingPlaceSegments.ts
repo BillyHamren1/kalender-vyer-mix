@@ -322,3 +322,104 @@ export function resolvePlaceAt(
   }
   return best?.v ?? null;
 }
+
+// ─── Förflyttningar (travel gaps) ─────────────────────────────────────────
+
+/**
+ * En förflyttning mellan två vistelser. Bygger på faktiska råpings i gapet,
+ * inte på `travel_time_logs.from_address` (som ofta visar startaddress för
+ * en gammal restimer i stället för var personen faktiskt var).
+ */
+export interface TravelGap {
+  /** Stabil identitet `travel:<index>` */
+  key: string;
+  /** Starttid = end på föregående vistelse */
+  start: string;
+  /** Sluttid = start på nästa vistelse */
+  end: string;
+  durationMin: number;
+  /** Föregående vistelse (varifrån). */
+  from: PlaceVisit;
+  /** Nästa vistelse (vart). */
+  to: PlaceVisit;
+  /** Råpings inom förflyttningens fönster (kan vara tom om GPS tystnade). */
+  pings: Ping[];
+}
+
+/** Vad var personen vid en given tidpunkt — vistelse, resa eller okänt? */
+export type DayTimelineHit =
+  | { kind: 'visit'; visit: PlaceVisit }
+  | { kind: 'travel'; travel: TravelGap }
+  | { kind: 'unknown' };
+
+export interface DayTimeline {
+  visits: PlaceVisit[];
+  travels: TravelGap[];
+  /** Strikt resolver: returnerar 'visit' / 'travel' / 'unknown'. */
+  resolveAt: (iso: string | null) => DayTimelineHit;
+}
+
+/**
+ * Bygger en strikt dagstidlinje av vistelser + förflyttningar.
+ *
+ * Skillnad mot `resolvePlaceAt`:
+ *   - INGEN tolerans-fallback. En tidpunkt mellan två vistelser anses vara
+ *     en förflyttning, inte "närmaste vistelse".
+ *   - En tidpunkt utanför ping-fönstret är `unknown`, inte en gissning.
+ *
+ * Detta är vad UI:t ska använda för att aldrig påstå att personen var på
+ * Westers innan första riktiga ping inom Westers radie.
+ */
+export function buildDayTimeline(
+  rawPings: Ping[],
+  visits: PlaceVisit[],
+): DayTimeline {
+  const travels: TravelGap[] = [];
+  const sortedVisits = [...visits].sort(
+    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+  );
+  const sortedPings = [...rawPings].sort(
+    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+  );
+
+  for (let i = 0; i < sortedVisits.length - 1; i++) {
+    const from = sortedVisits[i];
+    const to = sortedVisits[i + 1];
+    const startMs = new Date(from.end).getTime();
+    const endMs = new Date(to.start).getTime();
+    if (endMs <= startMs) continue;
+    const pings = sortedPings.filter(p => {
+      const t = new Date(p.recorded_at).getTime();
+      return t > startMs && t < endMs;
+    });
+    travels.push({
+      key: `travel:${i}`,
+      start: from.end,
+      end: to.start,
+      durationMin: Math.max(0, Math.round((endMs - startMs) / 60_000)),
+      from,
+      to,
+      pings,
+    });
+  }
+
+  const resolveAt = (iso: string | null): DayTimelineHit => {
+    if (!iso) return { kind: 'unknown' };
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return { kind: 'unknown' };
+
+    for (const v of sortedVisits) {
+      const s = new Date(v.start).getTime();
+      const e = new Date(v.end).getTime();
+      if (t >= s && t <= e) return { kind: 'visit', visit: v };
+    }
+    for (const tr of travels) {
+      const s = new Date(tr.start).getTime();
+      const e = new Date(tr.end).getTime();
+      if (t > s && t < e) return { kind: 'travel', travel: tr };
+    }
+    return { kind: 'unknown' };
+  };
+
+  return { visits: sortedVisits, travels, resolveAt };
+}
