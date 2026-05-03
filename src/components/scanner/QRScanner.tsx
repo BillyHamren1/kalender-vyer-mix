@@ -432,7 +432,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     };
 
     animationFrameRef.current = requestAnimationFrame(scan);
-  }, [handleDetected, isIos, isNativeIos]);
+  }, [handleDetected, isIos, isNativeIos, applyZoom]);
 
   const startCamera = useCallback(async () => {
     if (shouldSkipCamera) return;
