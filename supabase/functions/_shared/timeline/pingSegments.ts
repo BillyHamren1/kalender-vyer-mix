@@ -2,7 +2,8 @@
 // SAMMA logik som frontend "Faktiska besök & förflyttningar" — ren motor för
 // "var har personen faktiskt varit idag?". Detta är sanningskällan.
 //
-// VIKTIGT: ändra inte beteendet utan att samtidigt ändra frontend-modulen.
+// MIRROR — ändra alltid båda i samma commit.
+// Se mem://constraints/gps-visit-exact-ping-membership-v1.
 
 import type { Ping, Segment, KnownPlace } from "./types.ts";
 import { distanceMeters, minutesBetween } from "./geo.ts";
@@ -17,6 +18,8 @@ export interface PlaceVisit {
   end: string;
   durationMin: number;
   pingCount: number;
+  /** Exakta pings som hör till vistelsen. UI får aldrig återskapa via tidsfilter. */
+  pings: RawPing[];
 }
 
 export interface TravelGap {
