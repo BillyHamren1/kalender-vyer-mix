@@ -245,6 +245,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   const handleZoomChange = useCallback((value: number) => {
     localStorage.setItem(ZOOM_PREF_KEY, String(value));
+    // Manual adjustment turns auto-zoom off so we don't override the user.
+    if (autoZoomRef.current) {
+      autoZoomRef.current = false;
+      localStorage.setItem(ZOOM_AUTO_KEY, '0');
+      setAutoZoom(false);
+    }
     void applyZoom(value);
   }, [applyZoom]);
 
