@@ -440,29 +440,19 @@ export function useTimerStartFlow(
   /**
    * Awaitable start used by the arrival-prompt confirm flow.
    *
-   * Unlike `requestStart`, this resolves with the *actual* outcome of the
-   * start chain (workday-ensure + activity start). The arrival prompt is a
-   * helper — it must only be marked as resolved if the real start succeeded.
-   *
-   * - Skips the distance dialog (user has just confirmed they arrived).
-   * - Treats a target-conflict as a "deferred" outcome so the caller can
-   *   keep the prompt open until the conflict dialog resolves.
-   *
-   * Returns:
-   *   'started'        — workday + activity started successfully
-   *   'duplicate'      — same target already running (treat as success for arrival)
-   *   'workday-failed' — workday could not be ensured; activity NOT started
-   *   'conflict'       — conflict dialog opened; resolution is async
+   * Same StartStatus contract as `requestStart`. Skips the distance dialog
+   * (user has just confirmed they arrived). The arrival prompt must only
+   * mark itself resolved on `started` / `already_running`.
    */
   const tryStartFromArrival = useCallback(
     async (
       target: WorkTarget,
       opts: RequestStartOptions = {},
-    ): Promise<'started' | 'duplicate' | 'workday-failed' | 'conflict'> => {
+    ): Promise<StartStatus> => {
       const label = opts.label ?? labelFor(target);
       const evalResult = evaluateStartConflict(target, activeTimers);
 
-      if (evalResult.status === 'duplicate') return 'duplicate';
+      if (evalResult.status === 'duplicate') return 'already_running';
 
       if (evalResult.status === 'switch') {
         // Defer to TimerConflictDialog; arrival caller must NOT mark resolved.
@@ -477,7 +467,8 @@ export function useTimerStartFlow(
         return 'conflict';
       }
 
-      // allow → run the real start chain and surface its outcome.
+      // allow → run the real start chain (no distance dialog) and return
+      // the actual outcome.
       return performStart(target, {
         startedAtIso: opts.startedAtIso,
         label,
