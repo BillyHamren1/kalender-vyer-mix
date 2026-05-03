@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { buildPlaceVisits, type KnownSite } from '../pingPlaceSegments';
+import { buildPlaceVisits, resolvePlaceAt, type KnownSite } from '../pingPlaceSegments';
 import type { Ping } from '../movementDetection';
 
 const FA: KnownSite = {
