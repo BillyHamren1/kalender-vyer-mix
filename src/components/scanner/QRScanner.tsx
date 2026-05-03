@@ -950,19 +950,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 </div>
               </div>
 
-              {/* Scan feedback overlay — flashes whenever parent reports a scan result */}
-              {feedbackFlash && (
+              {/* Scan feedback overlay — full-screen flash only on errors; success shows a subtle check */}
+              {feedbackFlash && !feedbackFlash.success && (
                 <>
                   <div
                     key={`flash-${feedbackFlash.key}`}
-                    className={`absolute inset-0 pointer-events-none ${feedbackFlash.success ? 'bg-emerald-500/35' : 'bg-red-500/45'}`}
+                    className="absolute inset-0 pointer-events-none bg-red-500/45"
                     style={{ animation: 'qr-flash 0.55s ease-out' }}
                   />
-                  <div className={`absolute inset-0 pointer-events-none border-[6px] ${feedbackFlash.success ? 'border-emerald-400' : 'border-red-500'}`} />
+                  <div className="absolute inset-0 pointer-events-none border-[6px] border-red-500" />
                   <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center max-w-[85%] px-3">
-                    <div className={`text-6xl mb-1 drop-shadow-lg ${feedbackFlash.success ? 'text-emerald-300' : 'text-red-300'}`}>
-                      {feedbackFlash.success ? '✓' : '✕'}
-                    </div>
+                    <div className="text-6xl mb-1 drop-shadow-lg text-red-300">✕</div>
                     {feedbackFlash.message && (
                       <div className="px-3 py-1.5 rounded-md bg-black/80 text-white text-sm font-semibold text-center max-w-full truncate">
                         {feedbackFlash.message}
@@ -975,6 +973,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                     )}
                   </div>
                 </>
+              )}
+              {feedbackFlash && feedbackFlash.success && (
+                <div
+                  key={`ok-${feedbackFlash.key}`}
+                  className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none px-3 py-1.5 rounded-full bg-emerald-500/90 text-white text-sm font-semibold shadow-lg flex items-center gap-2"
+                  style={{ animation: 'qr-flash 0.9s ease-out' }}
+                >
+                  <span>✓</span>
+                  {feedbackFlash.message && <span className="max-w-[60vw] truncate">{feedbackFlash.message}</span>}
+                </div>
               )}
 
               {zoomCaps && (
