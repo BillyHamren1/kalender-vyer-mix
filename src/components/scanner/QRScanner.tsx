@@ -999,7 +999,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         </div>
       )}
 
-      <div className="p-4 bg-black/80 safe-area-bottom">
+      <div className={`${compact ? 'p-2' : 'p-4 safe-area-bottom'} bg-black/80`}>
         <p className="text-white text-sm text-center mb-2">{shouldSkipCamera ? 'Enter code manually:' : 'Or enter code manually:'}</p>
         <div className="flex gap-2">
           <input
