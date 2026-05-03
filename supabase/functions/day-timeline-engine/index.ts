@@ -252,9 +252,10 @@ async function handleCompute(
     }
   }
 
-  // Run pipeline
-  const segmentsRaw = clusterPings(pings);
-  const segments = matchSegmentsToPlaces(segmentsRaw, knownPlaces);
+  // Run pipeline — använd SAMMA logik som UI:t "Faktiska besök & förflyttningar"
+  const visits = buildPlaceVisits(pings, knownPlaces);
+  const travels = buildTravelGaps(visits);
+  const segments = visitsToSegments(visits, travels);
   const events = buildEvents({
     segments,
     reports,
