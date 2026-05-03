@@ -275,6 +275,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         setZoomCaps(null);
       }
 
+      // Torch (lampa) detection
+      const supportsTorch = capabilities.torch === true;
+      setTorchSupported(supportsTorch);
+      if (!supportsTorch) setTorchOn(false);
+
       const constraints: MediaTrackConstraints = {
         ...(capabilities.width?.max ? { width: { ideal: Math.min(capabilities.width.max, 1280) } } : {}),
         ...(capabilities.height?.max ? { height: { ideal: Math.min(capabilities.height.max, 720) } } : {}),
