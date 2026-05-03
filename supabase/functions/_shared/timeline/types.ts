@@ -1,13 +1,17 @@
 // Day Timeline Engine — shared types
 // engine_version bumpas vid breaking change i event/suggestion-schemat
 
-export const ENGINE_VERSION = "v1";
+export const ENGINE_VERSION = "v2";
 
 export type EventType =
   | "workday_started"
   | "workday_ended"
   | "timer_started"
   | "timer_stopped"
+  // v2: konsoliderade segment — en rad per stopp / en rad per resa
+  | "stay_segment"
+  | "travel_segment"
+  // legacy (lämnas i typunionen för bakåtläsning av äldre rader)
   | "arrived_at_reported_site"
   | "left_reported_site"
   | "arrived_at_known_location"
