@@ -122,6 +122,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // RFID manager — provides status UI and inventory controls
   const rfid = useRfidManager();
   const [showKolliConfirm, setShowKolliConfirm] = useState(false);
+  const [showQrParcels, setShowQrParcels] = useState(false);
   const {
     enqueueScan,
     handleManualToggle,
