@@ -23,6 +23,7 @@ import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
+import { QrParcelManager } from './QrParcelManager';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
