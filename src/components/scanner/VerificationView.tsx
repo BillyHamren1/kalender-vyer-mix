@@ -552,6 +552,10 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             </span>
           )}
         </Button>
+        <Button onClick={() => setShowQrParcels(true)} size="sm" variant="outline" className="h-8 px-2.5 gap-1" title="QR-kollin (fysisk räknare)">
+          <QrCode className="h-3.5 w-3.5" />
+          <span className="text-xs">QR</span>
+        </Button>
         <Button onClick={() => setShowRecentScans(prev => !prev)} size="sm" variant={showRecentScans ? "secondary" : "outline"} className="h-8 px-2.5 gap-1 relative">
           <List className="h-3.5 w-3.5" />
           <span className="text-xs">Log</span>
