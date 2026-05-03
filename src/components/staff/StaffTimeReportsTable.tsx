@@ -102,11 +102,15 @@ interface JournalTableProps {
  *   • okänd plats reverse-geocodas på vistelsens centroid, så hela vistelsen
  *     får samma label oavsett vilken enskild ping vi råkar fråga om.
  */
-const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }> = ({ staffId, date, iso }) => {
+const GeoAtTime: React.FC<{
+  staffId: string;
+  date: string;
+  iso: string | null;
+  intent?: 'arrival' | 'departure' | 'neutral';
+}> = ({ staffId, date, iso, intent = 'neutral' }) => {
   const { resolveAt, isLoading, hasPings } = useDayPlaceVisits(staffId, date, !!iso);
   const hit = useMemo(() => resolveAt(iso), [resolveAt, iso]);
 
-  // Reverse-geocode okända vistelser ELLER okända ändpunkter på en resa.
   const fromCoord = hit.kind === 'travel' && !hit.travel.from.knownSite ? hit.travel.from.centre : null;
   const toCoord   = hit.kind === 'travel' && !hit.travel.to.knownSite   ? hit.travel.to.centre   : null;
   const visitCoord = hit.kind === 'visit' && !hit.visit.knownSite ? hit.visit.centre : null;
@@ -127,11 +131,22 @@ const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }>
   if (hit.kind === 'travel') {
     const fromName = hit.travel.from.knownSite?.name ?? fallbackLabels[1] ?? 'okänd plats';
     const toName   = hit.travel.to.knownSite?.name   ?? fallbackLabels[2] ?? 'okänd plats';
+    if (intent === 'arrival') {
+      return (
+        <span className="text-foreground inline-flex items-center gap-1 truncate" title={`Anlände till ${toName} (från ${fromName})`}>
+          📍 Anlände: {toName}
+        </span>
+      );
+    }
+    if (intent === 'departure') {
+      return (
+        <span className="text-foreground inline-flex items-center gap-1 truncate" title={`Lämnade ${fromName} (mot ${toName})`}>
+          🚪 Lämnade: {fromName}
+        </span>
+      );
+    }
     return (
-      <span
-        className="text-muted-foreground italic inline-flex items-center gap-1 truncate"
-        title={`Under förflyttning mellan ${fromName} och ${toName}`}
-      >
+      <span className="text-muted-foreground italic inline-flex items-center gap-1 truncate" title={`Under förflyttning mellan ${fromName} och ${toName}`}>
         🚗 Resa: {fromName} → {toName}
       </span>
     );
