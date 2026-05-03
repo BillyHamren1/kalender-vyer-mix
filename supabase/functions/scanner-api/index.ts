@@ -307,7 +307,7 @@ Deno.serve(async (req) => {
             return downDate <= cutoffDate
           }
           return false
-        }).slice(0, 80)
+        }).slice(0, 300)
 
         return new Response(JSON.stringify(filtered), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
