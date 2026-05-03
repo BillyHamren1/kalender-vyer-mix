@@ -295,8 +295,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
           break;
         }
         const key = eodQueueRef.current.shift()!;
-        const current = loadTimersFromStorage();
-        const timer = current.get(key);
+        const timer = timersRef.current.get(key) ?? loadTimersFromStorage().get(key);
         if (!timer) continue;
         // Wait until any in-flight save for this key finishes before opening
         // its dialog (handleStop sets savingKeys synchronously).
