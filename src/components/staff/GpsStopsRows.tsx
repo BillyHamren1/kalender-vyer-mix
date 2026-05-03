@@ -117,6 +117,8 @@ export const GpsStopsRows: React.FC<Props> = ({
     [pings, knownSites],
   );
 
+  const timeline = useMemo(() => buildDayTimeline(pings, visits), [pings, visits]);
+
   // Reverse-geocode endast okända vistelser (kända platser har redan namn).
   const geocodeTargets = useMemo(
     () => visits.map(v => (v.knownSite ? null : v.centre)),
@@ -124,26 +126,53 @@ export const GpsStopsRows: React.FC<Props> = ({
   );
   const geoLabels = useReverseGeocode(geocodeTargets);
 
-  const rows = useMemo(() => visits.map((v, i) => {
-    const sMs = new Date(v.start).getTime();
-    const eMs = new Date(v.end).getTime();
-    const visitPings = pings.filter(p => {
-      const t = new Date(p.recorded_at).getTime();
-      return t >= sMs && t <= eMs;
+  type Row =
+    | { kind: 'visit'; key: string; start: string; end: string; durationMin: number; pingCount: number; coords: { lat: number; lng: number }; label: string; pings: Ping[] }
+    | { kind: 'travel'; key: string; start: string; end: string; durationMin: number; pings: Ping[]; fromLabel: string; toLabel: string };
+
+  const rows: Row[] = useMemo(() => {
+    const visitRows = visits.map((v, i): Row => {
+      const sMs = new Date(v.start).getTime();
+      const eMs = new Date(v.end).getTime();
+      const visitPings = pings.filter(p => {
+        const t = new Date(p.recorded_at).getTime();
+        return t >= sMs && t <= eMs;
+      });
+      return {
+        kind: 'visit',
+        key: `${v.placeKey}-${v.start}`,
+        start: v.start,
+        end: v.end,
+        durationMin: v.durationMin,
+        pingCount: v.pingCount,
+        coords: v.centre,
+        label: v.knownSite
+          ? v.knownSite.name
+          : (geoLabels[i] ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`),
+        pings: visitPings,
+      };
     });
-    return {
-      key: `${v.placeKey}-${v.start}`,
-      start: v.start,
-      end: v.end,
-      durationMin: v.durationMin,
-      pingCount: v.pingCount,
-      coords: v.centre,
-      label: v.knownSite
-        ? v.knownSite.name
-        : (geoLabels[i] ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`),
-      pings: visitPings,
-    };
-  }), [visits, geoLabels, pings]);
+
+    const labelFor = (v: PlaceVisit, i: number) => v.knownSite?.name ?? geoLabels[i] ?? 'okänd plats';
+    const interleaved: Row[] = [];
+    for (let i = 0; i < visitRows.length; i++) {
+      interleaved.push(visitRows[i]);
+      const tr: TravelGap | undefined = timeline.travels[i];
+      if (tr) {
+        interleaved.push({
+          kind: 'travel',
+          key: tr.key,
+          start: tr.start,
+          end: tr.end,
+          durationMin: tr.durationMin,
+          pings: tr.pings,
+          fromLabel: labelFor(tr.from, visits.indexOf(tr.from)),
+          toLabel: labelFor(tr.to, visits.indexOf(tr.to)),
+        });
+      }
+    }
+    return interleaved;
+  }, [visits, geoLabels, pings, timeline.travels]);
 
   const contentCols = totalCols - leadingCells;
 
@@ -160,7 +189,9 @@ export const GpsStopsRows: React.FC<Props> = ({
     );
   }
 
-  const totalMin = rows.reduce((sum, r) => sum + r.durationMin, 0);
+  const totalVisitMin = rows.reduce((sum, r) => sum + (r.kind === 'visit' ? r.durationMin : 0), 0);
+  const visitCount = rows.filter(r => r.kind === 'visit').length;
+  const travelCount = rows.filter(r => r.kind === 'travel').length;
 
   return (
     <>
@@ -174,9 +205,9 @@ export const GpsStopsRows: React.FC<Props> = ({
           >
             {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             <MapPin className="h-3 w-3" />
-            <span className="font-medium">Faktiska besök (GPS-pingar)</span>
+            <span className="font-medium">Faktiska besök & förflyttningar (GPS)</span>
             <span className="tabular-nums text-muted-foreground/80">
-              ({rows.length} adress{rows.length === 1 ? '' : 'er'} · {fmtDur(totalMin)} totalt)
+              ({visitCount} adress{visitCount === 1 ? '' : 'er'} · {travelCount} resa{travelCount === 1 ? '' : 'r'} · {fmtDur(totalVisitMin)} på plats)
             </span>
           </button>
         </td>
@@ -188,14 +219,58 @@ export const GpsStopsRows: React.FC<Props> = ({
           <th className="px-2 py-1 w-6" />
           <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Ankom</th>
           <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Lämnade</th>
-          <th className="text-left font-semibold px-2 py-1" colSpan={Math.max(1, contentCols - 5)}>Adress</th>
+          <th className="text-left font-semibold px-2 py-1" colSpan={Math.max(1, contentCols - 5)}>Adress / Förflyttning</th>
           <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">Pings</th>
-          <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">På plats</th>
+          <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">Tid</th>
         </tr>
       )}
 
       {expanded && rows.map((r) => {
         const isOpen = expandedVisit === r.key;
+        if (r.kind === 'travel') {
+          const pingsCount = r.pings.length;
+          return (
+            <React.Fragment key={r.key}>
+              <tr
+                className="border-b border-border/20 text-xs bg-amber-500/5 hover:bg-amber-500/10 cursor-pointer"
+                onClick={() => setExpandedVisit(isOpen ? null : r.key)}
+              >
+                {Array.from({ length: leadingCells }).map((_, idx) => (
+                  <td key={`pad-${idx}`} className="px-2 py-1" />
+                ))}
+                <td className="px-2 py-1 align-top w-6">
+                  {pingsCount > 0 ? (isOpen ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />) : null}
+                </td>
+                <td className="px-2 py-1 tabular-nums text-muted-foreground whitespace-nowrap align-top">
+                  {fmt(r.start)}
+                </td>
+                <td className="px-2 py-1 tabular-nums text-muted-foreground whitespace-nowrap align-top">
+                  {fmt(r.end)}
+                </td>
+                <td className="px-2 py-1 align-top text-muted-foreground italic" colSpan={Math.max(1, contentCols - 5)}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Car className="h-3 w-3 text-amber-600" />
+                    Förflyttning: {r.fromLabel} → {r.toLabel}
+                  </span>
+                </td>
+                <td className="px-2 py-1 tabular-nums text-right text-muted-foreground align-top whitespace-nowrap">
+                  {pingsCount}
+                </td>
+                <td className="px-2 py-1 tabular-nums text-muted-foreground italic whitespace-nowrap text-right align-top">
+                  {fmtDur(r.durationMin)}
+                </td>
+              </tr>
+              {isOpen && pingsCount > 0 && (
+                <VisitPingsRows
+                  pings={r.pings}
+                  leadingCells={leadingCells}
+                  contentCols={contentCols}
+                  onPick={(label, coords) => setMapTarget({ address: label, coords })}
+                />
+              )}
+            </React.Fragment>
+          );
+        }
         return (
           <React.Fragment key={r.key}>
             <tr
