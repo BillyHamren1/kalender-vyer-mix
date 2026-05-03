@@ -1,52 +1,41 @@
+# Plan: Stannplatser & resor — korrekt tolkning
+
 ## Mål
-Ersätta dagens kort-grid i "Planerad personal" med en kompakt **Gantt-vy per dag** där:
-- Vänster kolumn = personalnamn (sticky)
-- Övre rad = tidslinje (timmar)
-- Varje persons projekt ritas som färgade block längs tidslinjen enligt planerad start/slut
+Systemet ska tolka en personals dag exakt som GPS-listan ("Faktiska besök & förflyttningar") visar:
+- Stationära perioder = **stopp på en plats** (även om platsen inte är planerad).
+- Förflyttning mellan stopp = **resa** (bara den faktiska restidens längd, inte summan inkl. stillastående).
+- Ett 3h stillastående hos icke-planerad adress + körning vidare = "Stannade på X i 3h. Ej planerat. Åkte sen vidare till Y." — INTE "resa 4h".
 
-## Layout
+## Sanningskälla (single source)
+`pingPlaceSegments.ts` (frontend) genererar den korrekta segment-listan. Den ska bli sanningen även för:
+1. Server-engine (`day-timeline-engine` / `get_staff_day_reality`).
+2. Förslag/anomalier (correction suggestions).
+3. Sammanfattningar i Staff Management Reports.
 
-```text
-                08  09  10  11  12  13  14  15  16  17  18
-─────────────┬──────────────────────────────────────────────
-Aleksejs ●   │      [▓ 2603-156 Westers ▓][▓ 2604-97 Craft ▓]
-Joel ●       │  [▓ 2602-15 Tiomila ▓][▓▓ 2604-98 SP Office ▓▓]
-Ivars ●      │            [▓▓▓▓ 2603-156 Westers ▓▓▓▓]  Pågår
-Kristaps ●   │   [▓ 2604-97 Craft ▓]                    Pågår
-Markuss ●    │  [▓▓ 2602-15 Tiomila ▓▓]                 ✓ Rapporterat
-```
+## Steg
+1. **Extrahera ping-segmenteringen till delad modul** (`supabase/functions/_shared/timeline/pingSegments.ts`) — port av `pingPlaceSegments.ts`. Frontend importerar samma logik från `src/lib/timeline/pingSegments.ts` (eller behåller och delar via shared util som båda bygger på).
+2. **Ny event-typ i timeline-modellen**: `unplanned_stay` (stannade på oplanerad plats) — separat från `travel` och `presence`.
+3. **Eventbuilder** (`supabase/functions/_shared/timeline/eventBuilder.ts`) bygger events från ping-segment IST.f. att blanda time_reports + GPS rått:
+   - Stationärt segment ≥ X min på känd kund/projekt-adress → `presence` (matcha plats).
+   - Stationärt segment ≥ X min på okänd adress → `unplanned_stay`.
+   - Mellan två stationära segment → `travel` (bara den rörliga delen).
+4. **Korrektionsförslag** baseras på diff mellan GPS-sanningen och `time_reports`, inte tvärtom.
+5. **UI Staff Management Reports**: visar `unplanned_stay` med text "Stannade på {adress} i {duration}. Ej planerat." + förflyttning före/efter.
+6. **Tidszon**: all tolkning sker i Europe/Stockholm. Centraliserad helper, ingen rå UTC-jämförelse i builders.
 
-- Vänster kolumn ~160px sticky (namn + färgprick + statusprick).
-- Tidslinjeområde scrollbar horisontellt vid behov; defaultintervall = min(planerad start) → max(planerad slut) över alla rader, klampat till hel timme.
-- Varje block visar `bookingNumber · client` (truncate). Tooltip med fullständigt namn, roll, start–slut, fas (rigg/event/nedrigg).
-- Färg på block = personens färg (svag fyllning) + vänsterkant i fasfärg (rigg/event/nedrigg).
-- Status-pill (Ej startat / Pågår / Rapporterat / Sen start) flyttas till slutet av raden, kompakt.
-- "Nu"-linje (vertikal) ritas om dagen = idag.
-- Rader sorteras: avvikelser först (ej startat, sen), sedan namn.
+## Skydd
+- Kontrakt-test (`pingSegments.contract.test.ts`) som låser: 23 segment för Ivar 2026-05-03 → exakt samma 23 events från engine.
+- Aldrig blanda `travel` och `stay` — tydlig diskriminerad union i types.
 
-## Tekniska ändringar
+## Filer som ändras
+- `supabase/functions/_shared/timeline/pingSegments.ts` (ny)
+- `supabase/functions/_shared/timeline/eventBuilder.ts` (skriv om)
+- `supabase/functions/_shared/timeline/types.ts` (lägg till `unplanned_stay`)
+- `supabase/functions/day-timeline-engine/index.ts` (använd ny builder)
+- `src/lib/timeline/pingSegments.ts` (refaktorera, exportera ren funktion)
+- `src/components/staff/DayTimelineEventRow.tsx` (rendera `unplanned_stay`)
+- `src/hooks/admin/useDayTimeline.ts` (typer)
+- `src/integrations/supabase/types.ts` (auto efter migration om enum)
 
-**`src/components/staff/PlannedStaffPanel.tsx`** — skrivs om till timeline:
-1. Utöka query: hämta även `rig_end_time`, `event_end_time`, `rigdown_end_time` så block får både start och slut (fallback 1h om end saknas).
-2. Berika `PlannedJob` med `phase: 'rigg'|'event'|'nedrigg'`, `startDate`, `endDate`.
-3. Räkna ut `dayWindow = { startHour, endHour }` från min/max över alla jobb (default 06–22, expanderar vid behov).
-4. Ny intern komponent `<TimelineRow row hourPx windowStart windowEnd />`:
-   - Container: `relative h-10` med horisontellt rutnät (1px border varje timme via background-image linear-gradient).
-   - Varje block: `absolute` med `left = (jobStart - windowStart)/3600 * hourPx`, `width = duration/3600 * hourPx`, min-width 60px.
-   - Overlap: om två jobb krockar i tid, stapla i två sub-rader (auto höjd).
-5. Header-rad med timmarna ritas en gång ovanför raderna, sticky top.
-6. Behåll status-beräkning (`getStatus`) men rendera den som liten badge längst till höger på raden.
-7. Behåll `onSelectStaff`-klick (klick var som helst på raden).
-
-**Inga andra filer behöver röras** — komponenten används redan från admin-vyn med samma props.
-
-## Edge cases
-- Jobb utan tider: visas som grått pill längst till vänster ("Tid saknas") — ingen position på tidslinjen.
-- Jobb som spänner över flera dagar: klampas till dagens fönster.
-- Tom dag: returnerar `null` som idag.
-- Mobil (<768px): faller tillbaka till befintlig kompakt listvy (en kolumn) eftersom Gantt blir oläsbar smalt — behåller status-pill + jobblista som textrader.
-
-## Tester (manuell QA)
-- Öppna admin Tidrapporter, dag = idag → bekräfta att 5 personer från screenshoten visas som rader, med korrekt block-position, och att "Nu"-linjen är synlig.
-- Hovra ett block → tooltip visar bokningsnr, kund, fas, start–slut.
-- Klicka på rad → öppnar staffens rapportdetalj som tidigare.
+## Migration
+Lägg till `'unplanned_stay'` i `day_timeline_events.event_type` enum/check-constraint.
