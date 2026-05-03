@@ -50,7 +50,7 @@ interface QRScannerProps {
  *   - true → always skip camera
  *   - false → always try camera (use only when camera is explicitly desired)
  */
-export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera }) => {
+export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera, feedback, compact, title }) => {
   const isNativeAndroidScanner = isScannerApp && Capacitor.getPlatform() === 'android';
   const shouldSkipCamera = skipCamera ?? isNativeAndroidScanner;
   const isNativeIos = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
