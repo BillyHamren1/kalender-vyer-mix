@@ -107,6 +107,16 @@ function getRange(anchorDate: Date, mode: OpsMode): { start: Date; end: Date } {
       end: endOfWeek(anchorDate, { weekStartsOn: 1 }),
     };
   }
+  if (mode === "next7") {
+    const start = startOfDay(anchorDate);
+    const end = endOfDay(new Date(start.getTime() + 6 * 24 * 3600 * 1000));
+    return { start, end };
+  }
+  if (mode === "next30") {
+    const start = startOfDay(anchorDate);
+    const end = endOfDay(new Date(start.getTime() + 29 * 24 * 3600 * 1000));
+    return { start, end };
+  }
   return { start: startOfDay(anchorDate), end: endOfDay(anchorDate) };
 }
 
