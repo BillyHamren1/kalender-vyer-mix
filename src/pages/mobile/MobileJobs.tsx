@@ -319,9 +319,12 @@ const MobileJobs = () => {
         onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
         placeName={distanceWarning?.placeName || ''}
         distanceMeters={distanceWarning?.distance || 0}
-        onConfirm={(reason) => {
-          distanceWarning?.onConfirm(reason);
-          dismissDistanceWarning();
+        onConfirm={async (reason) => {
+          if (!distanceWarning) return false;
+          const status = await distanceWarning.onConfirm(reason);
+          const ok = status === 'started' || status === 'already_running';
+          if (ok) dismissDistanceWarning();
+          return ok;
         }}
       />
 
