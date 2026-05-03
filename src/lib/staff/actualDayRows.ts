@@ -103,10 +103,10 @@ function collapseMicroStops(items: TimelineItem[]): TimelineItem[] {
       const current = working[i];
       if (!current || current.type !== 'visit' || current.durationMin > SHORT_VISIT_MAX_MIN) continue;
 
-      const prevTravel = working[i - 1]?.type === 'travel' ? working[i - 1] : null;
-      const nextTravel = working[i + 1]?.type === 'travel' ? working[i + 1] : null;
-      const prevVisit = working[i - 2]?.type === 'visit' ? working[i - 2] : null;
-      const nextVisit = working[i + 2]?.type === 'visit' ? working[i + 2] : null;
+      const prevTravel: TimelineTravelItem | null = working[i - 1]?.type === 'travel' ? working[i - 1] as TimelineTravelItem : null;
+      const nextTravel: TimelineTravelItem | null = working[i + 1]?.type === 'travel' ? working[i + 1] as TimelineTravelItem : null;
+      const prevVisit: TimelineVisitItem | null = working[i - 2]?.type === 'visit' ? working[i - 2] as TimelineVisitItem : null;
+      const nextVisit: TimelineVisitItem | null = working[i + 2]?.type === 'visit' ? working[i + 2] as TimelineVisitItem : null;
 
       if (prevTravel && nextTravel && prevVisit && nextVisit && samePlace(prevVisit.visit, nextVisit.visit)) {
         const mergedVisit = buildVisitItem(prevVisit.visit, prevVisit.label, prevVisit.startIso, nextVisit.endIso);
@@ -221,29 +221,31 @@ export function buildActualDayRows(visits: PlaceVisit[], travels: TravelGap[], v
   normalized = mergeSamePlaceVisits(normalized);
   normalized = mergeAdjacentTravels(normalized);
 
-  return normalized
-    .filter((item) => item.type === 'visit' || !samePlace(item.from, item.to))
-    .map<ActualDayRow>((item) => {
-      if (item.type === 'visit') {
-        return {
-          source: 'gps',
-          key: item.key,
-          kind: 'visit',
-          label: item.label,
-          startIso: item.startIso,
-          endIso: item.endIso,
-          hours: item.durationMin / 60,
-        };
-      }
-
-      return {
+  return normalized.reduce<ActualDayRow[]>((rows, item) => {
+    if (item.type === 'visit') {
+      rows.push({
         source: 'gps',
         key: item.key,
-        kind: 'travel',
-        label: `Resa: ${item.fromLabel} → ${item.toLabel}`,
+        kind: 'visit',
+        label: item.label,
         startIso: item.startIso,
         endIso: item.endIso,
         hours: item.durationMin / 60,
-      };
+      });
+      return rows;
+    }
+
+    if (samePlace(item.from, item.to)) return rows;
+
+    rows.push({
+      source: 'gps',
+      key: item.key,
+      kind: 'travel',
+      label: `Resa: ${item.fromLabel} → ${item.toLabel}`,
+      startIso: item.startIso,
+      endIso: item.endIso,
+      hours: item.durationMin / 60,
     });
+    return rows;
+  }, []);
 }
