@@ -406,6 +406,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                             staffId={b.staffId}
                             date={date}
                             iso={s.isOpen ? null : s.endIso}
+                            intent="departure"
                           />
                         </td>
                         <td className="px-2 py-1 whitespace-nowrap">
