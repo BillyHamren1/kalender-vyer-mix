@@ -303,6 +303,26 @@ const MobileGlobalOverlays: React.FC = () => {
     return providerActiveTimers.has(key);
   }, [providerActiveTimers]);
 
+  /**
+   * Vänta tills useWorkDay rapporterar en aktiv (öppen) workday. Försöker
+   * först cache, sedan refresh, sedan poll med kort timeout som säkerhetsnät.
+   */
+  const waitForActiveWorkday = useCallback(async (timeoutMs = 2500): Promise<boolean> => {
+    const isOpen = () => {
+      const wd = currentWorkdayRef.current;
+      return !!wd && !wd.ended_at;
+    };
+    if (isOpen()) return true;
+    // Tryck igång en refresh för att ta server-truth direkt.
+    try { await refreshWorkday(); } catch { /* non-fatal */ }
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (isOpen()) return true;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return isOpen();
+  }, [refreshWorkday]);
+
   const handleArrivalConfirm = useCallback(async (result: { startedAtIso: string; usedSuggestedArrival: boolean }) => {
     if (!plannedArrivalTarget) return;
     setArrivalSubmitting(true);
