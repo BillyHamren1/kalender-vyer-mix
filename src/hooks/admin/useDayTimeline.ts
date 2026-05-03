@@ -23,9 +23,9 @@ export interface DayTimelineEvent {
   date: string;
   event_type: DayTimelineEventType;
   ts: string;
-  end_ts: string | null;
-  duration_min: number | null;
-  planned: boolean | null;
+  end_ts?: string | null;
+  duration_min?: number | null;
+  planned?: boolean | null;
   lat: number | null;
   lng: number | null;
   accuracy: number | null;
