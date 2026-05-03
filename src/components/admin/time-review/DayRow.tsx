@@ -44,16 +44,19 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
   const plannedEndLabel = safeFormat(row.plannedEnd, 'HH:mm');
 
   const isPlannedOnly = !row.workdayStart && row.plannedJobs.length > 0;
+  const notStarted = row.result.anomalies.some((a) => a.kind === 'planned_no_start');
   const accent =
-    status === 'critical'
-      ? 'border-l-destructive'
-      : status === 'warning'
-        ? 'border-l-amber-500'
-        : row.workdayStart && !row.workdayEnd
-          ? 'border-l-teal-500'
-          : isPlannedOnly
-            ? 'border-l-sky-400'
-            : 'border-l-emerald-500';
+    notStarted
+      ? 'border-l-rose-500'
+      : status === 'critical'
+        ? 'border-l-destructive'
+        : status === 'warning'
+          ? 'border-l-amber-500'
+          : row.workdayStart && !row.workdayEnd
+            ? 'border-l-teal-500'
+            : isPlannedOnly
+              ? 'border-l-sky-400'
+              : 'border-l-emerald-500';
 
   return (
     <div
