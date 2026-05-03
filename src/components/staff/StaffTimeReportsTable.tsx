@@ -295,7 +295,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                     <div className="flex items-baseline gap-2">
                       <span className="tabular-nums font-bold text-foreground text-base">{fmt(b.dayStartIso)}</span>
                       <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                        <GeoAtTime staffId={b.staffId} date={date} iso={b.dayStartIso} />
+                        <GeoAtTime staffId={b.staffId} date={date} iso={b.dayStartIso} intent="arrival" />
                       </span>
                     </div>
                   </td>
