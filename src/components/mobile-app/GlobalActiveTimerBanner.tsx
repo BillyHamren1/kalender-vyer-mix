@@ -12,6 +12,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget } from '@/hooks/useWorkSession';
 import { useWorkDay } from '@/hooks/useWorkDay';
+import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import { clearWorkdayEnded } from '@/services/workdayState';
 import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
