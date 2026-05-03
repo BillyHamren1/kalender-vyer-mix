@@ -177,14 +177,14 @@ export function useDayReviewActions(): DayReviewActions {
         if (result === 'started') {
           toast.success('Arbete startat från ankomsttid');
           await resolveEvent(ev.id, 'applied_from_event_time');
-        } else if (result === 'duplicate') {
+        } else if (result === 'already_running') {
           toast.info('Aktivitet redan igång — markerar händelsen som hanterad');
           await resolveEvent(ev.id, 'auto_closed_by_later_action' as any);
         } else if (result === 'conflict') {
           // Konfliktdialogen tar över — eventet förblir öppet tills användaren
           // bekräftar bytet och en ny start sker. Ingen resolve här.
           toast.message('Lös pågående timer-konflikt först — händelsen kvarstår');
-        } else if (result === 'workday-failed') {
+        } else if (result === 'workday_failed') {
           // performStart har redan visat ett tydligt felmeddelande.
           toast.error('Arbetsdagen kunde inte säkerställas — händelsen kvarstår');
         }
@@ -210,12 +210,12 @@ export function useDayReviewActions(): DayReviewActions {
         if (result === 'started') {
           toast.success('Arbete startat nu');
           await resolveEvent(ev.id, 'applied_from_now');
-        } else if (result === 'duplicate') {
+        } else if (result === 'already_running') {
           toast.info('Redan igång — markerar händelsen som hanterad');
           await resolveEvent(ev.id, 'auto_closed_by_later_action' as any);
         } else if (result === 'conflict') {
           toast.message('Lös pågående timer-konflikt först — händelsen kvarstår');
-        } else if (result === 'workday-failed') {
+        } else if (result === 'workday_failed') {
           toast.error('Arbetsdagen kunde inte säkerställas — händelsen kvarstår');
         }
       } catch (err: any) {

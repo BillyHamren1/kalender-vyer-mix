@@ -107,19 +107,19 @@ const MobileLocationDetail = () => {
     ? { kind: 'location', locationId: location.id, name: location.name }
     : null;
 
-  const handleStartTaskTimer = (task: LagerTask) => {
+  const handleStartTaskTimer = async (task: LagerTask) => {
     if (!locationTarget) return;
     // UNIFIED START FLOW — workday-first guarantee, conflict + distance dialogs.
-    requestStart(locationTarget, {
+    await requestStart(locationTarget, {
       label: task.title,
       taskId: task.id,
       taskTitle: task.title,
     });
   };
 
-  const handleStartGeneralTimer = () => {
+  const handleStartGeneralTimer = async () => {
     if (!locationTarget) return;
-    requestStart(locationTarget, { label: locationTarget.name });
+    await requestStart(locationTarget, { label: locationTarget.name });
   };
 
   const handleStopTimer = async () => {

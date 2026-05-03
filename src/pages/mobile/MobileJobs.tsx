@@ -88,7 +88,7 @@ const MobileJobs = () => {
   // Timer toggle for standalone bookings.
   // STOP path: never clears local timer here — navigates user to /m/report
   // where save-then-stop is enforced.
-  const handleTimerToggle = (e: React.MouseEvent, booking: MobileBooking) => {
+  const handleTimerToggle = async (e: React.MouseEvent, booking: MobileBooking) => {
     e.stopPropagation();
     if (activeTimers.has(booking.id)) {
       toast.success(t('timer.stoppedCreateReport'));
@@ -96,11 +96,11 @@ const MobileJobs = () => {
       return;
     }
     const target: WorkTarget = { kind: 'booking', bookingId: booking.id, client: booking.client };
-    requestStart(target);
+    await requestStart(target);
   };
 
   // Timer toggle for projects
-  const handleProjectTimerToggle = (e: React.MouseEvent, lpId: string, name: string, _entries: { booking: MobileBooking }[]) => {
+  const handleProjectTimerToggle = async (e: React.MouseEvent, lpId: string, name: string, _entries: { booking: MobileBooking }[]) => {
     e.stopPropagation();
     const projectKey = `project-${lpId}`;
     if (activeTimers.has(projectKey)) {
@@ -109,11 +109,11 @@ const MobileJobs = () => {
       return;
     }
     const target: WorkTarget = { kind: 'project', largeProjectId: lpId, name };
-    requestStart(target);
+    await requestStart(target);
   };
 
   // Timer toggle for fixed locations (e.g. Lager)
-  const handleLocationTimerToggle = (e: React.MouseEvent, loc: typeof locationJobs[0]) => {
+  const handleLocationTimerToggle = async (e: React.MouseEvent, loc: typeof locationJobs[0]) => {
     e.stopPropagation();
     const locKey = `location-${loc.id}`;
     if (activeTimers.has(locKey)) {
@@ -126,7 +126,7 @@ const MobileJobs = () => {
       locationId: loc.id,
       name: loc.name,
     };
-    requestStart(target);
+    await requestStart(target);
   };
   // Elapsed time display
   const [, setTick] = useState(0);

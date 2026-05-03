@@ -194,7 +194,7 @@ const MobileGlobalOverlays: React.FC = () => {
           kind === 'location' ? { kind: 'location', locationId: targetId, name: label }
           : kind === 'project' ? { kind: 'project', largeProjectId: targetId, name: label }
           : { kind: 'booking', bookingId: targetId, client: label };
-        if (!workTarget) return { status: 'workday-failed' };
+        if (!workTarget) return { status: 'workday_failed' };
         const status = await tryStartFromArrival(workTarget, { label });
         return { status };
       },
@@ -286,7 +286,7 @@ const MobileGlobalOverlays: React.FC = () => {
       // true outcome, not a fire-and-forget "started".
       const status = await tryStartFromArrival(workTarget, { startedAtIso: startedAt });
 
-      if (status === 'started' || status === 'duplicate') {
+      if (status === 'started' || status === 'already_running') {
         await markResolved(plannedArrivalTarget);
         setArrivalDialogOpen(false);
         refreshArrival();
@@ -300,7 +300,7 @@ const MobileGlobalOverlays: React.FC = () => {
         return;
       }
 
-      // 'workday-failed' — performStart already showed a toast.error.
+      // 'workday_failed' — performStart already showed a toast.error.
       // Leave the arrival prompt unresolved so the user can retry.
     } catch (err: any) {
       toast.error(err?.message || 'Could not start timer');

@@ -17,6 +17,7 @@ import {
   type RawTravelLog,
   type RawWorkday,
 } from '@/lib/staff/dayJournal';
+import { calculateDayMetrics, type DayMetrics } from '@/lib/staff/dayMetrics';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
@@ -61,6 +62,13 @@ interface StaffWithDayReport {
   segments: DaySegment[];
   journal: import('@/lib/staff/dayJournal').StaffDayJournal;
   latestPing: LatestPing | null;
+  /**
+   * Single source of truth för dagsmetri. Workday = total. Activity/travel
+   * = fördelning. payableMinutes = workday (aldrig workday + activity).
+   * UI ska föredra detta över `total_hours` när det visar "Arbetsdag" /
+   * "Total arbetstid".
+   */
+  metrics: DayMetrics;
 }
 
 // Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
@@ -708,11 +716,43 @@ const StaffTimeReports: React.FC = () => {
             latestPing: pingMap.get(s.id) || null,
           });
 
+          const metrics = calculateDayMetrics({
+            workday: staffWorkdays.length > 0
+              ? {
+                  started_at: staffWorkdays[0].started_at,
+                  ended_at: staffWorkdays.find(w => !w.ended_at)
+                    ? null
+                    : staffWorkdays.map(w => w.ended_at).filter(Boolean).sort().reverse()[0] ?? null,
+                }
+              : null,
+            activitySegments: [
+              ...staffReports.map(r => ({
+                start: r.start_iso,
+                end: r.end_iso,
+                hours: r.hours,
+              })),
+              ...staffLTEs
+                .filter(e => !e.isPresenceOnly)
+                .map(e => ({
+                  start: e.entered_at,
+                  end: e.exited_at,
+                  hours: e.hours,
+                })),
+            ],
+            travelSegments: staffTravel.map(t => ({
+              start: t.start_iso,
+              end: t.end_iso,
+              hours: t.hours,
+            })),
+          });
+
           return {
             id: s.id,
             name: s.name,
             role: s.role,
             color: s.color,
+            // Behåll legacy total_hours för befintliga callers, men UI ska
+            // föredra metrics.payableMinutes.
             total_hours: a.total_hours,
             reports_count: a.reports_count,
             has_open_report: a.has_open_report,
@@ -729,6 +769,7 @@ const StaffTimeReports: React.FC = () => {
             segments,
             journal,
             latestPing: pingMap.get(s.id) || null,
+            metrics,
           };
         })
         .sort((a, b) => {

@@ -128,7 +128,7 @@ const MobileJobDetail = () => {
       // through the same conflict + distance machinery as every other
       // surface in the mobile app. Direct startSession is forbidden.
       const target = { kind: 'booking' as const, bookingId: id, client: booking.client };
-      requestStart(target, {
+      await requestStart(target, {
         taskId: selectedTaskId || undefined,
         taskTitle: selectedTaskTitle || undefined,
       });
