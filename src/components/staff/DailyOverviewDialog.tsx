@@ -539,13 +539,60 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
         </div>
 
+        {/* Payroll-style review table — primary view, GPS hidden by default */}
+        {date && (
+          <TimeReportReviewTable
+            date={date}
+            staffName={staffName}
+            work={workEntries.map(w => ({
+              id: w.id,
+              start_time: w.start_time,
+              end_time: w.end_time,
+              hours_worked: w.hours_worked,
+              booking_client: w.booking_client,
+              booking_number: w.booking_number,
+              description: w.description,
+              delivery_lat: w.delivery_lat,
+              delivery_lng: w.delivery_lng,
+              ongoing: w.ongoing,
+              source: w.id.startsWith('lte-') ? 'location_entry' : 'time_report',
+            }))}
+            travel={travelSegments.map(t => ({
+              id: t.id,
+              start_time: t.start_time,
+              end_time: t.end_time,
+              hours_worked: t.hours_worked,
+              from_address: t.from_address,
+              to_address: t.to_address,
+              from_latitude: t.from_latitude,
+              from_longitude: t.from_longitude,
+              to_latitude: t.to_latitude,
+              to_longitude: t.to_longitude,
+              destination_booking_id: t.destination_booking_id,
+            }))}
+            onEditTimeReport={(id) => setEditTimeReportId(id)}
+            onToggleGpsDetails={setShowGpsDetails}
+            gpsDetailsVisible={showGpsDetails}
+            approveDayAction={reviewRow ? (
+              <DayApprovalAction
+                workdayId={reviewRow.workdayId}
+                workday={reviewRow.workdayStart ? { started_at: reviewRow.workdayStart, ended_at: reviewRow.workdayEnd } : null}
+                result={reviewRow.result}
+                reviewStatus={reviewRow.reviewStatus}
+                variant="full"
+                onApproved={() => onOpenChange(false)}
+              />
+            ) : undefined}
+          />
+        )}
+
         {/* Correction suggestions (Etapp 3) — actionable above timeline */}
         {date && staffId && (
           <CorrectionSuggestionsPanel staffId={staffId} date={date} organizationId={organizationId} />
         )}
 
-        {/* Server-derived event timeline (Day Timeline Engine) */}
-        {date && staffId && (
+        {/* Server-derived event timeline (Day Timeline Engine) — GPS debug, hidden by default */}
+        {showGpsDetails && date && staffId && (
           <div className="space-y-3">
             <DayTimelineMap
               events={timelineEvents}
