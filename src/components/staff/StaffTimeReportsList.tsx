@@ -12,6 +12,7 @@ import { TimeReportReviewTable } from './TimeReportReviewTable';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
+import type { DayMetrics } from '@/lib/staff/dayMetrics';
 
 interface ProjectInfo {
   booking_id: string;
@@ -34,6 +35,7 @@ interface StaffWithDayReport {
   segments: DaySegment[];
   journal: StaffDayJournal;
   latestPing: LatestPing | null;
+  metrics: DayMetrics;
 }
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
