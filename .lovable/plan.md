@@ -1,60 +1,67 @@
-Jag vet vad felet är: den här sidan använder rätt komponent, men sammanslagningen sker på fel signal.
+## Exakt problem
+Ja — nu vet jag vad felet är.
 
-Problemet är inte att tabellen ligger på fel sida. `/staff-management/time-reports` renderar `GpsStopsRows` direkt, och den använder `clusterStayPoints(...)` från `src/lib/staff/stayPoints.ts`.
+`Faktiska besök (GPS-pingar)` gör saker i fel ordning:
+1. den klustrar först pings till stopp via centroid-logik
+2. sedan reverse-geocodar den stoppets mittpunkt
+3. sedan använder den den adress-texten för att slå ihop stopp
 
-Det som är fel är detta:
-- tabellen visar rader per geokodad adress
-- den nuvarande merge-logiken slår bara ihop stopp om deras koordinat-centra ligger nära varandra
-- i din skärmbild är flera rader redan samma adress i UI, men deras centra verkar ändå ligga för långt ifrån varandra för att passera merge-gränsen
+Det gör att en felaktig reverse-geocodad centroid kan märka upp en hel vistelse som t.ex. `Uppsalavägen, Solna kommun`, trots att råpingsen hela dagen ligger vid Väsby/FA Warehouse.
 
-Därför ser du fortfarande:
-- `David Andrians väg` två gånger i rad
-- `Drottninggatan` tre gånger i rad
+Alltså: sann GPS-position finns redan, men UI:t förvanskar den när den gissar adress för sent och på fel nivå.
 
-Alltså: koden körs, men den slår ihop på koordinatcentrum i stället för på det användaren faktiskt ser som samma plats.
+## Ny plan
+### 1. Bygg plats per ping först
+Ändra flödet så att varje ping först får en platslabel innan någon vistelse byggs:
+- matcha ping mot kända platser först (`organization_locations`, bokningsadress, ev. large project-plats)
+- bara om ingen känd plats matchar: reverse-geocoda pingens koordinat
+- använd cache/avrundning så närliggande pings delar adressuppslag
 
-Plan
+Resultat: varje ping får en stabil platsidentitet innan gruppering sker.
 
-1. Lägg till ett andra, deterministiskt merge-steg i `GpsStopsRows.tsx`
-- Efter `clusterStayPoints(...)` och efter reverse geocoding byggs en visningslista som slår ihop konsekutiva rader med samma normaliserade adress.
-- Den här listan blir det som faktiskt renderas i tabellen.
-- Starttid tas från första raden, sluttid från sista raden, och varaktigheten räknas över hela spannet.
+### 2. Segmentera pings till vistelser efter platsidentitet
+Bygg sedan vistelser kronologiskt från ping-listan:
+- om flera efterföljande pings har samma plats => samma vistelse
+- första pingen i segmentet = `Ankom`
+- sista pingen i segmentet = `Lämnade`
+- antal pings och duration räknas från segmentet
 
-2. Behåll skyddet för riktiga återbesök
-- Endast konsekutiva rader med samma adress slås ihop.
-- Om personen åker till en annan adress emellan och sedan återvänder, ska det fortfarande bli en ny separat rad.
-- Det gör att t.ex. `David Andrians väg` på morgonen inte slås ihop med `David Andrians väg` senare efter andra besök.
+Detta är exakt den ordning du efterfrågar: först plats per ping, sedan IN/UT per sammanhängande platsblock.
 
-3. Lägg in fallback när adress ännu inte är upplöst
-- Om reverse geocoding inte är klar eller returnerar null, använd fortsatt koordinatbaserad rad som fallback.
-- När adressen väl kommer tillbaka ska listan räknas om och raderna kollapsa automatiskt.
+### 3. Sluta låta centroid-adress styra sanningen
+`clusterStayPoints` och nuvarande adress-merge ska inte längre vara sanningskälla för denna tabell.
 
-4. Justera den underliggande spatiala logiken bara där den fortfarande stör
-- Om det behövs finjusteras `stayPoints.ts` så att centret inte förorenas av "på väg bort"-pings.
-- Men huvudfixen ligger i presentationslagret, eftersom problemet du visar är att UI:t redan anser att raderna är samma adress.
+Antingen:
+- ersätts helt i `GpsStopsRows.tsx` av ny ping-baserad segmentering, eller
+- används bara som hjälpsteg för brusreducering, men aldrig för slutlig adressetikett.
 
-5. Säkerställ med konkreta scenarier
-- Fall 1: `07:05–07:15` + `07:26–07:34` på `David Andrians väg` blir en rad.
-- Fall 2: `08:58–09:14` + `09:36–10:31` + `10:51–11:02` på `Drottninggatan` blir en rad.
-- Fall 3: `11:10–11:17 David Andrians väg` förblir separat eftersom andra adresser låg emellan.
+Den avgörande ändringen är att adressen inte längre härleds från en centroid efteråt.
 
-Tekniska detaljer
-- Fil att ändra primärt: `src/components/staff/GpsStopsRows.tsx`
-- Fil att eventuellt finjustera sekundärt: `src/lib/staff/stayPoints.ts`
-- Ny hjälplogik:
-  - normalisera adresssträngar
-  - bygga `displayStops` från `stops + addrs`
-  - rendera `displayStops` i stället för råa `stops`
-- Jag lägger också till ett litet testfall för merge-reglerna så att samma fel inte kommer tillbaka.
+### 4. Prioritera känd plats framför reverse geocode
+Om pings ligger inom t.ex. `FA Warehouse`-radien ska raden visas som den platsen, inte som en Mapbox-text från någon mittpunkt.
 
-Förväntat resultat efter fix
-- Tabellen på exakt den sida du visar kommer få färre rader.
-- Samma adress i direkt följd kollapsas till en enda rad.
-- Riktiga återbesök efter andra adresser förblir separata.
+Det betyder att en dag som i datan redan pekar på Väsby/lagret inte ska kunna sluta som `Solna` i presentationen.
 
-<lov-actions>
-  <lov-open-history>View History</lov-open-history>
-</lov-actions>
-<lov-actions>
-<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
-</lov-actions>
+### 5. Verifiera med de felande fallen
+Lägg verifiering för:
+- heldag på FA Warehouse i Väsby
+- små GPS-drift inom samma plats
+- återbesök samma plats senare samma dag
+- okänd plats där fallback till reverse geocode fortfarande behövs
+
+## Berörda filer
+- `src/components/staff/GpsStopsRows.tsx`
+- `src/hooks/useStaffPingsForDay.ts` (om pingarna behöver enrichas med platslabel/site-id i en hjälpfunktion)
+- `src/lib/staff/stayPoints.ts` (troligen förenklas eller används inte längre för just denna tabell)
+- ev. ny liten helper, t.ex. för `matchPingToKnownSite` / `buildPingPlaceSegments`
+
+## Förväntat resultat
+Efter ändringen ska tabellen fungera så här:
+- systemet tittar på var användaren faktiskt varit ping för ping
+- grupperar 10 pings på samma plats till en vistelse
+- tar första ping som IN och sista som UT
+- visar känd plats i Väsby när pingsen faktiskt ligger där
+- visar inte `Solna` om det bara är en felaktig reverse-geocode-gissning
+
+## Teknisk not
+Jag kommer följa den princip som redan finns server-side i dagsanalysen: känd arbetsplats är starkare sanning än sen reverse geocode-text. Här flyttas samma tänk in i GPS-besökstabellen, men med ping-först segmentering i rätt ordning.
