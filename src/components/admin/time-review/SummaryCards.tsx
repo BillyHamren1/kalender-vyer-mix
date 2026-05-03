@@ -1,11 +1,12 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
-import { ClipboardList, PlayCircle, AlertTriangle, CheckCircle2, ShieldCheck, LucideIcon } from 'lucide-react';
+import { ClipboardList, PlayCircle, AlertTriangle, CheckCircle2, ShieldCheck, TimerOff, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface SummaryCounts {
   total: number;
   ongoing: number;
+  notStarted: number;
   needsReview: number;
   readyToApprove: number;
   approved: number;
@@ -22,6 +23,7 @@ interface CardSpec {
 const CARDS: CardSpec[] = [
   { key: 'total',          label: 'Totalt att granska',  icon: ClipboardList, tone: 'from-slate-500/10 to-slate-500/0',     iconTone: 'bg-slate-500/15 text-slate-700' },
   { key: 'ongoing',        label: 'Pågående dagar',      icon: PlayCircle,    tone: 'from-teal-500/15 to-teal-500/0',       iconTone: 'bg-teal-500/15 text-teal-700' },
+  { key: 'notStarted',     label: 'Ej startat',          icon: TimerOff,      tone: 'from-rose-500/15 to-rose-500/0',       iconTone: 'bg-rose-500/15 text-rose-700' },
   { key: 'needsReview',    label: 'Behöver review',      icon: AlertTriangle, tone: 'from-amber-500/15 to-amber-500/0',     iconTone: 'bg-amber-500/15 text-amber-700' },
   { key: 'readyToApprove', label: 'Redo att godkänna',   icon: CheckCircle2,  tone: 'from-emerald-500/15 to-emerald-500/0', iconTone: 'bg-emerald-500/15 text-emerald-700' },
   { key: 'approved',       label: 'Godkända',            icon: ShieldCheck,   tone: 'from-primary/15 to-primary/0',         iconTone: 'bg-primary/15 text-primary' },
