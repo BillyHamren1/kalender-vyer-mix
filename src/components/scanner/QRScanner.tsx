@@ -10,12 +10,28 @@ import { Capacitor } from '@capacitor/core';
 import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
 import { reportDiagnostic } from '@/services/diagnostics/diagnostics';
 
+export interface QRScannerFeedback {
+  /** Increments every time parent received a scan and processed it */
+  nonce: number;
+  success: boolean;
+  /** Short message to overlay on the camera (product name or error) */
+  message?: string;
+  /** Reason for failure (e.g. "duplicate", "unknown", "complete") */
+  subMessage?: string;
+}
+
 interface QRScannerProps {
   onScan: (result: string) => void;
   onClose: () => void;
   isActive: boolean;
   /** Skip camera initialization entirely (e.g. on Zebra devices using DataWedge) */
   skipCamera?: boolean;
+  /** External scan-result feedback to show as overlay on the live camera */
+  feedback?: QRScannerFeedback | null;
+  /** When true, render as half-height inline panel instead of full-screen modal */
+  compact?: boolean;
+  /** Optional title shown in the header */
+  title?: string;
 }
 
 /**
@@ -34,7 +50,7 @@ interface QRScannerProps {
  *   - true → always skip camera
  *   - false → always try camera (use only when camera is explicitly desired)
  */
-export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera }) => {
+export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive, skipCamera, feedback, compact, title }) => {
   const isNativeAndroidScanner = isScannerApp && Capacitor.getPlatform() === 'android';
   const shouldSkipCamera = skipCamera ?? isNativeAndroidScanner;
   const isNativeIos = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
@@ -131,6 +147,55 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       osc.start();
       osc.stop(ctx.currentTime + (success ? 0.1 : 0.25));
     } catch {/* noop */}
+  }, []);
+
+  // External feedback overlay (driven by parent's scan-processor result).
+  // Provides the user with optical + audible confirmation of whether the
+  // scan actually counted (success / duplicate / unknown).
+  const [feedbackFlash, setFeedbackFlash] = useState<{
+    success: boolean;
+    message?: string;
+    subMessage?: string;
+    key: number;
+  } | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFeedbackNonceRef = useRef<number>(-1);
+
+  useEffect(() => {
+    if (!feedback || feedback.nonce === lastFeedbackNonceRef.current) return;
+    lastFeedbackNonceRef.current = feedback.nonce;
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setFeedbackFlash({
+      success: feedback.success,
+      message: feedback.message,
+      subMessage: feedback.subMessage,
+      key: feedback.nonce,
+    });
+    // Always beep, even on failure — user explicitly asked for audio feedback.
+    try {
+      const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+      if (Ctx) {
+        const ctx = new Ctx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = feedback.success ? 1400 : 250;
+        osc.type = 'square';
+        gain.gain.value = 0.18;
+        osc.start();
+        osc.stop(ctx.currentTime + (feedback.success ? 0.09 : 0.32));
+      }
+    } catch { /* noop */ }
+    // Haptic on iOS where available
+    try {
+      (navigator as any).vibrate?.(feedback.success ? 30 : [40, 30, 40]);
+    } catch { /* noop */ }
+    feedbackTimerRef.current = setTimeout(() => setFeedbackFlash(null), 1400);
+  }, [feedback]);
+
+  useEffect(() => () => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
   }, []);
 
   const handleDetected = useCallback((value: string) => {
@@ -771,12 +836,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   if (!isActive) return null;
 
+  const headerTitle = title ?? (shouldSkipCamera ? 'Manual input' : 'QR Scanner');
+  const rootClass = compact
+    ? 'relative w-full bg-black flex flex-col rounded-lg overflow-hidden border border-border shadow-lg'
+    : 'fixed inset-0 z-50 bg-black flex flex-col';
+  const cameraMinHeight = compact ? '38vh' : '50vh';
+
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      <div className="flex items-center justify-between p-4 bg-black/80 text-white safe-area-top">
-        <h2 className="text-lg font-semibold">{shouldSkipCamera ? 'Manual input' : 'QR Scanner'}</h2>
-        <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
-          <X className="h-6 w-6" />
+    <div className={rootClass}>
+      <div className={`flex items-center justify-between ${compact ? 'px-3 py-2' : 'p-4 safe-area-top'} bg-black/80 text-white`}>
+        <h2 className={compact ? 'text-sm font-semibold' : 'text-lg font-semibold'}>{headerTitle}</h2>
+        <Button variant="ghost" size="icon" onClick={onClose} className={`text-white hover:bg-white/20 ${compact ? 'h-7 w-7' : ''}`}>
+          <X className={compact ? 'h-4 w-4' : 'h-6 w-6'} />
         </Button>
       </div>
 
@@ -788,7 +859,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         // pixlar till BarcodeDetector. Explicit minHeight som fallback.
         <div
           className="flex-1 min-h-0 relative overflow-hidden bg-black"
-          style={{ minHeight: '50vh' }}
+          style={{ minHeight: cameraMinHeight }}
         >
           <video
             ref={videoRef}
@@ -842,6 +913,33 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                   />
                 </div>
               </div>
+
+              {/* Scan feedback overlay — flashes whenever parent reports a scan result */}
+              {feedbackFlash && (
+                <>
+                  <div
+                    key={`flash-${feedbackFlash.key}`}
+                    className={`absolute inset-0 pointer-events-none ${feedbackFlash.success ? 'bg-emerald-500/35' : 'bg-red-500/45'}`}
+                    style={{ animation: 'qr-flash 0.55s ease-out' }}
+                  />
+                  <div className={`absolute inset-0 pointer-events-none border-[6px] ${feedbackFlash.success ? 'border-emerald-400' : 'border-red-500'}`} />
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center max-w-[85%] px-3">
+                    <div className={`text-6xl mb-1 drop-shadow-lg ${feedbackFlash.success ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {feedbackFlash.success ? '✓' : '✕'}
+                    </div>
+                    {feedbackFlash.message && (
+                      <div className="px-3 py-1.5 rounded-md bg-black/80 text-white text-sm font-semibold text-center max-w-full truncate">
+                        {feedbackFlash.message}
+                      </div>
+                    )}
+                    {feedbackFlash.subMessage && (
+                      <div className="mt-1 px-2 py-0.5 rounded bg-black/70 text-white/90 text-[11px] text-center">
+                        {feedbackFlash.subMessage}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               {zoomCaps && (
                 <div className="absolute left-0 right-0 bottom-0 px-4 pb-3 pt-4 bg-gradient-to-t from-black/85 to-transparent">
@@ -901,7 +999,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         </div>
       )}
 
-      <div className="p-4 bg-black/80 safe-area-bottom">
+      <div className={`${compact ? 'p-2' : 'p-4 safe-area-bottom'} bg-black/80`}>
         <p className="text-white text-sm text-center mb-2">{shouldSkipCamera ? 'Enter code manually:' : 'Or enter code manually:'}</p>
         <div className="flex gap-2">
           <input
@@ -923,6 +1021,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         @keyframes scan-line {
           0%, 100% { top: 10%; }
           50% { top: 85%; }
+        }
+        @keyframes qr-flash {
+          0% { opacity: 0; }
+          25% { opacity: 1; }
+          100% { opacity: 0; }
         }
         .safe-area-top { padding-top: max(1rem, env(safe-area-inset-top)); }
         .safe-area-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
