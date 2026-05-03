@@ -238,17 +238,19 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     existing.hours += base.hours;
   };
 
-  // Time reports → keyed by (large_project | booking | location | id) so a
-  // tidrapport without booking_id but with large_project_id still groups under
-  // the correct project session and inherits its label from the caller.
+  // Time reports → varje STÄNGD rapport är sin egen pass-rad (samma booking
+  // kan ha flera diskreta pass på samma dag — t.ex. 03:55–03:56 + 04:27–04:31
+  // med en restid emellan). Endast OPEN time_reports keyas på booking/lp/loc
+  // så en pågående timer inte dupliceras med en LTE för samma resurs.
   for (const r of input.reports) {
-    const key = r.large_project_id
+    const groupKey = r.large_project_id
       ? `lp:${r.large_project_id}`
       : r.booking_id
         ? `booking:${r.booking_id}`
         : r.location_id
           ? `loc:${r.location_id}`
           : `tr:${r.id}`;
+    const key = r.end_iso ? `tr:${r.id}` : groupKey;
     const kind: ProjectSessionKind = r.large_project_id
       ? 'large_project'
       : r.location_id && !r.booking_id
