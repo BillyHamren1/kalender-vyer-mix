@@ -24,6 +24,7 @@ import { useMobileBookings } from '@/hooks/useMobileData';
 import { useWorkSession, timerToTarget, resolveTargetKey, type WorkTarget } from '@/hooks/useWorkSession';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
+import { useWorkDay } from '@/hooks/useWorkDay';
 import { format, parseISO } from 'date-fns';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
@@ -120,6 +121,14 @@ const MobileGlobalOverlays: React.FC = () => {
   // att arrival-confirm faktiskt resulterade i en aktivitetstimer innan vi
   // markerar prompten som resolved.
   const { activeTimers: providerActiveTimers } = useGeofencingContext();
+
+  // Workday state — vi måste verifiera att dagen faktiskt syns innan
+  // arrival-prompten markeras resolved.
+  const { current: currentWorkday, refresh: refreshWorkday } = useWorkDay();
+  const currentWorkdayRef = useRef(currentWorkday);
+  useEffect(() => {
+    currentWorkdayRef.current = currentWorkday;
+  }, [currentWorkday]);
 
   // Travel detection — runs globally regardless of active page.
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
@@ -294,6 +303,26 @@ const MobileGlobalOverlays: React.FC = () => {
     return providerActiveTimers.has(key);
   }, [providerActiveTimers]);
 
+  /**
+   * Vänta tills useWorkDay rapporterar en aktiv (öppen) workday. Försöker
+   * först cache, sedan refresh, sedan poll med kort timeout som säkerhetsnät.
+   */
+  const waitForActiveWorkday = useCallback(async (timeoutMs = 2500): Promise<boolean> => {
+    const isOpen = () => {
+      const wd = currentWorkdayRef.current;
+      return !!wd && !wd.ended_at;
+    };
+    if (isOpen()) return true;
+    // Tryck igång en refresh för att ta server-truth direkt.
+    try { await refreshWorkday(); } catch { /* non-fatal */ }
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (isOpen()) return true;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return isOpen();
+  }, [refreshWorkday]);
+
   const handleArrivalConfirm = useCallback(async (result: { startedAtIso: string; usedSuggestedArrival: boolean }) => {
     if (!plannedArrivalTarget) return;
     setArrivalSubmitting(true);
@@ -316,6 +345,13 @@ const MobileGlobalOverlays: React.FC = () => {
       });
 
       if (status === 'already_running') {
+        // Även här verifierar vi att workday faktiskt är öppen — annars är
+        // det inkonsekvent state och vi vill att användaren ska se det.
+        const dayOpen = await waitForActiveWorkday();
+        if (!dayOpen) {
+          toast.error('Aktiviteten är aktiv men arbetsdagen syns inte. Försök igen.');
+          return;
+        }
         toast.message(`${projectLabel} är redan aktivt`);
         await markResolved(plannedArrivalTarget);
         setArrivalDialogOpen(false);
@@ -324,14 +360,22 @@ const MobileGlobalOverlays: React.FC = () => {
       }
 
       if (status === 'started') {
-        // Verifiera att timern faktiskt syns i providern innan vi släpper
-        // prompten — annars kan användaren stå utan synlig timer.
-        const seen = await waitForProviderTimer(targetKey);
+        // Verifiera BÅDE workday och activity-timer innan prompten släpps.
+        // Om någon saknas → lämna oresolvad så användaren kan retrya.
+        const [seen, dayOpen] = await Promise.all([
+          waitForProviderTimer(targetKey),
+          waitForActiveWorkday(),
+        ]);
+        if (!seen && !dayOpen) {
+          toast.error('Start kunde inte verifieras. Försök igen om en stund.');
+          return;
+        }
+        if (!dayOpen) {
+          toast.error('Aktiviteten startades men arbetsdagen syns inte ännu. Försök igen.');
+          return;
+        }
         if (!seen) {
-          toast.error(
-            'Aktiviteten startades men syns inte ännu. Försök igen om en stund.',
-          );
-          // Lämna prompten öppen så användaren kan retrya.
+          toast.error('Arbetsdagen är aktiv men aktivitetstimern syns inte ännu. Försök igen.');
           return;
         }
         if (arrivalHHmm) {
@@ -360,7 +404,7 @@ const MobileGlobalOverlays: React.FC = () => {
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [plannedArrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival, waitForProviderTimer]);
+  }, [plannedArrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival, waitForProviderTimer, waitForActiveWorkday]);
 
   const handleArrivalDismiss = useCallback(async () => {
     if (!plannedArrivalTarget) return;
