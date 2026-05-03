@@ -48,13 +48,16 @@ interface PlannedRow {
 
 const LATE_TOLERANCE_MIN = 15;
 const HOUR_PX = 56;
-const ROW_H = 36;
+const LANE_H = 22;
+const LANE_GAP = 2;
+const ROW_PAD_Y = 4;
 const NAME_COL = 168;
 
-const PHASE_BORDER: Record<Phase, string> = {
-  rigg: 'border-l-amber-500',
-  event: 'border-l-primary',
-  nedrigg: 'border-l-violet-500',
+// Samma färgspråk som personalkalendern: rigg=amber, event=primary/blå, nedrigg=violet
+const PHASE_STYLE: Record<Phase, { bg: string; border: string; text: string }> = {
+  rigg:    { bg: 'bg-amber-500/85',  border: 'border-amber-700',  text: 'text-white' },
+  event:   { bg: 'bg-primary/85',    border: 'border-primary',    text: 'text-primary-foreground' },
+  nedrigg: { bg: 'bg-violet-500/85', border: 'border-violet-700', text: 'text-white' },
 };
 
 function parseTime(value: string | null | undefined): Date | null {
