@@ -218,9 +218,10 @@ const JobCard = ({ job, onClick }: { job: OpsJob; onClick: () => void }) => {
         </div>
         <div className="text-right shrink-0">
           <div className="text-xs font-bold tabular-nums">{job.percent}%</div>
-          {job.anchorTime && (
+          {job.anchorDate && (
             <div className="text-[10px] text-muted-foreground tabular-nums">
-              {job.anchorTime.slice(0, 5)}
+              {format(parseISO(job.anchorDate), "EEE d MMM", { locale: sv })}
+              {job.anchorTime ? ` ${job.anchorTime.slice(0, 5)}` : ""}
             </div>
           )}
         </div>
