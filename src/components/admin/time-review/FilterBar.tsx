@@ -30,6 +30,7 @@ const ANOMALY_LABELS: Record<AnomalyKind | 'all', string> = {
   open_timer_stale: 'Öppen timer',
   overlap: 'Överlapp',
   missing_logout: 'Saknad utloggning',
+  planned_no_start: 'Ej startat',
 };
 
 export interface FilterBarProps {
