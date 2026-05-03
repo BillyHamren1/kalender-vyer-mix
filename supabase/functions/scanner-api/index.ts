@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
           .eq('organization_id', ORG_ID)
           .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning'])
           .order('created_at', { ascending: false })
-          .limit(150)
+          .limit(500)
 
         if (error) throw error
 
