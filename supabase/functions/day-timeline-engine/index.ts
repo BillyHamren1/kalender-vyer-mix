@@ -43,12 +43,18 @@ Deno.serve(async (req) => {
     const action = body.action ?? "compute";
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-    // Caller auth (admin or self)
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData } = await supabase.auth.getUser(token);
-    if (!userData?.user) return json({ error: "unauthorized" }, 401);
-    const userId = userData.user.id;
+    // Caller auth (admin or self) — with service/cron bypass
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    const providedSecret = req.headers.get("x-engine-secret");
+    const isCron = !!cronSecret && providedSecret === cronSecret;
+    let userId = "";
+    if (!isCron) {
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const token = authHeader.replace("Bearer ", "");
+      const { data: userData } = await supabase.auth.getUser(token);
+      if (!userData?.user) return json({ error: "unauthorized" }, 401);
+      userId = userData.user.id;
+    }
 
     if (action === "compute") return await handleCompute(supabase, userId, body as ComputeArgs);
     if (action === "get")     return await handleGet(supabase, userId, body as GetArgs);
