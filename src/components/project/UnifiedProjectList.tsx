@@ -2,7 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search } from 'lucide-react';
+import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search, Sparkles } from 'lucide-react';
+import { useUnseenBookingUpdates } from '@/hooks/useUnseenBookingUpdates';
+import ProjectUpdateDialog from '@/components/project/ProjectUpdateDialog';
 import { fetchJobs, cancelJob } from '@/services/jobService';
 import { fetchProjects, cancelProject } from '@/services/projectService';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
@@ -55,12 +57,27 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
+  const [updateDialog, setUpdateDialog] = useState<{ name: string; bookingIds: string[]; navigateTo: string } | null>(null);
 
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
   const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: largeProjects = [], isLoading: largeLoading } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
+  const { data: unseenUpdates = [] } = useUnseenBookingUpdates();
 
   const isLoading = jobsLoading || projectsLoading || largeLoading;
+
+  // Map: project key -> array of bookingIds with unseen changes
+  const updatesByProject = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const u of unseenUpdates) {
+      const key = u.large_project_id ? `large:${u.large_project_id}` : u.assigned_project_id ? `medium:${u.assigned_project_id}` : null;
+      if (!key) continue;
+      const arr = map.get(key) || [];
+      arr.push(u.booking_id);
+      map.set(key, arr);
+    }
+    return map;
+  }, [unseenUpdates]);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['jobs'] });
@@ -270,15 +287,35 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
               (project.type === 'medium' && cancelProjectMutation.isPending && cancelProjectMutation.variables === project.id) ||
               (project.type === 'large' && deleteLargeMutation.isPending && deleteLargeMutation.variables === project.id);
 
+            const projectKey = project.type === 'large' ? `large:${project.id}` : project.type === 'medium' ? `medium:${project.id}` : null;
+            const unseenBookingIds = projectKey ? updatesByProject.get(projectKey) : undefined;
+            const hasUpdate = !!unseenBookingIds && unseenBookingIds.length > 0;
+
+            const handleRowClick = () => {
+              if (isPending) return;
+              if (hasUpdate && unseenBookingIds) {
+                setUpdateDialog({ name: project.name, bookingIds: unseenBookingIds, navigateTo: project.navigateTo });
+              } else {
+                navigate(project.navigateTo);
+              }
+            };
+
             return (
             <div
               key={`${project.type}-${project.id}`}
-              onClick={() => !isPending && navigate(project.navigateTo)}
-              className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-all ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''} ${isPending ? 'opacity-40 pointer-events-none' : ''}`}
+              onClick={handleRowClick}
+              className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-all ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''} ${hasUpdate ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''} ${isPending ? 'opacity-40 pointer-events-none' : ''}`}
             >
               <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[project.type]}`}>
                 {TYPE_LABELS[project.type]}
               </Badge>
+
+              {hasUpdate && (
+                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-800 ring-1 ring-blue-300 flex items-center gap-1 animate-pulse">
+                  <Sparkles className="h-3 w-3" />
+                  UPPDATERAD{unseenBookingIds && unseenBookingIds.length > 1 ? ` (${unseenBookingIds.length})` : ''}
+                </Badge>
+              )}
 
               {project.isInternal && (
                 <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-accent text-accent-foreground ring-1 ring-border flex items-center gap-1">
@@ -335,6 +372,16 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
         bookingId={largeProjectBookingId || ''}
       />
+
+      {updateDialog && (
+        <ProjectUpdateDialog
+          open={!!updateDialog}
+          onOpenChange={(open) => !open && setUpdateDialog(null)}
+          projectName={updateDialog.name}
+          bookingIds={updateDialog.bookingIds}
+          navigateTo={updateDialog.navigateTo}
+        />
+      )}
     </>
   );
 };

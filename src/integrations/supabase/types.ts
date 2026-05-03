@@ -320,6 +320,24 @@ export type Database = {
           },
         ]
       }
+      booking_change_views: {
+        Row: {
+          booking_id: string
+          last_seen_at: string
+          user_id: string
+        }
+        Insert: {
+          booking_id: string
+          last_seen_at?: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string
+          last_seen_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       booking_changes: {
         Row: {
           booking_id: string
@@ -7268,6 +7286,16 @@ export type Database = {
           unread_count: number
         }[]
       }
+      get_unseen_booking_updates: {
+        Args: never
+        Returns: {
+          assigned_project_id: string
+          booking_id: string
+          change_count: number
+          large_project_id: string
+          last_change_at: string
+        }[]
+      }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       handle_booking_move: {
         Args: {
@@ -7288,6 +7316,10 @@ export type Database = {
         Returns: boolean
       }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
+      mark_booking_changes_seen: {
+        Args: { p_booking_id: string }
+        Returns: undefined
+      }
       mark_day_timeline_dirty: {
         Args: { _date: string; _org_id: string; _staff_id: string }
         Returns: undefined
