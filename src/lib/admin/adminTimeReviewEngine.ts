@@ -341,7 +341,25 @@ export function evaluateAdminTimeReview(
     });
   }
 
-  if (pendingAssistantEventsCount > 0) {
+  // Planerad men har inte startat någon timer / rapport.
+  // Triggar när det finns planerade jobb och planeradStart har passerat
+  // (med tolerans), men inga workEntries och ingen öppen timer.
+  if (
+    plannedStart &&
+    !firstActualStart &&
+    !openTimerStart &&
+    realEntries.length === 0 &&
+    now.getTime() > plannedStart.getTime() + lateTol * 60_000
+  ) {
+    const lateMin = diffMinutes(now, plannedStart);
+    anomalies.push({
+      kind: 'planned_no_start',
+      severity: lateMin > 60 ? 'critical' : 'warning',
+      label: 'Ej startat',
+      detail: `Planerad start ${lateMin} min sedan men ingen timer/rapport finns.`,
+      minutes: lateMin,
+    });
+  }
     anomalies.push({
       kind: 'needs_review',
       severity: 'warning',
