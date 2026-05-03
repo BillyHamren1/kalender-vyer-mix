@@ -279,6 +279,21 @@ const MobileGlobalOverlays: React.FC = () => {
     return null;
   }, []);
 
+  /**
+   * Vänta tills en specifik timer dyker upp i providerns activeTimers.
+   * Provider uppdateras synkront via timer-state-changed events från
+   * useGeofencing → vanligtvis 0–50 ms latency. Vi pollar 100 ms upp till
+   * 2 s som säkerhetsnät innan vi rapporterar att arrival inte tog.
+   */
+  const waitForProviderTimer = useCallback(async (key: string, timeoutMs = 2000): Promise<boolean> => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (providerActiveTimers.has(key)) return true;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return providerActiveTimers.has(key);
+  }, [providerActiveTimers]);
+
   const handleArrivalConfirm = useCallback(async (result: { startedAtIso: string; usedSuggestedArrival: boolean }) => {
     if (!plannedArrivalTarget) return;
     setArrivalSubmitting(true);
@@ -287,13 +302,42 @@ const MobileGlobalOverlays: React.FC = () => {
       const workTarget = arrivalToWorkTarget(plannedArrivalTarget);
       if (!workTarget) throw new Error('Unknown arrival type');
 
-      // Arrival is a HELPER — it must only mark itself resolved if the
-      // real start chain (workday-ensure + activity start) actually
-      // succeeds. We use the awaitable arrival entry-point so we get the
-      // true outcome, not a fire-and-forget "started".
-      const status = await tryStartFromArrival(workTarget, { startedAtIso: startedAt });
+      const targetKey = resolveTargetKey(workTarget);
+      const projectLabel = plannedArrivalTarget.label || 'aktiviteten';
+      const arrivalHHmm = (() => {
+        try { return format(parseISO(startedAt), 'HH:mm'); } catch { return null; }
+      })();
 
-      if (status === 'started' || status === 'already_running') {
+      // suppressToast=true → vi visar egen, mer detaljerad feedback nedan
+      // istället för den generiska "Timer startad: …" från performStart.
+      const status = await tryStartFromArrival(workTarget, {
+        startedAtIso: startedAt,
+        suppressToast: true,
+      });
+
+      if (status === 'already_running') {
+        toast.message(`${projectLabel} är redan aktivt`);
+        await markResolved(plannedArrivalTarget);
+        setArrivalDialogOpen(false);
+        refreshArrival();
+        return;
+      }
+
+      if (status === 'started') {
+        // Verifiera att timern faktiskt syns i providern innan vi släpper
+        // prompten — annars kan användaren stå utan synlig timer.
+        const seen = await waitForProviderTimer(targetKey);
+        if (!seen) {
+          toast.error(
+            'Aktiviteten startades men syns inte ännu. Försök igen om en stund.',
+          );
+          // Lämna prompten öppen så användaren kan retrya.
+          return;
+        }
+        if (arrivalHHmm) {
+          toast.success(`Arbetsdag startad från ${arrivalHHmm}`);
+        }
+        toast.success(`${projectLabel} är aktivt`);
         await markResolved(plannedArrivalTarget);
         setArrivalDialogOpen(false);
         refreshArrival();
@@ -301,20 +345,22 @@ const MobileGlobalOverlays: React.FC = () => {
       }
 
       if (status === 'conflict') {
-        // TimerConflictDialog is now open. Keep the arrival prompt open
-        // (do NOT mark resolved) so the user isn't tricked into thinking
-        // the timer started. They can re-confirm after resolving conflict.
+        // TimerConflictDialog är öppen. Lämna prompten öppen så användaren
+        // inte tror att timern startade.
         return;
       }
 
-      // 'workday_failed' — performStart already showed a toast.error.
-      // Leave the arrival prompt unresolved so the user can retry.
+      // 'workday_failed' / 'start_failed' — performStart har redan visat
+      // toast.error. Lämna prompten oresolvad för retry.
+      if (status === 'workday_failed' || status === 'start_failed') {
+        return;
+      }
     } catch (err: any) {
-      toast.error(err?.message || 'Could not start timer');
+      toast.error(err?.message || 'Kunde inte starta aktiviteten');
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [plannedArrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival]);
+  }, [plannedArrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival, waitForProviderTimer]);
 
   const handleArrivalDismiss = useCallback(async () => {
     if (!plannedArrivalTarget) return;
