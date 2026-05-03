@@ -42,6 +42,8 @@ export const fetchProject = async (id: string): Promise<ProjectWithBooking | nul
         deliveryaddress,
         delivery_city,
         delivery_postal_code,
+        delivery_latitude,
+        delivery_longitude,
         contact_name,
         contact_phone,
         contact_email,
