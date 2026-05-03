@@ -205,11 +205,64 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             : `Ingen personal har rapporterat tid ${dateLabel.toLowerCase()}`}
         </div>
       ) : (
-        <JournalTable
-          blocks={filtered.map(s => buildStaffBlock(s))}
-          date={dateStr}
-          onSelectStaff={onSelectStaff}
-        />
+        <div className="space-y-4">
+          {filtered.map((staff) => {
+            const work: ReviewWorkInput[] = [];
+            const travel: ReviewTravelInput[] = [];
+            for (const s of staff.journal.sessions as ProjectSession[]) {
+              if (s.kind === 'travel') {
+                travel.push({
+                  id: s.sourceIds[0] ?? s.key,
+                  start_time: s.start,
+                  end_time: s.end,
+                  hours_worked: s.hours,
+                  from_address: null,
+                  to_address: s.label?.replace(/^Resa[:→\s]*/i, '') || null,
+                  from_latitude: null,
+                  from_longitude: null,
+                  to_latitude: null,
+                  to_longitude: null,
+                  destination_booking_id: null,
+                });
+              } else {
+                const firstId = s.sourceIds[0] ?? s.key;
+                const isTr = firstId.startsWith('tr:');
+                work.push({
+                  id: isTr ? (s.editTimeReport?.id ?? firstId.slice(3)) : firstId.replace(/^lt:/, 'lte-'),
+                  start_time: s.start,
+                  end_time: s.end,
+                  hours_worked: s.hours,
+                  booking_client: s.label,
+                  booking_number: null,
+                  description: s.editTimeReport?.description ?? null,
+                  delivery_lat: s.baseLatitude ?? null,
+                  delivery_lng: s.baseLongitude ?? null,
+                  ongoing: s.isOpen,
+                  approved: s.editTimeReport?.approved ?? false,
+                  source: isTr ? 'time_report' : 'location_entry',
+                });
+              }
+            }
+            return (
+              <div key={staff.id} className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => onSelectStaff(staff.id, staff.name)}
+                  className="text-sm font-semibold text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors"
+                  title="Öppna detaljerad dagvy med GPS, karta och godkännande"
+                >
+                  {staff.name}
+                </button>
+                <TimeReportReviewTable
+                  date={dateStr}
+                  staffName={staff.name}
+                  work={work}
+                  travel={travel}
+                />
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
