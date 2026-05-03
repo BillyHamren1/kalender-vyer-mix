@@ -147,7 +147,7 @@ export function buildPlaceVisits(
         pendingAway = [];
       }
       current.pings.push(p);
-      refreshUnknownAnchor();
+      // ankaret uppdateras inte — håll segmentet stabilt.
       continue;
     }
 
