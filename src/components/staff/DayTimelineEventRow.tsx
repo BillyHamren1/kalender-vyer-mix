@@ -45,6 +45,7 @@ function metaFor(type: string) {
 function toneClasses(tone: Tone) {
   if (tone === "destructive") return { dot: "bg-destructive/15 text-destructive ring-destructive/30", text: "text-destructive" };
   if (tone === "primary") return { dot: "bg-primary/15 text-primary ring-primary/30", text: "text-foreground" };
+  if (tone === "accent") return { dot: "bg-accent text-accent-foreground ring-accent/40", text: "text-foreground" };
   return { dot: "bg-muted text-muted-foreground ring-border", text: "text-muted-foreground" };
 }
 
