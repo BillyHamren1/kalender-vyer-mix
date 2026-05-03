@@ -100,9 +100,14 @@ export function buildPlaceVisits(
   opts: BuildOptions = {},
 ): PlaceVisit[] {
   const unknownRadius = Math.max(40, opts.unknownRadiusMeters ?? 150);
-  const minDuration = Math.max(0, opts.minDurationMin ?? 5);
-  const confirmAway = Math.max(1, opts.confirmAwayPings ?? 2);
+  // Steg 1: höj default-tröskeln till MIN_VISIT_DURATION_MIN (10) och clamp:a
+  // alltid minst 1 min så ekosystemet inte kan smyga in mikro-vistelser.
+  const minDuration = Math.max(1, opts.minDurationMin ?? MIN_VISIT_DURATION_MIN);
+  // Steg 3: travel-hysteresis. Höj default till 4 så små GPS-hopp inte räcker.
+  const confirmAway = Math.max(2, opts.confirmAwayPings ?? 4);
   const maxPingGapMs = Math.max(1, opts.maxPingGapMin ?? 20) * 60_000;
+  // Steg 2: hur långt glapp mellan två stängda visits får överbryggas vid merge.
+  const mergeGapMaxMs = Math.max(1, opts.mergeGapMaxMin ?? 15) * 60_000;
 
   if (rawPings.length === 0) return [];
 
