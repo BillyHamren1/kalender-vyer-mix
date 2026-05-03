@@ -3,18 +3,23 @@ import { useStaffPingsForDay } from './useStaffPingsForDay';
 import { useOrganizationLocations } from './useOrganizationLocations';
 import {
   buildPlaceVisits,
+  buildDayTimeline,
   resolvePlaceAt,
   type KnownSite,
   type PlaceVisit,
+  type TravelGap,
+  type DayTimelineHit,
 } from '@/lib/staff/pingPlaceSegments';
+import type { Ping } from '@/lib/staff/movementDetection';
 
 /**
  * En källa till sanning för "var var personen?" på en given dag.
  *
- * Driver både huvudraderna (ARBETSDAG / sessions / Resa) i tidrapporten
- * och underraden "Faktiska besök". På så vis säger båda alltid samma sak
- * om samma koordinat — Mapbox-text används bara som fallback för okända
- * platser, aldrig för att gissa namnet på en känd anläggning.
+ * Returnerar både:
+ *   - `visits` (vistelser)
+ *   - `travels` (förflyttningar mellan vistelser, baserade på råpings)
+ *   - `resolveAt(iso)` strikt: 'visit' | 'travel' | 'unknown' (ingen tolerans)
+ *   - `resolveVisitLoose(iso)` legacy med 15 min tolerans
  */
 export function useDayPlaceVisits(staffId: string, date: string, enabled = true) {
   const { data: pings = [], isLoading } = useStaffPingsForDay(staffId, date, enabled);
@@ -32,10 +37,27 @@ export function useDayPlaceVisits(staffId: string, date: string, enabled = true)
     [pings, knownSites],
   );
 
+  const timeline = useMemo(() => buildDayTimeline(pings, visits), [pings, visits]);
+
   const resolveAt = useMemo(
+    () => (iso: string | null): DayTimelineHit => timeline.resolveAt(iso),
+    [timeline],
+  );
+
+  const resolveVisitLoose = useMemo(
     () => (iso: string | null) => resolvePlaceAt(visits, iso),
     [visits],
   );
 
-  return { visits, resolveAt, isLoading, hasPings: pings.length > 0 };
+  return {
+    visits,
+    travels: timeline.travels,
+    resolveAt,
+    resolveVisitLoose,
+    isLoading,
+    hasPings: pings.length > 0,
+    pings: pings as Ping[],
+  };
 }
+
+export type { PlaceVisit, TravelGap, DayTimelineHit };
