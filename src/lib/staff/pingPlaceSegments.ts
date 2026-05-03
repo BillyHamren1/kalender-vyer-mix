@@ -189,16 +189,26 @@ export function buildPlaceVisits(
     // Avvikelse — kandidat för platsbyte.
     pendingAway.push(p);
 
-    // Bekräftelse 1: pingen matchar en KÄND plats som inte är vår nuvarande.
+    // Steg 4: stabilisera känd-plats-matchning. En enstaka ping på en annan
+    // känd plats räcker INTE för att kasta ett pågående segment. Kräv att
+    // confirmAway pings i rad pekar på samma nya plats — annars är det troligt
+    // GPS-brus / momentan radie-överlapp.
     if (matchedSite && (!current.knownSite || matchedSite.id !== current.knownSite.id)) {
-      // Känd plats är alltid stark sanning. Kräv bara confirmAway om vi just
-      // hoppade ut — men en känd plats räcker att se en gång.
-      closeCurrent();
-      startSegment([p], matchedSite);
+      const tail = pendingAway.slice(-confirmAway);
+      const allSameSite =
+        tail.length >= confirmAway &&
+        tail.every(t => {
+          const m = matchKnownSite(t, knownSites);
+          return m && m.id === matchedSite.id;
+        });
+      if (allSameSite) {
+        closeCurrent();
+        startSegment(tail, matchedSite);
+      }
       continue;
     }
 
-    // Bekräftelse 2: senaste confirmAway pings är samlade kring en NY plats.
+    // Bekräftelse 2: senaste confirmAway pings är samlade kring en NY okänd plats.
     const tail = pendingAway.slice(-confirmAway);
     if (tail.length >= confirmAway) {
       const tailCentre = centreOf(tail);
