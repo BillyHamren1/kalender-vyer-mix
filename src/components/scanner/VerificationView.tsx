@@ -620,19 +620,33 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Card>
       )}
 
+      {/* Inline compact scanner — shown above the list so user sees BOTH camera and packing list */}
+      {isQRActive && (
+        <QRScanner
+          isActive={isQRActive}
+          onScan={enqueueScan}
+          onClose={() => setIsQRActive(false)}
+          compact
+          title="Scan — packing list visible below"
+          feedback={scannerFeedback}
+        />
+      )}
+
       {items.length > 0 && (
         <div className="border rounded-lg overflow-hidden bg-card">
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Product</span>
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packed</span>
           </div>
-          <div className="divide-y divide-border/30 max-h-[calc(100vh-220px)] overflow-y-auto">
+          <div
+            className="divide-y divide-border/30 overflow-y-auto"
+            style={{ maxHeight: isQRActive ? 'calc(100vh - 560px)' : 'calc(100vh - 220px)' }}
+          >
             {items.map(item => renderItemRow(item, false))}
           </div>
         </div>
       )}
 
-      <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} />
 
       {/* Unknown product dialog — pauses the scan queue until user responds */}
       <AddUnknownProductDialog
