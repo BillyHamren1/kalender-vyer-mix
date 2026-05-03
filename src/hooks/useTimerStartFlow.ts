@@ -471,6 +471,7 @@ export function useTimerStartFlow(
           startedAtIso: opts.startedAtIso,
           taskId: opts.taskId,
           taskTitle: opts.taskTitle,
+          suppressToast: opts.suppressToast,
         });
         setConflictEval(evalResult);
         return 'conflict';
@@ -483,6 +484,7 @@ export function useTimerStartFlow(
         label,
         taskId: opts.taskId,
         taskTitle: opts.taskTitle,
+        suppressToast: opts.suppressToast,
       });
     },
     [activeTimers, labelFor, performStart],
