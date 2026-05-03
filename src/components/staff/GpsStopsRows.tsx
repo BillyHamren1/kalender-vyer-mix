@@ -5,6 +5,7 @@ import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import { buildPlaceVisits, type KnownSite, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import type { Ping } from '@/lib/staff/movementDetection';
 import { AddressMapDialog } from './AddressMapDialog';
 
 interface Props {
@@ -18,6 +19,10 @@ const fmt = (iso: string) => {
   try { return format(new Date(iso), 'HH:mm'); } catch { return '—'; }
 };
 
+const fmtSec = (iso: string) => {
+  try { return format(new Date(iso), 'HH:mm:ss'); } catch { return '—'; }
+};
+
 const fmtDur = (min: number) => {
   if (min < 1) return '<1m';
   const h = Math.floor(min / 60);
@@ -25,6 +30,59 @@ const fmtDur = (min: number) => {
   if (h && m) return `${h}h ${m}m`;
   if (h) return `${h}h`;
   return `${m}m`;
+};
+
+/** Visar pings inom en visit som expanderas. Reverse-geocodar koordinater. */
+const VisitPingsRows: React.FC<{
+  pings: Ping[];
+  leadingCells: number;
+  contentCols: number;
+  onPick: (label: string, coords: { lat: number; lng: number }) => void;
+}> = ({ pings, leadingCells, contentCols, onPick }) => {
+  const coords = useMemo(() => pings.map(p => ({ lat: p.lat, lng: p.lng })), [pings]);
+  const labels = useReverseGeocode(coords);
+  return (
+    <>
+      <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/40 bg-muted/20">
+        {Array.from({ length: leadingCells + 1 }).map((_, i) => (
+          <th key={`ph-${i}`} className="px-2 py-1" />
+        ))}
+        <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Tid</th>
+        <th className="text-left font-semibold px-2 py-1" colSpan={Math.max(1, contentCols - 4)}>Adress / koordinat</th>
+        <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">Acc</th>
+      </tr>
+      {pings.map((p, i) => {
+        const label = labels[i] ?? `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+        return (
+          <tr key={`ping-${i}-${p.recorded_at}`} className="border-b border-border/10 text-[11px] bg-background/40">
+            {Array.from({ length: leadingCells + 1 }).map((_, idx) => (
+              <td key={`pp-${idx}`} className="px-2 py-0.5" />
+            ))}
+            <td className="px-2 py-0.5 tabular-nums font-mono text-foreground whitespace-nowrap align-top">
+              {fmtSec(p.recorded_at)}
+            </td>
+            <td className="px-2 py-0.5 align-top" colSpan={Math.max(1, contentCols - 4)}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onPick(label, { lat: p.lat, lng: p.lng }); }}
+                className="text-left text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors inline-flex items-center gap-1"
+                title={`Visa ${label} på karta`}
+              >
+                <MapPin className="h-3 w-3 text-muted-foreground" />
+                <span className="truncate">{label}</span>
+                <span className="font-mono text-muted-foreground/70 ml-1">
+                  ({p.lat.toFixed(5)}, {p.lng.toFixed(5)})
+                </span>
+              </button>
+            </td>
+            <td className="px-2 py-0.5 tabular-nums text-right text-muted-foreground align-top whitespace-nowrap">
+              {p.accuracy != null ? `${Math.round(p.accuracy)}m` : '—'}
+            </td>
+          </tr>
+        );
+      })}
+    </>
+  );
 };
 
 /**
@@ -38,6 +96,7 @@ export const GpsStopsRows: React.FC<Props> = ({
   staffId, date, leadingCells = 1, totalCols = 8,
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [expandedVisit, setExpandedVisit] = useState<string | null>(null);
   const [mapTarget, setMapTarget] = useState<
     | null
     | { address: string; coords: { lat: number; lng: number } }
@@ -65,16 +124,26 @@ export const GpsStopsRows: React.FC<Props> = ({
   );
   const geoLabels = useReverseGeocode(geocodeTargets);
 
-  const rows = useMemo(() => visits.map((v, i) => ({
-    start: v.start,
-    end: v.end,
-    durationMin: v.durationMin,
-    pingCount: v.pingCount,
-    coords: v.centre,
-    label: v.knownSite
-      ? v.knownSite.name
-      : (geoLabels[i] ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`),
-  })), [visits, geoLabels]);
+  const rows = useMemo(() => visits.map((v, i) => {
+    const sMs = new Date(v.start).getTime();
+    const eMs = new Date(v.end).getTime();
+    const visitPings = pings.filter(p => {
+      const t = new Date(p.recorded_at).getTime();
+      return t >= sMs && t <= eMs;
+    });
+    return {
+      key: `${v.placeKey}-${v.start}`,
+      start: v.start,
+      end: v.end,
+      durationMin: v.durationMin,
+      pingCount: v.pingCount,
+      coords: v.centre,
+      label: v.knownSite
+        ? v.knownSite.name
+        : (geoLabels[i] ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`),
+      pings: visitPings,
+    };
+  }), [visits, geoLabels, pings]);
 
   const contentCols = totalCols - leadingCells;
 
@@ -116,52 +185,73 @@ export const GpsStopsRows: React.FC<Props> = ({
       {expanded && (
         <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border bg-muted/30">
           <th className="px-2 py-1" />
+          <th className="px-2 py-1 w-6" />
           <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Ankom</th>
           <th className="text-left font-semibold px-2 py-1 whitespace-nowrap">Lämnade</th>
-          <th className="text-left font-semibold px-2 py-1" colSpan={contentCols - 3}>Adress</th>
+          <th className="text-left font-semibold px-2 py-1" colSpan={Math.max(1, contentCols - 5)}>Adress</th>
+          <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">Pings</th>
           <th className="text-right font-semibold px-2 py-1 whitespace-nowrap">På plats</th>
         </tr>
       )}
 
-      {expanded && rows.map((r, i) => (
-        <tr
-          key={`stop-${i}`}
-          className="border-b border-border/20 text-xs bg-muted/5 hover:bg-muted/15"
-        >
-          {Array.from({ length: leadingCells }).map((_, idx) => (
-            <td key={`pad-${idx}`} className="px-2 py-1" />
-          ))}
-          <td className="px-2 py-1 tabular-nums font-medium text-foreground whitespace-nowrap align-top">
-            <span className="inline-flex items-center gap-1">
-              <LogIn className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-              {fmt(r.start)}
-            </span>
-          </td>
-          <td className="px-2 py-1 tabular-nums font-medium text-foreground whitespace-nowrap align-top">
-            <span className="inline-flex items-center gap-1">
-              <LogOut className="h-3 w-3 text-rose-600 dark:text-rose-400" />
-              {fmt(r.end)}
-            </span>
-          </td>
-          <td className="px-2 py-1 align-top" colSpan={contentCols - 3}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMapTarget({ address: r.label, coords: r.coords });
-              }}
-              className="text-left text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors truncate inline-flex items-center gap-1"
-              title={`Visa ${r.label} på karta`}
+      {expanded && rows.map((r) => {
+        const isOpen = expandedVisit === r.key;
+        return (
+          <React.Fragment key={r.key}>
+            <tr
+              className="border-b border-border/20 text-xs bg-muted/5 hover:bg-muted/15 cursor-pointer"
+              onClick={() => setExpandedVisit(isOpen ? null : r.key)}
             >
-              <MapPin className="h-3 w-3 text-muted-foreground" />
-              {r.label}
-            </button>
-          </td>
-          <td className="px-2 py-1 tabular-nums font-semibold text-foreground whitespace-nowrap text-right align-top">
-            {fmtDur(r.durationMin)}
-          </td>
-        </tr>
-      ))}
+              {Array.from({ length: leadingCells }).map((_, idx) => (
+                <td key={`pad-${idx}`} className="px-2 py-1" />
+              ))}
+              <td className="px-2 py-1 align-top w-6">
+                {isOpen ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              </td>
+              <td className="px-2 py-1 tabular-nums font-medium text-foreground whitespace-nowrap align-top">
+                <span className="inline-flex items-center gap-1">
+                  <LogIn className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                  {fmt(r.start)}
+                </span>
+              </td>
+              <td className="px-2 py-1 tabular-nums font-medium text-foreground whitespace-nowrap align-top">
+                <span className="inline-flex items-center gap-1">
+                  <LogOut className="h-3 w-3 text-rose-600 dark:text-rose-400" />
+                  {fmt(r.end)}
+                </span>
+              </td>
+              <td className="px-2 py-1 align-top" colSpan={Math.max(1, contentCols - 5)}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMapTarget({ address: r.label, coords: r.coords });
+                  }}
+                  className="text-left text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors truncate inline-flex items-center gap-1"
+                  title={`Visa ${r.label} på karta`}
+                >
+                  <MapPin className="h-3 w-3 text-muted-foreground" />
+                  {r.label}
+                </button>
+              </td>
+              <td className="px-2 py-1 tabular-nums text-right text-muted-foreground align-top whitespace-nowrap">
+                {r.pingCount}
+              </td>
+              <td className="px-2 py-1 tabular-nums font-semibold text-foreground whitespace-nowrap text-right align-top">
+                {fmtDur(r.durationMin)}
+              </td>
+            </tr>
+            {isOpen && r.pings.length > 0 && (
+              <VisitPingsRows
+                pings={r.pings}
+                leadingCells={leadingCells}
+                contentCols={contentCols}
+                onPick={(label, coords) => setMapTarget({ address: label, coords })}
+              />
+            )}
+          </React.Fragment>
+        );
+      })}
 
       {mapTarget && (
         <tr style={{ display: 'none' }}>
