@@ -94,6 +94,21 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
   const { lastScanResult, highlightedItemId, setScanResult, highlightRow, cleanup: cleanupFeedback } = useScanFeedback();
 
+  // Nonce that increments on every new scan result, used to drive the camera
+  // overlay's flash/beep regardless of whether the message string changes.
+  const scanNonceRef = useRef(0);
+  const [scannerFeedback, setScannerFeedback] = useState<{ nonce: number; success: boolean; message?: string; subMessage?: string } | null>(null);
+  useEffect(() => {
+    if (!lastScanResult) return;
+    scanNonceRef.current += 1;
+    setScannerFeedback({
+      nonce: scanNonceRef.current,
+      success: !!lastScanResult.success && !lastScanResult.isMinusScan,
+      message: lastScanResult.productName || lastScanResult.value,
+      subMessage: lastScanResult.result,
+    });
+  }, [lastScanResult]);
+
   const { triggerSync } = usePackingSync({
     packingId,
     loadData,
