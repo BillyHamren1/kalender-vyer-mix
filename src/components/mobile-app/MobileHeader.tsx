@@ -159,8 +159,8 @@ export const HeaderStartEndDayButton: React.FC = () => {
           ? { kind: 'project' as const, largeProjectId: match.large_project_id, name: match.large_project_name }
           : { kind: 'booking' as const, bookingId: match.id, client: match.client };
         const label = match.large_project_name || match.client;
-        const result = requestStart(target, { label });
-        if (result === 'started' || result === 'duplicate') {
+        const result = await requestStart(target, { label });
+        if (result === 'started' || result === 'already_running') {
           toast.success(`Arbetspass startat på ${label}`);
         }
         return;
