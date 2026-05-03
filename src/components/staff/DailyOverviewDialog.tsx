@@ -724,64 +724,83 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           )}
         </div>
 
-        <div className="space-y-2">
-          <h4 className="text-sm font-semibold">Tidslinje</h4>
-          <div className="space-y-1">
-            {timeline.map((item, i) => (
-              <div
-                key={i}
-                className={`flex items-start gap-3 p-2.5 rounded-lg text-sm ${
-                  item.type === 'travel'
-                    ? 'bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/50'
-                    : item.ongoing
-                      ? 'bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/60'
-                      : 'bg-background border'
-                }`}
-              >
-                <div className="flex flex-col items-center shrink-0 w-14 text-xs text-muted-foreground">
-                  <span>{toHHMM(item.start_time)}</span>
-                  <span className="text-[10px]">–</span>
-                  <span>
-                    {item.ongoing
-                      ? <span className="text-orange-600 font-medium">pågår</span>
-                      : toHHMM(item.end_time)}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {item.type === 'travel' ? (
-                      <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                    ) : (
-                      <Briefcase className="h-3.5 w-3.5 text-primary shrink-0" />
+        {showGpsDetails && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">Tidslinje (GPS-detalj)</h4>
+            <div className="space-y-1">
+              {timeline.map((item, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-3 p-2.5 rounded-lg text-sm ${
+                    item.type === 'travel'
+                      ? 'bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/50'
+                      : item.ongoing
+                        ? 'bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/60'
+                        : 'bg-background border'
+                  }`}
+                >
+                  <div className="flex flex-col items-center shrink-0 w-14 text-xs text-muted-foreground">
+                    <span>{toHHMM(item.start_time)}</span>
+                    <span className="text-[10px]">–</span>
+                    <span>
+                      {item.ongoing
+                        ? <span className="text-orange-600 font-medium">pågår</span>
+                        : toHHMM(item.end_time)}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.type === 'travel' ? (
+                        <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                      ) : (
+                        <Briefcase className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )}
+                      <span className="font-medium break-words">{item.label}</span>
+                      {item.ongoing && (
+                        <Badge variant="outline" className="text-[10px] gap-1 border-orange-300 text-orange-600">
+                          <Activity className="h-2.5 w-2.5" /> Pågår
+                        </Badge>
+                      )}
+                    </div>
+                    {item.sublabel && (
+                      <span className="text-xs text-muted-foreground break-words">{item.sublabel}</span>
                     )}
-                    <span className="font-medium break-words">{item.label}</span>
-                    {item.ongoing && (
-                      <Badge variant="outline" className="text-[10px] gap-1 border-orange-300 text-orange-600">
-                        <Activity className="h-2.5 w-2.5" /> Pågår
-                      </Badge>
+                    {item.type === 'work' && item.lat && item.lng && (
+                      <span className="text-[10px] text-muted-foreground block">
+                        📍 {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
+                      </span>
+                    )}
+                    {item.type === 'travel' && item.fromLat && item.fromLng && (
+                      <span className="text-[10px] text-muted-foreground block break-words">
+                        📍 {item.fromLat.toFixed(5)}, {item.fromLng.toFixed(5)} → {item.toLat?.toFixed(5)}, {item.toLng?.toFixed(5)}
+                      </span>
                     )}
                   </div>
-                  {item.sublabel && (
-                    <span className="text-xs text-muted-foreground break-words">{item.sublabel}</span>
-                  )}
-                  {item.type === 'work' && item.lat && item.lng && (
-                    <span className="text-[10px] text-muted-foreground block">
-                      📍 {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
-                    </span>
-                  )}
-                  {item.type === 'travel' && item.fromLat && item.fromLng && (
-                    <span className="text-[10px] text-muted-foreground block break-words">
-                      📍 {item.fromLat.toFixed(5)}, {item.fromLng.toFixed(5)} → {item.toLat?.toFixed(5)}, {item.toLng?.toFixed(5)}
-                    </span>
-                  )}
+                  <Badge variant="outline" className="shrink-0 text-xs">
+                    {formatHoursMinutes(item.hours)}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="shrink-0 text-xs">
-                  {formatHoursMinutes(item.hours)}
-                </Badge>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Edit dialog for individual time_reports rows. */}
+        {editTimeReportId && (() => {
+          const w = workEntries.find(w => w.id === editTimeReportId);
+          if (!w) return null;
+          return (
+            <EditTimeReportDialog
+              open={!!editTimeReportId}
+              onOpenChange={(open) => !open && setEditTimeReportId(null)}
+              timeReportId={editTimeReportId}
+              staffName={staffName}
+              initialStartTime={w.start_time}
+              initialEndTime={w.end_time}
+              initialDescription={w.description}
+            />
+          );
+        })()}
 
       </DialogContent>
     </Dialog>
