@@ -133,6 +133,12 @@ export interface RequestStartOptions {
   /** Optional task metadata persisted on the resulting time_report. */
   taskId?: string;
   taskTitle?: string;
+  /**
+   * Suppress the default "Timer startad: …" / "Timer redan aktiv …" toasts.
+   * Used by callers (e.g. arrival prompt) som vill visa egen, mer detaljerad
+   * feedback ("Arbetsdag startad från 09:44" + "Projekt X är aktivt").
+   */
+  suppressToast?: boolean;
 }
 
 interface PendingStart {
@@ -141,6 +147,7 @@ interface PendingStart {
   startedAtIso?: string;
   taskId?: string;
   taskTitle?: string;
+  suppressToast?: boolean;
 }
 
 interface DistanceWarning {
@@ -204,7 +211,7 @@ export function useTimerStartFlow(
   const performStart = useCallback(
     async (
       target: WorkTarget,
-      opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string; offSiteReason?: string; offSiteDistance?: number },
+      opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string; offSiteReason?: string; offSiteDistance?: number; suppressToast?: boolean },
     ): Promise<Extract<StartStatus, 'started' | 'already_running' | 'workday_failed' | 'start_failed'>> => {
       // End any open GPS-travel row when starting a new activity.
       if (userPosition) {
@@ -238,13 +245,15 @@ export function useTimerStartFlow(
       });
       if (!ok) {
         // startSession returns false on duplicate (already in activeTimers).
-        // We treat that as already_running — UI may show a soft "already on"
-        // hint but never a fresh-start success.
-        toast.message('Timer redan aktiv för platsen');
+        if (!opts.suppressToast) {
+          toast.message('Timer redan aktiv för platsen');
+        }
         return 'already_running';
       }
 
-      toast.success(`Timer startad: ${opts.label}`);
+      if (!opts.suppressToast) {
+        toast.success(`Timer startad: ${opts.label}`);
+      }
 
       // Off-site flag (best-effort, non-blocking)
       if (opts.offSiteReason) {
@@ -462,6 +471,7 @@ export function useTimerStartFlow(
           startedAtIso: opts.startedAtIso,
           taskId: opts.taskId,
           taskTitle: opts.taskTitle,
+          suppressToast: opts.suppressToast,
         });
         setConflictEval(evalResult);
         return 'conflict';
@@ -474,6 +484,7 @@ export function useTimerStartFlow(
         label,
         taskId: opts.taskId,
         taskTitle: opts.taskTitle,
+        suppressToast: opts.suppressToast,
       });
     },
     [activeTimers, labelFor, performStart],
