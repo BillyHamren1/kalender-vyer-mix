@@ -926,6 +926,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
           {cameraState === 'running' && (
             <>
+              {torchSupported && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  className={`absolute top-3 right-3 z-10 p-2.5 rounded-full shadow-lg ${torchOn ? 'bg-yellow-400 text-black' : 'bg-black/60 text-white'}`}
+                  aria-label={torchOn ? 'Släck lampa' : 'Tänd lampa'}
+                  title={torchOn ? 'Släck lampa' : 'Tänd lampa'}
+                >
+                  {torchOn ? <Flashlight className="h-5 w-5" /> : <FlashlightOff className="h-5 w-5" />}
+                </button>
+              )}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-64 h-64 border-2 border-white/30 rounded-lg relative">
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-lg" />
