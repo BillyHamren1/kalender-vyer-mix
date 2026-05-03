@@ -57,12 +57,27 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
+  const [updateDialog, setUpdateDialog] = useState<{ name: string; bookingIds: string[]; navigateTo: string } | null>(null);
 
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
   const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: largeProjects = [], isLoading: largeLoading } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
+  const { data: unseenUpdates = [] } = useUnseenBookingUpdates();
 
   const isLoading = jobsLoading || projectsLoading || largeLoading;
+
+  // Map: project key -> array of bookingIds with unseen changes
+  const updatesByProject = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const u of unseenUpdates) {
+      const key = u.large_project_id ? `large:${u.large_project_id}` : u.assigned_project_id ? `medium:${u.assigned_project_id}` : null;
+      if (!key) continue;
+      const arr = map.get(key) || [];
+      arr.push(u.booking_id);
+      map.set(key, arr);
+    }
+    return map;
+  }, [unseenUpdates]);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['jobs'] });
