@@ -403,6 +403,13 @@ export function buildDayTimeline(
     });
   }
 
+  // Liten tolerans åt båda håll. Bakgrund:
+  //  - `time_reports.start_time` rundas till hela sekunder vid backfill.
+  //  - En timer som startas "just innan" personen passerade geofence-radien
+  //    på t.ex. Westers låg historiskt strax före första in-radius-pingen.
+  //  - Vi vill INTE snappa över hela resor — därför är toleransen 90s, inte 15 min.
+  const TOL_MS = 90_000;
+
   const resolveAt = (iso: string | null): DayTimelineHit => {
     if (!iso) return { kind: 'unknown' };
     const t = new Date(iso).getTime();
@@ -411,7 +418,7 @@ export function buildDayTimeline(
     for (const v of sortedVisits) {
       const s = new Date(v.start).getTime();
       const e = new Date(v.end).getTime();
-      if (t >= s && t <= e) return { kind: 'visit', visit: v };
+      if (t >= s - TOL_MS && t <= e + TOL_MS) return { kind: 'visit', visit: v };
     }
     for (const tr of travels) {
       const s = new Date(tr.start).getTime();
