@@ -122,7 +122,8 @@ export type AnomalyKind =
   | 'needs_review'
   | 'open_timer_stale'
   | 'overlap'
-  | 'missing_logout';
+  | 'missing_logout'
+  | 'planned_no_start';
 
 export type AnomalySeverity = 'info' | 'warning' | 'critical';
 
