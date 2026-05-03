@@ -197,6 +197,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   useEffect(() => () => {
     if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
   }, []);
+
+  const handleDetected = useCallback((value: string) => {
     if (value && value !== lastScanRef.current) {
       successfulDetectionRef.current = true;
       noPixelsSinceRef.current = null;
