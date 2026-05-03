@@ -278,9 +278,24 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     });
   }
 
-  // Location entries → presence-only is filtered out (used only for headers)
+  // Location entries → presence-only is filtered out (used only for headers).
+  // Om en booking redan har en stängd TR (= sanning) ska LTE inte skapa en
+  // egen rad — TR-raden är auktoritativ. Vi använder dock LTE:n för label.
+  const closedTrBookings = new Set(
+    input.reports
+      .filter(r => r.end_iso && r.booking_id)
+      .map(r => r.booking_id as string),
+  );
+  const closedTrLargeProjects = new Set(
+    input.reports
+      .filter(r => r.end_iso && r.large_project_id)
+      .map(r => r.large_project_id as string),
+  );
+
   for (const e of input.locationEntries) {
     if (e.isPresenceOnly) continue;
+    if (e.booking_id && closedTrBookings.has(e.booking_id)) continue;
+    if (e.large_project_id && closedTrLargeProjects.has(e.large_project_id)) continue;
     const key = e.booking_id
       ? `booking:${e.booking_id}`
       : e.large_project_id
