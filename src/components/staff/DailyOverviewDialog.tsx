@@ -20,6 +20,8 @@ import { useDayPings } from '@/hooks/admin/useDayPings';
 import { useDayTimeline } from '@/hooks/admin/useDayTimeline';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { TimeReportReviewTable } from '@/components/staff/TimeReportReviewTable';
+import { EditTimeReportDialog } from '@/components/staff/EditTimeReportDialog';
 
 interface GpsPoint {
   lat: number;
@@ -107,6 +109,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const [plannedLoading, setPlannedLoading] = useState(false);
   const [plannedError, setPlannedError] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [showGpsDetails, setShowGpsDetails] = useState(false);
+  const [editTimeReportId, setEditTimeReportId] = useState<string | null>(null);
 
   // Etapp 4: pings + events + known places for the timeline map / raw drawer
   const { pings } = useDayPings({ staffId, date, enabled: open });
@@ -511,7 +515,45 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
               <span>Dagöversikt — {formatDialogDate(date)}</span>
               <span className="text-sm font-normal text-muted-foreground">· {staffName}</span>
             </DialogTitle>
-            {reviewRow && (
+          </div>
+        </DialogHeader>
+        {/* Day approval CTA lives inside TimeReportReviewTable header. */}
+
+        {/* Payroll-style review table — primary view, GPS hidden by default */}
+        {date && (
+          <TimeReportReviewTable
+            date={date}
+            staffName={staffName}
+            work={workEntries.map(w => ({
+              id: w.id,
+              start_time: w.start_time,
+              end_time: w.end_time,
+              hours_worked: w.hours_worked,
+              booking_client: w.booking_client,
+              booking_number: w.booking_number,
+              description: w.description,
+              delivery_lat: w.delivery_lat,
+              delivery_lng: w.delivery_lng,
+              ongoing: w.ongoing,
+              source: w.id.startsWith('lte-') ? 'location_entry' : 'time_report',
+            }))}
+            travel={travelSegments.map(t => ({
+              id: t.id,
+              start_time: t.start_time,
+              end_time: t.end_time,
+              hours_worked: t.hours_worked,
+              from_address: t.from_address,
+              to_address: t.to_address,
+              from_latitude: t.from_latitude,
+              from_longitude: t.from_longitude,
+              to_latitude: t.to_latitude,
+              to_longitude: t.to_longitude,
+              destination_booking_id: t.destination_booking_id,
+            }))}
+            onEditTimeReport={(id) => setEditTimeReportId(id)}
+            onToggleGpsDetails={setShowGpsDetails}
+            gpsDetailsVisible={showGpsDetails}
+            approveDayAction={reviewRow ? (
               <DayApprovalAction
                 workdayId={reviewRow.workdayId}
                 workday={reviewRow.workdayStart ? { started_at: reviewRow.workdayStart, ended_at: reviewRow.workdayEnd } : null}
@@ -520,28 +562,17 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
                 variant="full"
                 onApproved={() => onOpenChange(false)}
               />
-            )}
-          </div>
-        </DialogHeader>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <SummaryCard icon={<Clock className="h-4 w-4" />} label="Första start" value={toHHMM(firstStart)} />
-          <SummaryCard
-            icon={<Clock className="h-4 w-4" />}
-            label="Sista slut"
-            value={ongoingCount > 0 ? 'Pågår' : toHHMM(lastEnd)}
+            ) : undefined}
           />
-          <SummaryCard icon={<Briefcase className="h-4 w-4" />} label="Arbetstid" value={formatHoursMinutes(totalWork)} />
-          <SummaryCard icon={<Car className="h-4 w-4" />} label="Restid" value={formatHoursMinutes(totalTravel)} />
-        </div>
+        )}
 
         {/* Correction suggestions (Etapp 3) — actionable above timeline */}
         {date && staffId && (
           <CorrectionSuggestionsPanel staffId={staffId} date={date} organizationId={organizationId} />
         )}
 
-        {/* Server-derived event timeline (Day Timeline Engine) */}
-        {date && staffId && (
+        {/* Server-derived event timeline (Day Timeline Engine) — GPS debug, hidden by default */}
+        {showGpsDetails && date && staffId && (
           <div className="space-y-3">
             <DayTimelineMap
               events={timelineEvents}
@@ -567,8 +598,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         )}
 
-        {/* Map first — show all travel segments as lines */}
-        {hasMapData ? (
+        {/* GPS map — debug surface, hidden by default */}
+        {showGpsDetails && (hasMapData ? (
           <div className="space-y-1">
             <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
             <div className="text-xs text-muted-foreground">
@@ -581,7 +612,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <div className="w-full h-[160px] rounded-lg border flex items-center justify-center text-muted-foreground text-sm">
             Inga resor registrerade denna dag
           </div>
-        )}
+        ))}
 
         {ongoingCount > 0 && (
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200/60 text-orange-700 dark:text-orange-400">
@@ -693,64 +724,83 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           )}
         </div>
 
-        <div className="space-y-2">
-          <h4 className="text-sm font-semibold">Tidslinje</h4>
-          <div className="space-y-1">
-            {timeline.map((item, i) => (
-              <div
-                key={i}
-                className={`flex items-start gap-3 p-2.5 rounded-lg text-sm ${
-                  item.type === 'travel'
-                    ? 'bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/50'
-                    : item.ongoing
-                      ? 'bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/60'
-                      : 'bg-background border'
-                }`}
-              >
-                <div className="flex flex-col items-center shrink-0 w-14 text-xs text-muted-foreground">
-                  <span>{toHHMM(item.start_time)}</span>
-                  <span className="text-[10px]">–</span>
-                  <span>
-                    {item.ongoing
-                      ? <span className="text-orange-600 font-medium">pågår</span>
-                      : toHHMM(item.end_time)}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {item.type === 'travel' ? (
-                      <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                    ) : (
-                      <Briefcase className="h-3.5 w-3.5 text-primary shrink-0" />
+        {showGpsDetails && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">Tidslinje (GPS-detalj)</h4>
+            <div className="space-y-1">
+              {timeline.map((item, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-3 p-2.5 rounded-lg text-sm ${
+                    item.type === 'travel'
+                      ? 'bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/50'
+                      : item.ongoing
+                        ? 'bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/60'
+                        : 'bg-background border'
+                  }`}
+                >
+                  <div className="flex flex-col items-center shrink-0 w-14 text-xs text-muted-foreground">
+                    <span>{toHHMM(item.start_time)}</span>
+                    <span className="text-[10px]">–</span>
+                    <span>
+                      {item.ongoing
+                        ? <span className="text-orange-600 font-medium">pågår</span>
+                        : toHHMM(item.end_time)}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.type === 'travel' ? (
+                        <Car className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                      ) : (
+                        <Briefcase className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )}
+                      <span className="font-medium break-words">{item.label}</span>
+                      {item.ongoing && (
+                        <Badge variant="outline" className="text-[10px] gap-1 border-orange-300 text-orange-600">
+                          <Activity className="h-2.5 w-2.5" /> Pågår
+                        </Badge>
+                      )}
+                    </div>
+                    {item.sublabel && (
+                      <span className="text-xs text-muted-foreground break-words">{item.sublabel}</span>
                     )}
-                    <span className="font-medium break-words">{item.label}</span>
-                    {item.ongoing && (
-                      <Badge variant="outline" className="text-[10px] gap-1 border-orange-300 text-orange-600">
-                        <Activity className="h-2.5 w-2.5" /> Pågår
-                      </Badge>
+                    {item.type === 'work' && item.lat && item.lng && (
+                      <span className="text-[10px] text-muted-foreground block">
+                        📍 {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
+                      </span>
+                    )}
+                    {item.type === 'travel' && item.fromLat && item.fromLng && (
+                      <span className="text-[10px] text-muted-foreground block break-words">
+                        📍 {item.fromLat.toFixed(5)}, {item.fromLng.toFixed(5)} → {item.toLat?.toFixed(5)}, {item.toLng?.toFixed(5)}
+                      </span>
                     )}
                   </div>
-                  {item.sublabel && (
-                    <span className="text-xs text-muted-foreground break-words">{item.sublabel}</span>
-                  )}
-                  {item.type === 'work' && item.lat && item.lng && (
-                    <span className="text-[10px] text-muted-foreground block">
-                      📍 {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
-                    </span>
-                  )}
-                  {item.type === 'travel' && item.fromLat && item.fromLng && (
-                    <span className="text-[10px] text-muted-foreground block break-words">
-                      📍 {item.fromLat.toFixed(5)}, {item.fromLng.toFixed(5)} → {item.toLat?.toFixed(5)}, {item.toLng?.toFixed(5)}
-                    </span>
-                  )}
+                  <Badge variant="outline" className="shrink-0 text-xs">
+                    {formatHoursMinutes(item.hours)}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="shrink-0 text-xs">
-                  {formatHoursMinutes(item.hours)}
-                </Badge>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Edit dialog for individual time_reports rows. */}
+        {editTimeReportId && (() => {
+          const w = workEntries.find(w => w.id === editTimeReportId);
+          if (!w) return null;
+          return (
+            <EditTimeReportDialog
+              open={!!editTimeReportId}
+              onOpenChange={(open) => !open && setEditTimeReportId(null)}
+              timeReportId={editTimeReportId}
+              staffName={staffName}
+              initialStartTime={w.start_time}
+              initialEndTime={w.end_time}
+              initialDescription={w.description}
+            />
+          );
+        })()}
 
       </DialogContent>
     </Dialog>
