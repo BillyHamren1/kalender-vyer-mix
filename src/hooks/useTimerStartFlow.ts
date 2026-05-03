@@ -348,10 +348,21 @@ export function useTimerStartFlow(
         setDistanceWarning({
           placeName: coords.label || opts.label,
           distance: dist,
-          // Confirm with mandatory reason → fire-and-forget perform.
-          // Result is reported through normal toast/UI inside performStart.
-          onConfirm: (reason: string) => {
-            void performStart(target, { ...opts, offSiteReason: reason, offSiteDistance: dist });
+          // Awaitable confirm — kör hela performStart-kedjan klart och
+          // returnerar riktig status. Wrappern (DistanceWarningDialog-konsumenten
+          // i MobileGlobalOverlays) håller dialogen öppen vid fel.
+          onConfirm: async (reason: string): Promise<DistanceConfirmStatus> => {
+            try {
+              return await performStart(target, {
+                ...opts,
+                offSiteReason: reason,
+                offSiteDistance: dist,
+              });
+            } catch (err: any) {
+              console.error('[StartFlow] distance-confirm performStart threw:', err);
+              toast.error(err?.message || 'Kunde inte starta aktiviteten');
+              return 'start_failed';
+            }
           },
         });
         return 'blocked';
