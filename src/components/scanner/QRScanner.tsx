@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, X, Radio, Loader2 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Camera, X, Radio, Loader2, ZoomIn, ZoomOut, Sparkles } from 'lucide-react';
+
+const ZOOM_PREF_KEY = 'qrscanner.defaultZoom.v1';
+const ZOOM_AUTO_KEY = 'qrscanner.autoZoom.v1';
 import { isScannerApp } from '@/config/appMode';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
