@@ -467,6 +467,10 @@ export function buildDayTimeline(
     const startMs = new Date(from.end).getTime();
     const endMs = new Date(to.start).getTime();
     if (endMs <= startMs) continue;
+    const durationMin = Math.max(0, Math.round((endMs - startMs) / 60_000));
+    // Steg 6: filtrera bort travel < MIN_TRAVEL_DURATION_MIN. Sådana segment
+    // är nästan alltid GPS-brus mellan två angränsande visits.
+    if (durationMin < MIN_TRAVEL_DURATION_MIN) continue;
     const pings = sortedPings.filter(p => {
       const t = new Date(p.recorded_at).getTime();
       return t > startMs && t < endMs;
@@ -475,7 +479,7 @@ export function buildDayTimeline(
       key: `travel:${i}`,
       start: from.end,
       end: to.start,
-      durationMin: Math.max(0, Math.round((endMs - startMs) / 60_000)),
+      durationMin,
       from,
       to,
       pings,
