@@ -57,13 +57,18 @@ const PHASE_BORDER: Record<Phase, string> = {
   nedrigg: 'border-l-violet-500',
 };
 
-function combine(dateStr: string, time: string | null | undefined): Date | null {
-  if (!time) return null;
-  const [hh, mm] = time.split(':').map(Number);
-  if (Number.isNaN(hh)) return null;
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setHours(hh, mm || 0, 0, 0);
-  return d;
+function parseTime(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  // Acceptera både "HH:mm[:ss]" och full ISO/timestamptz "YYYY-MM-DD HH:mm:ss+TZ"
+  if (/^\d{2}:\d{2}/.test(value)) {
+    const [hh, mm] = value.split(':').map(Number);
+    const d = new Date();
+    d.setHours(hh || 0, mm || 0, 0, 0);
+    return d;
+  }
+  const iso = value.includes('T') ? value : value.replace(' ', 'T');
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
@@ -110,16 +115,16 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
         if (b) {
           if (b.rigdaydate === dateStr) {
             phase = 'rigg';
-            start = combine(dateStr, b.rig_start_time);
-            end = combine(dateStr, b.rig_end_time);
+            start = parseTime(b.rig_start_time);
+            end = parseTime(b.rig_end_time);
           } else if (b.eventdate === dateStr) {
             phase = 'event';
-            start = combine(dateStr, b.event_start_time);
-            end = combine(dateStr, b.event_end_time);
+            start = parseTime(b.event_start_time);
+            end = parseTime(b.event_end_time);
           } else if (b.rigdowndate === dateStr) {
             phase = 'nedrigg';
-            start = combine(dateStr, b.rigdown_start_time);
-            end = combine(dateStr, b.rigdown_end_time);
+            start = parseTime(b.rigdown_start_time);
+            end = parseTime(b.rigdown_end_time);
           }
           if (start && !end) end = new Date(start.getTime() + 60 * 60_000);
         }
