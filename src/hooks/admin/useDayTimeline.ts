@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type DayTimelineEventType =
   | "workday_started" | "workday_ended"
   | "timer_started" | "timer_stopped"
+  | "stay_segment" | "travel_segment"
   | "arrived_at_reported_site" | "left_reported_site"
   | "arrived_at_known_location" | "left_known_location"
   | "stopped_at_unknown_location"
@@ -22,6 +23,9 @@ export interface DayTimelineEvent {
   date: string;
   event_type: DayTimelineEventType;
   ts: string;
+  end_ts: string | null;
+  duration_min: number | null;
+  planned: boolean | null;
   lat: number | null;
   lng: number | null;
   accuracy: number | null;
