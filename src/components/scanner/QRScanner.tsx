@@ -383,7 +383,31 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           if (barcodes.length > 0) {
             const value = barcodes[0].rawValue;
             console.log('[QRScanner] Detected:', value, 'format:', barcodes[0].format);
+            framesWithoutDetectionRef.current = 0;
             handleDetected(value);
+          } else {
+            framesWithoutDetectionRef.current++;
+            // Auto-zoom: if we have video pixels but no detections for a while,
+            // gradually step zoom up to help small/distant codes resolve.
+            if (autoZoomRef.current && framesWithoutDetectionRef.current >= 18) {
+              const stream = streamRef.current;
+              const track = stream?.getVideoTracks()[0] as any;
+              const caps = track?.getCapabilities?.();
+              if (caps?.zoom && Date.now() - lastAutoZoomAdjustRef.current > 800) {
+                lastAutoZoomAdjustRef.current = Date.now();
+                const max = caps.zoom.max ?? 1;
+                const min = caps.zoom.min ?? 1;
+                const step = caps.zoom.step && caps.zoom.step > 0 ? caps.zoom.step : 0.25;
+                const current = zoomRef.current;
+                // Cycle: step up to max, then snap back to default and try again
+                let next = current + Math.max(step, 0.25);
+                if (next > max) next = min;
+                if (Math.abs(next - current) >= 0.05) {
+                  void applyZoom(next);
+                }
+                framesWithoutDetectionRef.current = 0;
+              }
+            }
           }
         }
       } catch (err) {
