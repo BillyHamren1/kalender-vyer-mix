@@ -233,6 +233,7 @@ export function buildPlaceVisits(
         end,
         durationMin,
         pingCount: seg.pings.length,
+        pings: [...seg.pings],
       };
     })
     .filter(v => v.durationMin >= minDuration);
