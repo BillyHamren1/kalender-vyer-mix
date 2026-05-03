@@ -122,6 +122,14 @@ const MobileGlobalOverlays: React.FC = () => {
   // markerar prompten som resolved.
   const { activeTimers: providerActiveTimers } = useGeofencingContext();
 
+  // Workday state — vi måste verifiera att dagen faktiskt syns innan
+  // arrival-prompten markeras resolved.
+  const { current: currentWorkday, refresh: refreshWorkday } = useWorkDay();
+  const currentWorkdayRef = useRef(currentWorkday);
+  useEffect(() => {
+    currentWorkdayRef.current = currentWorkday;
+  }, [currentWorkday]);
+
   // Travel detection — runs globally regardless of active page.
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
     useTravelDetection(!!staff, latestPosition);
