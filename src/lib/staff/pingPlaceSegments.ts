@@ -266,3 +266,41 @@ export function buildPlaceVisits(
 
   return merged;
 }
+
+/**
+ * Slå upp vilken vistelse som omfattar `iso`.
+ *   1. Om `iso` ligger mellan en vistelses start och end → returnera den.
+ *   2. Annars: närmsta vistelse vars start/end är inom `toleranceMin` minuter
+ *      från `iso` (för att täcka det lilla glappet mellan stop och faktisk
+ *      lämnings-ping). Default 15 min för att matcha gamla GeoAtTime-fönstret.
+ *   3. Annars null.
+ */
+export function resolvePlaceAt(
+  visits: PlaceVisit[],
+  iso: string | null,
+  toleranceMin = 15,
+): PlaceVisit | null {
+  if (!iso || visits.length === 0) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+
+  // 1. Inuti en vistelse
+  for (const v of visits) {
+    const s = new Date(v.start).getTime();
+    const e = new Date(v.end).getTime();
+    if (t >= s && t <= e) return v;
+  }
+
+  // 2. Närmsta inom toleransen
+  const tolMs = toleranceMin * 60_000;
+  let best: { v: PlaceVisit; dist: number } | null = null;
+  for (const v of visits) {
+    const s = new Date(v.start).getTime();
+    const e = new Date(v.end).getTime();
+    const dist = t < s ? s - t : t - e;
+    if (dist <= tolMs && (!best || dist < best.dist)) {
+      best = { v, dist };
+    }
+  }
+  return best?.v ?? null;
+}

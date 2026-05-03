@@ -6,8 +6,7 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffDayAnalysisPanel, StaffDayNotificationsPanel } from './StaffDayAnalysisPanel';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
-import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
-import { findPingAtTime } from '@/lib/staff/pingAtTime';
+import { useDayPlaceVisits } from '@/hooks/useDayPlaceVisits';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { AddressMapDialog } from './AddressMapDialog';
 import { EditTimeReportDialog } from './EditTimeReportDialog';
@@ -95,19 +94,31 @@ interface JournalTableProps {
 }
 
 /**
- * Returnerar adress vid en given tidpunkt utifrån GPS-pings.
- * Söker närmsta ping inom ±15 min, reverse-geocodar koordinaterna.
+ * Visar var personen var vid en given tidpunkt — driven av samma motor
+ * (`pingPlaceSegments`) som underraden "Faktiska besök". Detta betyder:
+ *   • känd anläggning (FA Warehouse, lager, kontor) visas alltid med sitt
+ *     riktiga namn — Mapbox används aldrig för att gissa.
+ *   • okänd plats reverse-geocodas på vistelsens centroid, så hela vistelsen
+ *     får samma label oavsett vilken enskild ping vi råkar fråga om.
  */
 const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }> = ({ staffId, date, iso }) => {
-  const { data: pings = [], isLoading } = useStaffPingsForDay(staffId, date, !!iso);
-  const ping = useMemo(() => (iso ? findPingAtTime(pings, iso, 15) : null), [pings, iso]);
-  const addrs = useReverseGeocode([ping?.coords ?? null]);
+  const { resolveAt, isLoading, hasPings } = useDayPlaceVisits(staffId, date, !!iso);
+  const visit = useMemo(() => resolveAt(iso), [resolveAt, iso]);
+  // Endast för okända vistelser frågar vi Mapbox.
+  const fallbackTarget = visit && !visit.knownSite ? visit.centre : null;
+  const fallbackLabels = useReverseGeocode([fallbackTarget]);
   const [open, setOpen] = useState(false);
 
   if (!iso) return <span className="text-muted-foreground">—</span>;
   if (isLoading) return <span className="text-muted-foreground italic">…</span>;
-  if (!ping) return <span className="text-muted-foreground italic">ingen GPS</span>;
-  const addr = addrs[0] ?? `${ping.coords.lat.toFixed(4)}, ${ping.coords.lng.toFixed(4)}`;
+  if (!visit) {
+    return <span className="text-muted-foreground italic">{hasPings ? 'ingen GPS' : 'ingen GPS'}</span>;
+  }
+
+  const addr = visit.knownSite
+    ? visit.knownSite.name
+    : (fallbackLabels[0] ?? `${visit.centre.lat.toFixed(4)}, ${visit.centre.lng.toFixed(4)}`);
+
   return (
     <>
       <button
@@ -118,7 +129,7 @@ const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }>
       >
         {addr}
       </button>
-      <AddressMapDialog open={open} onOpenChange={setOpen} address={addr} coords={ping.coords} staffId={staffId} date={date} />
+      <AddressMapDialog open={open} onOpenChange={setOpen} address={addr} coords={visit.centre} staffId={staffId} date={date} />
     </>
   );
 };
