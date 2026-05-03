@@ -109,11 +109,8 @@ export function buildPlaceVisits(
     pendingAway = [];
   };
 
-  const refreshUnknownAnchor = () => {
-    if (!current || current.knownSite) return;
-    const tail = current.pings.slice(-10);
-    current.anchor = centreOf(tail);
-  };
+  // refreshUnknownAnchor borttagen — ankaret får inte drifta.
+  // Se mem://constraints/gps-visit-exact-ping-membership-v1.
 
   for (const p of sorted) {
     const matchedSite = matchKnownSite(p, knownSites);
