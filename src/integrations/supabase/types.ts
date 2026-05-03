@@ -5233,6 +5233,75 @@ export type Database = {
         }
         Relationships: []
       }
+      suppliers: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          color: string | null
+          contacts: Json
+          country: string | null
+          created_at: string
+          email: string | null
+          external_id: string | null
+          id: string
+          last_synced_at: string | null
+          name: string
+          notes: string | null
+          organization_id: string
+          phone: string | null
+          postal_code: string | null
+          primary_contact: Json | null
+          short_name: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          color?: string | null
+          contacts?: Json
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          external_id?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name: string
+          notes?: string | null
+          organization_id: string
+          phone?: string | null
+          postal_code?: string | null
+          primary_contact?: Json | null
+          short_name?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          color?: string | null
+          contacts?: Json
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          external_id?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          phone?: string | null
+          postal_code?: string | null
+          primary_contact?: Json | null
+          short_name?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       sync_audit_log: {
         Row: {
           actual_events: Json | null
