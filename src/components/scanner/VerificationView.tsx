@@ -686,6 +686,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <QrParcelManager
+        open={showQrParcels}
+        onOpenChange={setShowQrParcels}
+        packingId={packingId}
+        verifierName={verifierName}
+      />
     </div>
   );
 };
