@@ -3,8 +3,8 @@ import { format } from 'date-fns';
 import { MapPin, ChevronDown, ChevronRight, LogIn, LogOut, Car } from 'lucide-react';
 import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
-import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
-import { buildPlaceVisits, buildDayTimeline, type KnownSite, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
+import { useDayKnownSites } from '@/hooks/useDayKnownSites';
+import { buildPlaceVisits, buildDayTimeline, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
 import type { Ping } from '@/lib/staff/movementDetection';
 import { AddressMapDialog } from './AddressMapDialog';
 
