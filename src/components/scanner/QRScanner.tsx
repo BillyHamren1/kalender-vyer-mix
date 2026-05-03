@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Camera, X, Radio, Loader2, ZoomIn, ZoomOut, Sparkles } from 'lucide-react';
+import { Camera, X, Radio, Loader2, ZoomIn, ZoomOut, Sparkles, Flashlight, FlashlightOff } from 'lucide-react';
 
 const ZOOM_PREF_KEY = 'qrscanner.defaultZoom.v1';
 const ZOOM_AUTO_KEY = 'qrscanner.autoZoom.v1';
