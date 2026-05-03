@@ -1,109 +1,165 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Sun, AlertTriangle } from 'lucide-react';
-import { differenceInSeconds, parseISO, isSameDay } from 'date-fns';
+import { Sun, AlertTriangle, Activity, Pause } from 'lucide-react';
+import { differenceInSeconds, parseISO, isSameDay, format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useWorkDay } from '@/hooks/useWorkDay';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
 import { cn } from '@/lib/utils';
 
 /**
- * WorkDayHeaderTimer — small, calm pill in the header showing how long
- * the current workday has been running.
+ * WorkDayHeaderTimer — prominent multi-line indicator showing that the
+ * workday is running, when it started, how long it has been going, and
+ * which activity (if any) is currently being timed inside the day.
  *
- * UNIFIED MODEL (Tidappen):
- *   1. Dagtimer = HUVUDSPÅR. Den här pillen visar dagens längd och inget
- *      annat. Den startas av manuell "Starta dagen" eller riktig
- *      geofence/start-action via useTimerStartFlow — aldrig av app-open.
- *   2. Aktivitetstid = INUTI dagen. Att starta/stoppa en aktivitet
- *      påverkar inte att dagen finns och visas inte här.
- *   3. "Avsluta dagen" = SEPARAT handling. Pillen försvinner först när
- *      workdays-raden faktiskt är ended_at (server-bekräftad).
- *   4. Geofence = SIGNAL — inget UI-state hämtas från geofence här.
+ * UNIFIED MODEL:
+ *   • Dagtimer = HUVUDSPÅR (denna komponent visar dagens längd)
+ *   • Aktivitetstid = INUTI dagen (visas som sekundär rad)
+ *   • Workday-state hämtas från `useWorkDay()` (server-truth)
+ *   • Aktiv aktivitet hämtas från GeofencingContext.activeTimers
  *
- * SOURCE OF TRUTH: `useWorkDay()` → `workdays` table (server, realtime).
- * Komponenten MÅSTE inte härleda state från aktiva timers eller
- * localStorage.
- *
- * Stale visualisation:
+ * Stale-visualisering:
  *   - elapsed > 12h  → orange (warning)
- *   - started on a previous calendar day OR elapsed > 18h → red (critical)
- *   - clicking a stale pill navigates to /m/report so the user can correct
- *     the day instead of silently letting the timer run forever.
+ *   - elapsed > 18h eller startad föregående dag → röd (critical, klickbar)
  */
 const formatHMS = (totalSeconds: number) => {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
   const s = totalSeconds % 60;
-  if (h > 0) {
-    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  }
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
+const getActivityLabel = (timer: {
+  locationName?: string;
+  client?: string;
+  establishmentTaskTitle?: string;
+  largeProjectId?: string;
+}): string => {
+  return (
+    timer.establishmentTaskTitle ||
+    timer.locationName ||
+    timer.client ||
+    'Aktivitet'
+  );
 };
 
 export const WorkDayHeaderTimer: React.FC = () => {
   const { current } = useWorkDay();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const geo = useGeofencingContextOptional();
   const [, setTick] = useState(0);
 
   const startIso = current && !current.ended_at ? current.started_at : null;
 
-  // Tick once per second only when a workday is open.
   useEffect(() => {
     if (!startIso) return;
     const id = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(id);
   }, [startIso]);
 
-  const { elapsedSeconds, severity } = useMemo(() => {
-    if (!startIso) return { elapsedSeconds: 0, severity: 'normal' as const };
+  const { elapsedSeconds, severity, startTimeLabel } = useMemo(() => {
+    if (!startIso) {
+      return { elapsedSeconds: 0, severity: 'normal' as const, startTimeLabel: '' };
+    }
     const startDate = parseISO(startIso);
     const now = new Date();
     const elapsed = Math.max(0, differenceInSeconds(now, startDate));
     const hours = elapsed / 3600;
     const previousDay = !isSameDay(now, startDate);
-    if (previousDay || hours > 18) {
-      return { elapsedSeconds: elapsed, severity: 'critical' as const };
-    }
-    if (hours > 12) {
-      return { elapsedSeconds: elapsed, severity: 'warning' as const };
-    }
-    return { elapsedSeconds: elapsed, severity: 'normal' as const };
+    const sev =
+      previousDay || hours > 18
+        ? ('critical' as const)
+        : hours > 12
+          ? ('warning' as const)
+          : ('normal' as const);
+    return {
+      elapsedSeconds: elapsed,
+      severity: sev,
+      startTimeLabel: format(startDate, 'HH:mm'),
+    };
   }, [startIso]);
+
+  // Pick the first active activity timer (UI surface; full list lives in banner).
+  const activeTimer = useMemo(() => {
+    if (!geo?.activeTimers || geo.activeTimers.size === 0) return null;
+    // Map iteration order is insertion order — fine as a stable representative.
+    const first = geo.activeTimers.values().next().value as
+      | {
+          locationName?: string;
+          client?: string;
+          establishmentTaskTitle?: string;
+          largeProjectId?: string;
+        }
+      | undefined;
+    return first ?? null;
+  }, [geo?.activeTimers]);
 
   if (!startIso) return null;
 
   const isStale = severity !== 'normal';
+  const Icon = isStale ? AlertTriangle : Sun;
 
-  const baseClasses = 'flex items-center justify-center gap-2 min-h-[42px] px-4 py-2 rounded-2xl border-2 transition-colors shadow-sm';
-  const stateClasses =
+  const containerClasses = cn(
+    'flex flex-col items-stretch gap-0.5 min-w-[180px] px-3 py-1.5 rounded-2xl border-2 shadow-sm transition-colors text-left',
     severity === 'critical'
-      ? 'bg-destructive/15 border-destructive/50 text-primary-foreground animate-pulse'
+      ? 'bg-destructive/15 border-destructive/60 text-primary-foreground animate-pulse'
       : severity === 'warning'
-        ? 'bg-warning/15 border-warning/50 text-primary-foreground'
-        : 'bg-primary-foreground/14 border-primary-foreground/30 text-primary-foreground';
+        ? 'bg-warning/20 border-warning/60 text-primary-foreground'
+        : 'bg-primary-foreground/15 border-primary-foreground/40 text-primary-foreground',
+  );
 
   const title = isStale
     ? 'Arbetsdagen är ovanligt lång — tryck för att kontrollera tidrapporten'
     : t('workday.lengthTitle');
 
-  const Icon = isStale ? AlertTriangle : Sun;
-
-  const content = (
+  const inner = (
     <>
-      <Icon
-        className={cn(
-          'w-4 h-4',
-          severity === 'critical'
-            ? 'text-destructive'
-            : severity === 'warning'
-              ? 'text-warning'
-              : 'text-primary-foreground/80',
+      {/* Top row: status label + live duration */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Icon
+            className={cn(
+              'w-3.5 h-3.5 shrink-0',
+              severity === 'critical'
+                ? 'text-destructive'
+                : severity === 'warning'
+                  ? 'text-warning'
+                  : 'text-primary-foreground/90',
+            )}
+          />
+          <span className="text-[11px] font-semibold uppercase tracking-wide leading-none truncate">
+            Arbetsdag pågår
+          </span>
+        </div>
+        <span className="font-mono font-extrabold text-sm tabular-nums leading-none tracking-tight">
+          {formatHMS(elapsedSeconds)}
+        </span>
+      </div>
+
+      {/* Middle row: started at */}
+      <div className="text-[10px] leading-tight opacity-80">
+        Startad {startTimeLabel} · Tid idag
+      </div>
+
+      {/* Bottom row: activity status */}
+      <div className="flex items-center gap-1 pt-1 mt-1 border-t border-current/20">
+        {activeTimer ? (
+          <>
+            <Activity className="w-3 h-3 shrink-0 text-primary-foreground/90" />
+            <span className="text-[11px] font-medium truncate">
+              Aktivitet: {getActivityLabel(activeTimer)}
+            </span>
+          </>
+        ) : (
+          <>
+            <Pause className="w-3 h-3 shrink-0 opacity-70" />
+            <span className="text-[11px] font-medium opacity-80 truncate">
+              Ingen projektaktivitet aktiv
+            </span>
+          </>
         )}
-      />
-      <span className="font-mono font-extrabold text-base tabular-nums leading-none tracking-tight">
-        {formatHMS(elapsedSeconds)}
-      </span>
+      </div>
     </>
   );
 
@@ -112,22 +168,22 @@ export const WorkDayHeaderTimer: React.FC = () => {
       <button
         type="button"
         onClick={() => navigate('/m/report')}
-        className={cn(baseClasses, stateClasses, 'cursor-pointer hover:opacity-90')}
+        className={cn(containerClasses, 'cursor-pointer hover:opacity-90')}
         title={title}
         aria-label={title}
       >
-        {content}
+        {inner}
       </button>
     );
   }
 
   return (
     <div
-      className={cn(baseClasses, stateClasses)}
+      className={containerClasses}
       title={title}
       aria-label={t('workday.todayTime')}
     >
-      {content}
+      {inner}
     </div>
   );
 };
