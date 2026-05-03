@@ -22,7 +22,7 @@ import {
  *   - summary    : aggregat (jobsOut, jobsIn, peopleActive, lastScanAt)
  */
 
-export type OpsMode = "day" | "week";
+export type OpsMode = "day" | "week" | "next7" | "next30";
 export type OpsDirection = "out" | "in" | "internal";
 
 export interface OpsJob {
