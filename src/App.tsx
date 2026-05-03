@@ -56,6 +56,7 @@ const SyncReconciliation = lazyWithRecovery(() => import("./pages/SyncReconcilia
 const StaffLiveDebug = lazyWithRecovery(() => import("./pages/admin/StaffLiveDebug"));
 const LegacyIncomingPackingDebug = lazyWithRecovery(() => import("./pages/admin/LegacyIncomingPackingDebug"));
 const TransportResponse = lazyWithRecovery(() => import("./pages/TransportResponse"));
+const SuppliersPage = lazyWithRecovery(() => import("./pages/SuppliersPage"));
 
 // Logistics pages
 const LogisticsHub = lazyWithRecovery(() => import("./pages/LogisticsHub"));
