@@ -1,71 +1,24 @@
-# Fix GPS visit ↔ ping mismatch (exact membership)
+## Mål
 
-## Problem
-`PlaceVisit` exposerar bara `pingCount`. `GpsStopsRows.tsx` återskapar pings genom tidsfiltrering (`recorded_at >= visit.start && <= visit.end`). När segment-motorn slår ihop/splittar segment hamnar fel pings under fel föräldra­rad — t.ex. förälder visar Sollentuna men barnen visar Gamla stan (~20 km bort). Dessutom låter `refreshUnknownAnchor()` ankaret driva, så två fysiskt olika platser kan glida ihop till ett segment.
+På `/staff-management/time-reports` ska den **nya tidrapport-tabellen** (`TimeReportReviewTable`) visas direkt i listan — en per person — istället för den nuvarande GPS-spårade tabellen (`JournalTable` / `StaffTimeReportsTable`). Samma payroll-vy som syns i `DailyOverviewDialog` idag.
 
-## Lösning (kort)
-Bär med exakta pings hela vägen från segment-motor → UI. Förbjud tidsbaserad gissning. Stäng ankar-driften. Ena React-Query-källan.
+## Ändringar
 
----
+### 1. `src/components/staff/StaffTimeReportsList.tsx`
+- Ta bort import av `JournalTable` / `buildStaffBlock`.
+- Importera `TimeReportReviewTable` + typer från `timeReportReviewEntry`.
+- För varje person i `filtered`: rendera ett kort med
+  - Klickbar rubrik (namn) som öppnar `DailyOverviewDialog` via `onSelectStaff(id, name)`.
+  - `<TimeReportReviewTable date staffName work travel />` byggd från `staff.journal.sessions`:
+    - `work` = sessions med `kind ∈ {booking, large_project, location}` mappade till `ReviewWorkInput` (id = första `sourceIds`, source = `time_report` om prefix `tr:`, annars `location_entry`; `approved` från `editTimeReport.approved`).
+    - `travel` = sessions med `kind === 'travel'` mappade till `ReviewTravelInput` (adresser/koordinater saknas på journal-nivå idag → tomma fält; tabellen visar då varning "Ingen adress på resan" som idag i dialogen).
+  - Ingen `onEditTimeReport` här (öppnas via dialogen för att inte krocka med listvyn) — eller propagera till befintlig EditTimeReportDialog senare.
+- Behåll datumnav, sök och summering (totala timmar / pågående / tappad signal).
 
-## Steg
+### 2. Inga andra filer ändras
+- `DailyOverviewDialog` fortsätter visa exakt samma tabell som detaljvy.
+- `StaffTimeReportsTable.tsx` (gamla `JournalTable`) blir oanvänd från listsidan men lämnas kvar tills vi vet att inget annat importerar den. (`rg` bekräftar att endast `StaffTimeReportsList` importerar `JournalTable` → kan raderas i ett senare städsteg.)
 
-### 1. `src/lib/staff/pingPlaceSegments.ts`
-- Lägg till `pings: Ping[]` (required) på `PlaceVisit`.
-- I `closed.map(...)`: sätt `pings: seg.pings`, `pingCount: seg.pings.length`.
-- I merge-loopen: konkatenera `pings: [...last.pings, ...v.pings]`, `pingCount = pings.length`.
-- **Ta bort `refreshUnknownAnchor()` + alla anrop.** Okända visits behåller initialt ankare (centre av seedPings); drift bortom radien stänger segmentet via befintlig `pendingAway`-bekräftelse.
+## Resultat
 
-### 2. `supabase/functions/_shared/timeline/pingSegments.ts` (Deno-spegel)
-- Samma ändringar: `pings`-fält, merge-konkatenering, ta bort `refreshUnknownAnchor`.
-- Kommentar överst i båda filerna: **"MIRROR — ändra alltid båda i samma commit"** (samma policy som `packing-progress.ts`).
-
-### 3. `src/components/staff/GpsStopsRows.tsx`
-- Ta bort `pings.filter(t >= sMs && t <= eMs)` helt.
-- Använd `visit.pings` direkt:
-  - parent-rad: `pingCount = visit.pings.length`
-  - expanderade barn-rader: `<VisitPingsRows pings={visit.pings} />`
-- **Runtime guard:** för varje visit, kontrollera `haversineMeters(visit.centre, ping) <= 500` för alla pings. Om någon överskrider:
-  - `console.error('GPS VISIT MISMATCH', { placeKey, centre, offending })`
-  - rendera label: `"GPS mismatch – invalid segment"`
-
-### 4. `src/components/staff/StaffPingDetailPanel.tsx`
-- Ta bort lokala `useQuery({ queryKey: ['staff-pings-day', ...], queryFn: mobileApi.getMovementForDay })`.
-- Använd `useStaffPingsForDay(staffId, date, true)` — samma key, samma cache.
-- Behåll `fromIso`/`toIso`-fönsterfilter (legitimt UI-filter, inte segment-membership).
-- Anpassa renderingen till `Ping`-shapen (`recorded_at` finns redan).
-
-### 5. Tester
-- `src/lib/staff/__tests__/pingPlaceSegments.test.ts`: nytt test som verifierar
-  - `visits[i].pings.length === visits[i].pingCount`
-  - alla pings i `visit.pings` ligger inom rimligt avstånd från `visit.centre` (t.ex. ≤ unknownRadius * 2)
-  - efter merge: ingen ping-duplicering, kronologisk ordning
-- Befintliga `pingCount`-asserts fortsätter gälla.
-
-### 6. Memory
-Skapa `mem://constraints/gps-visit-exact-ping-membership-v1`:
-> `PlaceVisit.pings` är sanningen för vilka pings som hör till en visit. UI får aldrig återskapa medlemskap genom tidsfiltrering. `src/lib/staff/pingPlaceSegments.ts` och `supabase/functions/_shared/timeline/pingSegments.ts` är speglar — ändra alltid båda samtidigt.
-
-Lägg referens i `mem://index.md` under Memories.
-
----
-
-## Berörda filer
-1. `src/lib/staff/pingPlaceSegments.ts`
-2. `supabase/functions/_shared/timeline/pingSegments.ts`
-3. `src/components/staff/GpsStopsRows.tsx`
-4. `src/components/staff/StaffPingDetailPanel.tsx`
-5. `src/lib/staff/__tests__/pingPlaceSegments.test.ts`
-6. `mem://constraints/gps-visit-exact-ping-membership-v1` + `mem://index.md`
-
-## Inte berört (per dina strikta regler)
-- Mobilappen / hur pings sparas
-- Reverse geocoding
-- `mobileApi.getMovementForDay` API-shape
-- `time_reports`-skrivvägar
-
-## Förväntat resultat
-- Parent-visit-rad matchar alltid sina expanderade pings geografiskt.
-- Inga 20 km-mismatchar.
-- Okända visits glider inte ihop till "ett enda långt stopp" via ankar-drift.
-- En enda React-Query-källa för dagens pings.
+Listsidan visar samma tidrapport-tabell per person som dialogen — projekt/plats, start, slut, tid, typ, status, åtgärd + totalsumma. Klick på namnet öppnar fortfarande detalj-dialogen för djupanalys (GPS, kartor, anomalier, godkännande).
