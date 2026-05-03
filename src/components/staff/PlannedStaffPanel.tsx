@@ -1,12 +1,6 @@
 /**
- * PlannedStaffPanel — visar all personal som är planerad för en given dag,
- * vilka projekt de är planerade i, och belyser avvikelser:
- *   • Ej startat (planerad start har passerat utan timer/rapport)
- *   • Sen start
- *   • Inga rapporter alls trots planerade jobb
- *
- * Återanvänder samma data som AdminTimeReview (booking_staff_assignments
- * + bookings) men separat hämtning för att inte kollidera med StaffTimeReports.
+ * PlannedStaffPanel — Gantt-vy: personalrader till vänster, tidslinje ovan,
+ * projektblock placerade enligt planerad start/slut för dagen.
  */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -15,11 +9,12 @@ import { AlertTriangle, CheckCircle2, Clock, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 interface ReportedStaff {
   id: string;
-  earliest_start: string | null; // HH:mm:ss
+  earliest_start: string | null;
   has_open_report: boolean;
   reports_count: number;
 }
@@ -30,12 +25,16 @@ interface PlannedStaffPanelProps {
   onSelectStaff: (id: string, name: string) => void;
 }
 
+type Phase = 'rigg' | 'event' | 'nedrigg';
+
 interface PlannedJob {
   bookingId: string;
   bookingNumber: string | null;
   client: string;
   role: string | null;
-  startIso: string | null;
+  phase: Phase | null;
+  start: Date | null;
+  end: Date | null;
 }
 
 interface PlannedRow {
@@ -48,6 +47,24 @@ interface PlannedRow {
 }
 
 const LATE_TOLERANCE_MIN = 15;
+const HOUR_PX = 56;
+const ROW_H = 36;
+const NAME_COL = 168;
+
+const PHASE_BORDER: Record<Phase, string> = {
+  rigg: 'border-l-amber-500',
+  event: 'border-l-primary',
+  nedrigg: 'border-l-violet-500',
+};
+
+function combine(dateStr: string, time: string | null | undefined): Date | null {
+  if (!time) return null;
+  const [hh, mm] = time.split(':').map(Number);
+  if (Number.isNaN(hh)) return null;
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setHours(hh, mm || 0, 0, 0);
+  return d;
+}
 
 export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
   date,
@@ -71,13 +88,10 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
       const bookingIds = [...new Set(bsa.map(r => r.booking_id))];
 
       const [{ data: staff }, { data: bookings }] = await Promise.all([
-        supabase
-          .from('staff_members')
-          .select('id, name, color')
-          .in('id', staffIds),
+        supabase.from('staff_members').select('id, name, color').in('id', staffIds),
         supabase
           .from('bookings')
-          .select('id, booking_number, client, eventdate, rigdaydate, rigdowndate, event_start_time, rig_start_time, rigdown_start_time')
+          .select('id, booking_number, client, eventdate, rigdaydate, rigdowndate, event_start_time, event_end_time, rig_start_time, rig_end_time, rigdown_start_time, rigdown_end_time')
           .in('id', bookingIds),
       ]);
 
@@ -90,17 +104,24 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
         if (!s) continue;
         const b = bookingMap.get(a.booking_id);
 
-        let startIso: string | null = null;
+        let phase: Phase | null = null;
+        let start: Date | null = null;
+        let end: Date | null = null;
         if (b) {
-          const cand = [
-            b.rigdaydate === dateStr ? b.rig_start_time : null,
-            b.eventdate === dateStr ? b.event_start_time : null,
-            b.rigdowndate === dateStr ? b.rigdown_start_time : null,
-          ].filter(Boolean);
-          if (cand.length > 0) {
-            const earliest = cand.sort()[0] as string;
-            startIso = earliest;
+          if (b.rigdaydate === dateStr) {
+            phase = 'rigg';
+            start = combine(dateStr, b.rig_start_time);
+            end = combine(dateStr, b.rig_end_time);
+          } else if (b.eventdate === dateStr) {
+            phase = 'event';
+            start = combine(dateStr, b.event_start_time);
+            end = combine(dateStr, b.event_end_time);
+          } else if (b.rigdowndate === dateStr) {
+            phase = 'nedrigg';
+            start = combine(dateStr, b.rigdown_start_time);
+            end = combine(dateStr, b.rigdown_end_time);
           }
+          if (start && !end) end = new Date(start.getTime() + 60 * 60_000);
         }
 
         const job: PlannedJob = {
@@ -108,17 +129,16 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
           bookingNumber: b?.booking_number ?? null,
           client: b?.client ?? 'Okänt projekt',
           role: a.role ?? null,
-          startIso,
+          phase,
+          start,
+          end,
         };
 
         const existing = byStaff.get(a.staff_id);
         if (existing) {
           existing.jobs.push(job);
-          if (startIso) {
-            const t = new Date(startIso);
-            if (!existing.earliestPlannedStart || t < existing.earliestPlannedStart) {
-              existing.earliestPlannedStart = t;
-            }
+          if (start && (!existing.earliestPlannedStart || start < existing.earliestPlannedStart)) {
+            existing.earliestPlannedStart = start;
           }
         } else {
           byStaff.set(a.staff_id, {
@@ -126,20 +146,13 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
             staffName: s.name,
             color: s.color ?? null,
             jobs: [job],
-            earliestPlannedStart: startIso ? new Date(startIso) : null,
+            earliestPlannedStart: start,
             reported: undefined,
           });
         }
       }
 
-      const reportedMap = new Map(reportedStaff.map(r => [r.id, r]));
-      const rows = [...byStaff.values()].map(r => ({
-        ...r,
-        reported: reportedMap.get(r.staffId),
-      }));
-
-      rows.sort((a, b) => a.staffName.localeCompare(b.staffName, 'sv'));
-      return rows;
+      return [...byStaff.values()].sort((a, b) => a.staffName.localeCompare(b.staffName, 'sv'));
     },
   });
 
@@ -178,7 +191,6 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
       };
     }
 
-    // Has reports
     if (planned && reported.earliest_start) {
       const [hh, mm] = reported.earliest_start.split(':').map(Number);
       const actual = new Date(planned);
@@ -195,28 +207,41 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
     }
 
     if (reported.has_open_report) {
-      return {
-        kind: 'ongoing',
-        label: 'Pågår',
-        icon: Clock,
-        className: 'bg-primary/15 text-primary border-primary/40',
-      };
+      return { kind: 'ongoing', label: 'Pågår', icon: Clock, className: 'bg-primary/15 text-primary border-primary/40' };
     }
-
-    return {
-      kind: 'done',
-      label: 'Rapporterat',
-      icon: CheckCircle2,
-      className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/40',
-    };
+    return { kind: 'done', label: 'Rapporterat', icon: CheckCircle2, className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/40' };
   };
+
+  // Tidsfönster för dagen
+  const { startHour, endHour } = useMemo(() => {
+    let minH = 8;
+    let maxH = 18;
+    for (const r of enriched) {
+      for (const j of r.jobs) {
+        if (j.start) minH = Math.min(minH, j.start.getHours());
+        if (j.end) maxH = Math.max(maxH, j.end.getHours() + (j.end.getMinutes() > 0 ? 1 : 0));
+      }
+    }
+    return { startHour: Math.max(0, minH), endHour: Math.min(24, Math.max(maxH, minH + 4)) };
+  }, [enriched]);
+
+  const hours = useMemo(
+    () => Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i),
+    [startHour, endHour],
+  );
+  const trackWidth = (endHour - startHour) * HOUR_PX;
+
+  const toX = (d: Date) => {
+    const mins = (d.getHours() - startHour) * 60 + d.getMinutes();
+    return (mins / 60) * HOUR_PX;
+  };
+
+  const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+  const nowX = isToday && now.getHours() >= startHour && now.getHours() <= endHour ? toX(now) : null;
 
   const counts = useMemo(() => {
     const c = { total: enriched.length, notStarted: 0, late: 0, ongoing: 0, done: 0, pending: 0 };
-    for (const r of enriched) {
-      const k = getStatus(r).kind;
-      c[k as keyof typeof c]++;
-    }
+    for (const r of enriched) c[getStatus(r).kind as keyof typeof c]++;
     return c;
   }, [enriched]);
 
@@ -228,12 +253,19 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
       </div>
     );
   }
-
   if (enriched.length === 0) return null;
 
+  const sorted = [...enriched].sort((a, b) => {
+    const order = { not_started: 0, late: 1, ongoing: 2, pending: 3, done: 4 };
+    const sa = getStatus(a).kind;
+    const sb = getStatus(b).kind;
+    if (sa !== sb) return order[sa] - order[sb];
+    return a.staffName.localeCompare(b.staffName, 'sv');
+  });
+
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm mb-4">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+    <div className="rounded-xl border bg-card shadow-sm mb-4">
+      <div className="flex items-center justify-between p-3 border-b flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <UserX className="h-4 w-4 text-primary" />
           <h3 className="font-semibold text-sm">Planerad personal</h3>
@@ -248,76 +280,129 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
               {counts.notStarted} ej startat
             </span>
           )}
-          {counts.late > 0 && (
-            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
-              {counts.late} sena
-            </span>
-          )}
-          {counts.ongoing > 0 && (
-            <span className="text-primary">{counts.ongoing} pågår</span>
-          )}
-          {counts.done > 0 && (
-            <span className="text-emerald-700 dark:text-emerald-400">{counts.done} klara</span>
-          )}
+          {counts.late > 0 && <span className="text-amber-600 dark:text-amber-400">{counts.late} sena</span>}
+          {counts.ongoing > 0 && <span className="text-primary">{counts.ongoing} pågår</span>}
+          {counts.done > 0 && <span className="text-emerald-700 dark:text-emerald-400">{counts.done} klara</span>}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-        {enriched
-          .sort((a, b) => {
-            // Avvikelser först
-            const order = { not_started: 0, late: 1, ongoing: 2, pending: 3, done: 4 };
-            const sa = getStatus(a).kind;
-            const sb = getStatus(b).kind;
-            if (sa !== sb) return order[sa] - order[sb];
-            return a.staffName.localeCompare(b.staffName, 'sv');
-          })
-          .map(r => {
-            const status = getStatus(r);
-            const Icon = status.icon;
-            const highlight = status.kind === 'not_started';
-            return (
-              <button
-                key={r.staffId}
-                type="button"
-                onClick={() => onSelectStaff(r.staffId, r.staffName)}
-                className={cn(
-                  'text-left rounded-lg border p-2.5 transition-colors hover:bg-muted/50',
-                  highlight && 'ring-2 ring-destructive/40 animate-pulse-subtle',
-                )}
-              >
-                <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate flex items-center gap-1.5">
-                      {r.color && (
-                        <span
-                          className="inline-block h-2 w-2 rounded-full shrink-0"
-                          style={{ backgroundColor: r.color }}
-                        />
-                      )}
-                      {r.staffName}
-                    </div>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={cn('text-[10px] px-1.5 py-0 h-5 shrink-0 gap-1', status.className)}
+      <TooltipProvider delayDuration={200}>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: NAME_COL + trackWidth + 120 }}>
+            {/* Header: timmar */}
+            <div className="flex border-b sticky top-0 bg-card z-10">
+              <div style={{ width: NAME_COL }} className="shrink-0 px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                Personal
+              </div>
+              <div className="relative" style={{ width: trackWidth, height: 28 }}>
+                {hours.map(h => (
+                  <div
+                    key={h}
+                    className="absolute top-0 bottom-0 border-l border-border/60 text-[10px] text-muted-foreground pl-1"
+                    style={{ left: (h - startHour) * HOUR_PX, width: HOUR_PX }}
                   >
-                    <Icon className="h-2.5 w-2.5" />
-                    {status.label}
-                  </Badge>
+                    {String(h).padStart(2, '0')}
+                  </div>
+                ))}
+              </div>
+              <div className="shrink-0 w-[120px] px-2 py-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                Status
+              </div>
+            </div>
+
+            {/* Rader */}
+            {sorted.map(r => {
+              const status = getStatus(r);
+              const Icon = status.icon;
+              const highlight = status.kind === 'not_started';
+              const noTimeJobs = r.jobs.filter(j => !j.start || !j.end);
+              const timedJobs = r.jobs.filter(j => j.start && j.end);
+
+              return (
+                <div
+                  key={r.staffId}
+                  className={cn(
+                    'flex items-stretch border-b last:border-b-0 hover:bg-muted/40 cursor-pointer transition-colors',
+                    highlight && 'bg-destructive/5',
+                  )}
+                  onClick={() => onSelectStaff(r.staffId, r.staffName)}
+                >
+                  <div style={{ width: NAME_COL }} className="shrink-0 px-3 py-2 flex items-center gap-2 min-w-0">
+                    {r.color && (
+                      <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+                    )}
+                    <span className="text-sm font-medium truncate">{r.staffName}</span>
+                  </div>
+
+                  <div
+                    className="relative border-l"
+                    style={{
+                      width: trackWidth,
+                      height: ROW_H,
+                      backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${HOUR_PX - 1}px, hsl(var(--border)/0.5) ${HOUR_PX - 1}px, hsl(var(--border)/0.5) ${HOUR_PX}px)`,
+                    }}
+                  >
+                    {nowX !== null && (
+                      <div
+                        className="absolute top-0 bottom-0 w-px bg-destructive/70 z-20 pointer-events-none"
+                        style={{ left: nowX }}
+                      />
+                    )}
+                    {timedJobs.map((j, i) => {
+                      const left = toX(j.start!);
+                      const width = Math.max(40, toX(j.end!) - left);
+                      return (
+                        <Tooltip key={`${j.bookingId}-${i}`}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={cn(
+                                'absolute top-1 bottom-1 rounded-md border border-l-4 px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden bg-primary/10 text-foreground',
+                                j.phase ? PHASE_BORDER[j.phase] : 'border-l-muted-foreground',
+                              )}
+                              style={{
+                                left,
+                                width,
+                                backgroundColor: r.color ? `${r.color}22` : undefined,
+                              }}
+                            >
+                              <div className="truncate font-medium">
+                                {j.bookingNumber ? `${j.bookingNumber} · ` : ''}{j.client}
+                              </div>
+                              <div className="truncate text-muted-foreground text-[10px]">
+                                {format(j.start!, 'HH:mm')}–{format(j.end!, 'HH:mm')}
+                                {j.role ? ` · ${j.role}` : ''}
+                              </div>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            <div className="font-semibold">{j.bookingNumber ? `${j.bookingNumber} · ` : ''}{j.client}</div>
+                            <div>{format(j.start!, 'HH:mm')}–{format(j.end!, 'HH:mm')} {j.phase ? `· ${j.phase}` : ''}</div>
+                            {j.role && <div className="text-muted-foreground">{j.role}</div>}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                    {noTimeJobs.length > 0 && (
+                      <div className="absolute left-1 top-1 bottom-1 flex items-center">
+                        <Badge variant="outline" className="text-[10px] h-5">
+                          {noTimeJobs.length} utan tid
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="shrink-0 w-[120px] px-2 py-2 flex items-center justify-end">
+                    <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-5 gap-1', status.className)}>
+                      <Icon className="h-2.5 w-2.5" />
+                      {status.label}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="space-y-0.5">
-                  {r.jobs.map((j, i) => (
-                    <div key={`${j.bookingId}-${i}`} className="text-xs text-muted-foreground truncate">
-                      {j.bookingNumber ? `${j.bookingNumber} · ` : ''}{j.client}
-                      {j.role && <span className="text-muted-foreground/70"> · {j.role}</span>}
-                    </div>
-                  ))}
-                </div>
-              </button>
-            );
-          })}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      </TooltipProvider>
     </div>
   );
 };
