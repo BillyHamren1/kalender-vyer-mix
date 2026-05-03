@@ -349,12 +349,15 @@ export function buildPlaceVisits(
     if (meetsMin || isEdge) filtered.push(v);
   });
 
-  // Sista pass: om filter tog bort en mellanrad och syskon nu är samma plats,
-  // slå ihop dem (förhindrar duplicate consecutive locations).
+  // Sista pass: om filter tog bort en mellanrad och syskon nu är samma plats
+  // OCH gapet är litet — slå ihop dem (förhindrar duplicate consecutive
+  // locations). Gap > maxPingGap betyder att personen verkligen försvann och
+  // kom tillbaka, då ska de stå som två separata visits.
   const finalVisits: PlaceVisit[] = [];
   for (const v of filtered) {
     const last = finalVisits[finalVisits.length - 1];
-    if (last && samePlace(last, v)) {
+    const gapMs = last ? new Date(v.start).getTime() - new Date(last.end).getTime() : Infinity;
+    if (last && samePlace(last, v) && gapMs >= 0 && gapMs <= maxPingGapMs) {
       finalVisits[finalVisits.length - 1] = combine(last, v);
     } else {
       finalVisits.push(v);
