@@ -92,8 +92,8 @@ export const MobileProjectTimerCard = ({ largeProjectId, projectName }: Props) =
     ? Math.max(0, differenceInSeconds(new Date(), parseISO(currentTimer.startTime)))
     : 0;
 
-  const handleStart = () => {
-    requestStart(
+  const handleStart = async () => {
+    await requestStart(
       { kind: 'project', largeProjectId, name: projectName },
       { label: projectName },
     );
