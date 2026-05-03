@@ -327,10 +327,12 @@ export function buildTravelGaps(visits: PlaceVisit[]): TravelGap[] {
     const startMs = new Date(from.end).getTime();
     const endMs = new Date(to.start).getTime();
     if (endMs <= startMs) continue;
+    const durationMin = Math.max(0, Math.round((endMs - startMs) / 60_000));
+    if (durationMin < MIN_TRAVEL_DURATION_MIN) continue;
     gaps.push({
       start: from.end,
       end: to.start,
-      durationMin: Math.max(0, Math.round((endMs - startMs) / 60_000)),
+      durationMin,
       fromCentre: from.centre,
       toCentre: to.centre,
     });
