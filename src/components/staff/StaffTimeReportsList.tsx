@@ -177,12 +177,23 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
         </Button>
       </div>
 
-      {/* Summary — neutral, only stale gets a warning color */}
+      {/* Summary — workday är total, övriga visar fördelning inuti dagen */}
       {!isLoading && staffList.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-xs text-muted-foreground">
-          <span className="tabular-nums">
-            <span className="font-semibold text-foreground">{formatHoursMinutes(totalHours)}</span> totalt
+          <span className="tabular-nums" title="Total arbetstid (workday). Projekt och resa är fördelning inuti denna.">
+            <span className="font-semibold text-foreground">{fmtMin(totals.payable)}</span> arbetstid
           </span>
+          <span className="tabular-nums">
+            Projekt <span className="font-medium text-foreground">{fmtMin(totals.activity)}</span>
+          </span>
+          <span className="tabular-nums">
+            Resa <span className="font-medium text-foreground">{fmtMin(totals.travel)}</span>
+          </span>
+          {totals.unallocated > 0 && (
+            <span className="tabular-nums text-amber-600">
+              Oallokerat <span className="font-medium">{fmtMin(totals.unallocated)}</span>
+            </span>
+          )}
           {liveCount > 0 && (
             <span className="tabular-nums">
               <span className="font-semibold text-foreground">{liveCount}</span> pågående
