@@ -332,7 +332,20 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                           {duration}
                         </td>
                         <td className="px-2 py-1 tabular-nums text-foreground whitespace-nowrap">
-                          {s.isOpen ? <span className="italic text-muted-foreground">pågår</span> : fmt(s.endIso)}
+                          {s.isOpen ? (
+                            <span className="italic text-muted-foreground">pågår</span>
+                          ) : (
+                            <span className="inline-flex items-center">
+                              {fmt(s.endIso)}
+                              {s.editTimeReport?.id && (
+                                <TimeReportClosureInfo
+                                  timeReportId={s.editTimeReport.id}
+                                  staffId={b.staffId}
+                                  reportDate={s.editTimeReport.reportDate}
+                                />
+                              )}
+                            </span>
+                          )}
                         </td>
                         <td className="px-2 py-1 text-foreground whitespace-nowrap">
                           <GeoAtTime
