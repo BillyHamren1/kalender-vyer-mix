@@ -223,7 +223,40 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     }
   }, [isNativeIos]);
 
-  const runScanLoop = useCallback(() => {
+  const applyZoom = useCallback(async (value: number) => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0] as (MediaStreamTrack & {
+      getCapabilities?: () => Record<string, any>;
+      applyConstraints?: (constraints: MediaTrackConstraints) => Promise<void>;
+    }) | undefined;
+    if (!track?.applyConstraints) return;
+    const caps = track.getCapabilities?.() as Record<string, any> | undefined;
+    if (!caps?.zoom) return;
+    const clamped = Math.min(caps.zoom.max ?? value, Math.max(caps.zoom.min ?? 1, value));
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: clamped } as any] });
+      zoomRef.current = clamped;
+      setZoom(clamped);
+    } catch (e) {
+      console.warn('[QRScanner] zoom apply failed:', e);
+    }
+  }, []);
+
+  const handleZoomChange = useCallback((value: number) => {
+    localStorage.setItem(ZOOM_PREF_KEY, String(value));
+    void applyZoom(value);
+  }, [applyZoom]);
+
+  const toggleAutoZoom = useCallback(() => {
+    setAutoZoom((prev) => {
+      const next = !prev;
+      localStorage.setItem(ZOOM_AUTO_KEY, next ? '1' : '0');
+      autoZoomRef.current = next;
+      return next;
+    });
+  }, []);
+
     let lastScanTime = 0;
     let lastDiagLog = 0;
     let frameCount = 0;
