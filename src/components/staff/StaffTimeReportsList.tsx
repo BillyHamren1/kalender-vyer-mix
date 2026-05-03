@@ -90,7 +90,21 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   const subLabel = format(selectedDate, "d MMMM yyyy", { locale: sv });
   const liveCount = staffList.filter(s => resolveLiveStatus(s.has_open_report, s.latestPing) === 'live').length;
   const staleCount = staffList.filter(s => resolveLiveStatus(s.has_open_report, s.latestPing) === 'stale').length;
-  const totalHours = staffList.reduce((s, x) => s + x.total_hours, 0);
+  // KRITISKT: Workday = total arbetstid. Projekt/restid = fördelning inuti
+  // workday. ALDRIG addera dem ovanpå varandra. Använd metrics.payableMinutes
+  // som "Total arbetstid" och visa fördelningen separat.
+  const totals = staffList.reduce(
+    (acc, x) => {
+      acc.payable += x.metrics.payableMinutes;
+      acc.workday += x.metrics.workdayMinutes;
+      acc.activity += x.metrics.activityMinutes;
+      acc.travel += x.metrics.travelMinutes;
+      acc.unallocated += x.metrics.unallocatedMinutes;
+      return acc;
+    },
+    { payable: 0, workday: 0, activity: 0, travel: 0, unallocated: 0 },
+  );
+  const fmtMin = (m: number) => formatHoursMinutes(m / 60);
 
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm">
