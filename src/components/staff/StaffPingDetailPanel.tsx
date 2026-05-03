@@ -1,9 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
-import { mobileApi } from '@/services/mobileApiService';
 import { Loader2, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { StaffMovementMap } from './StaffMovementMap';
+import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import {
   Dialog,
   DialogContent,
@@ -30,13 +29,10 @@ const fmtTime = (iso: string) => {
 export const StaffPingDetailPanel = ({ staffId, staffName, date, fromIso, toIso }: Props) => {
   const [mapOpen, setMapOpen] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['staff-pings-day', staffId, date],
-    queryFn: () => mobileApi.getMovementForDay(staffId, date),
-    staleTime: 30_000,
-  });
+  // Single source of truth — same query key as the rest of the day's UI.
+  const { data: allPings = [], isLoading, error } = useStaffPingsForDay(staffId, date, true);
 
-  const points = (data?.points || []).filter(p => {
+  const points = allPings.filter(p => {
     if (!fromIso && !toIso) return true;
     const t = new Date(p.recorded_at).getTime();
     if (fromIso && t < new Date(fromIso).getTime()) return false;
