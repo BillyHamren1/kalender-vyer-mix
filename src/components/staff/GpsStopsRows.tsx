@@ -5,7 +5,7 @@ import { useStaffPingsForDay } from '@/hooks/useStaffPingsForDay';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import { buildPlaceVisits, buildDayTimeline, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
-import type { Ping } from '@/lib/staff/movementDetection';
+import { haversineMeters, type Ping } from '@/lib/staff/movementDetection';
 import { AddressMapDialog } from './AddressMapDialog';
 
 interface Props {
