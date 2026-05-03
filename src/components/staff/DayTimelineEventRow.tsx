@@ -2,7 +2,7 @@ import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import {
   Sunrise, Sunset, Play, Square, MapPin, LogIn, LogOut,
-  HelpCircle, Footprints, AlertTriangle, WifiOff, Clock,
+  HelpCircle, Footprints, AlertTriangle, WifiOff, Clock, Car, Pause,
   ChevronDown, ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -15,13 +15,15 @@ interface Props {
   onSelect?: (eventId: string) => void;
 }
 
-type Tone = "primary" | "muted" | "destructive";
+type Tone = "primary" | "muted" | "destructive" | "accent";
 
 const META: Record<string, { Icon: React.ComponentType<{ className?: string }>; tone: Tone; label: string }> = {
   workday_started:           { Icon: Sunrise,       tone: "primary",     label: "Arbetsdag startad" },
   workday_ended:             { Icon: Sunset,        tone: "primary",     label: "Arbetsdag avslutad" },
   timer_started:             { Icon: Play,          tone: "primary",     label: "Timer startad" },
   timer_stopped:             { Icon: Square,        tone: "primary",     label: "Timer stoppad" },
+  stay_segment:              { Icon: Pause,         tone: "accent",      label: "Stannade" },
+  travel_segment:            { Icon: Car,           tone: "muted",       label: "Resa" },
   arrived_at_reported_site:  { Icon: LogIn,         tone: "muted",       label: "Anlände till plats" },
   left_reported_site:        { Icon: LogOut,        tone: "muted",       label: "Lämnade plats" },
   arrived_at_known_location: { Icon: LogIn,         tone: "muted",       label: "Anlände till känd plats" },
@@ -29,7 +31,7 @@ const META: Record<string, { Icon: React.ComponentType<{ className?: string }>; 
   stopped_at_unknown_location:{ Icon: MapPin,       tone: "muted",       label: "Stopp på okänd plats" },
   movement_started:          { Icon: Footprints,    tone: "muted",       label: "Förflyttning startad" },
   movement_ended:            { Icon: Footprints,    tone: "muted",       label: "Förflyttning slutade" },
-  gps_gap_started:           { Icon: WifiOff,       tone: "destructive", label: "GPS-glapp började" },
+  gps_gap_started:           { Icon: WifiOff,       tone: "destructive", label: "GPS-glapp" },
   gps_gap_ended:             { Icon: WifiOff,       tone: "destructive", label: "GPS-glapp slutade" },
   stale_phone_detected:      { Icon: AlertTriangle, tone: "destructive", label: "Telefon ej aktiv" },
   geofence_mismatch:         { Icon: AlertTriangle, tone: "destructive", label: "Geofence avvek" },
