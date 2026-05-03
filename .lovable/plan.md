@@ -1,51 +1,51 @@
-# Adressfälten på projekt visar tomt – fix
+1. Fix timestamp truth for Tidrapporter
+- Replace the current browser-dependent `composeLocalIso()` flow in `src/pages/StaffTimeReports.tsx` with a Stockholm-safe conversion helper.
+- Treat `time_reports.start_time/end_time` as Europe/Stockholm wall-clock values and convert them to the exact UTC instants that the GPS pings use.
+- Use the same helper anywhere Tidrapporter builds ISO timestamps from `report_date + HH:mm[:ss]` so start/end matching is deterministic regardless of browser timezone.
 
-## Vad som har hänt
+2. Stop resolving places from only FA Warehouse
+- Refactor the day-place source so it can match against more than `organization_locations`.
+- Include the actual job sites for the current day as known places too:
+  - booking delivery coordinates
+  - large project coordinates
+  - organization locations
+- This will let the resolver recognize Craft/Westers as real destinations instead of leaving them as anonymous clusters.
 
-I commit `926c4051` lades ett nytt **adresskort** till på `ProjectLayout.tsx` (medelprojektets toppvy). Kortet läser adressen så här:
+3. Make Geo (start/slut) truthful again
+- Update `GeoAtTime` in `src/components/staff/StaffTimeReportsTable.tsx` to use the corrected timestamps.
+- For travel hits, show labels from the adjacent resolved visits/addresses instead of generic `plats → plats`.
+- If a label is still unresolved, show a clear fallback like `okänd plats` rather than implying a known site.
 
-```tsx
-{(project as any).deliveryaddress || 'Ingen adress – klicka för att lägga till'}
-```
+4. Keep the GPS detail panel aligned with the same truth model
+- Update `src/hooks/useDayPlaceVisits.ts` and `src/components/staff/GpsStopsRows.tsx` so the timeline, travel rows, and expanded ping details all use the same place catalog and label rules.
+- Ensure a route like `Warehouse → lunch → Westers` appears as:
+  - visit at real address/site
+  - travel segment
+  - visit at lunch address
+  - travel segment
+  - visit at Westers
 
-Problemet: kolumnen `projects.deliveryaddress` är **nästan alltid `NULL`**. Adressen för bokade projekt ligger på den länkade bokningen (`bookings.deliveryaddress`), inte på projects-raden.
+5. Add thorough regression tests
+- Extend `src/lib/staff/__tests__/dayTimeline.test.ts` with timezone-sensitive cases:
+  - Stockholm local report time resolves to the correct UTC ping window
+  - no false `travel` when a report starts inside a real visit
+  - still returns `travel` when the timestamp truly falls between visits
+- Add focused tests for travel label formatting so booking destinations do not degrade to `plats` when coordinates exist.
+- Add a DST-safe test case so this does not break on CET/CEST transitions.
 
-Verifierat i DB:
-- 102 aktiva projekt totalt
-- **1** har egen `projects.deliveryaddress`
-- **70** har `NULL` på projektet men adress finns på `bookings`
-- Det öppna projektet (`b6f0ba67…`): `projects.deliveryaddress = NULL`, men `bookings.deliveryaddress = "Skoklostervägen 100"`
+6. Validate against the real failing case before delivery
+- Re-check the Ivars 2026-05-03 scenario after implementation:
+  - the 05:06 and 08:47 Craft rows must resolve to Craft/site address, not travel
+  - the 12:10 Westers row must resolve to Westers/site address once the person is actually there
+  - only genuine movement gaps should show as `Resa`
+  - expanded rows must still show each ping with timestamp and address
 
-Det gamla flödet (BookingInfoExpanded, JobDetail, mobil m.m.) går alla via `booking.deliveryaddress` och fungerar fortfarande. Det är bara det nya adresskortet som råkar visa fel.
+Technical details
+- Confirmed during inspection:
+  - `StaffTimeReports.tsx` currently builds report timestamps with `new Date(y, m, d, hh, mm, ss).toISOString()`, which depends on the client timezone.
+  - `useDayPlaceVisits()` currently only feeds `organization_locations` into `buildPlaceVisits()`.
+  - In the database, only one active `organization_locations` row exists right now: `FA Warehouse`.
+  - Ivars has 932 GPS pings on 2026-05-03, and the backfilled reports are stored in local Stockholm times (`05:06`, `08:47`, `12:10`).
+- That combination explains why the pings look correct while the Tidrapporter table now says almost everything is `Resa`.
 
-Stora projekt (`LargeProjectLayout`) påverkas inte — där läses `b.deliveryaddress` från booking-raden direkt.
-
-## Fix
-
-**Fil:** `src/pages/project/ProjectLayout.tsx`
-
-1. Beräkna en effektiv adress + koordinater som faller tillbaka till booking:
-   ```ts
-   const effectiveAddress =
-     (project as any).deliveryaddress ?? project.booking?.deliveryaddress ?? null;
-   const effectiveLat =
-     (project as any).delivery_latitude ?? project.booking?.delivery_latitude ?? null;
-   const effectiveLng =
-     (project as any).delivery_longitude ?? project.booking?.delivery_longitude ?? null;
-   ```
-2. Använd `effectiveAddress` / `effectiveLat` / `effectiveLng`:
-   - i adresskortets text + koordinat-badge
-   - som `initial` till `ProjectAddressMapDialog`
-3. Behåll save-flödet som det är (skriver lokal override till `projects`-raden via `detail.updateProject`). Det betyder att om man redigerar adressen så får projektet sin egen adress, annars ärvs booking-adressen.
-
-**Fil:** `src/services/projectService.ts` (fetchProject, rad 36-54)
-
-Lägg till `delivery_latitude` och `delivery_longitude` i `booking`-selecten så fallback-koordinaterna kan plockas. (Rad 42 har `deliveryaddress` men koordinaterna saknas.)
-
-## Verifiering
-
-- Öppna `/project/b6f0ba67-…` → adresskortet ska visa "Skoklostervägen 100".
-- Öppna ett projekt utan booking och utan egen adress → "Ingen adress – klicka för att lägga till".
-- Spara ny adress via dialogen → den lokala overriden visas och persistas på projektet.
-
-Inga DB-migreringar behövs.
+When you approve, I’ll implement the fix and run the regression checks carefully.
