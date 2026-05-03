@@ -335,7 +335,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     });
   }, []);
 
-  const runScanLoop = useCallback(() => {
+  const toggleTorch = useCallback(async () => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0] as (MediaStreamTrack & {
+      applyConstraints?: (constraints: MediaTrackConstraints) => Promise<void>;
+    }) | undefined;
+    if (!track?.applyConstraints) return;
+    const next = !torchOn;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next } as any] });
+      setTorchOn(next);
+    } catch (e) {
+      console.warn('[QRScanner] torch toggle failed:', e);
+    }
+  }, [torchOn]);
     let lastScanTime = 0;
     let lastDiagLog = 0;
     let frameCount = 0;
