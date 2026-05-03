@@ -150,11 +150,26 @@ interface PendingStart {
   suppressToast?: boolean;
 }
 
+/**
+ * Resultat-statusar som kan rapporteras tillbaka från ett distance-confirm.
+ * Distance-dialogen visar UI-fel och håller sig öppen om status inte är
+ * 'started' eller 'already_running'.
+ */
+export type DistanceConfirmStatus =
+  | 'started'
+  | 'already_running'
+  | 'workday_failed'
+  | 'start_failed';
+
 interface DistanceWarning {
   placeName: string;
   distance: number;
-  /** Användarens (obligatoriska) anledning skickas in vid bekräft. */
-  onConfirm: (reason: string) => void;
+  /**
+   * Awaitable confirm. Anropas med användarens (obligatoriska) anledning
+   * och kör performStart till klart. Returnerar riktig status så att
+   * dialog-wrappern kan visa fel och hålla sig öppen vid misslyckande.
+   */
+  onConfirm: (reason: string) => Promise<DistanceConfirmStatus>;
 }
 
 export function useTimerStartFlow(
@@ -333,10 +348,21 @@ export function useTimerStartFlow(
         setDistanceWarning({
           placeName: coords.label || opts.label,
           distance: dist,
-          // Confirm with mandatory reason → fire-and-forget perform.
-          // Result is reported through normal toast/UI inside performStart.
-          onConfirm: (reason: string) => {
-            void performStart(target, { ...opts, offSiteReason: reason, offSiteDistance: dist });
+          // Awaitable confirm — kör hela performStart-kedjan klart och
+          // returnerar riktig status. Wrappern (DistanceWarningDialog-konsumenten
+          // i MobileGlobalOverlays) håller dialogen öppen vid fel.
+          onConfirm: async (reason: string): Promise<DistanceConfirmStatus> => {
+            try {
+              return await performStart(target, {
+                ...opts,
+                offSiteReason: reason,
+                offSiteDistance: dist,
+              });
+            } catch (err: any) {
+              console.error('[StartFlow] distance-confirm performStart threw:', err);
+              toast.error(err?.message || 'Kunde inte starta aktiviteten');
+              return 'start_failed';
+            }
           },
         });
         return 'blocked';
