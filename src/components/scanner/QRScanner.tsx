@@ -836,12 +836,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
   if (!isActive) return null;
 
+  const headerTitle = title ?? (shouldSkipCamera ? 'Manual input' : 'QR Scanner');
+  const rootClass = compact
+    ? 'relative w-full bg-black flex flex-col rounded-lg overflow-hidden border border-border shadow-lg'
+    : 'fixed inset-0 z-50 bg-black flex flex-col';
+  const cameraMinHeight = compact ? '38vh' : '50vh';
+
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      <div className="flex items-center justify-between p-4 bg-black/80 text-white safe-area-top">
-        <h2 className="text-lg font-semibold">{shouldSkipCamera ? 'Manual input' : 'QR Scanner'}</h2>
-        <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
-          <X className="h-6 w-6" />
+    <div className={rootClass}>
+      <div className={`flex items-center justify-between ${compact ? 'px-3 py-2' : 'p-4 safe-area-top'} bg-black/80 text-white`}>
+        <h2 className={compact ? 'text-sm font-semibold' : 'text-lg font-semibold'}>{headerTitle}</h2>
+        <Button variant="ghost" size="icon" onClick={onClose} className={`text-white hover:bg-white/20 ${compact ? 'h-7 w-7' : ''}`}>
+          <X className={compact ? 'h-4 w-4' : 'h-6 w-6'} />
         </Button>
       </div>
 
