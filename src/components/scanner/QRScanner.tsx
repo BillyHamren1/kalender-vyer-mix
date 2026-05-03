@@ -910,9 +910,35 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                   <div
                     className="absolute left-2 right-2 h-0.5 bg-primary"
                     style={{ animation: 'scan-line 2s ease-in-out infinite' }}
-                  />
                 </div>
               </div>
+
+              {/* Scan feedback overlay — flashes whenever parent reports a scan result */}
+              {feedbackFlash && (
+                <>
+                  <div
+                    key={`flash-${feedbackFlash.key}`}
+                    className={`absolute inset-0 pointer-events-none ${feedbackFlash.success ? 'bg-emerald-500/35' : 'bg-red-500/45'}`}
+                    style={{ animation: 'qr-flash 0.55s ease-out' }}
+                  />
+                  <div className={`absolute inset-0 pointer-events-none border-[6px] ${feedbackFlash.success ? 'border-emerald-400' : 'border-red-500'}`} />
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center max-w-[85%] px-3">
+                    <div className={`text-6xl mb-1 drop-shadow-lg ${feedbackFlash.success ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {feedbackFlash.success ? '✓' : '✕'}
+                    </div>
+                    {feedbackFlash.message && (
+                      <div className="px-3 py-1.5 rounded-md bg-black/80 text-white text-sm font-semibold text-center max-w-full truncate">
+                        {feedbackFlash.message}
+                      </div>
+                    )}
+                    {feedbackFlash.subMessage && (
+                      <div className="mt-1 px-2 py-0.5 rounded bg-black/70 text-white/90 text-[11px] text-center">
+                        {feedbackFlash.subMessage}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               {zoomCaps && (
                 <div className="absolute left-0 right-0 bottom-0 px-4 pb-3 pt-4 bg-gradient-to-t from-black/85 to-transparent">
