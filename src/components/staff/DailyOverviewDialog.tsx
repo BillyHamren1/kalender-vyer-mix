@@ -20,6 +20,8 @@ import { useDayPings } from '@/hooks/admin/useDayPings';
 import { useDayTimeline } from '@/hooks/admin/useDayTimeline';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { TimeReportReviewTable } from '@/components/staff/TimeReportReviewTable';
+import { EditTimeReportDialog } from '@/components/staff/EditTimeReportDialog';
 
 interface GpsPoint {
   lat: number;
@@ -107,6 +109,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const [plannedLoading, setPlannedLoading] = useState(false);
   const [plannedError, setPlannedError] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [showGpsDetails, setShowGpsDetails] = useState(false);
+  const [editTimeReportId, setEditTimeReportId] = useState<string | null>(null);
 
   // Etapp 4: pings + events + known places for the timeline map / raw drawer
   const { pings } = useDayPings({ staffId, date, enabled: open });
