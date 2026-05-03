@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { Briefcase, Car, MapPin, Pencil, Square, LogIn, LogOut } from 'lucide-react';
+import { Car, Pencil, Square, LogIn, LogOut } from 'lucide-react';
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { StaffDayAnalysisPanel, StaffDayNotificationsPanel } from './StaffDayAnalysisPanel';
+import { StaffDayNotificationsPanel } from './StaffDayAnalysisPanel';
 import { AnalyzeDayButton } from './AnalyzeDayButton';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import { useDayPlaceVisits } from '@/hooks/useDayPlaceVisits';
@@ -46,12 +46,6 @@ export interface StaffBlock {
   dayIsOpen: boolean;
   sessions: StaffBlockSession[];
 }
-
-const sessionKindIcon = (k: SessionKind) => {
-  if (k === 'travel') return Car;
-  if (k === 'location') return MapPin;
-  return Briefcase;
-};
 
 /** Bygg ett per-person-block för tabellen. */
 export const buildStaffBlock = (
