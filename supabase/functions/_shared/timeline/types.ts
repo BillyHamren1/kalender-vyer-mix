@@ -64,6 +64,8 @@ export interface Segment {
 export interface DayEvent {
   eventType: EventType;
   ts: string;
+  endTs?: string | null;          // v2: end of stay/travel segment
+  durationMin?: number | null;    // v2: minutes for stay/travel
   lat: number | null;
   lng: number | null;
   accuracy: number | null;
@@ -76,6 +78,7 @@ export interface DayEvent {
   humanReadableText: string;
   relatedTimeReportId: string | null;
   relatedWorkdayId: string | null;
+  planned?: boolean;              // v2: was this stop planned (matched/reported)?
 }
 
 export interface CorrectionSuggestion {
