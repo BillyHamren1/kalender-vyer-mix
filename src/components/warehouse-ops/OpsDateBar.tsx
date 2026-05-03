@@ -61,6 +61,10 @@ const OpsDateBar = ({ anchorDate, mode, onChange, summary }: Props) => {
               <CalendarIcon className="h-4 w-4" />
               {mode === "week"
                 ? `v.${format(anchorDate, "ww", { locale: sv })} ${format(anchorDate, "yyyy")}`
+                : mode === "next7"
+                ? `Nästa 7 dgr från ${format(anchorDate, "d MMM", { locale: sv })}`
+                : mode === "next30"
+                ? `Nästa 30 dgr från ${format(anchorDate, "d MMM", { locale: sv })}`
                 : format(anchorDate, "EEE d MMM", { locale: sv })}
             </Button>
           </PopoverTrigger>
