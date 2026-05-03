@@ -63,6 +63,20 @@ describe('buildPlaceVisits', () => {
     expect(visits.length).toBe(2);
     expect(visits[0].placeKey).not.toBe(visits[1].placeKey);
   });
+
+  it('två Warehouse-besök med långt pingglapp slås inte ihop till en heldagsvistelse', () => {
+    const pings: Ping[] = [];
+    for (let i = 0; i < 10; i++) pings.push(at(i, FA.lat, FA.lng));
+    for (let i = 40; i < 50; i++) pings.push(at(i, FA.lat, FA.lng));
+
+    const visits = buildPlaceVisits(pings, [FA], { minDurationMin: 1, maxPingGapMin: 20 });
+
+    expect(visits).toHaveLength(2);
+    expect(visits[0].knownSite?.id).toBe('fa');
+    expect(visits[1].knownSite?.id).toBe('fa');
+    expect(visits[0].end).toBe(pings[9].recorded_at);
+    expect(visits[1].start).toBe(pings[10].recorded_at);
+  });
 });
 
 describe('resolvePlaceAt', () => {
