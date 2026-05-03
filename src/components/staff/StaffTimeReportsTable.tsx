@@ -13,6 +13,7 @@ import { EditTimeReportDialog } from './EditTimeReportDialog';
 import { StopTimerDialog, type StopTarget } from './StopTimerDialog';
 import { GpsStopsRows } from './GpsStopsRows';
 import { Button } from '@/components/ui/button';
+import { TimeReportClosureInfo } from './TimeReportClosureInfo';
 
 const fmt = (iso: string | null) => {
   if (!iso) return '—';
