@@ -8,7 +8,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, List } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, List, QrCode } from 'lucide-react';
 import { getItemParcels } from '@/services/scannerService';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
@@ -23,6 +23,7 @@ import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
+import { QrParcelManager } from './QrParcelManager';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
@@ -121,6 +122,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // RFID manager — provides status UI and inventory controls
   const rfid = useRfidManager();
   const [showKolliConfirm, setShowKolliConfirm] = useState(false);
+  const [showQrParcels, setShowQrParcels] = useState(false);
   const {
     enqueueScan,
     handleManualToggle,
@@ -550,6 +552,10 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             </span>
           )}
         </Button>
+        <Button onClick={() => setShowQrParcels(true)} size="sm" variant="outline" className="h-8 px-2.5 gap-1" title="QR-kollin (fysisk räknare)">
+          <QrCode className="h-3.5 w-3.5" />
+          <span className="text-xs">QR</span>
+        </Button>
         <Button onClick={() => setShowRecentScans(prev => !prev)} size="sm" variant={showRecentScans ? "secondary" : "outline"} className="h-8 px-2.5 gap-1 relative">
           <List className="h-3.5 w-3.5" />
           <span className="text-xs">Log</span>
@@ -680,6 +686,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <QrParcelManager
+        open={showQrParcels}
+        onOpenChange={setShowQrParcels}
+        packingId={packingId}
+        verifierName={verifierName}
+      />
     </div>
   );
 };

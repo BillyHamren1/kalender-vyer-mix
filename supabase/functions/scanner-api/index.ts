@@ -829,6 +829,95 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      case 'register_qr_parcel': {
+        // Register a free-form QR-coded physical parcel against a packing list.
+        // QR codes are reusable across bookings/packings over time, but unique per packing.
+        // is_qr_only=true marks this parcel as a "physical counter only" — no products
+        // are assigned to it, it just bumps the parcel counter for shipping/labeling.
+        const { packingId, qrCode, createdBy, createdByStaffId } = params
+        const code = String(qrCode || '').trim()
+        if (!packingId || !code) {
+          return json({ success: false, error: 'packingId and qrCode required' }, 400)
+        }
+        if (code.length > 200) {
+          return json({ success: false, error: 'qrCode too long' }, 400)
+        }
+
+        // Reject if this QR is already on this packing
+        const { data: dup } = await supabase
+          .from('packing_parcels')
+          .select('id, parcel_number')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+          .eq('qr_code', code)
+          .maybeSingle()
+        if (dup) {
+          return json({ success: false, error: 'duplicate', parcel: dup }, 409)
+        }
+
+        const { data: existing } = await supabase
+          .from('packing_parcels')
+          .select('parcel_number')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+          .order('parcel_number', { ascending: false })
+          .limit(1)
+        const nextNumber = (existing && existing.length > 0) ? existing[0].parcel_number + 1 : 1
+
+        const { data, error } = await supabase
+          .from('packing_parcels')
+          .insert({
+            packing_id: packingId,
+            parcel_number: nextNumber,
+            qr_code: code,
+            is_qr_only: true,
+            created_by: createdBy || 'Scanner',
+            created_by_staff_id: createdByStaffId || null,
+            organization_id: ORG_ID,
+          })
+          .select()
+          .single()
+        if (error) throw error
+        return json({ success: true, parcel: data })
+      }
+
+      case 'list_qr_parcels': {
+        const { packingId } = params
+        if (!packingId) return json({ success: false, error: 'packingId required' }, 400)
+        const { data, error } = await supabase
+          .from('packing_parcels')
+          .select('id, parcel_number, qr_code, is_qr_only, created_by, created_at')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+          .not('qr_code', 'is', null)
+          .order('parcel_number', { ascending: true })
+        if (error) throw error
+        return json({ success: true, parcels: data || [] })
+      }
+
+      case 'delete_qr_parcel': {
+        const { parcelId } = params
+        if (!parcelId) return json({ success: false, error: 'parcelId required' }, 400)
+        // Only allow deletion of qr-only parcels with no allocations
+        const { data: allocs } = await supabase
+          .from('packing_list_item_allocations')
+          .select('id')
+          .eq('parcel_id', parcelId)
+          .eq('organization_id', ORG_ID)
+          .limit(1)
+        if (allocs && allocs.length > 0) {
+          return json({ success: false, error: 'parcel_has_allocations' }, 409)
+        }
+        const { error } = await supabase
+          .from('packing_parcels')
+          .delete()
+          .eq('id', parcelId)
+          .eq('organization_id', ORG_ID)
+          .eq('is_qr_only', true)
+        if (error) throw error
+        return json({ success: true })
+      }
+
       case 'assign_item_to_parcel': {
         // New allocation-based model: a single item can be split across multiple parcels.
         // Inserts an allocation row of `quantity` (default 1). Caller may pass quantity to allocate

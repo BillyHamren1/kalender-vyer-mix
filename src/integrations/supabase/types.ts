@@ -3140,27 +3140,33 @@ export type Database = {
           created_by: string | null
           created_by_staff_id: string | null
           id: string
+          is_qr_only: boolean
           organization_id: string
           packing_id: string
           parcel_number: number
+          qr_code: string | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
           created_by_staff_id?: string | null
           id?: string
+          is_qr_only?: boolean
           organization_id?: string
           packing_id: string
           parcel_number: number
+          qr_code?: string | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
           created_by_staff_id?: string | null
           id?: string
+          is_qr_only?: boolean
           organization_id?: string
           packing_id?: string
           parcel_number?: number
+          qr_code?: string | null
         }
         Relationships: [
           {

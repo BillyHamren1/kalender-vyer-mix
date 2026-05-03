@@ -99,7 +99,30 @@ export const getItemAllocations = async (packingId: string): Promise<Record<stri
   return callScannerApi('get_item_allocations', { packingId });
 };
 
-// ============== EXISTING FUNCTIONS ==============
+// QR-coded parcels (free-form QR sticker on physical parcel; no product allocations)
+export interface QrParcel {
+  id: string;
+  parcel_number: number;
+  qr_code: string;
+  is_qr_only: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+export const registerQrParcel = async (
+  packingId: string,
+  qrCode: string,
+  createdBy?: string,
+): Promise<{ success: boolean; parcel?: QrParcel; error?: string }> => {
+  return callScannerApi('register_qr_parcel', { packingId, qrCode, createdBy });
+};
+export const listQrParcels = async (packingId: string): Promise<QrParcel[]> => {
+  const res = await callScannerApi('list_qr_parcels', { packingId });
+  return res?.parcels || [];
+};
+export const deleteQrParcel = async (parcelId: string): Promise<void> => {
+  await callScannerApi('delete_qr_parcel', { parcelId });
+};
+
 
 // Parse a scanned value to determine what type it is (client-side only, no DB)
 // Always trims the input to handle trailing whitespace/newlines from hardware scanners.
