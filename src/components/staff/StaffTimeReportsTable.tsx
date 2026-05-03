@@ -328,6 +328,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
                           staffId={b.staffId}
                           date={date}
                           iso={dayActuallyRunning ? null : (b.dayEndIso ?? lastActivityEnd)}
+                          intent="departure"
                         />
                       </span>
                     </div>
