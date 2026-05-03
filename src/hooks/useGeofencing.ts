@@ -106,7 +106,17 @@ export interface AutoStartActivityArgs {
   arrivedAtIso: string;
 }
 export interface AutoStartActivityOutcome {
-  status: 'started' | 'duplicate' | 'workday-failed' | 'conflict';
+  /**
+   * Aligned with useTimerStartFlow.StartStatus. Geofence-paths only need to
+   * distinguish "real progress" (started/already_running) from defer/abort.
+   */
+  status:
+    | 'started'
+    | 'already_running'
+    | 'workday_failed'
+    | 'conflict'
+    | 'blocked'
+    | 'start_failed';
 }
 export type AutoStartActivityFn =
   (args: AutoStartActivityArgs) => Promise<AutoStartActivityOutcome>;
