@@ -93,7 +93,12 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
                 Markerad
               </span>
             )}
-            {isPlannedOnly && (
+            {notStarted && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-500/15 px-1.5 py-0.5 rounded animate-pulse">
+                Ej startat
+              </span>
+            )}
+            {!notStarted && isPlannedOnly && (
               <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 bg-sky-500/10 px-1.5 py-0.5 rounded">
                 Planerad
               </span>
