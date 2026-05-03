@@ -22,7 +22,8 @@ export function useOrganizationLocations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('organization_locations')
-        .select('id, name, latitude, longitude, geofence_radius_meters');
+        .select('id, name, latitude, longitude, radius_meters, is_active')
+        .eq('is_active', true);
       if (error) throw error;
       return (data || [])
         .filter((l: any) => l.latitude != null && l.longitude != null)
@@ -31,7 +32,7 @@ export function useOrganizationLocations() {
           name: l.name,
           lat: Number(l.latitude),
           lng: Number(l.longitude),
-          radiusMeters: Number(l.geofence_radius_meters ?? 200) || 200,
+          radiusMeters: Number(l.radius_meters ?? 200) || 200,
         }));
     },
   });
