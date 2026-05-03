@@ -82,8 +82,10 @@ export function buildEvents(input: BuildEventsInput): DayEvent[] {
       const planned = !!matched || !!fallback;
       const dur = Math.round(seg.durationMin);
       const text = name
-        ? `${planned ? "Stannade" : "Stannade på okänd plats"} – ${name} (${formatDur(dur)})`
-        : `Stannade på okänd plats (${formatDur(dur)})`;
+        ? planned
+          ? `Stannade – ${name} (${formatDur(dur)})`
+          : `Stannade på ${name} (${formatDur(dur)}) · Ej planerat`
+        : `Stannade på okänd plats (${formatDur(dur)}) · Ej planerat`;
 
       events.push({
         eventType: "stay_segment",
