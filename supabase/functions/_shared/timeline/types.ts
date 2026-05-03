@@ -1,13 +1,17 @@
 // Day Timeline Engine — shared types
 // engine_version bumpas vid breaking change i event/suggestion-schemat
 
-export const ENGINE_VERSION = "v1";
+export const ENGINE_VERSION = "v2";
 
 export type EventType =
   | "workday_started"
   | "workday_ended"
   | "timer_started"
   | "timer_stopped"
+  // v2: konsoliderade segment — en rad per stopp / en rad per resa
+  | "stay_segment"
+  | "travel_segment"
+  // legacy (lämnas i typunionen för bakåtläsning av äldre rader)
   | "arrived_at_reported_site"
   | "left_reported_site"
   | "arrived_at_known_location"
@@ -60,6 +64,8 @@ export interface Segment {
 export interface DayEvent {
   eventType: EventType;
   ts: string;
+  endTs?: string | null;          // v2: end of stay/travel segment
+  durationMin?: number | null;    // v2: minutes for stay/travel
   lat: number | null;
   lng: number | null;
   accuracy: number | null;
@@ -72,6 +78,7 @@ export interface DayEvent {
   humanReadableText: string;
   relatedTimeReportId: string | null;
   relatedWorkdayId: string | null;
+  planned?: boolean;              // v2: was this stop planned (matched/reported)?
 }
 
 export interface CorrectionSuggestion {

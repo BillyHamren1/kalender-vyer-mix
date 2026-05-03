@@ -1153,6 +1153,8 @@ export type Database = {
           confidence: number
           date: string
           distance_to_reported_site_m: number | null
+          duration_min: number | null
+          end_ts: string | null
           engine_version: string
           event_type: string
           human_readable_text: string
@@ -1163,6 +1165,7 @@ export type Database = {
           matched_site_name: string | null
           matched_site_type: string | null
           organization_id: string
+          planned: boolean | null
           related_time_report_id: string | null
           related_workday_id: string | null
           source: string | null
@@ -1175,6 +1178,8 @@ export type Database = {
           confidence?: number
           date: string
           distance_to_reported_site_m?: number | null
+          duration_min?: number | null
+          end_ts?: string | null
           engine_version?: string
           event_type: string
           human_readable_text: string
@@ -1185,6 +1190,7 @@ export type Database = {
           matched_site_name?: string | null
           matched_site_type?: string | null
           organization_id: string
+          planned?: boolean | null
           related_time_report_id?: string | null
           related_workday_id?: string | null
           source?: string | null
@@ -1197,6 +1203,8 @@ export type Database = {
           confidence?: number
           date?: string
           distance_to_reported_site_m?: number | null
+          duration_min?: number | null
+          end_ts?: string | null
           engine_version?: string
           event_type?: string
           human_readable_text?: string
@@ -1207,6 +1215,7 @@ export type Database = {
           matched_site_name?: string | null
           matched_site_type?: string | null
           organization_id?: string
+          planned?: boolean | null
           related_time_report_id?: string | null
           related_workday_id?: string | null
           source?: string | null
