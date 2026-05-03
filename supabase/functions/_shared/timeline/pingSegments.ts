@@ -307,7 +307,8 @@ export function buildPlaceVisits(
   const finalVisits: PlaceVisit[] = [];
   for (const v of filtered) {
     const last = finalVisits[finalVisits.length - 1];
-    if (last && samePlace(last, v)) {
+    const gapMs = last ? new Date(v.start).getTime() - new Date(last.end).getTime() : Infinity;
+    if (last && samePlace(last, v) && gapMs >= 0 && gapMs <= maxPingGapMs) {
       finalVisits[finalVisits.length - 1] = combine(last, v);
     } else {
       finalVisits.push(v);
