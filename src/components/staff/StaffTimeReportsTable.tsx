@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { Briefcase, Car, MapPin, Pencil, Square } from 'lucide-react';
+import { Briefcase, Car, MapPin, Pencil, Square, LogIn, LogOut } from 'lucide-react';
 import { LiveDuration } from './LiveDuration';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { StaffDayAnalysisPanel, StaffDayNotificationsPanel } from './StaffDayAnalysisPanel';
