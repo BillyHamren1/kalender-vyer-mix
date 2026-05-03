@@ -62,6 +62,13 @@ interface StaffWithDayReport {
   segments: DaySegment[];
   journal: import('@/lib/staff/dayJournal').StaffDayJournal;
   latestPing: LatestPing | null;
+  /**
+   * Single source of truth för dagsmetri. Workday = total. Activity/travel
+   * = fördelning. payableMinutes = workday (aldrig workday + activity).
+   * UI ska föredra detta över `total_hours` när det visar "Arbetsdag" /
+   * "Total arbetstid".
+   */
+  metrics: DayMetrics;
 }
 
 // Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
