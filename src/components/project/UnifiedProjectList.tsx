@@ -287,15 +287,35 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
               (project.type === 'medium' && cancelProjectMutation.isPending && cancelProjectMutation.variables === project.id) ||
               (project.type === 'large' && deleteLargeMutation.isPending && deleteLargeMutation.variables === project.id);
 
+            const projectKey = project.type === 'large' ? `large:${project.id}` : project.type === 'medium' ? `medium:${project.id}` : null;
+            const unseenBookingIds = projectKey ? updatesByProject.get(projectKey) : undefined;
+            const hasUpdate = !!unseenBookingIds && unseenBookingIds.length > 0;
+
+            const handleRowClick = () => {
+              if (isPending) return;
+              if (hasUpdate && unseenBookingIds) {
+                setUpdateDialog({ name: project.name, bookingIds: unseenBookingIds, navigateTo: project.navigateTo });
+              } else {
+                navigate(project.navigateTo);
+              }
+            };
+
             return (
             <div
               key={`${project.type}-${project.id}`}
-              onClick={() => !isPending && navigate(project.navigateTo)}
-              className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-all ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''} ${isPending ? 'opacity-40 pointer-events-none' : ''}`}
+              onClick={handleRowClick}
+              className={`group/row flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-all ${project.bookingCancelled ? 'bg-red-50/60 dark:bg-red-950/20' : ''} ${hasUpdate ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''} ${isPending ? 'opacity-40 pointer-events-none' : ''}`}
             >
               <Badge className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md ${TYPE_BADGE_CLASSES[project.type]}`}>
                 {TYPE_LABELS[project.type]}
               </Badge>
+
+              {hasUpdate && (
+                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-800 ring-1 ring-blue-300 flex items-center gap-1 animate-pulse">
+                  <Sparkles className="h-3 w-3" />
+                  UPPDATERAD{unseenBookingIds && unseenBookingIds.length > 1 ? ` (${unseenBookingIds.length})` : ''}
+                </Badge>
+              )}
 
               {project.isInternal && (
                 <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-accent text-accent-foreground ring-1 ring-border flex items-center gap-1">
