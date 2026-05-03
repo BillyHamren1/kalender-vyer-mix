@@ -1,51 +1,52 @@
-1. Fix timestamp truth for Tidrapporter
-- Replace the current browser-dependent `composeLocalIso()` flow in `src/pages/StaffTimeReports.tsx` with a Stockholm-safe conversion helper.
-- Treat `time_reports.start_time/end_time` as Europe/Stockholm wall-clock values and convert them to the exact UTC instants that the GPS pings use.
-- Use the same helper anywhere Tidrapporter builds ISO timestamps from `report_date + HH:mm[:ss]` so start/end matching is deterministic regardless of browser timezone.
+## Mål
+Ersätta dagens kort-grid i "Planerad personal" med en kompakt **Gantt-vy per dag** där:
+- Vänster kolumn = personalnamn (sticky)
+- Övre rad = tidslinje (timmar)
+- Varje persons projekt ritas som färgade block längs tidslinjen enligt planerad start/slut
 
-2. Stop resolving places from only FA Warehouse
-- Refactor the day-place source so it can match against more than `organization_locations`.
-- Include the actual job sites for the current day as known places too:
-  - booking delivery coordinates
-  - large project coordinates
-  - organization locations
-- This will let the resolver recognize Craft/Westers as real destinations instead of leaving them as anonymous clusters.
+## Layout
 
-3. Make Geo (start/slut) truthful again
-- Update `GeoAtTime` in `src/components/staff/StaffTimeReportsTable.tsx` to use the corrected timestamps.
-- For travel hits, show labels from the adjacent resolved visits/addresses instead of generic `plats → plats`.
-- If a label is still unresolved, show a clear fallback like `okänd plats` rather than implying a known site.
+```text
+                08  09  10  11  12  13  14  15  16  17  18
+─────────────┬──────────────────────────────────────────────
+Aleksejs ●   │      [▓ 2603-156 Westers ▓][▓ 2604-97 Craft ▓]
+Joel ●       │  [▓ 2602-15 Tiomila ▓][▓▓ 2604-98 SP Office ▓▓]
+Ivars ●      │            [▓▓▓▓ 2603-156 Westers ▓▓▓▓]  Pågår
+Kristaps ●   │   [▓ 2604-97 Craft ▓]                    Pågår
+Markuss ●    │  [▓▓ 2602-15 Tiomila ▓▓]                 ✓ Rapporterat
+```
 
-4. Keep the GPS detail panel aligned with the same truth model
-- Update `src/hooks/useDayPlaceVisits.ts` and `src/components/staff/GpsStopsRows.tsx` so the timeline, travel rows, and expanded ping details all use the same place catalog and label rules.
-- Ensure a route like `Warehouse → lunch → Westers` appears as:
-  - visit at real address/site
-  - travel segment
-  - visit at lunch address
-  - travel segment
-  - visit at Westers
+- Vänster kolumn ~160px sticky (namn + färgprick + statusprick).
+- Tidslinjeområde scrollbar horisontellt vid behov; defaultintervall = min(planerad start) → max(planerad slut) över alla rader, klampat till hel timme.
+- Varje block visar `bookingNumber · client` (truncate). Tooltip med fullständigt namn, roll, start–slut, fas (rigg/event/nedrigg).
+- Färg på block = personens färg (svag fyllning) + vänsterkant i fasfärg (rigg/event/nedrigg).
+- Status-pill (Ej startat / Pågår / Rapporterat / Sen start) flyttas till slutet av raden, kompakt.
+- "Nu"-linje (vertikal) ritas om dagen = idag.
+- Rader sorteras: avvikelser först (ej startat, sen), sedan namn.
 
-5. Add thorough regression tests
-- Extend `src/lib/staff/__tests__/dayTimeline.test.ts` with timezone-sensitive cases:
-  - Stockholm local report time resolves to the correct UTC ping window
-  - no false `travel` when a report starts inside a real visit
-  - still returns `travel` when the timestamp truly falls between visits
-- Add focused tests for travel label formatting so booking destinations do not degrade to `plats` when coordinates exist.
-- Add a DST-safe test case so this does not break on CET/CEST transitions.
+## Tekniska ändringar
 
-6. Validate against the real failing case before delivery
-- Re-check the Ivars 2026-05-03 scenario after implementation:
-  - the 05:06 and 08:47 Craft rows must resolve to Craft/site address, not travel
-  - the 12:10 Westers row must resolve to Westers/site address once the person is actually there
-  - only genuine movement gaps should show as `Resa`
-  - expanded rows must still show each ping with timestamp and address
+**`src/components/staff/PlannedStaffPanel.tsx`** — skrivs om till timeline:
+1. Utöka query: hämta även `rig_end_time`, `event_end_time`, `rigdown_end_time` så block får både start och slut (fallback 1h om end saknas).
+2. Berika `PlannedJob` med `phase: 'rigg'|'event'|'nedrigg'`, `startDate`, `endDate`.
+3. Räkna ut `dayWindow = { startHour, endHour }` från min/max över alla jobb (default 06–22, expanderar vid behov).
+4. Ny intern komponent `<TimelineRow row hourPx windowStart windowEnd />`:
+   - Container: `relative h-10` med horisontellt rutnät (1px border varje timme via background-image linear-gradient).
+   - Varje block: `absolute` med `left = (jobStart - windowStart)/3600 * hourPx`, `width = duration/3600 * hourPx`, min-width 60px.
+   - Overlap: om två jobb krockar i tid, stapla i två sub-rader (auto höjd).
+5. Header-rad med timmarna ritas en gång ovanför raderna, sticky top.
+6. Behåll status-beräkning (`getStatus`) men rendera den som liten badge längst till höger på raden.
+7. Behåll `onSelectStaff`-klick (klick var som helst på raden).
 
-Technical details
-- Confirmed during inspection:
-  - `StaffTimeReports.tsx` currently builds report timestamps with `new Date(y, m, d, hh, mm, ss).toISOString()`, which depends on the client timezone.
-  - `useDayPlaceVisits()` currently only feeds `organization_locations` into `buildPlaceVisits()`.
-  - In the database, only one active `organization_locations` row exists right now: `FA Warehouse`.
-  - Ivars has 932 GPS pings on 2026-05-03, and the backfilled reports are stored in local Stockholm times (`05:06`, `08:47`, `12:10`).
-- That combination explains why the pings look correct while the Tidrapporter table now says almost everything is `Resa`.
+**Inga andra filer behöver röras** — komponenten används redan från admin-vyn med samma props.
 
-When you approve, I’ll implement the fix and run the regression checks carefully.
+## Edge cases
+- Jobb utan tider: visas som grått pill längst till vänster ("Tid saknas") — ingen position på tidslinjen.
+- Jobb som spänner över flera dagar: klampas till dagens fönster.
+- Tom dag: returnerar `null` som idag.
+- Mobil (<768px): faller tillbaka till befintlig kompakt listvy (en kolumn) eftersom Gantt blir oläsbar smalt — behåller status-pill + jobblista som textrader.
+
+## Tester (manuell QA)
+- Öppna admin Tidrapporter, dag = idag → bekräfta att 5 personer från screenshoten visas som rader, med korrekt block-position, och att "Nu"-linjen är synlig.
+- Hovra ett block → tooltip visar bokningsnr, kund, fas, start–slut.
+- Klicka på rad → öppnar staffens rapportdetalj som tidigare.
