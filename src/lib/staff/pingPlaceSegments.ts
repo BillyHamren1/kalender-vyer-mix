@@ -41,13 +41,20 @@ export interface PlaceVisit {
 export interface BuildOptions {
   /** Radie för att räknas som "samma okänd plats" (m). Default 150. */
   unknownRadiusMeters?: number;
-  /** Min varaktighet för en vistelse (min). Default 5. */
+  /** Min varaktighet för en vistelse (min). Default 10. */
   minDurationMin?: number;
-  /** Hur många "borta-pings" i rad som krävs för att godta en flytt. Default 2. */
+  /** Hur många "borta-pings" i rad som krävs för att godta en flytt. Default 4. */
   confirmAwayPings?: number;
   /** Max tillåtet glapp mellan två råpings i samma vistelse. Default 20 min. */
   maxPingGapMin?: number;
+  /** Max tidsglapp för att slå ihop två vistelser med samma identitet. Default 15 min. */
+  mergeGapMaxMin?: number;
 }
+
+/** Hård regel: vistelser kortare än så collapsas alltid. Steg 1 + 5. */
+export const MIN_VISIT_DURATION_MIN = 10;
+/** Travel-segment kortare än så ska aldrig surface:as. Steg 6. */
+export const MIN_TRAVEL_DURATION_MIN = 5;
 
 const minutesBetween = (a: string, b: string) =>
   Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000));
