@@ -345,6 +345,13 @@ const MobileGlobalOverlays: React.FC = () => {
       });
 
       if (status === 'already_running') {
+        // Även här verifierar vi att workday faktiskt är öppen — annars är
+        // det inkonsekvent state och vi vill att användaren ska se det.
+        const dayOpen = await waitForActiveWorkday();
+        if (!dayOpen) {
+          toast.error('Aktiviteten är aktiv men arbetsdagen syns inte. Försök igen.');
+          return;
+        }
         toast.message(`${projectLabel} är redan aktivt`);
         await markResolved(plannedArrivalTarget);
         setArrivalDialogOpen(false);
@@ -353,14 +360,22 @@ const MobileGlobalOverlays: React.FC = () => {
       }
 
       if (status === 'started') {
-        // Verifiera att timern faktiskt syns i providern innan vi släpper
-        // prompten — annars kan användaren stå utan synlig timer.
-        const seen = await waitForProviderTimer(targetKey);
+        // Verifiera BÅDE workday och activity-timer innan prompten släpps.
+        // Om någon saknas → lämna oresolvad så användaren kan retrya.
+        const [seen, dayOpen] = await Promise.all([
+          waitForProviderTimer(targetKey),
+          waitForActiveWorkday(),
+        ]);
+        if (!seen && !dayOpen) {
+          toast.error('Start kunde inte verifieras. Försök igen om en stund.');
+          return;
+        }
+        if (!dayOpen) {
+          toast.error('Aktiviteten startades men arbetsdagen syns inte ännu. Försök igen.');
+          return;
+        }
         if (!seen) {
-          toast.error(
-            'Aktiviteten startades men syns inte ännu. Försök igen om en stund.',
-          );
-          // Lämna prompten öppen så användaren kan retrya.
+          toast.error('Arbetsdagen är aktiv men aktivitetstimern syns inte ännu. Försök igen.');
           return;
         }
         if (arrivalHHmm) {
@@ -389,7 +404,7 @@ const MobileGlobalOverlays: React.FC = () => {
     } finally {
       setArrivalSubmitting(false);
     }
-  }, [plannedArrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival, waitForProviderTimer]);
+  }, [plannedArrivalTarget, arrivalToWorkTarget, tryStartFromArrival, markResolved, refreshArrival, waitForProviderTimer, waitForActiveWorkday]);
 
   const handleArrivalDismiss = useCallback(async () => {
     if (!plannedArrivalTarget) return;
