@@ -235,6 +235,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     lastScanRef.current = '';
     successfulDetectionRef.current = false;
     noPixelsSinceRef.current = null;
+    setTorchOn(false);
+    setTorchSupported(false);
   }, []);
 
   const applyTrackOptimizations = useCallback(async (stream: MediaStream) => {
