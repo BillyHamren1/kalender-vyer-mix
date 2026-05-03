@@ -232,73 +232,136 @@ export function buildPlaceVisits(
     current = null;
   }
 
-  // Bygg PlaceVisit av varje stängt segment.
-  const visits: PlaceVisit[] = closed
-    .map((seg): PlaceVisit => {
-      const start = seg.pings[0].recorded_at;
-      const end = seg.pings[seg.pings.length - 1].recorded_at;
-      const durationMin = minutesBetween(start, end);
-      const knownSite = seg.knownSite
-        ? { id: seg.knownSite.id, name: seg.knownSite.name }
-        : null;
-      const placeKey = knownSite
-        ? `site:${knownSite.id}`
-        : `unknown:${unknownCounter++}`;
-      const centre = seg.knownSite
-        ? { lat: seg.knownSite.lat, lng: seg.knownSite.lng }
-        : centreOf(seg.pings);
-      return {
-        placeKey,
-        knownSite,
-        centre,
-        start,
-        end,
-        durationMin,
-        pingCount: seg.pings.length,
-        pings: [...seg.pings],
-      };
-    })
-    .filter(v => v.durationMin >= minDuration);
+  // Bygg PlaceVisit av varje stängt segment. Filtrera INTE på minDuration här
+  // — vi behöver behålla mikro-vistelser så att merge-passet kan absorbera dem.
+  const rawVisits: PlaceVisit[] = closed.map((seg): PlaceVisit => {
+    const start = seg.pings[0].recorded_at;
+    const end = seg.pings[seg.pings.length - 1].recorded_at;
+    const durationMin = minutesBetween(start, end);
+    const knownSite = seg.knownSite
+      ? { id: seg.knownSite.id, name: seg.knownSite.name }
+      : null;
+    const placeKey = knownSite
+      ? `site:${knownSite.id}`
+      : `unknown:${unknownCounter++}`;
+    const centre = seg.knownSite
+      ? { lat: seg.knownSite.lat, lng: seg.knownSite.lng }
+      : centreOf(seg.pings);
+    return {
+      placeKey,
+      knownSite,
+      centre,
+      start,
+      end,
+      durationMin,
+      pingCount: seg.pings.length,
+      pings: [...seg.pings],
+    };
+  });
 
-  // Slå ihop direkt angränsande vistelser med SAMMA stabila identitet.
-  // Kända platser: samma siteId. Okända: centre inom 2× unknownRadius.
-  // Men: slå aldrig ihop över ett långt pingglapp — då vet vi inte att
-  // personen faktiskt stannade kvar hela tiden.
-  const merged: PlaceVisit[] = [];
-  for (const v of visits) {
-    const last = merged[merged.length - 1];
-    if (!last) { merged.push(v); continue; }
+  // Rena merge-helper: kombinera två vistelser och behåll a:s identitet/centre.
+  const combine = (a: PlaceVisit, b: PlaceVisit): PlaceVisit => {
+    const totalPings = a.pingCount + b.pingCount;
+    const blended = a.knownSite
+      ? a.centre
+      : {
+          lat: (a.centre.lat * a.pingCount + b.centre.lat * b.pingCount) / totalPings,
+          lng: (a.centre.lng * a.pingCount + b.centre.lng * b.pingCount) / totalPings,
+        };
+    const start = a.start < b.start ? a.start : b.start;
+    const end = a.end > b.end ? a.end : b.end;
+    const allPings = [...a.pings, ...b.pings].sort(
+      (x, y) => new Date(x.recorded_at).getTime() - new Date(y.recorded_at).getTime(),
+    );
+    return {
+      placeKey: a.placeKey,
+      knownSite: a.knownSite,
+      centre: blended,
+      start,
+      end,
+      durationMin: minutesBetween(start, end),
+      pingCount: totalPings,
+      pings: allPings,
+    };
+  };
 
-    const sameKnown = last.knownSite && v.knownSite && last.knownSite.id === v.knownSite.id;
-    const sameUnknown = !last.knownSite && !v.knownSite &&
-      haversineMeters(last.centre, v.centre) <= unknownRadius * 2;
-    const gapMs = new Date(v.start).getTime() - new Date(last.end).getTime();
-    const closeEnoughInTime = gapMs >= 0 && gapMs <= maxPingGapMs;
+  // Två visits anses vara "samma plats" för merge-syften.
+  const samePlace = (a: PlaceVisit, b: PlaceVisit): boolean => {
+    if (a.knownSite && b.knownSite) return a.knownSite.id === b.knownSite.id;
+    if (!a.knownSite && !b.knownSite) {
+      return haversineMeters(a.centre, b.centre) <= unknownRadius * 2;
+    }
+    return false;
+  };
 
-    if ((sameKnown || sameUnknown) && closeEnoughInTime) {
-      const totalPings = last.pingCount + v.pingCount;
-      const blended = sameKnown
-        ? last.centre
-        : {
-            lat: (last.centre.lat * last.pingCount + v.centre.lat * v.pingCount) / totalPings,
-            lng: (last.centre.lng * last.pingCount + v.centre.lng * v.pingCount) / totalPings,
-          };
-      merged[merged.length - 1] = {
-        placeKey: last.placeKey,
-        knownSite: last.knownSite,
-        centre: blended,
-        start: last.start,
-        end: v.end,
-        durationMin: minutesBetween(last.start, v.end),
-        pingCount: totalPings,
-        pings: [...last.pings, ...v.pings],
-      };
+  // Kör merge-passen tills inget mer ändras (max 5 varv som säkerhet).
+  let working = rawVisits;
+  for (let pass = 0; pass < 5; pass++) {
+    const before = working.length;
+
+    // Steg 2: slå ihop angränsande visits med samma identitet om gap < mergeGapMax.
+    const adjacent: PlaceVisit[] = [];
+    for (const v of working) {
+      const last = adjacent[adjacent.length - 1];
+      if (!last) { adjacent.push(v); continue; }
+      const gapMs = new Date(v.start).getTime() - new Date(last.end).getTime();
+      if (samePlace(last, v) && gapMs >= 0 && gapMs <= mergeGapMaxMs) {
+        adjacent[adjacent.length - 1] = combine(last, v);
+      } else {
+        adjacent.push(v);
+      }
+    }
+
+    // Steg 5: A → B → A där B är kort (< MIN_VISIT_DURATION_MIN) → absorbera B i A.
+    // Och: A → A med kort gap (vilket adjacent-passet redan tog) — täckt ovan.
+    const sandwiched: PlaceVisit[] = [];
+    for (let i = 0; i < adjacent.length; i++) {
+      const v = adjacent[i];
+      const prev = sandwiched[sandwiched.length - 1];
+      const next = adjacent[i + 1];
+      if (
+        prev && next &&
+        v.durationMin < MIN_VISIT_DURATION_MIN &&
+        samePlace(prev, next)
+      ) {
+        // Slå ihop prev + v + next till en vistelse på prev:s plats.
+        const gapToNext = new Date(next.start).getTime() - new Date(v.end).getTime();
+        if (gapToNext <= mergeGapMaxMs) {
+          const combined = combine(combine(prev, v), next);
+          sandwiched[sandwiched.length - 1] = { ...combined, placeKey: prev.placeKey, knownSite: prev.knownSite, centre: prev.centre };
+          i++; // hoppa över next, redan inkluderad
+          continue;
+        }
+      }
+      sandwiched.push(v);
+    }
+
+    working = sandwiched;
+    if (working.length === before) break;
+  }
+
+  // Steg 6 + Steg 1: släpp vistelser kortare än MIN_VISIT_DURATION_MIN, men spara
+  // alltid första och sista raden för dagen så start/slut behålls.
+  const filtered: PlaceVisit[] = [];
+  working.forEach((v, idx) => {
+    const isEdge = idx === 0 || idx === working.length - 1;
+    const meetsMin = v.durationMin >= Math.max(minDuration, MIN_VISIT_DURATION_MIN);
+    if (meetsMin || isEdge) filtered.push(v);
+  });
+
+  // Sista pass: om filter tog bort en mellanrad och syskon nu är samma plats,
+  // slå ihop dem (förhindrar duplicate consecutive locations).
+  const finalVisits: PlaceVisit[] = [];
+  for (const v of filtered) {
+    const last = finalVisits[finalVisits.length - 1];
+    if (last && samePlace(last, v)) {
+      finalVisits[finalVisits.length - 1] = combine(last, v);
     } else {
-      merged.push(v);
+      finalVisits.push(v);
     }
   }
 
-  return merged;
+  return finalVisits;
 }
 
 /**
