@@ -44,7 +44,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const [manualInput, setManualInput] = useState('');
-  
+
+  // Zoom state
+  const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number; step: number } | null>(null);
+  const [zoom, setZoom] = useState<number>(() => {
+    const saved = parseFloat(localStorage.getItem(ZOOM_PREF_KEY) || '');
+    return Number.isFinite(saved) && saved > 0 ? saved : (isNativeIos ? 2 : 1.5);
+  });
+  const [autoZoom, setAutoZoom] = useState<boolean>(() => {
+    const saved = localStorage.getItem(ZOOM_AUTO_KEY);
+    return saved === null ? true : saved === '1';
+  });
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -59,6 +70,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const successfulDetectionRef = useRef(false);
   const noPixelsSinceRef = useRef<number | null>(null);
   const lastNoPixelsReportRef = useRef(0);
+  const zoomRef = useRef<number>(zoom);
+  const autoZoomRef = useRef<boolean>(autoZoom);
+  const lastAutoZoomAdjustRef = useRef<number>(0);
+  const framesWithoutDetectionRef = useRef<number>(0);
+
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { autoZoomRef.current = autoZoom; }, [autoZoom]);
 
   useEffect(() => {
     cameraStateRef.current = cameraState;
