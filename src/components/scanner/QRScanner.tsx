@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Camera, X, Radio, Loader2, ZoomIn, ZoomOut, Sparkles } from 'lucide-react';
+import { Camera, X, Radio, Loader2, ZoomIn, ZoomOut, Sparkles, Flashlight, FlashlightOff } from 'lucide-react';
 
 const ZOOM_PREF_KEY = 'qrscanner.defaultZoom.v1';
 const ZOOM_AUTO_KEY = 'qrscanner.autoZoom.v1';
@@ -71,6 +71,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     const saved = localStorage.getItem(ZOOM_AUTO_KEY);
     return saved === null ? true : saved === '1';
   });
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -233,6 +235,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     lastScanRef.current = '';
     successfulDetectionRef.current = false;
     noPixelsSinceRef.current = null;
+    setTorchOn(false);
+    setTorchSupported(false);
   }, []);
 
   const applyTrackOptimizations = useCallback(async (stream: MediaStream) => {
@@ -272,6 +276,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       } else {
         setZoomCaps(null);
       }
+
+      // Torch (lampa) detection
+      const supportsTorch = capabilities.torch === true;
+      setTorchSupported(supportsTorch);
+      if (!supportsTorch) setTorchOn(false);
 
       const constraints: MediaTrackConstraints = {
         ...(capabilities.width?.max ? { width: { ideal: Math.min(capabilities.width.max, 1280) } } : {}),
@@ -327,6 +336,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       return next;
     });
   }, []);
+
+  const toggleTorch = useCallback(async () => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0] as (MediaStreamTrack & {
+      applyConstraints?: (constraints: MediaTrackConstraints) => Promise<void>;
+    }) | undefined;
+    if (!track?.applyConstraints) return;
+    const next = !torchOn;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next } as any] });
+      setTorchOn(next);
+    } catch (e) {
+      console.warn('[QRScanner] torch toggle failed:', e);
+    }
+  }, [torchOn]);
 
   const runScanLoop = useCallback(() => {
     let lastScanTime = 0;
@@ -901,6 +926,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
           {cameraState === 'running' && (
             <>
+              {torchSupported && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  className={`absolute top-3 right-3 z-10 p-2.5 rounded-full shadow-lg ${torchOn ? 'bg-yellow-400 text-black' : 'bg-black/60 text-white'}`}
+                  aria-label={torchOn ? 'Släck lampa' : 'Tänd lampa'}
+                  title={torchOn ? 'Släck lampa' : 'Tänd lampa'}
+                >
+                  {torchOn ? <Flashlight className="h-5 w-5" /> : <FlashlightOff className="h-5 w-5" />}
+                </button>
+              )}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-64 h-64 border-2 border-white/30 rounded-lg relative">
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-lg" />
