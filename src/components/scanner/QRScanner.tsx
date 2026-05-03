@@ -71,6 +71,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     const saved = localStorage.getItem(ZOOM_AUTO_KEY);
     return saved === null ? true : saved === '1';
   });
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
