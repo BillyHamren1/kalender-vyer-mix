@@ -149,7 +149,54 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     } catch {/* noop */}
   }, []);
 
-  const handleDetected = useCallback((value: string) => {
+  // External feedback overlay (driven by parent's scan-processor result).
+  // Provides the user with optical + audible confirmation of whether the
+  // scan actually counted (success / duplicate / unknown).
+  const [feedbackFlash, setFeedbackFlash] = useState<{
+    success: boolean;
+    message?: string;
+    subMessage?: string;
+    key: number;
+  } | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFeedbackNonceRef = useRef<number>(-1);
+
+  useEffect(() => {
+    if (!feedback || feedback.nonce === lastFeedbackNonceRef.current) return;
+    lastFeedbackNonceRef.current = feedback.nonce;
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setFeedbackFlash({
+      success: feedback.success,
+      message: feedback.message,
+      subMessage: feedback.subMessage,
+      key: feedback.nonce,
+    });
+    // Always beep, even on failure — user explicitly asked for audio feedback.
+    try {
+      const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+      if (Ctx) {
+        const ctx = new Ctx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = feedback.success ? 1400 : 250;
+        osc.type = 'square';
+        gain.gain.value = 0.18;
+        osc.start();
+        osc.stop(ctx.currentTime + (feedback.success ? 0.09 : 0.32));
+      }
+    } catch { /* noop */ }
+    // Haptic on iOS where available
+    try {
+      (navigator as any).vibrate?.(feedback.success ? 30 : [40, 30, 40]);
+    } catch { /* noop */ }
+    feedbackTimerRef.current = setTimeout(() => setFeedbackFlash(null), 1400);
+  }, [feedback]);
+
+  useEffect(() => () => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+  }, []);
     if (value && value !== lastScanRef.current) {
       successfulDetectionRef.current = true;
       noPixelsSinceRef.current = null;
