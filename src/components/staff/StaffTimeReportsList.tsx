@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, Search, ChevronLeft, ChevronRight, CalendarDays, WifiOff } from 'lucide-react';
-import { PremiumCard } from '@/components/ui/PremiumCard';
+import { Search, ChevronLeft, ChevronRight, CalendarDays, WifiOff } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,9 +8,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { JournalTable, buildStaffBlock } from './StaffTimeReportsTable';
+import { TimeReportReviewTable } from './TimeReportReviewTable';
+import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
-import type { StaffDayJournal } from '@/lib/staff/dayJournal';
+import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 
 interface ProjectInfo {
   booking_id: string;
