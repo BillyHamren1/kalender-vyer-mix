@@ -226,7 +226,7 @@ const MobileScannerApp: React.FC = () => {
   // Render based on state
   if (state === 'verifying' && selectedPackingId) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <VerificationView 
           packingId={selectedPackingId}
           onBack={goHome}
@@ -250,7 +250,7 @@ const MobileScannerApp: React.FC = () => {
 
   if (state === 'manual' && selectedPackingId) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <ManualChecklistView 
           packingId={selectedPackingId}
           onBack={goHome}
@@ -261,7 +261,7 @@ const MobileScannerApp: React.FC = () => {
 
   if (state === 'returning' && selectedPackingId) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <ReturnView
           packingId={selectedPackingId}
           onBack={goHome}
