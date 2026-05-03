@@ -104,18 +104,41 @@ interface JournalTableProps {
  */
 const GeoAtTime: React.FC<{ staffId: string; date: string; iso: string | null }> = ({ staffId, date, iso }) => {
   const { resolveAt, isLoading, hasPings } = useDayPlaceVisits(staffId, date, !!iso);
-  const visit = useMemo(() => resolveAt(iso), [resolveAt, iso]);
-  // Endast för okända vistelser frågar vi Mapbox.
-  const fallbackTarget = visit && !visit.knownSite ? visit.centre : null;
+  const hit = useMemo(() => resolveAt(iso), [resolveAt, iso]);
+
+  // Reverse-geocode endast okända vistelser eller resor (kända platser har namn).
+  const fallbackTarget =
+    hit.kind === 'visit' && !hit.visit.knownSite ? hit.visit.centre :
+    hit.kind === 'travel' ? null :
+    null;
   const fallbackLabels = useReverseGeocode([fallbackTarget]);
   const [open, setOpen] = useState(false);
 
   if (!iso) return <span className="text-muted-foreground">—</span>;
   if (isLoading) return <span className="text-muted-foreground italic">…</span>;
-  if (!visit) {
-    return <span className="text-muted-foreground italic">{hasPings ? 'ingen GPS' : 'ingen GPS'}</span>;
+
+  if (hit.kind === 'unknown') {
+    return (
+      <span className="text-muted-foreground italic" title="Ingen GPS-täckning vid denna tidpunkt">
+        {hasPings ? 'okänt (mellan pings)' : 'ingen GPS'}
+      </span>
+    );
   }
 
+  if (hit.kind === 'travel') {
+    const fromName = hit.travel.from.knownSite?.name ?? 'plats';
+    const toName = hit.travel.to.knownSite?.name ?? 'plats';
+    return (
+      <span
+        className="text-muted-foreground italic inline-flex items-center gap-1 truncate"
+        title={`Under förflyttning mellan ${fromName} och ${toName}`}
+      >
+        🚗 Resa: {fromName} → {toName}
+      </span>
+    );
+  }
+
+  const visit = hit.visit;
   const addr = visit.knownSite
     ? visit.knownSite.name
     : (fallbackLabels[0] ?? `${visit.centre.lat.toFixed(4)}, ${visit.centre.lng.toFixed(4)}`);
