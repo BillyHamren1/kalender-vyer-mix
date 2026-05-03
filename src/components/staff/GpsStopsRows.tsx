@@ -120,29 +120,40 @@ export const GpsStopsRows: React.FC<Props> = ({
   const geoLabels = useReverseGeocode(geocodeTargets);
 
   type Row =
-    | { kind: 'visit'; key: string; start: string; end: string; durationMin: number; pingCount: number; coords: { lat: number; lng: number }; label: string; pings: Ping[] }
+    | { kind: 'visit'; key: string; start: string; end: string; durationMin: number; pingCount: number; coords: { lat: number; lng: number }; label: string; pings: Ping[]; mismatch: boolean }
     | { kind: 'travel'; key: string; start: string; end: string; durationMin: number; pings: Ping[]; fromLabel: string; toLabel: string };
 
   const rows: Row[] = useMemo(() => {
     const visitRows = visits.map((v, i): Row => {
-      const sMs = new Date(v.start).getTime();
-      const eMs = new Date(v.end).getTime();
-      const visitPings = pings.filter(p => {
-        const t = new Date(p.recorded_at).getTime();
-        return t >= sMs && t <= eMs;
-      });
+      // Exakt medlemskap från motorn — INTE tidsfilter.
+      // Se mem://constraints/gps-visit-exact-ping-membership-v1.
+      const visitPings = v.pings;
+      const offending = visitPings.filter(
+        p => haversineMeters(v.centre, { lat: p.lat, lng: p.lng }) > 500,
+      );
+      if (offending.length > 0) {
+        // eslint-disable-next-line no-console
+        console.error('GPS VISIT MISMATCH', {
+          placeKey: v.placeKey,
+          centre: v.centre,
+          offendingCount: offending.length,
+          example: offending[0],
+        });
+      }
+      const baseLabel = v.knownSite
+        ? v.knownSite.name
+        : (geoLabels[i] ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`);
       return {
         kind: 'visit',
         key: `${v.placeKey}-${v.start}`,
         start: v.start,
         end: v.end,
         durationMin: v.durationMin,
-        pingCount: v.pingCount,
+        pingCount: visitPings.length,
         coords: v.centre,
-        label: v.knownSite
-          ? v.knownSite.name
-          : (geoLabels[i] ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`),
+        label: offending.length > 0 ? `${baseLabel} — GPS mismatch (invalid segment)` : baseLabel,
         pings: visitPings,
+        mismatch: offending.length > 0,
       };
     });
 
