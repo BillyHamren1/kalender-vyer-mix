@@ -2,7 +2,8 @@
 // SAMMA logik som frontend "Faktiska besök & förflyttningar" — ren motor för
 // "var har personen faktiskt varit idag?". Detta är sanningskällan.
 //
-// VIKTIGT: ändra inte beteendet utan att samtidigt ändra frontend-modulen.
+// MIRROR — ändra alltid båda i samma commit.
+// Se mem://constraints/gps-visit-exact-ping-membership-v1.
 
 import type { Ping, Segment, KnownPlace } from "./types.ts";
 import { distanceMeters, minutesBetween } from "./geo.ts";
@@ -17,6 +18,8 @@ export interface PlaceVisit {
   end: string;
   durationMin: number;
   pingCount: number;
+  /** Exakta pings som hör till vistelsen. UI får aldrig återskapa via tidsfilter. */
+  pings: RawPing[];
 }
 
 export interface TravelGap {
@@ -106,11 +109,8 @@ export function buildPlaceVisits(
     pendingAway = [];
   };
 
-  const refreshUnknownAnchor = () => {
-    if (!current || current.knownSite) return;
-    const tail = current.pings.slice(-10);
-    current.anchor = centreOf(tail);
-  };
+  // refreshUnknownAnchor borttagen — ankaret får inte drifta.
+  // Se mem://constraints/gps-visit-exact-ping-membership-v1.
 
   for (const p of sorted) {
     const matchedSite = matchKnownSite(p, knownSites);
@@ -147,7 +147,7 @@ export function buildPlaceVisits(
         pendingAway = [];
       }
       current.pings.push(p);
-      refreshUnknownAnchor();
+      // ankaret uppdateras inte — håll segmentet stabilt.
       continue;
     }
 
@@ -199,6 +199,7 @@ export function buildPlaceVisits(
         end,
         durationMin,
         pingCount: seg.pings.length,
+        pings: [...seg.pings],
       };
     })
     .filter((v) => v.durationMin >= minDuration);
@@ -231,6 +232,7 @@ export function buildPlaceVisits(
         end: v.end,
         durationMin: minutesBetween(last.start, v.end),
         pingCount: totalPings,
+        pings: [...last.pings, ...v.pings],
       };
     } else {
       merged.push(v);

@@ -110,3 +110,47 @@ describe('resolvePlaceAt', () => {
     expect(resolvePlaceAt(visits, wayOff)).toBeNull();
   });
 });
+
+describe('PlaceVisit.pings exact membership', () => {
+  const FA: KnownSite = { id: 'fa', name: 'Fixed A', lat: 59.3, lng: 18.0, radiusMeters: 80 };
+  const FB: KnownSite = { id: 'fb', name: 'Fixed B', lat: 59.5, lng: 18.2, radiusMeters: 80 };
+
+  function pingAt(lat: number, lng: number, isoMin: number) {
+    return {
+      lat, lng, accuracy: 10,
+      recorded_at: new Date(Date.UTC(2026, 4, 3, 8, isoMin, 0)).toISOString(),
+    };
+  }
+
+  it('pings.length === pingCount and centre is close to every ping', () => {
+    const pings = [
+      ...Array.from({ length: 6 }, (_, i) => pingAt(FA.lat, FA.lng, i * 5)),
+      ...Array.from({ length: 6 }, (_, i) => pingAt(FB.lat, FB.lng, 60 + i * 5)),
+    ];
+    const visits = buildPlaceVisits(pings, [FA, FB], { minDurationMin: 1 });
+    expect(visits.length).toBeGreaterThanOrEqual(2);
+    for (const v of visits) {
+      expect(v.pings.length).toBe(v.pingCount);
+      // Each ping must be reasonably near visit.centre (no 20km mismatches).
+      for (const p of v.pings) {
+        const dx = Math.abs(p.lat - v.centre.lat) + Math.abs(p.lng - v.centre.lng);
+        expect(dx).toBeLessThan(0.05); // <~5km in degrees, plenty of margin
+      }
+    }
+  });
+
+  it('merged visits keep all pings without duplication and chronological', () => {
+    const pings = [
+      ...Array.from({ length: 4 }, (_, i) => pingAt(FA.lat, FA.lng, i * 2)),
+      // tiny gap, same place — should merge
+      ...Array.from({ length: 4 }, (_, i) => pingAt(FA.lat, FA.lng, 12 + i * 2)),
+    ];
+    const visits = buildPlaceVisits(pings, [FA], { minDurationMin: 1, maxPingGapMin: 20 });
+    expect(visits.length).toBe(1);
+    expect(visits[0].pings.length).toBe(8);
+    const stamps = visits[0].pings.map(p => new Date(p.recorded_at).getTime());
+    const sorted = [...stamps].sort((a, b) => a - b);
+    expect(stamps).toEqual(sorted);
+    expect(new Set(stamps).size).toBe(stamps.length);
+  });
+});

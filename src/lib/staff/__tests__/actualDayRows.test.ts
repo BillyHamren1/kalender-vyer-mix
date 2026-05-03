@@ -19,6 +19,7 @@ const visit = (
   end,
   durationMin: Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000),
   pingCount: 5,
+  pings: [],
 });
 
 const travel = (key: string, from: PlaceVisit, to: PlaceVisit): TravelGap => ({
