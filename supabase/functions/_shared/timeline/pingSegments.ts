@@ -35,7 +35,14 @@ export interface BuildOptions {
   minDurationMin?: number;
   confirmAwayPings?: number;
   maxPingGapMin?: number;
+  /** Max tidsglapp för att slå ihop två visits med samma identitet. Default 15 min. */
+  mergeGapMaxMin?: number;
 }
+
+/** Hård regel: vistelser kortare än så collapsas alltid. */
+export const MIN_VISIT_DURATION_MIN = 10;
+/** Travel-segment kortare än så surface:as aldrig. */
+export const MIN_TRAVEL_DURATION_MIN = 5;
 
 const median = (xs: number[]): number => {
   if (xs.length === 0) return 0;
