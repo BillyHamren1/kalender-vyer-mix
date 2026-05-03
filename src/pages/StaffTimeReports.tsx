@@ -63,14 +63,14 @@ interface StaffWithDayReport {
   latestPing: LatestPing | null;
 }
 
-// Build an ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time string.
-// time_reports stores time as HH:mm:ss without timezone, so we treat it as local.
-const composeLocalIso = (dateStr: string, timeStr: string): string => {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const [hh, mm, ss = '0'] = timeStr.split(':');
-  const dt = new Date(y, (m || 1) - 1, d || 1, Number(hh) || 0, Number(mm) || 0, Number(ss) || 0);
-  return dt.toISOString();
-};
+// Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
+// string. time_reports stores wall-clock as Europe/Stockholm — we MUST NOT
+// reinterpret it through the browser's local timezone, otherwise the ISO
+// instant becomes off by 1–2h and the GPS resolver mis-classifies the row
+// as "Resa" even when it actually falls inside a real visit.
+import { stockholmWallClockToIso } from '@/lib/staff/stockholmTime';
+const composeLocalIso = (dateStr: string, timeStr: string): string =>
+  stockholmWallClockToIso(dateStr, timeStr);
 
 const StaffTimeReports: React.FC = () => {
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
