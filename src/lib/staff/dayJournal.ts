@@ -319,14 +319,18 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     });
   }
 
-  // Patch labels: if a session lacks a label, take it from any matching source label
+  // Patch labels: if a session lacks a label, take it from any matching source label.
+  // Stängda time_reports keyas numera på `tr:<id>`; matcha via sourceIds-spår.
   for (const s of sessions.values()) {
     if (s.label) continue;
-    if (s.kind === 'booking' && s.key.startsWith('booking:')) {
-      const bId = s.key.slice('booking:'.length);
-      const lte = input.locationEntries.find(e => e.booking_id === bId && e.label);
-      if (lte) s.label = lte.label;
-    }
+    if (s.kind !== 'booking') continue;
+    // Hämta booking_id från ursprungsrapporten via sourceIds.
+    const trIds = s.sourceIds.filter(id => id.startsWith('tr:')).map(id => id.slice(3));
+    const matchingReport = input.reports.find(r => trIds.includes(r.id) && r.booking_id);
+    const bookingId = matchingReport?.booking_id;
+    if (!bookingId) continue;
+    const lte = input.locationEntries.find(e => e.booking_id === bookingId && e.label);
+    if (lte) s.label = lte.label;
   }
 
   // Find day-start: prefer earliest workday.started_at, fallback to earliest session start, fallback to earliest presence-only LTE.
