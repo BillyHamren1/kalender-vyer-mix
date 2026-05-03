@@ -770,6 +770,19 @@ const StaffTimeReports: React.FC = () => {
         subtitle="Översikt av rapporterad tid per personal"
         variant="purple"
       />
+      <PlannedStaffPanel
+        date={selectedDate}
+        reportedStaff={staffList.map(s => ({
+          id: s.id,
+          earliest_start: s.earliest_start,
+          has_open_report: s.has_open_report,
+          reports_count: s.reports_count,
+        }))}
+        onSelectStaff={(id, name) => {
+          setSelectedStaffId(id);
+          setSelectedStaffName(name);
+        }}
+      />
       <StaffTimeReportsList
         staffList={staffList}
         isLoading={isLoading}
