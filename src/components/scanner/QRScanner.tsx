@@ -910,6 +910,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                   <div
                     className="absolute left-2 right-2 h-0.5 bg-primary"
                     style={{ animation: 'scan-line 2s ease-in-out infinite' }}
+                  />
                 </div>
               </div>
 
