@@ -161,9 +161,20 @@ export function buildPlaceVisits(
 
     pendingAway.push(p);
 
+    // Stabilisera känd-plats-matchning: kräv confirmAway pings i rad mot
+    // SAMMA nya plats — annars är det troligt brus / radie-överlapp.
     if (matchedSite && (!current.knownSite || matchedSite.id !== current.knownSite.id)) {
-      closeCurrent();
-      startSegment([p], matchedSite);
+      const tail = pendingAway.slice(-confirmAway);
+      const allSameSite =
+        tail.length >= confirmAway &&
+        tail.every((t) => {
+          const m = matchKnownSite(t, knownSites);
+          return m && m.id === matchedSite.id;
+        });
+      if (allSameSite) {
+        closeCurrent();
+        startSegment(tail, matchedSite);
+      }
       continue;
     }
 
