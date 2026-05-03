@@ -324,7 +324,25 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
               const Icon = status.icon;
               const highlight = status.kind === 'not_started';
               const noTimeJobs = r.jobs.filter(j => !j.start || !j.end);
-              const timedJobs = r.jobs.filter(j => j.start && j.end);
+              const timedJobs = [...r.jobs.filter(j => j.start && j.end)]
+                .sort((a, b) => a.start!.getTime() - b.start!.getTime());
+
+              // Lane-stacking: lägg jobb i första lane där det inte krockar
+              const laneEnds: number[] = [];
+              const placed = timedJobs.map(j => {
+                const startMs = j.start!.getTime();
+                const endMs = j.end!.getTime();
+                let lane = laneEnds.findIndex(e => e <= startMs);
+                if (lane === -1) {
+                  lane = laneEnds.length;
+                  laneEnds.push(endMs);
+                } else {
+                  laneEnds[lane] = endMs;
+                }
+                return { job: j, lane };
+              });
+              const laneCount = Math.max(1, laneEnds.length);
+              const trackHeight = ROW_PAD_Y * 2 + laneCount * LANE_H + (laneCount - 1) * LANE_GAP;
 
               return (
                 <div
@@ -346,7 +364,7 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
                     className="relative border-l"
                     style={{
                       width: trackWidth,
-                      height: ROW_H,
+                      height: trackHeight,
                       backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${HOUR_PX - 1}px, hsl(var(--border)/0.5) ${HOUR_PX - 1}px, hsl(var(--border)/0.5) ${HOUR_PX}px)`,
                     }}
                   >
@@ -356,30 +374,24 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
                         style={{ left: nowX }}
                       />
                     )}
-                    {timedJobs.map((j, i) => {
+                    {placed.map(({ job: j, lane }, i) => {
                       const left = toX(j.start!);
-                      const width = Math.max(40, toX(j.end!) - left);
+                      const width = Math.max(36, toX(j.end!) - left);
+                      const top = ROW_PAD_Y + lane * (LANE_H + LANE_GAP);
+                      const style = j.phase ? PHASE_STYLE[j.phase] : { bg: 'bg-muted', border: 'border-border', text: 'text-foreground' };
                       return (
                         <Tooltip key={`${j.bookingId}-${i}`}>
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
-                                'absolute top-1 bottom-1 rounded-md border border-l-4 px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden bg-primary/10 text-foreground',
-                                j.phase ? PHASE_BORDER[j.phase] : 'border-l-muted-foreground',
+                                'absolute rounded-sm border px-1.5 text-[11px] leading-none flex items-center overflow-hidden shadow-sm',
+                                style.bg, style.border, style.text,
                               )}
-                              style={{
-                                left,
-                                width,
-                                backgroundColor: r.color ? `${r.color}22` : undefined,
-                              }}
+                              style={{ left, width, top, height: LANE_H }}
                             >
-                              <div className="truncate font-medium">
-                                {j.bookingNumber ? `${j.bookingNumber} · ` : ''}{j.client}
-                              </div>
-                              <div className="truncate text-muted-foreground text-[10px]">
-                                {format(j.start!, 'HH:mm')}–{format(j.end!, 'HH:mm')}
-                                {j.role ? ` · ${j.role}` : ''}
-                              </div>
+                              <span className="truncate font-medium">
+                                {format(j.start!, 'HH:mm')} {j.bookingNumber ?? j.client}
+                              </span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="text-xs">
@@ -391,7 +403,7 @@ export const PlannedStaffPanel: React.FC<PlannedStaffPanelProps> = ({
                       );
                     })}
                     {noTimeJobs.length > 0 && (
-                      <div className="absolute left-1 top-1 bottom-1 flex items-center">
+                      <div className="absolute right-1 top-1 flex items-center">
                         <Badge variant="outline" className="text-[10px] h-5">
                           {noTimeJobs.length} utan tid
                         </Badge>
