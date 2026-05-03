@@ -116,6 +116,11 @@ const MobileGlobalOverlays: React.FC = () => {
     staff?.id,
   );
 
+  // Provider-source-of-truth för aktiva timers — används för att verifiera
+  // att arrival-confirm faktiskt resulterade i en aktivitetstimer innan vi
+  // markerar prompten som resolved.
+  const { activeTimers: providerActiveTimers } = useGeofencingContext();
+
   // Travel detection — runs globally regardless of active page.
   const { travelState, elapsedSeconds, manualStopTravel, completedTravel, dismissCompletedTravel } =
     useTravelDetection(!!staff, latestPosition);
