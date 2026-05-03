@@ -30,6 +30,12 @@ export interface PlaceVisit {
   end: string;
   durationMin: number;
   pingCount: number;
+  /**
+   * Exakta pings som hör till denna vistelse. UI MÅSTE använda denna lista
+   * — aldrig återskapa via tidsfilter. Se
+   * mem://constraints/gps-visit-exact-ping-membership-v1.
+   */
+  pings: Ping[];
 }
 
 export interface BuildOptions {
