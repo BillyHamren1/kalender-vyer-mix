@@ -269,6 +269,7 @@ export function buildPlaceVisits(
         end: v.end,
         durationMin: minutesBetween(last.start, v.end),
         pingCount: totalPings,
+        pings: [...last.pings, ...v.pings],
       };
     } else {
       merged.push(v);
