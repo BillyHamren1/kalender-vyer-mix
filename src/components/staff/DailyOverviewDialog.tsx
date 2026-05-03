@@ -598,8 +598,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           </div>
         )}
 
-        {/* Map first — show all travel segments as lines */}
-        {hasMapData ? (
+        {/* GPS map — debug surface, hidden by default */}
+        {showGpsDetails && (hasMapData ? (
           <div className="space-y-1">
             <div ref={mapContainer} className="w-full h-[420px] rounded-lg border" />
             <div className="text-xs text-muted-foreground">
@@ -612,7 +612,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <div className="w-full h-[160px] rounded-lg border flex items-center justify-center text-muted-foreground text-sm">
             Inga resor registrerade denna dag
           </div>
-        )}
+        ))}
 
         {ongoingCount > 0 && (
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200/60 text-orange-700 dark:text-orange-400">
