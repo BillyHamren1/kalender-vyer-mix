@@ -38,18 +38,16 @@ interface Column {
 const COLUMNS: Column[] = [
   {
     key: "out_today",
-    title: "UT idag",
+    title: "UT planerat",
     short: "UT",
     accent: "border-l-blue-500",
     icon: ArrowUpRight,
-    description: "Ska ut idag eller tidigare, ej klart",
-    filter: (j, today) =>
+    description: "Planerade UT-jobb i intervallet (sorterat på datum)",
+    filter: (j) =>
       j.direction === "out" &&
       (j.status === "planning" || j.status === "in_progress") &&
-      !!j.anchorDate &&
-      j.anchorDate <= today &&
       j.percent < 100,
-    emptyText: "Inget på UT-listan",
+    emptyText: "Inget planerat UT",
   },
   {
     key: "in_progress",
