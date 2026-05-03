@@ -1022,6 +1022,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           0%, 100% { top: 10%; }
           50% { top: 85%; }
         }
+        @keyframes qr-flash {
+          0% { opacity: 0; }
+          25% { opacity: 1; }
+          100% { opacity: 0; }
+        }
         .safe-area-top { padding-top: max(1rem, env(safe-area-inset-top)); }
         .safe-area-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
       `}</style>
