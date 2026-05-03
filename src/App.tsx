@@ -319,6 +319,7 @@ const WebRoutes: React.FC = () => {
                 <Route path="economy" element={<LargeProjectEconomyPage />} />
               </Route>
               <Route path="/invoicing" element={<InvoicingPage />} />
+              <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/api-docs" element={<APIDocumentation />} />
 
               {/* Logistics Routes */}
