@@ -82,7 +82,7 @@ const WarehouseDashboard = () => {
                 />
               ) : (
                 <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-muted-foreground">
-                  Personalskift visas i dagsvy.
+                  Personalskift visas i dagsvy. Använd statuskolumnerna ovan för att planera framåt.
                 </div>
               )}
 
