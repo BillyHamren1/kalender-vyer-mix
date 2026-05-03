@@ -67,7 +67,18 @@ export function buildEvents(input: BuildEventsInput): DayEvent[] {
   }
 
   // 3. Sammanhängande stay/travel-rader
-  for (const seg of input.segments) {
+  const segArr = input.segments;
+  const labelOf = (seg: typeof segArr[number] | undefined) => {
+    if (!seg || !seg.isStationary) return null;
+    if (seg.matchedPlace) return seg.matchedPlace.name;
+    const fb = findReportedFallback(seg, reportedFallbacks);
+    if (fb) return fb.name;
+    if (isLikelyHome(seg, input.homePlace)) return "Hem";
+    return "okänd plats";
+  };
+
+  for (let i = 0; i < segArr.length; i++) {
+    const seg = segArr[i];
     if (seg.isStationary) {
       const matched = seg.matchedPlace;
       const fallback = matched ? null : findReportedFallback(seg, reportedFallbacks);
@@ -110,6 +121,15 @@ export function buildEvents(input: BuildEventsInput): DayEvent[] {
       // Rörelse mellan två kända/okända stopp = resa
       const dur = Math.round(seg.durationMin);
       if (dur < 1) continue;
+      const fromLabel = labelOf(segArr[i - 1]);
+      const toLabel = labelOf(segArr[i + 1]);
+      const journey = fromLabel && toLabel
+        ? `Resa ${fromLabel} → ${toLabel}`
+        : fromLabel
+          ? `Resa från ${fromLabel}`
+          : toLabel
+            ? `Resa till ${toLabel}`
+            : "Resa";
       events.push({
         eventType: "travel_segment",
         ts: seg.startTs,
@@ -124,7 +144,7 @@ export function buildEvents(input: BuildEventsInput): DayEvent[] {
         matchedSiteName: null,
         distanceToReportedSiteM: null,
         confidence: 0.7,
-        humanReadableText: `${isoToLocalHHMM(seg.startTs)}–${isoToLocalHHMM(seg.endTs)} · Resa (${formatDur(dur)})`,
+        humanReadableText: `${isoToLocalHHMM(seg.startTs)}–${isoToLocalHHMM(seg.endTs)} · ${journey} (${formatDur(dur)})`,
         relatedTimeReportId: null,
         relatedWorkdayId: null,
         planned: false,
