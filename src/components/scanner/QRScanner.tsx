@@ -190,9 +190,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
       }
 
+      let detectedZoomCaps: { min: number; max: number; step: number } | null = null;
       if (capabilities.zoom && typeof capabilities.zoom.max === 'number') {
-        const zoom = Math.min(capabilities.zoom.max, isNativeIos ? 2.2 : 1.8);
-        if (zoom > 1) advanced.push({ zoom });
+        const min = typeof capabilities.zoom.min === 'number' ? capabilities.zoom.min : 1;
+        const max = capabilities.zoom.max;
+        const step = typeof capabilities.zoom.step === 'number' && capabilities.zoom.step > 0
+          ? capabilities.zoom.step
+          : 0.1;
+        detectedZoomCaps = { min, max, step };
+        // Apply user's preferred default zoom (clamped to capabilities)
+        const desired = Math.min(max, Math.max(min, zoomRef.current));
+        if (desired >= min) advanced.push({ zoom: desired });
+        zoomRef.current = desired;
+        setZoom(desired);
+        setZoomCaps(detectedZoomCaps);
+      } else {
+        setZoomCaps(null);
       }
 
       const constraints: MediaTrackConstraints = {
