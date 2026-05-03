@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, X, Radio, Loader2 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Camera, X, Radio, Loader2, ZoomIn, ZoomOut, Sparkles } from 'lucide-react';
+
+const ZOOM_PREF_KEY = 'qrscanner.defaultZoom.v1';
+const ZOOM_AUTO_KEY = 'qrscanner.autoZoom.v1';
 import { isScannerApp } from '@/config/appMode';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
@@ -40,7 +44,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const [error, setError] = useState<string | null>(null);
   const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
   const [manualInput, setManualInput] = useState('');
-  
+
+  // Zoom state
+  const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number; step: number } | null>(null);
+  const [zoom, setZoom] = useState<number>(() => {
+    const saved = parseFloat(localStorage.getItem(ZOOM_PREF_KEY) || '');
+    return Number.isFinite(saved) && saved > 0 ? saved : (isNativeIos ? 2 : 1.5);
+  });
+  const [autoZoom, setAutoZoom] = useState<boolean>(() => {
+    const saved = localStorage.getItem(ZOOM_AUTO_KEY);
+    return saved === null ? true : saved === '1';
+  });
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -55,6 +70,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   const successfulDetectionRef = useRef(false);
   const noPixelsSinceRef = useRef<number | null>(null);
   const lastNoPixelsReportRef = useRef(0);
+  const zoomRef = useRef<number>(zoom);
+  const autoZoomRef = useRef<boolean>(autoZoom);
+  const lastAutoZoomAdjustRef = useRef<number>(0);
+  const framesWithoutDetectionRef = useRef<number>(0);
+
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { autoZoomRef.current = autoZoom; }, [autoZoom]);
 
   useEffect(() => {
     cameraStateRef.current = cameraState;
@@ -168,9 +190,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         }
       }
 
+      let detectedZoomCaps: { min: number; max: number; step: number } | null = null;
       if (capabilities.zoom && typeof capabilities.zoom.max === 'number') {
-        const zoom = Math.min(capabilities.zoom.max, isNativeIos ? 2.2 : 1.8);
-        if (zoom > 1) advanced.push({ zoom });
+        const min = typeof capabilities.zoom.min === 'number' ? capabilities.zoom.min : 1;
+        const max = capabilities.zoom.max;
+        const step = typeof capabilities.zoom.step === 'number' && capabilities.zoom.step > 0
+          ? capabilities.zoom.step
+          : 0.1;
+        detectedZoomCaps = { min, max, step };
+        // Apply user's preferred default zoom (clamped to capabilities)
+        const desired = Math.min(max, Math.max(min, zoomRef.current));
+        if (desired >= min) advanced.push({ zoom: desired });
+        zoomRef.current = desired;
+        setZoom(desired);
+        setZoomCaps(detectedZoomCaps);
+      } else {
+        setZoomCaps(null);
       }
 
       const constraints: MediaTrackConstraints = {
@@ -187,6 +222,46 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       console.warn('[QRScanner] track optimization failed:', err);
     }
   }, [isNativeIos]);
+
+  const applyZoom = useCallback(async (value: number) => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0] as (MediaStreamTrack & {
+      getCapabilities?: () => Record<string, any>;
+      applyConstraints?: (constraints: MediaTrackConstraints) => Promise<void>;
+    }) | undefined;
+    if (!track?.applyConstraints) return;
+    const caps = track.getCapabilities?.() as Record<string, any> | undefined;
+    if (!caps?.zoom) return;
+    const clamped = Math.min(caps.zoom.max ?? value, Math.max(caps.zoom.min ?? 1, value));
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: clamped } as any] });
+      zoomRef.current = clamped;
+      setZoom(clamped);
+    } catch (e) {
+      console.warn('[QRScanner] zoom apply failed:', e);
+    }
+  }, []);
+
+  const handleZoomChange = useCallback((value: number) => {
+    localStorage.setItem(ZOOM_PREF_KEY, String(value));
+    // Manual adjustment turns auto-zoom off so we don't override the user.
+    if (autoZoomRef.current) {
+      autoZoomRef.current = false;
+      localStorage.setItem(ZOOM_AUTO_KEY, '0');
+      setAutoZoom(false);
+    }
+    void applyZoom(value);
+  }, [applyZoom]);
+
+  const toggleAutoZoom = useCallback(() => {
+    setAutoZoom((prev) => {
+      const next = !prev;
+      localStorage.setItem(ZOOM_AUTO_KEY, next ? '1' : '0');
+      autoZoomRef.current = next;
+      return next;
+    });
+  }, []);
 
   const runScanLoop = useCallback(() => {
     let lastScanTime = 0;
@@ -314,7 +389,31 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
           if (barcodes.length > 0) {
             const value = barcodes[0].rawValue;
             console.log('[QRScanner] Detected:', value, 'format:', barcodes[0].format);
+            framesWithoutDetectionRef.current = 0;
             handleDetected(value);
+          } else {
+            framesWithoutDetectionRef.current++;
+            // Auto-zoom: if we have video pixels but no detections for a while,
+            // gradually step zoom up to help small/distant codes resolve.
+            if (autoZoomRef.current && framesWithoutDetectionRef.current >= 18) {
+              const stream = streamRef.current;
+              const track = stream?.getVideoTracks()[0] as any;
+              const caps = track?.getCapabilities?.();
+              if (caps?.zoom && Date.now() - lastAutoZoomAdjustRef.current > 800) {
+                lastAutoZoomAdjustRef.current = Date.now();
+                const max = caps.zoom.max ?? 1;
+                const min = caps.zoom.min ?? 1;
+                const step = caps.zoom.step && caps.zoom.step > 0 ? caps.zoom.step : 0.25;
+                const current = zoomRef.current;
+                // Cycle: step up to max, then snap back to default and try again
+                let next = current + Math.max(step, 0.25);
+                if (next > max) next = min;
+                if (Math.abs(next - current) >= 0.05) {
+                  void applyZoom(next);
+                }
+                framesWithoutDetectionRef.current = 0;
+              }
+            }
           }
         }
       } catch (err) {
@@ -339,7 +438,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     };
 
     animationFrameRef.current = requestAnimationFrame(scan);
-  }, [handleDetected, isIos, isNativeIos]);
+  }, [handleDetected, isIos, isNativeIos, applyZoom]);
 
   const startCamera = useCallback(async () => {
     if (shouldSkipCamera) return;
@@ -744,6 +843,51 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 </div>
               </div>
 
+              {zoomCaps && (
+                <div className="absolute left-0 right-0 bottom-0 px-4 pb-3 pt-4 bg-gradient-to-t from-black/85 to-transparent">
+                  <div className="flex items-center gap-3 max-w-md mx-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleZoomChange(Math.max(zoomCaps.min, zoom - Math.max(zoomCaps.step, 0.25)))}
+                      className="text-white/90 hover:text-white p-2 rounded-full bg-white/10"
+                      aria-label="Zoom ut"
+                    >
+                      <ZoomOut className="h-5 w-5" />
+                    </button>
+                    <Slider
+                      value={[zoom]}
+                      min={zoomCaps.min}
+                      max={zoomCaps.max}
+                      step={Math.max(zoomCaps.step, 0.05)}
+                      onValueChange={(v) => handleZoomChange(v[0])}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleZoomChange(Math.min(zoomCaps.max, zoom + Math.max(zoomCaps.step, 0.25)))}
+                      className="text-white/90 hover:text-white p-2 rounded-full bg-white/10"
+                      aria-label="Zoom in"
+                    >
+                      <ZoomIn className="h-5 w-5" />
+                    </button>
+                    <span className="text-white text-xs font-mono w-12 text-right tabular-nums">
+                      {zoom.toFixed(1)}x
+                    </span>
+                    <button
+                      type="button"
+                      onClick={toggleAutoZoom}
+                      className={`p-2 rounded-full ${autoZoom ? 'bg-primary text-primary-foreground' : 'bg-white/10 text-white/80'}`}
+                      aria-label="Auto-zoom"
+                      title={autoZoom ? 'Auto-zoom på' : 'Auto-zoom av'}
+                    >
+                      <Sparkles className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <p className="text-white/60 text-[10px] text-center mt-1">
+                    {autoZoom ? 'Auto-zoom letar bästa nivå • dra för manuell zoom (sparas)' : 'Manuell zoom (sparas som standard)'}
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>
