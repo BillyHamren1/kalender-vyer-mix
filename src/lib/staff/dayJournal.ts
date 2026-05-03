@@ -238,17 +238,19 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     existing.hours += base.hours;
   };
 
-  // Time reports → keyed by (large_project | booking | location | id) so a
-  // tidrapport without booking_id but with large_project_id still groups under
-  // the correct project session and inherits its label from the caller.
+  // Time reports → varje STÄNGD rapport är sin egen pass-rad (samma booking
+  // kan ha flera diskreta pass på samma dag — t.ex. 03:55–03:56 + 04:27–04:31
+  // med en restid emellan). Endast OPEN time_reports keyas på booking/lp/loc
+  // så en pågående timer inte dupliceras med en LTE för samma resurs.
   for (const r of input.reports) {
-    const key = r.large_project_id
+    const groupKey = r.large_project_id
       ? `lp:${r.large_project_id}`
       : r.booking_id
         ? `booking:${r.booking_id}`
         : r.location_id
           ? `loc:${r.location_id}`
           : `tr:${r.id}`;
+    const key = r.end_iso ? `tr:${r.id}` : groupKey;
     const kind: ProjectSessionKind = r.large_project_id
       ? 'large_project'
       : r.location_id && !r.booking_id
@@ -276,9 +278,24 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     });
   }
 
-  // Location entries → presence-only is filtered out (used only for headers)
+  // Location entries → presence-only is filtered out (used only for headers).
+  // Om en booking redan har en stängd TR (= sanning) ska LTE inte skapa en
+  // egen rad — TR-raden är auktoritativ. Vi använder dock LTE:n för label.
+  const closedTrBookings = new Set(
+    input.reports
+      .filter(r => r.end_iso && r.booking_id)
+      .map(r => r.booking_id as string),
+  );
+  const closedTrLargeProjects = new Set(
+    input.reports
+      .filter(r => r.end_iso && r.large_project_id)
+      .map(r => r.large_project_id as string),
+  );
+
   for (const e of input.locationEntries) {
     if (e.isPresenceOnly) continue;
+    if (e.booking_id && closedTrBookings.has(e.booking_id)) continue;
+    if (e.large_project_id && closedTrLargeProjects.has(e.large_project_id)) continue;
     const key = e.booking_id
       ? `booking:${e.booking_id}`
       : e.large_project_id
@@ -317,14 +334,18 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     });
   }
 
-  // Patch labels: if a session lacks a label, take it from any matching source label
+  // Patch labels: if a session lacks a label, take it from any matching source label.
+  // Stängda time_reports keyas numera på `tr:<id>`; matcha via sourceIds-spår.
   for (const s of sessions.values()) {
     if (s.label) continue;
-    if (s.kind === 'booking' && s.key.startsWith('booking:')) {
-      const bId = s.key.slice('booking:'.length);
-      const lte = input.locationEntries.find(e => e.booking_id === bId && e.label);
-      if (lte) s.label = lte.label;
-    }
+    if (s.kind !== 'booking') continue;
+    // Hämta booking_id från ursprungsrapporten via sourceIds.
+    const trIds = s.sourceIds.filter(id => id.startsWith('tr:')).map(id => id.slice(3));
+    const matchingReport = input.reports.find(r => trIds.includes(r.id) && r.booking_id);
+    const bookingId = matchingReport?.booking_id;
+    if (!bookingId) continue;
+    const lte = input.locationEntries.find(e => e.booking_id === bookingId && e.label);
+    if (lte) s.label = lte.label;
   }
 
   // Find day-start: prefer earliest workday.started_at, fallback to earliest session start, fallback to earliest presence-only LTE.

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { buildStaffDayJournal } from '../dayJournal';
 
@@ -29,7 +30,10 @@ describe('buildStaffDayJournal', () => {
     expect(j.start.address).toBe('Storgatan 12');
   });
 
-  it('merges multiple time_reports for the same booking into one session', () => {
+  it('keeps two stopped time_reports for the same booking as TWO discrete sessions', () => {
+    // Verklig case: 03:55–03:56 FA Warehouse + restid 03:56–04:27 + 04:27–04:31 FA Warehouse.
+    // Tidigare buggade dayJournal slog ihop båda till EN rad 03:55–04:31 (5m),
+    // vilket gjorde tidsraderna omöjliga att läsa. Varje stängt pass = egen rad.
     const j = buildStaffDayJournal({
       reports: [
         { id: 'r1', booking_id: 'B1', start_iso: '2026-04-29T08:00:00Z', end_iso: '2026-04-29T11:00:00Z', hours: 3 },
@@ -45,11 +49,16 @@ describe('buildStaffDayJournal', () => {
       latestPing: null,
     });
 
-    expect(j.sessions).toHaveLength(1);
-    expect(j.sessions[0].label).toBe('Nordic Event 2026');
+    expect(j.sessions).toHaveLength(2);
+    // Båda raderna ärver label från LTE:n (samma booking).
+    expect(j.sessions.every(s => s.label === 'Nordic Event 2026')).toBe(true);
     expect(j.sessions[0].start).toBe('2026-04-29T08:00:00Z');
-    expect(j.sessions[0].end).toBe('2026-04-29T16:00:00Z');
-    expect(j.sessions[0].hours).toBe(7);
+    expect(j.sessions[0].end).toBe('2026-04-29T11:00:00Z');
+    expect(j.sessions[0].hours).toBe(3);
+    expect(j.sessions[1].start).toBe('2026-04-29T12:00:00Z');
+    expect(j.sessions[1].end).toBe('2026-04-29T16:00:00Z');
+    expect(j.sessions[1].hours).toBe(4);
+    expect(j.totalHours).toBe(7);
   });
 
   it('marks day end as null when at least one session is still open', () => {
