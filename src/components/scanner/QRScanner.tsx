@@ -257,6 +257,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     });
   }, []);
 
+  const runScanLoop = useCallback(() => {
     let lastScanTime = 0;
     let lastDiagLog = 0;
     let frameCount = 0;
