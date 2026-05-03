@@ -859,7 +859,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         // pixlar till BarcodeDetector. Explicit minHeight som fallback.
         <div
           className="flex-1 min-h-0 relative overflow-hidden bg-black"
-          style={{ minHeight: '50vh' }}
+          style={{ minHeight: cameraMinHeight }}
         >
           <video
             ref={videoRef}
