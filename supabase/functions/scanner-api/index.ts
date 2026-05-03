@@ -918,6 +918,7 @@ Deno.serve(async (req) => {
         return json({ success: true })
       }
 
+      case 'assign_item_to_parcel': {
         // New allocation-based model: a single item can be split across multiple parcels.
         // Inserts an allocation row of `quantity` (default 1). Caller may pass quantity to allocate
         // multiple units in one call. Pass `parcelId: null` + `clearAllocations: true` to clear.
