@@ -372,6 +372,16 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
         bookingId={largeProjectBookingId || ''}
       />
+
+      {updateDialog && (
+        <ProjectUpdateDialog
+          open={!!updateDialog}
+          onOpenChange={(open) => !open && setUpdateDialog(null)}
+          projectName={updateDialog.name}
+          bookingIds={updateDialog.bookingIds}
+          navigateTo={updateDialog.navigateTo}
+        />
+      )}
     </>
   );
 };
