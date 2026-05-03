@@ -837,6 +837,51 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 </div>
               </div>
 
+              {zoomCaps && (
+                <div className="absolute left-0 right-0 bottom-0 px-4 pb-3 pt-4 bg-gradient-to-t from-black/85 to-transparent">
+                  <div className="flex items-center gap-3 max-w-md mx-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleZoomChange(Math.max(zoomCaps.min, zoom - Math.max(zoomCaps.step, 0.25)))}
+                      className="text-white/90 hover:text-white p-2 rounded-full bg-white/10"
+                      aria-label="Zoom ut"
+                    >
+                      <ZoomOut className="h-5 w-5" />
+                    </button>
+                    <Slider
+                      value={[zoom]}
+                      min={zoomCaps.min}
+                      max={zoomCaps.max}
+                      step={Math.max(zoomCaps.step, 0.05)}
+                      onValueChange={(v) => handleZoomChange(v[0])}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleZoomChange(Math.min(zoomCaps.max, zoom + Math.max(zoomCaps.step, 0.25)))}
+                      className="text-white/90 hover:text-white p-2 rounded-full bg-white/10"
+                      aria-label="Zoom in"
+                    >
+                      <ZoomIn className="h-5 w-5" />
+                    </button>
+                    <span className="text-white text-xs font-mono w-12 text-right tabular-nums">
+                      {zoom.toFixed(1)}x
+                    </span>
+                    <button
+                      type="button"
+                      onClick={toggleAutoZoom}
+                      className={`p-2 rounded-full ${autoZoom ? 'bg-primary text-primary-foreground' : 'bg-white/10 text-white/80'}`}
+                      aria-label="Auto-zoom"
+                      title={autoZoom ? 'Auto-zoom på' : 'Auto-zoom av'}
+                    >
+                      <Sparkles className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <p className="text-white/60 text-[10px] text-center mt-1">
+                    {autoZoom ? 'Auto-zoom letar bästa nivå • dra för manuell zoom (sparas)' : 'Manuell zoom (sparas som standard)'}
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>
