@@ -265,10 +265,10 @@ export default function PackingCalendarView({ packings }: Props) {
                         key={e.id}
                         onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                         className={cn(
-                          "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
-                          KIND_COLORS[e.kind]
+                          "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors hover:brightness-95"
                         )}
                         style={{
+                          ...kindStyle(e.kind),
                           width: span > 1 ? `calc(${span * 100}% + ${(span - 1) * 1}px)` : undefined,
                           position: span > 1 ? "relative" : undefined,
                           zIndex: span > 1 ? 10 : undefined,
