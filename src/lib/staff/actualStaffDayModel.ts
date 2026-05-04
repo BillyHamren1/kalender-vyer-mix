@@ -157,10 +157,13 @@ export interface ActualVisit {
   label: string;
   /** Matchad känd plats (fixed location / dagens booking / large project). */
   knownSiteId: string | null;
+  /** Klustercenter — används av UI för reverse-geocode-uppslag. */
+  centre: { lat: number; lng: number } | null;
   start: string;
   end: string;
   durationMin: number;
   pingCount: number;
+  avgAccuracy: number | null;
 }
 
 export interface ProposedAnomaly {
@@ -319,14 +322,16 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
 
   // 5) GPS-vistelser
   for (const v of input.visits) {
+    const centreMeta = v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng };
+    const placeLabel = v.knownSite?.name ?? null;
     events.push({
       id: `gps-arr:${v.placeKey}:${v.start}`,
       at: v.start,
       kind: 'gps_arrival',
       severity: 'info',
-      label: `Anlände: ${v.knownSite?.name ?? 'okänd plats'}`,
-      place: v.knownSite?.name ?? null,
-      meta: { placeKey: v.placeKey, pingCount: v.pingCount },
+      label: placeLabel ? `Anlände: ${placeLabel}` : 'Anlände: okänd plats',
+      place: placeLabel,
+      meta: { placeKey: v.placeKey, pingCount: v.pingCount, centre: centreMeta },
     });
     events.push({
       id: `gps-visit:${v.placeKey}:${v.start}`,
@@ -334,28 +339,36 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       until: v.end,
       kind: 'gps_visit',
       severity: 'info',
-      label: `Vistelse: ${v.knownSite?.name ?? 'okänd plats'}`,
-      place: v.knownSite?.name ?? null,
+      label: placeLabel ? `Vistelse: ${placeLabel}` : 'Vistelse: okänd plats',
+      place: placeLabel,
       durationMin: v.durationMin,
+      meta: { placeKey: v.placeKey, centre: centreMeta },
     });
     events.push({
       id: `gps-dep:${v.placeKey}:${v.end}`,
       at: v.end,
       kind: 'gps_departure',
       severity: 'info',
-      label: `Lämnade: ${v.knownSite?.name ?? 'okänd plats'}`,
-      place: v.knownSite?.name ?? null,
+      label: placeLabel ? `Lämnade: ${placeLabel}` : 'Lämnade: okänd plats',
+      place: placeLabel,
+      meta: { placeKey: v.placeKey, centre: centreMeta },
     });
   }
   for (const tr of input.travels) {
+    const fromLabel = tr.from.knownSite?.name ?? null;
+    const toLabel = tr.to.knownSite?.name ?? null;
     events.push({
       id: `gps-trv:${tr.key}`,
       at: tr.start,
       until: tr.end,
       kind: 'gps_travel',
       severity: 'info',
-      label: `Förflyttning: ${tr.from.knownSite?.name ?? '?'} → ${tr.to.knownSite?.name ?? '?'}`,
+      label: `Förflyttning: ${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`,
       durationMin: tr.durationMin,
+      meta: {
+        fromCentre: tr.from.knownSite ? null : { lat: tr.from.centre.lat, lng: tr.from.centre.lng },
+        toCentre: tr.to.knownSite ? null : { lat: tr.to.centre.lat, lng: tr.to.centre.lng },
+      },
     });
   }
 
@@ -441,15 +454,21 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }
 
   // ── ActualVisits (komprimerad form av PlaceVisit) ────────────────
-  const actualVisits: ActualVisit[] = input.visits.map(v => ({
-    key: v.placeKey,
-    label: v.knownSite?.name ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`,
-    knownSiteId: v.knownSite?.id ?? null,
-    start: v.start,
-    end: v.end,
-    durationMin: v.durationMin,
-    pingCount: v.pingCount,
-  }));
+  const actualVisits: ActualVisit[] = input.visits.map(v => {
+    const accs = v.pings.map(p => (p.accuracy == null ? NaN : Number(p.accuracy))).filter(n => Number.isFinite(n));
+    const avgAccuracy = accs.length ? Math.round((accs.reduce((s, n) => s + n, 0) / accs.length) * 10) / 10 : null;
+    return {
+      key: v.placeKey,
+      label: v.knownSite?.name ?? `Okänd plats nära ${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`,
+      knownSiteId: v.knownSite?.id ?? null,
+      centre: v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng },
+      start: v.start,
+      end: v.end,
+      durationMin: v.durationMin,
+      pingCount: v.pingCount,
+      avgAccuracy,
+    };
+  });
 
   // ── ProposedReport ────────────────────────────────────────────────
   // distributedMinutes = stängda time_reports
