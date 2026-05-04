@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import { PackingWithBooking, PACKING_STATUS_LABELS } from "@/types/packing";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -19,22 +19,22 @@ interface Props {
   packings: PackingWithBooking[];
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  planning: "bg-blue-500/80 hover:bg-blue-500",
-  in_progress: "bg-yellow-500/80 hover:bg-yellow-500",
-  packed: "bg-teal-500/80 hover:bg-teal-500",
-  delivered: "bg-purple-500/80 hover:bg-purple-500",
-  completed: "bg-green-500/80 hover:bg-green-500",
-  cancelled: "bg-muted hover:bg-muted",
+type EventKind = "out" | "in";
+
+// OUT = ljusgrön (checkar UT från lagret), IN = ljusröd (checkar IN till lagret)
+const KIND_COLORS: Record<EventKind, string> = {
+  out: "bg-green-300 hover:bg-green-400 text-green-950",
+  in: "bg-red-300 hover:bg-red-400 text-red-950",
 };
 
-const STATUS_DOT_COLORS: Record<string, string> = {
-  planning: "bg-blue-400",
-  in_progress: "bg-yellow-400",
-  packed: "bg-teal-400",
-  delivered: "bg-purple-400",
-  completed: "bg-green-400",
-  cancelled: "bg-muted-foreground/40",
+const KIND_DOT_COLORS: Record<EventKind, string> = {
+  out: "bg-green-300",
+  in: "bg-red-300",
+};
+
+const KIND_LABELS: Record<EventKind, string> = {
+  out: "UT (packning)",
+  in: "IN (retur)",
 };
 
 export default function PackingCalendarView({ packings }: Props) {
@@ -55,32 +55,77 @@ export default function PackingCalendarView({ packings }: Props) {
     return eachDayOfInterval({ start: weekStart, end: weekEnd });
   }, [viewMode, currentDate]);
 
-  // Parse packing dates
+  // Build TWO events per packning: one OUT (rigday) and one IN (rigdown)
   const packingEvents = useMemo(() => {
-    return packings
-      .filter(p => p.status !== "cancelled")
-      .map(p => {
-        const start = p.start_date ? parseISO(p.start_date) : null;
-        const end = p.end_date ? parseISO(p.end_date) : null;
-        const bookingNum = p.booking?.booking_number || "";
-        const client = p.booking?.client || p.name;
-        // Address: street name+number, city (skip postal code)
-        const rawAddr = p.booking?.deliveryaddress || p.delivery_address || "";
-        const parts = rawAddr.split(",").map(s => s.trim()).filter(Boolean);
-        // street is first part, skip middle parts that look like postal codes
-        const street = parts[0] || "";
-        const shortAddr = street;
-        
-        const isConsolidated = !!p.large_project_id;
-        const label = isConsolidated
-          ? `📦 ${p.name}`
-          : [bookingNum, client].filter(Boolean).join(" – ");
-        return { ...p, startDate: start, endDate: end, label, shortAddr, bookingNum, isConsolidated };
-      });
+    const events: Array<{
+      id: string;
+      packingId: string;
+      kind: EventKind;
+      status: string;
+      startDate: Date;
+      endDate: Date;
+      label: string;
+      shortAddr: string;
+      bookingNum: string;
+      isConsolidated: boolean;
+      project_leader: string | null;
+    }> = [];
+
+    for (const p of packings) {
+      if (p.status === "cancelled") continue;
+      const bookingNum = p.booking?.booking_number || "";
+      const client = p.booking?.client || p.name;
+      const rawAddr = p.booking?.deliveryaddress || p.delivery_address || "";
+      const street = rawAddr.split(",").map(s => s.trim()).filter(Boolean)[0] || "";
+      const isConsolidated = !!p.large_project_id;
+      const baseLabel = isConsolidated
+        ? `📦 ${p.name}`
+        : [bookingNum, client].filter(Boolean).join(" – ");
+
+      // OUT — uses rigdaydate primarily, fallback to start_date
+      const outAnchor = p.booking?.rigdaydate || p.start_date;
+      if (outAnchor) {
+        const start = parseISO(outAnchor);
+        const end = p.booking?.eventdate ? parseISO(p.booking.eventdate) : start;
+        events.push({
+          id: `${p.id}-out`,
+          packingId: p.id,
+          kind: "out",
+          status: p.status,
+          startDate: start,
+          endDate: end < start ? start : end,
+          label: baseLabel,
+          shortAddr: street,
+          bookingNum,
+          isConsolidated,
+          project_leader: p.project_leader ?? null,
+        });
+      }
+
+      // IN — uses rigdowndate, fallback to end_date
+      const inAnchor = p.booking?.rigdowndate || p.end_date;
+      if (inAnchor) {
+        const start = parseISO(inAnchor);
+        events.push({
+          id: `${p.id}-in`,
+          packingId: p.id,
+          kind: "in",
+          status: p.status,
+          startDate: start,
+          endDate: start,
+          label: baseLabel,
+          shortAddr: street,
+          bookingNum,
+          isConsolidated,
+          project_leader: p.project_leader ?? null,
+        });
+      }
+    }
+
+    return events;
   }, [packings]);
 
-  const scheduled = packingEvents.filter(e => e.startDate);
-  const unscheduled = packingEvents.filter(e => !e.startDate);
+  const scheduled = packingEvents;
 
   const navigate_ = (dir: 1 | -1) => {
     if (viewMode === "month") {
@@ -210,23 +255,23 @@ export default function PackingCalendarView({ packings }: Props) {
                 {viewMode === "month" ? (
                   // Month: show compact chips for events starting this day
                   dayEvents.filter(e => barStartsOnDay(day, e)).map(e => {
-                    const span = Math.min(barSpan(e, day), 7 - (i % 7)); // clamp to row
+                    const span = Math.min(barSpan(e, day), 7 - (i % 7));
                     return (
                       <div
                         key={e.id}
-                        onClick={() => navigate(`/warehouse/packing/${e.id}`)}
+                        onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                         className={cn(
-                          "text-[10px] leading-tight text-white px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
-                          STATUS_COLORS[e.status] || "bg-muted"
+                          "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
+                          KIND_COLORS[e.kind]
                         )}
                         style={{
                           width: span > 1 ? `calc(${span * 100}% + ${(span - 1) * 1}px)` : undefined,
                           position: span > 1 ? "relative" : undefined,
                           zIndex: span > 1 ? 10 : undefined,
                         }}
-                        title={`${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
+                        title={`${e.kind === "out" ? "UT" : "IN"} • ${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                       >
-                        {e.label}{e.shortAddr ? ` • ${e.shortAddr}` : ""}
+                        {e.kind === "out" ? "→ " : "← "}{e.label}{e.shortAddr ? ` • ${e.shortAddr}` : ""}
                       </div>
                     );
                   })
@@ -235,14 +280,16 @@ export default function PackingCalendarView({ packings }: Props) {
                   dayEvents.filter(e => barStartsOnDay(day, e) || isSameDay(day, days[0])).map(e => (
                     <div
                       key={e.id}
-                      onClick={() => navigate(`/warehouse/packing/${e.id}`)}
+                      onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                       className={cn(
-                        "text-xs text-white px-2 py-1.5 rounded cursor-pointer transition-colors",
-                        STATUS_COLORS[e.status] || "bg-muted"
+                        "text-xs px-2 py-1.5 rounded cursor-pointer transition-colors",
+                        KIND_COLORS[e.kind]
                       )}
-                      title={`${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
+                      title={`${KIND_LABELS[e.kind]} • ${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                     >
-                      <div className="font-medium truncate">{e.label}</div>
+                      <div className="font-medium truncate">
+                        {e.kind === "out" ? "→ UT " : "← IN "}{e.label}
+                      </div>
                       <div className="text-[10px] opacity-80 mt-0.5">
                         {e.shortAddr && <span>{e.shortAddr} • </span>}
                         {PACKING_STATUS_LABELS[e.status]}
@@ -252,16 +299,16 @@ export default function PackingCalendarView({ packings }: Props) {
                   ))
                 )}
 
-                {/* Continuation dots for month view (event runs through but didn't start here) */}
+                {/* Continuation chips for multi-day OUT bars wrapping to a new week row */}
                 {viewMode === "month" && dayEvents.filter(e => !barStartsOnDay(day, e) && i % 7 === 0).map(e => (
                   <div
                     key={e.id}
-                    onClick={() => navigate(`/warehouse/packing/${e.id}`)}
+                    onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                     className={cn(
-                      "text-[10px] leading-tight text-white px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
-                      STATUS_COLORS[e.status] || "bg-muted"
+                      "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
+                      KIND_COLORS[e.kind]
                     )}
-                    title={`${e.label} — ${PACKING_STATUS_LABELS[e.status]} (fortsätter)`}
+                    title={`${KIND_LABELS[e.kind]} • ${e.label} (fortsätter)`}
                   >
                     ← {e.label}
                   </div>
@@ -272,38 +319,14 @@ export default function PackingCalendarView({ packings }: Props) {
         })}
       </div>
 
-      {/* Unscheduled packings */}
-      {unscheduled.length > 0 && (
-        <div className="border-t border-border/30 px-4 py-3 bg-muted/20">
-          <p className="text-xs font-medium text-muted-foreground mb-2">
-            Ej schemalagda ({unscheduled.length})
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {unscheduled.map(e => (
-              <Badge
-                key={e.id}
-                variant="outline"
-                className="cursor-pointer hover:bg-muted transition-colors gap-1.5"
-                onClick={() => navigate(`/warehouse/packing/${e.id}`)}
-              >
-                <span className={cn("w-2 h-2 rounded-full", STATUS_DOT_COLORS[e.status])} />
-                {e.label}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Legend */}
-      <div className="border-t border-border/30 px-4 py-2 flex flex-wrap gap-3">
-        {Object.entries(PACKING_STATUS_LABELS)
-          .filter(([k]) => k !== "cancelled")
-          .map(([key, label]) => (
-            <div key={key} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <span className={cn("w-2.5 h-2.5 rounded-sm", STATUS_DOT_COLORS[key])} />
-              {label}
-            </div>
-          ))}
+      <div className="border-t border-border/30 px-4 py-2 flex flex-wrap gap-4">
+        {(Object.keys(KIND_LABELS) as EventKind[]).map(k => (
+          <div key={k} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className={cn("w-3 h-3 rounded-sm", KIND_DOT_COLORS[k])} />
+            {KIND_LABELS[k]}
+          </div>
+        ))}
       </div>
     </div>
   );
