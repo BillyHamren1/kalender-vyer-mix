@@ -151,13 +151,24 @@ const StaffTimeReports: React.FC = () => {
   const [selectedStaffName, setSelectedStaffName] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const dateStr = format(selectedDate, 'yyyy-MM-dd');
-  const dayStart = new Date(selectedDate);
-  dayStart.setHours(0, 0, 0, 0);
-  const nextDay = new Date(dayStart);
-  nextDay.setDate(nextDay.getDate() + 1);
-  const dayStartIso = dayStart.toISOString();
-  const nextDayIso = nextDay.toISOString();
+  // Tolka selectedDate som Europe/Stockholm-dag oavsett webbläsarens TZ.
+  // Vi formaterar YYYY-MM-DD i Stockholm-zonen och bygger UTC-instans-gränser
+  // för 00:00 lokal → nästa dag 00:00 lokal. På så sätt slipper en admin på
+  // resa (eller en testmiljö i UTC) få "natt-pings" från fel kalenderdygn.
+  const dateStr = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(selectedDate); // sv-SE → "YYYY-MM-DD"
+  const dayStartIso = stockholmWallClockToIso(dateStr, '00:00:00');
+  // Nästa lokala dygn — beräknas via Stockholm-formaterad nästa-dag-sträng
+  // (inte +24h) för att vara DST-säker.
+  const nextDayDate = new Date(`${dateStr}T12:00:00Z`);
+  nextDayDate.setUTCDate(nextDayDate.getUTCDate() + 1);
+  const nextDateStr = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(nextDayDate);
+  const nextDayIso = stockholmWallClockToIso(nextDateStr, '00:00:00');
 
   // Realtime: refresh the day view when any of the source tables change for today.
   useRealtimeInvalidation({
