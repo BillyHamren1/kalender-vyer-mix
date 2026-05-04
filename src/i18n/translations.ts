@@ -362,6 +362,8 @@ const translations = {
   'staleTimer.unknownPlace': { sv: 'Okänd plats', en: 'Unknown place' },
   'staleTimer.startedLabel': { sv: 'Startad: {date}', en: 'Started: {date}' },
   'staleTimer.body': { sv: 'Denna timer är äldre än 24 timmar och kunde inte matchas mot servern. Vill du spara den som en tidrapport eller kasta den?', en: 'This timer is older than 24 hours and could not be matched on the server. Do you want to save it as a time report or discard it?' },
+  'staleTimer.bodyAge': { sv: 'Denna timer är äldre än 24 timmar och har troligen glömts kvar. Vill du spara den som en tidrapport eller kasta den?', en: 'This timer is older than 24 hours and was likely left running. Do you want to save it as a time report or discard it?' },
+  'staleTimer.bodyNoMatch': { sv: 'Denna timer hittas inte längre på servern. Vill du spara den som en tidrapport eller kasta den?', en: 'This timer can no longer be found on the server. Do you want to save it as a time report or discard it?' },
   'staleTimer.moreCount': { sv: '{count} ytterligare gammal timer hanteras efter denna.', en: '{count} more stale timers will be handled after this one.' },
   'staleTimer.discard': { sv: 'Kasta', en: 'Discard' },
   'staleTimer.save': { sv: 'Spara som tidrapport', en: 'Save as time report' },
