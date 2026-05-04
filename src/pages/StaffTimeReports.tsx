@@ -820,8 +820,9 @@ const StaffTimeReports: React.FC = () => {
       // om vi når taket så UI kan visa en varning.
       const perStaffPings = await Promise.all(
         staffIds.map(async (id) => {
-          const { rows, truncated } = await fetchAllPingsForStaff(id, dayStartIso, nextDayIso);
+          const { rows, truncated, error } = await fetchAllPingsForStaff(id, dayStartIso, nextDayIso);
           if (truncated) pingsTruncatedByStaff.set(id, true);
+          if (error) pingsErrorByStaff.set(id, error);
           return rows;
         }),
       );
