@@ -52,6 +52,12 @@ interface ActualDayPanelProps {
   onIgnoreEvent?: (eventId: string) => void;
   onRecomputeDay?: () => void;
   onShowRawGps?: () => void;
+  /** Renderas inuti collapse-sektionen "Nuvarande sparad rapport". */
+  reportSlot?: React.ReactNode;
+  /** Renderas i den gemensamma actionbaren (E). */
+  extraActions?: React.ReactNode;
+  /** Renderas inuti collapse-sektionen "Rå GPS / debug". */
+  rawGpsSlot?: React.ReactNode;
 }
 
 const fmtHm = (iso: string) => {
