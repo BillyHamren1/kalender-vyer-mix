@@ -452,8 +452,19 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }));
 
   // ── ProposedReport ────────────────────────────────────────────────
+  // distributedMinutes = stängda time_reports
+  //                    + stängda location-LTE som är riktiga work timers
+  //                      (location_id + manual/timer/mobile etc — INTE
+  //                      presence-only GPS/geofence)
+  //                    + approved travel
+  // En öppen Lager-timer räknas INTE här (visas som active_distribution
+  // via reportState.locationEntries istället) men UI får fortfarande veta
+  // att den existerar.
   const distributedMinutes = Math.round(
     input.timeReports.filter(r => r.end_iso).reduce((s, r) => s + r.hours * 60, 0)
+    + input.locationEntries
+        .filter(e => e.exited_at && !e.isPresenceOnly)
+        .reduce((s, e) => s + e.hours * 60, 0)
     + input.travelLogs.filter(t => t.approved && t.end_iso).reduce((s, t) => s + t.hours * 60, 0),
   );
   const suggestedTravelMinutes = Math.round(
