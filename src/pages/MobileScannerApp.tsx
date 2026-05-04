@@ -226,7 +226,7 @@ const MobileScannerApp: React.FC = () => {
   // Render based on state
   if (state === 'verifying' && selectedPackingId) {
     return (
-      <div className="min-h-screen bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+      <div className="h-[100dvh] bg-background overflow-hidden">
         <VerificationView 
           packingId={selectedPackingId}
           onBack={goHome}
