@@ -13,6 +13,7 @@ import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportR
 import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import type { DayMetrics } from '@/lib/staff/dayMetrics';
+import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 
 interface ProjectInfo {
   booking_id: string;
