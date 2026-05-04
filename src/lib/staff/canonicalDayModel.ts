@@ -71,13 +71,25 @@ export interface CanonicalTravelSuggestionInput {
   hours: number;
   fromAddress: string | null;
   toAddress: string | null;
-  /** True when this travel has been promoted to a confirmed
-   *  distribution (e.g. attached to a time_report). */
+  /** True when this travel has been approved (admin/staff confirmed it).
+   *  Approved travel counts as DISTRIBUTION inside workday — never as
+   *  extra payable time on top of workday. */
   approved?: boolean;
   /** travel_time_logs.auto_detected — geofence/movement-detected. */
   autoDetected?: boolean;
   /** travel_time_logs.source — 'gap_derived' = inferred from time gaps. */
   sourceTag?: string | null;
+  /** Resolved destination booking/project — when missing the row is
+   *  always review-required and never counted as distributed time. */
+  destinationBookingId?: string | null;
+}
+
+export interface CanonicalTravelSuggestionRow extends CanonicalTravelSuggestionInput {
+  /** True when admin/staff must act before this row can be counted:
+   *  missing destination, or approved=false. */
+  reviewRequired: boolean;
+  /** Stable reason flag for UI. */
+  reviewReason: 'missing_destination' | 'pending_approval' | null;
 }
 
 export interface CanonicalGpsEvidenceInput {
