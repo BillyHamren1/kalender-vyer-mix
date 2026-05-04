@@ -416,17 +416,25 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   // rapport/känd plats/assistant). Dessa visas inte i huvudjournalen utan
   // i en separat collapsed sektion.
   const GPS_KINDS = new Set<ActualEventKind>(['gps_arrival', 'gps_visit', 'gps_departure', 'gps_travel']);
-  const isWorkRelevantEvent = (ev: ActualEvent): boolean => {
-    if (!GPS_KINDS.has(ev.kind)) return true;
+  type WorkRel = 'work_confirmed' | 'work_possible' | 'unknown_requires_lookup' | 'private_or_background' | 'raw_debug_only';
+  const getWorkRelevance = (ev: ActualEvent): WorkRel | null => {
+    if (!GPS_KINDS.has(ev.kind)) return null;
     const m = (ev.meta ?? {}) as any;
-    // workRelevant sätts av modellen. Om okänt — defaulta till true för
-    // bakåtkompatibilitet (ingen filtrering på data utan flagga).
-    return m.workRelevant !== false;
+    if (typeof m.workRelevance === 'string') return m.workRelevance as WorkRel;
+    // Bakåtkompat: gammal flagga workRelevant.
+    if (m.workRelevant === false) return 'private_or_background';
+    if (m.workRelevant === true) return 'work_confirmed';
+    return 'unknown_requires_lookup';
+  };
+  const isMainJournalEvent = (ev: ActualEvent): boolean => {
+    const r = getWorkRelevance(ev);
+    if (r == null) return true;
+    return r === 'work_confirmed' || r === 'work_possible';
   };
   const [mainEvents, backgroundEvents] = useMemo(() => {
     const main: ActualEvent[] = [];
     const bg: ActualEvent[] = [];
-    for (const ev of events) (isWorkRelevantEvent(ev) ? main : bg).push(ev);
+    for (const ev of events) (isMainJournalEvent(ev) ? main : bg).push(ev);
     return [main, bg] as const;
   }, [events]);
   const [showBackground, setShowBackground] = useState(false);
@@ -591,7 +599,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                       {fmtHm(ev.at)}{ev.until ? `–${fmtHm(ev.until)}` : ''}
                     </span>
                     <span className="text-muted-foreground truncate">{ev.label}</span>
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">bakgrund</span>
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {(() => {
+                        const r = getWorkRelevance(ev);
+                        if (r === 'private_or_background') return 'privat/bakgrund';
+                        if (r === 'raw_debug_only') return 'rå debug';
+                        if (r === 'unknown_requires_lookup') return 'okänd – kräver uppslag';
+                        return 'bakgrund';
+                      })()}
+                    </span>
                   </li>
                 ))}
               </ol>
