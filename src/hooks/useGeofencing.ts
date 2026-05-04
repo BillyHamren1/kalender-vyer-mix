@@ -1363,7 +1363,27 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       });
     };
     window.addEventListener('timer-sync-confirmed', handler);
-    return () => window.removeEventListener('timer-sync-confirmed', handler);
+    // RACE GUARD (2026-05): server kan svara att vår pending start
+    // matchar ett fönster som redan är stoppat/rapporterat. Då ska
+    // den lokala timern försvinna direkt — annars visar bannern en
+    // "spöktimer" som inte motsvarar någon öppen rad på servern.
+    const onRejected = (e: Event) => {
+      const detail = (e as CustomEvent<{ timerKey: string; reason?: string }>).detail;
+      if (!detail?.timerKey) return;
+      console.warn('[TimerSync] start rejected by server, clearing local timer:',
+        detail.timerKey, detail.reason);
+      setActiveTimers(prev => {
+        if (!prev.has(detail.timerKey)) return prev;
+        const next = new Map(prev);
+        next.delete(detail.timerKey);
+        return next;
+      });
+    };
+    window.addEventListener('timer-sync-rejected', onRejected);
+    return () => {
+      window.removeEventListener('timer-sync-confirmed', handler);
+      window.removeEventListener('timer-sync-rejected', onRejected);
+    };
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────
