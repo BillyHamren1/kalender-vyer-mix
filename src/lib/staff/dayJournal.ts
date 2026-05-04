@@ -127,6 +127,12 @@ export interface RawTravelLog {
   end_iso: string | null;
   hours: number;
   to_address: string | null;
+  from_address?: string | null;
+  from_latitude?: number | null;
+  from_longitude?: number | null;
+  to_latitude?: number | null;
+  to_longitude?: number | null;
+  destination_booking_id?: string | null;
 }
 
 export interface RawWorkday {
