@@ -286,9 +286,9 @@ export default function PackingCalendarView({ packings }: Props) {
                       key={e.id}
                       onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                       className={cn(
-                        "text-xs px-2 py-1.5 rounded cursor-pointer transition-colors",
-                        KIND_COLORS[e.kind]
+                        "text-xs px-2 py-1.5 rounded cursor-pointer transition-colors hover:brightness-95"
                       )}
+                      style={kindStyle(e.kind)}
                       title={`${KIND_LABELS[e.kind]} • ${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                     >
                       <div className="font-medium truncate">
