@@ -84,7 +84,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     const parsed = parseScanResult(scannedValue);
     const normalised = scannedValue.trim().toLowerCase();
 
-    if (parsed.unique && scannedThisSessionRef.current.has(normalised)) {
+    // Skip session dedup entirely in minus mode — the user is intentionally
+    // re-scanning a unique code to remove it.
+    const isMinus = optRef.current.getIsMinusMode();
+
+    if (!isMinus && parsed.unique && scannedThisSessionRef.current.has(normalised)) {
       scanLog('scan_ignored_duplicate_session', { value: scannedValue, type: parsed.type });
       optRef.current.onScanResult({
         value: scannedValue,
@@ -102,7 +106,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       if (queueRef.current.length > 0) processNext();
       return;
     }
-    if (parsed.unique) {
+    if (!isMinus && parsed.unique) {
       scannedThisSessionRef.current.add(normalised);
     }
 
