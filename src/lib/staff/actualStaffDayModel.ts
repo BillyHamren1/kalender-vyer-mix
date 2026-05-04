@@ -349,13 +349,26 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     if (SYNTHETIC_SOURCES.has(src)) {
       return { synthetic: true, reason: `Stoppad av ${src} (ej användarstopp).` };
     }
-    // Clamped to ~end-of-day (23:5x lokalt)
+    // Clamped to ~end-of-day. Check BOTH raw ISO string (HH:MM as stored)
+    // och lokal tid + UTC, eftersom exited_at kan ligga som UTC-ISO som råkar
+    // vara 22:59Z/23:59Z för svensk dygnsslut. Vi vill aldrig kalla det "bekräftat
+    // stopp".
     try {
+      const iso = String(e.exited_at);
+      const m = iso.match(/T(\d{2}):(\d{2})/);
+      const rawHH = m ? Number(m[1]) : -1;
+      const rawMM = m ? Number(m[2]) : -1;
       const d = new Date(e.exited_at);
-      const hh = d.getHours();
-      const mm = d.getMinutes();
-      if (hh === 23 && mm >= 55) {
-        return { synthetic: true, reason: 'Slut clampat till dygnsslut (23:5x).' };
+      const localHH = d.getHours(); const localMM = d.getMinutes();
+      const utcHH = d.getUTCHours(); const utcMM = d.getUTCMinutes();
+      const isEndOfDay = (hh: number, mm: number) =>
+        (hh === 23 && mm >= 55) || (hh === 0 && mm === 0);
+      if (
+        isEndOfDay(rawHH, rawMM) ||
+        isEndOfDay(localHH, localMM) ||
+        isEndOfDay(utcHH, utcMM)
+      ) {
+        return { synthetic: true, reason: 'Slut clampat till dygnsslut (~23:5x).' };
       }
     } catch { /* ignore */ }
     // Last GPS ping is much earlier than exit
