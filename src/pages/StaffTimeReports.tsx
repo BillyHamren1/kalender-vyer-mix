@@ -92,6 +92,8 @@ interface StaffWithDayReport {
    * är ofullständig och inte tolkar tystnaden som "signal tappad".
    */
   pingsTruncated: boolean;
+  /** Senaste GPS-fetchfel för dagen (om något), så UI kan varna istället för att tolka tomheten som "inga händelser". */
+  pingsFetchError: string | null;
 }
 
 /**
@@ -107,7 +109,7 @@ async function fetchAllPingsForStaff(
   staffId: string,
   dayStartIso: string,
   nextDayIso: string,
-): Promise<{ rows: any[]; truncated: boolean }> {
+): Promise<{ rows: any[]; truncated: boolean; error: string | null }> {
   const out: any[] = [];
   let from = 0;
   while (out.length < PER_STAFF_PING_CAP) {
@@ -121,17 +123,18 @@ async function fetchAllPingsForStaff(
       .order('recorded_at', { ascending: true })
       .range(from, to);
     if (error) {
-      // Non-fatal: returnera det vi har (dagen får aldrig bli tom).
-      return { rows: out, truncated: false };
+      // Non-fatal: returnera det vi har men markera fel så UI kan visa
+      // varning istället för att tolka tomheten som "inga händelser".
+      return { rows: out, truncated: false, error: error.message || 'GPS-fetch misslyckades' };
     }
     const batch = data || [];
     out.push(...batch);
     if (batch.length < PING_PAGE_SIZE) {
-      return { rows: out, truncated: false };
+      return { rows: out, truncated: false, error: null };
     }
     from += PING_PAGE_SIZE;
   }
-  return { rows: out.slice(0, PER_STAFF_PING_CAP), truncated: true };
+  return { rows: out.slice(0, PER_STAFF_PING_CAP), truncated: true, error: null };
 }
 
 // Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
@@ -248,6 +251,7 @@ const StaffTimeReports: React.FC = () => {
       // för att kunna paginera komplett utan global limit.
       let historyPings: any[] = [];
       const pingsTruncatedByStaff = new Map<string, boolean>();
+      const pingsErrorByStaff = new Map<string, string>();
       const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
       const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
 
@@ -818,8 +822,9 @@ const StaffTimeReports: React.FC = () => {
       // om vi når taket så UI kan visa en varning.
       const perStaffPings = await Promise.all(
         staffIds.map(async (id) => {
-          const { rows, truncated } = await fetchAllPingsForStaff(id, dayStartIso, nextDayIso);
+          const { rows, truncated, error } = await fetchAllPingsForStaff(id, dayStartIso, nextDayIso);
           if (truncated) pingsTruncatedByStaff.set(id, true);
+          if (error) pingsErrorByStaff.set(id, error);
           return rows;
         }),
       );
@@ -1161,6 +1166,7 @@ const StaffTimeReports: React.FC = () => {
             canonical,
             actualModel,
             pingsTruncated: pingsTruncatedByStaff.get(s.id) === true,
+            pingsFetchError: pingsErrorByStaff.get(s.id) || null,
           };
         })
         .sort((a, b) => {
