@@ -119,7 +119,8 @@ const StaffTimeReports: React.FC = () => {
       { table: 'location_time_entries', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'workdays', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'staff_locations', events: ['INSERT', 'UPDATE'] },
-    ],
+      { table: 'assistant_events', events: ['INSERT', 'UPDATE', 'DELETE'] },
+      { table: 'workday_flags', events: ['INSERT', 'UPDATE', 'DELETE'] },
     queryKeys: [['staff-time-reports-day', dateStr]],
     debounceMs: 400,
   });
