@@ -638,7 +638,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     }
     return {
       key: v.placeKey,
-      label: v.knownSite?.name ?? `Okänd plats nära ${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`,
+      label: v.knownSite?.name ?? 'Okänd plats',
       knownSiteId: v.knownSite?.id ?? null,
       centre: v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng },
       start: v.start,

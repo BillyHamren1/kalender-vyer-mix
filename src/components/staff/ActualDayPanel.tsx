@@ -296,7 +296,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     const key = `${c.lat.toFixed(3)},${c.lng.toFixed(3)}`;
     const geo = geoByKey.get(key) ?? null;
     if (geo) return { label: geo.label, geo };
-    return { label: `nära ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`, geo: null };
+    // Aldrig råa koordinater i huvudjournalen — koordinater hör till debug/expand.
+    return { label: 'Okänd plats – adress saknas', geo: null };
   };
 
   // Indexera actualVisits per placeKey för knownSiteId + durationMin.

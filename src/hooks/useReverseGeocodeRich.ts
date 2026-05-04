@@ -56,13 +56,19 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
       ? (addr.place_name?.split(',').slice(0, 2).join(',').trim() ?? null)
       : null;
 
+    // Label-prioritet: POI+ort → adress → område/ort → första feature-namn.
+    // Koordinater används ALDRIG som label — det hör hemma i debug, inte huvudjournal.
     let label: string;
     if (poiName && place && poiName !== place) label = `${poiName}, ${place}`;
+    else if (poiName) label = poiName;
     else if (addressLine) label = addressLine;
-    else label =
-      features[0].place_name?.split(',').slice(0, 2).join(',').trim()
-      ?? features[0].text
-      ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    else if (place) label = place;
+    else {
+      const firstName = features[0]?.place_name?.split(',').slice(0, 2).join(',').trim()
+        ?? features[0]?.text
+        ?? null;
+      label = firstName || 'Okänd plats – adress saknas';
+    }
 
     return {
       label,
