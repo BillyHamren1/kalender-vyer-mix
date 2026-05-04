@@ -639,6 +639,24 @@ export const mobileApi = {
   getLocationTimeEntries: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
     callApi<{ entries: any[] }>('get_location_time_entries', data),
 
+  getActiveDayState: () =>
+    callApi<{
+      workday: { id: string; started_at: string; ended_at: string | null; review_status: string | null } | null;
+      open_entries: Array<{
+        id: string;
+        target_kind: 'location' | 'booking' | 'large_project' | 'unknown';
+        target_id: string | null;
+        target_label: string;
+        entered_at: string;
+        source: string | null;
+      }>;
+      latest_ping: { latitude: number | null; longitude: number | null; accuracy: number | null; updated_at: string } | null;
+      latest_ping_age_ms: number | null;
+      stale_ping: boolean;
+      anomalies: any[];
+      server_time: string;
+    }>('get_active_day_state', {}),
+
   // ===== Anomalies (background absence tracking) =====
   startAnomaly: (data: { location_id?: string; booking_id?: string; large_project_id?: string; started_at?: string }) =>
     callApi<{ success: boolean; anomaly: any; already_open?: boolean }>('start_anomaly', data),

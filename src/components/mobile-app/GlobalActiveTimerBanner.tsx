@@ -18,6 +18,9 @@ import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { extractUTCTime } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
+import { useActiveDayState, type ActiveDayOpenEntry } from '@/hooks/useActiveDayState';
+type ActiveDayOpenEntryLite = ActiveDayOpenEntry;
+import { AlertTriangle, RefreshCw, WifiOff } from 'lucide-react';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
@@ -108,6 +111,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // banner immediately (no localStorage polling lag for new timers).
   const { activeTimers } = useGeofencingContext();
   const timers = activeTimers;
+  const { state: activeDayState, refresh: refreshActiveDayState } = useActiveDayState();
   const [, setTick] = useState(0);
   const [pendingStop, setPendingStop] = useState<PendingStop | null>(null);
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
@@ -411,10 +415,76 @@ const GlobalActiveTimerBanner: React.FC = () => {
 
   if (location.pathname === '/m/report') return null;
 
+  // ── Server vs local divergence hints ────────────────────────────────
+  // Build a set of local timer keys for fast lookup against the server
+  // snapshot. We treat "the same activity" as the same target_kind+id.
+  const localKeySet = new Set<string>(Array.from(timers.keys()));
+  const serverOpenEntries = activeDayState?.open_entries ?? [];
+
+  const serverKeyFor = (e: ActiveDayOpenEntryLite): string | null => {
+    if (e.target_kind === 'location' && e.target_id) return `location-${e.target_id}`;
+    if (e.target_kind === 'large_project' && e.target_id) return `project-${e.target_id}`;
+    if (e.target_kind === 'booking' && e.target_id) return e.target_id;
+    return null;
+  };
+
+  // Server has it open, but our local map doesn't → show recovery row.
+  const serverOnlyEntries = serverOpenEntries.filter((e) => {
+    const k = serverKeyFor(e);
+    return !!k && !localKeySet.has(k);
+  });
+
+  // Local says timer is running, but server has no matching open LTE
+  // → likely a pending-sync race. Mark explicitly (not as confirmed run).
+  const localOnlyKeys: string[] = [];
+  for (const [key, timer] of timers.entries()) {
+    // Only flag confirmed activity timers (not pendingSync ones — those
+    // are already styled as "syncing"). And only flag if at least one
+    // server fetch has completed.
+    if (!activeDayState) continue;
+    if ((timer as any).serverEntryId) continue; // we know server side
+    const matched = serverOpenEntries.some((e) => serverKeyFor(e) === key);
+    if (!matched) localOnlyKeys.push(key);
+  }
+
+  const stalePing = !!activeDayState?.stale_ping && !!activeDayState?.workday;
+
   return (
     <>
-      {timers.size > 0 && (
+      {(timers.size > 0 || serverOnlyEntries.length > 0 || stalePing) && (
         <div className="relative z-20 px-5 pt-3 space-y-2">
+          {stalePing && (
+            <div className="flex items-center gap-2 p-2 rounded-xl border border-warning/40 bg-warning/10 text-xs">
+              <WifiOff className="w-3.5 h-3.5 text-warning shrink-0" />
+              <span className="flex-1">
+                {'Signal tappad — arbetsdagen fortsätter, kontrollera status.'}
+              </span>
+            </div>
+          )}
+          {serverOnlyEntries.map((e) => (
+            <div
+              key={`server-only-${e.id}`}
+              className="flex items-center gap-2 p-3 rounded-2xl border border-primary/30 bg-primary/5 text-xs"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-primary shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold truncate">
+                  Aktiv på servern: {e.target_label}
+                </p>
+                <p className="opacity-70 truncate">
+                  Startad {extractUTCTime(e.entered_at)} · återställs lokalt…
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-lg text-[11px]"
+                onClick={() => { void refreshActiveDayState(); }}
+              >
+                <RefreshCw className="w-3 h-3" />
+              </Button>
+            </div>
+          ))}
           {Array.from(timers.entries()).map(([key, timer]) => (
             <TimerRow
               key={key}
@@ -422,6 +492,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
               timer={timer}
               isSaving={savingKeys.has(key)}
               onStop={handleStop}
+              syncProblem={localOnlyKeys.includes(key)}
             />
           ))}
         </div>
@@ -477,7 +548,8 @@ const TimerRow: React.FC<{
   timer: ActiveTimer;
   isSaving: boolean;
   onStop: (key: string, timer: ActiveTimer) => void;
-}> = ({ timerKey, timer, isSaving, onStop }) => {
+  syncProblem?: boolean;
+}> = ({ timerKey, timer, isSaving, onStop, syncProblem = false }) => {
   const elapsed = differenceInSeconds(new Date(), parseISO(timer.startTime));
   const h = Math.floor(elapsed / 3600);
   const m = Math.floor((elapsed % 3600) / 60);
@@ -504,7 +576,10 @@ const TimerRow: React.FC<{
   };
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-2xl border border-primary/20 bg-primary/5">
+    <div className={cn(
+      'flex items-center gap-3 p-3 rounded-2xl border',
+      syncProblem ? 'border-warning/40 bg-warning/10' : 'border-primary/20 bg-primary/5'
+    )}>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5">
           {isLocation && <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />}
@@ -513,6 +588,7 @@ const TimerRow: React.FC<{
         <p className="text-xs text-muted-foreground mt-0.5">
           Startad {extractUTCTime(timer.startTime)}
           {timer.isAutoStarted && ' (automatiskt)'}
+          {syncProblem && ' · synkproblem — server saknar rad'}
         </p>
       </div>
       <div className="font-mono font-extrabold text-base tabular-nums text-primary">
