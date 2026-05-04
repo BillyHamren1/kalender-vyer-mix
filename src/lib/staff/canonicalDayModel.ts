@@ -113,6 +113,8 @@ export interface BuildCanonicalDayInput {
   activeTimers?: CanonicalActiveTimerInput[];
   travelSuggestions?: CanonicalTravelSuggestionInput[];
   gpsEvidence?: CanonicalGpsEvidenceInput | null;
+  /** Latest GPS ping for the staff (used for stale-signal detection). */
+  latestPing?: CanonicalLatestPingInput | null;
   /** Test-injectable clock. */
   now?: Date;
 }
@@ -122,38 +124,24 @@ export interface CanonicalStaffDayModel {
   workdayEnd: string | null;
   isWorkdayOpen: boolean;
   workdayMinutes: number;
-  /** Sum of `breakHours` on the included distribution rows. */
   breakMinutes: number;
-  /** workdayMinutes − breakMinutes. NEVER negative. The "lönegrundande" total. */
   payableMinutes: number;
-  /** Sum of distribution rows (excluding subdivisions and breaks). */
   distributedMinutes: number;
-  /** payableMinutes − distributedMinutes. Positive = under-distributed.
-   *  Zero when payable is 0. */
   undistributedMinutes: number;
-  /** distributedMinutes − payableMinutes. Positive = over-distributed
-   *  (more reported than the workday allows). */
   overDistributedMinutes: number;
-  /** Hours on travel_time_logs that are NOT approved yet. */
   suggestedTravelMinutes: number;
-  /** Hours on travel_time_logs that have been promoted (already counted
-   *  among distributionRows when emitted as time_reports). */
   approvedTravelMinutes: number;
-  activeTimerRows: ReadonlyArray<CanonicalActiveTimerInput>;
+  /** Sum of running minutes for OPEN timers — never paid until closed. */
+  activeTimerMinutes: number;
+  /** True when at least one open timer's last GPS ping is stale. */
+  hasSignalLost: boolean;
+  activeTimerRows: ReadonlyArray<CanonicalActiveTimerRow>;
   distributionRows: ReadonlyArray<CanonicalDistributionRowInput>;
   travelSuggestions: ReadonlyArray<CanonicalTravelSuggestionInput>;
   gpsEvidence: CanonicalGpsEvidenceInput | null;
+  latestPingAgeMin: number | null;
   anomalies: ReadonlyArray<CanonicalAnomaly>;
-  /** True when the day cannot be auto-approved as-is. */
   reviewRequired: boolean;
-  /**
-   * Coarse status verb for the day:
-   *  - 'no_workday'           → reports exist but no workday envelope.
-   *  - 'requires_distribution'→ payable > distributed by a meaningful margin.
-   *  - 'over_reported'        → distributed > payable.
-   *  - 'open'                 → workday still running.
-   *  - 'ok'                   → balanced.
-   */
   status:
     | 'no_workday'
     | 'requires_distribution'
