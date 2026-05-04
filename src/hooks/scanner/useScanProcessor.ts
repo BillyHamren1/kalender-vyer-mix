@@ -4,6 +4,7 @@ import {
   verifyProductBySku,
   parseScanResult,
   decrementPackingItem,
+  decrementBySerial,
   togglePackingItemManually,
   addUnknownProduct,
 } from '@/services/scannerService';
