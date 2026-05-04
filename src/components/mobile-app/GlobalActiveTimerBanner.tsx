@@ -110,6 +110,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // banner immediately (no localStorage polling lag for new timers).
   const { activeTimers } = useGeofencingContext();
   const timers = activeTimers;
+  const { state: activeDayState, refresh: refreshActiveDayState } = useActiveDayState();
   const [, setTick] = useState(0);
   const [pendingStop, setPendingStop] = useState<PendingStop | null>(null);
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
