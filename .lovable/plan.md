@@ -1,83 +1,48 @@
-## Mål
+## Vad som händer
 
-Göra scannervyn (`VerificationView` + `QRScanner` i compact-läge) till en stabil "appkänsla" istället för en scrollande webbsida:
+Två saker att fixa i mobilappen:
 
-1. **Kameran sitter fast överst** — inget scrollar förbi den.
-2. **Bara skanningszonen visas** — resten av kamerabilden beskärs bort så användaren ser exakt det som faktiskt analyseras.
-3. **Direkt under kameran**: vad som händer nu (senaste scan + status).
-4. **Under det**: packlistan, som är det enda som scrollar.
-5. Manuell input + zoom flyttas till en kompakt rad, inte ett stort fält som tar halva skärmen.
+### 1. "Overview"-fliken i bottennavigationen
+Planners (du) får en extra flik `/m/overview` ("Översikt") längst till höger i `MobileBottomNav`. Du vill ta bort den.
 
-## Ny layout (mobile)
+### 2. Felaktigt "Stale timer found" på en helt färsk timer
+Du startade en location-timer på FA Warehouse 13:30. Klockan 13:38 (8 min senare) säger appen att timern är "older than 24 hours". Det är fel.
 
-```text
-┌─────────────────────────────────┐
-│ ← 11 - TEST - !!         ⟳     │  Header (fixed, kompakt)
-├─────────────────────────────────┤
-│ Barcode • RFID • 1/1 100%  − Cam│  En rad: status + actions
-├─────────────────────────────────┤
-│                                 │
-│      [ KAMERAVY — BESKUREN ]    │  Fast höjd ~38vh, visar
-│        ┌─────────────┐          │  endast scan-fyrkanten
-│        │             │          │  (object-fit + scale så
-│        │   skannar   │          │  scan-rutan fyller hela)
-│        │             │          │
-│        └─────────────┘          │
-│  [zoom −  ▬▬●▬▬  + 2.0x] [💡]  │  Tunn zoom/torch-rad
-├─────────────────────────────────┤
-│ ✅ FACE...2301  Removed 1 pc    │  Live status (1 rad)
-├─────────────────────────────────┤
-│ PRODUCT                  PACKED │
-│ ✓ SCANTESTQR              1/1   │  Packlistan — ENDA
-│ ...                             │  som scrollar
-│ ...                             │
-└─────────────────────────────────┘
-│ [Manuell kod ____________ ➤]    │  Tunn input längst ner
-└─────────────────────────────────┘
-```
+**Rotorsak** (i `src/hooks/useTimerReconciliation.ts`):
+- För **location-timers** kollar reconciliation OM det finns en matchande **öppen** `location_time_entry` på servern.
+- Om servern inte returnerar en matchande öppen post → timern flaggas direkt som `isStale: 'no_server_match'`, oavsett ålder.
+- `StaleTimerDialog` visar däremot alltid copy:n "older than 24 hours…" — vilket är direkt missvisande för `no_server_match`-fallet.
+- Race-möjligheter som triggar detta för en färsk timer:
+  - Server-entryt har inte hunnit skapas/synkas (pending sync queue) när reconcile körs (initial reconcile sker 4s efter mount, plus vid varje window focus).
+  - Edge-functionens `getLocationTimeEntries` returnerar inte den nystartade posten (filter, paginering, eller staff_id/org-mismatch).
+  - Posten stängdes på servern av watchdog/EOD utan att lokal timer rensades.
+
+Oavsett orsak ska reconciliation **inte** flagga en location-timer som stale bara för att server-listan saknar den om timern är yngre än `STALE_AGE_MS` (24h). Annars är dialogens 24h-text en lögn.
 
 ## Ändringar
 
-### 1. `src/components/scanner/VerificationView.tsx` (normal-läget, raderna ~466–654)
-- Gör rotcontainern till `flex flex-col h-[100dvh]` (full viewport-höjd, ingen sidscroll).
-- **Top-block (fixed, shrink-0)**: header + en sammanslagen status/action-rad (ScannerModeIndicator + RFID + progress + Minus/Camera/Parcel/QR/Log packas tätare; t.ex. RFID kollapsar till en liten ikon-pill när ansluten, expanderbar vid problem).
-- **Kamerablock (fixed, shrink-0)**: alltid monterad `<QRScanner compact tight />` (ny prop `tight`) — ingen toggle "Camera"-knapp behövs eftersom den alltid syns. "Camera"-knappen tas bort eller blir bara en starta/återinitiera-knapp om kameran failat.
-- **Status-rad (shrink-0)**: senaste scan-resultat (`lastScanResult`) — kompakt 1-rads version (ikon + namn + result), inte den nuvarande tjocka pillen.
-- **Scrollblock (flex-1, overflow-y-auto)**: endast packlistan. Tar bort de hårdkodade `maxHeight: calc(100vh - …)`-räkningarna; flex-layouten löser det automatiskt.
-- Den separata "Recent scans"-panelen blir en bottom-sheet/dialog som öppnas via Log-knappen — den ska inte trycka ned listan.
+### A. `src/components/mobile-app/MobileBottomNav.tsx`
+- Ta bort `plannerTab` (`/m/overview`) och planner-villkoret. Alla får samma 4 flikar: Jobs, Time, Messages, Tools.
+- Ta bort oanvänd `LayoutGrid`-import och `useMobileRoles`.
 
-### 2. `src/components/scanner/QRScanner.tsx` — ny `tight`-mode
-Lägg till prop `tight?: boolean` (används tillsammans med `compact`).
+(Routen `/m/overview` lämnas kvar i routern för deep-links, men är inte längre i navigationen. Vill du att jag tar bort routen helt också, säg till.)
 
-När `tight`:
-- Headern (titel + X) tas bort helt — föräldern äger redan headern.
-- Manuell input flyttas till en **liten överlay nere i kameran** (en knapp "⌨ Manuell" som öppnar en mini-dialog), istället för det stora svarta fältet som tar ~150px.
-- **Beskärningen av kamerabilden**: lägg en wrapper runt `<video>` som är fast t.ex. `aspect-[4/3]` eller fast höjd `38vh`, och skala videoelementet så att den 64×64-skanningsrutan fyller hela synliga ytan:
-  ```
-  <div className="relative overflow-hidden" style={{height: '38vh'}}>
-    <video className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-           style={{ width: '155%', height: '155%', objectFit: 'cover' }} />
-    {/* skanningsruta-overlay som idag, men fyller nu nästan hela vyn */}
-  </div>
-  ```
-  Skalfaktorn (~1.55) matchar nuvarande `cropFactor` (0.62 på iOS / 0.72 övriga) så att det användaren ser = exakt det som skickas till `BarcodeDetector`. (Detektor-cropet i `runScanLoop` rörs inte — bara visningen.)
-- Skanningsfyrkant-overlay görs större (fyller ~90% av synlig kamera) och behåller hörn-markörer + scan-line.
-- Zoom-controls görs till en tunn rad direkt under kameran (inte gradient över halva bilden), torch som ikon i samma rad.
+### B. `src/hooks/useTimerReconciliation.ts` — gör stale-flagging ärlig
+- För **location-timers**: flagga endast som stale när **både** `!openByLocation.has(key)` **och** `isOld` (>24h). Yngre timers utan server-match lämnas i fred — nästa reconcile-cykel försöker igen.
+- Bibehåll `staleReason: 'no_server_match'` när det är relevant, annars `'age'`.
+- Detta löser det aktuella fallet: 8-min-gammal FA Warehouse-timer flaggas inte längre.
 
-### 3. Borttagna saker
-- "Camera"-knappen i action-raden (kameran är alltid på).
-- Det nedre stora "Or enter code manually"-blocket i `compact`-läget (ersatt av kompakt knapp/mini-dialog).
-- Hårdkodade `maxHeight: calc(100vh - 560px)` etc. — flex-layouten räknar själv.
+### C. `src/components/mobile-app/StaleTimerDialog.tsx` — ärlig copy
+- Gör body-texten beroende av `staleReason`:
+  - `age` → nuvarande "äldre än 24 timmar…"-text
+  - `no_server_match` → "Den här timern hittas inte på servern längre. Spara som tidrapport eller släng den."
+- Lägg till motsvarande i18n-nycklar (`staleTimer.bodyAge`, `staleTimer.bodyNoMatch`) i `src/i18n/translations.ts`. Behåll `staleTimer.body` som fallback.
 
-## Tekniska detaljer
+### D. Ingen serverändring krävs
+Reconciliation-edge-pathen (`mobile-app-api` → `getLocationTimeEntries`) rörs inte. Vi gör bara klient-logiken mindre aggressiv så att UX matchar verkligheten.
 
-- `100dvh` istället för `100vh` på roten så iOS Safari address-bar inte gör layouten större än skärmen.
-- `safe-area-inset-top/bottom` respekteras på header och eventuell bottom-input.
-- Inga ändringar i scan-pipelinen (`useScanProcessor`, `scannerService`, `scanner-api` edge function) — alla nyliga WMS-fixar bevaras.
-- Kolli-läget (raderna 387–462) får samma layout-behandling i en följdsteg om du vill — denna plan fokuserar på normal-vyn som är den du visat.
+## Verifiering
 
-## Filer som ändras
-- `src/components/scanner/VerificationView.tsx` — layout-omstruktur, ta bort Camera-toggle, kompakt status-rad.
-- `src/components/scanner/QRScanner.tsx` — ny `tight`-mode (beskuren video, ingen header, mini manuell input, kompakt zoom/torch).
-
-Inga DB-ändringar, inga edge function-ändringar.
+1. Starta en location-timer → ingen stale-dialog inom 24h även om reconcile råkar köra innan server-svaret hunnit fram.
+2. En genuint gammal övergiven timer (>24h) får fortfarande dialogen, men med korrekt text.
+3. Bottennavigationen visar exakt 4 flikar för planner-roller (samma som icke-planner).

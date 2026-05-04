@@ -76,8 +76,10 @@ export function useTimerReconciliation(enabled: boolean) {
         const isOld = ageMs > STALE_AGE_MS;
         const isLocationTimer = key.startsWith('location-');
 
-        // Location timer: must have a matching open server entry
-        if (isLocationTimer && !openByLocation.has(key)) {
+        // Location timer: only flag when missing on server AND >24h old.
+        // Yngre timers utan server-match kan bero på pending sync / race och
+        // ska inte trigga "stale" — nästa reconcile-cykel försöker igen.
+        if (isLocationTimer && !openByLocation.has(key) && isOld) {
           if (!timer.isStale) {
             next.set(key, { ...timer, isStale: true, staleReason: 'no_server_match' });
             mutated = true;

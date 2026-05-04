@@ -62,7 +62,11 @@ export const StaleTimerDialog: React.FC<StaleTimerDialogProps> = ({
               {t('staleTimer.startedLabel', { date: startedLabel })}
             </span>
             <span className="block text-sm">
-              {t('staleTimer.body')}
+              {first.timer.staleReason === 'no_server_match'
+                ? t('staleTimer.bodyNoMatch')
+                : first.timer.staleReason === 'age'
+                  ? t('staleTimer.bodyAge')
+                  : t('staleTimer.body')}
             </span>
             {remaining > 0 && (
               <span className="block text-xs text-muted-foreground">
