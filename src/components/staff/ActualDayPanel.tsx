@@ -154,8 +154,8 @@ const sourceTagFor = (ev: ActualEvent): string => {
     case 'gps_arrival':
     case 'gps_departure':
     case 'gps_visit':
-      if (lookupSource === 'mapbox') return 'GPS / adressuppslag';
-      if (lookupSource === 'fallback') return 'GPS / okänd';
+      if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'GPS / adressuppslag';
+      if (lookupSource === 'fallback' || lookupSource === 'pending_lookup') return 'GPS / okänd';
       return 'GPS';
     case 'gps_travel':
       return 'GPS/travel';
