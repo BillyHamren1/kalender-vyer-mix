@@ -49,8 +49,19 @@ export interface CanonicalActiveTimerInput {
   id: string;
   startedAt: string;
   label: string;
+  /** 'time_report' | 'location_entry' | 'travel' — drives icon/label. */
+  source: 'time_report' | 'location_entry' | 'travel';
   /** Already saved as a time_report? Then it is NOT pending. */
   reportedAsDistribution?: boolean;
+}
+
+export interface CanonicalActiveTimerRow extends CanonicalActiveTimerInput {
+  /** Minutes since the timer started (capped at "now"). */
+  runningMinutes: number;
+  /** True when the latest GPS ping is older than the stale threshold. */
+  signalLost: boolean;
+  /** Last ping age in minutes, or null when never pinged. */
+  lastPingAgeMin: number | null;
 }
 
 export interface CanonicalTravelSuggestionInput {
@@ -63,6 +74,10 @@ export interface CanonicalTravelSuggestionInput {
   /** True when this travel has been promoted to a confirmed
    *  distribution (e.g. attached to a time_report). */
   approved?: boolean;
+  /** travel_time_logs.auto_detected — geofence/movement-detected. */
+  autoDetected?: boolean;
+  /** travel_time_logs.source — 'gap_derived' = inferred from time gaps. */
+  sourceTag?: string | null;
 }
 
 export interface CanonicalGpsEvidenceInput {
@@ -72,11 +87,17 @@ export interface CanonicalGpsEvidenceInput {
   placesVisited: number;
 }
 
+/** Latest GPS ping for the staff member (used to detect "tappad signal"). */
+export interface CanonicalLatestPingInput {
+  updatedAt: string | null;
+}
+
 export type CanonicalAnomalyKind =
   | 'workday_missing_but_reports_exist'
   | 'over_distributed'
   | 'large_undistributed'
-  | 'workday_open_stale';
+  | 'workday_open_stale'
+  | 'open_timer_signal_lost';
 
 export interface CanonicalAnomaly {
   kind: CanonicalAnomalyKind;
@@ -92,6 +113,8 @@ export interface BuildCanonicalDayInput {
   activeTimers?: CanonicalActiveTimerInput[];
   travelSuggestions?: CanonicalTravelSuggestionInput[];
   gpsEvidence?: CanonicalGpsEvidenceInput | null;
+  /** Latest GPS ping for the staff (used for stale-signal detection). */
+  latestPing?: CanonicalLatestPingInput | null;
   /** Test-injectable clock. */
   now?: Date;
 }
@@ -101,38 +124,24 @@ export interface CanonicalStaffDayModel {
   workdayEnd: string | null;
   isWorkdayOpen: boolean;
   workdayMinutes: number;
-  /** Sum of `breakHours` on the included distribution rows. */
   breakMinutes: number;
-  /** workdayMinutes − breakMinutes. NEVER negative. The "lönegrundande" total. */
   payableMinutes: number;
-  /** Sum of distribution rows (excluding subdivisions and breaks). */
   distributedMinutes: number;
-  /** payableMinutes − distributedMinutes. Positive = under-distributed.
-   *  Zero when payable is 0. */
   undistributedMinutes: number;
-  /** distributedMinutes − payableMinutes. Positive = over-distributed
-   *  (more reported than the workday allows). */
   overDistributedMinutes: number;
-  /** Hours on travel_time_logs that are NOT approved yet. */
   suggestedTravelMinutes: number;
-  /** Hours on travel_time_logs that have been promoted (already counted
-   *  among distributionRows when emitted as time_reports). */
   approvedTravelMinutes: number;
-  activeTimerRows: ReadonlyArray<CanonicalActiveTimerInput>;
+  /** Sum of running minutes for OPEN timers — never paid until closed. */
+  activeTimerMinutes: number;
+  /** True when at least one open timer's last GPS ping is stale. */
+  hasSignalLost: boolean;
+  activeTimerRows: ReadonlyArray<CanonicalActiveTimerRow>;
   distributionRows: ReadonlyArray<CanonicalDistributionRowInput>;
   travelSuggestions: ReadonlyArray<CanonicalTravelSuggestionInput>;
   gpsEvidence: CanonicalGpsEvidenceInput | null;
+  latestPingAgeMin: number | null;
   anomalies: ReadonlyArray<CanonicalAnomaly>;
-  /** True when the day cannot be auto-approved as-is. */
   reviewRequired: boolean;
-  /**
-   * Coarse status verb for the day:
-   *  - 'no_workday'           → reports exist but no workday envelope.
-   *  - 'requires_distribution'→ payable > distributed by a meaningful margin.
-   *  - 'over_reported'        → distributed > payable.
-   *  - 'open'                 → workday still running.
-   *  - 'ok'                   → balanced.
-   */
   status:
     | 'no_workday'
     | 'requires_distribution'
@@ -147,6 +156,8 @@ const MS_PER_MIN = 60_000;
 const UNDISTRIBUTED_NOISE_MIN = 5;
 /** Open workday is "stale" after this many hours without an end. */
 const STALE_OPEN_WORKDAY_HOURS = 18;
+/** A timer is "tappad signal" when last GPS ping is older than this. */
+const STALE_PING_MIN = 10;
 
 const safeMs = (iso: string | null | undefined): number | null => {
   if (!iso) return null;
@@ -281,6 +292,38 @@ export function buildCanonicalStaffDayModel(
     });
   }
 
+  // ── Active timers + stale GPS detection ────────────────────────────
+  const lastPingMs = safeMs(input.latestPing?.updatedAt);
+  const latestPingAgeMin =
+    lastPingMs != null ? Math.max(0, Math.round((now - lastPingMs) / MS_PER_MIN)) : null;
+
+  const activeTimerRows: CanonicalActiveTimerRow[] = (input.activeTimers ?? []).map((t) => {
+    const startedMs = safeMs(t.startedAt);
+    const runningMinutes =
+      startedMs != null && now > startedMs ? minutesBetween(startedMs, now) : 0;
+    const signalLost =
+      latestPingAgeMin == null || latestPingAgeMin > STALE_PING_MIN;
+    return {
+      ...t,
+      runningMinutes,
+      signalLost,
+      lastPingAgeMin: latestPingAgeMin,
+    };
+  });
+  const activeTimerMinutes = activeTimerRows.reduce((s, r) => s + r.runningMinutes, 0);
+  const hasSignalLost = activeTimerRows.some((r) => r.signalLost);
+
+  if (hasSignalLost) {
+    const lostCount = activeTimerRows.filter((r) => r.signalLost).length;
+    anomalies.push({
+      kind: 'open_timer_signal_lost',
+      severity: 'warning',
+      label: 'Tappad signal',
+      detail: `${lostCount} pågående timer utan färsk GPS-ping (>${STALE_PING_MIN} min). Kräver granskning.`,
+      minutes: 0,
+    });
+  }
+
   let status: CanonicalStaffDayModel['status'] = 'ok';
   if (workdayMinutes === 0 && distributedMinutes > 0) status = 'no_workday';
   else if (overDistributedMinutes > 0) status = 'over_reported';
@@ -306,10 +349,13 @@ export function buildCanonicalStaffDayModel(
     overDistributedMinutes,
     suggestedTravelMinutes,
     approvedTravelMinutes,
-    activeTimerRows: input.activeTimers ?? [],
+    activeTimerMinutes,
+    hasSignalLost,
+    activeTimerRows,
     distributionRows: realRows,
     travelSuggestions: travel,
     gpsEvidence: input.gpsEvidence ?? null,
+    latestPingAgeMin,
     anomalies,
     reviewRequired,
     status,

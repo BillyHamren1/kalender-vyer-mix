@@ -103,3 +103,53 @@ describe('buildCanonicalStaffDayModel', () => {
     expect(m.anomalies.some(a => a.kind === 'workday_open_stale')).toBe(true);
   });
 });
+
+import { describe as d2, it as i2, expect as e2 } from 'vitest';
+import { buildCanonicalStaffDayModel as build2 } from '../canonicalDayModel';
+
+d2('canonical — workday utan time_reports', () => {
+  i2('09:00–21:00 utan reports → payable=720, undistributed=720, requires_distribution', () => {
+    const m = build2({
+      workdays: [{ started_at: '2026-05-04T09:00:00+02:00', ended_at: '2026-05-04T21:00:00+02:00' }],
+      distributionRows: [],
+      now: new Date('2026-05-04T22:00:00+02:00'),
+    });
+    e2(m.workdayMinutes).toBe(720);
+    e2(m.payableMinutes).toBe(720);
+    e2(m.distributedMinutes).toBe(0);
+    e2(m.undistributedMinutes).toBe(720);
+    e2(m.status).toBe('requires_distribution');
+    e2(m.reviewRequired).toBe(true);
+    e2(m.anomalies.some(a => a.kind === 'large_undistributed')).toBe(true);
+  });
+
+  i2('öppen timer + GPS-ping >10 min → signalLost + open_timer_signal_lost anomaly', () => {
+    const NOW = new Date('2026-05-04T12:00:00Z');
+    const m = build2({
+      workdays: [{ started_at: '2026-05-04T08:00:00Z', ended_at: null }],
+      distributionRows: [],
+      activeTimers: [{ id: 't1', startedAt: '2026-05-04T11:00:00Z', label: 'Lager', source: 'location_entry' }],
+      latestPing: { updatedAt: '2026-05-04T11:30:00Z' }, // 30 min ago
+      now: NOW,
+    });
+    e2(m.activeTimerRows[0].signalLost).toBe(true);
+    e2(m.activeTimerRows[0].lastPingAgeMin).toBe(30);
+    e2(m.hasSignalLost).toBe(true);
+    e2(m.anomalies.some(a => a.kind === 'open_timer_signal_lost')).toBe(true);
+  });
+
+  i2('auto_detected travel räknas som suggested, inte payable', () => {
+    const m = build2({
+      workdays: [{ started_at: '2026-05-04T08:00:00Z', ended_at: '2026-05-04T16:00:00Z' }],
+      distributionRows: [{ id: 'r1', start: null, end: null, hours: 8, label: 'P', category: 'project' }],
+      travelSuggestions: [
+        { id: 'tv1', start: null, end: null, hours: 0.5, fromAddress: 'A', toAddress: 'B', autoDetected: true, sourceTag: 'gap_derived' },
+      ],
+      now: new Date('2026-05-04T17:00:00Z'),
+    });
+    e2(m.suggestedTravelMinutes).toBe(30);
+    e2(m.approvedTravelMinutes).toBe(0);
+    e2(m.payableMinutes).toBe(480);
+    e2(m.distributedMinutes).toBe(480);
+  });
+});

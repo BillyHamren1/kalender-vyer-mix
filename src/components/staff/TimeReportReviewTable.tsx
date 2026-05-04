@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Briefcase, Car, AlertTriangle, ChevronDown, ChevronRight, Pencil, Check,
-  Filter, Download, MapPin, Clock, CheckCircle2, Activity,
+  Filter, Download, MapPin, Clock, CheckCircle2, Activity, WifiOff,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -256,7 +256,78 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
         </div>
       </div>
 
-      {/* Table */}
+      {/* Pågående timers — visas separat och räknas ALDRIG som lönegrundande */}
+      {canonical && canonical.activeTimerRows.length > 0 && (
+        <div className="rounded-md border bg-muted/10 p-3 space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            <Activity className="h-3.5 w-3.5" />
+            Pågående timers · räknas inte som betald tid förrän stoppade
+          </div>
+          <ul className="space-y-1">
+            {canonical.activeTimerRows.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  {t.signalLost ? (
+                    <WifiOff className="h-3.5 w-3.5 text-destructive shrink-0" />
+                  ) : (
+                    <Activity className="h-3.5 w-3.5 text-primary shrink-0" />
+                  )}
+                  <span className="truncate">{t.label}</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    · start {toHHMM(t.startedAt)} · {formatHoursMinutes(t.runningMinutes / 60)}
+                  </span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] gap-1 ${t.signalLost ? 'border-destructive/40 text-destructive' : 'border-primary/30 text-primary'}`}
+                  title={t.signalLost
+                    ? `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}. Granska innan godkännande.`
+                    : `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}.`}
+                >
+                  {t.signalLost ? 'Pågår — signal tappad' : 'Pågår'}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Föreslagen restid — auto-detekterad / gap-derived. Räknas INTE
+          som lönegrundande förrän godkänd. */}
+      {canonical && canonical.travelSuggestions.some(t => !t.approved) && (
+        <div className="rounded-md border bg-muted/10 p-3 space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            <Car className="h-3.5 w-3.5" />
+            Föreslagen restid · kräver godkännande
+          </div>
+          <ul className="space-y-1">
+            {canonical.travelSuggestions.filter(t => !t.approved).map((t) => {
+              const reason = t.sourceTag === 'gap_derived'
+                ? 'Härledd från lucka mellan aktiviteter'
+                : t.autoDetected
+                  ? 'Auto-detekterad via GPS'
+                  : 'Förslag';
+              return (
+                <li key={t.id} className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Car className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="truncate">
+                      {t.fromAddress?.split(',')[0] ?? '—'} → {t.toAddress?.split(',')[0] ?? '—'}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums">
+                      · {toHHMM(t.start)}–{toHHMM(t.end)} · {formatHoursMinutes(t.hours)}
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary" title={reason}>
+                    Förslag
+                  </Badge>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {visible.length === 0 ? (
         <div className="text-sm text-muted-foreground py-6 text-center border rounded-md bg-muted/20">
           {entries.length === 0 ? 'Inga rapporter denna dag.' : 'Inga avvikelser med valt filter.'}

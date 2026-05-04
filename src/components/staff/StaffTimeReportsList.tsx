@@ -13,6 +13,7 @@ import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportR
 import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import type { DayMetrics } from '@/lib/staff/dayMetrics';
+import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 
 interface ProjectInfo {
   booking_id: string;
@@ -36,6 +37,7 @@ interface StaffWithDayReport {
   journal: StaffDayJournal;
   latestPing: LatestPing | null;
   metrics: DayMetrics;
+  canonical: CanonicalStaffDayModel;
 }
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
@@ -286,6 +288,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   staffId={staff.id}
                   work={work}
                   travel={travel}
+                  canonical={staff.canonical}
                 />
               </div>
             );
