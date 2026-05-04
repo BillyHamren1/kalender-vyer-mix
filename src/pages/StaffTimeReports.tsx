@@ -755,7 +755,27 @@ const StaffTimeReports: React.FC = () => {
             })),
           });
 
-          return {
+          const canonical = buildCanonicalStaffDayModel({
+            workdays: staffWorkdays.map(w => ({ started_at: w.started_at, ended_at: w.ended_at })),
+            distributionRows: staffReports.map(r => ({
+              id: r.id,
+              start: r.start_iso,
+              end: r.end_iso,
+              hours: r.hours,
+              breakHours: r.break_hours ?? 0,
+              label: r.label ?? '—',
+              category: r.location_id ? 'location' : r.large_project_id || r.booking_id ? 'project' : 'other',
+              approved: r.approved,
+            })),
+            travelSuggestions: staffTravel.map(t => ({
+              id: t.id,
+              start: t.start_iso,
+              end: t.end_iso,
+              hours: t.hours,
+              fromAddress: t.from_address ?? null,
+              toAddress: t.to_address ?? null,
+            })),
+          });
             id: s.id,
             name: s.name,
             role: s.role,
