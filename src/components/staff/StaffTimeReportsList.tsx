@@ -288,6 +288,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   staffId={staff.id}
                   work={work}
                   travel={travel}
+                  canonical={staff.canonical}
                 />
               </div>
             );
