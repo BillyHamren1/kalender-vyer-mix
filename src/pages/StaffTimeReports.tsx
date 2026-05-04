@@ -210,47 +210,6 @@ const StaffTimeReports: React.FC = () => {
           .select('id, staff_id, flag_type, severity, title, description, created_at, resolved')
           .eq('flag_date', dateStr),
       ]);
-        supabase
-          .from('time_reports')
-          .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
-          .eq('report_date', dateStr)
-          .eq('is_subdivision', false)
-          .or('source.is.null,source.neq.location_auto'),
-        supabase
-          .from('travel_time_logs')
-          .select('id, staff_id, hours_worked, start_time, end_time, to_address, from_address, from_latitude, from_longitude, to_latitude, to_longitude, destination_booking_id, auto_detected, source, approved')
-          .eq('report_date', dateStr),
-        supabase
-          .from('location_time_entries')
-          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
-          .eq('entry_date', dateStr),
-        supabase
-          .from('workdays')
-          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note')
-          .gte('started_at', dayStartIso)
-          .lt('started_at', nextDayIso),
-        supabase
-          .from('staff_locations')
-          .select('staff_id, latitude, longitude, updated_at, last_address, app_version, app_build, app_platform'),
-        // Faktisk dag: hela dagens GPS-historik (inte bara senaste pinget).
-        // Limit 5000 = ~3-4s ping-takt × 12h. Fler trimmas på klienten.
-        supabase
-          .from('staff_location_history')
-          .select('staff_id, lat, lng, accuracy, speed, recorded_at')
-          .gte('recorded_at', dayStartIso)
-          .lt('recorded_at', nextDayIso)
-          .order('recorded_at', { ascending: true })
-          .limit(5000),
-        supabase
-          .from('assistant_events')
-          .select('id, staff_id, event_type, target_type, target_id, target_label, suggested_action, happened_at, detected_at, resolved_at, resolution_status, metadata')
-          .gte('happened_at', dayStartIso)
-          .lt('happened_at', nextDayIso),
-        supabase
-          .from('workday_flags')
-          .select('id, staff_id, flag_type, severity, title, description, created_at, resolved')
-          .eq('flag_date', dateStr),
-      ]);
 
       if (reportsRes.error) throw reportsRes.error;
       if (travelRes.error) throw travelRes.error;
