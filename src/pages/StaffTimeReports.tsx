@@ -801,6 +801,7 @@ const StaffTimeReports: React.FC = () => {
             journal,
             latestPing: pingMap.get(s.id) || null,
             metrics,
+            canonical,
           };
         })
         .sort((a, b) => {
