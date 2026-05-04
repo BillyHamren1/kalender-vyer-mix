@@ -18,7 +18,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReprocessDayPreviewDialog, type ReprocessChoice } from './ReprocessDayPreviewDialog';
 import { toast } from 'sonner';
-import { useReverseGeocode } from '@/hooks/useReverseGeocode';
+import { useReverseGeocodeRich, type RichGeocode } from '@/hooks/useReverseGeocodeRich';
+import { inferActivityFromPlace } from '@/lib/staff/inferActivityFromPlace';
 import type {
   ActualEvent,
   ActualEventKind,
@@ -265,52 +266,104 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     return Array.from(seen.entries()).map(([key, c]) => ({ key, ...c }));
   }, [rawEvents]);
 
-  const geoLabels = useReverseGeocode(unknownCoords.map(c => ({ lat: c.lat, lng: c.lng })));
-  const labelByKey = useMemo(() => {
-    const m = new Map<string, string>();
+  const richGeo = useReverseGeocodeRich(unknownCoords.map(c => ({ lat: c.lat, lng: c.lng })));
+  const geoByKey = useMemo(() => {
+    const m = new Map<string, RichGeocode>();
     unknownCoords.forEach((c, i) => {
-      const lbl = geoLabels[i];
-      if (lbl) m.set(c.key, lbl);
+      const g = richGeo[i];
+      if (g) m.set(c.key, g);
     });
     return m;
-  }, [unknownCoords, geoLabels]);
+  }, [unknownCoords, richGeo]);
 
-  const resolveCoord = (c: { lat: number; lng: number } | null | undefined): string | null => {
+  const lookupCoord = (
+    c: { lat: number; lng: number } | null | undefined,
+  ): { label: string; geo: RichGeocode | null } | null => {
     if (!c) return null;
     const key = `${c.lat.toFixed(3)},${c.lng.toFixed(3)}`;
-    const found = labelByKey.get(key);
-    if (found) return found;
-    return `nära ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`;
+    const geo = geoByKey.get(key) ?? null;
+    if (geo) return { label: geo.label, geo };
+    return { label: `nära ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`, geo: null };
   };
 
-  // Substituera "okänd plats" med uppslagen adress/POI eller koordinat-label.
+  // Indexera actualVisits per placeKey för knownSiteId + durationMin.
+  const visitByKey = useMemo(() => {
+    const m = new Map<string, (typeof model.actualVisits)[number]>();
+    for (const v of model.actualVisits) m.set(v.key, v);
+    return m;
+  }, [model.actualVisits]);
+
+  // Hjälper bedöma "mellan två arbetsplatser" — om föregående OCH nästa visit
+  // i listan har knownSiteId, så är detta troligen en kort resepunkt.
+  const knownNeighbours = useMemo(() => {
+    const set = new Set<string>();
+    const list = model.actualVisits;
+    for (let i = 1; i < list.length - 1; i++) {
+      if (!list[i].knownSiteId && list[i - 1].knownSiteId && list[i + 1].knownSiteId) {
+        set.add(list[i].key);
+      }
+    }
+    return set;
+  }, [model.actualVisits]);
+
+  // Substituera "okänd plats" med uppslagen adress/POI och addera försiktig
+  // tolkning (inferred_label / inferred_activity_type / confidence).
   const events: ActualEvent[] = useMemo(() => {
     return rawEvents.map(ev => {
       const m = ev.meta as any;
       if (ev.kind === 'gps_arrival' || ev.kind === 'gps_visit' || ev.kind === 'gps_departure') {
-        if (ev.place) return ev; // känd plats — orörd
-        const lbl = resolveCoord(m?.centre);
-        if (!lbl) return ev;
+        const placeKey = m?.placeKey as string | undefined;
+        const visit = placeKey ? visitByKey.get(placeKey) : undefined;
+        const lookup = ev.place ? null : lookupCoord(m?.centre);
+        const placeLabel = ev.place ?? lookup?.label ?? null;
         const verb =
           ev.kind === 'gps_arrival' ? 'Anlände' : ev.kind === 'gps_departure' ? 'Lämnade' : 'Vistelse';
-        return { ...ev, label: `${verb}: ${lbl}`, place: lbl };
+
+        const inference = inferActivityFromPlace({
+          knownSiteId: visit?.knownSiteId ?? null,
+          poiCategory: lookup?.geo?.poiCategory ?? null,
+          poiName: lookup?.geo?.poiName ?? null,
+          durationMin: visit?.durationMin ?? ev.durationMin ?? 0,
+          betweenWorkplaces: placeKey ? knownNeighbours.has(placeKey) : false,
+        });
+
+        const baseLabel = placeLabel ? `${verb}: ${placeLabel}` : ev.label;
+        // Visa tolkningen som suffix bara på vistelse-raden (inte arr/dep)
+        // för att inte spamma — arrival/departure ärver knownSiteId-inferensen
+        // i UI:t via egna fält men labeln hålls ren.
+        const label =
+          ev.kind === 'gps_visit'
+            ? `${baseLabel} · ${inference.label}`
+            : baseLabel;
+
+        return {
+          ...ev,
+          label,
+          place: placeLabel,
+          inferred_label: inference.label,
+          inferred_activity_type: inference.type,
+          confidence: inference.confidence,
+          lookup_source: visit?.knownSiteId ? 'known_site' : (lookup?.geo ? 'mapbox' : 'fallback'),
+          address: lookup?.geo?.address ?? null,
+          poi_name: lookup?.geo?.poiName ?? null,
+          poi_category: lookup?.geo?.poiCategory ?? null,
+        };
       }
       if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
-        // Bygg om travel-label om någon ände är okänd
         const fromKnown = !m?.fromCentre;
         const toKnown = !m?.toCentre;
         if (fromKnown && toKnown) return ev;
         const fromLbl = fromKnown
           ? ev.label.replace(/^Förflyttning:\s*/, '').split(' → ')[0]
-          : (resolveCoord(m?.fromCentre) ?? 'okänd plats');
+          : (lookupCoord(m?.fromCentre)?.label ?? 'okänd plats');
         const toLbl = toKnown
-          ? ev.label.split(' → ')[1] ?? ''
-          : (resolveCoord(m?.toCentre) ?? 'okänd plats');
+          ? (ev.label.split(' → ')[1] ?? '')
+          : (lookupCoord(m?.toCentre)?.label ?? 'okänd plats');
         return { ...ev, label: `Förflyttning: ${fromLbl} → ${toLbl}` };
       }
       return ev;
     });
-  }, [rawEvents, labelByKey]);
+  }, [rawEvents, geoByKey, visitByKey, knownNeighbours]);
 
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(

@@ -150,6 +150,15 @@ export interface ActualEvent {
   detail?: string | null;
   place?: string | null;
   meta?: Record<string, unknown>;
+  /** Försiktig tolkning av aktiviteten, t.ex. "troligt projektbesök". */
+  inferred_label?: string | null;
+  inferred_activity_type?: string | null;
+  confidence?: 'low' | 'medium' | 'high' | null;
+  /** Källa för platsuppslag: 'known_site' | 'poi' | 'address' | 'fallback'. */
+  lookup_source?: string | null;
+  address?: string | null;
+  poi_name?: string | null;
+  poi_category?: string | null;
 }
 
 export interface ActualVisit {
