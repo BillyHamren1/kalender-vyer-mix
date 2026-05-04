@@ -239,19 +239,51 @@ export function buildCanonicalStaffDayModel(
     0,
   );
 
-  // Travel suggestions are NOT counted in distributed/payable until the
-  // user/admin promotes them to a time_report.
-  const travel = input.travelSuggestions ?? [];
+  // Travel suggestions: classify each row.
+  //   - missing destination → review_required, NEVER counted as anything
+  //     except a "suggestion" (won't reduce undistributed).
+  //   - approved=false      → review_required, counted as SUGGESTED only.
+  //   - approved=true       → counted as DISTRIBUTION inside workday.
+  // Approved travel is ADDED to distributedMinutes (so it eats undistributed
+  // tid) but it is CAPPED so the day's total fördelning aldrig blir större
+  // än lönegrundande tid (workday − rast).
+  const rawTravel = input.travelSuggestions ?? [];
+  const travel: CanonicalTravelSuggestionRow[] = rawTravel.map((t) => {
+    const missingDestination = !t.destinationBookingId && !t.toAddress;
+    let reviewReason: 'missing_destination' | 'pending_approval' | null = null;
+    if (missingDestination) reviewReason = 'missing_destination';
+    else if (!t.approved) reviewReason = 'pending_approval';
+    return {
+      ...t,
+      reviewRequired: reviewReason !== null,
+      reviewReason,
+    };
+  });
+
+  const approvedDistributableTravel = travel.filter(
+    (t) => t.approved && !t.reviewRequired,
+  );
+  const approvedTravelMinutes = approvedDistributableTravel.reduce(
+    (s, t) => s + hoursToMinutes(t.hours),
+    0,
+  );
   const suggestedTravelMinutes = travel
-    .filter((t) => !t.approved)
-    .reduce((s, t) => s + hoursToMinutes(t.hours), 0);
-  const approvedTravelMinutes = travel
-    .filter((t) => t.approved)
+    .filter((t) => t.reviewRequired || !t.approved)
     .reduce((s, t) => s + hoursToMinutes(t.hours), 0);
 
   const payableMinutes = Math.max(0, workdayMinutes - breakMinutes);
-  const undistributedMinutes = Math.max(0, payableMinutes - distributedMinutes);
-  const overDistributedMinutes = Math.max(0, distributedMinutes - payableMinutes);
+
+  // Approved travel räknas som fördelning inom workday, men aldrig så att
+  // den totala fördelningen överstiger lönegrundande tid.
+  const distributedTotalRaw = distributedMinutes + approvedTravelMinutes;
+  const distributedTotal = payableMinutes > 0
+    ? Math.min(distributedTotalRaw, payableMinutes)
+    : distributedTotalRaw;
+
+  const undistributedMinutes = Math.max(0, payableMinutes - distributedTotal);
+  // Överrapportering räknas på time_reports + godkänd resa MOT workday —
+  // travel ökar aldrig payable.
+  const overDistributedMinutes = Math.max(0, distributedTotalRaw - payableMinutes);
 
   // ── Anomalies ───────────────────────────────────────────────────────
   const anomalies: CanonicalAnomaly[] = [];
