@@ -282,6 +282,25 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
   return (
     <>
+      {unseenUpdates.length > 0 && (
+        <div className="flex justify-end mb-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={markAllSeen.isPending}
+            onClick={() => {
+              const ids = Array.from(new Set(unseenUpdates.map(u => u.booking_id)));
+              markAllSeen.mutate(ids, {
+                onSuccess: (n) => toast.success(`Markerade ${n} uppdatering${n === 1 ? '' : 'ar'} som lästa`),
+                onError: () => toast.error('Kunde inte markera alla som lästa'),
+              });
+            }}
+          >
+            <CheckCheck className="h-4 w-4 mr-1" />
+            Markera alla som lästa ({unseenUpdates.length})
+          </Button>
+        </div>
+      )}
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
         <div className="divide-y divide-border/40">
           {filtered.map(project => {
