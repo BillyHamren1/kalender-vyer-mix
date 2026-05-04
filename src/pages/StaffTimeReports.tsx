@@ -249,6 +249,7 @@ const StaffTimeReports: React.FC = () => {
       // för att kunna paginera komplett utan global limit.
       let historyPings: any[] = [];
       const pingsTruncatedByStaff = new Map<string, boolean>();
+      const pingsErrorByStaff = new Map<string, string>();
       const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
       const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
 
