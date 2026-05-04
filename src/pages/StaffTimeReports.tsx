@@ -776,6 +776,8 @@ const StaffTimeReports: React.FC = () => {
               toAddress: t.to_address ?? null,
             })),
           });
+
+          return {
             id: s.id,
             name: s.name,
             role: s.role,
@@ -799,6 +801,7 @@ const StaffTimeReports: React.FC = () => {
             journal,
             latestPing: pingMap.get(s.id) || null,
             metrics,
+            canonical,
           };
         })
         .sort((a, b) => {
