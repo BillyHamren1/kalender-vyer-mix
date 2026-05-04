@@ -781,17 +781,29 @@ const StaffTimeReports: React.FC = () => {
       const extraStaffIds = new Set<string>();
       for (const a of (assistantEvents as any[])) if (a.staff_id) extraStaffIds.add(a.staff_id);
       for (const f of (workdayFlags as any[])) if (f.staff_id) extraStaffIds.add(f.staff_id);
-      // Pings: hämta distinkta staff_id från staff_location_history.
-      // Limit 1000 räcker — det är distinkta staff (inte rader). Om en org
-      // har >1000 aktiva personal samma dag är det inte realistiskt.
-      const { data: pingStaffRows } = await supabase
-        .from('staff_location_history')
-        .select('staff_id')
-        .gte('recorded_at', dayStartIso)
-        .lt('recorded_at', nextDayIso)
-        .limit(1000);
-      for (const r of (pingStaffRows || []) as any[]) {
-        if (r.staff_id) extraStaffIds.add(r.staff_id);
+      // Pings: hämta ALLA distinkta staff_id från staff_location_history
+      // för dagen. .select('staff_id').limit(1000) returnerar 1000 RADER
+      // (inte distinct), så en aktiv person kan fylla hela kvoten och
+      // dölja andra. Vi paginerar tills vi sett alla rader och bygger ett
+      // Set lokalt — billigt eftersom vi bara läser en kolumn.
+      const PING_PAGE = 1000;
+      let pingFrom = 0;
+      // Safety cap så vi inte snurrar oändligt vid katastrofdata.
+      const PING_MAX_PAGES = 200; // 200k rader/dag räcker långt
+      for (let page = 0; page < PING_MAX_PAGES; page++) {
+        const { data: pingStaffRows, error: pingErr } = await supabase
+          .from('staff_location_history')
+          .select('staff_id')
+          .gte('recorded_at', dayStartIso)
+          .lt('recorded_at', nextDayIso)
+          .range(pingFrom, pingFrom + PING_PAGE - 1);
+        if (pingErr) break;
+        const rows = (pingStaffRows || []) as any[];
+        for (const r of rows) {
+          if (r.staff_id) extraStaffIds.add(r.staff_id);
+        }
+        if (rows.length < PING_PAGE) break;
+        pingFrom += PING_PAGE;
       }
       for (const id of extraStaffIds) {
         if (!byStaff.has(id)) byStaff.set(id, newAgg());
