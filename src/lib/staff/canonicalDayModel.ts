@@ -156,6 +156,8 @@ const MS_PER_MIN = 60_000;
 const UNDISTRIBUTED_NOISE_MIN = 5;
 /** Open workday is "stale" after this many hours without an end. */
 const STALE_OPEN_WORKDAY_HOURS = 18;
+/** A timer is "tappad signal" when last GPS ping is older than this. */
+const STALE_PING_MIN = 10;
 
 const safeMs = (iso: string | null | undefined): number | null => {
   if (!iso) return null;
