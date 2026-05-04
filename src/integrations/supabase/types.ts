@@ -5239,6 +5239,57 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_private_zones: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          label: string | null
+          lat: number
+          lng: number
+          notes: string | null
+          organization_id: string
+          radius_m: number
+          source: string
+          staff_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          label?: string | null
+          lat: number
+          lng: number
+          notes?: string | null
+          organization_id: string
+          radius_m?: number
+          source?: string
+          staff_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          label?: string | null
+          lat?: number
+          lng?: number
+          notes?: string | null
+          organization_id?: string
+          radius_m?: number
+          source?: string
+          staff_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       suppliers: {
         Row: {
           address_line1: string | null
