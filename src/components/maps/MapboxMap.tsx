@@ -135,8 +135,7 @@ export default function MapboxMap({
   }
 
   return (
-    <div className={`relative ${className ?? ""}`}>
-      <div ref={containerRef} className="absolute inset-0" />
+    <div ref={containerRef} className={`relative h-full w-full ${className ?? ""}`}>
       {children}
     </div>
   );
