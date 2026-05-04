@@ -166,32 +166,62 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
     ? canonical.suggestedTravelMinutes / 60
     : summary.travelHours;
 
+  // ── Header status: prioritera Signal tappad > Granska > Pågår > OK ──
+  const headerStatus: { label: string; cls: string; icon: React.ReactNode } = (() => {
+    if (canonical?.hasSignalLost) {
+      return { label: 'Signal tappad', cls: 'border-destructive/40 text-destructive bg-destructive/5', icon: <AlertTriangle className="h-3 w-3" /> };
+    }
+    if (canonical?.reviewRequired || summary.dayStatus === 'needs_review') {
+      return { label: 'Kräver komplettering', cls: 'border-destructive/40 text-destructive bg-destructive/5', icon: <AlertTriangle className="h-3 w-3" /> };
+    }
+    if (canonical?.isWorkdayOpen || summary.dayStatus === 'ongoing') {
+      return { label: 'Pågår', cls: 'border-primary/30 text-primary bg-primary/5', icon: <Activity className="h-3 w-3" /> };
+    }
+    return { label: 'OK', cls: 'border-border/60 text-muted-foreground', icon: <CheckCircle2 className="h-3 w-3" /> };
+  })();
+
+  const wdStart = canonical?.workdayStart ?? summary.workdayStart;
+  const wdEnd = canonical?.workdayEnd ?? summary.workdayEnd;
+  const wdOpen = canonical?.isWorkdayOpen ?? false;
+  const hasWorkday = !!wdStart;
+
   return (
     <div className="space-y-3 rounded-lg border bg-card p-4">
-      {/* Header */}
+      {/* ── HEADER: namn · arbetsdag · lönegrundande · status ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-base font-semibold tracking-tight">Tidrapport · {staffName}</h3>
-            <Badge variant="outline" className={`text-[10px] gap-1 ${dayBadge.className}`}>
-              {dayBadge.icon}
-              {summary.dayStatus === 'needs_review' ? 'Granska' : summary.dayStatus === 'ongoing' ? 'Pågående' : 'OK att godkänna'}
+            <Badge variant="outline" className={`text-[10px] gap-1 ${headerStatus.cls}`}>
+              {headerStatus.icon}
+              {headerStatus.label}
             </Badge>
           </div>
           <div className="text-xs text-muted-foreground capitalize">
             {format(new Date(date), 'EEEE d MMMM yyyy', { locale: sv })}
-            {(canonical?.workdayStart ?? summary.workdayStart) && (
-              <> · Arbetsdag {toHHMM(canonical?.workdayStart ?? summary.workdayStart)} → {toHHMM(canonical?.workdayEnd ?? summary.workdayEnd) || 'pågår'}</>
-            )}
-            {canonical && canonical.breakMinutes > 0 && (
-              <> · Rast {formatHoursMinutes(canonical.breakMinutes / 60)}</>
-            )}
           </div>
+          {hasWorkday ? (
+            <div className="text-xs">
+              <span className="text-muted-foreground">Arbetsdag:</span>{' '}
+              <span className="font-medium">{toHHMM(wdStart)} → {wdOpen ? <span className="text-primary">pågår</span> : toHHMM(wdEnd) || '—'}</span>
+              {' · '}
+              <span className="text-muted-foreground">Lönegrundande:</span>{' '}
+              <span className="font-semibold">{formatHoursMinutes(payableHours)}</span>
+              {canonical && canonical.breakMinutes > 0 && (
+                <> · <span className="text-muted-foreground">Rast:</span> <span className="font-medium">{formatHoursMinutes(canonical.breakMinutes / 60)}</span></>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs text-amber-700 dark:text-amber-400">
+              Ingen arbetsdag registrerad — lönegrundande tid kan inte beräknas.
+            </div>
+          )}
+          {/* Pills */}
           <div className="flex flex-wrap gap-1.5 pt-1">
-            <Badge variant="secondary" className="text-[11px] gap-1 font-medium" title="Workday minus rast. Lönegrundande tid.">
+            <Badge variant="secondary" className="text-[11px] gap-1 font-medium" title="Workday minus rast.">
               <Clock className="h-3 w-3" /> Lönegrundande {formatHoursMinutes(payableHours)}
             </Badge>
-            <Badge variant="outline" className="text-[11px] gap-1" title="Sum time_reports — intern fördelning på projekt/plats/lager.">
+            <Badge variant="outline" className="text-[11px] gap-1" title="Sum time_reports — intern fördelning.">
               <Briefcase className="h-3 w-3" /> Fördelad {formatHoursMinutes(distributedHours)}
             </Badge>
             {undistributedHours > 0 && (
@@ -205,7 +235,7 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
               </Badge>
             )}
             {suggestedTravelHours > 0 && (
-              <Badge variant="outline" className="text-[11px] gap-1 border-primary/30 text-primary" title="Föreslagen restid (travel_time_logs) — räknas inte som lönegrundande förrän godkänd.">
+              <Badge variant="outline" className="text-[11px] gap-1 border-primary/30 text-primary" title="Föreslagen restid — räknas inte som lönegrundande förrän godkänd.">
                 <Car className="h-3 w-3" /> Föreslagen restid {formatHoursMinutes(suggestedTravelHours)}
               </Badge>
             )}
