@@ -742,8 +742,36 @@ const StaffTimeReports: React.FC = () => {
         byStaff.set(wd.staff_id, a);
       }
 
+      // Inkludera även staff som har pings men inga rapporter (annars
+      // försvinner deras "faktiska dag" vyn helt — kravet i regressionen).
+      const pingStaffIds = await (async () => {
+        const { data } = await supabase
+          .from('staff_location_history')
+          .select('staff_id')
+          .gte('recorded_at', dayStartIso)
+          .lt('recorded_at', nextDayIso)
+          .limit(1000);
+        return [...new Set((data || []).map((r: any) => r.staff_id).filter(Boolean))];
+      })();
+      for (const id of pingStaffIds) {
+        if (!byStaff.has(id)) byStaff.set(id, newAgg());
+      }
+
       const staffIds = [...byStaff.keys()];
       if (staffIds.length === 0) return [];
+
+      // ── Per-staff ping-fetch (paginerad). Ingen global limit — den
+      // kapade dagar med 8000+ pings (Billy/Kevin/Matīss). Per-staff
+      // safety cap = PER_STAFF_PING_CAP; sätter pingsTruncatedByStaff
+      // om vi når taket så UI kan visa en varning.
+      const perStaffPings = await Promise.all(
+        staffIds.map(async (id) => {
+          const { rows, truncated } = await fetchAllPingsForStaff(id, dayStartIso, nextDayIso);
+          if (truncated) pingsTruncatedByStaff.set(id, true);
+          return rows;
+        }),
+      );
+      historyPings = perStaffPings.flat();
 
       const { data: staff, error: staffError } = await supabase
         .from('staff_members')
