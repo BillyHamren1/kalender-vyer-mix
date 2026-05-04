@@ -38,6 +38,8 @@ import {
 interface TimeReportReviewTableProps {
   date: string;
   staffName: string;
+  /** Optional: enables real ping-based GPS-underlag in expanded rows. */
+  staffId?: string;
   work: ReviewWorkInput[];
   travel: ReviewTravelInput[];
   /** Optional: opens edit dialog for a `time_reports` row. */
