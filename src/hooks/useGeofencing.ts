@@ -313,6 +313,21 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     reported: boolean;
   }>>(new Map());
 
+  // ── Stable-exit tracker (Auto-stop hardening 2026-05) ────────────
+  // En enskild GPS-punkt utanför radien får ALDRIG stoppa en
+  // activity-timer. Vi samlar konsekutiva outside-pings per target
+  // och kräver stabilitet (se lib/geofence/stableExit.ts).
+  // Workdayen rörs aldrig av geofence — endast aktivitetstimern.
+  const exitTrackersRef = useRef<Map<string, ExitTrackerState>>(new Map());
+  const getExitTracker = (key: string): ExitTrackerState => {
+    let t = exitTrackersRef.current.get(key);
+    if (!t) {
+      t = createExitTracker();
+      exitTrackersRef.current.set(key, t);
+    }
+    return t;
+  };
+
   const noteEnterForDeparture = useCallback((
     key: string,
     kind: 'location' | 'project' | 'booking',
