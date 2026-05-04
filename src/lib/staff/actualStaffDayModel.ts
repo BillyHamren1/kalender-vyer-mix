@@ -164,6 +164,25 @@ export type InternalMatchStatus =
   | 'unmatched_no_sites'
   | 'not_applicable';
 
+/**
+ * Klassificering av hur sannolikt ett GPS-kluster/-förflyttning är arbetsrelaterat.
+ *  - work_confirmed         — matchad känd plats ELLER överlappar workday/timer/rapport.
+ *  - work_possible          — okänd plats men nära (≤800m) en känd arbetsplats,
+ *                              eller förflyttning mellan två kända arbetsplatser.
+ *  - unknown_requires_lookup — okänd plats på dagtid utan tydlig arbetskoppling
+ *                              men inte tydligt privat/natt.
+ *  - private_or_background  — natt/tidig morgon, ingen workday/timer/rapport,
+ *                              ingen intern matchning, okänd plats. Sannolikt
+ *                              hemma eller bakgrunds-GPS.
+ *  - raw_debug_only         — mycket kort pingkluster utan arbetskoppling, brus.
+ */
+export type WorkRelevance =
+  | 'work_confirmed'
+  | 'work_possible'
+  | 'unknown_requires_lookup'
+  | 'private_or_background'
+  | 'raw_debug_only';
+
 export interface ActualEvent {
   id: string;
   at: string;
