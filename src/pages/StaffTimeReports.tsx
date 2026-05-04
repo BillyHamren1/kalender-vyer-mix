@@ -20,6 +20,12 @@ import {
 import { calculateDayMetrics, type DayMetrics } from '@/lib/staff/dayMetrics';
 import { buildCanonicalStaffDayModel, type CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 import { classifyLocationEntry } from '@/lib/staff/locationEntryClassification';
+import {
+  buildActualStaffDayModel,
+  type ActualStaffDayModel,
+} from '@/lib/staff/actualStaffDayModel';
+import { buildPlaceVisits, buildDayTimeline, type KnownSite } from '@/lib/staff/pingPlaceSegments';
+import type { Ping } from '@/lib/staff/movementDetection';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
@@ -73,6 +79,13 @@ interface StaffWithDayReport {
   metrics: DayMetrics;
   /** Canonical workday-based model (Lönegrundande/Fördelad/Ofördelad). */
   canonical: CanonicalStaffDayModel;
+  /**
+   * Faktisk-dag-modell: kronologisk händelsejournal + GPS-vistelser +
+   * föreslagen rapport. Bygger på workday + time_reports + LTE + travel
+   * PLUS staff_location_history + assistant_events + workday_flags.
+   * Detta ska vara huvudvyn — inte rapporttabellen.
+   */
+  actualModel: ActualStaffDayModel;
 }
 
 // Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
@@ -106,6 +119,8 @@ const StaffTimeReports: React.FC = () => {
       { table: 'location_time_entries', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'workdays', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'staff_locations', events: ['INSERT', 'UPDATE'] },
+      { table: 'assistant_events', events: ['INSERT', 'UPDATE', 'DELETE'] },
+      { table: 'workday_flags', events: ['INSERT', 'UPDATE', 'DELETE'] },
     ],
     queryKeys: [['staff-time-reports-day', dateStr]],
     debounceMs: 400,
@@ -116,13 +131,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes] = await Promise.all([
-        // EXCLUDE legacy auto-mirrored rows. The DB trigger
-        // `sync_location_entry_to_time_report` was REMOVED 2026-04-22 and
-        // time_reports are now created exclusively via
-        // `mobile-app-api.handleCreateTimeReport` (single owner).
-        // The exclude-filter remains so historical rows from before that
-        // migration don't double up against the canonical location_time_entry.
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, historyRes, assistantRes, flagsRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -137,22 +146,32 @@ const StaffTimeReports: React.FC = () => {
           .from('location_time_entries')
           .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
           .eq('entry_date', dateStr),
-        // Workdays scoped strictly by start day. A workday that starts at
-        // T-1 23:30 and ends T 00:38 belongs to T-1 (its start day) — not
-        // both days. This matches the mobile UI grouping. Real night shifts
-        // (start 22:00, end 02:00) thus appear only on the start day, which
-        // is consistent and predictable. Open workdays from earlier days
-        // are ghosts (handled by close-stale-workday-entries watchdog) and
-        // must NOT bleed into today's view as 50h "still active" timers.
         supabase
           .from('workdays')
           .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note')
           .gte('started_at', dayStartIso)
           .lt('started_at', nextDayIso),
-        // Latest GPS ping per staff (one row per staff_id by table design).
         supabase
           .from('staff_locations')
           .select('staff_id, latitude, longitude, updated_at, last_address, app_version, app_build, app_platform'),
+        // Faktisk dag: hela dagens GPS-historik (inte bara senaste pinget).
+        // Limit 5000 = ~3-4s ping-takt × 12h. Fler trimmas på klienten.
+        supabase
+          .from('staff_location_history')
+          .select('staff_id, lat, lng, accuracy, speed, recorded_at')
+          .gte('recorded_at', dayStartIso)
+          .lt('recorded_at', nextDayIso)
+          .order('recorded_at', { ascending: true })
+          .limit(5000),
+        supabase
+          .from('assistant_events')
+          .select('id, staff_id, event_type, target_type, target_id, target_label, suggested_action, happened_at, detected_at, resolved_at, resolution_status, metadata')
+          .gte('happened_at', dayStartIso)
+          .lt('happened_at', nextDayIso),
+        supabase
+          .from('workday_flags')
+          .select('id, staff_id, flag_type, severity, title, description, created_at, resolved')
+          .eq('flag_date', dateStr),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
@@ -188,6 +207,9 @@ const StaffTimeReports: React.FC = () => {
       const travel = travelRes.data || [];
       const locationEntries = locationRes.data || [];
       const workdays = workdaysRes.data || [];
+      const historyPings = (historyRes as any).error ? [] : ((historyRes as any).data || []);
+      const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
+      const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
 
       // Resolve location -> internal booking (e.g. Lager) for project label.
       // Include location_id from BOTH location_time_entries AND time_reports so
@@ -285,6 +307,58 @@ const StaffTimeReports: React.FC = () => {
           .select('id, name')
           .in('id', largeProjectIds);
         (lps || []).forEach(p => largeProjectMap.set(p.id, p.name || 'Stort projekt'));
+      }
+
+      // Fetch coordinates for KnownSites used by buildPlaceVisits.
+      // Org locations + dagens bokningar + dagens stora projekt.
+      const knownSites: KnownSite[] = [];
+      const [orgLocsRes, bookingCoordsRes, lpCoordsRes] = await Promise.all([
+        supabase
+          .from('organization_locations')
+          .select('id, name, latitude, longitude, radius_meters, is_active')
+          .eq('is_active', true),
+        bookingIds.length
+          ? supabase
+              .from('bookings')
+              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude')
+              .in('id', bookingIds)
+          : Promise.resolve({ data: [] as any[] } as any),
+        largeProjectIds.length
+          ? supabase
+              .from('large_projects')
+              .select('id, name, address_latitude, address_longitude, address_radius_meters')
+              .in('id', largeProjectIds)
+          : Promise.resolve({ data: [] as any[] } as any),
+      ]);
+      for (const l of ((orgLocsRes as any).data || [])) {
+        if (l.latitude == null || l.longitude == null) continue;
+        knownSites.push({
+          id: `loc:${l.id}`,
+          name: l.name,
+          lat: Number(l.latitude),
+          lng: Number(l.longitude),
+          radiusMeters: Number(l.radius_meters ?? 200) || 200,
+        });
+      }
+      for (const b of ((bookingCoordsRes as any).data || [])) {
+        if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
+        knownSites.push({
+          id: `booking:${b.id}`,
+          name: b.booking_number ? `${b.booking_number} · ${b.client ?? 'Bokning'}` : (b.client ?? b.deliveryaddress ?? 'Bokning'),
+          lat: Number(b.delivery_latitude),
+          lng: Number(b.delivery_longitude),
+          radiusMeters: 200,
+        });
+      }
+      for (const lp of ((lpCoordsRes as any).data || [])) {
+        if (lp.address_latitude == null || lp.address_longitude == null) continue;
+        knownSites.push({
+          id: `large:${lp.id}`,
+          name: lp.name || 'Stort projekt',
+          lat: Number(lp.address_latitude),
+          lng: Number(lp.address_longitude),
+          radiusMeters: Number(lp.address_radius_meters ?? 200) || 200,
+        });
       }
 
       // If the warehouse-booking lookup found new location IDs that weren't in
@@ -831,6 +905,86 @@ const StaffTimeReports: React.FC = () => {
             latestPing: ping ? { updatedAt: ping.updated_at } : null,
           });
 
+          // ── Faktisk-dag-modell ─────────────────────────────────────
+          // Bygg per-staff från råpings + kända platser + assistant_events
+          // + workday_flags. Detta är den nya huvudvyn — visar GPS-evidens
+          // även när time_reports saknas.
+          const staffPings: Ping[] = (historyPings as any[])
+            .filter(p => p.staff_id === s.id && p.lat != null && p.lng != null)
+            .map(p => ({
+              lat: Number(p.lat),
+              lng: Number(p.lng),
+              recorded_at: p.recorded_at,
+              accuracy: p.accuracy ?? null,
+            }));
+          const placeVisits = buildPlaceVisits(staffPings, knownSites);
+          const dayTimeline = buildDayTimeline(staffPings, placeVisits);
+          const staffAssistantEvents = (assistantEvents as any[])
+            .filter(a => a.staff_id === s.id)
+            .map(a => ({
+              id: a.id,
+              event_type: String(a.event_type || ''),
+              happened_at: a.happened_at,
+              target_label: a.target_label ?? null,
+              resolution_status: a.resolution_status ?? null,
+            }));
+          const staffFlags = (workdayFlags as any[])
+            .filter(f => f.staff_id === s.id)
+            .map(f => ({
+              id: f.id,
+              flag_type: String(f.flag_type || ''),
+              severity: (f.severity as string) ?? null,
+              title: f.title ?? null,
+              description: f.description ?? null,
+              created_at: f.created_at,
+              resolved: !!f.resolved,
+            }));
+          const actualModel = buildActualStaffDayModel({
+            date: dateStr,
+            workday: staffWorkdays.length > 0
+              ? { id: staffWorkdays[0].id, started_at: staffWorkdays[0].started_at, ended_at: staffWorkdays[0].ended_at }
+              : null,
+            timeReports: staffReports.map(r => ({
+              id: r.id,
+              start_iso: r.start_iso,
+              end_iso: r.end_iso,
+              label: r.label ?? '—',
+              approved: r.approved,
+              booking_id: r.booking_id ?? null,
+              large_project_id: r.large_project_id ?? null,
+              location_id: r.location_id ?? null,
+              hours: r.hours,
+            })),
+            locationEntries: staffLTEs.map(e => ({
+              id: e.id,
+              entered_at: e.entered_at,
+              exited_at: e.exited_at,
+              label: e.label ?? 'Plats',
+              isPresenceOnly: e.isPresenceOnly,
+              hours: e.hours,
+            })),
+            travelLogs: staffTravel.map(t => {
+              const rt = rawTravel.find(x => x.id === t.id);
+              return {
+                id: t.id,
+                start_iso: t.start_iso!,
+                end_iso: t.end_iso,
+                fromAddress: t.from_address ?? null,
+                toAddress: t.to_address ?? null,
+                approved: !!rt?.approved,
+                autoDetected: !!rt?.auto_detected,
+                source: rt?.source ?? null,
+                hours: t.hours,
+              };
+            }),
+            assistantEvents: staffAssistantEvents,
+            flags: staffFlags,
+            visits: placeVisits,
+            travels: dayTimeline.travels,
+            pings: staffPings,
+            latestPing: ping ? { recorded_at: ping.updated_at } : null,
+          });
+
           return {
             id: s.id,
             name: s.name,
@@ -856,6 +1010,7 @@ const StaffTimeReports: React.FC = () => {
             latestPing: pingMap.get(s.id) || null,
             metrics,
             canonical,
+            actualModel,
           };
         })
         .sort((a, b) => {
