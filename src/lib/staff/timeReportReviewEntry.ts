@@ -65,6 +65,8 @@ export interface TimeReportReviewEntry {
   /** Stable key for React lists. */
   key: string;
   kind: ReviewEntryKind;
+  /** Explicit row taxonomy used to decide which UI section the row belongs in. */
+  rowKind: ReviewRowKind;
   /** Primary label (project, location, or "Resa: A → B"). */
   label: string;
   /** Optional secondary line (booking number, address, hint). */
