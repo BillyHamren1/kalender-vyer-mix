@@ -556,18 +556,17 @@ Deno.serve(async (req) => {
 
         let allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
 
-        if (!allocateResponse.ok) {
+        // WMS-fel: HTTP-fel ELLER 200+success:false → skicka WMS error rakt av
+        const wmsBlocked = !allocateResponse.ok || allocateData?.success === false
+        if (wmsBlocked) {
           const status = allocateResponse.status
-          const errBody = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
-          if (status === 404) {
-            console.warn('[verify_product] WMS_404', { serialNumber, bookingNumber, orgId: ORG_ID })
-            return json({ success: false, error: `Enheten "${serialNumber}" hittades inte i lagersystemet`, debugCode: 'WMS_404' })
-          }
-          if (status === 409) {
+          const errBody = allocateData || {}
+          const wmsError = errBody.error || errBody.message
+          if (status === 409 || /already|allocated|fully/i.test(wmsError || '')) {
             console.warn('[verify_product] WMS_409', { serialNumber, bookingNumber, body: errBody })
             const recovered = await recoverAlreadyAllocatedIdentifiers(serialNumbers)
             if (!recovered) {
-              return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad', debugCode: 'WMS_409' })
+              return json({ success: false, error: wmsError || 'Enheten är inte tillgänglig eller redan allokerad', data: errBody.data, debugCode: 'WMS_409' })
             }
             allocateData = {
               results: serialNumbers.map((serial: string) => ({
@@ -580,14 +579,9 @@ Deno.serve(async (req) => {
                 },
               })),
             }
-          }
-          else if (status === 401 || status === 403) {
-            console.error('[verify_product] WMS_AUTH failure — check PRICELIST_API_KEY / x-organization-id', { status, orgId: ORG_ID })
-            return json({ success: false, error: 'Lagersystemet avvisade autentiseringen (kontakta admin)', debugCode: `WMS_${status}` })
-          }
-          else {
-            console.error('[verify_product] WMS_ERROR', { status, body: errBody })
-            return json({ success: false, error: errBody.error || `Lagerfel (${status})`, debugCode: `WMS_${status}` })
+          } else {
+            console.warn('[verify_product] WMS_BLOCKED', { status, body: errBody })
+            return json({ success: false, error: wmsError || `WMS svarade ${status}`, data: errBody.data, debugCode: `WMS_${status}` })
           }
         }
 
