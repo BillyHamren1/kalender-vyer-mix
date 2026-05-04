@@ -70,6 +70,8 @@ interface StaffWithDayReport {
    * "Total arbetstid".
    */
   metrics: DayMetrics;
+  /** Canonical workday-based model (Lönegrundande/Fördelad/Ofördelad). */
+  canonical: CanonicalStaffDayModel;
 }
 
 // Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
