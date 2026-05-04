@@ -42,6 +42,7 @@ interface StaffWithDayReport {
   canonical: CanonicalStaffDayModel;
   actualModel: ActualStaffDayModel;
   pingsTruncated?: boolean;
+  pingsFetchError?: string | null;
 }
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
