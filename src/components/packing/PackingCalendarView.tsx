@@ -19,22 +19,22 @@ interface Props {
   packings: PackingWithBooking[];
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  planning: "bg-blue-500/80 hover:bg-blue-500",
-  in_progress: "bg-yellow-500/80 hover:bg-yellow-500",
-  packed: "bg-teal-500/80 hover:bg-teal-500",
-  delivered: "bg-purple-500/80 hover:bg-purple-500",
-  completed: "bg-green-500/80 hover:bg-green-500",
-  cancelled: "bg-muted hover:bg-muted",
+type EventKind = "out" | "in";
+
+// OUT = ljusgrön (checkar UT från lagret), IN = ljusröd (checkar IN till lagret)
+const KIND_COLORS: Record<EventKind, string> = {
+  out: "bg-green-300 hover:bg-green-400 text-green-950",
+  in: "bg-red-300 hover:bg-red-400 text-red-950",
 };
 
-const STATUS_DOT_COLORS: Record<string, string> = {
-  planning: "bg-blue-400",
-  in_progress: "bg-yellow-400",
-  packed: "bg-teal-400",
-  delivered: "bg-purple-400",
-  completed: "bg-green-400",
-  cancelled: "bg-muted-foreground/40",
+const KIND_DOT_COLORS: Record<EventKind, string> = {
+  out: "bg-green-300",
+  in: "bg-red-300",
+};
+
+const KIND_LABELS: Record<EventKind, string> = {
+  out: "UT (packning)",
+  in: "IN (retur)",
 };
 
 export default function PackingCalendarView({ packings }: Props) {
