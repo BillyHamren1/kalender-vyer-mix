@@ -32,6 +32,16 @@ interface QRScannerProps {
   compact?: boolean;
   /** Optional title shown in the header */
   title?: string;
+  /**
+   * Tight mode (used inside the new fixed scanner shell):
+   * - No header (parent owns chrome).
+   * - Video is scaled so only the scan zone is visible (matches BarcodeDetector crop).
+   * - Manual input collapses to a tiny button + popover.
+   * - Zoom/torch controls become a thin inline row, not an overlay gradient.
+   */
+  tight?: boolean;
+  /** Fixed height for the camera area when in compact/tight mode. */
+  cameraHeight?: string;
 }
 
 /**
