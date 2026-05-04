@@ -244,7 +244,10 @@ const StaffTimeReports: React.FC = () => {
       const travel = travelRes.data || [];
       const locationEntries = locationRes.data || [];
       const workdays = workdaysRes.data || [];
-      const historyPings = (historyRes as any).error ? [] : ((historyRes as any).data || []);
+      // historyPings hämtas per-staff längre ned (efter att staffIds är kända)
+      // för att kunna paginera komplett utan global limit.
+      let historyPings: any[] = [];
+      const pingsTruncatedByStaff = new Map<string, boolean>();
       const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
       const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
 
