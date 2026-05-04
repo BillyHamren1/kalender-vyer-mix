@@ -1164,6 +1164,7 @@ const StaffTimeReports: React.FC = () => {
             canonical,
             actualModel,
             pingsTruncated: pingsTruncatedByStaff.get(s.id) === true,
+            pingsFetchError: pingsErrorByStaff.get(s.id) || null,
           };
         })
         .sort((a, b) => {
