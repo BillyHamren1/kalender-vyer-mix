@@ -143,17 +143,19 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
     [work, travel],
   );
 
-  // När canonical-modellen finns: göm öppna/pågående rader ur den vanliga
-  // "Fördelad tid"-tabellen — de visas EXKLUSIVT i "Pågående aktivitet"-
-  // sektionen som preliminär fördelning. Annars dyker samma post upp på
-  // två ställen och ser ut som dubbelräknad fördelning trots att
-  // distributedMinutes är 0.
+  // "Bekräftad fördelning"-tabellen renderar ENDAST rader vars rowKind
+  // räknas i distributedMinutes (confirmed_distribution). Allt annat
+  // (active_distribution, suggested, presence_evidence, anomaly,
+  // travel_suggestion) visas i sina egna sektioner ovanför/under. Filtret
+  // är låst till samma kontrakt som canonicalDayModel använder för att
+  // räkna distributedMinutes — så summa i header och tabell kan inte gå
+  // isär. (Gap-rader hålls kvar för att synliggöra luckor.)
   const hideOngoingFromDistributed = !!canonical;
   const visible = useMemo(
     () => {
       let out = entries;
       if (hideOngoingFromDistributed) {
-        out = out.filter(e => e.status !== 'ongoing');
+        out = out.filter(e => e.kind === 'gap' || countsInDistributedMinutes(e.rowKind));
       }
       if (onlyAnomalies) {
         out = out.filter(e => e.status === 'needs_review' || e.warnings.length > 0);
