@@ -152,6 +152,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         await decrementPackingItem(matchingItem.id, verifierName);
+        // Allow re-scanning this unique code after a minus-scan
+        scannedThisSessionRef.current.delete(normalised);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
         onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
