@@ -879,8 +879,12 @@ Deno.serve(async (req) => {
 
       case 'decrement_by_serial': {
         // Minus-scan for unique codes (RFID / serial numbers).
-        // SKU is unknown locally, so look it up via identify-instance,
-        // then decrement the matching packing_list_item by 1.
+        //
+        // AUTHORITY: WMS is the single source of truth.
+        // We ALWAYS call checkin-scan against WMS first. No local lookups
+        // decide whether the scan is valid — only WMS does. After WMS confirms
+        // (or returns a known "not allocated" state), we mirror the change
+        // locally by decrementing the matching packing_list_item.
         const { packingId, serialNumber } = params
         const serial = String(serialNumber || '').trim()
         if (!packingId || !serial) {
@@ -892,12 +896,12 @@ Deno.serve(async (req) => {
           return json({ success: false, error: 'Lagersystem ej konfigurerat' })
         }
 
-        // 1. Look up SKU / item type for this serial
-        let returnedSku: string | null = null
-        let returnedItemType: string | null = null
+        // 1. Call WMS checkin-scan FIRST. This is the source of truth.
+        let checkinData: any = null
+        let checkinStatus = 0
         try {
-          const lookupResponse = await fetch(
-            'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/identify-instance',
+          const checkinResponse = await fetch(
+            'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/checkin-scan',
             {
               method: 'POST',
               headers: {
@@ -908,24 +912,28 @@ Deno.serve(async (req) => {
               body: JSON.stringify({ serial_number: serial }),
             }
           )
-          if (lookupResponse.ok) {
-            const data = await lookupResponse.json().catch(() => null) as any
-            if (data) {
-              returnedSku = data.sku || data.item_type_id || data.serial_number || null
-              returnedItemType = data.item_type || data.item_type_name || data.product_name || data.name || null
-            }
-          } else {
-            await lookupResponse.text()
+          checkinStatus = checkinResponse.status
+          const text = await checkinResponse.text()
+          try { checkinData = JSON.parse(text) } catch { checkinData = { raw: text } }
+          console.log('[checkin-scan] Response:', { status: checkinStatus, body: checkinData })
+
+          if (!checkinResponse.ok) {
+            // Pass WMS error straight through — do NOT fall back to local logic.
+            const wmsError = checkinData?.error || checkinData?.message || `WMS svarade ${checkinStatus}`
+            return json({ success: false, error: wmsError, wmsStatus: checkinStatus })
           }
         } catch (err) {
-          console.warn('[decrement_by_serial] identify-instance failed', { serial, err })
+          console.error('[checkin-scan] network error', { serial, err })
+          return json({ success: false, error: 'Kunde inte nå lagersystemet' })
         }
 
-        if (!returnedSku && !returnedItemType) {
-          return json({ success: false, error: `Hittade ingen artikelinfo för "${serial}"` })
-        }
+        // 2. WMS accepted the checkin. Mirror it locally.
+        // Use SKU/item-type from the WMS response to find the local row.
+        const returnedSku: string | null =
+          checkinData?.sku || checkinData?.item_type_id || checkinData?.serial_number || null
+        const returnedItemType: string | null =
+          checkinData?.item_type || checkinData?.item_type_name || checkinData?.product_name || checkinData?.name || null
 
-        // 2. Find matching packing_list_items with quantity_packed > 0
         const { data: packingItems } = await supabase
           .from('packing_list_items')
           .select(`id, quantity_packed, packing_id, booking_products (id, name, sku, inventory_item_type_id)`)
@@ -951,11 +959,19 @@ Deno.serve(async (req) => {
           })
         }
 
+        // WMS accepted the checkin even if we can't find a matching local row.
+        // Report success — local mirror just has nothing to decrement.
         if (matched.length === 0) {
-          return json({ success: false, error: 'Ingen packad artikel hittades för denna kod' })
+          await checkIfAllPacked(supabase, packingId, ORG_ID)
+          return json({
+            success: true,
+            itemId: null,
+            newQuantity: 0,
+            productName: returnedItemType || returnedSku || serial,
+            note: 'WMS checkin OK, no local packing row to decrement',
+          })
         }
 
-        // Pick the row with highest quantity_packed (deterministic)
         const target = [...matched].sort((a: any, b: any) =>
           (b.quantity_packed || 0) - (a.quantity_packed || 0) || String(a.id).localeCompare(String(b.id))
         )[0] as any
@@ -968,7 +984,6 @@ Deno.serve(async (req) => {
           ...(newQty === 0 ? { packed_at: null, packed_by: null, parcel_id: null } : {})
         }).eq('id', target.id).eq('organization_id', ORG_ID)
 
-        // Remove 1 unit from latest parcel allocation
         const { data: lastAlloc } = await supabase
           .from('packing_list_item_allocations')
           .select('id, quantity')
