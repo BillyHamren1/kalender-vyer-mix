@@ -142,9 +142,24 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
     [work, travel],
   );
 
+  // När canonical-modellen finns: göm öppna/pågående rader ur den vanliga
+  // "Fördelad tid"-tabellen — de visas EXKLUSIVT i "Pågående aktivitet"-
+  // sektionen som preliminär fördelning. Annars dyker samma post upp på
+  // två ställen och ser ut som dubbelräknad fördelning trots att
+  // distributedMinutes är 0.
+  const hideOngoingFromDistributed = !!canonical;
   const visible = useMemo(
-    () => onlyAnomalies ? entries.filter(e => e.status === 'needs_review' || e.warnings.length > 0) : entries,
-    [entries, onlyAnomalies],
+    () => {
+      let out = entries;
+      if (hideOngoingFromDistributed) {
+        out = out.filter(e => e.status !== 'ongoing');
+      }
+      if (onlyAnomalies) {
+        out = out.filter(e => e.status === 'needs_review' || e.warnings.length > 0);
+      }
+      return out;
+    },
+    [entries, onlyAnomalies, hideOngoingFromDistributed],
   );
 
   const dayBadge = STATUS_BADGE[
