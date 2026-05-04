@@ -35,6 +35,7 @@ import {
   type TimeReportReviewEntry,
   type ReviewEntryStatus,
 } from '@/lib/staff/timeReportReviewEntry';
+import { buildCanonicalStaffDayModel, type CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 
 interface TimeReportReviewTableProps {
   date: string;
@@ -43,6 +44,8 @@ interface TimeReportReviewTableProps {
   staffId?: string;
   work: ReviewWorkInput[];
   travel: ReviewTravelInput[];
+  /** Canonical model for the day (workday-based payable time). */
+  canonical?: CanonicalStaffDayModel;
   /** Optional: opens edit dialog for a `time_reports` row. */
   onEditTimeReport?: (timeReportId: string) => void;
   /** Optional: per-row "Godkänn rad" — parent persists. */
