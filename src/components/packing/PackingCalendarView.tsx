@@ -55,28 +55,74 @@ export default function PackingCalendarView({ packings }: Props) {
     return eachDayOfInterval({ start: weekStart, end: weekEnd });
   }, [viewMode, currentDate]);
 
-  // Parse packing dates
+  // Build TWO events per packning: one OUT (rigday) and one IN (rigdown)
   const packingEvents = useMemo(() => {
-    return packings
-      .filter(p => p.status !== "cancelled")
-      .map(p => {
-        const start = p.start_date ? parseISO(p.start_date) : null;
-        const end = p.end_date ? parseISO(p.end_date) : null;
-        const bookingNum = p.booking?.booking_number || "";
-        const client = p.booking?.client || p.name;
-        // Address: street name+number, city (skip postal code)
-        const rawAddr = p.booking?.deliveryaddress || p.delivery_address || "";
-        const parts = rawAddr.split(",").map(s => s.trim()).filter(Boolean);
-        // street is first part, skip middle parts that look like postal codes
-        const street = parts[0] || "";
-        const shortAddr = street;
-        
-        const isConsolidated = !!p.large_project_id;
-        const label = isConsolidated
-          ? `📦 ${p.name}`
-          : [bookingNum, client].filter(Boolean).join(" – ");
-        return { ...p, startDate: start, endDate: end, label, shortAddr, bookingNum, isConsolidated };
-      });
+    const events: Array<{
+      id: string;
+      packingId: string;
+      kind: EventKind;
+      status: string;
+      startDate: Date;
+      endDate: Date;
+      label: string;
+      shortAddr: string;
+      bookingNum: string;
+      isConsolidated: boolean;
+      project_leader: string | null;
+    }> = [];
+
+    for (const p of packings) {
+      if (p.status === "cancelled") continue;
+      const bookingNum = p.booking?.booking_number || "";
+      const client = p.booking?.client || p.name;
+      const rawAddr = p.booking?.deliveryaddress || p.delivery_address || "";
+      const street = rawAddr.split(",").map(s => s.trim()).filter(Boolean)[0] || "";
+      const isConsolidated = !!p.large_project_id;
+      const baseLabel = isConsolidated
+        ? `📦 ${p.name}`
+        : [bookingNum, client].filter(Boolean).join(" – ");
+
+      // OUT — uses rigdaydate primarily, fallback to start_date
+      const outAnchor = p.booking?.rigdaydate || p.start_date;
+      if (outAnchor) {
+        const start = parseISO(outAnchor);
+        const end = p.booking?.eventdate ? parseISO(p.booking.eventdate) : start;
+        events.push({
+          id: `${p.id}-out`,
+          packingId: p.id,
+          kind: "out",
+          status: p.status,
+          startDate: start,
+          endDate: end < start ? start : end,
+          label: baseLabel,
+          shortAddr: street,
+          bookingNum,
+          isConsolidated,
+          project_leader: p.project_leader ?? null,
+        });
+      }
+
+      // IN — uses rigdowndate, fallback to end_date
+      const inAnchor = p.booking?.rigdowndate || p.end_date;
+      if (inAnchor) {
+        const start = parseISO(inAnchor);
+        events.push({
+          id: `${p.id}-in`,
+          packingId: p.id,
+          kind: "in",
+          status: p.status,
+          startDate: start,
+          endDate: start,
+          label: baseLabel,
+          shortAddr: street,
+          bookingNum,
+          isConsolidated,
+          project_leader: p.project_leader ?? null,
+        });
+      }
+    }
+
+    return events;
   }, [packings]);
 
   const scheduled = packingEvents.filter(e => e.startDate);
