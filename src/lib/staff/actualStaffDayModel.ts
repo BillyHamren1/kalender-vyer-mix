@@ -590,31 +590,49 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
 
   for (const v of input.visits) {
     const centreMeta = v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng };
-    const placeLabel = v.knownSite?.name ?? null;
     const matched = !!v.knownSite;
     const relevance = visitRelevance.get(v.placeKey) ?? 'unknown_requires_lookup';
     const workRelevant = isMainJournalRelevance(relevance);
+    const pz = visitPrivateZone.get(v.placeKey) ?? null;
+    // Privatzon: aldrig adress/koord som label, alltid tydlig markering.
+    const placeLabel = pz
+      ? (pz.label ?? (pz.kind === 'home' ? 'Hem (privat zon)' : 'Privat zon'))
+      : (v.knownSite?.name ?? null);
     const baseEnrichment = {
-      lookup_source: matched ? 'known_site' : (knownSitesAvailable ? 'pending_lookup' : 'fallback'),
+      lookup_source: pz
+        ? 'private_zone'
+        : (matched ? 'known_site' : (knownSitesAvailable ? 'pending_lookup' : 'fallback')),
       resolved_address: null as string | null,
-      resolved_poi: matched ? (v.knownSite!.name) : null,
-      match_confidence: (matched ? 'high' : 'low') as 'low' | 'medium' | 'high',
-      internal_match_status: (matched
+      resolved_poi: pz ? placeLabel : (matched ? (v.knownSite!.name) : null),
+      match_confidence: (pz ? 'high' : (matched ? 'high' : 'low')) as 'low' | 'medium' | 'high',
+      internal_match_status: (pz
         ? 'matched'
-        : (knownSitesAvailable ? 'unmatched_outside_radius' : 'unmatched_no_sites')) as InternalMatchStatus,
+        : (matched
+          ? 'matched'
+          : (knownSitesAvailable ? 'unmatched_outside_radius' : 'unmatched_no_sites'))) as InternalMatchStatus,
     };
     const baseMeta = {
       placeKey: v.placeKey,
       centre: centreMeta,
       workRelevant,
       workRelevance: relevance,
+      privateZone: pz ? { id: pz.id, kind: pz.kind, label: pz.label } : null,
     };
+    const arrivalLabel = pz
+      ? `Bakgrunds-GPS: privat/ej arbetskopplad${pz.label ? ` (${pz.label})` : ''}`
+      : (placeLabel ? `Anlände: ${placeLabel}` : 'Anlände: okänd plats');
+    const visitLabel = pz
+      ? `Bakgrunds-GPS: privat/ej arbetskopplad${pz.label ? ` (${pz.label})` : ''}`
+      : (placeLabel ? `Vistelse: ${placeLabel}` : 'Vistelse: okänd plats');
+    const departureLabel = pz
+      ? `Bakgrunds-GPS: lämnade privat zon${pz.label ? ` (${pz.label})` : ''}`
+      : (placeLabel ? `Lämnade: ${placeLabel}` : 'Lämnade: okänd plats');
     events.push({
       id: `gps-arr:${v.placeKey}:${v.start}`,
       at: v.start,
       kind: 'gps_arrival',
       severity: 'info',
-      label: placeLabel ? `Anlände: ${placeLabel}` : 'Anlände: okänd plats',
+      label: arrivalLabel,
       place: placeLabel,
       meta: { ...baseMeta, pingCount: v.pingCount },
       ...baseEnrichment,
@@ -625,7 +643,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       until: v.end,
       kind: 'gps_visit',
       severity: 'info',
-      label: placeLabel ? `Vistelse: ${placeLabel}` : 'Vistelse: okänd plats',
+      label: visitLabel,
       place: placeLabel,
       durationMin: v.durationMin,
       meta: baseMeta,
@@ -636,7 +654,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       at: v.end,
       kind: 'gps_departure',
       severity: 'info',
-      label: placeLabel ? `Lämnade: ${placeLabel}` : 'Lämnade: okänd plats',
+      label: departureLabel,
       place: placeLabel,
       meta: baseMeta,
       ...baseEnrichment,
