@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Briefcase, Car, AlertTriangle, ChevronDown, ChevronRight, Pencil, Check,
-  Filter, Download, MapPin, Clock, CheckCircle2, Activity,
+  Filter, Download, MapPin, Clock, CheckCircle2, Activity, WifiOff,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
