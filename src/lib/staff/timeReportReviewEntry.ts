@@ -254,6 +254,9 @@ export function buildReviewEntries(input: BuildReviewEntriesInput): {
     withGaps.push({
       key: `gap:${cur.key}->${next.key}`,
       kind: 'gap',
+      // Luckor är bevis på frånvaro/förflyttning — visas som anomaly
+      // (händelsejournalen), aldrig som fördelning.
+      rowKind: 'anomaly',
       label: 'Oregistrerad tid',
       sublabel: 'Lucka mellan två poster',
       startIso: cur.endIso,
