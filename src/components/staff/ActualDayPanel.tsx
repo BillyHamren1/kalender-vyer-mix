@@ -223,6 +223,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   const [reportOpen, setReportOpen] = useState(false);
   const [rawGpsOpen, setRawGpsOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
+  const [expandedDebugKeys, setExpandedDebugKeys] = useState<Set<string>>(() => new Set());
 
   const handleApplyReprocess = (plan: ReprocessChoice[]) => {
     if (onRecomputeDay) {
