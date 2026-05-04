@@ -195,8 +195,27 @@ export const buildPlannerCalendarEvents = ({
   // — but only if a real calendar_events row exists for it. No fallback
   // synthesis. If a row is missing → it doesn't appear; reconciler/backfill
   // will create it.
+  //
+  // DETERMINISTIC SIBLING SELECTION:
+  // A large project can have multiple sibling bookings each with their own
+  // calendar_events row on the same (phase, date). We must always pick the
+  // SAME sibling — otherwise the project visually hops between team columns
+  // every time any sibling event is touched (Realtime-ordered refetch flips
+  // the "first" winner). Sort key: source_date → event_type → booking_number
+  // → id. The project-level team override (projectTeamByKey) still wins over
+  // the chosen row's resource_id when present.
+  const sortedRealEvents = [...realEvents].sort((a, b) => {
+    const sa = (a.source_date || a.start_time || '').localeCompare(b.source_date || b.start_time || '');
+    if (sa !== 0) return sa;
+    const ta = (a.event_type || '').localeCompare(b.event_type || '');
+    if (ta !== 0) return ta;
+    const bna = (a.booking_number || '').localeCompare(b.booking_number || '');
+    if (bna !== 0) return bna;
+    return (a.id || '').localeCompare(b.id || '');
+  });
+
   const projectEmitted = new Set<string>();
-  for (const row of realEvents) {
+  for (const row of sortedRealEvents) {
     const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
     const projectId = booking?.large_project_id || (row.booking_id ? bookingToProject.get(row.booking_id) : undefined);
     const phase = normalizePhase(row.event_type);
