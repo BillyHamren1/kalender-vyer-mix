@@ -474,7 +474,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               const lookupKey = visit?.centre
                 ? `${visit.centre.lat.toFixed(3)},${visit.centre.lng.toFixed(3)}`
                 : null;
-              const geo = lookupKey ? geoByKey.get(lookupKey) : null;
+              const geo = lookupKey ? (geoByKey.get(lookupKey)?.data ?? null) : null;
               return (
                 <React.Fragment key={ev.id}>
                   <li className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-x-2 text-xs py-0.5">
