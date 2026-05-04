@@ -550,39 +550,56 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                   </React.Fragment>
                 );
               })}
-              {/* Ofördelad arbetstid — syntetisk rad när workday > distribuerat */}
-              {undistributedHours > 0 && (
-                <TableRow className="bg-amber-50 dark:bg-amber-950/20">
-                  <TableCell />
-                  <TableCell colSpan={3}>
-                    <div className="flex items-start gap-1.5 min-w-0">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-amber-900 dark:text-amber-200">Ofördelad arbetstid</div>
-                        <div className="text-[11px] text-amber-700 dark:text-amber-400">
-                          Personen har arbetstid i arbetsdagen som ännu inte är kopplad till projekt/plats.
+              {/* Ofördelad arbetstid — syntetisk rad när workday > bekräftat
+                  fördelat. Om en pågående aktivitet existerar förklarar vi
+                  att luckan kan komma att fyllas när timern stoppas. */}
+              {undistributedHours > 0 && (() => {
+                const activeMin = canonical?.activeTimerMinutes ?? 0;
+                const hasActive = activeMin > 0;
+                const signalLost = !!canonical?.hasSignalLost;
+                const explain = hasActive
+                  ? signalLost
+                    ? `Ej färdigfördelad — pågående aktivitet (${formatHoursMinutes(activeMin / 60)}) saknar GPS-signal och måste granskas innan godkännande.`
+                    : `Ej färdigfördelad — pågående aktivitet (${formatHoursMinutes(activeMin / 60)}) bekräftas när timern stoppas/sparas.`
+                  : 'Personen har arbetstid i arbetsdagen som ännu inte är kopplad till projekt/plats.';
+                const headLabel = hasActive ? 'Ej färdigfördelad arbetstid' : 'Ofördelad arbetstid';
+                const badgeLabel = hasActive
+                  ? signalLost ? 'Granska signal' : 'Bekräftas vid stopp'
+                  : 'Kräver komplettering';
+                return (
+                  <TableRow className="bg-amber-50 dark:bg-amber-950/20">
+                    <TableCell />
+                    <TableCell colSpan={3}>
+                      <div className="flex items-start gap-1.5 min-w-0">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-amber-900 dark:text-amber-200">{headLabel}</div>
+                          <div className="text-[11px] text-amber-700 dark:text-amber-400">{explain}</div>
                         </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium text-amber-900 dark:text-amber-200">
-                    {formatHoursMinutes(undistributedHours)}
-                  </TableCell>
-                  <TableCell />
-                  <TableCell>
-                    <Badge variant="outline" className="text-[10px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
-                      <AlertTriangle className="h-3 w-3" /> Kräver komplettering
-                    </Badge>
-                  </TableCell>
-                  <TableCell />
-                </TableRow>
-              )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium text-amber-900 dark:text-amber-200">
+                      {formatHoursMinutes(undistributedHours)}
+                    </TableCell>
+                    <TableCell />
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="h-3 w-3" /> {badgeLabel}
+                      </Badge>
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                );
+              })()}
               <TableRow className="font-semibold bg-muted/40">
                 <TableCell />
-                <TableCell colSpan={3}>TOTAL FÖRDELAD TID</TableCell>
+                <TableCell colSpan={3}>BEKRÄFTAT FÖRDELAD TID</TableCell>
                 <TableCell className="text-right tabular-nums">{formatHoursMinutes(distributedHours)}</TableCell>
                 <TableCell colSpan={3} className="text-xs text-muted-foreground font-normal">
                   av Lönegrundande {formatHoursMinutes(payableHours)}
+                  {canonical && canonical.activeTimerMinutes > 0 && (
+                    <> · Pågående aktivitet {formatHoursMinutes(canonical.activeTimerMinutes / 60)}</>
+                  )}
                   {undistributedHours > 0 && <> · Ofördelad {formatHoursMinutes(undistributedHours)}</>}
                   {overDistributedHours > 0 && <> · Överrapportering {formatHoursMinutes(overDistributedHours)}</>}
                 </TableCell>
