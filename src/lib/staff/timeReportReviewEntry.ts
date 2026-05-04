@@ -211,6 +211,16 @@ export function buildReviewEntries(input: BuildReviewEntriesInput): {
     entries.push({
       key: `travel:${t.id}`,
       kind: 'travel',
+      // travel_log som passerar genom buildReviewEntries antas vara
+      // icke-auto (manuell) tills vi får annan signal — godkänd → confirmed,
+      // ej godkänd → suggested. gap_derived/auto-detected travel renderas
+      // separat via canonicalDayModel.travelSuggestions.
+      rowKind: classifyReviewRow({
+        sourceTable: 'travel_log',
+        closed: !!t.end_time,
+        approved: false,
+        travelAutoDetected: false,
+      }),
       label: `Resa: ${t.from_address ?? '?'} → ${t.to_address ?? '?'}`,
       sublabel: undefined,
       startIso: t.start_time,
