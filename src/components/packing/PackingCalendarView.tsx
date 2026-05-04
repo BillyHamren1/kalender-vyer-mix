@@ -125,8 +125,7 @@ export default function PackingCalendarView({ packings }: Props) {
     return events;
   }, [packings]);
 
-  const scheduled = packingEvents.filter(e => e.startDate);
-  const unscheduled = packingEvents.filter(e => !e.startDate);
+  const scheduled = packingEvents;
 
   const navigate_ = (dir: 1 | -1) => {
     if (viewMode === "month") {
