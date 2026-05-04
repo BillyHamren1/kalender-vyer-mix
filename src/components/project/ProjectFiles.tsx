@@ -234,5 +234,3 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
 };
 
 export default ProjectFiles;
-
-export default ProjectFiles;
