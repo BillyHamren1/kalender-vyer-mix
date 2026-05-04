@@ -41,7 +41,8 @@ const DAY_END       = '2026-05-04T23:59:59.999Z';
 // Syntetiska pings som matchar mängden vi ser i prod (förenklat: 12 pings
 // inom geofence mellan 11:30 och 13:49, sen tystnad — räcker för stayPoint).
 function buildWarehousePings(staff = BILLY_ID) {
-  const start = new Date('2026-05-04T11:30:00Z').getTime();
+  // Starta efter workday (11:30:17Z) så pingsen inte blir pre_workday_activity.
+  const start = new Date('2026-05-04T11:32:00Z').getTime();
   const out = [];
   for (let i = 0; i < 12; i++) {
     out.push({
