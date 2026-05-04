@@ -129,13 +129,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes] = await Promise.all([
-        // EXCLUDE legacy auto-mirrored rows. The DB trigger
-        // `sync_location_entry_to_time_report` was REMOVED 2026-04-22 and
-        // time_reports are now created exclusively via
-        // `mobile-app-api.handleCreateTimeReport` (single owner).
-        // The exclude-filter remains so historical rows from before that
-        // migration don't double up against the canonical location_time_entry.
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, historyRes, assistantRes, flagsRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -150,22 +144,32 @@ const StaffTimeReports: React.FC = () => {
           .from('location_time_entries')
           .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
           .eq('entry_date', dateStr),
-        // Workdays scoped strictly by start day. A workday that starts at
-        // T-1 23:30 and ends T 00:38 belongs to T-1 (its start day) — not
-        // both days. This matches the mobile UI grouping. Real night shifts
-        // (start 22:00, end 02:00) thus appear only on the start day, which
-        // is consistent and predictable. Open workdays from earlier days
-        // are ghosts (handled by close-stale-workday-entries watchdog) and
-        // must NOT bleed into today's view as 50h "still active" timers.
         supabase
           .from('workdays')
           .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note')
           .gte('started_at', dayStartIso)
           .lt('started_at', nextDayIso),
-        // Latest GPS ping per staff (one row per staff_id by table design).
         supabase
           .from('staff_locations')
           .select('staff_id, latitude, longitude, updated_at, last_address, app_version, app_build, app_platform'),
+        // Faktisk dag: hela dagens GPS-historik (inte bara senaste pinget).
+        // Limit 5000 = ~3-4s ping-takt × 12h. Fler trimmas på klienten.
+        supabase
+          .from('staff_location_history')
+          .select('staff_id, lat, lng, accuracy, speed, recorded_at')
+          .gte('recorded_at', dayStartIso)
+          .lt('recorded_at', nextDayIso)
+          .order('recorded_at', { ascending: true })
+          .limit(5000),
+        supabase
+          .from('assistant_events')
+          .select('id, staff_id, event_type, target_type, target_id, target_label, suggested_action, happened_at, detected_at, resolved_at, resolution_status, metadata')
+          .gte('happened_at', dayStartIso)
+          .lt('happened_at', nextDayIso),
+        supabase
+          .from('workday_flags')
+          .select('id, staff_id, flag_type, severity, title, description, created_at, resolved')
+          .eq('flag_date', dateStr),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
