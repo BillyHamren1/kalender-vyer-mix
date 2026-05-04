@@ -930,36 +930,67 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         // Re-entry: timer is active and we just came back inside → close any open anomaly
         if (dist <= enterRadius && hasTimer && triggeredExitRef.current.has(projectKey)) {
           triggeredExitRef.current.delete(projectKey);
+          resetExitTracker(getExitTracker(projectKey));
           fireAnomalyStop({ bookingId: projectKey });
         }
+        // Inside again → clear any accumulated outside-pings (no exit in progress).
+        if (dist <= enterRadius) {
+          resetExitTracker(getExitTracker(projectKey));
+        }
 
-        // EXIT while timer is running → AUTO-STOP activity (Auto-first 2026-04).
-        // Departure-event skickas separat som audit/review-underlag.
+        // EXIT while timer is running → STABLE-EXIT GATE (2026-05).
+        // En enskild outside-ping stoppar inte timern. Vi kräver
+        // ≥3 konsekutiva outside-pings över ≥2 min med ok accuracy.
+        // Saknas det: emittera review_departure men låt timern vara.
+        // Workdayen rörs ALDRIG av geofence — bara aktivitetstimern.
         if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(projectKey)) {
-          triggeredExitRef.current.add(projectKey);
-          triggeredEnterRef.current.delete(projectKey);
-          const exitedAtIso = new Date().toISOString();
-          maybeReportDeparture(projectKey, exitedAtIso);
-          const stopFn = autoActionsRef.stop;
-          if (stopFn) {
-            void stopFn({ key: projectKey, exitedAtIso }).catch((err) => {
-              // Stop failed → revert to anomaly so reviewer ser att något hände.
-              console.warn('[Geofence] auto-stop project failed:', err);
-              fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
-            });
+          const ev = evaluateExit(projectKey, dist);
+          if (ev.status !== 'stable') {
+            if (ev.status === 'insufficient' || ev.status === 'unstable') {
+              emitReviewDeparture({
+                kind: 'project', targetId: lpId, label: lpName, ev,
+              });
+            }
+            // no_signal → vänta. Hoppa över stop tills vi har stabil exit.
           } else {
-            fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
+            triggeredExitRef.current.add(projectKey);
+            triggeredEnterRef.current.delete(projectKey);
+            const exitedAtIso = new Date().toISOString();
+            maybeReportDeparture(projectKey, exitedAtIso);
+            const stopMeta = buildExitMetadata(ev);
+            const stopFn = autoActionsRef.stop;
+            if (stopFn) {
+              void stopFn({ key: projectKey, exitedAtIso }).catch((err) => {
+                console.warn('[Geofence] auto-stop project failed:', err);
+                fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
+              });
+              // Audit-event så admin ser exakt VARFÖR auto-stop skedde.
+              mobileApi.assistantEvents.create({
+                event_type: 'departure',
+                target_type: 'project',
+                target_id: lpId,
+                target_label: lpName,
+                happened_at: exitedAtIso,
+                source: 'geofence',
+                suggested_action: 'auto_stopped_activity',
+                metadata: { ...stopMeta, stop_source: 'geofence_auto', stop_reason: 'stable_exit' },
+              }).catch(() => {});
+            } else {
+              fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
+            }
+            resetExitTracker(getExitTracker(projectKey));
+            window.dispatchEvent(new CustomEvent('workplace-exit', {
+              detail: {
+                kind: 'project',
+                key: projectKey,
+                bookingId: projectKey,
+                largeProjectId: lpId,
+                exitedAtIso,
+                decision: exitDecision,
+                exit_metadata: stopMeta,
+              },
+            }));
           }
-          window.dispatchEvent(new CustomEvent('workplace-exit', {
-            detail: {
-              kind: 'project',
-              key: projectKey,
-              bookingId: projectKey,
-              largeProjectId: lpId,
-              exitedAtIso,
-              decision: exitDecision,
-            },
-          }));
         }
       } else {
         // Standalone booking
