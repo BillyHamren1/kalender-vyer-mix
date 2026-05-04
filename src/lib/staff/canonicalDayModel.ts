@@ -1,0 +1,319 @@
+/**
+ * buildCanonicalStaffDayModel — single source of truth for "what does
+ * this staff member's day look like for payroll & review?"
+ *
+ * MENTAL MODEL (EventFlow):
+ *   - workdays.started_at..ended_at  →  the SHIFT envelope.
+ *   - workday duration − rast        →  PAYABLE TIME (lönegrundande).
+ *   - time_reports                   →  internal DISTRIBUTION of payable
+ *                                       time onto projects/locations/
+ *                                       lager. NEVER the source for
+ *                                       payable time itself.
+ *   - travel_time_logs               →  SUGGESTED travel — only counts
+ *                                       once explicitly approved /
+ *                                       converted into a time_report.
+ *   - location_time_entries          →  technical timer rows; promoted
+ *                                       location-timers already create a
+ *                                       time_report so don't double-count.
+ *   - GPS pings / assistant_events   →  evidence + suggestions only.
+ *
+ * Pure / UI-agnostic. No DB, no React.
+ */
+
+export interface CanonicalWorkdayInput {
+  started_at: string;
+  ended_at: string | null;
+}
+
+/** A row from `time_reports` that represents an internal distribution of
+ *  payable time onto a project/booking/location/etc. */
+export interface CanonicalDistributionRowInput {
+  id: string;
+  /** ISO timestamp or null when ongoing. */
+  start: string | null;
+  end: string | null;
+  /** Hours that this row contributes to distribution. */
+  hours: number;
+  /** Optional break inside this row (hours). Subtracted from totals. */
+  breakHours?: number;
+  /** Display label (project / location / lager / etc.). */
+  label: string;
+  /** Source category — used by callers to pick icons. */
+  category: 'project' | 'location' | 'lager' | 'other';
+  approved?: boolean;
+  /** Subdivisions are metadata, not paid time. */
+  isSubdivision?: boolean;
+}
+
+export interface CanonicalActiveTimerInput {
+  id: string;
+  startedAt: string;
+  label: string;
+  /** Already saved as a time_report? Then it is NOT pending. */
+  reportedAsDistribution?: boolean;
+}
+
+export interface CanonicalTravelSuggestionInput {
+  id: string;
+  start: string | null;
+  end: string | null;
+  hours: number;
+  fromAddress: string | null;
+  toAddress: string | null;
+  /** True when this travel has been promoted to a confirmed
+   *  distribution (e.g. attached to a time_report). */
+  approved?: boolean;
+}
+
+export interface CanonicalGpsEvidenceInput {
+  pingsCount: number;
+  firstPingAt: string | null;
+  lastPingAt: string | null;
+  placesVisited: number;
+}
+
+export type CanonicalAnomalyKind =
+  | 'workday_missing_but_reports_exist'
+  | 'over_distributed'
+  | 'large_undistributed'
+  | 'workday_open_stale';
+
+export interface CanonicalAnomaly {
+  kind: CanonicalAnomalyKind;
+  severity: 'info' | 'warning' | 'critical';
+  label: string;
+  detail: string;
+  minutes: number;
+}
+
+export interface BuildCanonicalDayInput {
+  workdays?: CanonicalWorkdayInput[];
+  distributionRows: CanonicalDistributionRowInput[];
+  activeTimers?: CanonicalActiveTimerInput[];
+  travelSuggestions?: CanonicalTravelSuggestionInput[];
+  gpsEvidence?: CanonicalGpsEvidenceInput | null;
+  /** Test-injectable clock. */
+  now?: Date;
+}
+
+export interface CanonicalStaffDayModel {
+  workdayStart: string | null;
+  workdayEnd: string | null;
+  isWorkdayOpen: boolean;
+  workdayMinutes: number;
+  /** Sum of `breakHours` on the included distribution rows. */
+  breakMinutes: number;
+  /** workdayMinutes − breakMinutes. NEVER negative. The "lönegrundande" total. */
+  payableMinutes: number;
+  /** Sum of distribution rows (excluding subdivisions and breaks). */
+  distributedMinutes: number;
+  /** payableMinutes − distributedMinutes. Positive = under-distributed.
+   *  Zero when payable is 0. */
+  undistributedMinutes: number;
+  /** distributedMinutes − payableMinutes. Positive = over-distributed
+   *  (more reported than the workday allows). */
+  overDistributedMinutes: number;
+  /** Hours on travel_time_logs that are NOT approved yet. */
+  suggestedTravelMinutes: number;
+  /** Hours on travel_time_logs that have been promoted (already counted
+   *  among distributionRows when emitted as time_reports). */
+  approvedTravelMinutes: number;
+  activeTimerRows: ReadonlyArray<CanonicalActiveTimerInput>;
+  distributionRows: ReadonlyArray<CanonicalDistributionRowInput>;
+  travelSuggestions: ReadonlyArray<CanonicalTravelSuggestionInput>;
+  gpsEvidence: CanonicalGpsEvidenceInput | null;
+  anomalies: ReadonlyArray<CanonicalAnomaly>;
+  /** True when the day cannot be auto-approved as-is. */
+  reviewRequired: boolean;
+  /**
+   * Coarse status verb for the day:
+   *  - 'no_workday'           → reports exist but no workday envelope.
+   *  - 'requires_distribution'→ payable > distributed by a meaningful margin.
+   *  - 'over_reported'        → distributed > payable.
+   *  - 'open'                 → workday still running.
+   *  - 'ok'                   → balanced.
+   */
+  status:
+    | 'no_workday'
+    | 'requires_distribution'
+    | 'over_reported'
+    | 'open'
+    | 'ok';
+}
+
+const MS_PER_MIN = 60_000;
+/** Tolerance for "ofördelad tid" warnings (minutes). Anything below is
+ *  considered noise (rounding, micro-gaps). */
+const UNDISTRIBUTED_NOISE_MIN = 5;
+/** Open workday is "stale" after this many hours without an end. */
+const STALE_OPEN_WORKDAY_HOURS = 18;
+
+const safeMs = (iso: string | null | undefined): number | null => {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? t : null;
+};
+
+const minutesBetween = (a: number, b: number): number =>
+  Math.max(0, Math.round((b - a) / MS_PER_MIN));
+
+const hoursToMinutes = (h: number | undefined | null): number => {
+  if (!h || !Number.isFinite(h)) return 0;
+  return Math.max(0, Math.round(h * 60));
+};
+
+/**
+ * Collapse multiple workday rows into one envelope per day:
+ *   start = earliest started_at
+ *   end   = latest ended_at, or null when any row is still open.
+ */
+function collapseWorkdays(
+  workdays: CanonicalWorkdayInput[] | undefined,
+): { start: string | null; end: string | null; open: boolean } {
+  if (!workdays || workdays.length === 0) {
+    return { start: null, end: null, open: false };
+  }
+  const starts = workdays
+    .map((w) => safeMs(w.started_at))
+    .filter((x): x is number => x != null)
+    .sort((a, b) => a - b);
+  const open = workdays.some((w) => !w.ended_at);
+  const ends = workdays
+    .map((w) => safeMs(w.ended_at))
+    .filter((x): x is number => x != null)
+    .sort((a, b) => b - a);
+  return {
+    start: starts[0] != null ? new Date(starts[0]).toISOString() : null,
+    end: open ? null : ends[0] != null ? new Date(ends[0]).toISOString() : null,
+    open,
+  };
+}
+
+export function buildCanonicalStaffDayModel(
+  input: BuildCanonicalDayInput,
+): CanonicalStaffDayModel {
+  const now = (input.now ?? new Date()).getTime();
+  const wd = collapseWorkdays(input.workdays);
+
+  const startMs = safeMs(wd.start);
+  const endMs = wd.open ? now : safeMs(wd.end);
+  const workdayMinutes =
+    startMs != null && endMs != null && endMs > startMs
+      ? minutesBetween(startMs, endMs)
+      : 0;
+
+  // Distribution: subdivisions are metadata, not payable time.
+  const realRows = input.distributionRows.filter((r) => !r.isSubdivision);
+
+  const breakMinutes = realRows.reduce(
+    (s, r) => s + hoursToMinutes(r.breakHours),
+    0,
+  );
+
+  const distributedMinutes = realRows.reduce(
+    (s, r) => s + hoursToMinutes(r.hours),
+    0,
+  );
+
+  // Travel suggestions are NOT counted in distributed/payable until the
+  // user/admin promotes them to a time_report.
+  const travel = input.travelSuggestions ?? [];
+  const suggestedTravelMinutes = travel
+    .filter((t) => !t.approved)
+    .reduce((s, t) => s + hoursToMinutes(t.hours), 0);
+  const approvedTravelMinutes = travel
+    .filter((t) => t.approved)
+    .reduce((s, t) => s + hoursToMinutes(t.hours), 0);
+
+  const payableMinutes = Math.max(0, workdayMinutes - breakMinutes);
+  const undistributedMinutes = Math.max(0, payableMinutes - distributedMinutes);
+  const overDistributedMinutes = Math.max(0, distributedMinutes - payableMinutes);
+
+  // ── Anomalies ───────────────────────────────────────────────────────
+  const anomalies: CanonicalAnomaly[] = [];
+
+  if (workdayMinutes === 0 && distributedMinutes > 0) {
+    anomalies.push({
+      kind: 'workday_missing_but_reports_exist',
+      severity: 'warning',
+      label: 'Saknar arbetsdag',
+      detail:
+        'Tidrapporter finns men ingen workday — granska och lägg in arbetsdagens start/slut.',
+      minutes: distributedMinutes,
+    });
+  }
+
+  if (overDistributedMinutes > 0) {
+    anomalies.push({
+      kind: 'over_distributed',
+      severity: overDistributedMinutes > 30 ? 'critical' : 'warning',
+      label: 'Överrapportering',
+      detail: `${overDistributedMinutes} min mer fördelat än arbetsdagen tillåter (lönegrundande tid).`,
+      minutes: overDistributedMinutes,
+    });
+  }
+
+  if (
+    workdayMinutes > 0 &&
+    !wd.open &&
+    undistributedMinutes > UNDISTRIBUTED_NOISE_MIN
+  ) {
+    anomalies.push({
+      kind: 'large_undistributed',
+      severity: undistributedMinutes > 60 ? 'warning' : 'info',
+      label: 'Ofördelad tid',
+      detail: `${undistributedMinutes} min av lönegrundande tid är inte fördelad på något projekt.`,
+      minutes: undistributedMinutes,
+    });
+  }
+
+  if (
+    wd.open &&
+    startMs != null &&
+    now - startMs > STALE_OPEN_WORKDAY_HOURS * 60 * MS_PER_MIN
+  ) {
+    anomalies.push({
+      kind: 'workday_open_stale',
+      severity: 'warning',
+      label: 'Arbetsdag öppen för länge',
+      detail: `Arbetsdagen har varit öppen i mer än ${STALE_OPEN_WORKDAY_HOURS} h utan slut.`,
+      minutes: minutesBetween(startMs, now),
+    });
+  }
+
+  let status: CanonicalStaffDayModel['status'] = 'ok';
+  if (workdayMinutes === 0 && distributedMinutes > 0) status = 'no_workday';
+  else if (overDistributedMinutes > 0) status = 'over_reported';
+  else if (wd.open) status = 'open';
+  else if (undistributedMinutes > UNDISTRIBUTED_NOISE_MIN)
+    status = 'requires_distribution';
+
+  const reviewRequired =
+    anomalies.length > 0 ||
+    status === 'requires_distribution' ||
+    status === 'no_workday' ||
+    status === 'over_reported';
+
+  return {
+    workdayStart: wd.start,
+    workdayEnd: wd.end,
+    isWorkdayOpen: wd.open,
+    workdayMinutes,
+    breakMinutes,
+    payableMinutes,
+    distributedMinutes,
+    undistributedMinutes,
+    overDistributedMinutes,
+    suggestedTravelMinutes,
+    approvedTravelMinutes,
+    activeTimerRows: input.activeTimers ?? [],
+    distributionRows: realRows,
+    travelSuggestions: travel,
+    gpsEvidence: input.gpsEvidence ?? null,
+    anomalies,
+    reviewRequired,
+    status,
+  };
+}
+
+export const minutesToHours = (m: number): number => m / 60;
