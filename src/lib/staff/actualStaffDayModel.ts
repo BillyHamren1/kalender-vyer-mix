@@ -463,13 +463,50 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }
 
   // 5) GPS-vistelser
+  // Arbetsrelevans: en GPS-vistelse visas i huvudjournalen ENDAST om något
+  // av följande gäller (annars hamnar den i "Bakgrunds-GPS / ej arbetskopplad"):
+  //  - matchad känd plats (lager/booking/large_project)
+  //  - överlappar workday-fönstret
+  //  - överlappar en location_time_entry/timer
+  //  - överlappar en time_report
+  //  - kopplad till ett assistant_event (±20 min)
+  //  - resa mellan två arbetsrelevanta platser
   const knownSitesAvailable = (input.knownSites ?? []).length > 0;
+  const wdStart = input.workday ? new Date(input.workday.started_at).getTime() : null;
+  const wdEnd = input.workday?.ended_at
+    ? new Date(input.workday.ended_at).getTime()
+    : (input.workday ? now.getTime() : null);
+  const timerWindows = input.locationEntries.map(e => ({
+    s: new Date(e.entered_at).getTime(),
+    e: e.exited_at ? new Date(e.exited_at).getTime() : now.getTime(),
+  }));
+  const trWindows = input.timeReports.map(r => ({
+    s: new Date(r.start_iso).getTime(),
+    e: r.end_iso ? new Date(r.end_iso).getTime() : now.getTime(),
+  }));
+  const assistantTimes = input.assistantEvents.map(a => new Date(a.happened_at).getTime());
+  const overlaps = (a: number, b: number, s: number, e: number) => a < e && b > s;
+  const isWindowRelevant = (startMs: number, endMs: number): boolean => {
+    if (wdStart != null && wdEnd != null && overlaps(startMs, endMs, wdStart, wdEnd)) return true;
+    for (const w of timerWindows) if (overlaps(startMs, endMs, w.s, w.e)) return true;
+    for (const w of trWindows) if (overlaps(startMs, endMs, w.s, w.e)) return true;
+    for (const t of assistantTimes) if (t >= startMs - 20 * 60_000 && t <= endMs + 20 * 60_000) return true;
+    return false;
+  };
+
+  const visitRelevance = new Map<string, boolean>();
+  for (const v of input.visits) {
+    const startMs = new Date(v.start).getTime();
+    const endMs = new Date(v.end).getTime();
+    const relevant = !!v.knownSite || isWindowRelevant(startMs, endMs);
+    visitRelevance.set(v.placeKey, relevant);
+  }
+
   for (const v of input.visits) {
     const centreMeta = v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng };
     const placeLabel = v.knownSite?.name ?? null;
-    // Bas-berikning som lever i modellen — UI får komplettera unknown med
-    // Mapbox-uppslag, men matched-fall är redan kompletta här.
     const matched = !!v.knownSite;
+    const workRelevant = visitRelevance.get(v.placeKey) ?? false;
     const baseEnrichment = {
       lookup_source: matched ? 'known_site' : (knownSitesAvailable ? 'pending_lookup' : 'fallback'),
       resolved_address: null as string | null,
@@ -479,6 +516,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         ? 'matched'
         : (knownSitesAvailable ? 'unmatched_outside_radius' : 'unmatched_no_sites')) as InternalMatchStatus,
     };
+    const baseMeta = { placeKey: v.placeKey, centre: centreMeta, workRelevant };
     events.push({
       id: `gps-arr:${v.placeKey}:${v.start}`,
       at: v.start,
@@ -486,7 +524,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       severity: 'info',
       label: placeLabel ? `Anlände: ${placeLabel}` : 'Anlände: okänd plats',
       place: placeLabel,
-      meta: { placeKey: v.placeKey, pingCount: v.pingCount, centre: centreMeta },
+      meta: { ...baseMeta, pingCount: v.pingCount },
       ...baseEnrichment,
     });
     events.push({
@@ -498,7 +536,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       label: placeLabel ? `Vistelse: ${placeLabel}` : 'Vistelse: okänd plats',
       place: placeLabel,
       durationMin: v.durationMin,
-      meta: { placeKey: v.placeKey, centre: centreMeta },
+      meta: baseMeta,
       ...baseEnrichment,
     });
     events.push({
@@ -508,7 +546,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       severity: 'info',
       label: placeLabel ? `Lämnade: ${placeLabel}` : 'Lämnade: okänd plats',
       place: placeLabel,
-      meta: { placeKey: v.placeKey, centre: centreMeta },
+      meta: baseMeta,
       ...baseEnrichment,
     });
   }
@@ -516,13 +554,16 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     const fromLabel = tr.from.knownSite?.name ?? null;
     const toLabel = tr.to.knownSite?.name ?? null;
     const bothKnown = !!tr.from.knownSite && !!tr.to.knownSite;
+    const startMs = new Date(tr.start).getTime();
+    const endMs = new Date(tr.end).getTime();
+    const fromRelevant = visitRelevance.get(tr.from.placeKey) ?? !!tr.from.knownSite;
+    const toRelevant = visitRelevance.get(tr.to.placeKey) ?? !!tr.to.knownSite;
+    const workRelevant = (fromRelevant && toRelevant) || isWindowRelevant(startMs, endMs);
     events.push({
       id: `gps-trv:${tr.key}`,
       at: tr.start,
       until: tr.end,
       kind: 'gps_travel',
-      // GPS bekräftar rörelse, inte godkänd restid. Mellan kända arbetsplatser
-      // → "föreslagen". Mellan okända → "osäker" (warning).
       severity: bothKnown ? 'info' : 'warning',
       label: `Förflyttning: ${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`,
       durationMin: tr.durationMin,
@@ -532,6 +573,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         travelOrigin: 'gps_movement',
         bothKnown,
         approved: false,
+        workRelevant,
       },
     });
   }
