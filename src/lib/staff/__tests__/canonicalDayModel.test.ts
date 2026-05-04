@@ -60,7 +60,7 @@ describe('buildCanonicalStaffDayModel', () => {
       now: NOW,
     });
     expect(m.payableMinutes).toBe(8 * 60);
-    expect(m.distributedMinutes).toBe(10 * 60);
+    expect(m.distributedMinutes).toBe(8 * 60); // capped at payable
     expect(m.overDistributedMinutes).toBe(2 * 60);
     expect(m.status).toBe('over_reported');
   });
