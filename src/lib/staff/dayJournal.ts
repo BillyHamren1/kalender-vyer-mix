@@ -37,6 +37,14 @@ export interface ProjectSession {
   address?: string | null;
   baseLatitude?: number | null;
   baseLongitude?: number | null;
+  /** Travel-only: GPS + adress-data så GPS-underlag-drawern kan visa startruta. */
+  fromAddress?: string | null;
+  toAddress?: string | null;
+  fromLatitude?: number | null;
+  fromLongitude?: number | null;
+  toLatitude?: number | null;
+  toLongitude?: number | null;
+  destinationBookingId?: string | null;
   /**
    * If this session is backed by at least one `time_reports` row, this is the
    * canonical edit context for that row (the FIRST one if multiple). Allows

@@ -1,31 +1,48 @@
-## Problem
+## Felorsak
 
-Packningskalendern (`/warehouse/packing`) använder fel färger för UT/IN-rader. Idag används Tailwind `bg-green-300` (mättat grön) och `bg-red-300` (röd). Personalkalendern använder mjukare pastellfärger för rig/rigDown — och rigDown är **persika/orange**, inte röd.
+Raden i tabellen säger "Ingen geo-position kopplad till raden" trots att GPS finns. Två separata orsaker:
 
-## Källa (personalkalendern, `src/styles/calendar.css`)
+1. **StaffTimeReportsList → TimeReportReviewTable**: travel-rader byggs från `journal.sessions` (`ProjectSession`), och `ProjectSession` för en travel-leg bär bara `label/start/end/hours` — inga koordinater eller `destination_booking_id`. Listan sätter därför `from_latitude/to_latitude/from_address/...` till `null` (rad 246-252 i `StaffTimeReportsList.tsx`). Då blir `entry.gps` `undefined` i `buildReviewEntries` och sub-raden faller till "Ingen geo-position kopplad till raden". Det är också därför "Saknar destination" + "Saknar adress" syns på resan.
+2. **Drawern visar bara start/slut-koordinaten, inte de faktiska pings**. Användaren förväntar sig att se GPS-rörelsen för raden — vi har redan `useStaffPingsForDay` + `StaffPingDetailPanel` (används i andra ytor) som gör exakt det.
 
-- `event-rig` (UT/rigday): bakgrund `#F2FCE2`, kant `#D4EAB5`, text svart
-- `event-rigDown` (IN/retur): bakgrund `#FEC6A1`, kant `#FEB190`, text svart
+DB-koll bekräftar: båda travel-loggarna 2026-05-04 har giltiga `from_latitude/from_longitude/to_latitude/to_longitude`.
 
-## Ändring
+## Vad vi ska bygga
 
-I `src/components/packing/PackingCalendarView.tsx`:
+### 1. Berika `ProjectSession` (kind=`travel`) med GPS-data
+`src/lib/staff/dayJournal.ts`
+- Lägg till valfria fält i `ProjectSession`: `fromAddress`, `toAddress`, `fromLatitude`, `fromLongitude`, `toLatitude`, `toLongitude`, `destinationBookingId` (relevanta endast för travel; `baseLatitude/baseLongitude` finns redan).
+- Utöka `RawTravelLog` med `from_address`, `from_latitude/longitude`, `to_latitude/longitude`, `destination_booking_id`.
+- I travel-loopen (rad 322-335): för-fyll fälten på sessionen.
 
-1. Ersätt `KIND_COLORS` så att klassuppsättningen inte längre använder `bg-green-300`/`bg-red-300`. Istället sätter vi färgerna via inline-style (matchar personalkalenderns palett exakt) och behåller en hover-klass.
+### 2. Mata in fälten från producenten
+`src/pages/StaffTimeReports.tsx` (rad 692-700)
+- Mappa de extra fälten från `travel`-raden in i `RawTravelLog`.
 
-   ```ts
-   const KIND_STYLES: Record<EventKind, { bg: string; border: string; hoverBg: string }> = {
-     out: { bg: "#F2FCE2", border: "#D4EAB5", hoverBg: "#E4F6CE" }, // rig — ljusgrön
-     in:  { bg: "#FEC6A1", border: "#FEB190", hoverBg: "#FDB389" }, // rigDown — persika
-   };
-   ```
+### 3. Skicka vidare i listan
+`src/components/staff/StaffTimeReportsList.tsx` (rad 240-253)
+- För travel: använd `s.fromLatitude/...` istället för `null`. Använd `s.fromAddress/s.toAddress` för adress.
+- Skicka även med `staffId` och `dateStr` till `<TimeReportReviewTable>` så drawern kan hämta pings.
 
-2. Applicera färgerna på event-chipsen (både månad- och vecka-vyn) via `style={{ backgroundColor, borderColor, color: '#000' }}` plus en tunn `border`-klass. Hover hanteras via en liten CSS-klass i samma fil eller via `onMouseEnter/Leave`-toggle.
+### 4. Riktig "GPS-underlag" via pings — inte bara två koordinater
+`src/components/staff/TimeReportReviewTable.tsx`
+- Lägg till props `staffId?: string` och `date?: string` (DailyOverviewDialog skickar dessa redan, listan får börja).
+- I expanderingen ersätter vi den statiska `fromLat/toLat`-grid:en med en återanvändning av `<StaffPingDetailPanel>` (som vi redan har), filtrerad på radens `startIso → endIso`. Den visar antal pings, första/sista tid och en "Visa på karta"-knapp som öppnar `StaffMovementMap`.
+- Fallback-text "Ingen geo-position…" visas BARA om `staffId/date` saknas (t.ex. legacy callsite) eller pings-arrayen är verkligen tom.
+- Behåll dagens "Visa GPS-detaljer"-toggle i headern; pings-panelen i raden är finkornig och fungerar med toggle av.
 
-3. Uppdatera `KIND_DOT_COLORS` (legendprickarna) till samma två färger så att legend matchar.
+### 5. Uppdatera DailyOverviewDialog-callsiten
+`src/components/staff/DailyOverviewDialog.tsx` (rad 524-566)
+- Skicka in `staffId={staffId}` och `date={date}` till `TimeReportReviewTable`.
 
-4. Inga ändringar av logik (UT/IN-uppdelning, span, navigering) — bara färger.
+## Bonus-effekt
+"Saknar destination"-varningen försvinner automatiskt på Eduards 2 resor när `destination_booking_id` propageras (det är `null` i DB just nu — men `from_address`/`to_address` finns, så `'Ingen adress på resan'` försvinner i alla fall). `'Saknar destination'`-varningen kommer fortsatt visas tills travel-loggen får ett `destination_booking_id` — den är korrekt och ska behållas, det är ett separat datakvalitetsärende (resorna är `source='gap_derived'` och har inget bokat mål).
 
-## Resultat
+## Filer som ändras
+- `src/lib/staff/dayJournal.ts`
+- `src/pages/StaffTimeReports.tsx`
+- `src/components/staff/StaffTimeReportsList.tsx`
+- `src/components/staff/TimeReportReviewTable.tsx`
+- `src/components/staff/DailyOverviewDialog.tsx`
 
-Packningskalenderns UT-rader blir samma mjuka ljusgrön som personalkalenderns rig-event, och IN-rader blir samma persika som personalkalenderns rigDown-event. Visuell konsistens mellan de två kalendrarna.
+Inga DB-migrationer behövs.
