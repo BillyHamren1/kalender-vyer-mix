@@ -670,7 +670,12 @@ const StaffTimeReports: React.FC = () => {
           const staffLTEs: RawLocationEntry[] = (locationEntries as any[])
             .filter(e => e.staff_id === s.id)
             .map(e => {
-              const isPresenceOnly = !e.booking_id && !e.large_project_id;
+              const { isPresenceOnly } = classifyLocationEntry({
+                source: e.source,
+                booking_id: e.booking_id,
+                large_project_id: e.large_project_id,
+                location_id: e.location_id,
+              });
               const isOpen = !e.exited_at;
               const hours = e.total_minutes
                 ? e.total_minutes / 60
