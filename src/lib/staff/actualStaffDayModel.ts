@@ -457,6 +457,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         severity: 'info',
         label: `Resa: ${t.fromAddress ?? '?'} → ${t.toAddress ?? '?'}`,
         durationMin: t.end_iso ? minutesBetween(t.start_iso, t.end_iso) : undefined,
+        meta: { travelOrigin: 'travel_log_approved', approved: true },
       });
     }
   }
