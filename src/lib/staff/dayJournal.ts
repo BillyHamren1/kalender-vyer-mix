@@ -346,6 +346,16 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
       isOpen: !t.end_iso,
       sourceId: `tv:${t.id}`,
     });
+    const created = sessions.get(key);
+    if (created) {
+      created.fromAddress = t.from_address ?? null;
+      created.toAddress = t.to_address ?? null;
+      created.fromLatitude = t.from_latitude ?? null;
+      created.fromLongitude = t.from_longitude ?? null;
+      created.toLatitude = t.to_latitude ?? null;
+      created.toLongitude = t.to_longitude ?? null;
+      created.destinationBookingId = t.destination_booking_id ?? null;
+    }
   }
 
   // Patch labels: if a session lacks a label, take it from any matching source label.
