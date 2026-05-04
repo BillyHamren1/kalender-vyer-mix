@@ -86,6 +86,52 @@ interface StaffWithDayReport {
    * Detta ska vara huvudvyn — inte rapporttabellen.
    */
   actualModel: ActualStaffDayModel;
+  /**
+   * True om GPS-historiken för denna staff/dag har trunkerats (träffat
+   * hårt safety-tak). UI ska visa en varning så admin vet att timeline
+   * är ofullständig och inte tolkar tystnaden som "signal tappad".
+   */
+  pingsTruncated: boolean;
+}
+
+/**
+ * Hämta hela dagens staff_location_history för EN staff via paginering.
+ * Aldrig en global limit — den kapar dagar med många pings (8000+).
+ * Säkerhetstak per staff (PER_STAFF_PING_CAP) hindrar runaway om DB
+ * returnerar miljoner rader; sätter pingsTruncated i så fall.
+ */
+const PING_PAGE_SIZE = 1000;
+const PER_STAFF_PING_CAP = 20_000;
+
+async function fetchAllPingsForStaff(
+  staffId: string,
+  dayStartIso: string,
+  nextDayIso: string,
+): Promise<{ rows: any[]; truncated: boolean }> {
+  const out: any[] = [];
+  let from = 0;
+  while (out.length < PER_STAFF_PING_CAP) {
+    const to = from + PING_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from('staff_location_history')
+      .select('staff_id, lat, lng, accuracy, speed, recorded_at')
+      .eq('staff_id', staffId)
+      .gte('recorded_at', dayStartIso)
+      .lt('recorded_at', nextDayIso)
+      .order('recorded_at', { ascending: true })
+      .range(from, to);
+    if (error) {
+      // Non-fatal: returnera det vi har (dagen får aldrig bli tom).
+      return { rows: out, truncated: false };
+    }
+    const batch = data || [];
+    out.push(...batch);
+    if (batch.length < PING_PAGE_SIZE) {
+      return { rows: out, truncated: false };
+    }
+    from += PING_PAGE_SIZE;
+  }
+  return { rows: out.slice(0, PER_STAFF_PING_CAP), truncated: true };
 }
 
 // Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
@@ -131,7 +177,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, historyRes, assistantRes, flagsRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -154,15 +200,6 @@ const StaffTimeReports: React.FC = () => {
         supabase
           .from('staff_locations')
           .select('staff_id, latitude, longitude, updated_at, last_address, app_version, app_build, app_platform'),
-        // Faktisk dag: hela dagens GPS-historik (inte bara senaste pinget).
-        // Limit 5000 = ~3-4s ping-takt × 12h. Fler trimmas på klienten.
-        supabase
-          .from('staff_location_history')
-          .select('staff_id, lat, lng, accuracy, speed, recorded_at')
-          .gte('recorded_at', dayStartIso)
-          .lt('recorded_at', nextDayIso)
-          .order('recorded_at', { ascending: true })
-          .limit(5000),
         supabase
           .from('assistant_events')
           .select('id, staff_id, event_type, target_type, target_id, target_label, suggested_action, happened_at, detected_at, resolved_at, resolution_status, metadata')
@@ -207,7 +244,10 @@ const StaffTimeReports: React.FC = () => {
       const travel = travelRes.data || [];
       const locationEntries = locationRes.data || [];
       const workdays = workdaysRes.data || [];
-      const historyPings = (historyRes as any).error ? [] : ((historyRes as any).data || []);
+      // historyPings hämtas per-staff längre ned (efter att staffIds är kända)
+      // för att kunna paginera komplett utan global limit.
+      let historyPings: any[] = [];
+      const pingsTruncatedByStaff = new Map<string, boolean>();
       const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
       const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
 
@@ -702,8 +742,36 @@ const StaffTimeReports: React.FC = () => {
         byStaff.set(wd.staff_id, a);
       }
 
+      // Inkludera även staff som har pings men inga rapporter (annars
+      // försvinner deras "faktiska dag" vyn helt — kravet i regressionen).
+      const pingStaffIds = await (async () => {
+        const { data } = await supabase
+          .from('staff_location_history')
+          .select('staff_id')
+          .gte('recorded_at', dayStartIso)
+          .lt('recorded_at', nextDayIso)
+          .limit(1000);
+        return [...new Set((data || []).map((r: any) => r.staff_id).filter(Boolean))];
+      })();
+      for (const id of pingStaffIds) {
+        if (!byStaff.has(id)) byStaff.set(id, newAgg());
+      }
+
       const staffIds = [...byStaff.keys()];
       if (staffIds.length === 0) return [];
+
+      // ── Per-staff ping-fetch (paginerad). Ingen global limit — den
+      // kapade dagar med 8000+ pings (Billy/Kevin/Matīss). Per-staff
+      // safety cap = PER_STAFF_PING_CAP; sätter pingsTruncatedByStaff
+      // om vi når taket så UI kan visa en varning.
+      const perStaffPings = await Promise.all(
+        staffIds.map(async (id) => {
+          const { rows, truncated } = await fetchAllPingsForStaff(id, dayStartIso, nextDayIso);
+          if (truncated) pingsTruncatedByStaff.set(id, true);
+          return rows;
+        }),
+      );
+      historyPings = perStaffPings.flat();
 
       const { data: staff, error: staffError } = await supabase
         .from('staff_members')
@@ -1011,6 +1079,7 @@ const StaffTimeReports: React.FC = () => {
             metrics,
             canonical,
             actualModel,
+            pingsTruncated: pingsTruncatedByStaff.get(s.id) === true,
           };
         })
         .sort((a, b) => {

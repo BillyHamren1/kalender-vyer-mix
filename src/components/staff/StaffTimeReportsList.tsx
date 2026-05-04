@@ -41,6 +41,7 @@ interface StaffWithDayReport {
   metrics: DayMetrics;
   canonical: CanonicalStaffDayModel;
   actualModel: ActualStaffDayModel;
+  pingsTruncated?: boolean;
 }
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
@@ -277,6 +278,11 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             }
             return (
               <div key={staff.id} className="space-y-2">
+                {staff.pingsTruncated && (
+                  <div className="rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                    ⚠️ GPS-historiken för {staff.name} har trunkerats (mer än 20 000 pings för dagen). Timeline kan vara ofullständig — tysta perioder är inte nödvändigtvis "signal tappad".
+                  </div>
+                )}
                 <ActualDayPanel
                   staffName={staff.name}
                   date={dateStr}
