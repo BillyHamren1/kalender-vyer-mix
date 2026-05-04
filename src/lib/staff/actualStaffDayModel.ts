@@ -482,9 +482,44 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }
 
   // ── ActualVisits (komprimerad form av PlaceVisit) ────────────────
+  const knownSites = input.knownSites ?? [];
+  const findNearestSite = (c: { lat: number; lng: number }): NearestKnownSiteDebug | null => {
+    if (!knownSites.length) return null;
+    let best: NearestKnownSiteDebug | null = null;
+    for (const s of knownSites) {
+      const d = haversineMeters({ lat: s.lat, lng: s.lng }, c);
+      if (!best || d < best.distanceMeters) {
+        best = {
+          id: s.id,
+          name: s.name,
+          lat: s.lat,
+          lng: s.lng,
+          radiusMeters: s.radiusMeters,
+          distanceMeters: Math.round(d),
+          outsideByMeters: Math.round(d - s.radiusMeters),
+        };
+      }
+    }
+    return best;
+  };
+
   const actualVisits: ActualVisit[] = input.visits.map(v => {
     const accs = v.pings.map(p => (p.accuracy == null ? NaN : Number(p.accuracy))).filter(n => Number.isFinite(n));
     const avgAccuracy = accs.length ? Math.round((accs.reduce((s, n) => s + n, 0) / accs.length) * 10) / 10 : null;
+    const isUnknown = !v.knownSite;
+    const nearest = isUnknown ? findNearestSite(v.centre) : null;
+    let unmatchReason: string | null = null;
+    if (isUnknown) {
+      if (!knownSites.length) {
+        unmatchReason = 'Inga kända platser laddade för denna dag.';
+      } else if (!nearest) {
+        unmatchReason = 'Ingen jämförbar känd plats hittades.';
+      } else if (nearest.outsideByMeters > 0) {
+        unmatchReason = `Klustercenter ligger ${nearest.outsideByMeters} m utanför "${nearest.name}" (radie ${nearest.radiusMeters} m, avstånd ${nearest.distanceMeters} m).`;
+      } else {
+        unmatchReason = `Klustercenter ligger inom "${nearest.name}" men matchKnownSite valde inte den — kontrollera om radien justerats efter ping-tidpunkten eller om accuracy försköt enskilda pings utanför radien.`;
+      }
+    }
     return {
       key: v.placeKey,
       label: v.knownSite?.name ?? `Okänd plats nära ${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`,
@@ -495,6 +530,8 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       durationMin: v.durationMin,
       pingCount: v.pingCount,
       avgAccuracy,
+      nearestKnownSite: nearest,
+      unmatchReason,
     };
   });
 
