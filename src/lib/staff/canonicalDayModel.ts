@@ -150,7 +150,7 @@ export interface CanonicalStaffDayModel {
   hasSignalLost: boolean;
   activeTimerRows: ReadonlyArray<CanonicalActiveTimerRow>;
   distributionRows: ReadonlyArray<CanonicalDistributionRowInput>;
-  travelSuggestions: ReadonlyArray<CanonicalTravelSuggestionInput>;
+  travelSuggestions: ReadonlyArray<CanonicalTravelSuggestionRow>;
   gpsEvidence: CanonicalGpsEvidenceInput | null;
   latestPingAgeMin: number | null;
   anomalies: ReadonlyArray<CanonicalAnomaly>;
