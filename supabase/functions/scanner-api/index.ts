@@ -556,18 +556,17 @@ Deno.serve(async (req) => {
 
         let allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
 
-        if (!allocateResponse.ok) {
+        // WMS-fel: HTTP-fel ELLER 200+success:false → skicka WMS error rakt av
+        const wmsBlocked = !allocateResponse.ok || allocateData?.success === false
+        if (wmsBlocked) {
           const status = allocateResponse.status
-          const errBody = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
-          if (status === 404) {
-            console.warn('[verify_product] WMS_404', { serialNumber, bookingNumber, orgId: ORG_ID })
-            return json({ success: false, error: `Enheten "${serialNumber}" hittades inte i lagersystemet`, debugCode: 'WMS_404' })
-          }
-          if (status === 409) {
+          const errBody = allocateData || {}
+          const wmsError = errBody.error || errBody.message
+          if (status === 409 || /already|allocated|fully/i.test(wmsError || '')) {
             console.warn('[verify_product] WMS_409', { serialNumber, bookingNumber, body: errBody })
             const recovered = await recoverAlreadyAllocatedIdentifiers(serialNumbers)
             if (!recovered) {
-              return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad', debugCode: 'WMS_409' })
+              return json({ success: false, error: wmsError || 'Enheten är inte tillgänglig eller redan allokerad', data: errBody.data, debugCode: 'WMS_409' })
             }
             allocateData = {
               results: serialNumbers.map((serial: string) => ({
@@ -580,14 +579,9 @@ Deno.serve(async (req) => {
                 },
               })),
             }
-          }
-          else if (status === 401 || status === 403) {
-            console.error('[verify_product] WMS_AUTH failure — check PRICELIST_API_KEY / x-organization-id', { status, orgId: ORG_ID })
-            return json({ success: false, error: 'Lagersystemet avvisade autentiseringen (kontakta admin)', debugCode: `WMS_${status}` })
-          }
-          else {
-            console.error('[verify_product] WMS_ERROR', { status, body: errBody })
-            return json({ success: false, error: errBody.error || `Lagerfel (${status})`, debugCode: `WMS_${status}` })
+          } else {
+            console.warn('[verify_product] WMS_BLOCKED', { status, body: errBody })
+            return json({ success: false, error: wmsError || `WMS svarade ${status}`, data: errBody.data, debugCode: `WMS_${status}` })
           }
         }
 
@@ -921,14 +915,20 @@ Deno.serve(async (req) => {
           try { checkinData = JSON.parse(text) } catch { checkinData = { raw: text } }
           console.log('[checkin-scan] Response:', { status: checkinStatus, body: checkinData })
 
-          if (!checkinResponse.ok) {
-            // Pass WMS error straight through — do NOT fall back to local logic.
+          // WMS-fel: skicka WMS error-fältet rakt av (HTTP-fel ELLER 200+success:false)
+          const wmsBlocked = !checkinResponse.ok || checkinData?.success === false
+          if (wmsBlocked) {
             const wmsError = checkinData?.error || checkinData?.message || `WMS svarade ${checkinStatus}`
-            return json({ success: false, error: wmsError, wmsStatus: checkinStatus })
+            return json({ success: false, error: wmsError, data: checkinData?.data, wmsStatus: checkinStatus })
           }
         } catch (err) {
           console.error('[checkin-scan] network error', { serial, err })
           return json({ success: false, error: 'Kunde inte nå lagersystemet' })
+        }
+
+        // WMS kan returnera nyttodata under .data — packa upp för fältmatchning nedan
+        if (checkinData?.data && typeof checkinData.data === 'object') {
+          checkinData = { ...checkinData, ...checkinData.data }
         }
 
         // 2. WMS accepted the checkin. Mirror it locally.
@@ -1349,33 +1349,35 @@ Deno.serve(async (req) => {
 
           if (lookupResponse.ok) {
             const lookupData = await lookupResponse.json()
+            // 200+success:false → blockerad/ej hittad enligt WMS — passa fram error
+            if (lookupData?.success === false) {
+              return json({ found: false, error: lookupData.error || lookupData.message || 'Kunde inte identifiera produkt', data: lookupData.data })
+            }
+            const payload = lookupData?.data && typeof lookupData.data === 'object' ? { ...lookupData, ...lookupData.data } : lookupData
             return json({
               found: true,
-              name: lookupData.name || lookupData.item_type_name || lookupData.product_name || null,
-              sku: lookupData.sku || lookupData.serial_number || serialNumber,
-              status: lookupData.status || 'unknown',
-              condition: lookupData.condition || null,
-              itemType: lookupData.item_type || lookupData.item_type_name || null,
-              location: lookupData.location || null,
+              name: payload.name || payload.item_type_name || payload.product_name || null,
+              sku: payload.sku || payload.serial_number || serialNumber,
+              status: payload.status || 'unknown',
+              condition: payload.condition || null,
+              itemType: payload.item_type || payload.item_type_name || null,
+              location: payload.location || null,
               currentBooking:
-                lookupData.reservation_id ||
-                lookupData.booking_number ||
-                lookupData.active_reservation?.reservation_id ||
-                lookupData.active_reservation?.booking_number ||
+                payload.reservation_id ||
+                payload.booking_number ||
+                payload.active_reservation?.reservation_id ||
+                payload.active_reservation?.booking_number ||
                 null,
-              activeReservation: lookupData.active_reservation || null,
+              activeReservation: payload.active_reservation || null,
               rawData: lookupData,
             })
           }
 
-          if (lookupResponse.status === 404) {
-            await lookupResponse.text()
-            return json({ found: false, error: `Produkt "${serialNumber}" hittades inte i lagersystemet` })
-          }
-
           const errText = await lookupResponse.text()
+          let errBody: any = {}
+          try { errBody = JSON.parse(errText) } catch { errBody = {} }
           console.error('[identify_product] scan-status error:', lookupResponse.status, errText)
-          return json({ found: false, error: `Kunde inte identifiera produkt (${lookupResponse.status})` })
+          return json({ found: false, error: errBody.error || errBody.message || `Kunde inte identifiera produkt (${lookupResponse.status})`, data: errBody.data })
         } catch (fetchErr) {
           console.error('[identify_product] Fetch error:', fetchErr)
           return json({ found: false, error: 'Kunde inte nå lagersystemet' })
