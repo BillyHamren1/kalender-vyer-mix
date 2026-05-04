@@ -697,6 +697,12 @@ const StaffTimeReports: React.FC = () => {
               end_iso: t.end_time,
               hours: t.hours_worked || 0,
               to_address: t.to_address,
+              from_address: t.from_address ?? null,
+              from_latitude: t.from_latitude ?? null,
+              from_longitude: t.from_longitude ?? null,
+              to_latitude: t.to_latitude ?? null,
+              to_longitude: t.to_longitude ?? null,
+              destination_booking_id: t.destination_booking_id ?? null,
             }));
 
           const staffWorkdays: RawWorkday[] = (workdays as any[])
