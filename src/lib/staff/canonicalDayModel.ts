@@ -337,6 +337,17 @@ export function buildCanonicalStaffDayModel(
     });
   }
 
+  const missingDestTravel = travel.filter((t) => t.reviewReason === 'missing_destination');
+  if (missingDestTravel.length > 0) {
+    anomalies.push({
+      kind: 'travel_missing_destination',
+      severity: 'warning',
+      label: 'Resa saknar destination',
+      detail: `${missingDestTravel.length} föreslagen resa saknar destination — kan inte godkännas som fördelad tid.`,
+      minutes: missingDestTravel.reduce((s, t) => s + hoursToMinutes(t.hours), 0),
+    });
+  }
+
   // ── Active timers + stale GPS detection ────────────────────────────
   const lastPingMs = safeMs(input.latestPing?.updatedAt);
   const latestPingAgeMin =
