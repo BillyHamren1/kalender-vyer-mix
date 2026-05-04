@@ -1010,6 +1010,7 @@ const StaffTimeReports: React.FC = () => {
             latestPing: pingMap.get(s.id) || null,
             metrics,
             canonical,
+            actualModel,
           };
         })
         .sort((a, b) => {
