@@ -286,12 +286,18 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
         </div>
       </div>
 
-      {/* Pågående timers — visas separat och räknas ALDRIG som lönegrundande */}
+      {/* Pågående aktivitet — preliminär fördelning av arbetsdagen.
+          Lönegrundande tid kommer från workday och är aktiv så länge
+          dagen pågår — pågående aktivitetstimer är INTE en separat
+          extra lön, den är bara ej färdigfördelad förrän stoppad. */}
       {canonical && canonical.activeTimerRows.length > 0 && (
-        <div className="rounded-md border bg-muted/10 p-3 space-y-1.5">
-          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wide">
             <Activity className="h-3.5 w-3.5" />
-            Pågående timers · räknas inte som betald tid förrän stoppade
+            Pågående aktivitet · ej färdigfördelad förrän stoppad
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Preliminär fördelning av arbetsdagen — bekräftas när timern stoppas/sparas.
           </div>
           <ul className="space-y-1">
             {canonical.activeTimerRows.map((t) => (
@@ -314,7 +320,7 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                     ? `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}. Granska innan godkännande.`
                     : `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}.`}
                 >
-                  {t.signalLost ? 'Pågår — signal tappad' : 'Pågår'}
+                  {t.signalLost ? 'Pågår — signal tappad' : 'Preliminär — pågår'}
                 </Badge>
               </li>
             ))}
