@@ -335,6 +335,14 @@ export const decrementPackingItem = async (
   return callScannerApi('decrement_item', { itemId });
 };
 
+// Decrement by serial / RFID (looks up SKU via WMS first)
+export const decrementBySerial = async (
+  packingId: string,
+  serialNumber: string
+): Promise<{ success: boolean; error?: string; itemId?: string; newQuantity?: number; productName?: string }> => {
+  return callScannerApi('decrement_by_serial', { packingId, serialNumber });
+};
+
 // Get verification progress
 export const getVerificationProgress = async (packingId: string) => {
   return callScannerApi('get_progress', { packingId });
