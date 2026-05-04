@@ -476,7 +476,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             {showAllEvents ? 'Visa kompakt' : 'Visa alla händelser'}
           </button>
         </div>
-        {events.length === 0 ? (
+        {mainEvents.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
           </div>
