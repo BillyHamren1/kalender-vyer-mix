@@ -157,10 +157,13 @@ export interface ActualVisit {
   label: string;
   /** Matchad känd plats (fixed location / dagens booking / large project). */
   knownSiteId: string | null;
+  /** Klustercenter — används av UI för reverse-geocode-uppslag. */
+  centre: { lat: number; lng: number } | null;
   start: string;
   end: string;
   durationMin: number;
   pingCount: number;
+  avgAccuracy: number | null;
 }
 
 export interface ProposedAnomaly {
