@@ -35,6 +35,7 @@ import {
   type TimeReportReviewEntry,
   type ReviewEntryStatus,
 } from '@/lib/staff/timeReportReviewEntry';
+import { countsInDistributedMinutes } from '@/lib/staff/reviewRowKind';
 import { buildCanonicalStaffDayModel, type CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 
 interface TimeReportReviewTableProps {
