@@ -142,6 +142,21 @@ export type ActualEventKind =
 
 export type ActualEventSeverity = 'info' | 'success' | 'warning' | 'critical';
 
+/**
+ * Status för intern platsmatchning mot kända sites (lager/booking/large_project).
+ *  - 'matched'                — klustret matchade en känd plats.
+ *  - 'unmatched_outside_radius' — närmaste kända plats finns men klustret ligger utanför dess radie.
+ *  - 'unmatched_no_nearest'    — ingen jämförbar plats hittades.
+ *  - 'unmatched_no_sites'      — inga kända platser laddades för dagen.
+ *  - 'not_applicable'          — eventet är inte ett GPS-kluster.
+ */
+export type InternalMatchStatus =
+  | 'matched'
+  | 'unmatched_outside_radius'
+  | 'unmatched_no_nearest'
+  | 'unmatched_no_sites'
+  | 'not_applicable';
+
 export interface ActualEvent {
   id: string;
   at: string;
@@ -157,11 +172,19 @@ export interface ActualEvent {
   inferred_label?: string | null;
   inferred_activity_type?: string | null;
   confidence?: 'low' | 'medium' | 'high' | null;
-  /** Källa för platsuppslag: 'known_site' | 'poi' | 'address' | 'fallback'. */
+  /** Källa för platsuppslag: 'known_site' | 'mapbox_poi' | 'mapbox_address' | 'fallback'. */
   lookup_source?: string | null;
   address?: string | null;
   poi_name?: string | null;
   poi_category?: string | null;
+  /** Berikad adress (POI eller gatuadress) — används av reprocess/förslag. */
+  resolved_address?: string | null;
+  /** Berikat POI-namn (Mapbox) eller känd plats-namn. */
+  resolved_poi?: string | null;
+  /** Tilltro till platslabeln: known_site=high, poi=medium, address=medium, koord-fallback=low. */
+  match_confidence?: 'low' | 'medium' | 'high' | null;
+  /** Intern matchstatus mot org_locations/bookings/large_projects. */
+  internal_match_status?: InternalMatchStatus | null;
 }
 
 export interface NearestKnownSiteDebug {
@@ -349,9 +372,22 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }
 
   // 5) GPS-vistelser
+  const knownSitesAvailable = (input.knownSites ?? []).length > 0;
   for (const v of input.visits) {
     const centreMeta = v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng };
     const placeLabel = v.knownSite?.name ?? null;
+    // Bas-berikning som lever i modellen — UI får komplettera unknown med
+    // Mapbox-uppslag, men matched-fall är redan kompletta här.
+    const matched = !!v.knownSite;
+    const baseEnrichment = {
+      lookup_source: matched ? 'known_site' : (knownSitesAvailable ? 'pending_lookup' : 'fallback'),
+      resolved_address: null as string | null,
+      resolved_poi: matched ? (v.knownSite!.name) : null,
+      match_confidence: (matched ? 'high' : 'low') as 'low' | 'medium' | 'high',
+      internal_match_status: (matched
+        ? 'matched'
+        : (knownSitesAvailable ? 'unmatched_outside_radius' : 'unmatched_no_sites')) as InternalMatchStatus,
+    };
     events.push({
       id: `gps-arr:${v.placeKey}:${v.start}`,
       at: v.start,
@@ -360,6 +396,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       label: placeLabel ? `Anlände: ${placeLabel}` : 'Anlände: okänd plats',
       place: placeLabel,
       meta: { placeKey: v.placeKey, pingCount: v.pingCount, centre: centreMeta },
+      ...baseEnrichment,
     });
     events.push({
       id: `gps-visit:${v.placeKey}:${v.start}`,
@@ -371,6 +408,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       place: placeLabel,
       durationMin: v.durationMin,
       meta: { placeKey: v.placeKey, centre: centreMeta },
+      ...baseEnrichment,
     });
     events.push({
       id: `gps-dep:${v.placeKey}:${v.end}`,
@@ -380,6 +418,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       label: placeLabel ? `Lämnade: ${placeLabel}` : 'Lämnade: okänd plats',
       place: placeLabel,
       meta: { placeKey: v.placeKey, centre: centreMeta },
+      ...baseEnrichment,
     });
   }
   for (const tr of input.travels) {

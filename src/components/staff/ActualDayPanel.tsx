@@ -154,8 +154,8 @@ const sourceTagFor = (ev: ActualEvent): string => {
     case 'gps_arrival':
     case 'gps_departure':
     case 'gps_visit':
-      if (lookupSource === 'mapbox') return 'GPS / adressuppslag';
-      if (lookupSource === 'fallback') return 'GPS / okänd';
+      if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'GPS / adressuppslag';
+      if (lookupSource === 'fallback' || lookupSource === 'pending_lookup') return 'GPS / okänd';
       return 'GPS';
     case 'gps_travel':
       return 'GPS/travel';
@@ -181,8 +181,8 @@ const statusTagFor = (ev: ActualEvent): string => {
   if (kind === 'travel_suggestion') return 'föreslagen';
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
   if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
-    if (lookupSource === 'mapbox') return 'adressuppslag';
-    if (lookupSource === 'fallback') return 'osäker';
+    if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'adressuppslag';
+    if (lookupSource === 'fallback' || lookupSource === 'pending_lookup') return 'osäker';
   }
   return 'bekräftad';
 };
@@ -347,6 +347,24 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             ? `${baseLabel} · ${inference.label}`
             : baseLabel;
 
+        const isMatched = !!visit?.knownSiteId;
+        const hasMapbox = !!lookup?.geo;
+        const lookupSource = isMatched
+          ? 'known_site'
+          : hasMapbox
+            ? (lookup!.geo!.poiName ? 'mapbox_poi' : 'mapbox_address')
+            : 'fallback';
+        const matchConfidence: 'low' | 'medium' | 'high' = isMatched
+          ? 'high'
+          : hasMapbox
+            ? 'medium'
+            : 'low';
+        const internalMatchStatus = isMatched
+          ? 'matched'
+          : (visit?.nearestKnownSite
+              ? 'unmatched_outside_radius'
+              : (visit ? 'unmatched_no_nearest' : (ev.internal_match_status ?? 'unmatched_no_sites')));
+
         return {
           ...ev,
           label,
@@ -354,10 +372,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           inferred_label: inference.label,
           inferred_activity_type: inference.type,
           confidence: inference.confidence,
-          lookup_source: visit?.knownSiteId ? 'known_site' : (lookup?.geo ? 'mapbox' : 'fallback'),
+          lookup_source: lookupSource,
           address: lookup?.geo?.address ?? null,
           poi_name: lookup?.geo?.poiName ?? null,
           poi_category: lookup?.geo?.poiCategory ?? null,
+          resolved_address: lookup?.geo?.address ?? null,
+          resolved_poi: isMatched ? (visit?.label ?? placeLabel) : (lookup?.geo?.poiName ?? null),
+          match_confidence: matchConfidence,
+          internal_match_status: internalMatchStatus as any,
         };
       }
       if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
