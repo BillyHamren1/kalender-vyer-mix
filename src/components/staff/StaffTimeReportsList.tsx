@@ -239,17 +239,17 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             for (const s of staff.journal.sessions as ProjectSession[]) {
               if (s.kind === 'travel') {
                 travel.push({
-                  id: s.sourceIds[0] ?? s.key,
+                  id: s.sourceIds[0]?.replace(/^tv:/, '') ?? s.key,
                   start_time: s.start,
                   end_time: s.end,
                   hours_worked: s.hours,
-                  from_address: null,
-                  to_address: s.label?.replace(/^Resa[:→\s]*/i, '') || null,
-                  from_latitude: null,
-                  from_longitude: null,
-                  to_latitude: null,
-                  to_longitude: null,
-                  destination_booking_id: null,
+                  from_address: s.fromAddress ?? null,
+                  to_address: s.toAddress ?? (s.label?.replace(/^Resa[:→\s]*/i, '') || null),
+                  from_latitude: s.fromLatitude ?? null,
+                  from_longitude: s.fromLongitude ?? null,
+                  to_latitude: s.toLatitude ?? null,
+                  to_longitude: s.toLongitude ?? null,
+                  destination_booking_id: s.destinationBookingId ?? null,
                 });
               } else {
                 const firstId = s.sourceIds[0] ?? s.key;
@@ -283,6 +283,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 <TimeReportReviewTable
                   date={dateStr}
                   staffName={staff.name}
+                  staffId={staff.id}
                   work={work}
                   travel={travel}
                 />

@@ -37,6 +37,14 @@ export interface ProjectSession {
   address?: string | null;
   baseLatitude?: number | null;
   baseLongitude?: number | null;
+  /** Travel-only: GPS + adress-data så GPS-underlag-drawern kan visa startruta. */
+  fromAddress?: string | null;
+  toAddress?: string | null;
+  fromLatitude?: number | null;
+  fromLongitude?: number | null;
+  toLatitude?: number | null;
+  toLongitude?: number | null;
+  destinationBookingId?: string | null;
   /**
    * If this session is backed by at least one `time_reports` row, this is the
    * canonical edit context for that row (the FIRST one if multiple). Allows
@@ -119,6 +127,12 @@ export interface RawTravelLog {
   end_iso: string | null;
   hours: number;
   to_address: string | null;
+  from_address?: string | null;
+  from_latitude?: number | null;
+  from_longitude?: number | null;
+  to_latitude?: number | null;
+  to_longitude?: number | null;
+  destination_booking_id?: string | null;
 }
 
 export interface RawWorkday {
@@ -332,6 +346,16 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
       isOpen: !t.end_iso,
       sourceId: `tv:${t.id}`,
     });
+    const created = sessions.get(key);
+    if (created) {
+      created.fromAddress = t.from_address ?? null;
+      created.toAddress = t.to_address ?? null;
+      created.fromLatitude = t.from_latitude ?? null;
+      created.fromLongitude = t.from_longitude ?? null;
+      created.toLatitude = t.to_latitude ?? null;
+      created.toLongitude = t.to_longitude ?? null;
+      created.destinationBookingId = t.destination_booking_id ?? null;
+    }
   }
 
   // Patch labels: if a session lacks a label, take it from any matching source label.

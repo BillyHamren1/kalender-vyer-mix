@@ -524,6 +524,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
           <TimeReportReviewTable
             date={date}
             staffName={staffName}
+            staffId={staffId}
             work={workEntries.map(w => ({
               id: w.id,
               start_time: w.start_time,

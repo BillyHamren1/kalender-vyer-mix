@@ -27,6 +27,7 @@ import {
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
+import { StaffPingDetailPanel } from '@/components/staff/StaffPingDetailPanel';
 import {
   buildReviewEntries,
   type ReviewWorkInput,
@@ -38,6 +39,8 @@ import {
 interface TimeReportReviewTableProps {
   date: string;
   staffName: string;
+  /** Optional: enables real ping-based GPS-underlag in expanded rows. */
+  staffId?: string;
   work: ReviewWorkInput[];
   travel: ReviewTravelInput[];
   /** Optional: opens edit dialog for a `time_reports` row. */
@@ -118,6 +121,7 @@ function exportCsv(date: string, staffName: string, entries: TimeReportReviewEnt
 export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
   date,
   staffName,
+  staffId,
   work,
   travel,
   onEditTimeReport,
@@ -328,34 +332,44 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                       <TableRow className="bg-muted/10">
                         <TableCell />
                         <TableCell colSpan={7} className="py-2">
-                          <div className="text-xs space-y-1">
+                          <div className="text-xs space-y-2">
                             <div className="font-medium text-muted-foreground">GPS-underlag</div>
                             {entry.kind === 'gap' ? (
                               <div className="text-muted-foreground">
                                 Inga GPS-data — detta är en lucka mellan två poster.
                               </div>
-                            ) : entry.gps ? (
-                              <div className="grid grid-cols-2 gap-2 max-w-xl">
-                                <div>
-                                  <div className="text-[10px] uppercase text-muted-foreground">Start</div>
-                                  <div className="font-mono">
-                                    {entry.gps.fromLat?.toFixed(5) ?? '—'}, {entry.gps.fromLng?.toFixed(5) ?? '—'}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-[10px] uppercase text-muted-foreground">Slut</div>
-                                  <div className="font-mono">
-                                    {entry.gps.toLat?.toFixed(5) ?? '—'}, {entry.gps.toLng?.toFixed(5) ?? '—'}
-                                  </div>
-                                </div>
-                                {onToggleGpsDetails && (
-                                  <div className="col-span-2 text-muted-foreground">
-                                    Aktivera <em>Visa GPS-detaljer</em> ovan för full ping-karta och tidslinje.
+                            ) : (
+                              <>
+                                {entry.gps && (entry.gps.fromLat != null || entry.gps.toLat != null) && (
+                                  <div className="grid grid-cols-2 gap-2 max-w-xl">
+                                    <div>
+                                      <div className="text-[10px] uppercase text-muted-foreground">Start</div>
+                                      <div className="font-mono">
+                                        {entry.gps.fromLat?.toFixed(5) ?? '—'}, {entry.gps.fromLng?.toFixed(5) ?? '—'}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[10px] uppercase text-muted-foreground">Slut</div>
+                                      <div className="font-mono">
+                                        {entry.gps.toLat?.toFixed(5) ?? '—'}, {entry.gps.toLng?.toFixed(5) ?? '—'}
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
-                              </div>
-                            ) : (
-                              <div className="text-muted-foreground">Ingen geo-position kopplad till raden.</div>
+                                {staffId ? (
+                                  <div className="-mx-3">
+                                    <StaffPingDetailPanel
+                                      staffId={staffId}
+                                      staffName={staffName}
+                                      date={date}
+                                      fromIso={entry.startIso}
+                                      toIso={entry.endIso}
+                                    />
+                                  </div>
+                                ) : !entry.gps ? (
+                                  <div className="text-muted-foreground">Ingen geo-position kopplad till raden.</div>
+                                ) : null}
+                              </>
                             )}
                           </div>
                         </TableCell>
