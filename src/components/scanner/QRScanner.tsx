@@ -1058,23 +1058,25 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
         </div>
       )}
 
-      <div className={`${compact ? 'p-2' : 'p-4 safe-area-bottom'} bg-black/80`}>
-        <p className="text-white text-sm text-center mb-2">{shouldSkipCamera ? 'Enter code manually:' : 'Or enter code manually:'}</p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={manualInput}
-            onChange={(e) => setManualInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
-            placeholder="Enter QR code or SKU..."
-            className="flex-1 px-3 py-2 rounded bg-white/10 text-white placeholder:text-white/50 border border-white/20 focus:outline-none focus:border-primary"
-            autoFocus={shouldSkipCamera}
-          />
-          <Button onClick={handleManualSubmit} disabled={!manualInput.trim()}>
-            Submit
-          </Button>
+      {!tight && (
+        <div className={`${compact ? 'p-2' : 'p-4 safe-area-bottom'} bg-black/80`}>
+          <p className="text-white text-sm text-center mb-2">{shouldSkipCamera ? 'Enter code manually:' : 'Or enter code manually:'}</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={manualInput}
+              onChange={(e) => setManualInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
+              placeholder="Enter QR code or SKU..."
+              className="flex-1 px-3 py-2 rounded bg-white/10 text-white placeholder:text-white/50 border border-white/20 focus:outline-none focus:border-primary"
+              autoFocus={shouldSkipCamera}
+            />
+            <Button onClick={handleManualSubmit} disabled={!manualInput.trim()}>
+              Submit
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       <style>{`
         @keyframes scan-line {
