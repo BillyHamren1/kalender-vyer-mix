@@ -288,22 +288,26 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   date={dateStr}
                   model={staff.actualModel}
                   lastPingIso={staff.latestPing?.updated_at ?? null}
-                />
-                <button
-                  type="button"
-                  onClick={() => onSelectStaff(staff.id, staff.name)}
-                  className="text-xs text-muted-foreground hover:text-primary hover:underline underline-offset-2 transition-colors"
-                  title="Öppna detaljerad dagvy med GPS, karta och godkännande"
-                >
-                  Öppna full detaljvy →
-                </button>
-                <TimeReportReviewTable
-                  date={dateStr}
-                  staffName={staff.name}
-                  staffId={staff.id}
-                  work={work}
-                  travel={travel}
-                  canonical={staff.canonical}
+                  reportSlot={
+                    <TimeReportReviewTable
+                      date={dateStr}
+                      staffName={staff.name}
+                      staffId={staff.id}
+                      work={work}
+                      travel={travel}
+                      canonical={staff.canonical}
+                    />
+                  }
+                  extraActions={
+                    <button
+                      type="button"
+                      onClick={() => onSelectStaff(staff.id, staff.name)}
+                      className="ml-auto text-xs text-muted-foreground hover:text-primary hover:underline underline-offset-2 transition-colors h-7 inline-flex items-center"
+                      title="Öppna detaljerad dagvy med GPS, karta och godkännande"
+                    >
+                      Öppna full detaljvy →
+                    </button>
+                  }
                 />
               </div>
             );

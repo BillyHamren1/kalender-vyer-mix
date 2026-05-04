@@ -52,6 +52,12 @@ interface ActualDayPanelProps {
   onIgnoreEvent?: (eventId: string) => void;
   onRecomputeDay?: () => void;
   onShowRawGps?: () => void;
+  /** Renderas inuti collapse-sektionen "Nuvarande sparad rapport". */
+  reportSlot?: React.ReactNode;
+  /** Renderas i den gemensamma actionbaren (E). */
+  extraActions?: React.ReactNode;
+  /** Renderas inuti collapse-sektionen "Rå GPS / debug". */
+  rawGpsSlot?: React.ReactNode;
 }
 
 const fmtHm = (iso: string) => {
@@ -187,9 +193,13 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   onIgnoreEvent,
   onRecomputeDay,
   onShowRawGps,
+  reportSlot,
+  extraActions,
+  rawGpsSlot,
 }) => {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [rawGpsOpen, setRawGpsOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
 
   const handleApplyReprocess = (plan: ReprocessChoice[]) => {
@@ -309,56 +319,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         )}
       </section>
 
-      {/* C. Nuvarande rapport — kort sammanfattning. Full tabell renderas av caller. */}
-      <section className="px-4 py-3 border-b">
-        <button
-          type="button"
-          onClick={() => setReportOpen(v => !v)}
-          className="w-full flex items-center justify-between text-xs"
-        >
-          <span className="font-semibold uppercase tracking-wide text-muted-foreground">
-            Nuvarande rapport
-          </span>
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            {reportOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            {reportOpen ? 'Dölj' : 'Visa'}
-          </span>
-        </button>
-        <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-          <div className="rounded border bg-muted/20 px-2 py-1.5">
-            <div className="text-[10px] uppercase text-muted-foreground">Workday</div>
-            <div className="tabular-nums font-medium">{fmtMin(wdMin)}</div>
-            <div className="text-[10px] text-muted-foreground">lönegrundande ram</div>
-          </div>
-          <div className="rounded border bg-muted/20 px-2 py-1.5">
-            <div className="text-[10px] uppercase text-muted-foreground">Fördelad</div>
-            <div className="tabular-nums font-medium">{fmtMin(model.proposedReport.distributedMinutes)}</div>
-            <div className="text-[10px] text-muted-foreground">time_reports + travel</div>
-          </div>
-          <div className="rounded border bg-muted/20 px-2 py-1.5">
-            <div className="text-[10px] uppercase text-muted-foreground">Ofördelad</div>
-            <div
-              className={`tabular-nums font-medium ${
-                model.proposedReport.undistributedMinutes > 0 ? 'text-amber-600' : ''
-              }`}
-            >
-              {fmtMin(model.proposedReport.undistributedMinutes)}
-            </div>
-            <div className="text-[10px] text-muted-foreground">workday − fördelad</div>
-          </div>
-          <div className="rounded border bg-muted/20 px-2 py-1.5">
-            <div className="text-[10px] uppercase text-muted-foreground">Föreslagen resa</div>
-            <div className="tabular-nums font-medium">{fmtMin(model.proposedReport.suggestedTravelMinutes)}</div>
-            <div className="text-[10px] text-muted-foreground">ej godkänd</div>
-          </div>
-        </div>
-        <p className="mt-2 text-[10px] text-muted-foreground">
-          Workday = lönegrundande ram. Time_reports = intern fördelning. LTE = pågående
-          aktivitet/timerunderlag. Travel_log = föreslagen eller godkänd fördelning.
-        </p>
-      </section>
-
-      {/* D. Föreslagna korrigeringar */}
+      {/* C. Föreslagna korrigeringar — visas FÖRE rapport, eftersom det är den
+          handlingsbara översikten admin ska reagera på. */}
       {model.proposedReport.anomalies.length > 0 && (
         <section className="px-4 py-3 border-b">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 inline-flex items-center gap-1.5">
@@ -403,7 +365,84 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         </section>
       )}
 
-      {/* E. Åtgärder */}
+      {/* D. Nuvarande sparad rapport — collapsed by default. Innehåller både
+          den korta sammanfattningen OCH (om reportSlot satt) den fulla
+          TimeReportReviewTable. Detta är den enda platsen rapporten visas. */}
+      <section className="px-4 py-3 border-b">
+        <button
+          type="button"
+          onClick={() => setReportOpen(v => !v)}
+          className="w-full flex items-center justify-between text-xs"
+        >
+          <span className="font-semibold uppercase tracking-wide text-muted-foreground">
+            Nuvarande sparad rapport
+          </span>
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            {reportOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            {reportOpen ? 'Dölj' : 'Visa'}
+          </span>
+        </button>
+        {reportOpen && (
+          <>
+            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="rounded border bg-muted/20 px-2 py-1.5">
+                <div className="text-[10px] uppercase text-muted-foreground">Workday</div>
+                <div className="tabular-nums font-medium">{fmtMin(wdMin)}</div>
+                <div className="text-[10px] text-muted-foreground">lönegrundande ram</div>
+              </div>
+              <div className="rounded border bg-muted/20 px-2 py-1.5">
+                <div className="text-[10px] uppercase text-muted-foreground">Fördelad</div>
+                <div className="tabular-nums font-medium">{fmtMin(model.proposedReport.distributedMinutes)}</div>
+                <div className="text-[10px] text-muted-foreground">time_reports + travel</div>
+              </div>
+              <div className="rounded border bg-muted/20 px-2 py-1.5">
+                <div className="text-[10px] uppercase text-muted-foreground">Ofördelad</div>
+                <div
+                  className={`tabular-nums font-medium ${
+                    model.proposedReport.undistributedMinutes > 0 ? 'text-amber-600' : ''
+                  }`}
+                >
+                  {fmtMin(model.proposedReport.undistributedMinutes)}
+                </div>
+                <div className="text-[10px] text-muted-foreground">workday − fördelad</div>
+              </div>
+              <div className="rounded border bg-muted/20 px-2 py-1.5">
+                <div className="text-[10px] uppercase text-muted-foreground">Föreslagen resa</div>
+                <div className="tabular-nums font-medium">{fmtMin(model.proposedReport.suggestedTravelMinutes)}</div>
+                <div className="text-[10px] text-muted-foreground">ej godkänd</div>
+              </div>
+            </div>
+            {reportSlot && <div className="mt-3">{reportSlot}</div>}
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              Workday = lönegrundande ram. Time_reports = intern fördelning. LTE = pågående
+              aktivitet/timerunderlag. Travel_log = föreslagen eller godkänd fördelning.
+            </p>
+          </>
+        )}
+      </section>
+
+      {/* E. Rå GPS / debug — collapsed. Renderas bara om caller skickat in slot. */}
+      {rawGpsSlot && (
+        <section className="px-4 py-3 border-b">
+          <button
+            type="button"
+            onClick={() => setRawGpsOpen(v => !v)}
+            className="w-full flex items-center justify-between text-xs"
+          >
+            <span className="font-semibold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1.5">
+              <Eye className="h-3 w-3" />
+              Rå GPS / debug
+            </span>
+            <span className="inline-flex items-center gap-1 text-muted-foreground">
+              {rawGpsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              {rawGpsOpen ? 'Dölj' : 'Visa'}
+            </span>
+          </button>
+          {rawGpsOpen && <div className="mt-3">{rawGpsSlot}</div>}
+        </section>
+      )}
+
+      {/* F. Gemensam actionbar */}
       <section className="px-4 py-3 flex flex-wrap gap-1.5">
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onAdjustWorkday}>
           <Clock className="h-3 w-3 mr-1.5" />
@@ -435,10 +474,13 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <Activity className="h-3 w-3 mr-1.5" />
           Räkna om dag från GPS + timers
         </Button>
-        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onShowRawGps}>
-          <Eye className="h-3 w-3 mr-1.5" />
-          Visa rå GPS
-        </Button>
+        {!rawGpsSlot && onShowRawGps && (
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onShowRawGps}>
+            <Eye className="h-3 w-3 mr-1.5" />
+            Visa rå GPS
+          </Button>
+        )}
+        {extraActions}
       </section>
 
       <ReprocessDayPreviewDialog
