@@ -97,3 +97,30 @@ export function useReverseGeocodeRich(
   });
   return results.map((r) => (r.data as RichGeocode | null) ?? null);
 }
+
+/**
+ * Status-medveten variant: skiljer "slår upp adress…" från "uppslag misslyckades".
+ */
+export interface RichGeocodeStatus {
+  data: RichGeocode | null;
+  isLoading: boolean;
+  isError: boolean;
+}
+export function useReverseGeocodeRichStatus(
+  coords: Array<{ lat: number; lng: number } | null | undefined>,
+): Array<RichGeocodeStatus> {
+  const results = useQueries({
+    queries: coords.map((c) => ({
+      queryKey: ['reverse-geocode-rich', c ? round(c.lat) : null, c ? round(c.lng) : null],
+      queryFn: () => (c ? reverseGeocodeRich(c.lat, c.lng) : Promise.resolve(null)),
+      enabled: !!c,
+      staleTime: 24 * 60 * 60 * 1000,
+      gcTime: 24 * 60 * 60 * 1000,
+    })),
+  });
+  return results.map((r) => ({
+    data: (r.data as RichGeocode | null) ?? null,
+    isLoading: r.isLoading || r.isFetching,
+    isError: r.isError || (r.isFetched && !r.data),
+  }));
+}
