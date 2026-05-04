@@ -393,7 +393,7 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visible.map((entry) => {
+              {visible.filter(e => e.kind !== 'travel').map((entry) => {
                 const status = STATUS_BADGE[entry.status];
                 const type = TYPE_BADGE[entry.kind];
                 const isExpanded = !!expanded[entry.key];
