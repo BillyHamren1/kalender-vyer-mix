@@ -345,9 +345,10 @@ export const ReprocessDayPreviewDialog: React.FC<Props> = ({
         )}
 
         <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
-          <strong>Förhandsvisning.</strong> Inget skrivs till databasen från denna dialog. När mutation-pathen
-          är byggd kommer alla ändringar märkas med <code>source='admin_reprocess'</code> /{' '}
-          <code>metadata.reprocess_version</code> så de går att granska och ångra.
+          <strong>Förhandsvisning — inga ändringar skrivs ännu.</strong> Denna dialog visar bara
+          vilka korrigeringar som <em>skulle</em> göras. När mutation-pathen är byggd kommer alla
+          ändringar märkas med <code>source='admin_reprocess'</code> /{' '}
+          <code>metadata.reprocess_version</code> så att de går att granska och ångra.
         </div>
 
         <DialogFooter>
@@ -356,14 +357,16 @@ export const ReprocessDayPreviewDialog: React.FC<Props> = ({
             Stäng
           </Button>
           <Button
+            variant="secondary"
             disabled={planCount === 0 || !onApply}
             onClick={() => {
               onApply?.(buildPlan());
               onClose();
             }}
+            title="Visar förslagen i en sammanfattning. Inget skrivs till databasen."
           >
             <Check className="h-3.5 w-3.5 mr-1.5" />
-            Tillämpa valda ({planCount})
+            Förhandsvisa ändringsförslag ({planCount})
           </Button>
         </DialogFooter>
       </DialogContent>
