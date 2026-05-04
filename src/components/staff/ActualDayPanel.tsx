@@ -441,7 +441,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                   {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
                 </span>
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {sourceTagFor(ev.kind)}
+                  {sourceTagFor(ev)}
                 </span>
                 <span
                   className={`text-[10px] uppercase tracking-wide ${
@@ -452,7 +452,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         : 'text-muted-foreground'
                   }`}
                 >
-                  {statusTagFor(ev.kind, ev.severity)}
+                  {statusTagFor(ev)}
                 </span>
               </li>
             ))}
