@@ -9,11 +9,13 @@ import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { TimeReportReviewTable } from './TimeReportReviewTable';
+import { ActualDayPanel } from './ActualDayPanel';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
+import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 
 interface ProjectInfo {
   booking_id: string;
@@ -38,6 +40,7 @@ interface StaffWithDayReport {
   latestPing: LatestPing | null;
   metrics: DayMetrics;
   canonical: CanonicalStaffDayModel;
+  actualModel: ActualStaffDayModel;
 }
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
@@ -274,13 +277,19 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             }
             return (
               <div key={staff.id} className="space-y-2">
+                <ActualDayPanel
+                  staffName={staff.name}
+                  date={dateStr}
+                  model={staff.actualModel}
+                  lastPingIso={staff.latestPing?.updated_at ?? null}
+                />
                 <button
                   type="button"
                   onClick={() => onSelectStaff(staff.id, staff.name)}
-                  className="text-sm font-semibold text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors"
+                  className="text-xs text-muted-foreground hover:text-primary hover:underline underline-offset-2 transition-colors"
                   title="Öppna detaljerad dagvy med GPS, karta och godkännande"
                 >
-                  {staff.name}
+                  Öppna full detaljvy →
                 </button>
                 <TimeReportReviewTable
                   date={dateStr}
