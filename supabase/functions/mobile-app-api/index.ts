@@ -467,6 +467,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
+      case 'get_active_day_state':
+        return await handleGetActiveDayState(supabase, staffId, organizationId)
       case 'get_lager_tasks':
         return await handleGetLagerTasks(supabase, staffId, organizationId)
       case 'create_lager_task':
