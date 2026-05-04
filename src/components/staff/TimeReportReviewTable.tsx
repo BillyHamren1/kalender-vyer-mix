@@ -27,6 +27,7 @@ import {
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
+import { StaffPingDetailPanel } from '@/components/staff/StaffPingDetailPanel';
 import {
   buildReviewEntries,
   type ReviewWorkInput,
