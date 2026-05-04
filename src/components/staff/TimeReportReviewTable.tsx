@@ -529,12 +529,39 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                   </React.Fragment>
                 );
               })}
+              {/* Ofördelad arbetstid — syntetisk rad när workday > distribuerat */}
+              {undistributedHours > 0 && (
+                <TableRow className="bg-amber-50 dark:bg-amber-950/20">
+                  <TableCell />
+                  <TableCell colSpan={3}>
+                    <div className="flex items-start gap-1.5 min-w-0">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-amber-900 dark:text-amber-200">Ofördelad arbetstid</div>
+                        <div className="text-[11px] text-amber-700 dark:text-amber-400">
+                          Personen har arbetstid i arbetsdagen som ännu inte är kopplad till projekt/plats.
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-medium text-amber-900 dark:text-amber-200">
+                    {formatHoursMinutes(undistributedHours)}
+                  </TableCell>
+                  <TableCell />
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3" /> Kräver komplettering
+                    </Badge>
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
+              )}
               <TableRow className="font-semibold bg-muted/40">
                 <TableCell />
-                <TableCell colSpan={3}>LÖNEGRUNDANDE TID (workday − rast)</TableCell>
-                <TableCell className="text-right tabular-nums">{formatHoursMinutes(payableHours)}</TableCell>
+                <TableCell colSpan={3}>TOTAL FÖRDELAD TID</TableCell>
+                <TableCell className="text-right tabular-nums">{formatHoursMinutes(distributedHours)}</TableCell>
                 <TableCell colSpan={3} className="text-xs text-muted-foreground font-normal">
-                  Fördelad {formatHoursMinutes(distributedHours)}
+                  av Lönegrundande {formatHoursMinutes(payableHours)}
                   {undistributedHours > 0 && <> · Ofördelad {formatHoursMinutes(undistributedHours)}</>}
                   {overDistributedHours > 0 && <> · Överrapportering {formatHoursMinutes(overDistributedHours)}</>}
                 </TableCell>
