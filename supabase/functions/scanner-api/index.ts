@@ -877,6 +877,124 @@ Deno.serve(async (req) => {
         return json({ success: true })
       }
 
+      case 'decrement_by_serial': {
+        // Minus-scan for unique codes (RFID / serial numbers).
+        // SKU is unknown locally, so look it up via identify-instance,
+        // then decrement the matching packing_list_item by 1.
+        const { packingId, serialNumber } = params
+        const serial = String(serialNumber || '').trim()
+        if (!packingId || !serial) {
+          return json({ success: false, error: 'packingId and serialNumber required' }, 400)
+        }
+
+        const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
+        if (!PRICELIST_API_KEY) {
+          return json({ success: false, error: 'Lagersystem ej konfigurerat' })
+        }
+
+        // 1. Look up SKU / item type for this serial
+        let returnedSku: string | null = null
+        let returnedItemType: string | null = null
+        try {
+          const lookupResponse = await fetch(
+            'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/identify-instance',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+                'x-organization-id': ORG_ID,
+              },
+              body: JSON.stringify({ serial_number: serial }),
+            }
+          )
+          if (lookupResponse.ok) {
+            const data = await lookupResponse.json().catch(() => null) as any
+            if (data) {
+              returnedSku = data.sku || data.item_type_id || data.serial_number || null
+              returnedItemType = data.item_type || data.item_type_name || data.product_name || data.name || null
+            }
+          } else {
+            await lookupResponse.text()
+          }
+        } catch (err) {
+          console.warn('[decrement_by_serial] identify-instance failed', { serial, err })
+        }
+
+        if (!returnedSku && !returnedItemType) {
+          return json({ success: false, error: `Hittade ingen artikelinfo för "${serial}"` })
+        }
+
+        // 2. Find matching packing_list_items with quantity_packed > 0
+        const { data: packingItems } = await supabase
+          .from('packing_list_items')
+          .select(`id, quantity_packed, packing_id, booking_products (id, name, sku, inventory_item_type_id)`)
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+          .gt('quantity_packed', 0)
+
+        const normalizeItemTypeName = (value: string): string =>
+          value.toLowerCase().replace(/^[↳└⦿\s,\-–—]+/, '').replace(/\s+/g, ' ').trim()
+
+        const normalizedSku = returnedSku?.toLowerCase()
+        const normalizedItemType = returnedItemType ? normalizeItemTypeName(returnedItemType) : null
+
+        let matched = (packingItems || []).filter((item: any) => {
+          if (!normalizedSku) return false
+          const bp = item.booking_products
+          return bp?.sku?.toLowerCase() === normalizedSku || bp?.inventory_item_type_id?.toLowerCase() === normalizedSku
+        })
+        if (matched.length === 0 && normalizedItemType) {
+          matched = (packingItems || []).filter((item: any) => {
+            const name = item.booking_products?.name
+            return name ? normalizeItemTypeName(name) === normalizedItemType : false
+          })
+        }
+
+        if (matched.length === 0) {
+          return json({ success: false, error: 'Ingen packad artikel hittades för denna kod' })
+        }
+
+        // Pick the row with highest quantity_packed (deterministic)
+        const target = [...matched].sort((a: any, b: any) =>
+          (b.quantity_packed || 0) - (a.quantity_packed || 0) || String(a.id).localeCompare(String(b.id))
+        )[0] as any
+
+        const newQty = Math.max(0, (target.quantity_packed || 0) - 1)
+        await supabase.from('packing_list_items').update({
+          quantity_packed: newQty,
+          verified_at: null,
+          verified_by: null,
+          ...(newQty === 0 ? { packed_at: null, packed_by: null, parcel_id: null } : {})
+        }).eq('id', target.id).eq('organization_id', ORG_ID)
+
+        // Remove 1 unit from latest parcel allocation
+        const { data: lastAlloc } = await supabase
+          .from('packing_list_item_allocations')
+          .select('id, quantity')
+          .eq('packing_list_item_id', target.id)
+          .eq('organization_id', ORG_ID)
+          .order('scanned_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (lastAlloc) {
+          if ((lastAlloc as any).quantity <= 1) {
+            await supabase.from('packing_list_item_allocations').delete().eq('id', (lastAlloc as any).id)
+          } else {
+            await supabase.from('packing_list_item_allocations').update({ quantity: (lastAlloc as any).quantity - 1 }).eq('id', (lastAlloc as any).id)
+          }
+        }
+
+        await checkIfAllPacked(supabase, packingId, ORG_ID)
+
+        return json({
+          success: true,
+          itemId: target.id,
+          newQuantity: newQty,
+          productName: target.booking_products?.name || returnedItemType || returnedSku,
+        })
+      }
+
       case 'create_parcel': {
         const { packingId, createdBy, createdByStaffId } = params
 
