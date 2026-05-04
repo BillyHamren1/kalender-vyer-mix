@@ -283,6 +283,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 <TimeReportReviewTable
                   date={dateStr}
                   staffName={staff.name}
+                  staffId={staff.id}
                   work={work}
                   travel={travel}
                 />
