@@ -35,6 +35,7 @@ import {
   type TimeReportReviewEntry,
   type ReviewEntryStatus,
 } from '@/lib/staff/timeReportReviewEntry';
+import { buildCanonicalStaffDayModel, type CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 
 interface TimeReportReviewTableProps {
   date: string;
@@ -43,6 +44,8 @@ interface TimeReportReviewTableProps {
   staffId?: string;
   work: ReviewWorkInput[];
   travel: ReviewTravelInput[];
+  /** Canonical model for the day (workday-based payable time). */
+  canonical?: CanonicalStaffDayModel;
   /** Optional: opens edit dialog for a `time_reports` row. */
   onEditTimeReport?: (timeReportId: string) => void;
   /** Optional: per-row "Godkänn rad" — parent persists. */
@@ -124,6 +127,7 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
   staffId,
   work,
   travel,
+  canonical,
   onEditTimeReport,
   onApproveEntry,
   approveDayAction,
@@ -149,6 +153,19 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
     : 'ok'
   ];
 
+  // Canonical model = single source of truth.
+  // Lönegrundande = workday − rast. Fördelad = sum(time_reports). Travel-
+  // suggestions räknas inte förrän godkända.
+  const payableHours = canonical ? canonical.payableMinutes / 60 : summary.paidHours;
+  const distributedHours = canonical
+    ? canonical.distributedMinutes / 60
+    : summary.workHours + summary.travelHours;
+  const undistributedHours = canonical ? canonical.undistributedMinutes / 60 : 0;
+  const overDistributedHours = canonical ? canonical.overDistributedMinutes / 60 : 0;
+  const suggestedTravelHours = canonical
+    ? canonical.suggestedTravelMinutes / 60
+    : summary.travelHours;
+
   return (
     <div className="space-y-3 rounded-lg border bg-card p-4">
       {/* Header */}
@@ -163,20 +180,38 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
           </div>
           <div className="text-xs text-muted-foreground capitalize">
             {format(new Date(date), 'EEEE d MMMM yyyy', { locale: sv })}
-            {summary.workdayStart && (
-              <> · Arbetsdag {toHHMM(summary.workdayStart)} → {toHHMM(summary.workdayEnd) || 'pågår'}</>
+            {(canonical?.workdayStart ?? summary.workdayStart) && (
+              <> · Arbetsdag {toHHMM(canonical?.workdayStart ?? summary.workdayStart)} → {toHHMM(canonical?.workdayEnd ?? summary.workdayEnd) || 'pågår'}</>
+            )}
+            {canonical && canonical.breakMinutes > 0 && (
+              <> · Rast {formatHoursMinutes(canonical.breakMinutes / 60)}</>
             )}
           </div>
           <div className="flex flex-wrap gap-1.5 pt-1">
-            <Badge variant="secondary" className="text-[11px] gap-1 font-medium">
-              <Clock className="h-3 w-3" /> {formatHoursMinutes(summary.paidHours)} betald
+            <Badge variant="secondary" className="text-[11px] gap-1 font-medium" title="Workday minus rast. Lönegrundande tid.">
+              <Clock className="h-3 w-3" /> Lönegrundande {formatHoursMinutes(payableHours)}
             </Badge>
-            <Badge variant="outline" className="text-[11px] gap-1">
-              <Briefcase className="h-3 w-3" /> Arbete {formatHoursMinutes(summary.workHours)}
+            <Badge variant="outline" className="text-[11px] gap-1" title="Sum time_reports — intern fördelning på projekt/plats/lager.">
+              <Briefcase className="h-3 w-3" /> Fördelad {formatHoursMinutes(distributedHours)}
             </Badge>
-            {summary.travelHours > 0 && (
-              <Badge variant="outline" className="text-[11px] gap-1 border-primary/30 text-primary">
-                <Car className="h-3 w-3" /> Restid {formatHoursMinutes(summary.travelHours)}
+            {undistributedHours > 0 && (
+              <Badge variant="outline" className="text-[11px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-3 w-3" /> Ofördelad {formatHoursMinutes(undistributedHours)}
+              </Badge>
+            )}
+            {overDistributedHours > 0 && (
+              <Badge variant="outline" className="text-[11px] gap-1 border-destructive/40 text-destructive">
+                <AlertTriangle className="h-3 w-3" /> Överrapportering {formatHoursMinutes(overDistributedHours)}
+              </Badge>
+            )}
+            {suggestedTravelHours > 0 && (
+              <Badge variant="outline" className="text-[11px] gap-1 border-primary/30 text-primary" title="Föreslagen restid (travel_time_logs) — räknas inte som lönegrundande förrän godkänd.">
+                <Car className="h-3 w-3" /> Föreslagen restid {formatHoursMinutes(suggestedTravelHours)}
+              </Badge>
+            )}
+            {canonical && canonical.anomalies.length > 0 && (
+              <Badge variant="outline" className="text-[11px] gap-1 border-destructive/40 text-destructive" title={canonical.anomalies.map(a => `${a.label}: ${a.detail}`).join('\n')}>
+                <AlertTriangle className="h-3 w-3" /> {canonical.anomalies.length} avvikelse{canonical.anomalies.length === 1 ? '' : 'r'}
               </Badge>
             )}
             {summary.gapMinutes > 0 && (
@@ -380,9 +415,13 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
               })}
               <TableRow className="font-semibold bg-muted/40">
                 <TableCell />
-                <TableCell colSpan={3}>TOTAL BETALD TID</TableCell>
-                <TableCell className="text-right tabular-nums">{formatHoursMinutes(summary.paidHours)}</TableCell>
-                <TableCell colSpan={3} />
+                <TableCell colSpan={3}>LÖNEGRUNDANDE TID (workday − rast)</TableCell>
+                <TableCell className="text-right tabular-nums">{formatHoursMinutes(payableHours)}</TableCell>
+                <TableCell colSpan={3} className="text-xs text-muted-foreground font-normal">
+                  Fördelad {formatHoursMinutes(distributedHours)}
+                  {undistributedHours > 0 && <> · Ofördelad {formatHoursMinutes(undistributedHours)}</>}
+                  {overDistributedHours > 0 && <> · Överrapportering {formatHoursMinutes(overDistributedHours)}</>}
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
