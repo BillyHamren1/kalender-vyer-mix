@@ -120,6 +120,7 @@ function exportCsv(date: string, staffName: string, entries: TimeReportReviewEnt
 export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
   date,
   staffName,
+  staffId,
   work,
   travel,
   onEditTimeReport,
