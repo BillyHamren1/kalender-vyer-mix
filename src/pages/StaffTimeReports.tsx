@@ -79,6 +79,13 @@ interface StaffWithDayReport {
   metrics: DayMetrics;
   /** Canonical workday-based model (Lönegrundande/Fördelad/Ofördelad). */
   canonical: CanonicalStaffDayModel;
+  /**
+   * Faktisk-dag-modell: kronologisk händelsejournal + GPS-vistelser +
+   * föreslagen rapport. Bygger på workday + time_reports + LTE + travel
+   * PLUS staff_location_history + assistant_events + workday_flags.
+   * Detta ska vara huvudvyn — inte rapporttabellen.
+   */
+  actualModel: ActualStaffDayModel;
 }
 
 // Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
