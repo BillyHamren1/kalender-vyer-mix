@@ -454,15 +454,21 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }
 
   // ── ActualVisits (komprimerad form av PlaceVisit) ────────────────
-  const actualVisits: ActualVisit[] = input.visits.map(v => ({
-    key: v.placeKey,
-    label: v.knownSite?.name ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`,
-    knownSiteId: v.knownSite?.id ?? null,
-    start: v.start,
-    end: v.end,
-    durationMin: v.durationMin,
-    pingCount: v.pingCount,
-  }));
+  const actualVisits: ActualVisit[] = input.visits.map(v => {
+    const accs = v.pings.map(p => (p.accuracy == null ? NaN : Number(p.accuracy))).filter(n => Number.isFinite(n));
+    const avgAccuracy = accs.length ? Math.round((accs.reduce((s, n) => s + n, 0) / accs.length) * 10) / 10 : null;
+    return {
+      key: v.placeKey,
+      label: v.knownSite?.name ?? `Okänd plats nära ${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`,
+      knownSiteId: v.knownSite?.id ?? null,
+      centre: v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng },
+      start: v.start,
+      end: v.end,
+      durationMin: v.durationMin,
+      pingCount: v.pingCount,
+      avgAccuracy,
+    };
+  });
 
   // ── ProposedReport ────────────────────────────────────────────────
   // distributedMinutes = stängda time_reports
