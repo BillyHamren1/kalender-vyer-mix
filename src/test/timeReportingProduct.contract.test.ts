@@ -474,6 +474,34 @@ describe('Time reporting product (end-to-end contract)', () => {
       expect(events[0].serverStartedAt).toBe('2026-04-18T08:00:01Z');
       expect(queueMod.isTimerPendingSync('booking-confirm')).toBe(false);
     });
+
+    it('race-guard (2026-05): server svar status=already_closed_or_consumed → kön rensas + timer-sync-rejected emittas', async () => {
+      const queueMod = await import('../services/timerSyncQueue');
+      mockFetch.mockResolvedValue(
+        ok({
+          status: 'already_closed_or_consumed',
+          reason: 'already_consumed',
+          entry: { id: 'lte-old', exited_at: '2026-04-18T08:30:00Z' },
+        }),
+      );
+
+      const events: any[] = [];
+      const handler = (e: Event) => events.push((e as CustomEvent).detail);
+      window.addEventListener('timer-sync-rejected', handler);
+
+      queueMod.enqueueTimerStart({
+        timerKey: 'booking-stale-retry',
+        bookingId: 'booking-stale-retry',
+        startedAt: '2026-04-18T08:00:00Z',
+      });
+      await new Promise((r) => setTimeout(r, 30));
+      window.removeEventListener('timer-sync-rejected', handler);
+
+      expect(events.length).toBe(1);
+      expect(events[0].timerKey).toBe('booking-stale-retry');
+      expect(events[0].reason).toBe('already_consumed');
+      expect(queueMod.isTimerPendingSync('booking-stale-retry')).toBe(false);
+    });
   });
 
   // ───────────────────────────────────────────────────────────────────────────
