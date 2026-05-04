@@ -82,8 +82,8 @@ const EditableCell = ({ value, isOverridden, onSave, className }: EditableCellPr
     <span
       onClick={() => setEditing(true)}
       className={cn(
-        'cursor-pointer hover:bg-primary/10 rounded px-1 py-0.5 -mx-1 transition-colors',
-        isOverridden && 'bg-primary/5 font-medium text-primary',
+        'inline-block min-w-[3.5rem] cursor-text rounded border border-border bg-background px-1.5 py-0.5 text-right shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/5',
+        isOverridden && 'border-primary/40 bg-primary/5 font-medium text-primary',
         className
       )}
       title={isOverridden ? 'Lokalt ändrad – klicka för att redigera' : 'Klicka för att redigera'}
@@ -219,7 +219,7 @@ export const ProductCostsCard = ({
     const isOverridden = overrideSet.has(product.id);
 
     return (
-      <tr key={product.id} className="border-b border-border/20 bg-muted/10">
+      <tr key={product.id} className="border-b border-border/20 bg-muted/40">
         <td className="py-1.5 pr-3 pl-6 text-xs text-muted-foreground">
           <span className="mr-1 opacity-50">└</span>
           {cleanName(product.product_name)}
@@ -283,7 +283,7 @@ export const ProductCostsCard = ({
     const parentRow = (
       <tr
         key={group.parent.id}
-        className={`border-b border-border/40 ${hasChildren ? 'cursor-pointer hover:bg-muted/30' : 'hover:bg-muted/20'}`}
+        className={`border-b border-border/40 bg-muted/30 ${hasChildren ? 'cursor-pointer hover:bg-muted/50' : 'hover:bg-muted/40'}`}
       >
         <td
           className="py-2 pr-3"
