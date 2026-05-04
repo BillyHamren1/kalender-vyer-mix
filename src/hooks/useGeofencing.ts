@@ -1033,33 +1033,57 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         // Re-entry while timer is active → close any open anomaly
         if (dist <= enterRadius && hasTimer && triggeredExitRef.current.has(booking.id)) {
           triggeredExitRef.current.delete(booking.id);
+          resetExitTracker(getExitTracker(booking.id));
           fireAnomalyStop({ bookingId: booking.id });
         }
+        if (dist <= enterRadius) resetExitTracker(getExitTracker(booking.id));
 
-        // EXIT while timer is running → AUTO-STOP activity (Auto-first 2026-04).
+        // EXIT while timer is running → STABLE-EXIT GATE (2026-05).
         if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(booking.id)) {
-          triggeredExitRef.current.add(booking.id);
-          triggeredEnterRef.current.delete(booking.id);
-          const exitedAtIso = new Date().toISOString();
-          maybeReportDeparture(booking.id, exitedAtIso);
-          const stopFn = autoActionsRef.stop;
-          if (stopFn) {
-            void stopFn({ key: booking.id, exitedAtIso }).catch((err) => {
-              console.warn('[Geofence] auto-stop booking failed:', err);
-              fireAnomalyStart({ bookingId: booking.id });
-            });
+          const ev = evaluateExit(booking.id, dist);
+          if (ev.status !== 'stable') {
+            if (ev.status === 'insufficient' || ev.status === 'unstable') {
+              emitReviewDeparture({
+                kind: 'booking', targetId: booking.id, label: booking.client || null, ev,
+              });
+            }
           } else {
-            fireAnomalyStart({ bookingId: booking.id });
+            triggeredExitRef.current.add(booking.id);
+            triggeredEnterRef.current.delete(booking.id);
+            const exitedAtIso = new Date().toISOString();
+            maybeReportDeparture(booking.id, exitedAtIso);
+            const stopMeta = buildExitMetadata(ev);
+            const stopFn = autoActionsRef.stop;
+            if (stopFn) {
+              void stopFn({ key: booking.id, exitedAtIso }).catch((err) => {
+                console.warn('[Geofence] auto-stop booking failed:', err);
+                fireAnomalyStart({ bookingId: booking.id });
+              });
+              mobileApi.assistantEvents.create({
+                event_type: 'departure',
+                target_type: 'booking',
+                target_id: booking.id,
+                target_label: booking.client || null,
+                happened_at: exitedAtIso,
+                source: 'geofence',
+                suggested_action: 'auto_stopped_activity',
+                metadata: { ...stopMeta, stop_source: 'geofence_auto', stop_reason: 'stable_exit' },
+              }).catch(() => {});
+            } else {
+              fireAnomalyStart({ bookingId: booking.id });
+            }
+            resetExitTracker(getExitTracker(booking.id));
+            window.dispatchEvent(new CustomEvent('workplace-exit', {
+              detail: {
+                kind: 'booking',
+                key: booking.id,
+                bookingId: booking.id,
+                exitedAtIso,
+                decision: exitDecision,
+                exit_metadata: stopMeta,
+              },
+            }));
           }
-          window.dispatchEvent(new CustomEvent('workplace-exit', {
-            detail: {
-              kind: 'booking',
-              key: booking.id,
-              bookingId: booking.id,
-              exitedAtIso,
-              decision: exitDecision,
-            },
-          }));
         }
       }
     }
