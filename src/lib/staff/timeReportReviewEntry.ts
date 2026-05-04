@@ -26,6 +26,8 @@
  * "Oregistrerad tid" — they do NOT add to paid hours.
  */
 
+import { classifyReviewRow, type ReviewRowKind } from './reviewRowKind';
+
 export type ReviewEntryKind = 'work' | 'travel' | 'gap';
 export type ReviewEntryStatus = 'ok' | 'needs_review' | 'ongoing' | 'approved';
 
@@ -63,6 +65,8 @@ export interface TimeReportReviewEntry {
   /** Stable key for React lists. */
   key: string;
   kind: ReviewEntryKind;
+  /** Explicit row taxonomy used to decide which UI section the row belongs in. */
+  rowKind: ReviewRowKind;
   /** Primary label (project, location, or "Resa: A → B"). */
   label: string;
   /** Optional secondary line (booking number, address, hint). */
@@ -160,9 +164,21 @@ export function buildReviewEntries(input: BuildReviewEntriesInput): {
           ? 'needs_review'
           : 'ok';
 
+    const rowKind = classifyReviewRow({
+      sourceTable: w.source === 'time_report' ? 'time_report' : 'location_entry',
+      closed: !w.ongoing,
+      approved: !!w.approved,
+      // Work entries that come in via this builder are already work-timer
+      // intent (the caller has filtered presence-only LTEs out). Mark
+      // explicitly so location entries land as active/confirmed, not
+      // presence_evidence.
+      isLocationWorkTimer: true,
+    });
+
     entries.push({
       key: `work:${w.id}`,
       kind: 'work',
+      rowKind,
       label: w.booking_client || '—',
       sublabel: w.booking_number ? `#${w.booking_number}` : (w.description || undefined),
       startIso: w.start_time,
@@ -195,6 +211,16 @@ export function buildReviewEntries(input: BuildReviewEntriesInput): {
     entries.push({
       key: `travel:${t.id}`,
       kind: 'travel',
+      // travel_log som passerar genom buildReviewEntries antas vara
+      // icke-auto (manuell) tills vi får annan signal — godkänd → confirmed,
+      // ej godkänd → suggested. gap_derived/auto-detected travel renderas
+      // separat via canonicalDayModel.travelSuggestions.
+      rowKind: classifyReviewRow({
+        sourceTable: 'travel_log',
+        closed: !!t.end_time,
+        approved: false,
+        travelAutoDetected: false,
+      }),
       label: `Resa: ${t.from_address ?? '?'} → ${t.to_address ?? '?'}`,
       sublabel: undefined,
       startIso: t.start_time,
@@ -228,6 +254,9 @@ export function buildReviewEntries(input: BuildReviewEntriesInput): {
     withGaps.push({
       key: `gap:${cur.key}->${next.key}`,
       kind: 'gap',
+      // Luckor är bevis på frånvaro/förflyttning — visas som anomaly
+      // (händelsejournalen), aldrig som fördelning.
+      rowKind: 'anomaly',
       label: 'Oregistrerad tid',
       sublabel: 'Lucka mellan två poster',
       startIso: cur.endIso,
