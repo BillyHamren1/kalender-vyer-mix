@@ -183,7 +183,8 @@ const statusTagFor = (kind: ActualEventKind, severity: ActualEventSeverity): str
 //   06:40 Anlände Projekt
 // "Visa alla händelser" lägger till gps_gap/stale_signal-rader på toppen.
 const RAW_DETAIL_KINDS: ReadonlySet<ActualEventKind> = new Set<ActualEventKind>([
-  'stale_signal',
+  // stale_signal ("Signal tappad") MÅSTE alltid synas i huvudjournalen —
+  // det är en operativ varning, inte rådebug. Endast gps_gap döljs.
   'gps_gap',
 ]);
 function compactEvents(events: ActualEvent[]): ActualEvent[] {
