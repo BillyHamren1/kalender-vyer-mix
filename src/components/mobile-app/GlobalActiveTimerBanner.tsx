@@ -457,7 +457,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
             <div className="flex items-center gap-2 p-2 rounded-xl border border-warning/40 bg-warning/10 text-xs">
               <WifiOff className="w-3.5 h-3.5 text-warning shrink-0" />
               <span className="flex-1">
-                {t('workday.signalLost') || 'Signal tappad — arbetsdagen fortsätter, kontrollera status.'}
+                {'Signal tappad — arbetsdagen fortsätter, kontrollera status.'}
               </span>
             </div>
           )}
