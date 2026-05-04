@@ -142,9 +142,24 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
     [work, travel],
   );
 
+  // När canonical-modellen finns: göm öppna/pågående rader ur den vanliga
+  // "Fördelad tid"-tabellen — de visas EXKLUSIVT i "Pågående aktivitet"-
+  // sektionen som preliminär fördelning. Annars dyker samma post upp på
+  // två ställen och ser ut som dubbelräknad fördelning trots att
+  // distributedMinutes är 0.
+  const hideOngoingFromDistributed = !!canonical;
   const visible = useMemo(
-    () => onlyAnomalies ? entries.filter(e => e.status === 'needs_review' || e.warnings.length > 0) : entries,
-    [entries, onlyAnomalies],
+    () => {
+      let out = entries;
+      if (hideOngoingFromDistributed) {
+        out = out.filter(e => e.status !== 'ongoing');
+      }
+      if (onlyAnomalies) {
+        out = out.filter(e => e.status === 'needs_review' || e.warnings.length > 0);
+      }
+      return out;
+    },
+    [entries, onlyAnomalies, hideOngoingFromDistributed],
   );
 
   const dayBadge = STATUS_BADGE[
@@ -221,9 +236,14 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
             <Badge variant="secondary" className="text-[11px] gap-1 font-medium" title="Workday minus rast.">
               <Clock className="h-3 w-3" /> Lönegrundande {formatHoursMinutes(payableHours)}
             </Badge>
-            <Badge variant="outline" className="text-[11px] gap-1" title="Sum time_reports — intern fördelning.">
-              <Briefcase className="h-3 w-3" /> Fördelad {formatHoursMinutes(distributedHours)}
+            <Badge variant="outline" className="text-[11px] gap-1" title="Sum stängda time_reports + godkänd resa — bekräftad fördelning av arbetsdagen.">
+              <Briefcase className="h-3 w-3" /> Bekräftat fördelad {formatHoursMinutes(distributedHours)}
             </Badge>
+            {canonical && canonical.activeTimerMinutes > 0 && (
+              <Badge variant="outline" className="text-[11px] gap-1 border-primary/30 text-primary" title="Pågående aktivitet — preliminär fördelning, bekräftas när timern stoppas.">
+                <Activity className="h-3 w-3" /> Pågående {formatHoursMinutes(canonical.activeTimerMinutes / 60)}
+              </Badge>
+            )}
             {undistributedHours > 0 && (
               <Badge variant="outline" className="text-[11px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="h-3 w-3" /> Ofördelad {formatHoursMinutes(undistributedHours)}
@@ -286,12 +306,18 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
         </div>
       </div>
 
-      {/* Pågående timers — visas separat och räknas ALDRIG som lönegrundande */}
+      {/* Pågående aktivitet — preliminär fördelning av arbetsdagen.
+          Lönegrundande tid kommer från workday och är aktiv så länge
+          dagen pågår — pågående aktivitetstimer är INTE en separat
+          extra lön, den är bara ej färdigfördelad förrän stoppad. */}
       {canonical && canonical.activeTimerRows.length > 0 && (
-        <div className="rounded-md border bg-muted/10 p-3 space-y-1.5">
-          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wide">
             <Activity className="h-3.5 w-3.5" />
-            Pågående timers · räknas inte som betald tid förrän stoppade
+            Pågående aktivitet · ej färdigfördelad förrän stoppad
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Preliminär fördelning av arbetsdagen — bekräftas när timern stoppas/sparas.
           </div>
           <ul className="space-y-1">
             {canonical.activeTimerRows.map((t) => (
@@ -314,7 +340,7 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                     ? `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}. Granska innan godkännande.`
                     : `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}.`}
                 >
-                  {t.signalLost ? 'Pågår — signal tappad' : 'Pågår'}
+                  {t.signalLost ? 'Pågår — signal tappad' : 'Preliminär — pågår'}
                 </Badge>
               </li>
             ))}
@@ -529,39 +555,56 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                   </React.Fragment>
                 );
               })}
-              {/* Ofördelad arbetstid — syntetisk rad när workday > distribuerat */}
-              {undistributedHours > 0 && (
-                <TableRow className="bg-amber-50 dark:bg-amber-950/20">
-                  <TableCell />
-                  <TableCell colSpan={3}>
-                    <div className="flex items-start gap-1.5 min-w-0">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-amber-900 dark:text-amber-200">Ofördelad arbetstid</div>
-                        <div className="text-[11px] text-amber-700 dark:text-amber-400">
-                          Personen har arbetstid i arbetsdagen som ännu inte är kopplad till projekt/plats.
+              {/* Ofördelad arbetstid — syntetisk rad när workday > bekräftat
+                  fördelat. Om en pågående aktivitet existerar förklarar vi
+                  att luckan kan komma att fyllas när timern stoppas. */}
+              {undistributedHours > 0 && (() => {
+                const activeMin = canonical?.activeTimerMinutes ?? 0;
+                const hasActive = activeMin > 0;
+                const signalLost = !!canonical?.hasSignalLost;
+                const explain = hasActive
+                  ? signalLost
+                    ? `Ej färdigfördelad — pågående aktivitet (${formatHoursMinutes(activeMin / 60)}) saknar GPS-signal och måste granskas innan godkännande.`
+                    : `Ej färdigfördelad — pågående aktivitet (${formatHoursMinutes(activeMin / 60)}) bekräftas när timern stoppas/sparas.`
+                  : 'Personen har arbetstid i arbetsdagen som ännu inte är kopplad till projekt/plats.';
+                const headLabel = hasActive ? 'Ej färdigfördelad arbetstid' : 'Ofördelad arbetstid';
+                const badgeLabel = hasActive
+                  ? signalLost ? 'Granska signal' : 'Bekräftas vid stopp'
+                  : 'Kräver komplettering';
+                return (
+                  <TableRow className="bg-amber-50 dark:bg-amber-950/20">
+                    <TableCell />
+                    <TableCell colSpan={3}>
+                      <div className="flex items-start gap-1.5 min-w-0">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-amber-900 dark:text-amber-200">{headLabel}</div>
+                          <div className="text-[11px] text-amber-700 dark:text-amber-400">{explain}</div>
                         </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium text-amber-900 dark:text-amber-200">
-                    {formatHoursMinutes(undistributedHours)}
-                  </TableCell>
-                  <TableCell />
-                  <TableCell>
-                    <Badge variant="outline" className="text-[10px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
-                      <AlertTriangle className="h-3 w-3" /> Kräver komplettering
-                    </Badge>
-                  </TableCell>
-                  <TableCell />
-                </TableRow>
-              )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium text-amber-900 dark:text-amber-200">
+                      {formatHoursMinutes(undistributedHours)}
+                    </TableCell>
+                    <TableCell />
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="h-3 w-3" /> {badgeLabel}
+                      </Badge>
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                );
+              })()}
               <TableRow className="font-semibold bg-muted/40">
                 <TableCell />
-                <TableCell colSpan={3}>TOTAL FÖRDELAD TID</TableCell>
+                <TableCell colSpan={3}>BEKRÄFTAT FÖRDELAD TID</TableCell>
                 <TableCell className="text-right tabular-nums">{formatHoursMinutes(distributedHours)}</TableCell>
                 <TableCell colSpan={3} className="text-xs text-muted-foreground font-normal">
                   av Lönegrundande {formatHoursMinutes(payableHours)}
+                  {canonical && canonical.activeTimerMinutes > 0 && (
+                    <> · Pågående aktivitet {formatHoursMinutes(canonical.activeTimerMinutes / 60)}</>
+                  )}
                   {undistributedHours > 0 && <> · Ofördelad {formatHoursMinutes(undistributedHours)}</>}
                   {overDistributedHours > 0 && <> · Överrapportering {formatHoursMinutes(overDistributedHours)}</>}
                 </TableCell>
