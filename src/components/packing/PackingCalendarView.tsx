@@ -21,16 +21,20 @@ interface Props {
 
 type EventKind = "out" | "in";
 
-// OUT = ljusgrön (checkar UT från lagret), IN = ljusröd (checkar IN till lagret)
-const KIND_COLORS: Record<EventKind, string> = {
-  out: "bg-green-300 hover:bg-green-400 text-green-950",
-  in: "bg-red-300 hover:bg-red-400 text-red-950",
+// Matchar personalkalenderns rig/rigDown-palett (src/styles/calendar.css)
+// OUT = rig (ljusgrön), IN = rigDown (persika)
+const KIND_STYLES: Record<EventKind, { bg: string; border: string; hoverBg: string }> = {
+  out: { bg: "#F2FCE2", border: "#D4EAB5", hoverBg: "#E4F6CE" },
+  in:  { bg: "#FEC6A1", border: "#FEB190", hoverBg: "#FDB389" },
 };
 
-const KIND_DOT_COLORS: Record<EventKind, string> = {
-  out: "bg-green-300",
-  in: "bg-red-300",
-};
+const kindStyle = (k: EventKind): React.CSSProperties => ({
+  backgroundColor: KIND_STYLES[k].bg,
+  borderColor: KIND_STYLES[k].border,
+  borderWidth: 1,
+  borderStyle: "solid",
+  color: "#000",
+});
 
 const KIND_LABELS: Record<EventKind, string> = {
   out: "UT (packning)",
@@ -261,10 +265,10 @@ export default function PackingCalendarView({ packings }: Props) {
                         key={e.id}
                         onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                         className={cn(
-                          "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
-                          KIND_COLORS[e.kind]
+                          "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors hover:brightness-95"
                         )}
                         style={{
+                          ...kindStyle(e.kind),
                           width: span > 1 ? `calc(${span * 100}% + ${(span - 1) * 1}px)` : undefined,
                           position: span > 1 ? "relative" : undefined,
                           zIndex: span > 1 ? 10 : undefined,
@@ -282,9 +286,9 @@ export default function PackingCalendarView({ packings }: Props) {
                       key={e.id}
                       onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                       className={cn(
-                        "text-xs px-2 py-1.5 rounded cursor-pointer transition-colors",
-                        KIND_COLORS[e.kind]
+                        "text-xs px-2 py-1.5 rounded cursor-pointer transition-colors hover:brightness-95"
                       )}
+                      style={kindStyle(e.kind)}
                       title={`${KIND_LABELS[e.kind]} • ${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                     >
                       <div className="font-medium truncate">
@@ -305,9 +309,9 @@ export default function PackingCalendarView({ packings }: Props) {
                     key={e.id}
                     onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                     className={cn(
-                      "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
-                      KIND_COLORS[e.kind]
+                      "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors hover:brightness-95"
                     )}
+                    style={kindStyle(e.kind)}
                     title={`${KIND_LABELS[e.kind]} • ${e.label} (fortsätter)`}
                   >
                     ← {e.label}
@@ -323,7 +327,7 @@ export default function PackingCalendarView({ packings }: Props) {
       <div className="border-t border-border/30 px-4 py-2 flex flex-wrap gap-4">
         {(Object.keys(KIND_LABELS) as EventKind[]).map(k => (
           <div key={k} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className={cn("w-3 h-3 rounded-sm", KIND_DOT_COLORS[k])} />
+            <span className="w-3 h-3 rounded-sm border" style={{ backgroundColor: KIND_STYLES[k].bg, borderColor: KIND_STYLES[k].border }} />
             {KIND_LABELS[k]}
           </div>
         ))}
