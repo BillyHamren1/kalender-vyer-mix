@@ -127,7 +127,7 @@ const StaffTimeReports: React.FC = () => {
           .or('source.is.null,source.neq.location_auto'),
         supabase
           .from('travel_time_logs')
-          .select('id, staff_id, hours_worked, start_time, end_time, to_address')
+          .select('id, staff_id, hours_worked, start_time, end_time, to_address, from_address, from_latitude, from_longitude, to_latitude, to_longitude, destination_booking_id')
           .eq('report_date', dateStr),
         supabase
           .from('location_time_entries')
