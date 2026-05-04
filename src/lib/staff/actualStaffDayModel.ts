@@ -538,6 +538,18 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     return false;
   };
 
+  // Privata/exkluderade zoner — träffar dessa är ALLTID
+  // private_or_background (även mitt på dagen, även nära känd plats).
+  const privateZones = (input.privateZones ?? []).filter(z => z);
+  const matchPrivateZone = (c: { lat: number; lng: number } | null): PrivateZone | null => {
+    if (!c || !privateZones.length) return null;
+    for (const z of privateZones) {
+      const d = haversineMeters({ lat: z.lat, lng: z.lng }, c);
+      if (d <= z.radiusMeters) return z;
+    }
+    return null;
+  };
+
   // "Natt/tidig morgon" i lokal tid: 22:00–06:00.
   const isNightLocal = (iso: string): boolean => {
     try {
@@ -550,7 +562,14 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   const RAW_DEBUG_MAX_PINGS = 2;
   const RAW_DEBUG_MAX_MIN = 3;
 
+  const visitPrivateZone = new Map<string, PrivateZone | null>();
   const classifyVisitRelevance = (v: PlaceVisit): WorkRelevance => {
+    // Privatzon vinner alltid över andra heuristiker.
+    const pz = matchPrivateZone(v.centre);
+    if (pz) {
+      visitPrivateZone.set(v.placeKey, pz);
+      return 'private_or_background';
+    }
     if (v.knownSite) return 'work_confirmed';
     const startMs = new Date(v.start).getTime();
     const endMs = new Date(v.end).getTime();
