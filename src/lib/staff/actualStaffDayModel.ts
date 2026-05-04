@@ -164,6 +164,18 @@ export interface ActualEvent {
   poi_category?: string | null;
 }
 
+export interface NearestKnownSiteDebug {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  /** Avstånd från klustercenter till sitens center. */
+  distanceMeters: number;
+  /** Hur många meter UTANFÖR siten klustercentret ligger (negativt = inuti). */
+  outsideByMeters: number;
+}
+
 export interface ActualVisit {
   key: string;
   label: string;
@@ -176,6 +188,10 @@ export interface ActualVisit {
   durationMin: number;
   pingCount: number;
   avgAccuracy: number | null;
+  /** Endast satt för okända kluster: närmaste kända plats + varför ingen träff. */
+  nearestKnownSite?: NearestKnownSiteDebug | null;
+  /** Mänsklig förklaring varför internal match misslyckades. */
+  unmatchReason?: string | null;
 }
 
 export interface ProposedAnomaly {
