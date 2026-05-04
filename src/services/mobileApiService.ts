@@ -591,7 +591,15 @@ export const mobileApi = {
     started_at?: string;
     client_dedupe_key?: string;
   }) =>
-    callApi<{ success?: boolean; already_active?: boolean; idempotent?: boolean; entry: any }>('start_location_timer', params),
+    callApi<{
+      success?: boolean;
+      already_active?: boolean;
+      idempotent?: boolean;
+      /** 'already_closed_or_consumed' = pending start matched a window already stopped/reported. */
+      status?: 'already_closed_or_consumed';
+      reason?: 'already_closed' | 'already_consumed';
+      entry: any;
+    }>('start_location_timer', params),
 
   // Lager (internal Lager project) tasks
   getLagerTasks: () =>
