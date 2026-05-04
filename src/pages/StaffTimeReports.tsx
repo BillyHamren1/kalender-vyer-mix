@@ -755,6 +755,43 @@ const StaffTimeReports: React.FC = () => {
             })),
           });
 
+          // Active timers: any open distribution row (time_report w/o end,
+          // open LTE that isn't presence-only) — used to detect "tappad signal".
+          const activeTimerInputs = [
+            ...staffReports
+              .filter(r => !r.end_iso)
+              .map(r => ({
+                id: `tr:${r.id}`,
+                startedAt: r.start_iso,
+                label: r.label ?? '—',
+                source: 'time_report' as const,
+                reportedAsDistribution: true,
+              })),
+            ...staffLTEs
+              .filter(e => !e.exited_at && !e.isPresenceOnly)
+              .map(e => ({
+                id: `lte:${e.id}`,
+                startedAt: e.entered_at,
+                label: e.label ?? 'Plats',
+                source: 'location_entry' as const,
+                reportedAsDistribution: false,
+              })),
+            ...staffTravel
+              .filter(t => !t.end_iso)
+              .map(t => ({
+                id: `tv:${t.id}`,
+                startedAt: t.start_iso!,
+                label: t.to_address ? `Resa → ${t.to_address.split(',')[0].trim()}` : 'Resa',
+                source: 'travel' as const,
+                reportedAsDistribution: false,
+              })),
+          ];
+
+          const ping = pingMap.get(s.id) || null;
+
+          // Travel suggestions are "föreslagen" until approved. Flag
+          // auto_detected + source='gap_derived' so UI separates them.
+          const rawTravel = (travel as any[]).filter(t => t.staff_id === s.id);
           const canonical = buildCanonicalStaffDayModel({
             workdays: staffWorkdays.map(w => ({ started_at: w.started_at, ended_at: w.ended_at })),
             distributionRows: staffReports.map(r => ({
@@ -767,14 +804,19 @@ const StaffTimeReports: React.FC = () => {
               category: r.location_id ? 'location' : r.large_project_id || r.booking_id ? 'project' : 'other',
               approved: r.approved,
             })),
-            travelSuggestions: staffTravel.map(t => ({
+            activeTimers: activeTimerInputs,
+            travelSuggestions: rawTravel.map(t => ({
               id: t.id,
-              start: t.start_iso,
-              end: t.end_iso,
-              hours: t.hours,
+              start: t.start_time,
+              end: t.end_time,
+              hours: t.hours_worked || 0,
               fromAddress: t.from_address ?? null,
               toAddress: t.to_address ?? null,
+              approved: !!t.approved,
+              autoDetected: !!t.auto_detected,
+              sourceTag: t.source ?? null,
             })),
+            latestPing: ping ? { updatedAt: ping.updated_at } : null,
           });
 
           return {
