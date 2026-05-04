@@ -92,6 +92,8 @@ interface StaffWithDayReport {
    * är ofullständig och inte tolkar tystnaden som "signal tappad".
    */
   pingsTruncated: boolean;
+  /** Senaste GPS-fetchfel för dagen (om något), så UI kan varna istället för att tolka tomheten som "inga händelser". */
+  pingsFetchError: string | null;
 }
 
 /**
