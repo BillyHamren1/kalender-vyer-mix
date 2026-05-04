@@ -29,6 +29,10 @@ interface ProjectFilesProps {
 const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachments = [], className }: ProjectFilesProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string | null } | null>(null);
+  const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string | null } | null>(null);
+
+  const isPdfFile = (file: { file_type?: string | null; file_name?: string | null; url: string }) =>
+    file.file_type?.includes('pdf') || /\.pdf($|\?)/i.test(file.file_name || file.url);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,12 +100,20 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
               {files.map(file => {
                 const FileIcon = getFileIcon(file.file_type);
                 const isImage = file.file_type?.startsWith('image/');
+                const isPdf = isPdfFile(file);
+                const clickable = isImage || isPdf;
 
                 return (
                   <div
                     key={file.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group ${isImage ? 'cursor-pointer' : ''}`}
-                    onClick={isImage ? () => setPreviewImage({ url: file.url, name: file.file_name }) : undefined}
+                    className={`flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group ${clickable ? 'cursor-pointer' : ''}`}
+                    onClick={
+                      isImage
+                        ? () => setPreviewImage({ url: file.url, name: file.file_name })
+                        : isPdf
+                        ? () => setPreviewPdf({ url: file.url, name: file.file_name })
+                        : undefined
+                    }
                   >
                     {isImage ? (
                       <img
@@ -187,6 +199,30 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Ladda ner
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!previewPdf} onOpenChange={(open) => !open && setPreviewPdf(null)}>
+        <DialogContent className="max-w-5xl p-2 h-[85vh] flex flex-col">
+          {previewPdf && (
+            <>
+              <iframe
+                src={previewPdf.url}
+                title={previewPdf.name || 'PDF'}
+                className="w-full flex-1 rounded-lg border border-border/40"
+              />
+              <div className="flex items-center justify-between gap-2 px-2 py-1">
+                <p className="text-xs text-muted-foreground truncate">{previewPdf.name}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(previewPdf.url, '_blank')}
+                >
+                  Öppna i ny flik
                 </Button>
               </div>
             </>
