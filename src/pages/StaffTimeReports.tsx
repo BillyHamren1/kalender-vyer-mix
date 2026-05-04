@@ -86,6 +86,52 @@ interface StaffWithDayReport {
    * Detta ska vara huvudvyn — inte rapporttabellen.
    */
   actualModel: ActualStaffDayModel;
+  /**
+   * True om GPS-historiken för denna staff/dag har trunkerats (träffat
+   * hårt safety-tak). UI ska visa en varning så admin vet att timeline
+   * är ofullständig och inte tolkar tystnaden som "signal tappad".
+   */
+  pingsTruncated: boolean;
+}
+
+/**
+ * Hämta hela dagens staff_location_history för EN staff via paginering.
+ * Aldrig en global limit — den kapar dagar med många pings (8000+).
+ * Säkerhetstak per staff (PER_STAFF_PING_CAP) hindrar runaway om DB
+ * returnerar miljoner rader; sätter pingsTruncated i så fall.
+ */
+const PING_PAGE_SIZE = 1000;
+const PER_STAFF_PING_CAP = 20_000;
+
+async function fetchAllPingsForStaff(
+  staffId: string,
+  dayStartIso: string,
+  nextDayIso: string,
+): Promise<{ rows: any[]; truncated: boolean }> {
+  const out: any[] = [];
+  let from = 0;
+  while (out.length < PER_STAFF_PING_CAP) {
+    const to = from + PING_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from('staff_location_history')
+      .select('staff_id, lat, lng, accuracy, speed, recorded_at')
+      .eq('staff_id', staffId)
+      .gte('recorded_at', dayStartIso)
+      .lt('recorded_at', nextDayIso)
+      .order('recorded_at', { ascending: true })
+      .range(from, to);
+    if (error) {
+      // Non-fatal: returnera det vi har (dagen får aldrig bli tom).
+      return { rows: out, truncated: false };
+    }
+    const batch = data || [];
+    out.push(...batch);
+    if (batch.length < PING_PAGE_SIZE) {
+      return { rows: out, truncated: false };
+    }
+    from += PING_PAGE_SIZE;
+  }
+  return { rows: out.slice(0, PER_STAFF_PING_CAP), truncated: true };
 }
 
 // Build a UTC ISO timestamp from a date (yyyy-MM-dd) and an HH:mm[:ss] time
