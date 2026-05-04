@@ -159,8 +159,11 @@ const sourceTagFor = (ev: ActualEvent): string => {
       if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'GPS / adressuppslag';
       if (lookupSource === 'fallback' || lookupSource === 'pending_lookup') return 'GPS / okänd';
       return 'GPS';
-    case 'gps_travel':
-      return 'GPS/travel';
+    case 'gps_travel': {
+      const m = (ev.meta ?? {}) as any;
+      if (m.travelOrigin === 'travel_log_approved' || m.approved === true) return 'restid';
+      return 'GPS-rörelse';
+    }
     case 'travel_suggestion':
       return 'travel_log';
     case 'assistant_arrival':
@@ -181,6 +184,12 @@ const statusTagFor = (ev: ActualEvent): string => {
   const { kind, severity } = ev;
   const lookupSource = (ev as any).lookup_source as string | undefined;
   if (kind === 'travel_suggestion') return 'föreslagen';
+  if (kind === 'gps_travel') {
+    const m = (ev.meta ?? {}) as any;
+    if (m.travelOrigin === 'travel_log_approved' || m.approved === true) return 'bekräftad';
+    if (m.bothKnown) return 'föreslagen';
+    return 'osäker';
+  }
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
   if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
     if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'adressuppslag';

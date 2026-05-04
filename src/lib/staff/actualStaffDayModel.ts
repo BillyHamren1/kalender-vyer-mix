@@ -457,6 +457,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         severity: 'info',
         label: `Resa: ${t.fromAddress ?? '?'} → ${t.toAddress ?? '?'}`,
         durationMin: t.end_iso ? minutesBetween(t.start_iso, t.end_iso) : undefined,
+        meta: { travelOrigin: 'travel_log_approved', approved: true },
       });
     }
   }
@@ -514,17 +515,23 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   for (const tr of input.travels) {
     const fromLabel = tr.from.knownSite?.name ?? null;
     const toLabel = tr.to.knownSite?.name ?? null;
+    const bothKnown = !!tr.from.knownSite && !!tr.to.knownSite;
     events.push({
       id: `gps-trv:${tr.key}`,
       at: tr.start,
       until: tr.end,
       kind: 'gps_travel',
-      severity: 'info',
+      // GPS bekräftar rörelse, inte godkänd restid. Mellan kända arbetsplatser
+      // → "föreslagen". Mellan okända → "osäker" (warning).
+      severity: bothKnown ? 'info' : 'warning',
       label: `Förflyttning: ${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`,
       durationMin: tr.durationMin,
       meta: {
         fromCentre: tr.from.knownSite ? null : { lat: tr.from.centre.lat, lng: tr.from.centre.lng },
         toCentre: tr.to.knownSite ? null : { lat: tr.to.centre.lat, lng: tr.to.centre.lng },
+        travelOrigin: 'gps_movement',
+        bothKnown,
+        approved: false,
       },
     });
   }
