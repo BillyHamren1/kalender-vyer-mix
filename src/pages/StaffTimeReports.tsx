@@ -1119,7 +1119,19 @@ const StaffTimeReports: React.FC = () => {
             visits: placeVisits,
             travels: dayTimeline.travels,
             pings: staffPings,
-            latestPing: ping ? { recorded_at: ping.updated_at } : null,
+            // latestPing för actual day model MÅSTE vara dagens sista ping
+            // (recorded_at ≤ dagens slut), inte staff_locations.updated_at —
+            // den senare är "live" och blir fel för historiska dagar.
+            latestPing: (() => {
+              if (!staffPings.length) return null;
+              let last = staffPings[0];
+              for (let i = 1; i < staffPings.length; i++) {
+                if (new Date(staffPings[i].recorded_at).getTime() > new Date(last.recorded_at).getTime()) {
+                  last = staffPings[i];
+                }
+              }
+              return { recorded_at: last.recorded_at };
+            })(),
           });
 
           return {
