@@ -65,6 +65,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: largeProjects = [], isLoading: largeLoading } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
   const { data: unseenUpdates = [] } = useUnseenBookingUpdates();
+  const markAllSeen = useMarkAllBookingChangesSeen();
 
   const isLoading = jobsLoading || projectsLoading || largeLoading;
 
