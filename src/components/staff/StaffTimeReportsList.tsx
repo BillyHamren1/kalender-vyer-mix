@@ -277,13 +277,19 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             }
             return (
               <div key={staff.id} className="space-y-2">
+                <ActualDayPanel
+                  staffName={staff.name}
+                  date={dateStr}
+                  model={staff.actualModel}
+                  lastPingIso={staff.latestPing?.updated_at ?? null}
+                />
                 <button
                   type="button"
                   onClick={() => onSelectStaff(staff.id, staff.name)}
-                  className="text-sm font-semibold text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors"
+                  className="text-xs text-muted-foreground hover:text-primary hover:underline underline-offset-2 transition-colors"
                   title="Öppna detaljerad dagvy med GPS, karta och godkännande"
                 >
-                  {staff.name}
+                  Öppna full detaljvy →
                 </button>
                 <TimeReportReviewTable
                   date={dateStr}
