@@ -26,6 +26,8 @@
  * "Oregistrerad tid" — they do NOT add to paid hours.
  */
 
+import { classifyReviewRow, type ReviewRowKind } from './reviewRowKind';
+
 export type ReviewEntryKind = 'work' | 'travel' | 'gap';
 export type ReviewEntryStatus = 'ok' | 'needs_review' | 'ongoing' | 'approved';
 
