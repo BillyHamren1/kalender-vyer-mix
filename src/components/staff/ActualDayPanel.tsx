@@ -288,25 +288,27 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     return Array.from(seen.entries()).map(([key, c]) => ({ key, ...c }));
   }, [rawEvents]);
 
-  const richGeo = useReverseGeocodeRich(unknownCoords.map(c => ({ lat: c.lat, lng: c.lng })));
+  const richGeo = useReverseGeocodeRichStatus(unknownCoords.map(c => ({ lat: c.lat, lng: c.lng })));
   const geoByKey = useMemo(() => {
-    const m = new Map<string, RichGeocode>();
+    const m = new Map<string, RichGeocodeStatus>();
     unknownCoords.forEach((c, i) => {
-      const g = richGeo[i];
-      if (g) m.set(c.key, g);
+      const s = richGeo[i];
+      if (s) m.set(c.key, s);
     });
     return m;
   }, [unknownCoords, richGeo]);
 
   const lookupCoord = (
     c: { lat: number; lng: number } | null | undefined,
-  ): { label: string; geo: RichGeocode | null } | null => {
+  ): { label: string; geo: RichGeocode | null; status: 'ok' | 'loading' | 'error' } | null => {
     if (!c) return null;
     const key = `${c.lat.toFixed(3)},${c.lng.toFixed(3)}`;
-    const geo = geoByKey.get(key) ?? null;
-    if (geo) return { label: geo.label, geo };
-    // Aldrig råa koordinater i huvudjournalen — koordinater hör till debug/expand.
-    return { label: 'Okänd plats – adress saknas', geo: null };
+    const s = geoByKey.get(key);
+    if (s?.data) return { label: s.data.label, geo: s.data, status: 'ok' };
+    if (s?.isLoading) return { label: 'Slår upp adress…', geo: null, status: 'loading' };
+    if (s?.isError) return { label: 'Okänd plats – adress kunde inte hämtas', geo: null, status: 'error' };
+    // Initialt tillstånd innan query startat: behandla som loading.
+    return { label: 'Slår upp adress…', geo: null, status: 'loading' };
   };
 
   // Indexera actualVisits per placeKey för knownSiteId + durationMin.
