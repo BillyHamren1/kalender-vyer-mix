@@ -464,6 +464,52 @@ Deno.serve(async (req) => {
           return json({ success: false, error: 'Bokningen saknar bokningsnummer' })
         }
 
+        const serialNumbers = serialNumber.split('\n').map((s: string) => s.trim()).filter(Boolean)
+
+        const recoverAlreadyAllocatedIdentifiers = async (serials: string[]) => {
+          for (const serial of serials) {
+            try {
+              const lookupResponse = await fetch(
+                'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/identify-instance',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+                    'x-organization-id': ORG_ID,
+                  },
+                  body: JSON.stringify({ serial_number: serial }),
+                }
+              )
+
+              if (!lookupResponse.ok) continue
+
+              const lookupData = await lookupResponse.json().catch(() => null)
+              if (!lookupData) continue
+
+              const reservationId = lookupData.reservation_id || lookupData.booking_number || null
+              if (reservationId !== bookingNumber) {
+                console.warn('[verify_product] already-allocated serial belongs to another booking', {
+                  serial,
+                  bookingNumber,
+                  reservationId,
+                  orgId: ORG_ID,
+                })
+                continue
+              }
+
+              return {
+                returnedSku: lookupData.sku || lookupData.item_type_id || lookupData.serial_number || null,
+                returnedItemType: lookupData.item_type || lookupData.item_type_name || lookupData.product_name || lookupData.name || null,
+              }
+            } catch (lookupError) {
+              console.warn('[verify_product] identify-instance recovery failed', { serial, lookupError })
+            }
+          }
+
+          return null
+        }
+
         // 2. Call external inventory API to allocate the instance
         const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
         if (!PRICELIST_API_KEY) {
@@ -504,6 +550,8 @@ Deno.serve(async (req) => {
           body: responseText,
         })
 
+        let allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
+
         if (!allocateResponse.ok) {
           const status = allocateResponse.status
           const errBody = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
@@ -513,22 +561,33 @@ Deno.serve(async (req) => {
           }
           if (status === 409) {
             console.warn('[verify_product] WMS_409', { serialNumber, bookingNumber, body: errBody })
-            return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad', debugCode: 'WMS_409' })
+            const recovered = await recoverAlreadyAllocatedIdentifiers(serialNumbers)
+            if (!recovered) {
+              return json({ success: false, error: errBody.error || 'Enheten är inte tillgänglig eller redan allokerad', debugCode: 'WMS_409' })
+            }
+            allocateData = {
+              results: serialNumbers.map((serial: string) => ({
+                serial_number: serial,
+                success: false,
+                data: {
+                  already_allocated: true,
+                  sku: recovered.returnedSku,
+                  item_type: recovered.returnedItemType,
+                },
+              })),
+            }
           }
-          if (status === 401 || status === 403) {
+          else if (status === 401 || status === 403) {
             console.error('[verify_product] WMS_AUTH failure — check PRICELIST_API_KEY / x-organization-id', { status, orgId: ORG_ID })
             return json({ success: false, error: 'Lagersystemet avvisade autentiseringen (kontakta admin)', debugCode: `WMS_${status}` })
           }
-          console.error('[verify_product] WMS_ERROR', { status, body: errBody })
-          return json({ success: false, error: errBody.error || `Lagerfel (${status})`, debugCode: `WMS_${status}` })
+          else {
+            console.error('[verify_product] WMS_ERROR', { status, body: errBody })
+            return json({ success: false, error: errBody.error || `Lagerfel (${status})`, debugCode: `WMS_${status}` })
+          }
         }
 
-        const allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
-
         // Extract SKU/item_type from various response formats
-        // Split batch serial numbers (may contain newlines)
-        const serialNumbers = serialNumber.split('\n').map((s: string) => s.trim()).filter(Boolean)
-
         let returnedSku = allocateData.sku || allocateData.data?.sku || allocateData.data?.item_type_id
         let returnedItemType = allocateData.item_type || allocateData.data?.item_type
         const alreadyAllocatedSerials: string[] = []
@@ -566,6 +625,14 @@ Deno.serve(async (req) => {
 
           // If ALL were already allocated and no identifiers found, we cannot local-match
           if (!returnedSku && !returnedItemType && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
+            const recovered = await recoverAlreadyAllocatedIdentifiers(alreadyAllocatedSerials)
+            if (recovered) {
+              returnedSku = recovered.returnedSku || returnedSku
+              returnedItemType = recovered.returnedItemType || returnedItemType
+            }
+          }
+
+          if (!returnedSku && !returnedItemType && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
             const shortNrs = alreadyAllocatedSerials.map((s: string) => s.replace(/^FACE\d{16}/, '').replace(/^0+/, '') || s)
             console.warn('[allocate-instance] Alla redan allokerade utan artikelinfo:', shortNrs)
             return json({
@@ -584,9 +651,13 @@ Deno.serve(async (req) => {
         // Format B: Single-item response (no results array)
         if (!Array.isArray(allocateData.results)) {
           if (allocateData.data?.already_allocated) {
-            // No item metadata in this response format => cannot safely local-match
-            console.warn('[allocate-instance] Redan allokerad (single, flagga):', serialNumber)
-            return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+            const recovered = await recoverAlreadyAllocatedIdentifiers(serialNumbers)
+            if (!recovered) {
+              console.warn('[allocate-instance] Redan allokerad (single, flagga):', serialNumber)
+              return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
+            }
+            returnedSku = recovered.returnedSku || returnedSku
+            returnedItemType = recovered.returnedItemType || returnedItemType
           }
 
           const isFullyAllocated = (allocateData.error || '').toLowerCase().includes('fully allocated')
