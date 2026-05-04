@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, Calendar, FolderKanban, AlertTriangle, Search, Sparkles } from 'lucide-react';
-import { useUnseenBookingUpdates } from '@/hooks/useUnseenBookingUpdates';
+import { useUnseenBookingUpdates, useMarkAllBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
 import ProjectUpdateDialog from '@/components/project/ProjectUpdateDialog';
+import { Button } from '@/components/ui/button';
+import { CheckCheck } from 'lucide-react';
 import { fetchJobs, cancelJob } from '@/services/jobService';
 import { fetchProjects, cancelProject } from '@/services/projectService';
 import { fetchLargeProjects, deleteLargeProject } from '@/services/largeProjectService';
@@ -63,6 +65,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: largeProjects = [], isLoading: largeLoading } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
   const { data: unseenUpdates = [] } = useUnseenBookingUpdates();
+  const markAllSeen = useMarkAllBookingChangesSeen();
 
   const isLoading = jobsLoading || projectsLoading || largeLoading;
 
@@ -279,6 +282,25 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
   return (
     <>
+      {unseenUpdates.length > 0 && (
+        <div className="flex justify-end mb-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={markAllSeen.isPending}
+            onClick={() => {
+              const ids = Array.from(new Set(unseenUpdates.map(u => u.booking_id)));
+              markAllSeen.mutate(ids, {
+                onSuccess: (n) => toast.success(`Markerade ${n} uppdatering${n === 1 ? '' : 'ar'} som lästa`),
+                onError: () => toast.error('Kunde inte markera alla som lästa'),
+              });
+            }}
+          >
+            <CheckCheck className="h-4 w-4 mr-1" />
+            Markera alla som lästa ({unseenUpdates.length})
+          </Button>
+        </div>
+      )}
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
         <div className="divide-y divide-border/40">
           {filtered.map(project => {
