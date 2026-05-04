@@ -18,6 +18,7 @@ import {
   type RawWorkday,
 } from '@/lib/staff/dayJournal';
 import { calculateDayMetrics, type DayMetrics } from '@/lib/staff/dayMetrics';
+import { buildCanonicalStaffDayModel, type CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
