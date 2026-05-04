@@ -5579,6 +5579,69 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     )
   }
 
+  // 2b. RACE/RETRY GUARD (2026-05): even if there is no OPEN entry, a
+  // pending start coming back online MUST NOT re-open a timer for a
+  // window that has already been stopped and reported. Check for a
+  // recently CLOSED or CONSUMED row matching this (staff, target) within
+  // ±90s of the requested start, in the last 24h.
+  //
+  // "Consumed" = there is a time_reports row whose source_entry_id points
+  // at this LTE — i.e. the user already saved & stopped the timer.
+  {
+    const requestedTs = (() => {
+      if (started_at && typeof started_at === 'string') {
+        const t = new Date(started_at).getTime()
+        if (!isNaN(t)) return t
+      }
+      return Date.now()
+    })()
+    const windowMs = 90 * 1000
+    const dayMs = 24 * 3600 * 1000
+    const fromIso = new Date(requestedTs - windowMs).toISOString()
+    const toIso = new Date(requestedTs + windowMs).toISOString()
+    const since24hIso = new Date(Date.now() - dayMs).toISOString()
+
+    let recentQ = supabase
+      .from('location_time_entries')
+      .select('id, entered_at, exited_at, location_id, booking_id, large_project_id, source, created_at')
+      .eq('staff_id', staffId)
+      .gte('entered_at', fromIso)
+      .lte('entered_at', toIso)
+      .gte('created_at', since24hIso)
+      .order('entered_at', { ascending: false })
+      .limit(5)
+    if (location_id) recentQ = recentQ.eq('location_id', location_id)
+    if (booking_id) recentQ = recentQ.eq('booking_id', booking_id)
+    if (large_project_id) recentQ = recentQ.eq('large_project_id', large_project_id)
+    const { data: recentRows } = await recentQ
+
+    if (recentRows && recentRows.length > 0) {
+      const candidateIds = recentRows.map((r: any) => r.id)
+      // "Consumed" check — does any time_report point at one of these LTEs?
+      const { data: consumingReports } = await supabase
+        .from('time_reports')
+        .select('id, source_entry_id')
+        .in('source_entry_id', candidateIds)
+
+      const consumedIds = new Set(
+        (consumingReports || []).map((r: any) => r.source_entry_id),
+      )
+      const blocker = recentRows.find((r: any) =>
+        r.exited_at != null || consumedIds.has(r.id),
+      )
+      if (blocker) {
+        return new Response(
+          JSON.stringify({
+            status: 'already_closed_or_consumed',
+            entry: blocker,
+            reason: blocker.exited_at != null ? 'already_closed' : 'already_consumed',
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+    }
+  }
+
   // 3. Resolve start time. Allow caller to specify (within last 24h, not in future).
   let enteredAtIso = new Date().toISOString()
   let entryDate = enteredAtIso.split('T')[0]
