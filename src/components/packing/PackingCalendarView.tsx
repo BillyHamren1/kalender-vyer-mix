@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import { PackingWithBooking, PACKING_STATUS_LABELS } from "@/types/packing";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
