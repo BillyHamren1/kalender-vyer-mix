@@ -358,9 +358,24 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
         </div>
       )}
 
-      {visible.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-6 text-center border rounded-md bg-muted/20">
-          {entries.length === 0 ? 'Inga rapporter denna dag.' : 'Inga avvikelser med valt filter.'}
+      {/* ── Sektion: Fördelad tid (time_reports) ── */}
+      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1">
+        Fördelad tid · per projekt/plats
+      </div>
+      {visible.filter(e => e.kind !== 'travel').length === 0 ? (
+        <div className="text-sm py-5 text-center border rounded-md bg-muted/20 space-y-1">
+          {hasWorkday ? (
+            <>
+              <div className="font-medium">Arbetsdag finns, men tid är ofördelad.</div>
+              <div className="text-xs text-muted-foreground">
+                Lönegrundande tid {formatHoursMinutes(payableHours)} har ännu inte kopplats till något projekt eller plats.
+              </div>
+            </>
+          ) : entries.length === 0 ? (
+            <div className="text-muted-foreground">Inga rapporter denna dag.</div>
+          ) : (
+            <div className="text-muted-foreground">Inga avvikelser med valt filter.</div>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto">
