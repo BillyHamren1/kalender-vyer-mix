@@ -740,12 +740,60 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }).catch(err => console.warn('[Anomaly] stop failed:', err?.message || err));
     };
 
-    // ── PLANNING-AWARE EXIT DECISION (Auto-first 2026-04) ───────────
-    // Compute once per GPS tick; attached to `workplace-exit`-eventet så
-    // downstream listeners (timer banner, EOD reconciliation, last-shift
-    // detection) kan resonera om vad slutet betyder. Själva auto-stop:en
-    // av den löpande activityn körs av autoActionsRef.stop i EXIT-grenarna
-    // — exitDecision driver bara extrasignaler (resa? sista pass?).
+    // ── STABLE-EXIT EVALUATION (Auto-stop hardening 2026-05) ────────
+    // En enskild GPS-punkt utanför radien får ALDRIG stoppa en timer.
+    // Vi loggar outside-pingen i per-target-trackern och frågar
+    // evaluateStableExit om vi har en stabil exit. Endast 'stable'
+    // tillåter auto-stop. 'insufficient' / 'unstable' → emittera
+    // assistant_event review_departure och låt timern fortsätta.
+    // 'no_signal' → gör ingenting alls.
+    // VIKTIGT: workdayen rörs aldrig härifrån — bara aktivitetstimern.
+    const lastPingAgeMs = userPosition?.timestamp
+      ? Date.now() - userPosition.timestamp
+      : null;
+
+    const evaluateExit = (
+      key: string,
+      dist: number,
+    ): ExitEvaluation => {
+      const tracker = getExitTracker(key);
+      recordExitPing(tracker, {
+        ts: Date.now(),
+        distance: dist,
+        accuracy: userPosition?.accuracy ?? null,
+      });
+      return evaluateStableExit(tracker, Date.now(), lastPingAgeMs);
+    };
+
+    const emitReviewDeparture = (params: {
+      kind: 'location' | 'project' | 'booking';
+      targetId: string;
+      label: string | null;
+      ev: ExitEvaluation;
+    }) => {
+      try {
+        mobileApi.assistantEvents
+          .create({
+            event_type: 'departure',
+            target_type: params.kind,
+            target_id: params.targetId,
+            target_label: params.label,
+            happened_at: new Date().toISOString(),
+            source: 'geofence',
+            suggested_action: 'review_departure',
+            metadata: {
+              ...buildExitMetadata(params.ev),
+              note: 'Möjlig lämning — instabil GPS-signal, timer stoppades inte automatiskt',
+            },
+          })
+          .catch((err) =>
+            console.warn('[Geofence] review_departure emit failed:', err?.message || err),
+          );
+      } catch (err) {
+        console.warn('[Geofence] review_departure emit threw:', err);
+      }
+    };
+
     const exitDecision: ExitDecision = (() => {
       const signals = computePlannedDaySignals(bookings, new Date());
       return decideExitAction(signals);
