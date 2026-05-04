@@ -412,6 +412,25 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     });
   }, [rawEvents, geoByKey, visitByKey, knownNeighbours]);
 
+  // Bakgrunds-GPS: GPS-händelser utan arbetskoppling (ingen workday/timer/
+  // rapport/känd plats/assistant). Dessa visas inte i huvudjournalen utan
+  // i en separat collapsed sektion.
+  const GPS_KINDS = new Set<ActualEventKind>(['gps_arrival', 'gps_visit', 'gps_departure', 'gps_travel']);
+  const isWorkRelevantEvent = (ev: ActualEvent): boolean => {
+    if (!GPS_KINDS.has(ev.kind)) return true;
+    const m = (ev.meta ?? {}) as any;
+    // workRelevant sätts av modellen. Om okänt — defaulta till true för
+    // bakåtkompatibilitet (ingen filtrering på data utan flagga).
+    return m.workRelevant !== false;
+  };
+  const [mainEvents, backgroundEvents] = useMemo(() => {
+    const main: ActualEvent[] = [];
+    const bg: ActualEvent[] = [];
+    for (const ev of events) (isWorkRelevantEvent(ev) ? main : bg).push(ev);
+    return [main, bg] as const;
+  }, [events]);
+  const [showBackground, setShowBackground] = useState(false);
+
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
     t => !t.approved && (t.autoDetected || t.source === 'gap_derived'),
