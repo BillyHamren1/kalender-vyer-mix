@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReprocessDayPreviewDialog, type ReprocessChoice } from './ReprocessDayPreviewDialog';
 import { toast } from 'sonner';
-import { useReverseGeocodeRich, type RichGeocode } from '@/hooks/useReverseGeocodeRich';
+import { useReverseGeocodeRichStatus, type RichGeocode, type RichGeocodeStatus } from '@/hooks/useReverseGeocodeRich';
 import { inferActivityFromPlace } from '@/lib/staff/inferActivityFromPlace';
 import type {
   ActualEvent,
