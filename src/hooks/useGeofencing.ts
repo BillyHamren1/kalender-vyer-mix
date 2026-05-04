@@ -69,6 +69,15 @@ import {
   recordExit as recordSubdivisionExit,
 } from '@/lib/projectAddressVisits';
 import { getLocalIsoDate, isBookingPlannedOnDate } from '@/lib/mobileBookingPlanning';
+import {
+  createExitTracker,
+  resetExitTracker,
+  recordExitPing,
+  evaluateStableExit,
+  buildExitMetadata,
+  type ExitTrackerState,
+  type ExitEvaluation,
+} from '@/lib/geofence/stableExit';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
