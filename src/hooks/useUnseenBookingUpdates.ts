@@ -58,3 +58,21 @@ export function useMarkBookingChangesSeen() {
     },
   });
 }
+
+export function useMarkAllBookingChangesSeen() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (bookingIds: string[]) => {
+      if (bookingIds.length === 0) return 0;
+      await Promise.all(
+        bookingIds.map((id) =>
+          supabase.rpc('mark_booking_changes_seen', { p_booking_id: id }),
+        ),
+      );
+      return bookingIds.length;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unseen-booking-updates'] });
+    },
+  });
+}
