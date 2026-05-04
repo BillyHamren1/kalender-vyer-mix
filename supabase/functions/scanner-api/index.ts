@@ -1349,33 +1349,35 @@ Deno.serve(async (req) => {
 
           if (lookupResponse.ok) {
             const lookupData = await lookupResponse.json()
+            // 200+success:false → blockerad/ej hittad enligt WMS — passa fram error
+            if (lookupData?.success === false) {
+              return json({ found: false, error: lookupData.error || lookupData.message || 'Kunde inte identifiera produkt', data: lookupData.data })
+            }
+            const payload = lookupData?.data && typeof lookupData.data === 'object' ? { ...lookupData, ...lookupData.data } : lookupData
             return json({
               found: true,
-              name: lookupData.name || lookupData.item_type_name || lookupData.product_name || null,
-              sku: lookupData.sku || lookupData.serial_number || serialNumber,
-              status: lookupData.status || 'unknown',
-              condition: lookupData.condition || null,
-              itemType: lookupData.item_type || lookupData.item_type_name || null,
-              location: lookupData.location || null,
+              name: payload.name || payload.item_type_name || payload.product_name || null,
+              sku: payload.sku || payload.serial_number || serialNumber,
+              status: payload.status || 'unknown',
+              condition: payload.condition || null,
+              itemType: payload.item_type || payload.item_type_name || null,
+              location: payload.location || null,
               currentBooking:
-                lookupData.reservation_id ||
-                lookupData.booking_number ||
-                lookupData.active_reservation?.reservation_id ||
-                lookupData.active_reservation?.booking_number ||
+                payload.reservation_id ||
+                payload.booking_number ||
+                payload.active_reservation?.reservation_id ||
+                payload.active_reservation?.booking_number ||
                 null,
-              activeReservation: lookupData.active_reservation || null,
+              activeReservation: payload.active_reservation || null,
               rawData: lookupData,
             })
           }
 
-          if (lookupResponse.status === 404) {
-            await lookupResponse.text()
-            return json({ found: false, error: `Produkt "${serialNumber}" hittades inte i lagersystemet` })
-          }
-
           const errText = await lookupResponse.text()
+          let errBody: any = {}
+          try { errBody = JSON.parse(errText) } catch { errBody = {} }
           console.error('[identify_product] scan-status error:', lookupResponse.status, errText)
-          return json({ found: false, error: `Kunde inte identifiera produkt (${lookupResponse.status})` })
+          return json({ found: false, error: errBody.error || errBody.message || `Kunde inte identifiera produkt (${lookupResponse.status})`, data: errBody.data })
         } catch (fetchErr) {
           console.error('[identify_product] Fetch error:', fetchErr)
           return json({ found: false, error: 'Kunde inte nå lagersystemet' })
