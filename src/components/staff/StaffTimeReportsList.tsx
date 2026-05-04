@@ -40,6 +40,7 @@ interface StaffWithDayReport {
   latestPing: LatestPing | null;
   metrics: DayMetrics;
   canonical: CanonicalStaffDayModel;
+  actualModel: ActualStaffDayModel;
 }
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
