@@ -159,8 +159,11 @@ const sourceTagFor = (ev: ActualEvent): string => {
       if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'GPS / adressuppslag';
       if (lookupSource === 'fallback' || lookupSource === 'pending_lookup') return 'GPS / okänd';
       return 'GPS';
-    case 'gps_travel':
-      return 'GPS/travel';
+    case 'gps_travel': {
+      const m = (ev.meta ?? {}) as any;
+      if (m.travelOrigin === 'travel_log_approved' || m.approved === true) return 'restid';
+      return 'GPS-rörelse';
+    }
     case 'travel_suggestion':
       return 'travel_log';
     case 'assistant_arrival':
