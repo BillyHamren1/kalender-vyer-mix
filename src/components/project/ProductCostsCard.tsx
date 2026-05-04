@@ -219,7 +219,7 @@ export const ProductCostsCard = ({
     const isOverridden = overrideSet.has(product.id);
 
     return (
-      <tr key={product.id} className="border-b border-border/20 bg-muted/10">
+      <tr key={product.id} className="border-b border-border/20 bg-muted/40">
         <td className="py-1.5 pr-3 pl-6 text-xs text-muted-foreground">
           <span className="mr-1 opacity-50">└</span>
           {cleanName(product.product_name)}
