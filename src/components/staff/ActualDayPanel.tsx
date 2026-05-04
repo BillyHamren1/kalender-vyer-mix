@@ -729,17 +729,27 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <Clock className="h-3 w-3 mr-1.5" />
           Justera arbetsdag
         </Button>
-        {model.actualVisits.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => onCreateDistributionFromGps?.(model.actualVisits[0]!.key)}
-          >
-            <MapPin className="h-3 w-3 mr-1.5" />
-            Skapa fördelning från GPS
-          </Button>
-        )}
+        {(() => {
+          const relevantKeys = new Set(
+            mainEvents
+              .filter(e => e.kind === 'gps_visit')
+              .map(e => (e.meta as any)?.placeKey)
+              .filter(Boolean),
+          );
+          const firstRelevant = model.actualVisits.find(v => relevantKeys.has(v.key));
+          if (!firstRelevant) return null;
+          return (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => onCreateDistributionFromGps?.(firstRelevant.key)}
+            >
+              <MapPin className="h-3 w-3 mr-1.5" />
+              Skapa fördelning från GPS
+            </Button>
+          );
+        })()}
         {travelSuggestions.length > 0 && (
           <Button
             variant="outline"
