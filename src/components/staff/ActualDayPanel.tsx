@@ -230,8 +230,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         }
       })
       .join(', ');
-    toast.info('Avsikt registrerad', {
-      description: `${plan.length} val: ${summary}. Ingen databasskrivning sker innan mutation-pathen byggts.`,
+    toast.message('Förhandsvisning — inget sparat', {
+      description: `${plan.length} förslag: ${summary}. Ingen databasskrivning sker — mutation-pathen är inte byggd ännu.`,
     });
   };
 
