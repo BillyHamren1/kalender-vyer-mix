@@ -482,7 +482,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           </div>
         ) : (
           <ol className="space-y-1">
-            {events.map(ev => {
+            {mainEvents.map(ev => {
               const m = (ev.meta ?? {}) as any;
               const placeKey = m.placeKey as string | undefined;
               const visit = placeKey ? visitByKey.get(placeKey) : undefined;
