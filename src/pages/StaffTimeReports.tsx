@@ -841,6 +841,32 @@ const StaffTimeReports: React.FC = () => {
       );
       historyPings = perStaffPings.flat();
 
+      // Privata/exkluderade GPS-zoner per staff (hem, manuellt ignorerade,
+      // återkommande natt). RLS säkerställer org-isolation.
+      const privateZonesByStaff = new Map<string, Array<{
+        id: string; lat: number; lng: number; radiusMeters: number;
+        kind: 'home' | 'manual_ignore' | 'recurring_night'; label: string | null;
+      }>>();
+      {
+        const { data: pzRows } = await supabase
+          .from('staff_private_zones')
+          .select('id, staff_id, lat, lng, radius_m, kind, label')
+          .in('staff_id', staffIds)
+          .eq('active', true);
+        for (const z of (pzRows ?? []) as any[]) {
+          const arr = privateZonesByStaff.get(z.staff_id) ?? [];
+          arr.push({
+            id: z.id,
+            lat: Number(z.lat),
+            lng: Number(z.lng),
+            radiusMeters: Number(z.radius_m) || 150,
+            kind: z.kind,
+            label: z.label ?? null,
+          });
+          privateZonesByStaff.set(z.staff_id, arr);
+        }
+      }
+
       const { data: staff, error: staffError } = await supabase
         .from('staff_members')
         .select('id, name, role, color')
