@@ -82,8 +82,8 @@ const EditableCell = ({ value, isOverridden, onSave, className }: EditableCellPr
     <span
       onClick={() => setEditing(true)}
       className={cn(
-        'cursor-pointer hover:bg-primary/10 rounded px-1 py-0.5 -mx-1 transition-colors',
-        isOverridden && 'bg-primary/5 font-medium text-primary',
+        'inline-block min-w-[3.5rem] cursor-text rounded border border-border bg-background px-1.5 py-0.5 text-right shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/5',
+        isOverridden && 'border-primary/40 bg-primary/5 font-medium text-primary',
         className
       )}
       title={isOverridden ? 'Lokalt ändrad – klicka för att redigera' : 'Klicka för att redigera'}
