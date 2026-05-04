@@ -283,7 +283,7 @@ export const ProductCostsCard = ({
     const parentRow = (
       <tr
         key={group.parent.id}
-        className={`border-b border-border/40 ${hasChildren ? 'cursor-pointer hover:bg-muted/30' : 'hover:bg-muted/20'}`}
+        className={`border-b border-border/40 bg-muted/30 ${hasChildren ? 'cursor-pointer hover:bg-muted/50' : 'hover:bg-muted/40'}`}
       >
         <td
           className="py-2 pr-3"
