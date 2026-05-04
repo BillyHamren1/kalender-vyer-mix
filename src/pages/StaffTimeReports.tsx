@@ -905,6 +905,86 @@ const StaffTimeReports: React.FC = () => {
             latestPing: ping ? { updatedAt: ping.updated_at } : null,
           });
 
+          // ── Faktisk-dag-modell ─────────────────────────────────────
+          // Bygg per-staff från råpings + kända platser + assistant_events
+          // + workday_flags. Detta är den nya huvudvyn — visar GPS-evidens
+          // även när time_reports saknas.
+          const staffPings: Ping[] = (historyPings as any[])
+            .filter(p => p.staff_id === s.id && p.lat != null && p.lng != null)
+            .map(p => ({
+              lat: Number(p.lat),
+              lng: Number(p.lng),
+              recorded_at: p.recorded_at,
+              accuracy: p.accuracy ?? null,
+            }));
+          const placeVisits = buildPlaceVisits(staffPings, knownSites);
+          const dayTimeline = buildDayTimeline(staffPings, placeVisits);
+          const staffAssistantEvents = (assistantEvents as any[])
+            .filter(a => a.staff_id === s.id)
+            .map(a => ({
+              id: a.id,
+              event_type: String(a.event_type || ''),
+              happened_at: a.happened_at,
+              target_label: a.target_label ?? null,
+              resolution_status: a.resolution_status ?? null,
+            }));
+          const staffFlags = (workdayFlags as any[])
+            .filter(f => f.staff_id === s.id)
+            .map(f => ({
+              id: f.id,
+              flag_type: String(f.flag_type || ''),
+              severity: (f.severity as string) ?? null,
+              title: f.title ?? null,
+              description: f.description ?? null,
+              created_at: f.created_at,
+              resolved: !!f.resolved,
+            }));
+          const actualModel = buildActualStaffDayModel({
+            date: dateStr,
+            workday: staffWorkdays.length > 0
+              ? { id: staffWorkdays[0].id, started_at: staffWorkdays[0].started_at, ended_at: staffWorkdays[0].ended_at }
+              : null,
+            timeReports: staffReports.map(r => ({
+              id: r.id,
+              start_iso: r.start_iso,
+              end_iso: r.end_iso,
+              label: r.label ?? '—',
+              approved: r.approved,
+              booking_id: r.booking_id ?? null,
+              large_project_id: r.large_project_id ?? null,
+              location_id: r.location_id ?? null,
+              hours: r.hours,
+            })),
+            locationEntries: staffLTEs.map(e => ({
+              id: e.id,
+              entered_at: e.entered_at,
+              exited_at: e.exited_at,
+              label: e.label ?? 'Plats',
+              isPresenceOnly: e.isPresenceOnly,
+              hours: e.hours,
+            })),
+            travelLogs: staffTravel.map(t => {
+              const rt = rawTravel.find(x => x.id === t.id);
+              return {
+                id: t.id,
+                start_iso: t.start_iso!,
+                end_iso: t.end_iso,
+                fromAddress: t.from_address ?? null,
+                toAddress: t.to_address ?? null,
+                approved: !!rt?.approved,
+                autoDetected: !!rt?.auto_detected,
+                source: rt?.source ?? null,
+                hours: t.hours,
+              };
+            }),
+            assistantEvents: staffAssistantEvents,
+            flags: staffFlags,
+            visits: placeVisits,
+            travels: dayTimeline.travels,
+            pings: staffPings,
+            latestPing: ping ? { recorded_at: ping.updated_at } : null,
+          });
+
           return {
             id: s.id,
             name: s.name,
