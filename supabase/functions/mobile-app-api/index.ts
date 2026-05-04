@@ -10169,3 +10169,109 @@ async function handleGetStaffDayReality(supabase: any, callerStaffId: string, da
   return new Response(JSON.stringify(reality),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
+
+// =========================================================================
+// get_active_day_state — single source of truth snapshot the mobile app
+// uses to render header workday + activity banner without relying on
+// localStorage. Returns:
+//   { workday, open_entries, latest_ping, latest_ping_age_ms, stale_ping,
+//     anomalies }
+// =========================================================================
+async function handleGetActiveDayState(supabase: any, staffId: string, organizationId: string) {
+  const STALE_PING_MS = 5 * 60 * 1000
+
+  // Use a 2-day window so a workday/LTE that started late yesterday is still
+  // visible after a phone restart soon after midnight.
+  const today = new Date()
+  const yest = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+  const dateFrom = yest.toISOString().split('T')[0]
+
+  const [workdayRes, ltesRes, pingRes, anomaliesRes, locationsRes] = await Promise.all([
+    supabase.from('workdays')
+      .select('id, started_at, ended_at, review_status')
+      .eq('staff_id', staffId).eq('organization_id', organizationId)
+      .is('ended_at', null)
+      .order('started_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('location_time_entries')
+      .select('id, location_id, booking_id, large_project_id, entered_at, source')
+      .eq('staff_id', staffId).eq('organization_id', organizationId)
+      .gte('entry_date', dateFrom)
+      .is('exited_at', null)
+      .order('entered_at', { ascending: true }),
+    supabase.from('staff_locations')
+      .select('latitude, longitude, accuracy, updated_at')
+      .eq('staff_id', staffId).eq('organization_id', organizationId)
+      .maybeSingle(),
+    supabase.from('workday_flags')
+      .select('id, kind, severity, created_at, resolved_at, payload')
+      .eq('staff_id', staffId).eq('organization_id', organizationId)
+      .is('resolved_at', null)
+      .order('created_at', { ascending: false }).limit(20),
+    supabase.from('organization_locations')
+      .select('id, name')
+      .eq('organization_id', organizationId).eq('is_active', true),
+  ])
+
+  const locMap = new Map<string, string>(
+    ((locationsRes.data || []) as any[]).map((l: any) => [String(l.id), l.name || 'Plats'])
+  )
+
+  const open_entries = ((ltesRes.data || []) as any[]).map((e: any) => {
+    let target_kind: 'location' | 'booking' | 'large_project' | 'unknown' = 'unknown'
+    let target_id: string | null = null
+    let target_label = 'Aktivitet'
+    if (e.location_id) {
+      target_kind = 'location'; target_id = String(e.location_id)
+      target_label = locMap.get(target_id) || 'Plats'
+    } else if (e.large_project_id) {
+      target_kind = 'large_project'; target_id = String(e.large_project_id)
+      target_label = 'Projekt'
+    } else if (e.booking_id) {
+      target_kind = 'booking'; target_id = String(e.booking_id)
+      target_label = 'Uppdrag'
+    }
+    return {
+      id: e.id,
+      target_kind,
+      target_id,
+      target_label,
+      entered_at: e.entered_at,
+      source: e.source ?? null,
+    }
+  })
+
+  const ping = pingRes.data as any
+  let latest_ping: any = null
+  let latest_ping_age_ms: number | null = null
+  let stale_ping = false
+  if (ping && ping.updated_at) {
+    latest_ping = {
+      latitude: ping.latitude != null ? Number(ping.latitude) : null,
+      longitude: ping.longitude != null ? Number(ping.longitude) : null,
+      accuracy: ping.accuracy != null ? Number(ping.accuracy) : null,
+      updated_at: ping.updated_at,
+    }
+    latest_ping_age_ms = Math.max(0, Date.now() - new Date(ping.updated_at).getTime())
+    stale_ping = latest_ping_age_ms > STALE_PING_MS
+  } else {
+    stale_ping = true
+  }
+
+  const wd = workdayRes.data as any
+  const workday = wd ? {
+    id: wd.id,
+    started_at: wd.started_at,
+    ended_at: wd.ended_at,
+    review_status: wd.review_status ?? null,
+  } : null
+
+  return new Response(JSON.stringify({
+    workday,
+    open_entries,
+    latest_ping,
+    latest_ping_age_ms,
+    stale_ping,
+    anomalies: anomaliesRes.data || [],
+    server_time: new Date().toISOString(),
+  }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
