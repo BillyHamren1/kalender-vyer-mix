@@ -26,8 +26,8 @@
  * måste hållas konsistenta — när vi lägger till nya evenemangstyper här
  * ska day-timeline-engine spegla dem.
  */
-import type { PlaceVisit, TravelGap } from './pingPlaceSegments';
-import type { Ping } from './movementDetection';
+import type { PlaceVisit, TravelGap, KnownSite } from './pingPlaceSegments';
+import { haversineMeters, type Ping } from './movementDetection';
 
 // ── Inputs ───────────────────────────────────────────────────────────
 
