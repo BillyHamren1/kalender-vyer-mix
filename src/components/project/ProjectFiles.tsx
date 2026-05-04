@@ -100,12 +100,20 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
               {files.map(file => {
                 const FileIcon = getFileIcon(file.file_type);
                 const isImage = file.file_type?.startsWith('image/');
+                const isPdf = isPdfFile(file);
+                const clickable = isImage || isPdf;
 
                 return (
                   <div
                     key={file.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group ${isImage ? 'cursor-pointer' : ''}`}
-                    onClick={isImage ? () => setPreviewImage({ url: file.url, name: file.file_name }) : undefined}
+                    className={`flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group ${clickable ? 'cursor-pointer' : ''}`}
+                    onClick={
+                      isImage
+                        ? () => setPreviewImage({ url: file.url, name: file.file_name })
+                        : isPdf
+                        ? () => setPreviewPdf({ url: file.url, name: file.file_name })
+                        : undefined
+                    }
                   >
                     {isImage ? (
                       <img
