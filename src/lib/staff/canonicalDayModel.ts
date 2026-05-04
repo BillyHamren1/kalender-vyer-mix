@@ -400,7 +400,9 @@ export function buildCanonicalStaffDayModel(
     workdayMinutes,
     breakMinutes,
     payableMinutes,
-    distributedMinutes,
+    // distributedMinutes = time_reports + APPROVED travel (kapade vid payable).
+    // Speglar headerns "Fördelad tid"-pill.
+    distributedMinutes: distributedTotal,
     undistributedMinutes,
     overDistributedMinutes,
     suggestedTravelMinutes,
