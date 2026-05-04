@@ -175,10 +175,19 @@ const statusTagFor = (kind: ActualEventKind, severity: ActualEventSeverity): str
   return 'bekräftad';
 };
 
-// Filtrera duplicerade events: gps_arrival + gps_visit + gps_departure för samma
-// vistelse → visa bara visit-raden i kompakt timeline. Användaren kan expandera.
+// Kompaktläge gömmer ENDAST rådetaljer (stale_signal, gps_gap) — aldrig
+// ankomst/lämning eller besök. Användaren ska alltid se basflödet:
+//   06:00 Anlände Lager
+//   06:05 Lämnade Lager
+//   06:05–06:40 Förflyttning
+//   06:40 Anlände Projekt
+// "Visa alla händelser" lägger till gps_gap/stale_signal-rader på toppen.
+const RAW_DETAIL_KINDS: ReadonlySet<ActualEventKind> = new Set<ActualEventKind>([
+  'stale_signal',
+  'gps_gap',
+]);
 function compactEvents(events: ActualEvent[]): ActualEvent[] {
-  return events.filter(e => e.kind !== 'gps_arrival' && e.kind !== 'gps_departure');
+  return events.filter(e => !RAW_DETAIL_KINDS.has(e.kind));
 }
 
 // ── Komponenten ─────────────────────────────────────────────────────
