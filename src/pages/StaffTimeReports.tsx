@@ -742,18 +742,26 @@ const StaffTimeReports: React.FC = () => {
         byStaff.set(wd.staff_id, a);
       }
 
-      // Inkludera även staff som har pings men inga rapporter (annars
-      // försvinner deras "faktiska dag" vyn helt — kravet i regressionen).
-      const pingStaffIds = await (async () => {
-        const { data } = await supabase
-          .from('staff_location_history')
-          .select('staff_id')
-          .gte('recorded_at', dayStartIso)
-          .lt('recorded_at', nextDayIso)
-          .limit(1000);
-        return [...new Set((data || []).map((r: any) => r.staff_id).filter(Boolean))];
-      })();
-      for (const id of pingStaffIds) {
+      // Union av staff från ALLA källor — inte bara reports/workdays/LTE.
+      // En person med bara GPS-pings, bara assistant_event eller bara
+      // workday_flag ska också synas i listan så admin ser dagen.
+      // (reports/travel/LTE/workdays är redan adderade via byStaff ovan.)
+      const extraStaffIds = new Set<string>();
+      for (const a of (assistantEvents as any[])) if (a.staff_id) extraStaffIds.add(a.staff_id);
+      for (const f of (workdayFlags as any[])) if (f.staff_id) extraStaffIds.add(f.staff_id);
+      // Pings: hämta distinkta staff_id från staff_location_history.
+      // Limit 1000 räcker — det är distinkta staff (inte rader). Om en org
+      // har >1000 aktiva personal samma dag är det inte realistiskt.
+      const { data: pingStaffRows } = await supabase
+        .from('staff_location_history')
+        .select('staff_id')
+        .gte('recorded_at', dayStartIso)
+        .lt('recorded_at', nextDayIso)
+        .limit(1000);
+      for (const r of (pingStaffRows || []) as any[]) {
+        if (r.staff_id) extraStaffIds.add(r.staff_id);
+      }
+      for (const id of extraStaffIds) {
         if (!byStaff.has(id)) byStaff.set(id, newAgg());
       }
 
