@@ -19,6 +19,7 @@ import {
 } from '@/lib/staff/dayJournal';
 import { calculateDayMetrics, type DayMetrics } from '@/lib/staff/dayMetrics';
 import { buildCanonicalStaffDayModel, type CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
+import { classifyLocationEntry } from '@/lib/staff/locationEntryClassification';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
@@ -489,14 +490,19 @@ const StaffTimeReports: React.FC = () => {
             ? Math.max(0, (nowMs - new Date(e.entered_at).getTime()) / 3_600_000)
             : 0;
 
-        // Presence-only LTE: a location_time_entry without booking_id AND
-        // without large_project_id is a passive "närvaro" marker (the staff
-        // is physically at a place, e.g. FA Warehouse). It must NOT be added
-        // to total_hours — that would double-count the same physical time
-        // when a parallel booking/project timer (e.g. "Lager") is also
-        // running. See memory `location-timer-role-v1`: presence LTE never
-        // produces a time_report, so it must not contribute to payable hours.
-        const isPresenceOnly = !e.booking_id && !e.large_project_id;
+        // Klassificera LTE: ren passiv närvaro (gps/geofence utan
+        // booking/lp) ska INTE bidra till total_hours. Men en LTE med
+        // location_id som startats explicit (manual/timer/mobile/
+        // location_timer/auto_assigned) är en RIKTIG location work timer
+        // (t.ex. Lager / FA Warehouse) och måste räknas. Tidigare regel
+        // `!booking_id && !large_project_id` slog ihop båda fallen och
+        // gjorde Lager-pass osynliga som "Fördelad 0h".
+        const { isPresenceOnly, isLocationWorkTimer } = classifyLocationEntry({
+          source: e.source,
+          booking_id: e.booking_id,
+          large_project_id: e.large_project_id,
+          location_id: e.location_id,
+        });
 
         if (!isPresenceOnly) {
           a.total_hours += hours;
@@ -664,7 +670,12 @@ const StaffTimeReports: React.FC = () => {
           const staffLTEs: RawLocationEntry[] = (locationEntries as any[])
             .filter(e => e.staff_id === s.id)
             .map(e => {
-              const isPresenceOnly = !e.booking_id && !e.large_project_id;
+              const { isPresenceOnly } = classifyLocationEntry({
+                source: e.source,
+                booking_id: e.booking_id,
+                large_project_id: e.large_project_id,
+                location_id: e.location_id,
+              });
               const isOpen = !e.exited_at;
               const hours = e.total_minutes
                 ? e.total_minutes / 60
