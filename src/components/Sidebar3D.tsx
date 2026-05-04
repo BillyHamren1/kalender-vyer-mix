@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
+import { useUnplannedProjects } from "@/hooks/useUnplannedProjects";
 
 interface NavChild {
   title: string;
@@ -112,12 +113,18 @@ export function Sidebar3D() {
   const navigate = useNavigate();
   const location = useLocation();
   const unviewedCount = useProjectInboxCount();
+  const { data: unplannedProjects = [] } = useUnplannedProjects();
+  const unplannedCount = unplannedProjects.length;
 
-  const navigationItems = baseNavigationItems.map(item =>
-    item.url === '/projects' && unviewedCount > 0
-      ? { ...item, badge: unviewedCount }
-      : item
-  );
+  const navigationItems = baseNavigationItems.map(item => {
+    if (item.url === '/projects' && unviewedCount > 0) {
+      return { ...item, badge: unviewedCount };
+    }
+    if (item.url === '/calendar' && unplannedCount > 0) {
+      return { ...item, badge: unplannedCount };
+    }
+    return item;
+  });
 
   // Auto-expand parent if a child route is active
   useEffect(() => {
