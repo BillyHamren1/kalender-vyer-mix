@@ -953,7 +953,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 </button>
               )}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-64 h-64 border-2 border-white/30 rounded-lg relative">
+                <div className={tight ? 'w-[88%] h-[88%] border-2 border-white/30 rounded-lg relative' : 'w-64 h-64 border-2 border-white/30 rounded-lg relative'}>
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-lg" />
                   <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-lg" />
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-lg" />
