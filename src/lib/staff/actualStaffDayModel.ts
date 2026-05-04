@@ -513,19 +513,55 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     return false;
   };
 
-  const visitRelevance = new Map<string, boolean>();
-  for (const v of input.visits) {
+  // Pre-beräkna närmaste kända plats för "work_possible"-klassning.
+  const knownSitesForRelevance = input.knownSites ?? [];
+  const NEAR_KNOWN_METERS = 800;
+  const isNearKnownSite = (c: { lat: number; lng: number } | null): boolean => {
+    if (!c || !knownSitesForRelevance.length) return false;
+    for (const s of knownSitesForRelevance) {
+      const d = haversineMeters({ lat: s.lat, lng: s.lng }, c);
+      if (d <= s.radiusMeters + NEAR_KNOWN_METERS) return true;
+    }
+    return false;
+  };
+
+  // "Natt/tidig morgon" i lokal tid: 22:00–06:00.
+  const isNightLocal = (iso: string): boolean => {
+    try {
+      const d = new Date(iso);
+      const h = d.getHours();
+      return h >= 22 || h < 6;
+    } catch { return false; }
+  };
+
+  const RAW_DEBUG_MAX_PINGS = 2;
+  const RAW_DEBUG_MAX_MIN = 3;
+
+  const classifyVisitRelevance = (v: PlaceVisit): WorkRelevance => {
+    if (v.knownSite) return 'work_confirmed';
     const startMs = new Date(v.start).getTime();
     const endMs = new Date(v.end).getTime();
-    const relevant = !!v.knownSite || isWindowRelevant(startMs, endMs);
-    visitRelevance.set(v.placeKey, relevant);
+    if (isWindowRelevant(startMs, endMs)) return 'work_confirmed';
+    const tinyCluster = v.pingCount <= RAW_DEBUG_MAX_PINGS && v.durationMin <= RAW_DEBUG_MAX_MIN;
+    if (tinyCluster) return 'raw_debug_only';
+    if (isNearKnownSite(v.centre)) return 'work_possible';
+    if (isNightLocal(v.start) && isNightLocal(v.end)) return 'private_or_background';
+    return 'unknown_requires_lookup';
+  };
+
+  const visitRelevance = new Map<string, WorkRelevance>();
+  for (const v of input.visits) {
+    visitRelevance.set(v.placeKey, classifyVisitRelevance(v));
   }
+  const isMainJournalRelevance = (r: WorkRelevance) =>
+    r === 'work_confirmed' || r === 'work_possible';
 
   for (const v of input.visits) {
     const centreMeta = v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng };
     const placeLabel = v.knownSite?.name ?? null;
     const matched = !!v.knownSite;
-    const workRelevant = visitRelevance.get(v.placeKey) ?? false;
+    const relevance = visitRelevance.get(v.placeKey) ?? 'unknown_requires_lookup';
+    const workRelevant = isMainJournalRelevance(relevance);
     const baseEnrichment = {
       lookup_source: matched ? 'known_site' : (knownSitesAvailable ? 'pending_lookup' : 'fallback'),
       resolved_address: null as string | null,
@@ -535,7 +571,12 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         ? 'matched'
         : (knownSitesAvailable ? 'unmatched_outside_radius' : 'unmatched_no_sites')) as InternalMatchStatus,
     };
-    const baseMeta = { placeKey: v.placeKey, centre: centreMeta, workRelevant };
+    const baseMeta = {
+      placeKey: v.placeKey,
+      centre: centreMeta,
+      workRelevant,
+      workRelevance: relevance,
+    };
     events.push({
       id: `gps-arr:${v.placeKey}:${v.start}`,
       at: v.start,
@@ -575,9 +616,18 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     const bothKnown = !!tr.from.knownSite && !!tr.to.knownSite;
     const startMs = new Date(tr.start).getTime();
     const endMs = new Date(tr.end).getTime();
-    const fromRelevant = visitRelevance.get(tr.from.placeKey) ?? !!tr.from.knownSite;
-    const toRelevant = visitRelevance.get(tr.to.placeKey) ?? !!tr.to.knownSite;
-    const workRelevant = (fromRelevant && toRelevant) || isWindowRelevant(startMs, endMs);
+    const fromRel = visitRelevance.get(tr.from.placeKey)
+      ?? (tr.from.knownSite ? 'work_confirmed' : 'unknown_requires_lookup');
+    const toRel = visitRelevance.get(tr.to.placeKey)
+      ?? (tr.to.knownSite ? 'work_confirmed' : 'unknown_requires_lookup');
+    let travelRelevance: WorkRelevance;
+    if (bothKnown) travelRelevance = 'work_confirmed';
+    else if (isWindowRelevant(startMs, endMs)) travelRelevance = 'work_confirmed';
+    else if (isMainJournalRelevance(fromRel) && isMainJournalRelevance(toRel)) travelRelevance = 'work_possible';
+    else if (isMainJournalRelevance(fromRel) || isMainJournalRelevance(toRel)) travelRelevance = 'work_possible';
+    else if (isNightLocal(tr.start) && isNightLocal(tr.end)) travelRelevance = 'private_or_background';
+    else travelRelevance = 'unknown_requires_lookup';
+    const workRelevant = isMainJournalRelevance(travelRelevance);
     events.push({
       id: `gps-trv:${tr.key}`,
       at: tr.start,
@@ -593,6 +643,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         bothKnown,
         approved: false,
         workRelevant,
+        workRelevance: travelRelevance,
       },
     });
   }
