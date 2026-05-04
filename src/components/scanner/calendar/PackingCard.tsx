@@ -100,8 +100,10 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
 
   return (
     <Card
-      className={`p-3 transition-all ${
-        isReturn ? 'border-l-4 border-l-orange-400' : ''
+      className={`p-3 transition-all border-l-4 ${
+        isReturn
+          ? 'border-l-red-400 bg-red-50/60'
+          : 'border-l-green-400 bg-green-50/60'
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-2.5">
@@ -109,7 +111,7 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
           <div className="flex items-center gap-2 mb-0.5">
             <span
               className={`text-[9px] font-bold uppercase tracking-wider ${
-                isReturn ? 'text-orange-700' : 'text-primary'
+                isReturn ? 'text-red-700' : 'text-green-700'
               }`}
             >
               {flowLabel}
@@ -118,7 +120,7 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
           <div className="flex items-center gap-2 mb-1">
             <Icon
               className={`h-3.5 w-3.5 flex-shrink-0 ${
-                isReturn ? 'text-orange-600' : 'text-muted-foreground'
+                isReturn ? 'text-red-600' : 'text-green-700'
               }`}
             />
             <span className="font-medium text-sm truncate">{packing.name}</span>
