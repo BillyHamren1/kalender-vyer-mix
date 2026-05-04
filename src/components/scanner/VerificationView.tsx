@@ -462,17 +462,27 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     );
   }
 
-  // --- Normal verification UI ---
+  // --- Normal verification UI (fixed app shell: header + camera + status + scrollable list) ---
+  // Force minus mode = camera always visible (parent shell), no toggle needed.
+  // Layout:
+  //   ┌ header (shrink-0) ──────────────────────┐
+  //   │ status/action row (shrink-0)            │
+  //   │ camera tight (shrink-0)                 │
+  //   │ live scan status (shrink-0)             │
+  //   │ packing list (flex-1, scrolls)          │
+  //   │ manual input (shrink-0)                 │
+  //   └─────────────────────────────────────────┘
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col h-full bg-background">
+      {/* Header */}
+      <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-card border-b safe-area-top">
         <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 h-8 w-8">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 min-w-0">
           <h1 className="text-sm font-semibold truncate">{packing?.name}</h1>
           {packing?.booking?.client && (
-            <p className="text-xs text-muted-foreground truncate">{packing.booking.client}</p>
+            <p className="text-[11px] text-muted-foreground truncate">{packing.booking.client}</p>
           )}
         </div>
         <Button variant="ghost" size="icon" onClick={() => loadData(false)} className="shrink-0 h-8 w-8">
@@ -480,102 +490,150 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
-      {scannerState && (
-        <ScannerModeIndicator
-          currentMode={scannerState.currentMode}
-          isBarcodeReady={scannerState.isBarcodeReady}
-          isRfidReady={scannerState.isRfidReady}
-          isReaderConnected={scannerState.isReaderConnected}
-          scanCount={scannerState.scanCount}
+      {/* Compact status / action strip */}
+      <div className="shrink-0 px-2 py-1.5 bg-card border-b space-y-1">
+        {scannerState && (
+          <ScannerModeIndicator
+            currentMode={scannerState.currentMode}
+            isBarcodeReady={scannerState.isBarcodeReady}
+            isRfidReady={scannerState.isRfidReady}
+            isReaderConnected={scannerState.isReaderConnected}
+            scanCount={scannerState.scanCount}
+          />
+        )}
+
+        <RfidStatusBar
+          status={rfid.status}
+          readerModel={rfid.readerModel}
+          error={rfid.error}
+          inventoryActive={rfid.inventoryActive}
+          totalTagsRead={rfid.totalTagsRead}
+          uniqueTagsRead={rfid.uniqueTagsRead}
+          matchedCount={rfid.matchedCount}
+          unmatchedCount={rfid.unmatchedCount}
+          lastMatchedProduct={rfid.lastMatchedProduct}
+          onConnect={rfid.connect}
+          onDisconnect={rfid.disconnect}
+          onToggleInventory={rfid.toggleInventory}
+          onReset={rfidWithReset.resetSession}
         />
-      )}
 
-      {/* RFID Status & Controls */}
-      <RfidStatusBar
-        status={rfid.status}
-        readerModel={rfid.readerModel}
-        error={rfid.error}
-        inventoryActive={rfid.inventoryActive}
-        totalTagsRead={rfid.totalTagsRead}
-        uniqueTagsRead={rfid.uniqueTagsRead}
-        matchedCount={rfid.matchedCount}
-        unmatchedCount={rfid.unmatchedCount}
-        lastMatchedProduct={rfid.lastMatchedProduct}
-        onConnect={rfid.connect}
-        onDisconnect={rfid.disconnect}
-        onToggleInventory={rfid.toggleInventory}
-        onReset={rfidWithReset.resetSession}
-      />
-
-      {isMinusMode && (
-        <div className="bg-destructive text-destructive-foreground rounded-lg px-3 py-2 flex items-center justify-between animate-pulse">
-          <div className="flex items-center gap-2">
-            <Minus className="h-5 w-5" />
-            <span className="font-bold text-sm">MINUS MODE ACTIVE</span>
+        {/* Progress + actions on a single line */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <Progress value={progress.percentage} className="h-2 flex-1" />
+            <span className="text-[10px] font-mono font-semibold text-muted-foreground whitespace-nowrap">
+              {progress.verified}/{progress.total}
+            </span>
+            <span className="text-[10px] font-bold text-primary whitespace-nowrap">
+              {progress.percentage}%
+            </span>
           </div>
-          <span className="text-xs opacity-90">Scan removes 1 pc</span>
+          <Button
+            onClick={() => setIsMinusMode(prev => {
+              if (prev) clearSessionDedup();
+              return !prev;
+            })}
+            size="sm"
+            variant={isMinusMode ? 'destructive' : 'outline'}
+            className="h-7 px-2 gap-1"
+            title={isMinusMode ? 'Avsluta minusläge' : 'Aktivera minusläge'}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            onClick={() => setShowKolliConfirm(true)}
+            size="sm"
+            variant="secondary"
+            className="h-7 px-2 gap-1 border border-primary/30"
+            title="Kolli"
+          >
+            <Package className="h-3.5 w-3.5 text-primary" />
+            {Object.keys(itemParcelMap).length > 0 && (
+              <span className="bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {new Set(Object.values(itemParcelMap)).size}
+              </span>
+            )}
+          </Button>
+          <Button onClick={() => setShowQrParcels(true)} size="sm" variant="outline" className="h-7 px-2" title="QR-kollin">
+            <QrCode className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            onClick={() => setShowRecentScans(prev => !prev)}
+            size="sm"
+            variant={showRecentScans ? 'secondary' : 'outline'}
+            className="h-7 px-2 relative"
+            title="Logg"
+          >
+            <List className="h-3.5 w-3.5" />
+            {recentScans.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {recentScans.length > 99 ? '99' : recentScans.length}
+              </span>
+            )}
+          </Button>
         </div>
-      )}
 
-      <div className="flex items-center gap-2 px-1">
-        <div className="flex-1">
-          <Progress value={progress.percentage} className="h-2.5" />
-        </div>
-        <span className="text-xs font-mono font-semibold text-muted-foreground whitespace-nowrap">
-          {progress.verified}/{progress.total}
-        </span>
-        <span className="text-xs font-bold text-primary whitespace-nowrap">
-          {progress.percentage}%
-        </span>
-        <Button 
-          onClick={() => setIsMinusMode(prev => {
-            if (prev) clearSessionDedup(); // Clear dedup when exiting minus mode
-            return !prev;
-          })}
-          size="sm"
-          variant={isMinusMode ? "destructive" : "outline"}
-          className="h-8 px-2.5 gap-1"
-        >
-          <Minus className="h-3.5 w-3.5" />
-          <span className="text-xs">−</span>
-        </Button>
-        <Button onClick={() => setIsQRActive(true)} size="sm" className="h-8 px-2.5 gap-1">
-          <Camera className="h-3.5 w-3.5" />
-          <span className="text-xs">Camera</span>
-        </Button>
-        <Button onClick={() => setShowKolliConfirm(true)} size="sm" variant="secondary" className="h-8 px-3 gap-1.5 border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 font-semibold">
-          <Package className="h-3.5 w-3.5 text-primary" />
-          <span className="text-xs text-primary">Parcel</span>
-          {Object.keys(itemParcelMap).length > 0 && (
-            <span className="bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-              {new Set(Object.values(itemParcelMap)).size}
-            </span>
-          )}
-        </Button>
-        <Button onClick={() => setShowQrParcels(true)} size="sm" variant="outline" className="h-8 px-2.5 gap-1" title="QR-kollin (fysisk räknare)">
-          <QrCode className="h-3.5 w-3.5" />
-          <span className="text-xs">QR</span>
-        </Button>
-        <Button onClick={() => setShowRecentScans(prev => !prev)} size="sm" variant={showRecentScans ? "secondary" : "outline"} className="h-8 px-2.5 gap-1 relative">
-          <List className="h-3.5 w-3.5" />
-          <span className="text-xs">Log</span>
-          {recentScans.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-              {recentScans.length > 99 ? '99' : recentScans.length}
-            </span>
-          )}
-        </Button>
+        {isMinusMode && (
+          <div className="bg-destructive text-destructive-foreground rounded px-2 py-1 flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5">
+              <Minus className="h-3.5 w-3.5" />
+              <span className="font-bold">MINUSLÄGE AKTIVT</span>
+            </div>
+            <span className="opacity-90">Skanning tar bort 1 st</span>
+          </div>
+        )}
       </div>
 
+      {/* Camera (always mounted, tight crop) */}
+      <div className="shrink-0 bg-black border-b">
+        <QRScanner
+          isActive={true}
+          onScan={enqueueScan}
+          onClose={() => { /* never closes — always mounted */ }}
+          compact
+          tight
+          cameraHeight="34dvh"
+          feedback={scannerFeedback}
+        />
+      </div>
+
+      {/* Live scan status (single line) */}
+      {lastScanResult && (
+        <div className={`shrink-0 flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium border-b ${
+          lastScanResult.isMinusScan
+            ? 'bg-orange-100 text-orange-800'
+            : lastScanResult.success
+              ? 'bg-green-100 text-green-800'
+              : 'bg-red-100 text-red-800'
+        }`}>
+          <span>{lastScanResult.isMinusScan ? '➖' : lastScanResult.success ? '✅' : '❌'}</span>
+          <div className="flex-1 min-w-0 truncate">
+            <span className="font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
+            {lastScanResult.result && (
+              <span className="opacity-80"> — {lastScanResult.result}</span>
+            )}
+          </div>
+          <button
+            onClick={() => setScanResult(null)}
+            className="shrink-0 p-0.5 rounded-full hover:bg-black/10"
+            aria-label="Stäng"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Recent scans (collapsible, doesn't push list) */}
       {showRecentScans && recentScans.length > 0 && (
-        <div className="border rounded-lg overflow-hidden bg-card">
-          <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Recent scans</span>
+        <div className="shrink-0 border-b bg-card max-h-[28vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40 sticky top-0">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Senaste skanningar</span>
             <button onClick={() => setShowRecentScans(false)} className="p-0.5 rounded hover:bg-muted">
               <X className="h-3 w-3 text-muted-foreground" />
             </button>
           </div>
-          <div className="divide-y divide-border/30 max-h-[200px] overflow-y-auto">
+          <div className="divide-y divide-border/30">
             {recentScans.map((scan, i) => (
               <div key={`${scan.timestamp}-${i}`} className="flex items-center gap-2 px-3 py-1.5">
                 <span className="text-xs">{scan.success ? '✅' : '❌'}</span>
@@ -589,70 +647,61 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
       )}
 
-      {lastScanResult && (
-        <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-          lastScanResult.isMinusScan
-            ? 'bg-orange-100 text-orange-800 border border-orange-300'
-            : lastScanResult.success 
-              ? 'bg-green-100 text-green-800 border border-green-300' 
-              : 'bg-red-100 text-red-800 border border-red-300'
-        }`}>
-          <span className="text-lg">{lastScanResult.isMinusScan ? '➖' : lastScanResult.success ? '✅' : '❌'}</span>
-          <div className="flex-1 min-w-0">
-            <span className="block truncate font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
-            <span className="text-xs opacity-80">{lastScanResult.result}</span>
+      {/* Packing list — the only scrollable region */}
+      <div className="flex-1 min-h-0 overflow-y-auto bg-card">
+        {items.length === 0 ? (
+          <div className="p-3">
+            <Card className="border-amber-500/50 bg-amber-50">
+              <CardContent className="py-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-800 text-sm">Inga produkter</p>
+                    <p className="text-xs text-amber-700 mt-0.5">Packlistan har inte genererats än.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          <button
-            onClick={() => setScanResult(null)}
-            className="shrink-0 p-1 rounded-full hover:bg-black/10 transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {items.length === 0 && (
-        <Card className="border-amber-500/50 bg-amber-50">
-          <CardContent className="py-3">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-amber-800 text-sm">No products</p>
-                <p className="text-xs text-amber-700 mt-0.5">Packing list has not been generated yet.</p>
-              </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40 sticky top-0 z-10">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Produkt</span>
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packat</span>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div className="divide-y divide-border/30">
+              {items.map(item => renderItemRow(item, false))}
+            </div>
+          </>
+        )}
+      </div>
 
-      {/* Inline compact scanner — shown above the list so user sees BOTH camera and packing list */}
-      {isQRActive && (
-        <QRScanner
-          isActive={isQRActive}
-          onScan={enqueueScan}
-          onClose={() => setIsQRActive(false)}
-          compact
-          title="Scan — packing list visible below"
-          feedback={scannerFeedback}
-        />
-      )}
-
-      {items.length > 0 && (
-        <div className="border rounded-lg overflow-hidden bg-card">
-          <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
-             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Product</span>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Packed</span>
-          </div>
-          <div
-            className="divide-y divide-border/30 overflow-y-auto"
-            style={{ maxHeight: isQRActive ? 'calc(100vh - 560px)' : 'calc(100vh - 220px)' }}
-          >
-            {items.map(item => renderItemRow(item, false))}
-          </div>
-        </div>
-      )}
-
+      {/* Manual input (always available, slim) */}
+      <div className="shrink-0 border-t bg-card px-2 py-2 safe-area-bottom">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget as HTMLFormElement);
+            const v = String(fd.get('manual') || '').trim();
+            if (v) {
+              enqueueScan(v);
+              (e.currentTarget as HTMLFormElement).reset();
+            }
+          }}
+          className="flex gap-1.5"
+        >
+          <input
+            name="manual"
+            type="text"
+            inputMode="text"
+            placeholder="Manuell kod…"
+            className="flex-1 min-w-0 px-2.5 py-1.5 rounded border bg-background text-sm focus:outline-none focus:border-primary"
+          />
+          <Button type="submit" size="sm" className="h-8 px-3 text-xs">
+            Skicka
+          </Button>
+        </form>
+      </div>
 
       {/* Unknown product dialog — pauses the scan queue until user responds */}
       <AddUnknownProductDialog
@@ -667,21 +716,21 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Package className="h-5 w-5 text-primary" />
-              Start new parcel?
+              Starta nytt kolli?
             </AlertDialogTitle>
             <AlertDialogDescription>
               {Object.keys(itemParcelMap).length > 0
-                ? `You already have ${new Set(Object.values(itemParcelMap)).size} parcels. A new parcel will be created and scanned products assigned to it.`
-                : 'A new parcel will be created. Products you scan or tap will automatically be assigned to this parcel.'}
+                ? `Du har redan ${new Set(Object.values(itemParcelMap)).size} kollin. Ett nytt kolli skapas och skannade produkter tilldelas det.`
+                : 'Ett nytt kolli skapas. Produkter du skannar eller trycker på tilldelas detta kolli automatiskt.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               setShowKolliConfirm(false);
               startKolli(verifierName);
             }}>
-              Start parcel
+              Starta kolli
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
