@@ -138,7 +138,9 @@ const EventIcon: React.FC<{ kind: ActualEventKind; severity: ActualEventSeverity
   return <Activity className={`h-3.5 w-3.5 ${cls}`} />;
 };
 
-const sourceTagFor = (kind: ActualEventKind): string => {
+const sourceTagFor = (ev: ActualEvent): string => {
+  const kind = ev.kind;
+  const lookupSource = (ev as any).lookup_source as string | undefined;
   switch (kind) {
     case 'workday_started':
     case 'workday_ended':
@@ -152,6 +154,8 @@ const sourceTagFor = (kind: ActualEventKind): string => {
     case 'gps_arrival':
     case 'gps_departure':
     case 'gps_visit':
+      if (lookupSource === 'mapbox') return 'GPS / adressuppslag';
+      if (lookupSource === 'fallback') return 'GPS / okänd';
       return 'GPS';
     case 'gps_travel':
       return 'GPS/travel';
@@ -171,9 +175,15 @@ const sourceTagFor = (kind: ActualEventKind): string => {
   }
 };
 
-const statusTagFor = (kind: ActualEventKind, severity: ActualEventSeverity): string => {
+const statusTagFor = (ev: ActualEvent): string => {
+  const { kind, severity } = ev;
+  const lookupSource = (ev as any).lookup_source as string | undefined;
   if (kind === 'travel_suggestion') return 'föreslagen';
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
+  if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
+    if (lookupSource === 'mapbox') return 'adressuppslag';
+    if (lookupSource === 'fallback') return 'osäker';
+  }
   return 'bekräftad';
 };
 
