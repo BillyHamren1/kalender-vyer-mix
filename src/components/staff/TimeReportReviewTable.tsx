@@ -415,9 +415,13 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
               })}
               <TableRow className="font-semibold bg-muted/40">
                 <TableCell />
-                <TableCell colSpan={3}>TOTAL BETALD TID</TableCell>
-                <TableCell className="text-right tabular-nums">{formatHoursMinutes(summary.paidHours)}</TableCell>
-                <TableCell colSpan={3} />
+                <TableCell colSpan={3}>LÖNEGRUNDANDE TID (workday − rast)</TableCell>
+                <TableCell className="text-right tabular-nums">{formatHoursMinutes(payableHours)}</TableCell>
+                <TableCell colSpan={3} className="text-xs text-muted-foreground font-normal">
+                  Fördelad {formatHoursMinutes(distributedHours)}
+                  {undistributedHours > 0 && <> · Ofördelad {formatHoursMinutes(undistributedHours)}</>}
+                  {overDistributedHours > 0 && <> · Överrapportering {formatHoursMinutes(overDistributedHours)}</>}
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
