@@ -177,7 +177,39 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, historyRes, assistantRes, flagsRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes] = await Promise.all([
+        supabase
+          .from('time_reports')
+          .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
+          .eq('report_date', dateStr)
+          .eq('is_subdivision', false)
+          .or('source.is.null,source.neq.location_auto'),
+        supabase
+          .from('travel_time_logs')
+          .select('id, staff_id, hours_worked, start_time, end_time, to_address, from_address, from_latitude, from_longitude, to_latitude, to_longitude, destination_booking_id, auto_detected, source, approved')
+          .eq('report_date', dateStr),
+        supabase
+          .from('location_time_entries')
+          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
+          .eq('entry_date', dateStr),
+        supabase
+          .from('workdays')
+          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note')
+          .gte('started_at', dayStartIso)
+          .lt('started_at', nextDayIso),
+        supabase
+          .from('staff_locations')
+          .select('staff_id, latitude, longitude, updated_at, last_address, app_version, app_build, app_platform'),
+        supabase
+          .from('assistant_events')
+          .select('id, staff_id, event_type, target_type, target_id, target_label, suggested_action, happened_at, detected_at, resolved_at, resolution_status, metadata')
+          .gte('happened_at', dayStartIso)
+          .lt('happened_at', nextDayIso),
+        supabase
+          .from('workday_flags')
+          .select('id, staff_id, flag_type, severity, title, description, created_at, resolved')
+          .eq('flag_date', dateStr),
+      ]);
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
