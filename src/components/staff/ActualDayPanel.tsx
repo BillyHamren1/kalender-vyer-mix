@@ -151,6 +151,8 @@ const sourceTagFor = (ev: ActualEvent): string => {
     case 'timer_started':
     case 'timer_stopped':
       return 'timer';
+    case 'timer_end_estimated':
+      return 'system_review';
     case 'gps_arrival':
     case 'gps_departure':
     case 'gps_visit':
