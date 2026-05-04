@@ -466,34 +466,38 @@ Deno.serve(async (req) => {
 
         const serialNumbers = serialNumber.split('\n').map((s: string) => s.trim()).filter(Boolean)
 
+        // Metadata-only recovery via WMS scan-status (GET).
+        // Used ONLY to retrieve SKU/item_type after WMS reported "already allocated"
+        // for a serial. Never used to override WMS's authority on whether a scan is valid.
         const recoverAlreadyAllocatedIdentifiers = async (serials: string[]) => {
           for (const serial of serials) {
             try {
-              const lookupResponse = await fetch(
-                'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/identify-instance',
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${PRICELIST_API_KEY}`,
-                    'x-organization-id': ORG_ID,
-                  },
-                  body: JSON.stringify({ serial_number: serial }),
-                }
-              )
+              const url = `https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/scan-status?serial_number=${encodeURIComponent(serial)}`
+              const lookupResponse = await fetch(url, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+                  'x-organization-id': ORG_ID,
+                },
+              })
 
-              if (!lookupResponse.ok) continue
+              if (!lookupResponse.ok) {
+                await lookupResponse.text()
+                continue
+              }
 
-              const lookupData = await lookupResponse.json().catch(() => null)
+              const lookupData = await lookupResponse.json().catch(() => null) as any
               if (!lookupData) continue
 
-              const reservationId = lookupData.reservation_id || lookupData.booking_number || null
-              if (reservationId !== bookingNumber) {
+              const reservationId =
+                lookupData.reservation_id ||
+                lookupData.booking_number ||
+                lookupData.active_reservation?.reservation_id ||
+                lookupData.active_reservation?.booking_number ||
+                null
+              if (reservationId && reservationId !== bookingNumber) {
                 console.warn('[verify_product] already-allocated serial belongs to another booking', {
-                  serial,
-                  bookingNumber,
-                  reservationId,
-                  orgId: ORG_ID,
+                  serial, bookingNumber, reservationId, orgId: ORG_ID,
                 })
                 continue
               }
@@ -503,7 +507,7 @@ Deno.serve(async (req) => {
                 returnedItemType: lookupData.item_type || lookupData.item_type_name || lookupData.product_name || lookupData.name || null,
               }
             } catch (lookupError) {
-              console.warn('[verify_product] identify-instance recovery failed', { serial, lookupError })
+              console.warn('[verify_product] scan-status recovery failed', { serial, lookupError })
             }
           }
 
