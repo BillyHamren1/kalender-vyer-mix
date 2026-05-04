@@ -181,8 +181,8 @@ const statusTagFor = (ev: ActualEvent): string => {
   if (kind === 'travel_suggestion') return 'föreslagen';
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
   if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
-    if (lookupSource === 'mapbox') return 'adressuppslag';
-    if (lookupSource === 'fallback') return 'osäker';
+    if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'adressuppslag';
+    if (lookupSource === 'fallback' || lookupSource === 'pending_lookup') return 'osäker';
   }
   return 'bekräftad';
 };
