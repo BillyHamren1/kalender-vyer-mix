@@ -921,14 +921,20 @@ Deno.serve(async (req) => {
           try { checkinData = JSON.parse(text) } catch { checkinData = { raw: text } }
           console.log('[checkin-scan] Response:', { status: checkinStatus, body: checkinData })
 
-          if (!checkinResponse.ok) {
-            // Pass WMS error straight through — do NOT fall back to local logic.
+          // WMS-fel: skicka WMS error-fältet rakt av (HTTP-fel ELLER 200+success:false)
+          const wmsBlocked = !checkinResponse.ok || checkinData?.success === false
+          if (wmsBlocked) {
             const wmsError = checkinData?.error || checkinData?.message || `WMS svarade ${checkinStatus}`
-            return json({ success: false, error: wmsError, wmsStatus: checkinStatus })
+            return json({ success: false, error: wmsError, data: checkinData?.data, wmsStatus: checkinStatus })
           }
         } catch (err) {
           console.error('[checkin-scan] network error', { serial, err })
           return json({ success: false, error: 'Kunde inte nå lagersystemet' })
+        }
+
+        // WMS kan returnera nyttodata under .data — packa upp för fältmatchning nedan
+        if (checkinData?.data && typeof checkinData.data === 'object') {
+          checkinData = { ...checkinData, ...checkinData.data }
         }
 
         // 2. WMS accepted the checkin. Mirror it locally.
