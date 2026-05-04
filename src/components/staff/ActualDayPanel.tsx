@@ -601,6 +601,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     <span className="text-muted-foreground truncate">{ev.label}</span>
                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
                       {(() => {
+                        const m = (ev.meta ?? {}) as any;
+                        if (m.privateZone) {
+                          const k = m.privateZone.kind;
+                          if (k === 'home') return 'hem (privat)';
+                          if (k === 'manual_ignore') return 'ignorerad zon';
+                          if (k === 'recurring_night') return 'natt-zon';
+                          return 'privat zon';
+                        }
                         const r = getWorkRelevance(ev);
                         if (r === 'private_or_background') return 'privat/bakgrund';
                         if (r === 'raw_debug_only') return 'rå debug';
