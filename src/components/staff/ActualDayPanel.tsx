@@ -573,6 +573,31 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             })}
           </ol>
         )}
+        {backgroundEvents.length > 0 && (
+          <div className="mt-3 pt-2 border-t border-dashed">
+            <button
+              type="button"
+              onClick={() => setShowBackground(v => !v)}
+              className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              {showBackground ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              Bakgrunds-GPS / ej arbetskopplad ({backgroundEvents.length})
+            </button>
+            {showBackground && (
+              <ol className="space-y-1 mt-2 opacity-70">
+                {backgroundEvents.map(ev => (
+                  <li key={ev.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 text-xs py-0.5">
+                    <span className="tabular-nums text-muted-foreground w-20">
+                      {fmtHm(ev.at)}{ev.until ? `–${fmtHm(ev.until)}` : ''}
+                    </span>
+                    <span className="text-muted-foreground truncate">{ev.label}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">bakgrund</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
       </section>
 
       {/* C. Föreslagna korrigeringar — visas FÖRE rapport, eftersom det är den
