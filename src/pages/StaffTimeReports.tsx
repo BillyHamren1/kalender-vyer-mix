@@ -350,13 +350,29 @@ const StaffTimeReports: React.FC = () => {
       }
 
       // Fetch coordinates for KnownSites used by buildPlaceVisits.
-      // Org locations + dagens bokningar + dagens stora projekt.
+      // KnownSites måste täcka ALLA platser som dagen kan röra — inte
+      // bara rapporterade. Annars matchas GPS vid Lager/dagens projekt
+      // mot "okänd plats" när time_report saknas.
+      //   1. organization_locations (Lager, FA Warehouse, kontor osv.)
+      //   2. dagens bokningar (rigday/event/rigdown == dateStr) — även
+      //      utan time_report/LTE
+      //   3. dagens stora projekt (start_date <= dateStr <= end_date)
+      //   4. ID:n som RAPPORTER/LTE pekar på (säkerhet om datumkolumner
+      //      inte är satta på bokningen)
       const knownSites: KnownSite[] = [];
-      const [orgLocsRes, bookingCoordsRes, lpCoordsRes] = await Promise.all([
+      const [orgLocsRes, bookingsByDateRes, lpsByDateRes, bookingCoordsRes, lpCoordsRes] = await Promise.all([
         supabase
           .from('organization_locations')
           .select('id, name, latitude, longitude, radius_meters, is_active')
           .eq('is_active', true),
+        supabase
+          .from('bookings')
+          .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate')
+          .or(`eventdate.eq.${dateStr},rigdaydate.eq.${dateStr},rigdowndate.eq.${dateStr}`),
+        supabase
+          .from('large_projects')
+          .select('id, name, address_latitude, address_longitude, address_radius_meters, start_date, end_date, event_date')
+          .or(`and(start_date.lte.${dateStr},end_date.gte.${dateStr}),event_date.eq.${dateStr}`),
         bookingIds.length
           ? supabase
               .from('bookings')
@@ -370,9 +386,17 @@ const StaffTimeReports: React.FC = () => {
               .in('id', largeProjectIds)
           : Promise.resolve({ data: [] as any[] } as any),
       ]);
+
+      const seenSiteIds = new Set<string>();
+      const pushSite = (s: KnownSite) => {
+        if (seenSiteIds.has(s.id)) return;
+        seenSiteIds.add(s.id);
+        knownSites.push(s);
+      };
+
       for (const l of ((orgLocsRes as any).data || [])) {
         if (l.latitude == null || l.longitude == null) continue;
-        knownSites.push({
+        pushSite({
           id: `loc:${l.id}`,
           name: l.name,
           lat: Number(l.latitude),
@@ -380,9 +404,13 @@ const StaffTimeReports: React.FC = () => {
           radiusMeters: Number(l.radius_meters ?? 200) || 200,
         });
       }
-      for (const b of ((bookingCoordsRes as any).data || [])) {
+      const allBookingRows = [
+        ...((bookingsByDateRes as any).data || []),
+        ...((bookingCoordsRes as any).data || []),
+      ];
+      for (const b of allBookingRows) {
         if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
-        knownSites.push({
+        pushSite({
           id: `booking:${b.id}`,
           name: b.booking_number ? `${b.booking_number} · ${b.client ?? 'Bokning'}` : (b.client ?? b.deliveryaddress ?? 'Bokning'),
           lat: Number(b.delivery_latitude),
@@ -390,9 +418,13 @@ const StaffTimeReports: React.FC = () => {
           radiusMeters: 200,
         });
       }
-      for (const lp of ((lpCoordsRes as any).data || [])) {
+      const allLpRows = [
+        ...((lpsByDateRes as any).data || []),
+        ...((lpCoordsRes as any).data || []),
+      ];
+      for (const lp of allLpRows) {
         if (lp.address_latitude == null || lp.address_longitude == null) continue;
-        knownSites.push({
+        pushSite({
           id: `large:${lp.id}`,
           name: lp.name || 'Stort projekt',
           lat: Number(lp.address_latitude),
