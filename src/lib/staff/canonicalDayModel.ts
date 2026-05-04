@@ -97,7 +97,8 @@ export type CanonicalAnomalyKind =
   | 'over_distributed'
   | 'large_undistributed'
   | 'workday_open_stale'
-  | 'open_timer_signal_lost';
+  | 'open_timer_signal_lost'
+  | 'travel_missing_destination';
 
 export interface CanonicalAnomaly {
   kind: CanonicalAnomalyKind;
