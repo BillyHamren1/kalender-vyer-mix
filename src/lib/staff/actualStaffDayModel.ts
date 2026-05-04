@@ -112,6 +112,9 @@ export interface BuildActualStaffDayInput {
   pings: Ping[];
   /** Senaste ping från staff_locations (live-spårning). */
   latestPing: ActualLatestPingInput | null;
+  /** Kända platser (org_locations + dagens bokningar/projekt) — används för
+   *  debug "varför matchade inte detta GPS-kluster?". */
+  knownSites?: KnownSite[];
   /** "Nu" — testbar. */
   now?: Date;
 }
