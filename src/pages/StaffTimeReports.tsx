@@ -987,16 +987,33 @@ const StaffTimeReports: React.FC = () => {
           const rawTravel = (travel as any[]).filter(t => t.staff_id === s.id);
           const canonical = buildCanonicalStaffDayModel({
             workdays: staffWorkdays.map(w => ({ started_at: w.started_at, ended_at: w.ended_at })),
-            distributionRows: staffReports.map(r => ({
-              id: r.id,
-              start: r.start_iso,
-              end: r.end_iso,
-              hours: r.hours,
-              breakHours: r.break_hours ?? 0,
-              label: r.label ?? '—',
-              category: r.location_id ? 'location' : r.large_project_id || r.booking_id ? 'project' : 'other',
-              approved: r.approved,
-            })),
+            distributionRows: [
+              ...staffReports.map(r => ({
+                id: r.id,
+                start: r.start_iso,
+                end: r.end_iso,
+                hours: r.hours,
+                breakHours: r.break_hours ?? 0,
+                label: r.label ?? '—',
+                category: (r.location_id ? 'location' : r.large_project_id || r.booking_id ? 'project' : 'other') as 'location' | 'project' | 'other',
+                approved: r.approved,
+              })),
+              // Location-LTE som är riktiga work timers (Lager etc) räknas
+              // också som fördelning. Stängda → confirmed_distribution,
+              // öppna → active_distribution. Presence-only filtreras bort.
+              ...staffLTEs
+                .filter(e => !e.isPresenceOnly)
+                .map(e => ({
+                  id: `lte:${e.id}`,
+                  start: e.entered_at,
+                  end: e.exited_at,
+                  hours: e.hours,
+                  breakHours: 0,
+                  label: e.label ?? 'Plats',
+                  category: 'location' as const,
+                  approved: false,
+                })),
+            ],
             activeTimers: activeTimerInputs,
             travelSuggestions: rawTravel.map(t => ({
               id: t.id,
