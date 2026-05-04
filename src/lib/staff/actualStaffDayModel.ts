@@ -58,6 +58,12 @@ export interface ActualLocationTimeEntryInput {
   /** Resultatet av classifyLocationEntry: arbetstimer = false betyder presence. */
   isPresenceOnly: boolean;
   hours: number;
+  /** Källa från location_time_entries.source — används för att skilja
+   *  riktiga stopp från watchdog/clamp/auto-close. */
+  source?: string | null;
+  /** Lokal datum-sträng (YYYY-MM-DD) för entry — används för att se om
+   *  exited_at är clampad till 23:59 av watchdogen. */
+  entry_date?: string | null;
 }
 
 export interface ActualTravelLogInput {
