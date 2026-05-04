@@ -84,7 +84,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     const parsed = parseScanResult(scannedValue);
     const normalised = scannedValue.trim().toLowerCase();
 
-    if (parsed.unique && scannedThisSessionRef.current.has(normalised)) {
+    // Skip session dedup entirely in minus mode — the user is intentionally
+    // re-scanning a unique code to remove it.
+    const isMinus = optRef.current.getIsMinusMode();
+
+    if (!isMinus && parsed.unique && scannedThisSessionRef.current.has(normalised)) {
       scanLog('scan_ignored_duplicate_session', { value: scannedValue, type: parsed.type });
       optRef.current.onScanResult({
         value: scannedValue,
@@ -102,7 +106,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       if (queueRef.current.length > 0) processNext();
       return;
     }
-    if (parsed.unique) {
+    if (!isMinus && parsed.unique) {
       scannedThisSessionRef.current.add(normalised);
     }
 
@@ -152,6 +156,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         await decrementPackingItem(matchingItem.id, verifierName);
+        // Allow re-scanning this unique code after a minus-scan
+        scannedThisSessionRef.current.delete(normalised);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
         onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
