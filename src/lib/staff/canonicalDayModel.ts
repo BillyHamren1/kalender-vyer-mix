@@ -49,8 +49,19 @@ export interface CanonicalActiveTimerInput {
   id: string;
   startedAt: string;
   label: string;
+  /** 'time_report' | 'location_entry' | 'travel' — drives icon/label. */
+  source: 'time_report' | 'location_entry' | 'travel';
   /** Already saved as a time_report? Then it is NOT pending. */
   reportedAsDistribution?: boolean;
+}
+
+export interface CanonicalActiveTimerRow extends CanonicalActiveTimerInput {
+  /** Minutes since the timer started (capped at "now"). */
+  runningMinutes: number;
+  /** True when the latest GPS ping is older than the stale threshold. */
+  signalLost: boolean;
+  /** Last ping age in minutes, or null when never pinged. */
+  lastPingAgeMin: number | null;
 }
 
 export interface CanonicalTravelSuggestionInput {
@@ -63,6 +74,10 @@ export interface CanonicalTravelSuggestionInput {
   /** True when this travel has been promoted to a confirmed
    *  distribution (e.g. attached to a time_report). */
   approved?: boolean;
+  /** travel_time_logs.auto_detected — geofence/movement-detected. */
+  autoDetected?: boolean;
+  /** travel_time_logs.source — 'gap_derived' = inferred from time gaps. */
+  sourceTag?: string | null;
 }
 
 export interface CanonicalGpsEvidenceInput {
@@ -72,11 +87,17 @@ export interface CanonicalGpsEvidenceInput {
   placesVisited: number;
 }
 
+/** Latest GPS ping for the staff member (used to detect "tappad signal"). */
+export interface CanonicalLatestPingInput {
+  updatedAt: string | null;
+}
+
 export type CanonicalAnomalyKind =
   | 'workday_missing_but_reports_exist'
   | 'over_distributed'
   | 'large_undistributed'
-  | 'workday_open_stale';
+  | 'workday_open_stale'
+  | 'open_timer_signal_lost';
 
 export interface CanonicalAnomaly {
   kind: CanonicalAnomalyKind;
