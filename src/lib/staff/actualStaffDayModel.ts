@@ -121,8 +121,21 @@ export interface BuildActualStaffDayInput {
   /** Kända platser (org_locations + dagens bokningar/projekt) — används för
    *  debug "varför matchade inte detta GPS-kluster?". */
   knownSites?: KnownSite[];
+  /** Privata/exkluderade zoner (hem, manuellt ignorerade, återkommande
+   *  natt-kluster). GPS-vistelser inom dessa klassas alltid som
+   *  private_or_background och visas aldrig i huvudjournalen. */
+  privateZones?: PrivateZone[];
   /** "Nu" — testbar. */
   now?: Date;
+}
+
+export interface PrivateZone {
+  id: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  kind: 'home' | 'manual_ignore' | 'recurring_night';
+  label: string | null;
 }
 
 // ── Output ───────────────────────────────────────────────────────────
