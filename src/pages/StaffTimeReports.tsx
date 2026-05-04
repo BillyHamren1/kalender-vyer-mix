@@ -1104,6 +1104,8 @@ const StaffTimeReports: React.FC = () => {
               label: e.label ?? 'Plats',
               isPresenceOnly: e.isPresenceOnly,
               hours: e.hours,
+              source: (e as any).source ?? null,
+              entry_date: (e as any).entry_date ?? null,
             })),
             travelLogs: staffTravel.map(t => {
               const rt = rawTravel.find(x => x.id === t.id);
