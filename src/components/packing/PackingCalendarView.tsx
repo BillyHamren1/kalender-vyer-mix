@@ -255,23 +255,23 @@ export default function PackingCalendarView({ packings }: Props) {
                 {viewMode === "month" ? (
                   // Month: show compact chips for events starting this day
                   dayEvents.filter(e => barStartsOnDay(day, e)).map(e => {
-                    const span = Math.min(barSpan(e, day), 7 - (i % 7)); // clamp to row
+                    const span = Math.min(barSpan(e, day), 7 - (i % 7));
                     return (
                       <div
                         key={e.id}
-                        onClick={() => navigate(`/warehouse/packing/${e.id}`)}
+                        onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                         className={cn(
-                          "text-[10px] leading-tight text-white px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
-                          STATUS_COLORS[e.status] || "bg-muted"
+                          "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
+                          KIND_COLORS[e.kind]
                         )}
                         style={{
                           width: span > 1 ? `calc(${span * 100}% + ${(span - 1) * 1}px)` : undefined,
                           position: span > 1 ? "relative" : undefined,
                           zIndex: span > 1 ? 10 : undefined,
                         }}
-                        title={`${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
+                        title={`${e.kind === "out" ? "UT" : "IN"} • ${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                       >
-                        {e.label}{e.shortAddr ? ` • ${e.shortAddr}` : ""}
+                        {e.kind === "out" ? "→ " : "← "}{e.label}{e.shortAddr ? ` • ${e.shortAddr}` : ""}
                       </div>
                     );
                   })
@@ -280,14 +280,16 @@ export default function PackingCalendarView({ packings }: Props) {
                   dayEvents.filter(e => barStartsOnDay(day, e) || isSameDay(day, days[0])).map(e => (
                     <div
                       key={e.id}
-                      onClick={() => navigate(`/warehouse/packing/${e.id}`)}
+                      onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                       className={cn(
-                        "text-xs text-white px-2 py-1.5 rounded cursor-pointer transition-colors",
-                        STATUS_COLORS[e.status] || "bg-muted"
+                        "text-xs px-2 py-1.5 rounded cursor-pointer transition-colors",
+                        KIND_COLORS[e.kind]
                       )}
-                      title={`${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
+                      title={`${KIND_LABELS[e.kind]} • ${e.label}${e.shortAddr ? ` • ${e.shortAddr}` : ""} — ${PACKING_STATUS_LABELS[e.status]}`}
                     >
-                      <div className="font-medium truncate">{e.label}</div>
+                      <div className="font-medium truncate">
+                        {e.kind === "out" ? "→ UT " : "← IN "}{e.label}
+                      </div>
                       <div className="text-[10px] opacity-80 mt-0.5">
                         {e.shortAddr && <span>{e.shortAddr} • </span>}
                         {PACKING_STATUS_LABELS[e.status]}
@@ -297,16 +299,16 @@ export default function PackingCalendarView({ packings }: Props) {
                   ))
                 )}
 
-                {/* Continuation dots for month view (event runs through but didn't start here) */}
+                {/* Continuation chips for multi-day OUT bars wrapping to a new week row */}
                 {viewMode === "month" && dayEvents.filter(e => !barStartsOnDay(day, e) && i % 7 === 0).map(e => (
                   <div
                     key={e.id}
-                    onClick={() => navigate(`/warehouse/packing/${e.id}`)}
+                    onClick={() => navigate(`/warehouse/packing/${e.packingId}`)}
                     className={cn(
-                      "text-[10px] leading-tight text-white px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
-                      STATUS_COLORS[e.status] || "bg-muted"
+                      "text-[10px] leading-tight px-1.5 py-0.5 rounded-sm cursor-pointer truncate font-medium transition-colors",
+                      KIND_COLORS[e.kind]
                     )}
-                    title={`${e.label} — ${PACKING_STATUS_LABELS[e.status]} (fortsätter)`}
+                    title={`${KIND_LABELS[e.kind]} • ${e.label} (fortsätter)`}
                   >
                     ← {e.label}
                   </div>
@@ -317,38 +319,14 @@ export default function PackingCalendarView({ packings }: Props) {
         })}
       </div>
 
-      {/* Unscheduled packings */}
-      {unscheduled.length > 0 && (
-        <div className="border-t border-border/30 px-4 py-3 bg-muted/20">
-          <p className="text-xs font-medium text-muted-foreground mb-2">
-            Ej schemalagda ({unscheduled.length})
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {unscheduled.map(e => (
-              <Badge
-                key={e.id}
-                variant="outline"
-                className="cursor-pointer hover:bg-muted transition-colors gap-1.5"
-                onClick={() => navigate(`/warehouse/packing/${e.id}`)}
-              >
-                <span className={cn("w-2 h-2 rounded-full", STATUS_DOT_COLORS[e.status])} />
-                {e.label}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Legend */}
-      <div className="border-t border-border/30 px-4 py-2 flex flex-wrap gap-3">
-        {Object.entries(PACKING_STATUS_LABELS)
-          .filter(([k]) => k !== "cancelled")
-          .map(([key, label]) => (
-            <div key={key} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <span className={cn("w-2.5 h-2.5 rounded-sm", STATUS_DOT_COLORS[key])} />
-              {label}
-            </div>
-          ))}
+      <div className="border-t border-border/30 px-4 py-2 flex flex-wrap gap-4">
+        {(Object.keys(KIND_LABELS) as EventKind[]).map(k => (
+          <div key={k} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className={cn("w-3 h-3 rounded-sm", KIND_DOT_COLORS[k])} />
+            {KIND_LABELS[k]}
+          </div>
+        ))}
       </div>
     </div>
   );
