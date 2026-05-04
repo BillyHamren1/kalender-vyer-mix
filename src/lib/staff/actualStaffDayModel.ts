@@ -58,6 +58,12 @@ export interface ActualLocationTimeEntryInput {
   /** Resultatet av classifyLocationEntry: arbetstimer = false betyder presence. */
   isPresenceOnly: boolean;
   hours: number;
+  /** Källa från location_time_entries.source — används för att skilja
+   *  riktiga stopp från watchdog/clamp/auto-close. */
+  source?: string | null;
+  /** Lokal datum-sträng (YYYY-MM-DD) för entry — används för att se om
+   *  exited_at är clampad till 23:59 av watchdogen. */
+  entry_date?: string | null;
 }
 
 export interface ActualTravelLogInput {
@@ -126,6 +132,7 @@ export type ActualEventKind =
   | 'workday_ended'
   | 'timer_started'
   | 'timer_stopped'
+  | 'timer_end_estimated'
   | 'time_report_created'
   | 'time_report_closed'
   | 'gps_arrival'
@@ -317,6 +324,54 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }
 
   // 3) location_time_entries — timer_started/stopped (inkl presence)
+  // Detektera syntetiska stopp (watchdog-clamp / auto-close) så vi inte
+  // visar dem som bekräftade. Heuristik:
+  //   - source ∈ {auto_assigned, auto_assigned_bg, auto_assigned_backfill,
+  //     ai_reconciled}  → syntetiskt
+  //   - exited_at ligger på 23:5x lokalt på entry_date  → clampad
+  //   - latestPing >15 min före exited_at  → öppen timer som bara fick ett
+  //     beräknat slut
+  const SYNTHETIC_SOURCES = new Set([
+    'auto_assigned',
+    'auto_assigned_bg',
+    'auto_assigned_backfill',
+    'ai_reconciled',
+    'system',
+    'watchdog',
+    'cron',
+  ]);
+  const lastPingMsForSynthetic = input.latestPing?.recorded_at
+    ? new Date(input.latestPing.recorded_at).getTime()
+    : null;
+  const isSyntheticStop = (e: ActualLocationTimeEntryInput): { synthetic: boolean; reason: string | null } => {
+    if (!e.exited_at) return { synthetic: false, reason: null };
+    const src = (e.source ?? '').toLowerCase();
+    if (SYNTHETIC_SOURCES.has(src)) {
+      return { synthetic: true, reason: `Stoppad av ${src} (ej användarstopp).` };
+    }
+    // Clamped to ~end-of-day (23:5x lokalt)
+    try {
+      const d = new Date(e.exited_at);
+      const hh = d.getHours();
+      const mm = d.getMinutes();
+      if (hh === 23 && mm >= 55) {
+        return { synthetic: true, reason: 'Slut clampat till dygnsslut (23:5x).' };
+      }
+    } catch { /* ignore */ }
+    // Last GPS ping is much earlier than exit
+    if (lastPingMsForSynthetic) {
+      const exitMs = new Date(e.exited_at).getTime();
+      const gapMin = (exitMs - lastPingMsForSynthetic) / 60_000;
+      if (gapMin > 15) {
+        return {
+          synthetic: true,
+          reason: `Senaste GPS-ping ${Math.round(gapMin)} min före registrerat slut — saknar bekräftat stopp.`,
+        };
+      }
+    }
+    return { synthetic: false, reason: null };
+  };
+
   for (const e of input.locationEntries) {
     events.push({
       id: `lte-start:${e.id}`,
@@ -327,20 +382,42 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         ? `Närvaro registrerad: ${e.label}`
         : `Timer startad: ${e.label}`,
       place: e.label,
-      meta: { presence: e.isPresenceOnly },
+      meta: { presence: e.isPresenceOnly, source: e.source ?? null },
     });
     if (e.exited_at) {
-      events.push({
-        id: `lte-stop:${e.id}`,
-        at: e.exited_at,
-        kind: 'timer_stopped',
-        severity: 'info',
-        label: e.isPresenceOnly
-          ? `Närvaro avslutad: ${e.label}`
-          : `Timer stoppad: ${e.label}`,
-        place: e.label,
-        durationMin: minutesBetween(e.entered_at, e.exited_at),
-      });
+      const { synthetic, reason } = isSyntheticStop(e);
+      if (synthetic && !e.isPresenceOnly) {
+        // Aldrig "Timer stoppad: …" för syntetiska/clampade slut.
+        events.push({
+          id: `lte-end-est:${e.id}`,
+          at: e.exited_at,
+          kind: 'timer_end_estimated',
+          severity: 'warning',
+          label: `Timer saknar faktiskt stopp: ${e.label}`,
+          detail: `Föreslaget slut: ${e.exited_at.slice(11, 16)} · ${reason ?? 'Kräver granskning.'}`,
+          place: e.label,
+          durationMin: minutesBetween(e.entered_at, e.exited_at),
+          meta: {
+            source: e.source ?? null,
+            stop_origin: 'system_review',
+            estimated: true,
+            reason,
+          },
+        });
+      } else {
+        events.push({
+          id: `lte-stop:${e.id}`,
+          at: e.exited_at,
+          kind: 'timer_stopped',
+          severity: 'info',
+          label: e.isPresenceOnly
+            ? `Närvaro avslutad: ${e.label}`
+            : `Timer stoppad: ${e.label}`,
+          place: e.label,
+          durationMin: minutesBetween(e.entered_at, e.exited_at),
+          meta: { source: e.source ?? null, stop_origin: 'user_or_admin' },
+        });
+      }
     }
   }
 

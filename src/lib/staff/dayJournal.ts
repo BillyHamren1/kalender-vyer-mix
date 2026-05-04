@@ -119,6 +119,10 @@ export interface RawLocationEntry {
   label: string;
   /** True if this LTE has no booking AND no large_project — passive presence. */
   isPresenceOnly: boolean;
+  /** Källa från location_time_entries.source, t.ex. 'manual' / 'gps' / 'auto_assigned_bg'. */
+  source?: string | null;
+  /** Lokal entry_date (YYYY-MM-DD). */
+  entry_date?: string | null;
 }
 
 export interface RawTravelLog {

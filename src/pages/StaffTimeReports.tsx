@@ -193,7 +193,7 @@ const StaffTimeReports: React.FC = () => {
           .eq('report_date', dateStr),
         supabase
           .from('location_time_entries')
-          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source')
+          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source, entry_date')
           .eq('entry_date', dateStr),
         supabase
           .from('workdays')
@@ -899,6 +899,8 @@ const StaffTimeReports: React.FC = () => {
                 hours: isPresenceOnly ? 0 : hours,
                 label,
                 isPresenceOnly,
+                source: e.source ?? null,
+                entry_date: e.entry_date ?? null,
               };
             });
 
@@ -1104,6 +1106,8 @@ const StaffTimeReports: React.FC = () => {
               label: e.label ?? 'Plats',
               isPresenceOnly: e.isPresenceOnly,
               hours: e.hours,
+              source: (e as any).source ?? null,
+              entry_date: (e as any).entry_date ?? null,
             })),
             travelLogs: staffTravel.map(t => {
               const rt = rawTravel.find(x => x.id === t.id);
