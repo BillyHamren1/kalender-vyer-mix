@@ -71,13 +71,25 @@ export interface CanonicalTravelSuggestionInput {
   hours: number;
   fromAddress: string | null;
   toAddress: string | null;
-  /** True when this travel has been promoted to a confirmed
-   *  distribution (e.g. attached to a time_report). */
+  /** True when this travel has been approved (admin/staff confirmed it).
+   *  Approved travel counts as DISTRIBUTION inside workday — never as
+   *  extra payable time on top of workday. */
   approved?: boolean;
   /** travel_time_logs.auto_detected — geofence/movement-detected. */
   autoDetected?: boolean;
   /** travel_time_logs.source — 'gap_derived' = inferred from time gaps. */
   sourceTag?: string | null;
+  /** Resolved destination booking/project — when missing the row is
+   *  always review-required and never counted as distributed time. */
+  destinationBookingId?: string | null;
+}
+
+export interface CanonicalTravelSuggestionRow extends CanonicalTravelSuggestionInput {
+  /** True when admin/staff must act before this row can be counted:
+   *  missing destination, or approved=false. */
+  reviewRequired: boolean;
+  /** Stable reason flag for UI. */
+  reviewReason: 'missing_destination' | 'pending_approval' | null;
 }
 
 export interface CanonicalGpsEvidenceInput {
@@ -97,7 +109,8 @@ export type CanonicalAnomalyKind =
   | 'over_distributed'
   | 'large_undistributed'
   | 'workday_open_stale'
-  | 'open_timer_signal_lost';
+  | 'open_timer_signal_lost'
+  | 'travel_missing_destination';
 
 export interface CanonicalAnomaly {
   kind: CanonicalAnomalyKind;
@@ -137,7 +150,7 @@ export interface CanonicalStaffDayModel {
   hasSignalLost: boolean;
   activeTimerRows: ReadonlyArray<CanonicalActiveTimerRow>;
   distributionRows: ReadonlyArray<CanonicalDistributionRowInput>;
-  travelSuggestions: ReadonlyArray<CanonicalTravelSuggestionInput>;
+  travelSuggestions: ReadonlyArray<CanonicalTravelSuggestionRow>;
   gpsEvidence: CanonicalGpsEvidenceInput | null;
   latestPingAgeMin: number | null;
   anomalies: ReadonlyArray<CanonicalAnomaly>;
@@ -226,19 +239,51 @@ export function buildCanonicalStaffDayModel(
     0,
   );
 
-  // Travel suggestions are NOT counted in distributed/payable until the
-  // user/admin promotes them to a time_report.
-  const travel = input.travelSuggestions ?? [];
+  // Travel suggestions: classify each row.
+  //   - missing destination → review_required, NEVER counted as anything
+  //     except a "suggestion" (won't reduce undistributed).
+  //   - approved=false      → review_required, counted as SUGGESTED only.
+  //   - approved=true       → counted as DISTRIBUTION inside workday.
+  // Approved travel is ADDED to distributedMinutes (so it eats undistributed
+  // tid) but it is CAPPED so the day's total fördelning aldrig blir större
+  // än lönegrundande tid (workday − rast).
+  const rawTravel = input.travelSuggestions ?? [];
+  const travel: CanonicalTravelSuggestionRow[] = rawTravel.map((t) => {
+    const missingDestination = !t.destinationBookingId && !t.toAddress;
+    let reviewReason: 'missing_destination' | 'pending_approval' | null = null;
+    if (missingDestination) reviewReason = 'missing_destination';
+    else if (!t.approved) reviewReason = 'pending_approval';
+    return {
+      ...t,
+      reviewRequired: reviewReason !== null,
+      reviewReason,
+    };
+  });
+
+  const approvedDistributableTravel = travel.filter(
+    (t) => t.approved && !t.reviewRequired,
+  );
+  const approvedTravelMinutes = approvedDistributableTravel.reduce(
+    (s, t) => s + hoursToMinutes(t.hours),
+    0,
+  );
   const suggestedTravelMinutes = travel
-    .filter((t) => !t.approved)
-    .reduce((s, t) => s + hoursToMinutes(t.hours), 0);
-  const approvedTravelMinutes = travel
-    .filter((t) => t.approved)
+    .filter((t) => t.reviewRequired || !t.approved)
     .reduce((s, t) => s + hoursToMinutes(t.hours), 0);
 
   const payableMinutes = Math.max(0, workdayMinutes - breakMinutes);
-  const undistributedMinutes = Math.max(0, payableMinutes - distributedMinutes);
-  const overDistributedMinutes = Math.max(0, distributedMinutes - payableMinutes);
+
+  // Approved travel räknas som fördelning inom workday, men aldrig så att
+  // den totala fördelningen överstiger lönegrundande tid.
+  const distributedTotalRaw = distributedMinutes + approvedTravelMinutes;
+  const distributedTotal = payableMinutes > 0
+    ? Math.min(distributedTotalRaw, payableMinutes)
+    : distributedTotalRaw;
+
+  const undistributedMinutes = Math.max(0, payableMinutes - distributedTotal);
+  // Överrapportering räknas på time_reports + godkänd resa MOT workday —
+  // travel ökar aldrig payable.
+  const overDistributedMinutes = Math.max(0, distributedTotalRaw - payableMinutes);
 
   // ── Anomalies ───────────────────────────────────────────────────────
   const anomalies: CanonicalAnomaly[] = [];
@@ -289,6 +334,17 @@ export function buildCanonicalStaffDayModel(
       label: 'Arbetsdag öppen för länge',
       detail: `Arbetsdagen har varit öppen i mer än ${STALE_OPEN_WORKDAY_HOURS} h utan slut.`,
       minutes: minutesBetween(startMs, now),
+    });
+  }
+
+  const missingDestTravel = travel.filter((t) => t.reviewReason === 'missing_destination');
+  if (missingDestTravel.length > 0) {
+    anomalies.push({
+      kind: 'travel_missing_destination',
+      severity: 'warning',
+      label: 'Resa saknar destination',
+      detail: `${missingDestTravel.length} föreslagen resa saknar destination — kan inte godkännas som fördelad tid.`,
+      minutes: missingDestTravel.reduce((s, t) => s + hoursToMinutes(t.hours), 0),
     });
   }
 
@@ -344,7 +400,9 @@ export function buildCanonicalStaffDayModel(
     workdayMinutes,
     breakMinutes,
     payableMinutes,
-    distributedMinutes,
+    // distributedMinutes = time_reports + APPROVED travel (kapade vid payable).
+    // Speglar headerns "Fördelad tid"-pill.
+    distributedMinutes: distributedTotal,
     undistributedMinutes,
     overDistributedMinutes,
     suggestedTravelMinutes,

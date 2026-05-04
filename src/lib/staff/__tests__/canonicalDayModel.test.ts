@@ -60,24 +60,73 @@ describe('buildCanonicalStaffDayModel', () => {
       now: NOW,
     });
     expect(m.payableMinutes).toBe(8 * 60);
-    expect(m.distributedMinutes).toBe(10 * 60);
+    expect(m.distributedMinutes).toBe(8 * 60); // capped at payable
     expect(m.overDistributedMinutes).toBe(2 * 60);
     expect(m.status).toBe('over_reported');
   });
 
-  it('travel_time_logs räknas inte i distributed förrän approved', () => {
+  it('travel: approved=false påverkar inte payable och inte distributed', () => {
     const m = buildCanonicalStaffDayModel({
       workdays: [{ started_at: '2026-05-04T09:00:00+02:00', ended_at: '2026-05-04T17:00:00+02:00' }],
       distributionRows: [],
       travelSuggestions: [
-        { id: 'tv1', start: null, end: null, hours: 1, fromAddress: 'A', toAddress: 'B' },
-        { id: 'tv2', start: null, end: null, hours: 0.5, fromAddress: 'B', toAddress: 'C', approved: true },
+        { id: 'tv1', start: null, end: null, hours: 1, fromAddress: 'A', toAddress: 'B', autoDetected: true, sourceTag: 'gap_derived' },
+      ],
+      now: NOW,
+    });
+    expect(m.payableMinutes).toBe(8 * 60);
+    expect(m.distributedMinutes).toBe(0);
+    expect(m.suggestedTravelMinutes).toBe(60);
+    expect(m.approvedTravelMinutes).toBe(0);
+  });
+
+  it('travel: approved=true + destination räknas som fördelad, ökar inte payable', () => {
+    const m = buildCanonicalStaffDayModel({
+      workdays: [{ started_at: '2026-05-04T09:00:00+02:00', ended_at: '2026-05-04T17:00:00+02:00' }],
+      distributionRows: [
+        { id: 'tr1', start: null, end: null, hours: 7, label: 'A', category: 'project' },
+      ],
+      travelSuggestions: [
+        { id: 'tv1', start: null, end: null, hours: 0.5, fromAddress: 'A', toAddress: 'B', approved: true, destinationBookingId: 'b1' },
+      ],
+      now: NOW,
+    });
+    expect(m.payableMinutes).toBe(8 * 60);
+    expect(m.distributedMinutes).toBe(7.5 * 60);
+    expect(m.undistributedMinutes).toBe(30);
+    expect(m.approvedTravelMinutes).toBe(30);
+  });
+
+  it('travel: approved kapas så fördelad aldrig överstiger payable', () => {
+    const m = buildCanonicalStaffDayModel({
+      workdays: [{ started_at: '2026-05-04T09:00:00+02:00', ended_at: '2026-05-04T17:00:00+02:00' }],
+      distributionRows: [
+        { id: 'tr1', start: null, end: null, hours: 8, label: 'A', category: 'project' },
+      ],
+      travelSuggestions: [
+        { id: 'tv1', start: null, end: null, hours: 1, fromAddress: 'A', toAddress: 'B', approved: true, destinationBookingId: 'b1' },
+      ],
+      now: NOW,
+    });
+    expect(m.payableMinutes).toBe(8 * 60);
+    expect(m.distributedMinutes).toBe(8 * 60); // capped
+    expect(m.overDistributedMinutes).toBe(60);
+  });
+
+  it('travel: missing destination → review_required och räknas inte som fördelad', () => {
+    const m = buildCanonicalStaffDayModel({
+      workdays: [{ started_at: '2026-05-04T09:00:00+02:00', ended_at: '2026-05-04T17:00:00+02:00' }],
+      distributionRows: [],
+      travelSuggestions: [
+        { id: 'tv1', start: null, end: null, hours: 1, fromAddress: 'A', toAddress: null, approved: true, destinationBookingId: null },
       ],
       now: NOW,
     });
     expect(m.distributedMinutes).toBe(0);
-    expect(m.suggestedTravelMinutes).toBe(60);
-    expect(m.approvedTravelMinutes).toBe(30);
+    expect(m.approvedTravelMinutes).toBe(0);
+    expect(m.travelSuggestions[0].reviewRequired).toBe(true);
+    expect(m.travelSuggestions[0].reviewReason).toBe('missing_destination');
+    expect(m.anomalies.some(a => a.kind === 'travel_missing_destination')).toBe(true);
   });
 
   it('subdivisions räknas inte', () => {

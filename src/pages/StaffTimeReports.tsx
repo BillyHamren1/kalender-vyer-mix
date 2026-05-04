@@ -815,6 +815,7 @@ const StaffTimeReports: React.FC = () => {
               approved: !!t.approved,
               autoDetected: !!t.auto_detected,
               sourceTag: t.source ?? null,
+              destinationBookingId: t.destination_booking_id ?? null,
             })),
             latestPing: ping ? { updatedAt: ping.updated_at } : null,
           });
