@@ -372,9 +372,22 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }
 
   // 5) GPS-vistelser
+  const knownSitesAvailable = (input.knownSites ?? []).length > 0;
   for (const v of input.visits) {
     const centreMeta = v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng };
     const placeLabel = v.knownSite?.name ?? null;
+    // Bas-berikning som lever i modellen — UI får komplettera unknown med
+    // Mapbox-uppslag, men matched-fall är redan kompletta här.
+    const matched = !!v.knownSite;
+    const baseEnrichment = {
+      lookup_source: matched ? 'known_site' : (knownSitesAvailable ? 'pending_lookup' : 'fallback'),
+      resolved_address: null as string | null,
+      resolved_poi: matched ? (v.knownSite!.name) : null,
+      match_confidence: (matched ? 'high' : 'low') as 'low' | 'medium' | 'high',
+      internal_match_status: (matched
+        ? 'matched'
+        : (knownSitesAvailable ? 'unmatched_outside_radius' : 'unmatched_no_sites')) as InternalMatchStatus,
+    };
     events.push({
       id: `gps-arr:${v.placeKey}:${v.start}`,
       at: v.start,
@@ -383,6 +396,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       label: placeLabel ? `Anlände: ${placeLabel}` : 'Anlände: okänd plats',
       place: placeLabel,
       meta: { placeKey: v.placeKey, pingCount: v.pingCount, centre: centreMeta },
+      ...baseEnrichment,
     });
     events.push({
       id: `gps-visit:${v.placeKey}:${v.start}`,
@@ -394,6 +408,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       place: placeLabel,
       durationMin: v.durationMin,
       meta: { placeKey: v.placeKey, centre: centreMeta },
+      ...baseEnrichment,
     });
     events.push({
       id: `gps-dep:${v.placeKey}:${v.end}`,
@@ -403,6 +418,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       label: placeLabel ? `Lämnade: ${placeLabel}` : 'Lämnade: okänd plats',
       place: placeLabel,
       meta: { placeKey: v.placeKey, centre: centreMeta },
+      ...baseEnrichment,
     });
   }
   for (const tr of input.travels) {
