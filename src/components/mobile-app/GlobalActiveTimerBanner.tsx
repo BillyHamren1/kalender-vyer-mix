@@ -548,7 +548,8 @@ const TimerRow: React.FC<{
   timer: ActiveTimer;
   isSaving: boolean;
   onStop: (key: string, timer: ActiveTimer) => void;
-}> = ({ timerKey, timer, isSaving, onStop }) => {
+  syncProblem?: boolean;
+}> = ({ timerKey, timer, isSaving, onStop, syncProblem = false }) => {
   const elapsed = differenceInSeconds(new Date(), parseISO(timer.startTime));
   const h = Math.floor(elapsed / 3600);
   const m = Math.floor((elapsed % 3600) / 60);
@@ -575,7 +576,10 @@ const TimerRow: React.FC<{
   };
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-2xl border border-primary/20 bg-primary/5">
+    <div className={cn(
+      'flex items-center gap-3 p-3 rounded-2xl border',
+      syncProblem ? 'border-warning/40 bg-warning/10' : 'border-primary/20 bg-primary/5'
+    )}>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5">
           {isLocation && <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />}
@@ -584,6 +588,7 @@ const TimerRow: React.FC<{
         <p className="text-xs text-muted-foreground mt-0.5">
           Startad {extractUTCTime(timer.startTime)}
           {timer.isAutoStarted && ' (automatiskt)'}
+          {syncProblem && ' · synkproblem — server saknar rad'}
         </p>
       </div>
       <div className="font-mono font-extrabold text-base tabular-nums text-primary">
