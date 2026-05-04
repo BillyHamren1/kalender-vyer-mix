@@ -1,4 +1,5 @@
 import { useQueries } from '@tanstack/react-query';
+import { loadMapboxToken } from './useMapboxToken';
 
 /**
  * Rich reverse-geocode hook: returnerar inte bara en label utan även
@@ -7,23 +8,17 @@ import { useQueries } from '@tanstack/react-query';
  *
  * Cachas på rundade koordinater (~100m granularitet) — samma kluster slås
  * aldrig upp två gånger inom cache-fönstret.
+ *
+ * Token hämtas via samma `mapbox-token` edge function som resten av appen
+ * (via supabase.functions.invoke i useMapboxToken). Inga hårdkodade URLer.
  */
 
-const MAPBOX_TOKEN_KEY = 'eventflow-mapbox-token';
-
 async function getMapboxToken(): Promise<string | null> {
-  let token = localStorage.getItem(MAPBOX_TOKEN_KEY);
-  if (!token) {
-    try {
-      const res = await fetch('https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/mapbox-token');
-      const data = await res.json();
-      token = data?.token || null;
-      if (token) localStorage.setItem(MAPBOX_TOKEN_KEY, token);
-    } catch {
-      return null;
-    }
+  try {
+    return await loadMapboxToken();
+  } catch {
+    return null;
   }
-  return token;
 }
 
 export interface RichGeocode {

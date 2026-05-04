@@ -1,20 +1,12 @@
 import { useQueries } from '@tanstack/react-query';
-
-const MAPBOX_TOKEN_KEY = 'eventflow-mapbox-token';
+import { loadMapboxToken } from './useMapboxToken';
 
 async function getMapboxToken(): Promise<string | null> {
-  let token = localStorage.getItem(MAPBOX_TOKEN_KEY);
-  if (!token) {
-    try {
-      const res = await fetch('https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/mapbox-token');
-      const data = await res.json();
-      token = data?.token || null;
-      if (token) localStorage.setItem(MAPBOX_TOKEN_KEY, token);
-    } catch {
-      return null;
-    }
+  try {
+    return await loadMapboxToken();
+  } catch {
+    return null;
   }
-  return token;
 }
 
 async function reverseGeocode(lat: number, lng: number): Promise<string | null> {

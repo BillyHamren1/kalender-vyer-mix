@@ -8,6 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 let cachedToken: string | null = null;
 let inflight: Promise<string> | null = null;
 
+export async function loadMapboxToken(): Promise<string> {
+  return loadToken();
+}
+
 async function loadToken(): Promise<string> {
   if (cachedToken) return cachedToken;
   if (inflight) return inflight;
