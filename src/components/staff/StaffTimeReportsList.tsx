@@ -41,6 +41,7 @@ interface StaffWithDayReport {
   metrics: DayMetrics;
   canonical: CanonicalStaffDayModel;
   actualModel: ActualStaffDayModel;
+  pingsTruncated?: boolean;
 }
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
