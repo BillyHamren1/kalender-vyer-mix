@@ -872,33 +872,38 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
   if (!isActive) return null;
 
   const headerTitle = title ?? (shouldSkipCamera ? 'Manual input' : 'QR Scanner');
-  const rootClass = compact
+  const rootClass = tight
+    ? 'relative w-full bg-black flex flex-col overflow-hidden'
+    : compact
     ? 'relative w-full bg-black flex flex-col rounded-lg overflow-hidden border border-border shadow-lg'
     : 'fixed inset-0 z-50 bg-black flex flex-col';
-  const cameraMinHeight = compact ? '38vh' : '50vh';
+  const cameraMinHeight = cameraHeight ?? (compact ? '38vh' : '50vh');
+  // Visual zoom factor — keep video display 1:1 with what BarcodeDetector
+  // actually scans. cropFactor is 0.62 on iOS / 0.72 elsewhere in runScanLoop.
+  const visualScale = isNativeIos ? 1 / 0.62 : 1 / 0.72;
 
   return (
     <div className={rootClass}>
-      <div className={`flex items-center justify-between ${compact ? 'px-3 py-2' : 'p-4 safe-area-top'} bg-black/80 text-white`}>
-        <h2 className={compact ? 'text-sm font-semibold' : 'text-lg font-semibold'}>{headerTitle}</h2>
-        <Button variant="ghost" size="icon" onClick={onClose} className={`text-white hover:bg-white/20 ${compact ? 'h-7 w-7' : ''}`}>
-          <X className={compact ? 'h-4 w-4' : 'h-6 w-6'} />
-        </Button>
-      </div>
+      {!tight && (
+        <div className={`flex items-center justify-between ${compact ? 'px-3 py-2' : 'p-4 safe-area-top'} bg-black/80 text-white`}>
+          <h2 className={compact ? 'text-sm font-semibold' : 'text-lg font-semibold'}>{headerTitle}</h2>
+          <Button variant="ghost" size="icon" onClick={onClose} className={`text-white hover:bg-white/20 ${compact ? 'h-7 w-7' : ''}`}>
+            <X className={compact ? 'h-4 w-4' : 'h-6 w-6'} />
+          </Button>
+        </div>
+      )}
 
       {!shouldSkipCamera && (
-        // min-h-0 är kritiskt: en `flex-1` child i en `flex flex-col`-container
-        // får annars minHeight=auto vilket på iOS WKWebView kunde lämna videon
-        // med 0 höjd när manuell input-blocket nedanför var aktivt — kameran
-        // verkade köra (scan-linjen rörde sig) men <video> levererade aldrig
-        // pixlar till BarcodeDetector. Explicit minHeight som fallback.
         <div
           className="flex-1 min-h-0 relative overflow-hidden bg-black"
-          style={{ minHeight: cameraMinHeight }}
+          style={{ minHeight: cameraMinHeight, height: tight ? cameraMinHeight : undefined }}
         >
           <video
             ref={videoRef}
-            className={`w-full h-full object-cover ${cameraState === 'running' ? '' : 'invisible absolute inset-0'}`}
+            className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ${cameraState === 'running' ? '' : 'invisible'}`}
+            style={tight
+              ? { width: `${visualScale * 100}%`, height: `${visualScale * 100}%`, objectFit: 'cover' }
+              : { width: '100%', height: '100%', objectFit: 'cover' }}
             autoPlay
             playsInline
             muted
