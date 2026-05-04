@@ -169,6 +169,23 @@ export async function flushQueue(): Promise<void> {
           client_dedupe_key: item.clientDedupeKey,
         });
 
+        // RACE GUARD (2026-05): server told us this start would re-open
+        // a window that was already stopped/reported. Drop the pending
+        // start AND any local optimistic timer for this key.
+        if (res?.status === 'already_closed_or_consumed') {
+          removeFromQueue(item.timerKey);
+          window.dispatchEvent(
+            new CustomEvent('timer-sync-rejected', {
+              detail: {
+                timerKey: item.timerKey,
+                reason: res?.reason || 'already_closed_or_consumed',
+                entry: res?.entry || null,
+              },
+            }),
+          );
+          continue;
+        }
+
         // Success — emit a reconcile event so UI can adopt server start time.
         const serverStart: string | undefined = res?.entry?.entered_at;
         const serverEntryId: string | undefined = res?.entry?.id;
