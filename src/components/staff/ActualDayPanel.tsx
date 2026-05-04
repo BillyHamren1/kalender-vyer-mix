@@ -412,6 +412,25 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     });
   }, [rawEvents, geoByKey, visitByKey, knownNeighbours]);
 
+  // Bakgrunds-GPS: GPS-händelser utan arbetskoppling (ingen workday/timer/
+  // rapport/känd plats/assistant). Dessa visas inte i huvudjournalen utan
+  // i en separat collapsed sektion.
+  const GPS_KINDS = new Set<ActualEventKind>(['gps_arrival', 'gps_visit', 'gps_departure', 'gps_travel']);
+  const isWorkRelevantEvent = (ev: ActualEvent): boolean => {
+    if (!GPS_KINDS.has(ev.kind)) return true;
+    const m = (ev.meta ?? {}) as any;
+    // workRelevant sätts av modellen. Om okänt — defaulta till true för
+    // bakåtkompatibilitet (ingen filtrering på data utan flagga).
+    return m.workRelevant !== false;
+  };
+  const [mainEvents, backgroundEvents] = useMemo(() => {
+    const main: ActualEvent[] = [];
+    const bg: ActualEvent[] = [];
+    for (const ev of events) (isWorkRelevantEvent(ev) ? main : bg).push(ev);
+    return [main, bg] as const;
+  }, [events]);
+  const [showBackground, setShowBackground] = useState(false);
+
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
     t => !t.approved && (t.autoDetected || t.source === 'gap_derived'),
@@ -457,13 +476,13 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             {showAllEvents ? 'Visa kompakt' : 'Visa alla händelser'}
           </button>
         </div>
-        {events.length === 0 ? (
+        {mainEvents.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
           </div>
         ) : (
           <ol className="space-y-1">
-            {events.map(ev => {
+            {mainEvents.map(ev => {
               const m = (ev.meta ?? {}) as any;
               const placeKey = m.placeKey as string | undefined;
               const visit = placeKey ? visitByKey.get(placeKey) : undefined;
@@ -553,6 +572,31 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               );
             })}
           </ol>
+        )}
+        {backgroundEvents.length > 0 && (
+          <div className="mt-3 pt-2 border-t border-dashed">
+            <button
+              type="button"
+              onClick={() => setShowBackground(v => !v)}
+              className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              {showBackground ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              Bakgrunds-GPS / ej arbetskopplad ({backgroundEvents.length})
+            </button>
+            {showBackground && (
+              <ol className="space-y-1 mt-2 opacity-70">
+                {backgroundEvents.map(ev => (
+                  <li key={ev.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 text-xs py-0.5">
+                    <span className="tabular-nums text-muted-foreground w-20">
+                      {fmtHm(ev.at)}{ev.until ? `–${fmtHm(ev.until)}` : ''}
+                    </span>
+                    <span className="text-muted-foreground truncate">{ev.label}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">bakgrund</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
         )}
       </section>
 
@@ -685,17 +729,27 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <Clock className="h-3 w-3 mr-1.5" />
           Justera arbetsdag
         </Button>
-        {model.actualVisits.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => onCreateDistributionFromGps?.(model.actualVisits[0]!.key)}
-          >
-            <MapPin className="h-3 w-3 mr-1.5" />
-            Skapa fördelning från GPS
-          </Button>
-        )}
+        {(() => {
+          const relevantKeys = new Set(
+            mainEvents
+              .filter(e => e.kind === 'gps_visit')
+              .map(e => (e.meta as any)?.placeKey)
+              .filter(Boolean),
+          );
+          const firstRelevant = model.actualVisits.find(v => relevantKeys.has(v.key));
+          if (!firstRelevant) return null;
+          return (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => onCreateDistributionFromGps?.(firstRelevant.key)}
+            >
+              <MapPin className="h-3 w-3 mr-1.5" />
+              Skapa fördelning från GPS
+            </Button>
+          );
+        })()}
         {travelSuggestions.length > 0 && (
           <Button
             variant="outline"
