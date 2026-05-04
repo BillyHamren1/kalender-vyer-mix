@@ -1336,20 +1336,16 @@ Deno.serve(async (req) => {
           return json({ found: false, error: 'Lagersystem ej konfigurerat' })
         }
 
-        // Try external inventory lookup
+        // WMS scan-status (GET) — read-only lookup, single source of truth
         try {
-          const lookupResponse = await fetch(
-            'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/identify-instance',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${PRICELIST_API_KEY}`,
-                'x-organization-id': ORG_ID,
-              },
-              body: JSON.stringify({ serial_number: serialNumber }),
-            }
-          )
+          const url = `https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/scan-status?serial_number=${encodeURIComponent(serialNumber)}`
+          const lookupResponse = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+              'x-organization-id': ORG_ID,
+            },
+          })
 
           if (lookupResponse.ok) {
             const lookupData = await lookupResponse.json()
@@ -1358,46 +1354,27 @@ Deno.serve(async (req) => {
               name: lookupData.name || lookupData.item_type_name || lookupData.product_name || null,
               sku: lookupData.sku || lookupData.serial_number || serialNumber,
               status: lookupData.status || 'unknown',
-              currentBooking: lookupData.reservation_id || lookupData.booking_number || null,
+              condition: lookupData.condition || null,
+              itemType: lookupData.item_type || lookupData.item_type_name || null,
               location: lookupData.location || null,
+              currentBooking:
+                lookupData.reservation_id ||
+                lookupData.booking_number ||
+                lookupData.active_reservation?.reservation_id ||
+                lookupData.active_reservation?.booking_number ||
+                null,
+              activeReservation: lookupData.active_reservation || null,
               rawData: lookupData,
             })
           }
 
-          // If 404, product not found in external system
           if (lookupResponse.status === 404) {
-            // Fall back to local DB match
-            const { data: localMatch } = await supabase
-              .from('booking_products')
-              .select('id, name, sku, booking_id')
-              .eq('organization_id', ORG_ID)
-              .eq('sku', serialNumber)
-              .limit(1)
-              .maybeSingle()
-
-            if (localMatch) {
-              const { data: booking } = await supabase
-                .from('bookings')
-                .select('client, booking_number')
-                .eq('id', localMatch.booking_id)
-                .single()
-
-              return json({
-                found: true,
-                name: localMatch.name,
-                sku: localMatch.sku,
-                status: 'local_match',
-                currentBooking: booking?.booking_number || null,
-                client: booking?.client || null,
-              })
-            }
-
-            return json({ found: false, error: `Produkt "${serialNumber}" hittades inte` })
+            await lookupResponse.text()
+            return json({ found: false, error: `Produkt "${serialNumber}" hittades inte i lagersystemet` })
           }
 
-          // Other errors
           const errText = await lookupResponse.text()
-          console.error('[identify_product] External API error:', lookupResponse.status, errText)
+          console.error('[identify_product] scan-status error:', lookupResponse.status, errText)
           return json({ found: false, error: `Kunde inte identifiera produkt (${lookupResponse.status})` })
         } catch (fetchErr) {
           console.error('[identify_product] Fetch error:', fetchErr)
