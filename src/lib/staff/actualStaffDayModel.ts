@@ -1,0 +1,534 @@
+/**
+ * buildActualStaffDayModel — single source of truth for "så här såg dagen
+ * faktiskt ut" innan vi pratar om rapporter, fördelning eller lön.
+ *
+ * Bakgrund: tidigare admin-UI byggde tidrapportvyn direkt från
+ * rapporttabellerna (workday + time_reports + location_time_entries +
+ * travel_time_logs). Det gjorde att GPS-besök, signal-tappad-händelser,
+ * pre-workday-aktivitet och föreslagna korrigeringar inte syntes i
+ * huvudvyn — bara i ett gömt GPS-debugläge.
+ *
+ * Den här modulen samlar ALL evidens till en enda struktur:
+ *
+ *   {
+ *     actualEvents     — kronologisk lista av allt som hänt under dagen
+ *     actualVisits     — pingPlaceSegments-vistelser med kända platser
+ *     reportState      — råa tabellrader (workday / time_reports / lte / travel)
+ *     proposedReport   — föreslagen arbetsdag / fördelning / restid /
+ *                        ofördelad tid / avvikelser
+ *   }
+ *
+ * Pure / UI-agnostic. Ingen DB, ingen React.
+ *
+ * MIRROR-not: liknande motor finns server-side i `day-timeline-engine`
+ * edge function. Den här klienten dubblerar logiken för admin-UI så att
+ * vyn kan rendera även när engine-cachen inte är uppdaterad. Reglerna
+ * måste hållas konsistenta — när vi lägger till nya evenemangstyper här
+ * ska day-timeline-engine spegla dem.
+ */
+import type { PlaceVisit, TravelGap } from './pingPlaceSegments';
+import type { Ping } from './movementDetection';
+
+// ── Inputs ───────────────────────────────────────────────────────────
+
+export interface ActualWorkdayInput {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface ActualTimeReportInput {
+  id: string;
+  start_iso: string;
+  end_iso: string | null;
+  label: string;
+  approved: boolean;
+  /** booking_id / large_project_id / location_id — endast metadata. */
+  booking_id?: string | null;
+  large_project_id?: string | null;
+  location_id?: string | null;
+  hours: number;
+}
+
+export interface ActualLocationTimeEntryInput {
+  id: string;
+  entered_at: string;
+  exited_at: string | null;
+  label: string;
+  /** Resultatet av classifyLocationEntry: arbetstimer = false betyder presence. */
+  isPresenceOnly: boolean;
+  hours: number;
+}
+
+export interface ActualTravelLogInput {
+  id: string;
+  start_iso: string;
+  end_iso: string | null;
+  fromAddress: string | null;
+  toAddress: string | null;
+  approved: boolean;
+  autoDetected: boolean;
+  /** 'gap_derived' / 'gps' / 'manual' / null. */
+  source: string | null;
+  hours: number;
+}
+
+export interface ActualAssistantEventInput {
+  id: string;
+  event_type: string;
+  happened_at: string;
+  target_label: string | null;
+  resolution_status: string | null;
+}
+
+export interface ActualWorkdayFlagInput {
+  id: string;
+  flag_type: string;
+  severity: string | null;
+  title: string | null;
+  description: string | null;
+  created_at: string;
+  resolved: boolean;
+}
+
+export interface ActualLatestPingInput {
+  recorded_at: string | null;
+}
+
+export interface BuildActualStaffDayInput {
+  /** Lokalt datum för dagen (YYYY-MM-DD), används bara för logging/keys. */
+  date: string;
+  workday: ActualWorkdayInput | null;
+  timeReports: ActualTimeReportInput[];
+  locationEntries: ActualLocationTimeEntryInput[];
+  travelLogs: ActualTravelLogInput[];
+  assistantEvents: ActualAssistantEventInput[];
+  flags: ActualWorkdayFlagInput[];
+  /** Tidigare beräknade vistelser från pingPlaceSegments. */
+  visits: PlaceVisit[];
+  /** Tidigare beräknade resor mellan vistelser. */
+  travels: TravelGap[];
+  /** Färska pings (för signal-tappad / GPS-gap). */
+  pings: Ping[];
+  /** Senaste ping från staff_locations (live-spårning). */
+  latestPing: ActualLatestPingInput | null;
+  /** "Nu" — testbar. */
+  now?: Date;
+}
+
+// ── Output ───────────────────────────────────────────────────────────
+
+export type ActualEventKind =
+  | 'workday_started'
+  | 'workday_ended'
+  | 'timer_started'
+  | 'timer_stopped'
+  | 'time_report_created'
+  | 'time_report_closed'
+  | 'gps_arrival'
+  | 'gps_departure'
+  | 'gps_visit'
+  | 'gps_travel'
+  | 'assistant_arrival'
+  | 'assistant_departure'
+  | 'assistant_other'
+  | 'travel_suggestion'
+  | 'stale_signal'
+  | 'gps_gap'
+  | 'anomaly';
+
+export type ActualEventSeverity = 'info' | 'success' | 'warning' | 'critical';
+
+export interface ActualEvent {
+  id: string;
+  at: string;
+  until?: string | null;
+  durationMin?: number;
+  kind: ActualEventKind;
+  severity: ActualEventSeverity;
+  label: string;
+  detail?: string | null;
+  place?: string | null;
+  meta?: Record<string, unknown>;
+}
+
+export interface ActualVisit {
+  key: string;
+  label: string;
+  /** Matchad känd plats (fixed location / dagens booking / large project). */
+  knownSiteId: string | null;
+  start: string;
+  end: string;
+  durationMin: number;
+  pingCount: number;
+}
+
+export interface ProposedAnomaly {
+  id: string;
+  label: string;
+  detail: string;
+  severity: ActualEventSeverity;
+  /** Fritextförslag på korrigering, t.ex. "Justera arbetsdag-start till 06:00?". */
+  suggestion?: string | null;
+}
+
+export interface ProposedReport {
+  proposedWorkdayStart: string | null;
+  proposedWorkdayEnd: string | null;
+  /** Total minuter som täcks av confirmed time_reports + godkänd travel. */
+  distributedMinutes: number;
+  /** Förslag på restid som inte ännu är godkänd. */
+  suggestedTravelMinutes: number;
+  /** Workday-minuter − distribuerade − pågående timer. */
+  undistributedMinutes: number;
+  /** Lista av avvikelser från workday_flags + härledda. */
+  anomalies: ProposedAnomaly[];
+}
+
+export interface ReportState {
+  workday: ActualWorkdayInput | null;
+  timeReports: ActualTimeReportInput[];
+  locationEntries: ActualLocationTimeEntryInput[];
+  travelLogs: ActualTravelLogInput[];
+}
+
+export interface ActualStaffDayModel {
+  date: string;
+  actualEvents: ActualEvent[];
+  actualVisits: ActualVisit[];
+  reportState: ReportState;
+  proposedReport: ProposedReport;
+  /** Senaste GPS-pingens ålder i minuter, null om aldrig. */
+  lastPingAgeMin: number | null;
+  /** True om senaste ping är äldre än 10 min OCH workday/timer pågår. */
+  signalLost: boolean;
+}
+
+// ── Konstanter ───────────────────────────────────────────────────────
+
+const STALE_PING_MIN = 10;
+
+const minutesBetween = (a: string, b: string) =>
+  Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60_000));
+
+// ── Motor ────────────────────────────────────────────────────────────
+
+export function buildActualStaffDayModel(input: BuildActualStaffDayInput): ActualStaffDayModel {
+  const now = input.now ?? new Date();
+  const events: ActualEvent[] = [];
+
+  // 1) Workday
+  if (input.workday) {
+    events.push({
+      id: `wd-start:${input.workday.id}`,
+      at: input.workday.started_at,
+      kind: 'workday_started',
+      severity: 'success',
+      label: 'Arbetsdag startad',
+    });
+    if (input.workday.ended_at) {
+      events.push({
+        id: `wd-end:${input.workday.id}`,
+        at: input.workday.ended_at,
+        kind: 'workday_ended',
+        severity: 'success',
+        label: 'Arbetsdag avslutad',
+        durationMin: minutesBetween(input.workday.started_at, input.workday.ended_at),
+      });
+    }
+  }
+
+  // 2) time_reports
+  for (const r of input.timeReports) {
+    events.push({
+      id: `tr-create:${r.id}`,
+      at: r.start_iso,
+      kind: 'time_report_created',
+      severity: 'info',
+      label: `Tidrapport startad: ${r.label}`,
+      place: r.label,
+      meta: { approved: r.approved },
+    });
+    if (r.end_iso) {
+      events.push({
+        id: `tr-close:${r.id}`,
+        at: r.end_iso,
+        kind: 'time_report_closed',
+        severity: 'info',
+        label: `Tidrapport stängd: ${r.label}`,
+        place: r.label,
+        durationMin: minutesBetween(r.start_iso, r.end_iso),
+      });
+    }
+  }
+
+  // 3) location_time_entries — timer_started/stopped (inkl presence)
+  for (const e of input.locationEntries) {
+    events.push({
+      id: `lte-start:${e.id}`,
+      at: e.entered_at,
+      kind: 'timer_started',
+      severity: 'info',
+      label: e.isPresenceOnly
+        ? `Närvaro registrerad: ${e.label}`
+        : `Timer startad: ${e.label}`,
+      place: e.label,
+      meta: { presence: e.isPresenceOnly },
+    });
+    if (e.exited_at) {
+      events.push({
+        id: `lte-stop:${e.id}`,
+        at: e.exited_at,
+        kind: 'timer_stopped',
+        severity: 'info',
+        label: e.isPresenceOnly
+          ? `Närvaro avslutad: ${e.label}`
+          : `Timer stoppad: ${e.label}`,
+        place: e.label,
+        durationMin: minutesBetween(e.entered_at, e.exited_at),
+      });
+    }
+  }
+
+  // 4) travel_logs
+  for (const t of input.travelLogs) {
+    const isSuggestion = !t.approved && (t.autoDetected || t.source === 'gap_derived');
+    if (isSuggestion) {
+      events.push({
+        id: `tv-suggest:${t.id}`,
+        at: t.start_iso,
+        until: t.end_iso,
+        kind: 'travel_suggestion',
+        severity: 'warning',
+        label: `Föreslagen restid: ${t.fromAddress ?? '?'} → ${t.toAddress ?? '?'}`,
+        detail: t.source === 'gap_derived' ? 'Härledd från lucka' : 'Auto-detekterad via GPS',
+        durationMin: t.end_iso ? minutesBetween(t.start_iso, t.end_iso) : undefined,
+      });
+    } else {
+      events.push({
+        id: `tv:${t.id}`,
+        at: t.start_iso,
+        until: t.end_iso,
+        kind: 'gps_travel',
+        severity: 'info',
+        label: `Resa: ${t.fromAddress ?? '?'} → ${t.toAddress ?? '?'}`,
+        durationMin: t.end_iso ? minutesBetween(t.start_iso, t.end_iso) : undefined,
+      });
+    }
+  }
+
+  // 5) GPS-vistelser
+  for (const v of input.visits) {
+    events.push({
+      id: `gps-arr:${v.placeKey}:${v.start}`,
+      at: v.start,
+      kind: 'gps_arrival',
+      severity: 'info',
+      label: `Anlände: ${v.knownSite?.name ?? 'okänd plats'}`,
+      place: v.knownSite?.name ?? null,
+      meta: { placeKey: v.placeKey, pingCount: v.pingCount },
+    });
+    events.push({
+      id: `gps-visit:${v.placeKey}:${v.start}`,
+      at: v.start,
+      until: v.end,
+      kind: 'gps_visit',
+      severity: 'info',
+      label: `Vistelse: ${v.knownSite?.name ?? 'okänd plats'}`,
+      place: v.knownSite?.name ?? null,
+      durationMin: v.durationMin,
+    });
+    events.push({
+      id: `gps-dep:${v.placeKey}:${v.end}`,
+      at: v.end,
+      kind: 'gps_departure',
+      severity: 'info',
+      label: `Lämnade: ${v.knownSite?.name ?? 'okänd plats'}`,
+      place: v.knownSite?.name ?? null,
+    });
+  }
+  for (const tr of input.travels) {
+    events.push({
+      id: `gps-trv:${tr.key}`,
+      at: tr.start,
+      until: tr.end,
+      kind: 'gps_travel',
+      severity: 'info',
+      label: `Förflyttning: ${tr.from.knownSite?.name ?? '?'} → ${tr.to.knownSite?.name ?? '?'}`,
+      durationMin: tr.durationMin,
+    });
+  }
+
+  // 6) assistant_events
+  for (const a of input.assistantEvents) {
+    const t = a.event_type.toLowerCase();
+    const kind: ActualEventKind = t.includes('arriv')
+      ? 'assistant_arrival'
+      : t.includes('depart') || t.includes('left')
+        ? 'assistant_departure'
+        : 'assistant_other';
+    events.push({
+      id: `ae:${a.id}`,
+      at: a.happened_at,
+      kind,
+      severity: 'info',
+      label: a.target_label
+        ? `Assistent: ${kind === 'assistant_arrival' ? 'Ankom' : 'Lämnade'} ${a.target_label}`
+        : `Assistent: ${a.event_type}`,
+      place: a.target_label,
+    });
+  }
+
+  // 7) workday_flags → anomaly-events
+  for (const f of input.flags) {
+    events.push({
+      id: `wf:${f.id}`,
+      at: f.created_at,
+      kind: 'anomaly',
+      severity: (f.severity as ActualEventSeverity) || 'warning',
+      label: f.title || `Avvikelse: ${f.flag_type}`,
+      detail: f.description,
+      meta: { resolved: f.resolved },
+    });
+  }
+
+  // 8) GPS-gap mellan ping-buckets > 20 min
+  const sortedPings = [...input.pings].sort(
+    (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+  );
+  for (let i = 1; i < sortedPings.length; i++) {
+    const gapMin = minutesBetween(sortedPings[i - 1].recorded_at, sortedPings[i].recorded_at);
+    if (gapMin >= 20) {
+      events.push({
+        id: `gap:${sortedPings[i - 1].recorded_at}`,
+        at: sortedPings[i - 1].recorded_at,
+        until: sortedPings[i].recorded_at,
+        kind: 'gps_gap',
+        severity: gapMin >= 60 ? 'warning' : 'info',
+        label: `GPS-gap (${gapMin} min)`,
+        durationMin: gapMin,
+      });
+    }
+  }
+
+  // 9) Stale signal
+  const lastPingMs = input.latestPing?.recorded_at
+    ? new Date(input.latestPing.recorded_at).getTime()
+    : null;
+  const lastPingAgeMin = lastPingMs ? Math.round((now.getTime() - lastPingMs) / 60_000) : null;
+  const workdayOpen = !!input.workday && !input.workday.ended_at;
+  const anyTimerOpen = input.timeReports.some(r => !r.end_iso) ||
+    input.locationEntries.some(e => !e.exited_at);
+  const signalLost = (workdayOpen || anyTimerOpen)
+    && lastPingAgeMin != null && lastPingAgeMin > STALE_PING_MIN;
+  if (signalLost && input.latestPing?.recorded_at) {
+    events.push({
+      id: `stale:${input.latestPing.recorded_at}`,
+      at: input.latestPing.recorded_at,
+      kind: 'stale_signal',
+      severity: 'critical',
+      label: `Signal tappad — senaste ping ${lastPingAgeMin} min sedan`,
+      detail: 'Pågående arbetsdag eller timer utan färska GPS-pings.',
+    });
+  }
+
+  // ── Sort + härled durationMin där möjligt ────────────────────────
+  events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  for (const ev of events) {
+    if (ev.durationMin == null && ev.until) {
+      ev.durationMin = minutesBetween(ev.at, ev.until);
+    }
+  }
+
+  // ── ActualVisits (komprimerad form av PlaceVisit) ────────────────
+  const actualVisits: ActualVisit[] = input.visits.map(v => ({
+    key: v.placeKey,
+    label: v.knownSite?.name ?? `${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`,
+    knownSiteId: v.knownSite?.id ?? null,
+    start: v.start,
+    end: v.end,
+    durationMin: v.durationMin,
+    pingCount: v.pingCount,
+  }));
+
+  // ── ProposedReport ────────────────────────────────────────────────
+  const distributedMinutes = Math.round(
+    input.timeReports.filter(r => r.end_iso).reduce((s, r) => s + r.hours * 60, 0)
+    + input.travelLogs.filter(t => t.approved && t.end_iso).reduce((s, t) => s + t.hours * 60, 0),
+  );
+  const suggestedTravelMinutes = Math.round(
+    input.travelLogs
+      .filter(t => !t.approved && t.end_iso && (t.autoDetected || t.source === 'gap_derived'))
+      .reduce((s, t) => s + t.hours * 60, 0),
+  );
+
+  // Föreslå ny workday-start om GPS visar aktivitet före workday
+  let proposedWorkdayStart = input.workday?.started_at ?? null;
+  let proposedWorkdayEnd = input.workday?.ended_at ?? null;
+  const anomalies: ProposedAnomaly[] = [];
+
+  if (input.workday) {
+    const wdStartMs = new Date(input.workday.started_at).getTime();
+    const earliestVisit = actualVisits[0];
+    if (earliestVisit && new Date(earliestVisit.start).getTime() < wdStartMs - 5 * 60_000) {
+      anomalies.push({
+        id: `pre-wd:${earliestVisit.key}`,
+        label: 'GPS-aktivitet före arbetsdagens start',
+        detail: `Vistelse på ${earliestVisit.label} ${earliestVisit.start.slice(11, 16)} — workday startade ${input.workday.started_at.slice(11, 16)}.`,
+        severity: 'warning',
+        suggestion: `Justera arbetsdagens start till ${earliestVisit.start.slice(11, 16)}? Eller ignorera som ej arbetstid.`,
+      });
+      proposedWorkdayStart = earliestVisit.start;
+    }
+  }
+
+  if (signalLost) {
+    anomalies.push({
+      id: 'stale-signal',
+      label: 'Signal tappad under pågående arbetsdag/timer',
+      detail: `Senaste GPS-ping ${lastPingAgeMin} min sedan.`,
+      severity: 'critical',
+      suggestion: 'Granska innan godkännande — kan kräva manuell justering av sluttid.',
+    });
+  }
+
+  for (const f of input.flags) {
+    if (f.resolved) continue;
+    anomalies.push({
+      id: `flag:${f.id}`,
+      label: f.title || `Avvikelse: ${f.flag_type}`,
+      detail: f.description ?? '',
+      severity: (f.severity as ActualEventSeverity) || 'warning',
+    });
+  }
+
+  const workdayMinutes = input.workday
+    ? minutesBetween(
+        input.workday.started_at,
+        input.workday.ended_at ?? now.toISOString(),
+      )
+    : 0;
+  const undistributedMinutes = Math.max(0, workdayMinutes - distributedMinutes);
+
+  return {
+    date: input.date,
+    actualEvents: events,
+    actualVisits,
+    reportState: {
+      workday: input.workday,
+      timeReports: input.timeReports,
+      locationEntries: input.locationEntries,
+      travelLogs: input.travelLogs,
+    },
+    proposedReport: {
+      proposedWorkdayStart,
+      proposedWorkdayEnd,
+      distributedMinutes,
+      suggestedTravelMinutes,
+      undistributedMinutes,
+      anomalies,
+    },
+    lastPingAgeMin,
+    signalLost,
+  };
+}
