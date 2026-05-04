@@ -184,6 +184,12 @@ const statusTagFor = (ev: ActualEvent): string => {
   const { kind, severity } = ev;
   const lookupSource = (ev as any).lookup_source as string | undefined;
   if (kind === 'travel_suggestion') return 'föreslagen';
+  if (kind === 'gps_travel') {
+    const m = (ev.meta ?? {}) as any;
+    if (m.travelOrigin === 'travel_log_approved' || m.approved === true) return 'bekräftad';
+    if (m.bothKnown) return 'föreslagen';
+    return 'osäker';
+  }
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
   if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
     if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'adressuppslag';
