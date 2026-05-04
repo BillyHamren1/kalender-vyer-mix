@@ -18,7 +18,8 @@ import { endWorkdayFlow } from '@/services/workdayServerSync';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { extractUTCTime } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
-import { useActiveDayState } from '@/hooks/useActiveDayState';
+import { useActiveDayState, type ActiveDayOpenEntry } from '@/hooks/useActiveDayState';
+type ActiveDayOpenEntryLite = ActiveDayOpenEntry;
 import { AlertTriangle, RefreshCw, WifiOff } from 'lucide-react';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
