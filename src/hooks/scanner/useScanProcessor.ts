@@ -146,6 +146,34 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       if (getIsMinusMode()) {
         // === MINUS MODE ===
         const items = getItems();
+
+        // For unique codes (RFID / serials) we don't know the SKU locally.
+        // Ask the backend to look it up via the WMS, then decrement.
+        if (parsed.unique) {
+          const result = await decrementBySerial(packingId, scannedValue);
+          if (!result.success || !result.itemId) {
+            scanLog('minus_serial_failed', { value: scannedValue, error: result.error });
+            onScanResult({ value: scannedValue, result: result.error || 'Kunde inte ta bort koden', success: false });
+            toast.error(result.error || 'Kunde inte ta bort koden');
+            // Allow user to retry / re-scan
+            scannedThisSessionRef.current.delete(normalised);
+            addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
+            return;
+          }
+          const matchingItem = items.find(i => i.id === result.itemId);
+          const productName = result.productName || matchingItem?.booking_products?.name || scannedValue;
+          scannedThisSessionRef.current.delete(normalised);
+          scanLog('item_matched', { itemId: result.itemId, productName, mode: 'minus_serial' });
+          onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
+          onHighlight(result.itemId);
+          onOptimisticDecrement(result.itemId);
+          onTriggerSync();
+          addRecentScan({ value: scannedValue, productName, success: true, timestamp: Date.now() });
+          notifyRfid(scannedValue, true, productName, matchingItem?.booking_products?.sku || undefined);
+          return;
+        }
+
+        // SKU / repeatable code — local match path
         const matchingItem = items.find(
           item => item.booking_products?.sku?.trim().toLowerCase() === normalised && (item.quantity_packed || 0) > 0
         );
@@ -157,7 +185,6 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         await decrementPackingItem(matchingItem.id, verifierName);
-        // Allow re-scanning this unique code after a minus-scan
         scannedThisSessionRef.current.delete(normalised);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
