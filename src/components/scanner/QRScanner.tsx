@@ -1000,7 +1000,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                 </div>
               )}
 
-              {zoomCaps && (
+              {zoomCaps && !tight && (
                 <div className="absolute left-0 right-0 bottom-0 px-4 pb-3 pt-4 bg-gradient-to-t from-black/85 to-transparent">
                   <div className="flex items-center gap-3 max-w-md mx-auto">
                     <button
