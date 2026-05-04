@@ -243,7 +243,74 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
     : 0;
 
-  const events = showAllEvents ? model.actualEvents : compactEvents(model.actualEvents);
+  const rawEvents = showAllEvents ? model.actualEvents : compactEvents(model.actualEvents);
+
+  // Samla unika okända kluster-coords (centre på gps_arrival/visit/departure/travel)
+  // för reverse-geocode. Per-cluster, INTE per ping. useReverseGeocode cachear
+  // dessutom på rundade lat/lng så samma plats inte slås upp om och om igen.
+  const unknownCoords = useMemo(() => {
+    const seen = new Map<string, { lat: number; lng: number }>();
+    const add = (c: { lat: number; lng: number } | null | undefined) => {
+      if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) return;
+      const key = `${c.lat.toFixed(3)},${c.lng.toFixed(3)}`;
+      if (!seen.has(key)) seen.set(key, { lat: c.lat, lng: c.lng });
+    };
+    for (const ev of rawEvents) {
+      const m = ev.meta as any;
+      if (!m) continue;
+      add(m.centre);
+      add(m.fromCentre);
+      add(m.toCentre);
+    }
+    return Array.from(seen.entries()).map(([key, c]) => ({ key, ...c }));
+  }, [rawEvents]);
+
+  const geoLabels = useReverseGeocode(unknownCoords.map(c => ({ lat: c.lat, lng: c.lng })));
+  const labelByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    unknownCoords.forEach((c, i) => {
+      const lbl = geoLabels[i];
+      if (lbl) m.set(c.key, lbl);
+    });
+    return m;
+  }, [unknownCoords, geoLabels]);
+
+  const resolveCoord = (c: { lat: number; lng: number } | null | undefined): string | null => {
+    if (!c) return null;
+    const key = `${c.lat.toFixed(3)},${c.lng.toFixed(3)}`;
+    const found = labelByKey.get(key);
+    if (found) return found;
+    return `nära ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`;
+  };
+
+  // Substituera "okänd plats" med uppslagen adress/POI eller koordinat-label.
+  const events: ActualEvent[] = useMemo(() => {
+    return rawEvents.map(ev => {
+      const m = ev.meta as any;
+      if (ev.kind === 'gps_arrival' || ev.kind === 'gps_visit' || ev.kind === 'gps_departure') {
+        if (ev.place) return ev; // känd plats — orörd
+        const lbl = resolveCoord(m?.centre);
+        if (!lbl) return ev;
+        const verb =
+          ev.kind === 'gps_arrival' ? 'Anlände' : ev.kind === 'gps_departure' ? 'Lämnade' : 'Vistelse';
+        return { ...ev, label: `${verb}: ${lbl}`, place: lbl };
+      }
+      if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
+        // Bygg om travel-label om någon ände är okänd
+        const fromKnown = !m?.fromCentre;
+        const toKnown = !m?.toCentre;
+        if (fromKnown && toKnown) return ev;
+        const fromLbl = fromKnown
+          ? ev.label.replace(/^Förflyttning:\s*/, '').split(' → ')[0]
+          : (resolveCoord(m?.fromCentre) ?? 'okänd plats');
+        const toLbl = toKnown
+          ? ev.label.split(' → ')[1] ?? ''
+          : (resolveCoord(m?.toCentre) ?? 'okänd plats');
+        return { ...ev, label: `Förflyttning: ${fromLbl} → ${toLbl}` };
+      }
+      return ev;
+    });
+  }, [rawEvents, labelByKey]);
 
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
