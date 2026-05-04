@@ -236,9 +236,14 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
             <Badge variant="secondary" className="text-[11px] gap-1 font-medium" title="Workday minus rast.">
               <Clock className="h-3 w-3" /> Lönegrundande {formatHoursMinutes(payableHours)}
             </Badge>
-            <Badge variant="outline" className="text-[11px] gap-1" title="Sum time_reports — intern fördelning.">
-              <Briefcase className="h-3 w-3" /> Fördelad {formatHoursMinutes(distributedHours)}
+            <Badge variant="outline" className="text-[11px] gap-1" title="Sum stängda time_reports + godkänd resa — bekräftad fördelning av arbetsdagen.">
+              <Briefcase className="h-3 w-3" /> Bekräftat fördelad {formatHoursMinutes(distributedHours)}
             </Badge>
+            {canonical && canonical.activeTimerMinutes > 0 && (
+              <Badge variant="outline" className="text-[11px] gap-1 border-primary/30 text-primary" title="Pågående aktivitet — preliminär fördelning, bekräftas när timern stoppas.">
+                <Activity className="h-3 w-3" /> Pågående {formatHoursMinutes(canonical.activeTimerMinutes / 60)}
+              </Badge>
+            )}
             {undistributedHours > 0 && (
               <Badge variant="outline" className="text-[11px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="h-3 w-3" /> Ofördelad {formatHoursMinutes(undistributedHours)}
