@@ -309,6 +309,58 @@ const StaffTimeReports: React.FC = () => {
         (lps || []).forEach(p => largeProjectMap.set(p.id, p.name || 'Stort projekt'));
       }
 
+      // Fetch coordinates for KnownSites used by buildPlaceVisits.
+      // Org locations + dagens bokningar + dagens stora projekt.
+      const knownSites: KnownSite[] = [];
+      const [orgLocsRes, bookingCoordsRes, lpCoordsRes] = await Promise.all([
+        supabase
+          .from('organization_locations')
+          .select('id, name, latitude, longitude, radius_meters, is_active')
+          .eq('is_active', true),
+        bookingIds.length
+          ? supabase
+              .from('bookings')
+              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude')
+              .in('id', bookingIds)
+          : Promise.resolve({ data: [] as any[] } as any),
+        largeProjectIds.length
+          ? supabase
+              .from('large_projects')
+              .select('id, name, address_latitude, address_longitude, address_radius_meters')
+              .in('id', largeProjectIds)
+          : Promise.resolve({ data: [] as any[] } as any),
+      ]);
+      for (const l of ((orgLocsRes as any).data || [])) {
+        if (l.latitude == null || l.longitude == null) continue;
+        knownSites.push({
+          id: `loc:${l.id}`,
+          name: l.name,
+          lat: Number(l.latitude),
+          lng: Number(l.longitude),
+          radiusMeters: Number(l.radius_meters ?? 200) || 200,
+        });
+      }
+      for (const b of ((bookingCoordsRes as any).data || [])) {
+        if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
+        knownSites.push({
+          id: `booking:${b.id}`,
+          name: b.booking_number ? `${b.booking_number} · ${b.client ?? 'Bokning'}` : (b.client ?? b.deliveryaddress ?? 'Bokning'),
+          lat: Number(b.delivery_latitude),
+          lng: Number(b.delivery_longitude),
+          radiusMeters: 200,
+        });
+      }
+      for (const lp of ((lpCoordsRes as any).data || [])) {
+        if (lp.address_latitude == null || lp.address_longitude == null) continue;
+        knownSites.push({
+          id: `large:${lp.id}`,
+          name: lp.name || 'Stort projekt',
+          lat: Number(lp.address_latitude),
+          lng: Number(lp.address_longitude),
+          radiusMeters: Number(lp.address_radius_meters ?? 200) || 200,
+        });
+      }
+
       // If the warehouse-booking lookup found new location IDs that weren't in
       // the initial locationIds set, fetch their names too.
       const missingLocationIds = warehouseBookingLocationIds.filter(id => !locNameMap.has(id));
