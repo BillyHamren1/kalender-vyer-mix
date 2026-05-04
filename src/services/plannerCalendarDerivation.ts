@@ -190,20 +190,24 @@ export const buildPlannerCalendarEvents = ({
 
   const events: CalendarEvent[] = [];
 
-  // ── Real calendar_events rows are the SOLE source of truth.
-  // For project-linked bookings we still emit one row per (project, phase, date)
-  // — but only if a real calendar_events row exists for it. No fallback
-  // synthesis. If a row is missing → it doesn't appear; reconciler/backfill
-  // will create it.
+  // ── Real calendar_events rows are the SOLE source of truth for TIMES.
   //
-  // DETERMINISTIC SIBLING SELECTION:
-  // A large project can have multiple sibling bookings each with their own
-  // calendar_events row on the same (phase, date). We must always pick the
-  // SAME sibling — otherwise the project visually hops between team columns
-  // every time any sibling event is touched (Realtime-ordered refetch flips
-  // the "first" winner). Sort key: source_date → event_type → booking_number
-  // → id. The project-level team override (projectTeamByKey) still wins over
-  // the chosen row's resource_id when present.
+  // LARGE PROJECTS ARE PLANNED AT THE PROJECT LEVEL — NOT PER SIBLING BOOKING.
+  // A large project bundles many sibling bookings, each carrying their own
+  // calendar_events row with its own resource_id (inherited from the original
+  // booking import). Those per-sibling resource_ids are NOT authoritative for
+  // a large project. The single source of truth for the team a project sits
+  // in on a given (phase, date) is `large_project_team_assignments`.
+  //
+  // Rules for project-linked events:
+  //  1. Group all sibling rows by (projectId, phase, date) and emit ONE row.
+  //  2. The team comes from large_project_team_assignments. Always.
+  //  3. If no assignment exists yet → the project is "unplanned" for that
+  //     day and we do not emit it into a team column. (Unplanned-staging
+  //     surfaces it elsewhere; see useUnplannedProjects.)
+  //  4. Choose the sibling row deterministically (lowest booking_number, then
+  //     lowest id) just to have a stable id/start/end to render. The chosen
+  //     sibling's resource_id is IGNORED.
   const sortedRealEvents = [...realEvents].sort((a, b) => {
     const sa = (a.source_date || a.start_time || '').localeCompare(b.source_date || b.start_time || '');
     if (sa !== 0) return sa;
@@ -226,9 +230,9 @@ export const buildPlannerCalendarEvents = ({
       if (projectEmitted.has(key)) continue;
       projectEmitted.add(key);
       const project = projectsById.get(projectId);
-      // Project-level team override wins over the row's resource_id
-      const overrideTeam = projectTeamByKey.get(key);
-      const resourceId = overrideTeam || row.resource_id || '';
+      // ONLY the project-level assignment may place a large project in a team
+      // column. Sibling resource_id is intentionally ignored.
+      const resourceId = projectTeamByKey.get(key);
       if (!resourceId) continue;
       events.push({
         id: row.id,
