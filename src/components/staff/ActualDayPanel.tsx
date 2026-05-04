@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   Activity,
@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReprocessDayPreviewDialog, type ReprocessChoice } from './ReprocessDayPreviewDialog';
 import { toast } from 'sonner';
+import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import type {
   ActualEvent,
   ActualEventKind,
