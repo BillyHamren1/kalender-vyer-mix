@@ -193,9 +193,13 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   onIgnoreEvent,
   onRecomputeDay,
   onShowRawGps,
+  reportSlot,
+  extraActions,
+  rawGpsSlot,
 }) => {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [rawGpsOpen, setRawGpsOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
 
   const handleApplyReprocess = (plan: ReprocessChoice[]) => {
