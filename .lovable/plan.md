@@ -1,48 +1,31 @@
-## Vad som händer
+## Problem
 
-Två saker att fixa i mobilappen:
+Packningskalendern (`/warehouse/packing`) använder fel färger för UT/IN-rader. Idag används Tailwind `bg-green-300` (mättat grön) och `bg-red-300` (röd). Personalkalendern använder mjukare pastellfärger för rig/rigDown — och rigDown är **persika/orange**, inte röd.
 
-### 1. "Overview"-fliken i bottennavigationen
-Planners (du) får en extra flik `/m/overview` ("Översikt") längst till höger i `MobileBottomNav`. Du vill ta bort den.
+## Källa (personalkalendern, `src/styles/calendar.css`)
 
-### 2. Felaktigt "Stale timer found" på en helt färsk timer
-Du startade en location-timer på FA Warehouse 13:30. Klockan 13:38 (8 min senare) säger appen att timern är "older than 24 hours". Det är fel.
+- `event-rig` (UT/rigday): bakgrund `#F2FCE2`, kant `#D4EAB5`, text svart
+- `event-rigDown` (IN/retur): bakgrund `#FEC6A1`, kant `#FEB190`, text svart
 
-**Rotorsak** (i `src/hooks/useTimerReconciliation.ts`):
-- För **location-timers** kollar reconciliation OM det finns en matchande **öppen** `location_time_entry` på servern.
-- Om servern inte returnerar en matchande öppen post → timern flaggas direkt som `isStale: 'no_server_match'`, oavsett ålder.
-- `StaleTimerDialog` visar däremot alltid copy:n "older than 24 hours…" — vilket är direkt missvisande för `no_server_match`-fallet.
-- Race-möjligheter som triggar detta för en färsk timer:
-  - Server-entryt har inte hunnit skapas/synkas (pending sync queue) när reconcile körs (initial reconcile sker 4s efter mount, plus vid varje window focus).
-  - Edge-functionens `getLocationTimeEntries` returnerar inte den nystartade posten (filter, paginering, eller staff_id/org-mismatch).
-  - Posten stängdes på servern av watchdog/EOD utan att lokal timer rensades.
+## Ändring
 
-Oavsett orsak ska reconciliation **inte** flagga en location-timer som stale bara för att server-listan saknar den om timern är yngre än `STALE_AGE_MS` (24h). Annars är dialogens 24h-text en lögn.
+I `src/components/packing/PackingCalendarView.tsx`:
 
-## Ändringar
+1. Ersätt `KIND_COLORS` så att klassuppsättningen inte längre använder `bg-green-300`/`bg-red-300`. Istället sätter vi färgerna via inline-style (matchar personalkalenderns palett exakt) och behåller en hover-klass.
 
-### A. `src/components/mobile-app/MobileBottomNav.tsx`
-- Ta bort `plannerTab` (`/m/overview`) och planner-villkoret. Alla får samma 4 flikar: Jobs, Time, Messages, Tools.
-- Ta bort oanvänd `LayoutGrid`-import och `useMobileRoles`.
+   ```ts
+   const KIND_STYLES: Record<EventKind, { bg: string; border: string; hoverBg: string }> = {
+     out: { bg: "#F2FCE2", border: "#D4EAB5", hoverBg: "#E4F6CE" }, // rig — ljusgrön
+     in:  { bg: "#FEC6A1", border: "#FEB190", hoverBg: "#FDB389" }, // rigDown — persika
+   };
+   ```
 
-(Routen `/m/overview` lämnas kvar i routern för deep-links, men är inte längre i navigationen. Vill du att jag tar bort routen helt också, säg till.)
+2. Applicera färgerna på event-chipsen (både månad- och vecka-vyn) via `style={{ backgroundColor, borderColor, color: '#000' }}` plus en tunn `border`-klass. Hover hanteras via en liten CSS-klass i samma fil eller via `onMouseEnter/Leave`-toggle.
 
-### B. `src/hooks/useTimerReconciliation.ts` — gör stale-flagging ärlig
-- För **location-timers**: flagga endast som stale när **både** `!openByLocation.has(key)` **och** `isOld` (>24h). Yngre timers utan server-match lämnas i fred — nästa reconcile-cykel försöker igen.
-- Bibehåll `staleReason: 'no_server_match'` när det är relevant, annars `'age'`.
-- Detta löser det aktuella fallet: 8-min-gammal FA Warehouse-timer flaggas inte längre.
+3. Uppdatera `KIND_DOT_COLORS` (legendprickarna) till samma två färger så att legend matchar.
 
-### C. `src/components/mobile-app/StaleTimerDialog.tsx` — ärlig copy
-- Gör body-texten beroende av `staleReason`:
-  - `age` → nuvarande "äldre än 24 timmar…"-text
-  - `no_server_match` → "Den här timern hittas inte på servern längre. Spara som tidrapport eller släng den."
-- Lägg till motsvarande i18n-nycklar (`staleTimer.bodyAge`, `staleTimer.bodyNoMatch`) i `src/i18n/translations.ts`. Behåll `staleTimer.body` som fallback.
+4. Inga ändringar av logik (UT/IN-uppdelning, span, navigering) — bara färger.
 
-### D. Ingen serverändring krävs
-Reconciliation-edge-pathen (`mobile-app-api` → `getLocationTimeEntries`) rörs inte. Vi gör bara klient-logiken mindre aggressiv så att UX matchar verkligheten.
+## Resultat
 
-## Verifiering
-
-1. Starta en location-timer → ingen stale-dialog inom 24h även om reconcile råkar köra innan server-svaret hunnit fram.
-2. En genuint gammal övergiven timer (>24h) får fortfarande dialogen, men med korrekt text.
-3. Bottennavigationen visar exakt 4 flikar för planner-roller (samma som icke-planner).
+Packningskalenderns UT-rader blir samma mjuka ljusgrön som personalkalenderns rig-event, och IN-rader blir samma persika som personalkalenderns rigDown-event. Visuell konsistens mellan de två kalendrarna.

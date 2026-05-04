@@ -21,16 +21,20 @@ interface Props {
 
 type EventKind = "out" | "in";
 
-// OUT = ljusgrön (checkar UT från lagret), IN = ljusröd (checkar IN till lagret)
-const KIND_COLORS: Record<EventKind, string> = {
-  out: "bg-green-300 hover:bg-green-400 text-green-950",
-  in: "bg-red-300 hover:bg-red-400 text-red-950",
+// Matchar personalkalenderns rig/rigDown-palett (src/styles/calendar.css)
+// OUT = rig (ljusgrön), IN = rigDown (persika)
+const KIND_STYLES: Record<EventKind, { bg: string; border: string; hoverBg: string }> = {
+  out: { bg: "#F2FCE2", border: "#D4EAB5", hoverBg: "#E4F6CE" },
+  in:  { bg: "#FEC6A1", border: "#FEB190", hoverBg: "#FDB389" },
 };
 
-const KIND_DOT_COLORS: Record<EventKind, string> = {
-  out: "bg-green-300",
-  in: "bg-red-300",
-};
+const kindStyle = (k: EventKind): React.CSSProperties => ({
+  backgroundColor: KIND_STYLES[k].bg,
+  borderColor: KIND_STYLES[k].border,
+  borderWidth: 1,
+  borderStyle: "solid",
+  color: "#000",
+});
 
 const KIND_LABELS: Record<EventKind, string> = {
   out: "UT (packning)",
