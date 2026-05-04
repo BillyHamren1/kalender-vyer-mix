@@ -190,6 +190,31 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
 }) => {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [reprocessOpen, setReprocessOpen] = useState(false);
+
+  const handleApplyReprocess = (plan: ReprocessChoice[]) => {
+    if (onRecomputeDay) {
+      onRecomputeDay();
+      return;
+    }
+    // Mutation-pathen finns ännu inte. Visa avsiktslistan så admin ser
+    // att förslagen registrerats men att inget skrivits.
+    const summary = plan
+      .map(p => {
+        switch (p.kind) {
+          case 'accept_workday_start': return `start → ${p.iso.slice(11, 16)}`;
+          case 'accept_workday_end': return `slut → ${p.iso.slice(11, 16)}`;
+          case 'create_distribution_from_visit': return 'fördelning från GPS-besök';
+          case 'approve_travel': return 'godkänn restid';
+          case 'ignore_anomaly': return 'ignorera avvikelse';
+          case 'keep_current': return 'behåll nuvarande';
+        }
+      })
+      .join(', ');
+    toast.info('Avsikt registrerad', {
+      description: `${plan.length} val: ${summary}. Ingen databasskrivning sker innan mutation-pathen byggts.`,
+    });
+  };
 
   const status = deriveStatus(model);
   const wd = model.reportState.workday;
