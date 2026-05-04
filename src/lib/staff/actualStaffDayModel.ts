@@ -132,6 +132,7 @@ export type ActualEventKind =
   | 'workday_ended'
   | 'timer_started'
   | 'timer_stopped'
+  | 'timer_end_estimated'
   | 'time_report_created'
   | 'time_report_closed'
   | 'gps_arrival'
