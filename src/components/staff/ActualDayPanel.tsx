@@ -599,7 +599,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                       {fmtHm(ev.at)}{ev.until ? `–${fmtHm(ev.until)}` : ''}
                     </span>
                     <span className="text-muted-foreground truncate">{ev.label}</span>
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">bakgrund</span>
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {(() => {
+                        const r = getWorkRelevance(ev);
+                        if (r === 'private_or_background') return 'privat/bakgrund';
+                        if (r === 'raw_debug_only') return 'rå debug';
+                        if (r === 'unknown_requires_lookup') return 'okänd – kräver uppslag';
+                        return 'bakgrund';
+                      })()}
+                    </span>
                   </li>
                 ))}
               </ol>
