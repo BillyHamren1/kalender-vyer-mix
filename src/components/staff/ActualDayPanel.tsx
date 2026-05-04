@@ -223,6 +223,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   const [reportOpen, setReportOpen] = useState(false);
   const [rawGpsOpen, setRawGpsOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
+  const [expandedDebugKeys, setExpandedDebugKeys] = useState<Set<string>>(() => new Set());
 
   const handleApplyReprocess = (plan: ReprocessChoice[]) => {
     if (onRecomputeDay) {
@@ -426,36 +427,95 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           </div>
         ) : (
           <ol className="space-y-1">
-            {events.map(ev => (
-              <li
-                key={ev.id}
-                className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-x-2 text-xs py-0.5"
-              >
-                <span className="tabular-nums text-muted-foreground w-12">
-                  {fmtHm(ev.at)}
-                  {ev.until ? `–${fmtHm(ev.until)}` : ''}
-                </span>
-                <EventIcon kind={ev.kind} severity={ev.severity} />
-                <span className="text-foreground truncate">
-                  {ev.label}
-                  {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
-                </span>
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {sourceTagFor(ev)}
-                </span>
-                <span
-                  className={`text-[10px] uppercase tracking-wide ${
-                    ev.severity === 'critical'
-                      ? 'text-destructive'
-                      : ev.severity === 'warning'
-                        ? 'text-amber-600'
-                        : 'text-muted-foreground'
-                  }`}
-                >
-                  {statusTagFor(ev)}
-                </span>
-              </li>
-            ))}
+            {events.map(ev => {
+              const m = (ev.meta ?? {}) as any;
+              const placeKey = m.placeKey as string | undefined;
+              const visit = placeKey ? visitByKey.get(placeKey) : undefined;
+              const isUnknownCluster =
+                (ev.kind === 'gps_visit' || ev.kind === 'gps_arrival' || ev.kind === 'gps_departure') &&
+                !!visit && !visit.knownSiteId;
+              const isExpanded = isUnknownCluster && expandedDebugKeys.has(ev.id);
+              const lookupKey = visit?.centre
+                ? `${visit.centre.lat.toFixed(3)},${visit.centre.lng.toFixed(3)}`
+                : null;
+              const geo = lookupKey ? geoByKey.get(lookupKey) : null;
+              return (
+                <React.Fragment key={ev.id}>
+                  <li className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-x-2 text-xs py-0.5">
+                    <span className="tabular-nums text-muted-foreground w-12">
+                      {fmtHm(ev.at)}
+                      {ev.until ? `–${fmtHm(ev.until)}` : ''}
+                    </span>
+                    <EventIcon kind={ev.kind} severity={ev.severity} />
+                    <span className="text-foreground truncate">
+                      {ev.label}
+                      {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
+                      {isUnknownCluster && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedDebugKeys(prev => {
+                              const next = new Set(prev);
+                              if (next.has(ev.id)) next.delete(ev.id);
+                              else next.add(ev.id);
+                              return next;
+                            })
+                          }
+                          className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground underline"
+                        >
+                          {isExpanded ? 'dölj debug' : 'debug'}
+                        </button>
+                      )}
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {sourceTagFor(ev)}
+                    </span>
+                    <span
+                      className={`text-[10px] uppercase tracking-wide ${
+                        ev.severity === 'critical'
+                          ? 'text-destructive'
+                          : ev.severity === 'warning'
+                            ? 'text-amber-600'
+                            : 'text-muted-foreground'
+                      }`}
+                    >
+                      {statusTagFor(ev)}
+                    </span>
+                  </li>
+                  {isExpanded && visit && (
+                    <li className="col-span-5 ml-14 mr-2 mb-1 rounded border border-dashed bg-muted/20 px-2 py-1.5 text-[10px] font-mono leading-relaxed text-muted-foreground">
+                      <div className="grid grid-cols-[auto_1fr] gap-x-2">
+                        <span>center_lat:</span><span className="text-foreground">{visit.centre?.lat.toFixed(6) ?? '—'}</span>
+                        <span>center_lng:</span><span className="text-foreground">{visit.centre?.lng.toFixed(6) ?? '—'}</span>
+                        <span>ping_count:</span><span className="text-foreground">{visit.pingCount}</span>
+                        <span>avg_accuracy:</span><span className="text-foreground">{visit.avgAccuracy != null ? `${visit.avgAccuracy} m` : '—'}</span>
+                        <span>resolved_address:</span><span className="text-foreground">{geo?.address ?? geo?.label ?? '—'}</span>
+                        <span>poi_name:</span><span className="text-foreground">{geo?.poiName ?? '—'}</span>
+                        <span>poi_category:</span><span className="text-foreground">{geo?.poiCategory ?? '—'}</span>
+                        <span>nearest_location:</span>
+                        <span className="text-foreground">
+                          {visit.nearestKnownSite ? `${visit.nearestKnownSite.name} (${visit.nearestKnownSite.id})` : '—'}
+                        </span>
+                        <span>distance_to_nearest:</span>
+                        <span className="text-foreground">
+                          {visit.nearestKnownSite ? `${visit.nearestKnownSite.distanceMeters} m` : '—'}
+                        </span>
+                        <span>nearest_site_radius:</span>
+                        <span className="text-foreground">
+                          {visit.nearestKnownSite ? `${visit.nearestKnownSite.radiusMeters} m` : '—'}
+                        </span>
+                        <span>outside_by:</span>
+                        <span className="text-foreground">
+                          {visit.nearestKnownSite ? `${visit.nearestKnownSite.outsideByMeters} m` : '—'}
+                        </span>
+                        <span>unmatch_reason:</span>
+                        <span className="text-foreground">{visit.unmatchReason ?? '—'}</span>
+                      </div>
+                    </li>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </ol>
         )}
       </section>

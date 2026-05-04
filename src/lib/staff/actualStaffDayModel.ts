@@ -26,8 +26,8 @@
  * måste hållas konsistenta — när vi lägger till nya evenemangstyper här
  * ska day-timeline-engine spegla dem.
  */
-import type { PlaceVisit, TravelGap } from './pingPlaceSegments';
-import type { Ping } from './movementDetection';
+import type { PlaceVisit, TravelGap, KnownSite } from './pingPlaceSegments';
+import { haversineMeters, type Ping } from './movementDetection';
 
 // ── Inputs ───────────────────────────────────────────────────────────
 
@@ -112,6 +112,9 @@ export interface BuildActualStaffDayInput {
   pings: Ping[];
   /** Senaste ping från staff_locations (live-spårning). */
   latestPing: ActualLatestPingInput | null;
+  /** Kända platser (org_locations + dagens bokningar/projekt) — används för
+   *  debug "varför matchade inte detta GPS-kluster?". */
+  knownSites?: KnownSite[];
   /** "Nu" — testbar. */
   now?: Date;
 }
@@ -161,6 +164,18 @@ export interface ActualEvent {
   poi_category?: string | null;
 }
 
+export interface NearestKnownSiteDebug {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  /** Avstånd från klustercenter till sitens center. */
+  distanceMeters: number;
+  /** Hur många meter UTANFÖR siten klustercentret ligger (negativt = inuti). */
+  outsideByMeters: number;
+}
+
 export interface ActualVisit {
   key: string;
   label: string;
@@ -173,6 +188,10 @@ export interface ActualVisit {
   durationMin: number;
   pingCount: number;
   avgAccuracy: number | null;
+  /** Endast satt för okända kluster: närmaste kända plats + varför ingen träff. */
+  nearestKnownSite?: NearestKnownSiteDebug | null;
+  /** Mänsklig förklaring varför internal match misslyckades. */
+  unmatchReason?: string | null;
 }
 
 export interface ProposedAnomaly {
@@ -463,9 +482,44 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   }
 
   // ── ActualVisits (komprimerad form av PlaceVisit) ────────────────
+  const knownSites = input.knownSites ?? [];
+  const findNearestSite = (c: { lat: number; lng: number }): NearestKnownSiteDebug | null => {
+    if (!knownSites.length) return null;
+    let best: NearestKnownSiteDebug | null = null;
+    for (const s of knownSites) {
+      const d = haversineMeters({ lat: s.lat, lng: s.lng }, c);
+      if (!best || d < best.distanceMeters) {
+        best = {
+          id: s.id,
+          name: s.name,
+          lat: s.lat,
+          lng: s.lng,
+          radiusMeters: s.radiusMeters,
+          distanceMeters: Math.round(d),
+          outsideByMeters: Math.round(d - s.radiusMeters),
+        };
+      }
+    }
+    return best;
+  };
+
   const actualVisits: ActualVisit[] = input.visits.map(v => {
     const accs = v.pings.map(p => (p.accuracy == null ? NaN : Number(p.accuracy))).filter(n => Number.isFinite(n));
     const avgAccuracy = accs.length ? Math.round((accs.reduce((s, n) => s + n, 0) / accs.length) * 10) / 10 : null;
+    const isUnknown = !v.knownSite;
+    const nearest = isUnknown ? findNearestSite(v.centre) : null;
+    let unmatchReason: string | null = null;
+    if (isUnknown) {
+      if (!knownSites.length) {
+        unmatchReason = 'Inga kända platser laddade för denna dag.';
+      } else if (!nearest) {
+        unmatchReason = 'Ingen jämförbar känd plats hittades.';
+      } else if (nearest.outsideByMeters > 0) {
+        unmatchReason = `Klustercenter ligger ${nearest.outsideByMeters} m utanför "${nearest.name}" (radie ${nearest.radiusMeters} m, avstånd ${nearest.distanceMeters} m).`;
+      } else {
+        unmatchReason = `Klustercenter ligger inom "${nearest.name}" men matchKnownSite valde inte den — kontrollera om radien justerats efter ping-tidpunkten eller om accuracy försköt enskilda pings utanför radien.`;
+      }
+    }
     return {
       key: v.placeKey,
       label: v.knownSite?.name ?? `Okänd plats nära ${v.centre.lat.toFixed(4)}, ${v.centre.lng.toFixed(4)}`,
@@ -476,6 +530,8 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       durationMin: v.durationMin,
       pingCount: v.pingCount,
       avgAccuracy,
+      nearestKnownSite: nearest,
+      unmatchReason,
     };
   });
 
