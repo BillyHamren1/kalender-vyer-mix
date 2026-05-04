@@ -292,6 +292,38 @@ export function buildCanonicalStaffDayModel(
     });
   }
 
+  // ── Active timers + stale GPS detection ────────────────────────────
+  const lastPingMs = safeMs(input.latestPing?.updatedAt);
+  const latestPingAgeMin =
+    lastPingMs != null ? Math.max(0, Math.round((now - lastPingMs) / MS_PER_MIN)) : null;
+
+  const activeTimerRows: CanonicalActiveTimerRow[] = (input.activeTimers ?? []).map((t) => {
+    const startedMs = safeMs(t.startedAt);
+    const runningMinutes =
+      startedMs != null && now > startedMs ? minutesBetween(startedMs, now) : 0;
+    const signalLost =
+      latestPingAgeMin == null || latestPingAgeMin > STALE_PING_MIN;
+    return {
+      ...t,
+      runningMinutes,
+      signalLost,
+      lastPingAgeMin: latestPingAgeMin,
+    };
+  });
+  const activeTimerMinutes = activeTimerRows.reduce((s, r) => s + r.runningMinutes, 0);
+  const hasSignalLost = activeTimerRows.some((r) => r.signalLost);
+
+  if (hasSignalLost) {
+    const lostCount = activeTimerRows.filter((r) => r.signalLost).length;
+    anomalies.push({
+      kind: 'open_timer_signal_lost',
+      severity: 'warning',
+      label: 'Tappad signal',
+      detail: `${lostCount} pågående timer utan färsk GPS-ping (>${STALE_PING_MIN} min). Kräver granskning.`,
+      minutes: 0,
+    });
+  }
+
   let status: CanonicalStaffDayModel['status'] = 'ok';
   if (workdayMinutes === 0 && distributedMinutes > 0) status = 'no_workday';
   else if (overDistributedMinutes > 0) status = 'over_reported';
@@ -317,10 +349,13 @@ export function buildCanonicalStaffDayModel(
     overDistributedMinutes,
     suggestedTravelMinutes,
     approvedTravelMinutes,
-    activeTimerRows: input.activeTimers ?? [],
+    activeTimerMinutes,
+    hasSignalLost,
+    activeTimerRows,
     distributionRows: realRows,
     travelSuggestions: travel,
     gpsEvidence: input.gpsEvidence ?? null,
+    latestPingAgeMin,
     anomalies,
     reviewRequired,
     status,
