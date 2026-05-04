@@ -164,9 +164,21 @@ export function buildReviewEntries(input: BuildReviewEntriesInput): {
           ? 'needs_review'
           : 'ok';
 
+    const rowKind = classifyReviewRow({
+      sourceTable: w.source === 'time_report' ? 'time_report' : 'location_entry',
+      closed: !w.ongoing,
+      approved: !!w.approved,
+      // Work entries that come in via this builder are already work-timer
+      // intent (the caller has filtered presence-only LTEs out). Mark
+      // explicitly so location entries land as active/confirmed, not
+      // presence_evidence.
+      isLocationWorkTimer: true,
+    });
+
     entries.push({
       key: `work:${w.id}`,
       kind: 'work',
+      rowKind,
       label: w.booking_client || '—',
       sublabel: w.booking_number ? `#${w.booking_number}` : (w.description || undefined),
       startIso: w.start_time,
