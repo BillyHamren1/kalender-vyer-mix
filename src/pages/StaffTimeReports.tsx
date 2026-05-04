@@ -207,6 +207,9 @@ const StaffTimeReports: React.FC = () => {
       const travel = travelRes.data || [];
       const locationEntries = locationRes.data || [];
       const workdays = workdaysRes.data || [];
+      const historyPings = (historyRes as any).error ? [] : ((historyRes as any).data || []);
+      const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
+      const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
 
       // Resolve location -> internal booking (e.g. Lager) for project label.
       // Include location_id from BOTH location_time_entries AND time_reports so
