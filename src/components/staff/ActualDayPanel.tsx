@@ -431,15 +431,24 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             Godkänn föreslagen restid
           </Button>
         )}
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onRecomputeDay}>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setReprocessOpen(true)}>
           <Activity className="h-3 w-3 mr-1.5" />
-          Räkna om dag
+          Räkna om dag från GPS + timers
         </Button>
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onShowRawGps}>
           <Eye className="h-3 w-3 mr-1.5" />
           Visa rå GPS
         </Button>
       </section>
+
+      <ReprocessDayPreviewDialog
+        open={reprocessOpen}
+        onClose={() => setReprocessOpen(false)}
+        staffName={staffName}
+        date={date}
+        model={model}
+        onApply={handleApplyReprocess}
+      />
     </div>
   );
 };
