@@ -245,11 +245,11 @@ const StaffTimeReports: React.FC = () => {
           .eq('report_date', dateStr),
         supabase
           .from('location_time_entries')
-          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source, entry_date')
+          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source, entry_date, metadata')
           .eq('entry_date', dateStr),
         supabase
           .from('workdays')
-          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note')
+          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note, started_by, metadata')
           .gte('started_at', dayStartIso)
           .lt('started_at', nextDayIso),
         supabase
