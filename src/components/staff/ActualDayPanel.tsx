@@ -1222,6 +1222,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         <PlanningSection items={planningItems} />
       )}
 
+      {canExclude && overrides.length > 0 && (
+        <ExcludedEventsSection
+          overrides={overrides}
+          blocks={enrichedBlockTimeline}
+          onRestore={(id) => restore(id)}
+        />
+      )}
+
       {/* B. Faktiska händelser — alltid synlig */}
       <section className="px-4 py-3 border-b">
         <div className="flex items-center justify-between mb-2">
