@@ -549,6 +549,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               ? 'unmatched_outside_radius'
               : (visit ? 'unmatched_no_nearest' : (ev.internal_match_status ?? 'unmatched_no_sites')));
 
+        const coordCentre = (m?.centre as { lat: number; lng: number } | undefined) ?? null;
+        const mapsUrl = !isMatched && coordCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${coordCentre.lat.toFixed(6)},${coordCentre.lng.toFixed(6)}`
+          : null;
+
         return {
           ...ev,
           label,
@@ -564,8 +569,35 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           resolved_poi: isMatched ? (visit?.label ?? placeLabel) : (lookup?.geo?.poiName ?? null),
           match_confidence: matchConfidence,
           internal_match_status: internalMatchStatus as any,
-        };
+          maps_url: mapsUrl,
+          coords: coordCentre,
+        } as any;
       }
+      if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
+        const fromKnown = !m?.fromCentre;
+        const toKnown = !m?.toCentre;
+        const fromLbl = fromKnown
+          ? ev.label.replace(/^Förflyttning:\s*/, '').split(' → ')[0]
+          : (lookupCoord(m?.fromCentre)?.label ?? 'okänd plats');
+        const toLbl = toKnown
+          ? (ev.label.split(' → ')[1] ?? '')
+          : (lookupCoord(m?.toCentre)?.label ?? 'okänd plats');
+        const fromMaps = !fromKnown && m?.fromCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${m.fromCentre.lat.toFixed(6)},${m.fromCentre.lng.toFixed(6)}`
+          : null;
+        const toMaps = !toKnown && m?.toCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${m.toCentre.lat.toFixed(6)},${m.toCentre.lng.toFixed(6)}`
+          : null;
+        return {
+          ...ev,
+          label: `Förflyttning: ${fromLbl} → ${toLbl}`,
+          from_maps_url: fromMaps,
+          to_maps_url: toMaps,
+        } as any;
+      }
+      return ev;
+    });
+  }, [rawEvents, geoByKey, visitByKey, knownNeighbours]);
       if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
         const fromKnown = !m?.fromCentre;
         const toKnown = !m?.toCentre;
