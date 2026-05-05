@@ -338,6 +338,15 @@ export const updateEstablishmentTask = async (
       ensureBookingStaffAssignments(taskData.booking_id, updates.assigned_to_ids, taskData.start_date, taskData.end_date);
     }
   }
+
+  // CALENDAR MIRROR: Re-sync calendar_events row if any mirror-relevant
+  // field changed AND the activity is currently published. Detail sheet calls
+  // this for every field-edit (date/time/title/...) so the personnel calendar
+  // never goes stale.
+  const touchesMirror = Object.keys(updates).some((k) => CALENDAR_MIRROR_FIELDS.has(k));
+  if (touchesMirror) {
+    await reSyncIfPublished(id);
+  }
 };
 
 export const bulkUpdateEstablishmentTasks = async (
