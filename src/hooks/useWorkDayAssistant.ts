@@ -95,6 +95,7 @@ export type {
   LastWorkplaceForDayDecision,
   LongPassNoBreakDecision,
   UnclassifiedAnomalyDecision,
+  LateAfterPlannedStartDecision,
 } from '@/lib/workDayDecisions';
 
 // ─────────────────────────────────────────────────────────────────────
