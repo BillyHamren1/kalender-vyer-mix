@@ -37,8 +37,8 @@ export type GapReason =
   | 'raw_only_only'             // Endast raw-events (timer/assistant/server) — inget block
   | 'no_signal';                // Tomt fönster — varken GPS eller timer
 
-/** Diskriminator för huvudradtyp i UI: ProjectBlock vs LocationBlock. */
-export type PresenceKind = 'project' | 'location';
+/** Diskriminator för huvudradtyp i UI: ProjectBlock / LocationBlock / UnknownBlock. */
+export type PresenceKind = 'project' | 'location' | 'unknown';
 
 export interface PresenceBlock {
   kind: 'presence';
@@ -197,13 +197,28 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
   const consumedEventIds = new Set<string>();
 
   // 1a) PRIMÄR KÄLLA: actualVisits → presence-block. timelineVisibility får
-  //     ALDRIG vara gatekeeper här. Varje vistelse blir ett block oavsett om
-  //     dess gps_visit-event råkade hamna i main eller raw.
+  //     ALDRIG vara gatekeeper här. En faktisk vistelse får inte försvinna
+  //     bara för att ett gps_travel-event finns.
+  //
+  //     Klassificering enligt knownSiteId:
+  //       booking:* / large:*               → ProjectBlock
+  //       location:* / site:* / warehouse:* → LocationBlock
+  //       null + duration ≥ 15 min          → UnknownPresence (review)
+  //       null + duration < 15 min          → SKIP (raw_only/debug)
+  const MIN_UNKNOWN_REVIEW_MIN = 15;
   for (const v of actualVisits) {
     const knownSiteId = v.knownSiteId;
+    const durationMin = v.durationMin ?? 0;
     const isProject = !!knownSiteId
       && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
-    const durationMin = v.durationMin ?? 0;
+    const isLocation = !!knownSiteId
+      && (knownSiteId.startsWith('location:') || knownSiteId.startsWith('site:') || knownSiteId.startsWith('warehouse:'));
+    const isKnown = isProject || isLocation;
+
+    // Okänd + för kort → tillhör raw/debug, inte huvudjournalen.
+    if (!isKnown && durationMin < MIN_UNKNOWN_REVIEW_MIN) continue;
+
+    const presenceKind: PresenceKind = isProject ? 'project' : isLocation ? 'location' : 'unknown';
     const strength: PresenceStrength = isProject
       ? 'project'
       : durationMin >= 30 ? 'strong_visit'
@@ -211,17 +226,17 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       : 'short_stop';
     blocks.push({
       kind: 'presence',
-      presenceKind: isProject ? 'project' : 'location',
+      presenceKind,
       id: `pb:visit:${v.key}:${v.start}`,
       startIso: v.start,
       endIso: v.end,
       durationMin,
       placeKey: v.key,
       title: v.label,
-      subtitle: null,
+      subtitle: presenceKind === 'unknown' ? 'Okänd plats — kräver granskning' : null,
       isProject,
       strength,
-      requiresReview: false,
+      requiresReview: presenceKind === 'unknown',
       ongoing: false,
       lastPingIso: v.end,
       sourceEventIds: [],
