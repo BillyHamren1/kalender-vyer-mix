@@ -867,6 +867,8 @@ const StaffTimeReports: React.FC = () => {
       const extraStaffIds = new Set<string>();
       for (const a of (assistantEvents as any[])) if (a.staff_id) extraStaffIds.add(a.staff_id);
       for (const f of (workdayFlags as any[])) if (f.staff_id) extraStaffIds.add(f.staff_id);
+      // Planerade personer ska alltid synas — även utan workday/GPS/rapport.
+      for (const id of plannedStaffIds) extraStaffIds.add(id);
       // Pings: hämta ALLA distinkta staff_id från staff_location_history
       // för dagen. .select('staff_id').limit(1000) returnerar 1000 RADER
       // (inte distinct), så en aktiv person kan fylla hela kvoten och
