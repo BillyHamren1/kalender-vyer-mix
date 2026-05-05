@@ -27,7 +27,7 @@ import type {
   ActualStaffDayModel,
   ProposedAnomaly,
 } from '@/lib/staff/actualStaffDayModel';
-import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES } from '@/lib/staff/stopSourceClassifier';
+import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStopConfident } from '@/lib/staff/stopSourceClassifier';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
@@ -190,6 +190,20 @@ const statusTagFor = (ev: ActualEvent): string => {
     if (m.travelOrigin === 'travel_log_approved' || m.approved === true) return 'bekräftad';
     if (m.bothKnown) return 'föreslagen';
     return 'osäker';
+  }
+  if (kind === 'timer_stopped') {
+    const mm = (ev.meta ?? {}) as any;
+    // Syntetiska/clamp-stopp betraktas som osäkra.
+    const stopOrigin = mm.stop_origin as string | undefined;
+    if (stopOrigin === 'system_review') return 'osäker · syntetiskt stopp';
+    const cls = classifyStopSource({
+      source: (mm.lteSource ?? mm.source) ?? null,
+      metadata: (mm.lteMetadata ?? null) as Record<string, any> | null,
+      exitedAt: mm.stoppedAt ?? ev.at ?? null,
+      lteId: mm.lteId ?? '',
+    });
+    if (!isStopConfident(cls)) return 'osäker · källa okänd';
+    return 'bekräftad';
   }
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
   if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
@@ -563,6 +577,22 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     <EventIcon kind={ev.kind} severity={ev.severity} />
                     <span className="text-foreground truncate">
                       {ev.label}
+                      {ev.kind === 'timer_stopped' && (() => {
+                        const mm = (ev.meta ?? {}) as any;
+                        if (mm.stop_origin === 'system_review') return null;
+                        const cls = classifyStopSource({
+                          source: (mm.lteSource ?? mm.source) ?? null,
+                          metadata: (mm.lteMetadata ?? null) as Record<string, any> | null,
+                          exitedAt: mm.stoppedAt ?? ev.at ?? null,
+                          lteId: mm.lteId ?? '',
+                        });
+                        const suffix = inlineStopSuffix(cls, mm.lteMetadata ?? null);
+                        return (
+                          <span className={cls.key === 'unknown' ? 'text-amber-600' : 'text-muted-foreground'}>
+                            {suffix}
+                          </span>
+                        );
+                      })()}
                       {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
                       {(() => {
                         const mm = (ev.meta ?? {}) as any;
