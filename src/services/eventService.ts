@@ -434,6 +434,24 @@ export const updateCalendarEvent = async (
   // sibling bookings in the same large project (no-op for plain bookings).
   let syncedSiblings = 0;
   if (updates.start && updates.end && data.booking_id && data.event_type && data.source_date) {
+    // Detect large-project booking — if so, this code path is the wrong one
+    // (UI should use moveLargeProjectDay). We still attempt the sync but
+    // surface failures hard so the user is not told "saved" while bookings
+    // remain on the old time and reconcile snaps them back.
+    const { data: bookingRow } = await supabase
+      .from('bookings')
+      .select('large_project_id')
+      .eq('id', data.booking_id)
+      .maybeSingle();
+    const isLargeProject = Boolean(bookingRow?.large_project_id);
+
+    if (isLargeProject) {
+      console.warn(
+        '[updateCalendarEvent] called on a large-project booking — UI should use moveLargeProjectDay',
+        { eventId, bookingId: data.booking_id, largeProjectId: bookingRow?.large_project_id }
+      );
+    }
+
     try {
       const { syncFromCalendarEvent } = await import('@/services/timeSync');
       const res = await syncFromCalendarEvent({
@@ -445,6 +463,12 @@ export const updateCalendarEvent = async (
       });
       syncedSiblings = res?.syncedSiblings ?? 0;
     } catch (e) {
+      if (isLargeProject) {
+        console.error('[updateCalendarEvent] timeSync failed for large project — failing hard', e);
+        throw new Error(
+          'Tid kunde inte synkas till alla bokningar i det stora projektet. Försök igen eller använd projektvyn.'
+        );
+      }
       console.warn('[updateCalendarEvent] timeSync failed (non-fatal)', e);
     }
   }
