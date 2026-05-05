@@ -345,6 +345,10 @@ const MobileLocationDetail = () => {
       <div className="flex-1 px-4 py-3 space-y-5">
         {activeTab === 'Info' && (
           <>
+            {/* Mina lageruppgifter — visas högt upp när platsen är ett lager */}
+            {location && /lager/i.test(location.name) && (
+              <LagerMyAssignmentsSection />
+            )}
             {/* My tasks */}
             <div>
               <div className="flex items-center justify-between mb-2.5">
