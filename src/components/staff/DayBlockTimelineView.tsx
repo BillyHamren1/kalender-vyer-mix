@@ -40,6 +40,53 @@ const safePlaceLabel = (
   return 'Okänd plats – saknar koordinat';
 };
 
+type PlaceLike = {
+  label?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  mapUrl?: string | null;
+  lookupStatus?: string;
+} | null | undefined;
+
+const buildMapUrl = (p: PlaceLike): string | null => {
+  if (!p) return null;
+  if (p.mapUrl) return p.mapUrl;
+  if (p.lat != null && p.lng != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+  }
+  return null;
+};
+
+/**
+ * Renderar platsetikett som klickbar länk när lat/lng finns.
+ * Faller tillbaka till vanlig <span> när vi saknar koordinater
+ * (t.ex. matched_internal utan koordinat).
+ */
+const PlaceLabel: React.FC<{
+  place: PlaceLike;
+  fallback?: string | null;
+  className?: string;
+}> = ({ place, fallback, className }) => {
+  const label = safePlaceLabel(place, fallback);
+  const href = buildMapUrl(place);
+  if (!href) {
+    return <span className={className}>{label}</span>;
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className={`${className ?? ''} inline-flex items-center gap-0.5 hover:underline`}
+      title="Öppna i Google Maps"
+    >
+      <span className="truncate">{label}</span>
+      <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+    </a>
+  );
+};
+
 /* ------------------------------------------------------------------ */
 /*  Shared row primitives — kompakta rader (~34–40px höga)            */
 /* ------------------------------------------------------------------ */
