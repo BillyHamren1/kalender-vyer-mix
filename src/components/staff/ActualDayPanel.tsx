@@ -147,6 +147,8 @@ const statusBadgeClass = (kind: HeaderStatus): string => {
       return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200';
     case 'signal_lost':
       return 'bg-destructive/15 text-destructive';
+    case 'evidence_repair_proposed':
+      return 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100';
     case 'review':
     case 'pre_workday':
     case 'missing_report':
