@@ -205,13 +205,51 @@ const MobileGlobalOverlays: React.FC = () => {
       }
     };
     const dispose = registerGeofenceAutoActions({
-      start: async ({ kind, targetId, label }) => {
+      start: async ({ kind, targetId, label, arrivedAtIso }) => {
         const workTarget: WorkTarget | null =
           kind === 'location' ? { kind: 'location', locationId: targetId, name: label }
           : kind === 'project' ? { kind: 'project', largeProjectId: targetId, name: label }
           : { kind: 'booking', bookingId: targetId, client: label };
         if (!workTarget) return { status: 'workday_failed' };
-        const status = await tryStartFromArrival(workTarget, { label });
+        // Använd första stabila GPS-arrival som starttid — inte "nu" när
+        // appen råkade synca. Skickas vidare som startedAtIso → workday
+        // och time_report ärver den faktiska ankomsttiden.
+        const status = await tryStartFromArrival(workTarget, {
+          startedAtIso: arrivedAtIso,
+          label,
+          suppressToast: true,
+        });
+        if (status === 'started' || status === 'already_running') {
+          window.dispatchEvent(new CustomEvent('auto-arrival-started', {
+            detail: { kind, targetId, label, arrivedAtIso, workTarget },
+          }));
+        } else if (status === 'workday_failed' || status === 'start_failed') {
+          // Workday får inte blockeras pga aktivitet — se till att dagen
+          // ändå öppnas och flagga att aktivitet saknas.
+          try {
+            const wd = await ensureWorkDayActive(arrivedAtIso);
+            if (wd) {
+              toast.message('Arbetsdag startad — välj projekt/plats för aktivitet');
+              window.dispatchEvent(new CustomEvent('auto-arrival-workday-only', {
+                detail: { kind, targetId, label, arrivedAtIso },
+              }));
+              void mobileApi.createWorkdayFlag({
+                flag_type: 'activity_missing_after_auto_arrival',
+                flag_date: arrivedAtIso.slice(0, 10),
+                title: `Auto-start: aktivitet saknas (${label})`,
+                description: `Arbetsdag startades automatiskt vid ankomst till ${label} men aktivitetstimer kunde inte startas.`,
+                severity: 'warning',
+                needs_user_input: true,
+                related_booking_id: kind === 'booking' ? targetId : undefined,
+                related_large_project_id: kind === 'project' ? targetId : undefined,
+                related_location_id: kind === 'location' ? targetId : undefined,
+                context: { source: 'geofence_auto_arrival', arrived_at: arrivedAtIso },
+              }).catch(() => {});
+            }
+          } catch (err) {
+            console.warn('[AutoArrival] workday fallback failed:', err);
+          }
+        }
         return { status };
       },
       stop: async ({ key, exitedAtIso }) => {
