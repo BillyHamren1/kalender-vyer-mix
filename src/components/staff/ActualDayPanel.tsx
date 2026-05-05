@@ -895,6 +895,41 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   );
   const [showBackground, setShowBackground] = useState(false);
 
+  // Bygg projektvistelseblock — visas separat och med högre vikt än vanliga
+  // GPS-rader. Källan är gps_visit mot known site av typ booking:/large:.
+  const projectBlocks = useMemo(() => {
+    const visitMap = new Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>();
+    for (const v of model.actualVisits) {
+      visitMap.set(v.key, {
+        knownSiteId: v.knownSiteId,
+        label: v.label,
+        durationMin: v.durationMin,
+        end: v.end,
+      });
+    }
+    const plannedTargetIds = new Set<string>();
+    for (const p of model.planningItems ?? []) {
+      const meta = (p as any).meta ?? {};
+      if (meta.bookingId) plannedTargetIds.add(`booking:${meta.bookingId}`);
+      if (meta.largeProjectId) plannedTargetIds.add(`large:${meta.largeProjectId}`);
+      if (meta.bookingId) plannedTargetIds.add(meta.bookingId);
+      if (meta.largeProjectId) plannedTargetIds.add(meta.largeProjectId);
+    }
+    return buildProjectBlocks({
+      events: mainEvents,
+      visitByKey: visitMap,
+      plannedTargetIds,
+      workdayStartedIso: wd?.started_at ?? null,
+    });
+  }, [mainEvents, model.actualVisits, model.planningItems, wd?.started_at]);
+
+  // PlaceKeys som projektblock äger — vi döljer deras gps_visit-rader från listan
+  const blockedPlaceKeys = useMemo(
+    () => new Set(projectBlocks.map(b => b.placeKey)),
+    [projectBlocks],
+  );
+
+
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
     t => !t.approved && (t.autoDetected || t.source === 'gap_derived'),
