@@ -1,5 +1,35 @@
 import { supabase } from "@/integrations/supabase/client";
 import { subDays, addDays, format, eachDayOfInterval, parseISO } from "date-fns";
+import { syncActivityToCalendar } from "@/services/activityCalendarSyncService";
+
+// Fält som påverkar speglingen i personalkalendern.
+// När någon av dessa ändras OCH aktiviteten redan är publicerad
+// (calendar_event_id != null) ska calendar_events-raden automatiskt
+// uppdateras så att personalkalendern aldrig blir stale.
+const CALENDAR_MIRROR_FIELDS = new Set([
+  'title',
+  'start_date',
+  'end_date',
+  'start_time',
+  'end_time',
+  'category',
+  'task_type',
+]);
+
+const reSyncIfPublished = async (taskId: string) => {
+  try {
+    const { data } = await supabase
+      .from('establishment_tasks')
+      .select('calendar_event_id')
+      .eq('id', taskId)
+      .maybeSingle();
+    if (data?.calendar_event_id) {
+      await syncActivityToCalendar(taskId);
+    }
+  } catch (err) {
+    console.error('[establishmentTaskService] re-sync to calendar failed:', err);
+  }
+};
 
 export type TaskStatus = 'todo' | 'in_progress' | 'blocked' | 'done';
 export type TaskReadiness = 'ready' | 'missing_information' | 'waiting_for_decision' | 'waiting_for_external';
@@ -242,7 +272,7 @@ export const createEstablishmentTask = async (task: {
 
 export const updateEstablishmentTask = async (
   id: string,
-  updates: Partial<Pick<EstablishmentTask, 'title' | 'category' | 'start_date' | 'end_date' | 'completed' | 'sort_order' | 'notes' | 'assigned_to' | 'assigned_to_ids' | 'status' | 'readiness' | 'priority' | 'description' | 'blockers' | 'blocker_responsible' | 'decision_needed' | 'task_type' | 'assigned_user_id' | 'due_date' | 'start_date_ts' | 'linked_entity_type' | 'linked_entity_id'>> & { visible_in_time_app?: boolean; visible_in_project_calendar?: boolean }
+  updates: Partial<Pick<EstablishmentTask, 'title' | 'category' | 'start_date' | 'end_date' | 'completed' | 'sort_order' | 'notes' | 'assigned_to' | 'assigned_to_ids' | 'status' | 'readiness' | 'priority' | 'description' | 'blockers' | 'blocker_responsible' | 'decision_needed' | 'task_type' | 'assigned_user_id' | 'due_date' | 'start_date_ts' | 'linked_entity_type' | 'linked_entity_id'>> & { visible_in_time_app?: boolean; visible_in_project_calendar?: boolean; start_time?: string | null; end_time?: string | null }
 ): Promise<void> => {
   // Sync completed with status
   if (updates.status === 'done' && updates.completed === undefined) {
@@ -308,6 +338,15 @@ export const updateEstablishmentTask = async (
       ensureBookingStaffAssignments(taskData.booking_id, updates.assigned_to_ids, taskData.start_date, taskData.end_date);
     }
   }
+
+  // CALENDAR MIRROR: Re-sync calendar_events row if any mirror-relevant
+  // field changed AND the activity is currently published. Detail sheet calls
+  // this for every field-edit (date/time/title/...) so the personnel calendar
+  // never goes stale.
+  const touchesMirror = Object.keys(updates).some((k) => CALENDAR_MIRROR_FIELDS.has(k));
+  if (touchesMirror) {
+    await reSyncIfPublished(id);
+  }
 };
 
 export const bulkUpdateEstablishmentTasks = async (
@@ -345,6 +384,13 @@ export const bulkUpdateEstablishmentTasks = async (
     .update(updates)
     .in('id', ids);
   if (error) throw error;
+
+  // CALENDAR MIRROR: bulk date/time/status changes ska speglas till
+  // calendar_events för redan publicerade aktiviteter.
+  const touchesMirror = Object.keys(updates).some((k) => CALENDAR_MIRROR_FIELDS.has(k));
+  if (touchesMirror) {
+    await Promise.all(ids.map((id) => reSyncIfPublished(id)));
+  }
 };
 
 export const deleteEstablishmentTask = async (id: string): Promise<void> => {
