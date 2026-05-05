@@ -385,6 +385,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
       withGaps.push({
         kind: 'presence',
+        presenceKind: isProject ? 'project' : 'location',
         id: `pb:inferred:${cur.id}:${next.id}`,
         startIso: cur.endIso,
         endIso: next.startIso,
