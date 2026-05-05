@@ -94,7 +94,23 @@ interface StaffWithDayReport {
   pingsTruncated: boolean;
   /** Senaste GPS-fetchfel för dagen (om något), så UI kan varna istället för att tolka tomheten som "inga händelser". */
   pingsFetchError: string | null;
+  /**
+   * Planeringsstatus för dagen — beräknas mot personalkalenderns assignments
+   * (booking_staff_assignments + staff_assignments + large_project_staff)
+   * unionat med faktisk aktivitet (workday/time_reports/LTE/travel/GPS).
+   */
+  planningStatus: PlanningStatus;
+  /** Etiketter för planerade pass denna dag (för tooltip / sekundär rad). */
+  plannedLabels: string[];
 }
+
+export type PlanningStatus =
+  | 'planned_not_started'   // Planerad, ingen faktisk aktivitet
+  | 'missing_workday'        // Faktisk aktivitet finns men ingen workday
+  | 'unplanned_activity'     // Aktivitet finns men ingen planering
+  | 'workday_active'         // Pågående arbetsdag
+  | 'planned'                // Planerad + workday/aktivitet (normalt fall)
+  | 'completed';             // Workday avslutad
 
 /**
  * Hämta hela dagens staff_location_history för EN staff via paginering.
@@ -191,7 +207,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsStaffRes, lpsByDateForPlanRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -223,6 +239,24 @@ const StaffTimeReports: React.FC = () => {
           .from('workday_flags')
           .select('id, staff_id, flag_type, severity, title, description, created_at, resolved')
           .eq('flag_date', dateStr),
+        // ── Planerad personal (samma källor som personalkalendern använder) ──
+        supabase
+          .from('booking_staff_assignments')
+          .select('staff_id, booking_id, team_id, assignment_date')
+          .eq('assignment_date', dateStr),
+        supabase
+          .from('staff_assignments')
+          .select('staff_id, team_id, assignment_date')
+          .eq('assignment_date', dateStr),
+        supabase
+          .from('large_project_staff')
+          .select('staff_id, large_project_id'),
+        // Stora projekt vars datum-array innehåller selectedDate (start/event/end).
+        // Filtrering klientsidan eftersom kolumnerna är text[].
+        supabase
+          .from('large_projects')
+          .select('id, name, start_date, event_date, end_date, deleted_at')
+          .is('deleted_at', null),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
@@ -265,6 +299,43 @@ const StaffTimeReports: React.FC = () => {
       const pingsErrorByStaff = new Map<string, string>();
       const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
       const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
+
+      // ── Planerad personal: union av alla källor som personalkalendern
+      // använder. plannedStaffIds får INTE komma från calendar_events ensamt.
+      const bsaRows = ((bsaRes as any).error ? [] : (bsaRes as any).data || []) as any[];
+      const saRows = ((saRes as any).error ? [] : (saRes as any).data || []) as any[];
+      const lpsStaffRows = ((lpsStaffRes as any).error ? [] : (lpsStaffRes as any).data || []) as any[];
+      const lpsAllRows = ((lpsByDateForPlanRes as any).error ? [] : (lpsByDateForPlanRes as any).data || []) as any[];
+      // Stora projekt vars rig/event/rigDown täcker dateStr (text[]-kolumner).
+      const lpsActiveIds = new Set<string>(
+        lpsAllRows
+          .filter(p => {
+            const dates = [
+              ...((p.start_date as string[] | null) ?? []),
+              ...((p.event_date as string[] | null) ?? []),
+              ...((p.end_date as string[] | null) ?? []),
+            ];
+            return dates.includes(dateStr);
+          })
+          .map(p => p.id),
+      );
+      const plannedStaffIds = new Set<string>();
+      const plannedLabelsByStaff = new Map<string, Set<string>>();
+      const addPlanned = (sid: string, label: string) => {
+        if (!sid) return;
+        plannedStaffIds.add(sid);
+        const set = plannedLabelsByStaff.get(sid) ?? new Set<string>();
+        if (label) set.add(label);
+        plannedLabelsByStaff.set(sid, set);
+      };
+      for (const r of bsaRows) addPlanned(r.staff_id, r.team_id ? `Bokning · ${r.team_id}` : 'Bokning');
+      for (const r of saRows) addPlanned(r.staff_id, r.team_id ? `Team ${r.team_id}` : 'Team');
+      for (const r of lpsStaffRows) {
+        if (lpsActiveIds.has(r.large_project_id)) {
+          const lp = lpsAllRows.find(p => p.id === r.large_project_id);
+          addPlanned(r.staff_id, lp?.name ?? 'Stort projekt');
+        }
+      }
 
       // Resolve location -> internal booking (e.g. Lager) for project label.
       // Include location_id from BOTH location_time_entries AND time_reports so
@@ -796,6 +867,8 @@ const StaffTimeReports: React.FC = () => {
       const extraStaffIds = new Set<string>();
       for (const a of (assistantEvents as any[])) if (a.staff_id) extraStaffIds.add(a.staff_id);
       for (const f of (workdayFlags as any[])) if (f.staff_id) extraStaffIds.add(f.staff_id);
+      // Planerade personer ska alltid synas — även utan workday/GPS/rapport.
+      for (const id of plannedStaffIds) extraStaffIds.add(id);
       // Pings: hämta ALLA distinkta staff_id från staff_location_history
       // för dagen. .select('staff_id').limit(1000) returnerar 1000 RADER
       // (inte distinct), så en aktiv person kan fylla hela kvoten och
@@ -1210,10 +1283,37 @@ const StaffTimeReports: React.FC = () => {
             actualModel,
             pingsTruncated: pingsTruncatedByStaff.get(s.id) === true,
             pingsFetchError: pingsErrorByStaff.get(s.id) || null,
+            planningStatus: ((): PlanningStatus => {
+              const isPlanned = plannedStaffIds.has(s.id);
+              const hasWorkday = staffWorkdays.length > 0;
+              const workdayActive = staffWorkdays.some(w => !w.ended_at);
+              const hasActivity =
+                staffReports.length > 0 ||
+                staffLTEs.length > 0 ||
+                staffTravel.length > 0 ||
+                hasWorkday ||
+                staffPings.length > 0 ||
+                staffAssistantEvents.length > 0;
+              if (workdayActive) return 'workday_active';
+              if (isPlanned && !hasActivity) return 'planned_not_started';
+              if (!isPlanned && hasActivity) return 'unplanned_activity';
+              if (hasActivity && !hasWorkday) return 'missing_workday';
+              if (hasWorkday && !workdayActive) return 'completed';
+              return 'planned';
+            })(),
+            plannedLabels: [...(plannedLabelsByStaff.get(s.id) ?? [])],
           };
         })
         .sort((a, b) => {
-          if (a.has_open_report !== b.has_open_report) return a.has_open_report ? -1 : 1;
+          // Sortering: pågående arbetsdag → öppen rapport → övriga, sedan namn
+          const rank = (s: typeof a) =>
+            s.planningStatus === 'workday_active' ? 0 :
+            s.has_open_report ? 1 :
+            s.planningStatus === 'missing_workday' ? 2 :
+            s.planningStatus === 'unplanned_activity' ? 3 :
+            s.planningStatus === 'planned_not_started' ? 4 : 5;
+          const ra = rank(a); const rb = rank(b);
+          if (ra !== rb) return ra - rb;
           return a.name.localeCompare(b.name, 'sv');
         });
     },
