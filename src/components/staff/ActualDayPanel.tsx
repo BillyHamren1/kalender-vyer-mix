@@ -616,6 +616,31 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         </div>
       </div>
 
+      {showRepairBanner && (
+        <div className="px-4 py-3 border-b bg-blue-50/60 dark:bg-blue-950/20 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Sparkles className="h-4 w-4 text-blue-700 dark:text-blue-300 shrink-0" />
+          <div className="text-xs flex-1 min-w-[16rem]">
+            <div className="font-medium text-blue-900 dark:text-blue-100">
+              Stark arbetsindikator – skapa arbetsdag automatiskt
+            </div>
+            <div className="text-blue-900/80 dark:text-blue-100/80">
+              Föreslagen start <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedStartIso!)}</span>
+              {repairIndicators.proposedEndIso && (
+                <> · slut <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedEndIso)}</span></>
+              )}
+              {' · '}{repairIndicators.reasonCodes.join(', ')}
+            </div>
+          </div>
+          {onRepairWorkdayFromEvidence ? (
+            <Button size="sm" disabled={repairBusy} onClick={handleRepair}>
+              {repairBusy ? 'Skapar…' : 'Skapa arbetsdag'}
+            </Button>
+          ) : (
+            <Badge variant="outline" className="text-[10px]">Reparation föreslagen</Badge>
+          )}
+        </div>
+      )}
+
       {/* B. Faktiska händelser — alltid synlig */}
       <section className="px-4 py-3 border-b">
         <div className="flex items-center justify-between mb-2">
