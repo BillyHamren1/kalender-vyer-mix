@@ -78,6 +78,17 @@ export interface PresenceBlock {
     active: boolean;
     present: boolean;
   };
+  /** Tidrapport-fönster (om tidrapport finns). */
+  timeReport: {
+    startedIso: string | null;
+    closedIso: string | null;
+    present: boolean;
+  };
+  /** GPS arrival/departure-tider (för subtitle). */
+  arrivalIso: string | null;
+  departureIso: string | null;
+  /** Planerad starttid (om känd via planning). */
+  plannedStartIso: string | null;
   /** Bevisflaggor — vilka källor stödjer detta arbetsblock. */
   sources: {
     timeReport: boolean;
