@@ -1073,15 +1073,20 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const hasTimer = activeTimers.has(booking.id);
 
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
-          // AUTO-START på kända arbetsplatser — assigned-today-gaten borttagen 2026-05.
-          const assignedToday = isAssignedToday(booking);
-
+          // STABLE-ENTRY GATE — kräv stabil ankomst innan auto-start.
+          const entryEv = evaluateEntry(booking.id, dist);
+          if (entryEv.status !== 'stable') {
+            if (entryEv.status === 'insufficient' || entryEv.status === 'unstable') {
+              emitPossibleArrival({ kind: 'booking', targetId: booking.id, label: booking.client || null, ev: entryEv });
+            }
+            continue;
+          }
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          // (workday is ensured centrally by autoActionsRef.start →
-          // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
-          const arrivedAtIso = new Date().toISOString();
+          const firstTs = firstReliableArrivalTs(getEntryTracker(booking.id));
+          const arrivedAtIso = new Date(firstTs ?? Date.now()).toISOString();
+          resetEntryTracker(getEntryTracker(booking.id));
           mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
           noteEnterForDeparture(booking.id, 'booking', booking.id, booking.client || null);
