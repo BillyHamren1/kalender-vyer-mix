@@ -292,6 +292,9 @@ const EstablishmentTaskDetailSheet = ({
     queryClient.invalidateQueries({ queryKey: taskQueryKey });
     queryClient.invalidateQueries({ queryKey: analyticsQueryKey });
     queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task?.id] });
+    // Projektkalendern speglar establishment_tasks — håll den i synk
+    queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
+    queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
   };
 
   const handleFieldUpdate = async (updates: Parameters<typeof updateEstablishmentTask>[1]) => {
