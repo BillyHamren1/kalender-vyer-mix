@@ -269,12 +269,14 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
     }
   }
 
-  // Steg 2: korta okända stopp mellan två kända arbetsplatser → within_transition.
-  // Hittar mönster [main known A] [main raw_only kort okänd] [main known B].
+  // Steg 2a: korta okända stopp mellan två KÄNDA arbetsplatser → within_transition
+  // (de tillhör övergången, inte ett eget stopp).
   for (let i = 1; i < N - 1; i++) {
     const c = classified[i];
     if (c.visibility !== 'raw_only') continue;
-    if (c.reason_hidden !== 'micro_stop' && c.reason_hidden !== 'low_confidence') continue;
+    if (c.reason_hidden !== 'micro_stop'
+      && c.reason_hidden !== 'short_stop'
+      && c.reason_hidden !== 'low_confidence') continue;
     const prev = [...classified.slice(0, i)].reverse().find(x => x.visibility === 'main');
     const next = classified.slice(i + 1).find(x => x.visibility === 'main');
     const prevKnown = !!prev && (prev.event.internal_match_status === 'matched');
@@ -282,6 +284,65 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
     if (prevKnown && nextKnown) {
       c.reason_hidden = 'within_transition';
     }
+  }
+
+  // Steg 2b: short_stop-promotion. Ett 2–15 min stopp som ligger mellan två
+  // arbetsblock (main place-/travel-events) och INTE redan klassats som
+  // within_transition lyfts till main med label
+  // "Kort stopp · <plats> – kräver granskning". Det blir aldrig bekräftad
+  // arbetstid (workRelevance ändras inte) men syns i journalen så admin
+  // kan förstå dagen.
+  for (let i = 1; i < N - 1; i++) {
+    const c = classified[i];
+    if (c.visibility !== 'raw_only' || c.reason_hidden !== 'short_stop') continue;
+    const ev = c.event;
+    if (ev.kind !== 'gps_visit' && ev.kind !== 'gps_arrival') continue;
+    const prev = [...classified.slice(0, i)].reverse().find(x =>
+      x.visibility === 'main'
+      && (x.event.kind === 'gps_visit' || x.event.kind === 'gps_arrival' || x.event.kind === 'gps_travel'),
+    );
+    const next = classified.slice(i + 1).find(x =>
+      x.visibility === 'main'
+      && (x.event.kind === 'gps_visit' || x.event.kind === 'gps_arrival' || x.event.kind === 'gps_travel'),
+    );
+    if (!prev || !next) continue;
+    const baseLabel = ev.place ?? ev.label ?? 'okänd plats';
+    classified[i] = {
+      ...c,
+      visibility: 'main',
+      reason_hidden: null,
+      event: {
+        ...ev,
+        label: `Kort stopp · ${baseLabel} – kräver granskning`,
+        severity: ev.severity === 'critical' ? 'critical' : 'warning',
+        meta: {
+          ...(ev.meta ?? {}),
+          stopStrength: 'short_stop',
+          shortStopPromoted: true,
+          requires_review: true,
+        },
+      },
+    };
+  }
+
+  // Steg 2c: annotera stopStrength på alla main-place-events så UI kan
+  // visa "möjlig"/"stark" arbetsvistelse utan extra logik.
+  for (let i = 0; i < N; i++) {
+    const c = classified[i];
+    if (c.visibility !== 'main') continue;
+    const ev = c.event;
+    if (ev.kind !== 'gps_visit' && ev.kind !== 'gps_arrival') continue;
+    const meta = (ev.meta ?? {}) as Record<string, unknown>;
+    if (meta.stopStrength) continue;
+    const dur = ev.durationMin ?? 0;
+    const strength: 'strong_visit' | 'possible_visit' | 'short_stop' =
+      dur >= STRONG_VISIT_MIN ? 'strong_visit'
+      : dur >= MIN_VISIT_MIN ? 'possible_visit'
+      : 'short_stop';
+    classified[i] = {
+      ...c,
+      event: { ...ev, meta: { ...(ev.meta ?? {}), stopStrength: strength } },
+    };
   }
 
   // Steg 3: assistant-merge.
