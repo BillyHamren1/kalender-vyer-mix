@@ -36,7 +36,7 @@ import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { registerGeofenceAutoActions } from '@/hooks/useGeofencing';
 import type { ArrivalTarget } from '@/types/arrivalTarget';
 import { initLocationPingHandler } from '@/services/locationPingHandler';
-import { isArrivalTargetPlannedToday } from '@/lib/mobileBookingPlanning';
+import { isArrivalTargetPlannedToday, getEarliestPlannedStartToday } from '@/lib/mobileBookingPlanning';
 
 /**
  * MobileGlobalOverlays — single source of truth for ALL global mobile flows.
@@ -170,6 +170,14 @@ const MobileGlobalOverlays: React.FC = () => {
   const { staleTimers, dismissStale } = useTimerReconciliation(!!staff);
   const [staleDialogOpen, setStaleDialogOpen] = useState(false);
 
+  // Earliest planned start today + open-workday flag — drives the
+  // "late_after_planned_start" assistant prompt (Prompt 5).
+  const earliestPlannedStartToday = React.useMemo(
+    () => getEarliestPlannedStartToday(bookings),
+    [bookings],
+  );
+  const hasOpenWorkday = !!currentWorkday && !currentWorkday.ended_at;
+
   // Proactive workday assistant — silenced while another critical UI is up.
   const { decision: assistantDecision, acknowledge: ackAssistant } = useWorkDayAssistant({
     enabled: !!staff,
@@ -177,6 +185,8 @@ const MobileGlobalOverlays: React.FC = () => {
     activeTimers: activeTimersForAssistant,
     isTravelling: travelState.isMoving,
     isQuiet: arrivalDialogOpen || staleDialogOpen || !!completedTravel,
+    hasOpenWorkday,
+    earliestPlannedStartToday,
   });
 
   // End-day-on-arrival-home — quiet suggestion when a trip ends inside the
