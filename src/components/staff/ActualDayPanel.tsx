@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ReprocessDayPreviewDialog, type ReprocessChoice } from './ReprocessDayPreviewDialog';
 import { toast } from 'sonner';
 import { useReverseGeocodeRichStatus, type RichGeocode, type RichGeocodeStatus } from '@/hooks/useReverseGeocodeRich';
