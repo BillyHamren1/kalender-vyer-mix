@@ -1384,6 +1384,14 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   return {
     date: input.date,
     actualEvents: events,
+    planningItems: (input.plannedAssignments ?? []).map(pa => ({
+      id: `planning:${pa.id}`,
+      assignmentId: pa.id,
+      label: pa.label,
+      plannedStart: pa.plannedStart,
+      plannedEnd: pa.plannedEnd ?? null,
+      source: 'planning' as const,
+    })),
     actualVisits,
     reportState: {
       workday: input.workday,
