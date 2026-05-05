@@ -19,6 +19,8 @@ import { usePackingSync } from '@/hooks/scanner/usePackingSync';
 import { useScanFeedback } from '@/hooks/scanner/useScanFeedback';
 import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
+import { useScanTimeline } from '@/hooks/scanner/useScanTimeline';
+import { clearScanTimeline } from '@/hooks/scanner/scanTimeline';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
