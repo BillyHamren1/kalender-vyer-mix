@@ -40,6 +40,35 @@ export type GapReason =
 /** Diskriminator för huvudradtyp i UI: ProjectBlock / LocationBlock / UnknownBlock. */
 export type PresenceKind = 'project' | 'location' | 'unknown';
 
+/**
+ * Status för platsupplösning. Styr hur UI ska rendera label:
+ *  - matched_internal  → intern plats/projekt — använd label rakt av
+ *  - pending_geocode   → okänd plats med koordinater — visa "Slår upp adress…"
+ *                        tills reverse geocode lagts in
+ *  - unknown_no_coords → varken intern match eller koordinater
+ */
+export type PlaceLookupStatus = 'matched_internal' | 'pending_geocode' | 'unknown_no_coords';
+
+export interface ResolvedPlace {
+  label: string;
+  lat: number | null;
+  lng: number | null;
+  /** Google Maps-url från lat/lng om koordinater finns. */
+  mapUrl: string | null;
+  lookupStatus: PlaceLookupStatus;
+  /** Endast satt för okända platser. */
+  nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
+  unmatchReason?: string | null;
+}
+
+export interface JourneyEndpointPlace {
+  label: string;
+  lat: number | null;
+  lng: number | null;
+  mapUrl: string | null;
+  lookupStatus: PlaceLookupStatus;
+}
+
 export interface PresenceBlock {
   kind: 'presence';
   /** Huvudradtyp för UI-rendering. ProjectBlock har högre visuell vikt. */
@@ -98,6 +127,8 @@ export interface PresenceBlock {
   evidenceLabel: string | null;
   /** 'high' om TR + (timer eller gps), 'medium' annars. */
   confidence: 'high' | 'medium' | 'low';
+  /** Upplöst plats för rendering — UI ska föredra detta över `title`. */
+  resolvedPlace: ResolvedPlace;
 }
 
 export interface JourneyBlock {
@@ -115,6 +146,10 @@ export interface JourneyBlock {
   uncertain: boolean;
   sourceEventIds: string[];
   innerEvents: ActualEvent[];
+  /** Upplöst from-endpoint för rendering — UI ska föredra detta över `fromLabel`. */
+  fromPlace: JourneyEndpointPlace;
+  /** Upplöst to-endpoint för rendering — UI ska föredra detta över `toLabel`. */
+  toPlace: JourneyEndpointPlace;
 }
 
 export interface GapBlock {
@@ -150,8 +185,26 @@ export interface BuildBlockTimelineInput {
    * presence-block — får INTE filtreras via timelineVisibility innan.
    */
   actualVisits?: ActualVisit[];
-  /** Indexerad på placeKey för label/duration-konsistens. */
-  visitByKey: Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>;
+  /** Indexerad på placeKey för label/duration-konsistens + lat/lng för okända block och journey endpoints. */
+  visitByKey: Map<string, VisitInfo>;
+}
+
+/**
+ * Information om en GPS-vistelse, indexerad på placeKey.
+ * Speglar fälten från ActualVisit som blockmotorn behöver veta —
+ * inkl. centre/coords så att okända presenceBlocks och journey
+ * endpoints kan visa lat/lng och utvärdera närhet.
+ */
+export interface VisitInfo {
+  knownSiteId: string | null;
+  label: string;
+  durationMin: number;
+  end: string;
+  centre?: { lat: number; lng: number } | null;
+  nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
+  unmatchReason?: string | null;
+  pingCount?: number;
+  avgAccuracy?: number | null;
 }
 
 const META = (ev: ActualEvent): Record<string, unknown> => (ev.meta ?? {}) as Record<string, unknown>;
@@ -180,6 +233,72 @@ const isInnerTechnical = (ev: ActualEvent): boolean =>
   || ev.kind === 'assistant_other'
   || (ev.kind as string).startsWith('time_report')
   || (ev.kind as string).startsWith('server_');
+
+const mapUrlOf = (lat: number | null | undefined, lng: number | null | undefined): string | null =>
+  (lat != null && lng != null) ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+
+const PENDING_GEOCODE_LABEL = 'Slår upp adress…';
+
+/**
+ * Resolve a presence-block's place from a VisitInfo + presenceKind.
+ * - matched_internal → använd label rakt av (intern plats/projekt)
+ * - pending_geocode  → koordinater finns men ingen intern match → "Slår upp adress…"
+ * - unknown_no_coords → varken match eller koordinater
+ */
+const resolvePresencePlace = (
+  presenceKind: PresenceKind,
+  visit: VisitInfo | undefined,
+  fallbackLabel: string,
+): ResolvedPlace => {
+  const lat = visit?.centre?.lat ?? null;
+  const lng = visit?.centre?.lng ?? null;
+  const mapUrl = mapUrlOf(lat, lng);
+  if (presenceKind !== 'unknown' && (visit?.knownSiteId || fallbackLabel)) {
+    return {
+      label: visit?.label || fallbackLabel,
+      lat, lng, mapUrl,
+      lookupStatus: 'matched_internal',
+    };
+  }
+  if (lat != null && lng != null) {
+    return {
+      label: PENDING_GEOCODE_LABEL,
+      lat, lng, mapUrl,
+      lookupStatus: 'pending_geocode',
+      nearestKnownSite: visit?.nearestKnownSite ?? null,
+      unmatchReason: visit?.unmatchReason ?? null,
+    };
+  }
+  return {
+    label: fallbackLabel || 'Okänd plats',
+    lat: null, lng: null, mapUrl: null,
+    lookupStatus: 'unknown_no_coords',
+    nearestKnownSite: visit?.nearestKnownSite ?? null,
+    unmatchReason: visit?.unmatchReason ?? null,
+  };
+};
+
+const resolveJourneyEndpoint = (
+  placeKey: string | null,
+  fallbackLabel: string | null,
+  visitByKey: Map<string, VisitInfo>,
+): JourneyEndpointPlace => {
+  const visit = placeKey ? visitByKey.get(placeKey) : undefined;
+  const lat = visit?.centre?.lat ?? null;
+  const lng = visit?.centre?.lng ?? null;
+  const mapUrl = mapUrlOf(lat, lng);
+  const isInternal = !!visit?.knownSiteId
+    || !!(placeKey && (placeKey.startsWith('booking:') || placeKey.startsWith('large:')
+      || placeKey.startsWith('site:') || placeKey.startsWith('location:') || placeKey.startsWith('warehouse:')));
+  if (isInternal && (visit?.label || fallbackLabel)) {
+    return { label: visit?.label || fallbackLabel || 'Plats', lat, lng, mapUrl, lookupStatus: 'matched_internal' };
+  }
+  if (lat != null && lng != null) {
+    return { label: PENDING_GEOCODE_LABEL, lat, lng, mapUrl, lookupStatus: 'pending_geocode' };
+  }
+  return { label: fallbackLabel || 'Okänd plats', lat: null, lng: null, mapUrl: null, lookupStatus: 'unknown_no_coords' };
+};
+
 
 const strengthFromMeta = (ev: ActualEvent, fallbackMin: number): PresenceStrength => {
   const m = META(ev);
@@ -249,6 +368,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       sources: { timeReport: false, timer: false, gpsVisit: true, assistant: false },
       evidenceLabel: null,
       confidence: 'low',
+      resolvedPlace: resolvePresencePlace(presenceKind, v as unknown as VisitInfo, v.label),
     });
   }
 
@@ -298,6 +418,11 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sources: { timeReport: false, timer: false, gpsVisit: ev.kind === 'gps_visit' || ev.kind === 'gps_arrival', assistant: false },
         evidenceLabel: null,
         confidence: 'low',
+        resolvedPlace: resolvePresencePlace(
+          isProject ? 'project' : 'location',
+          visit,
+          visit?.label || ev.place || (typeof ev.label === 'string' ? ev.label : 'Plats'),
+        ),
       });
       consumedEventIds.add(ev.id);
     }
@@ -382,20 +507,26 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const stripped = labelStr.replace(/^(Förflyttning|Möjlig förflyttning[^:]*|Bakgrunds-GPS[^:]*):\s*/, '');
     const [from, to] = stripped.includes(' → ') ? stripped.split(' → ').map(s => s.trim()) : [null, null];
     const bothKnown = !!m.bothKnown;
+    const fromKeyResolved = fromKey ?? fromBlock.placeKey;
+    const toKeyResolved = toKey ?? toBlock.placeKey;
+    const fromLabelResolved = (m.from_label as string | undefined) ?? from ?? fromBlock.title ?? null;
+    const toLabelResolved = (m.to_label as string | undefined) ?? to ?? toBlock.title ?? null;
     blocks.push({
       kind: 'journey',
       id: `jb:${ev.id}`,
       startIso: ev.at,
       endIso: ev.until ?? ev.at,
       durationMin: durMin,
-      fromLabel: (m.from_label as string | undefined) ?? from ?? fromBlock.title ?? null,
-      toLabel: (m.to_label as string | undefined) ?? to ?? toBlock.title ?? null,
-      fromPlaceKey: fromKey ?? fromBlock.placeKey,
-      toPlaceKey: toKey ?? toBlock.placeKey,
+      fromLabel: fromLabelResolved,
+      toLabel: toLabelResolved,
+      fromPlaceKey: fromKeyResolved,
+      toPlaceKey: toKeyResolved,
       bothKnown,
       uncertain: !bothKnown,
       sourceEventIds: [ev.id],
       innerEvents: [],
+      fromPlace: resolveJourneyEndpoint(fromKeyResolved, fromLabelResolved, visitByKey),
+      toPlace: resolveJourneyEndpoint(toKeyResolved, toLabelResolved, visitByKey),
     });
     consumedEventIds.add(ev.id);
   }
@@ -516,6 +647,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       sources: { timeReport: true, timer: false, gpsVisit: false, assistant: false },
       evidenceLabel: null,
       confidence: 'medium',
+      resolvedPlace: { label, lat: null, lng: null, mapUrl: null, lookupStatus: 'matched_internal' },
     };
     blocks.push(synthetic);
   }
@@ -610,6 +742,11 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sources,
         evidenceLabel: null,
         confidence: hasHardEvidence ? 'medium' : 'low',
+        resolvedPlace: resolvePresencePlace(
+          isProject ? 'project' : isKnownSite ? 'location' : 'unknown',
+          visit,
+          expectedLabel,
+        ),
       });
       continue;
     }
