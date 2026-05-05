@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useCurrentOrg } from './useCurrentOrg';
 
 export interface UnplannedProjectRow {
   id: string;
@@ -15,24 +16,28 @@ export interface UnplannedProjectRow {
 
 /**
  * Hämtar alla projekt (medel + stora) som väntar på planering
- * (planning_status = 'needs_planning'). Innan användaren sätter
- * tider/team finns inga calendar_events för dem.
+ * (planning_status = 'needs_planning'). Filtrerat på aktiv organization_id.
  */
 export function useUnplannedProjects() {
   const qc = useQueryClient();
+  const { organizationId } = useCurrentOrg();
 
   const query = useQuery({
-    queryKey: ['unplanned-projects'],
+    queryKey: ['unplanned-projects', organizationId],
+    enabled: !!organizationId,
     queryFn: async (): Promise<UnplannedProjectRow[]> => {
+      const orgId = organizationId!;
       const [mediumRes, largeRes] = await Promise.all([
         supabase
           .from('projects')
           .select('id, name, booking_id, created_at')
+          .eq('organization_id', orgId)
           .eq('planning_status', 'needs_planning')
           .order('created_at', { ascending: false }),
         supabase
           .from('large_projects')
           .select('id, name, created_at')
+          .eq('organization_id', orgId)
           .eq('planning_status', 'needs_planning')
           .order('created_at', { ascending: false }),
       ]);
@@ -40,24 +45,24 @@ export function useUnplannedProjects() {
       const mediumRows = mediumRes.data || [];
       const largeRows = largeRes.data || [];
 
-      // Hämta booking-data för medel-projekten
       const bookingIds = mediumRows.map(r => r.booking_id).filter(Boolean) as string[];
       let bookingsById = new Map<string, any>();
       if (bookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
           .select('id, client, booking_number, eventdate, deliveryaddress')
+          .eq('organization_id', orgId)
           .in('id', bookingIds);
         bookingsById = new Map((bookings || []).map(b => [b.id, b]));
       }
 
-      // Hämta första bokningen per stort projekt för meta-data
       let largeBookingsByLpId = new Map<string, any>();
       if (largeRows.length > 0) {
         const lpIds = largeRows.map(r => r.id);
         const { data: lpBookings } = await supabase
           .from('bookings')
           .select('large_project_id, client, booking_number, eventdate, deliveryaddress')
+          .eq('organization_id', orgId)
           .in('large_project_id', lpIds)
           .order('eventdate', { ascending: true });
         for (const b of lpBookings || []) {
@@ -102,21 +107,21 @@ export function useUnplannedProjects() {
     placeholderData: [],
   });
 
-  // Realtime — uppdatera så fort planning_status ändras eller nya projekt skapas
   useEffect(() => {
+    if (!organizationId) return;
     const channel = supabase
       .channel('unplanned-projects-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-        qc.invalidateQueries({ queryKey: ['unplanned-projects'] });
+        qc.invalidateQueries({ queryKey: ['unplanned-projects', organizationId] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'large_projects' }, () => {
-        qc.invalidateQueries({ queryKey: ['unplanned-projects'] });
+        qc.invalidateQueries({ queryKey: ['unplanned-projects', organizationId] });
       })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [qc]);
+  }, [qc, organizationId]);
 
   return query;
 }

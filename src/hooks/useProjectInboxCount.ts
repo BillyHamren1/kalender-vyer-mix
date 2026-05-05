@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect } from 'react';
+import { useCurrentOrg } from './useCurrentOrg';
 
 /**
  * Canonical query for "new bookings awaiting project assignment".
@@ -9,17 +10,15 @@ import { useEffect } from 'react';
  * - not assigned to any project (assigned_to_project IS NOT TRUE)
  * - not linked to a large project (large_project_id IS NULL)
  * - at least one future date (eventdate, rigdaydate, or rigdowndate >= today)
+ * - filtered by current organization_id (multi-tenant)
  */
-async function fetchProjectInboxCount(): Promise<number> {
-  const today = new Date().toISOString().slice(0, 10); // yyyy-MM-dd
+async function fetchProjectInboxCount(orgId: string): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
 
-  // We need to count bookings matching all criteria.
-  // Supabase doesn't support OR across columns in .or() with date comparisons easily,
-  // so we use a raw count query via rpc or a workaround.
-  // Simplest: fetch IDs with filters and count client-side.
   const { data, error } = await supabase
     .from('bookings')
     .select('id, eventdate, rigdaydate, rigdowndate')
+    .eq('organization_id', orgId)
     .eq('status', 'CONFIRMED')
     .is('large_project_id', null)
     .or('assigned_to_project.is.null,assigned_to_project.eq.false');
@@ -29,7 +28,6 @@ async function fetchProjectInboxCount(): Promise<number> {
     return 0;
   }
 
-  // Filter: at least one relevant date is today or in the future
   return (data ?? []).filter(b => {
     const dates = [b.eventdate, b.rigdaydate, b.rigdowndate].filter(Boolean);
     if (dates.length === 0) return false;
@@ -39,16 +37,20 @@ async function fetchProjectInboxCount(): Promise<number> {
 
 /**
  * Hook that returns the project inbox count with realtime updates.
- * Use this everywhere you need the "new bookings" badge count.
+ * Returns 0 when no organization is active.
  */
 export function useProjectInboxCount(): number {
+  const { organizationId } = useCurrentOrg();
+
   const { data: count = 0, refetch } = useQuery({
-    queryKey: ['project-inbox-count'],
-    queryFn: fetchProjectInboxCount,
+    queryKey: ['project-inbox-count', organizationId],
+    queryFn: () => fetchProjectInboxCount(organizationId!),
+    enabled: !!organizationId,
     staleTime: 30000,
   });
 
   useEffect(() => {
+    if (!organizationId) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const schedule = () => {
       if (timer) return;
@@ -56,9 +58,7 @@ export function useProjectInboxCount(): number {
     };
     const channel = supabase
       .channel('project-inbox-badge')
-      // INSERT: brand new booking → may belong in inbox
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, schedule)
-      // UPDATE: status / assignment / dates change can move bookings in or out of the inbox
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, schedule)
       .subscribe();
 
@@ -66,7 +66,7 @@ export function useProjectInboxCount(): number {
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
     };
-  }, [refetch]);
+  }, [refetch, organizationId]);
 
-  return count;
+  return organizationId ? count : 0;
 }
