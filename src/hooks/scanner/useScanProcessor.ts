@@ -164,7 +164,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           return;
         }
 
+        recordApiStart(scannedValue);
         await decrementPackingItem(matchingItem.id, verifierName);
+        recordApiEnd(scannedValue, 'success', matchingItem.booking_products?.name);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
         onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
