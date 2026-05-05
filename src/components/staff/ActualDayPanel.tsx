@@ -180,6 +180,9 @@ const sourceTagFor = (ev: ActualEvent): string => {
       return 'GPS';
     case 'anomaly':
       return 'flag';
+    case 'planned_start':
+    case 'planned_signal_gap':
+      return 'planering';
     default:
       return '—';
   }
