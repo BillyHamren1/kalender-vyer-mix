@@ -25,7 +25,10 @@ import type {
   ActualEventKind,
   ActualEventSeverity,
   ActualStaffDayModel,
+  JourneyPlace,
+  PlaceLookupStatus,
   ProposedAnomaly,
+  ResolvedPlace,
 } from '@/lib/staff/actualStaffDayModel';
 import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStopConfident } from '@/lib/staff/stopSourceClassifier';
 import { computeStrongWorkIndicators, type StrongWorkReasonCode } from '@/lib/staff/strongWorkIndicators';
@@ -475,6 +478,76 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     return set;
   }, [model.actualVisits]);
 
+  // Bygg ResolvedPlace för en koordinat ur lookup + ev. matchad känd plats.
+  const buildResolvedPlace = (
+    coord: { lat: number; lng: number } | null | undefined,
+    opts: {
+      isMatched: boolean;
+      knownLabel?: string | null;
+    },
+  ): ResolvedPlace | null => {
+    if (!coord && !opts.isMatched) return null;
+    const lookup = coord ? lookupCoord(coord) : null;
+    const lat = coord?.lat ?? null;
+    const lng = coord?.lng ?? null;
+    const mapUrl = lookup?.geo?.mapsUrl
+      ?? (lat != null && lng != null
+        ? `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`
+        : null);
+
+    if (opts.isMatched) {
+      return {
+        label: opts.knownLabel ?? 'Känd plats',
+        address: null,
+        city: null,
+        poiName: null,
+        poiCategory: null,
+        lat, lng, mapUrl,
+        lookupStatus: 'matched_internal',
+        confidence: 'high',
+      };
+    }
+    if (!lookup) {
+      return {
+        label: 'Okänd plats – adress saknas',
+        address: null, city: null, poiName: null, poiCategory: null,
+        lat, lng, mapUrl,
+        lookupStatus: 'failed',
+        confidence: 'low',
+      };
+    }
+    if (lookup.status === 'loading') {
+      return {
+        label: 'Slår upp adress…',
+        address: null, city: null, poiName: null, poiCategory: null,
+        lat, lng, mapUrl,
+        lookupStatus: 'pending',
+        confidence: 'low',
+      };
+    }
+    if (lookup.status === 'error' || !lookup.geo) {
+      return {
+        label: 'Okänd plats – adress saknas',
+        address: null, city: null, poiName: null, poiCategory: null,
+        lat, lng, mapUrl,
+        lookupStatus: 'failed',
+        confidence: 'low',
+      };
+    }
+    const g = lookup.geo;
+    const status: PlaceLookupStatus = g.poiName ? 'poi_lookup' : 'reverse_geocoded';
+    return {
+      label: g.label,
+      address: g.address,
+      city: g.city,
+      poiName: g.poiName,
+      poiCategory: g.poiCategory,
+      lat, lng, mapUrl,
+      lookupStatus: status,
+      confidence: 'medium',
+    };
+  };
+
   // Substituera "okänd plats" med uppslagen adress/POI och addera försiktig
   // tolkning (inferred_label / inferred_activity_type / confidence).
   const events: ActualEvent[] = useMemo(() => {
@@ -549,6 +622,16 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               ? 'unmatched_outside_radius'
               : (visit ? 'unmatched_no_nearest' : (ev.internal_match_status ?? 'unmatched_no_sites')));
 
+        const coordCentre = (m?.centre as { lat: number; lng: number } | undefined) ?? null;
+        const mapsUrl = !isMatched && coordCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${coordCentre.lat.toFixed(6)},${coordCentre.lng.toFixed(6)}`
+          : null;
+
+        const resolvedPlace = buildResolvedPlace(coordCentre ?? null, {
+          isMatched,
+          knownLabel: isMatched ? (visit?.label ?? placeLabel) : placeLabel,
+        });
+
         return {
           ...ev,
           label,
@@ -564,19 +647,48 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           resolved_poi: isMatched ? (visit?.label ?? placeLabel) : (lookup?.geo?.poiName ?? null),
           match_confidence: matchConfidence,
           internal_match_status: internalMatchStatus as any,
-        };
+          maps_url: mapsUrl,
+          coords: coordCentre,
+          resolvedPlace,
+        } as any;
       }
       if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
         const fromKnown = !m?.fromCentre;
         const toKnown = !m?.toCentre;
-        if (fromKnown && toKnown) return ev;
         const fromLbl = fromKnown
           ? ev.label.replace(/^Förflyttning:\s*/, '').split(' → ')[0]
           : (lookupCoord(m?.fromCentre)?.label ?? 'okänd plats');
         const toLbl = toKnown
           ? (ev.label.split(' → ')[1] ?? '')
           : (lookupCoord(m?.toCentre)?.label ?? 'okänd plats');
-        return { ...ev, label: `Förflyttning: ${fromLbl} → ${toLbl}` };
+        const fromMaps = !fromKnown && m?.fromCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${m.fromCentre.lat.toFixed(6)},${m.fromCentre.lng.toFixed(6)}`
+          : null;
+        const toMaps = !toKnown && m?.toCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${m.toCentre.lat.toFixed(6)},${m.toCentre.lng.toFixed(6)}`
+          : null;
+
+        const fromPlace: JourneyPlace = {
+          label: (m?.from_label as string | undefined) ?? fromLbl ?? '—',
+          mapUrl: fromMaps,
+          lat: m?.fromCentre?.lat ?? null,
+          lng: m?.fromCentre?.lng ?? null,
+        };
+        const toPlace: JourneyPlace = {
+          label: (m?.to_label as string | undefined) ?? toLbl ?? '—',
+          mapUrl: toMaps,
+          lat: m?.toCentre?.lat ?? null,
+          lng: m?.toCentre?.lng ?? null,
+        };
+
+        return {
+          ...ev,
+          label: `Förflyttning: ${fromLbl} → ${toLbl}`,
+          from_maps_url: fromMaps,
+          to_maps_url: toMaps,
+          fromPlace,
+          toPlace,
+        } as any;
       }
       return ev;
     });
@@ -742,18 +854,21 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         ? 'text-amber-600'
                         : 'text-muted-foreground';
 
-              // Journey-rad: tydlig tvådelad "Från / Till"-uppställning
+              // Journey-rad: tydlig tvådelad "Från / Till"-uppställning.
+              // Prio: ev.fromPlace/toPlace (strukturerat) > journey_block-meta > parsed label.
+              const evAny = ev as any;
+              const fromPlaceObj: JourneyPlace | null = evAny.fromPlace ?? null;
+              const toPlaceObj: JourneyPlace | null = evAny.toPlace ?? null;
               const jbMeta = (ev.meta as any)?.journey_block === true ? (ev.meta as any) : null;
               const isJourneyRow =
-                !!jbMeta
+                !!fromPlaceObj || !!toPlaceObj
+                || !!jbMeta
                 || (ev.kind === 'gps_travel' && typeof ev.label === 'string' && ev.label.includes('→'));
-              let journeyFrom: string | null = null;
-              let journeyTo: string | null = null;
+              let journeyFrom: string | null = fromPlaceObj?.label ?? null;
+              let journeyTo: string | null = toPlaceObj?.label ?? null;
               if (isJourneyRow) {
-                if (jbMeta) {
-                  journeyFrom = (jbMeta.from_label as string | null) ?? null;
-                  journeyTo = (jbMeta.to_label as string | null) ?? null;
-                }
+                if (!journeyFrom && jbMeta) journeyFrom = (jbMeta.from_label as string | null) ?? null;
+                if (!journeyTo && jbMeta) journeyTo = (jbMeta.to_label as string | null) ?? null;
                 if ((!journeyFrom || !journeyTo) && typeof ev.label === 'string' && ev.label.includes('→')) {
                   const stripped = ev.label.replace(/^Förflyttning:\s*/, '');
                   const [a, b] = stripped.split(' → ');
@@ -762,8 +877,38 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                 }
               }
 
-              // Default-label för icke-journey-rader
-              const displayLabel: React.ReactNode = ev.label;
+              // Default-label för icke-journey-rader — föredra resolvedPlace.label.
+              const resolvedPlace: ResolvedPlace | null = evAny.resolvedPlace ?? null;
+              const displayLabel: React.ReactNode =
+                resolvedPlace && (ev.kind === 'gps_arrival' || ev.kind === 'gps_visit' || ev.kind === 'gps_departure')
+                  ? ev.label // ev.label är redan byggd från resolvedPlace.label i events-mappen
+                  : ev.label;
+
+              // Klickbar kartlänk för externa/okända platser.
+              const ownMapsUrl: string | null =
+                resolvedPlace?.mapUrl ?? evAny.maps_url ?? null;
+              const fromMapsUrl: string | null =
+                fromPlaceObj?.mapUrl ?? evAny.from_maps_url ?? jbMeta?.from_maps_url ?? null;
+              const toMapsUrl: string | null =
+                toPlaceObj?.mapUrl ?? evAny.to_maps_url ?? jbMeta?.to_maps_url ?? null;
+              const ownCoords =
+                (resolvedPlace && resolvedPlace.lat != null && resolvedPlace.lng != null
+                  ? { lat: resolvedPlace.lat, lng: resolvedPlace.lng }
+                  : (evAny.coords as { lat: number; lng: number } | null) ?? null);
+              const coordsTooltip = ownCoords ? `${ownCoords.lat.toFixed(5)}, ${ownCoords.lng.toFixed(5)}` : undefined;
+
+              const MapsLink = ({ url, label, title }: { url: string; label: React.ReactNode; title?: string }) => (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={title ?? 'Öppna i Google Maps'}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  {label}
+                </a>
+              );
 
               return (
                 <React.Fragment key={ev.id}>
@@ -781,15 +926,23 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         <div className="font-medium text-foreground">Förflyttning</div>
                         <div className="text-[11px] truncate">
                           <span className="text-muted-foreground">Från: </span>
-                          <span className="text-foreground">{journeyFrom ?? '—'}</span>
+                          {fromMapsUrl
+                            ? <MapsLink url={fromMapsUrl} label={journeyFrom ?? '—'} />
+                            : <span className="text-foreground">{journeyFrom ?? '—'}</span>}
                         </div>
                         <div className="text-[11px] truncate">
                           <span className="text-muted-foreground">Till: </span>
-                          <span className="text-foreground">{journeyTo ?? '—'}</span>
+                          {toMapsUrl
+                            ? <MapsLink url={toMapsUrl} label={journeyTo ?? '—'} />
+                            : <span className="text-foreground">{journeyTo ?? '—'}</span>}
                         </div>
                       </div>
+                    ) : ownMapsUrl ? (
+                      <span className="truncate pt-0.5" title={coordsTooltip}>
+                        <MapsLink url={ownMapsUrl} label={displayLabel} title={coordsTooltip ?? 'Öppna i Google Maps'} />
+                      </span>
                     ) : (
-                      <span className="text-foreground truncate pt-0.5">{displayLabel}</span>
+                      <span className="text-foreground truncate pt-0.5" title={coordsTooltip}>{displayLabel}</span>
                     )}
                     {statusIsAction ? (
                       <Badge variant="outline" className={`text-[10px] py-0 px-1.5 mt-0.5 ${statusTone}`}>

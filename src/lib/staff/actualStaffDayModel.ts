@@ -250,6 +250,45 @@ export interface ActualEvent {
   match_confidence?: 'low' | 'medium' | 'high' | null;
   /** Intern matchstatus mot org_locations/bookings/large_projects. */
   internal_match_status?: InternalMatchStatus | null;
+  /**
+   * Strukturerat platsobjekt — alltid ifyllt för GPS-events i UI-lagret så
+   * att rendering aldrig behöver bygga "Plats vid lat,lng" själv.
+   * Sätts av ActualDayPanel efter reverse-geocode/known-site-matchning.
+   */
+  resolvedPlace?: ResolvedPlace | null;
+  /** För journey/förflyttnings-events. */
+  fromPlace?: JourneyPlace | null;
+  toPlace?: JourneyPlace | null;
+}
+
+/** Status för platsuppslaget — driver UI-badges och fallback-text. */
+export type PlaceLookupStatus =
+  | 'matched_internal'   // org_location / booking / large_project
+  | 'reverse_geocoded'   // Mapbox gatuadress
+  | 'poi_lookup'         // Mapbox POI-träff
+  | 'failed'             // uppslag försökte men gav inget
+  | 'pending';           // uppslag pågår
+
+export interface ResolvedPlace {
+  /** Mänsklig label, alltid satt (inkl. fallback "Okänd plats – adress saknas"). */
+  label: string;
+  address: string | null;
+  city: string | null;
+  poiName: string | null;
+  poiCategory: string | null;
+  lat: number | null;
+  lng: number | null;
+  /** Google Maps-länk om koordinater finns, annars null. */
+  mapUrl: string | null;
+  lookupStatus: PlaceLookupStatus;
+  confidence: 'low' | 'medium' | 'high';
+}
+
+export interface JourneyPlace {
+  label: string;
+  mapUrl: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface NearestKnownSiteDebug {

@@ -25,6 +25,8 @@ export interface RichGeocode {
   label: string;
   /** Närmaste adress, om sådan finns. */
   address: string | null;
+  /** Ort/stad som extraherats från geocode-context. */
+  city: string | null;
   /** Punktintresse (POI) i närheten — företag, butik, station etc. */
   poiName: string | null;
   /** Mapbox category-tag(s), t.ex. "fuel", "fast_food", "restaurant". */
@@ -49,6 +51,7 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
   const fallback: RichGeocode = {
     label: UNRESOLVED_LABEL,
     address: null,
+    city: null,
     poiName: null,
     poiCategory: null,
     mapsUrl: mapsLink(lat, lng),
@@ -96,6 +99,7 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
     return {
       label,
       address: addressLine,
+      city: place,
       poiName,
       poiCategory,
       mapsUrl: mapsLink(lat, lng),
