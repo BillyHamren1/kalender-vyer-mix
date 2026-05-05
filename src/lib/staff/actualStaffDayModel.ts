@@ -35,6 +35,8 @@ export interface ActualWorkdayInput {
   id: string;
   started_at: string;
   ended_at: string | null;
+  started_by?: string | null;
+  metadata?: Record<string, any> | null;
 }
 
 export interface ActualTimeReportInput {
