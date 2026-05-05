@@ -967,6 +967,158 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     </Button>
                   )}
                 </div>
+
+                {/* Inline admin-actions for "planned_time_without_signal".
+                    Markerar tydligt att tiden 08:00–13:10 kommer från
+                    PLANERING/BEKRÄFTELSE, inte från GPS-bevis. */}
+                {a.action?.kind === 'planned_time_without_signal' && onResolvePlannedGap && (
+                  <div className="mt-2 rounded border border-amber-400/50 bg-amber-100/60 dark:bg-amber-950/40 p-2 space-y-2">
+                    <div className="text-[11px] text-amber-900 dark:text-amber-200 font-medium inline-flex items-center gap-1">
+                      <WifiOff className="h-3 w-3" />
+                      Bekräftelse krävs — perioden {fmtHm(a.action.plannedStartIso)}
+                      {a.action.firstSignalIso ? `–${fmtHm(a.action.firstSignalIso)}` : ''} saknar GPS-bevis.
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={plannedGapBusy === a.id}
+                        className="h-7 text-[11px]"
+                        onClick={async () => {
+                          if (!a.action) return;
+                          setPlannedGapBusy(a.id);
+                          try {
+                            await onResolvePlannedGap({
+                              anomalyId: a.id,
+                              mode: 'planned',
+                              plannedStartIso: a.action.plannedStartIso,
+                              firstSignalIso: a.action.firstSignalIso,
+                              assignmentId: a.action.assignmentId,
+                              noSignalGapMinutes: a.action.noSignalGapMinutes,
+                              label: a.action.label,
+                            });
+                            toast.success(`Arbetsdag skapad från planerad start ${fmtHm(a.action.plannedStartIso)} (källa: planering)`);
+                          } catch (err: any) {
+                            toast.error(err?.message || 'Kunde inte skapa arbetsdag');
+                          } finally {
+                            setPlannedGapBusy(null);
+                          }
+                        }}
+                      >
+                        Skapa arbetsdag från planerad start ({fmtHm(a.action.plannedStartIso)})
+                      </Button>
+                      {a.action.firstSignalIso && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={plannedGapBusy === a.id}
+                          className="h-7 text-[11px]"
+                          onClick={async () => {
+                            if (!a.action || !a.action.firstSignalIso) return;
+                            setPlannedGapBusy(a.id);
+                            try {
+                              await onResolvePlannedGap({
+                                anomalyId: a.id,
+                                mode: 'first_signal',
+                                plannedStartIso: a.action.plannedStartIso,
+                                firstSignalIso: a.action.firstSignalIso,
+                                assignmentId: a.action.assignmentId,
+                                noSignalGapMinutes: a.action.noSignalGapMinutes,
+                                label: a.action.label,
+                              });
+                              toast.success(`Arbetsdag startad från första GPS ${fmtHm(a.action.firstSignalIso)}`);
+                            } catch (err: any) {
+                              toast.error(err?.message || 'Kunde inte skapa arbetsdag');
+                            } finally {
+                              setPlannedGapBusy(null);
+                            }
+                          }}
+                        >
+                          Skapa från första GPS ({fmtHm(a.action.firstSignalIso)})
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={plannedGapBusy === a.id}
+                        className="h-7 text-[11px]"
+                        onClick={async () => {
+                          if (!a.action) return;
+                          if (!confirm(`Markera ${date} som frånvaro för ${staffName}?`)) return;
+                          setPlannedGapBusy(a.id);
+                          try {
+                            await onResolvePlannedGap({
+                              anomalyId: a.id,
+                              mode: 'absence',
+                              plannedStartIso: a.action.plannedStartIso,
+                              firstSignalIso: a.action.firstSignalIso,
+                              assignmentId: a.action.assignmentId,
+                              noSignalGapMinutes: a.action.noSignalGapMinutes,
+                              label: a.action.label,
+                            });
+                            toast.success('Markerad som frånvaro');
+                          } catch (err: any) {
+                            toast.error(err?.message || 'Kunde inte markera frånvaro');
+                          } finally {
+                            setPlannedGapBusy(null);
+                          }
+                        }}
+                      >
+                        Markera frånvaro
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground">Annan starttid:</span>
+                      <input
+                        type="time"
+                        className="h-7 rounded border bg-background px-2 text-[11px]"
+                        value={customTimeByAnomaly[a.id] ?? a.action.plannedStartIso.slice(11, 16)}
+                        onChange={(e) =>
+                          setCustomTimeByAnomaly(prev => ({ ...prev, [a.id]: e.target.value }))
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={plannedGapBusy === a.id}
+                        className="h-7 text-[11px]"
+                        onClick={async () => {
+                          if (!a.action) return;
+                          const hhmm = customTimeByAnomaly[a.id] ?? a.action.plannedStartIso.slice(11, 16);
+                          const [hh, mm] = hhmm.split(':').map(v => parseInt(v, 10));
+                          if (!Number.isFinite(hh) || !Number.isFinite(mm)) {
+                            toast.error('Ogiltig tid');
+                            return;
+                          }
+                          // Bygg ISO i samma datum som planerad start (lokal).
+                          const base = new Date(a.action.plannedStartIso);
+                          base.setHours(hh, mm, 0, 0);
+                          const customIso = base.toISOString();
+                          setPlannedGapBusy(a.id);
+                          try {
+                            await onResolvePlannedGap({
+                              anomalyId: a.id,
+                              mode: 'custom',
+                              plannedStartIso: a.action.plannedStartIso,
+                              firstSignalIso: a.action.firstSignalIso,
+                              customStartIso: customIso,
+                              assignmentId: a.action.assignmentId,
+                              noSignalGapMinutes: a.action.noSignalGapMinutes,
+                              label: a.action.label,
+                            });
+                            toast.success(`Arbetsdag skapad från ${hhmm} (källa: admin-bekräftelse)`);
+                          } catch (err: any) {
+                            toast.error(err?.message || 'Kunde inte skapa arbetsdag');
+                          } finally {
+                            setPlannedGapBusy(null);
+                          }
+                        }}
+                      >
+                        Använd
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
