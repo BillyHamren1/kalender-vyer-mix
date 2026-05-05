@@ -600,7 +600,7 @@ const MobileOverview: React.FC = () => {
             <>
               <DialogHeader>
                 <DialogTitle>{detail.name}</DialogTitle>
-                <DialogDescription>{t('overview.detail.largeProject') ?? 'Stort projekt'}</DialogDescription>
+                <DialogDescription>{'Stort projekt'}</DialogDescription>
               </DialogHeader>
               <div className="space-y-2 text-sm">
                 {detail.date && <div><span className="text-muted-foreground">Datum:</span> {detail.date}</div>}
@@ -623,7 +623,7 @@ const MobileOverview: React.FC = () => {
               <>
                 <DialogHeader>
                   <DialogTitle>{s.name || '—'}</DialogTitle>
-                  <DialogDescription>{t('overview.detail.staff') ?? 'Personöversikt'}</DialogDescription>
+                  <DialogDescription>{'Personöversikt'}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
