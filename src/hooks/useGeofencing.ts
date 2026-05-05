@@ -1232,7 +1232,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           arrivalTimestamp: Date.now(),
         });
         if (startFn) {
-          void startFn({ kind: 'location', targetId: loc.id, label: loc.name, arrivedAtIso })
+          void startFn({ kind: 'location', targetId: loc.id, label: loc.name, arrivedAtIso, isPlannedToday: true })
             .then((res) => {
               if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
             })
