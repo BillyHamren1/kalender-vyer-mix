@@ -422,6 +422,13 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   };
 
   for (const e of input.locationEntries) {
+    const meta = (e.metadata && typeof e.metadata === 'object') ? e.metadata : null;
+    const autoStartedSrv = !!meta?.auto_started && (
+      meta?.auto_start_source === 'server_background_gps' ||
+      meta?.auto_start_source === 'server_background_gps_backfill' ||
+      e.source === 'auto_geofence_server' ||
+      e.source === 'auto_geofence_server_backfill'
+    );
     events.push({
       id: `lte-start:${e.id}`,
       at: e.entered_at,
@@ -431,7 +438,19 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         ? `Närvaro registrerad: ${e.label}`
         : `Timer startad: ${e.label}`,
       place: e.label,
-      meta: { presence: e.isPresenceOnly, source: e.source ?? null },
+      meta: {
+        presence: e.isPresenceOnly,
+        source: e.source ?? null,
+        autoStarted: autoStartedSrv || meta?.auto_started === true,
+        autoStartSource: meta?.auto_start_source ?? null,
+        confidence: meta?.confidence ?? null,
+        pingCount: meta?.arrival_pings_count ?? null,
+        firstPingAt: meta?.ping_range?.first ?? meta?.first_arrival_ping_at ?? null,
+        lastPingAt: meta?.ping_range?.last ?? null,
+        avgAccuracyM: meta?.avg_accuracy_m ?? null,
+        radiusM: meta?.radius_m ?? null,
+        targetMatch: meta?.matched_target ?? null,
+      },
     });
     if (e.exited_at) {
       const { synthetic, reason } = isSyntheticStop(e);
