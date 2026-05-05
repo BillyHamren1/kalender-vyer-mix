@@ -11137,7 +11137,9 @@ async function handleGetOpsOverview(
   const assignments = Array.isArray(asgBody?.assignments) ? asgBody.assignments : []
   const threads = Array.isArray(thrBody?.threads) ? thrBody.threads : []
 
-  // ── jobs[] (one row per booking|date|phase, deduped from events) ─────
+  // ── jobs[] — UNION of calendar events + assignments (same source as
+  //   personalkalender). Dedupe per (target_type, target_id, date, phase).
+  // ─────────────────────────────────────────────────────────────────────
   type Job = {
     id: string
     type: 'booking' | 'large_project'
@@ -11149,52 +11151,143 @@ async function handleGetOpsOverview(
     start_time: string
     end_time: string
     address: string | null
+    assigned_staff: Array<{ staff_id: string; staff_name: string; role: string | null; team_id: string | null }>
     assigned_staff_count: number
     required_staff_count: number | null
     staffing_status: 'unstaffed' | 'partial' | 'staffed' | 'unknown'
   }
+
+  // Index assignments by target+date+phase and by booking+date (for jobActivity)
+  const asgByKey = new Map<string, any[]>()
   const staffByBookingDate = new Map<string, Set<string>>()
-  for (const a of assignments) {
-    if (!a.booking_id) continue
-    const k = `${a.booking_id}|${a.assignment_date}`
-    if (!staffByBookingDate.has(k)) staffByBookingDate.set(k, new Set())
-    staffByBookingDate.get(k)!.add(a.staff_id)
-  }
   const staffByLpDate = new Map<string, Set<string>>()
-  for (const a of assignments) {
-    if (a.target_type !== 'large_project' || !a.target_id) continue
-    const k = `${a.target_id}|${a.assignment_date}`
-    if (!staffByLpDate.has(k)) staffByLpDate.set(k, new Set())
-    staffByLpDate.get(k)!.add(a.staff_id)
+  const normalizePhase = (p?: string | null) => {
+    const v = String(p || '').toLowerCase()
+    if (v === 'rig') return 'rig'
+    if (v === 'event') return 'event'
+    if (v === 'rigdown') return 'rigDown'
+    return p || null
   }
-  const jobs: (Job & { booking_id: string | null; large_project_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null; jobActivity?: any })[] = events.map((ev: any) => {
+  for (const a of assignments) {
+    const phase = normalizePhase(a.phase) || 'event'
+    const tType = a.target_type === 'large_project' ? 'large_project' : 'booking'
+    const tId = a.target_id || (tType === 'booking' ? a.booking_id : null)
+    if (!tId) continue
+    const k = `${tType}:${tId}|${a.assignment_date}|${phase}`
+    if (!asgByKey.has(k)) asgByKey.set(k, [])
+    asgByKey.get(k)!.push(a)
+    if (a.booking_id) {
+      const bk = `${a.booking_id}|${a.assignment_date}`
+      if (!staffByBookingDate.has(bk)) staffByBookingDate.set(bk, new Set())
+      staffByBookingDate.get(bk)!.add(a.staff_id)
+    }
+    if (tType === 'large_project') {
+      const lk = `${tId}|${a.assignment_date}`
+      if (!staffByLpDate.has(lk)) staffByLpDate.set(lk, new Set())
+      staffByLpDate.get(lk)!.add(a.staff_id)
+    }
+  }
+
+  const jobs: (Job & { booking_id: string | null; large_project_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null; jobActivity?: any })[] = []
+  const jobByKey = new Map<string, typeof jobs[number]>()
+
+  const upsertJob = (key: string, row: typeof jobs[number]) => {
+    const existing = jobByKey.get(key)
+    if (!existing) {
+      jobByKey.set(key, row)
+      jobs.push(row)
+      return row
+    }
+    // Merge: prefer real (non-synthetic) id, real time, address, client
+    if (existing.id.startsWith('synthetic-') && !row.id.startsWith('synthetic-')) existing.id = row.id
+    if (!existing.address && row.address) existing.address = row.address
+    if (!existing.client && row.client) existing.client = row.client
+    if (!existing.booking_number && row.booking_number) existing.booking_number = row.booking_number
+    if ((!existing.start_time || existing.start_time.endsWith('T00:00:00')) && row.start_time) existing.start_time = row.start_time
+    if ((!existing.end_time || existing.end_time.endsWith('T00:00:00')) && row.end_time) existing.end_time = row.end_time
+    return existing
+  }
+
+  // 1) Seed from calendar events
+  for (const ev of events) {
     const date = ev.source_date || (ev.start_time || '').slice(0, 10)
-    const bk = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${date}`) : undefined
-    const count = bk?.size ?? 0
+    const phase = normalizePhase(ev.event_type) || 'event'
     const lpId: string | null = ev.large_project_id ?? null
     const isLp = !ev.booking_id && !!lpId
-    return {
+    const tType: 'booking' | 'large_project' = isLp ? 'large_project' : 'booking'
+    const tId = isLp ? lpId : (ev.booking_id ?? null)
+    if (!tId) continue
+    const key = `${tType}:${tId}|${date}|${phase}`
+    const bk = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${date}`) : undefined
+    const lk = isLp ? staffByLpDate.get(`${lpId}|${date}`) : undefined
+    const count = (bk?.size ?? 0) + (lk?.size ?? 0)
+    upsertJob(key, {
       id: ev.id,
-      type: isLp ? 'large_project' : 'booking',
-      target_type: isLp ? 'large_project' : 'booking',
-      target_id: isLp ? lpId : (ev.booking_id ?? null),
+      type: tType,
+      target_type: tType,
+      target_id: tId,
       booking_id: ev.booking_id ?? null,
       large_project_id: lpId,
       title: ev.title,
       booking_number: ev.booking_number ?? null,
       client: ev.title ?? null,
-      phase: ev.event_type ?? null,
+      phase,
       date,
       start_time: ev.start_time,
       end_time: ev.end_time,
       address: ev.delivery_address ?? null,
+      assigned_staff: [],
       assigned_staff_count: count,
       required_staff_count: null,
-      staffing_status: ev.booking_id ? (count === 0 ? 'unstaffed' : 'staffed') : 'unknown',
-    }
-  })
+      staffing_status: count === 0 ? 'unstaffed' : 'staffed',
+    })
+  }
 
-  // jobActivity is computed below, after staffNameMap and locationsByStaff are populated.
+  // 2) Add jobs that exist in assignments but have no calendar event
+  for (const [key, rows] of asgByKey.entries()) {
+    if (jobByKey.has(key)) continue
+    const first = rows[0]
+    const phase = normalizePhase(first.phase) || 'event'
+    const tType: 'booking' | 'large_project' = first.target_type === 'large_project' ? 'large_project' : 'booking'
+    const tId = first.target_id || first.booking_id
+    if (!tId) continue
+    upsertJob(key, {
+      id: `asg-${tType}-${tId}-${first.assignment_date}-${phase}`,
+      type: tType,
+      target_type: tType,
+      target_id: tId,
+      booking_id: first.booking_id ?? null,
+      large_project_id: tType === 'large_project' ? tId : null,
+      title: first.target_name || first.booking_title || first.client || (tType === 'large_project' ? 'Stort projekt' : 'Bokning'),
+      booking_number: first.booking_number ?? null,
+      client: first.client ?? null,
+      phase,
+      date: first.assignment_date,
+      start_time: first.planned_start || `${first.assignment_date}T00:00:00`,
+      end_time: first.planned_end || `${first.assignment_date}T00:00:00`,
+      address: first.address ?? null,
+      assigned_staff: [],
+      assigned_staff_count: rows.length,
+      required_staff_count: null,
+      staffing_status: 'staffed',
+    })
+  }
+
+  // 3) Attach assigned_staff per job from BSA index
+  for (const j of jobs) {
+    const key = `${j.target_type}:${j.target_id}|${j.date}|${j.phase}`
+    const rows = asgByKey.get(key) || []
+    const seenStaff = new Set<string>()
+    j.assigned_staff = rows
+      .filter(r => r.staff_id && !seenStaff.has(r.staff_id) && (seenStaff.add(r.staff_id), true))
+      .map(r => ({ staff_id: r.staff_id, staff_name: r.staff_name || '', role: r.role ?? null, team_id: r.team_id ?? null }))
+    j.assigned_staff_count = j.assigned_staff.length
+    j.staffing_status = j.assigned_staff.length === 0
+      ? (j.target_type === 'large_project' ? 'unknown' : 'unstaffed')
+      : 'staffed'
+  }
+
+  jobs.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
 
   // ── staffStatus[] ────────────────────────────────────────────────────
   const staffIds = [...new Set(assignments.map((a: any) => a.staff_id).filter(Boolean))]

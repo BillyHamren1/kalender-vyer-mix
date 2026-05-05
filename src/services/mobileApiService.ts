@@ -155,6 +155,7 @@ export interface OpsOverviewJob {
   start_time: string;
   end_time: string;
   address: string | null;
+  assigned_staff?: Array<{ staff_id: string; staff_name: string; role: string | null; team_id: string | null }>;
   assigned_staff_count: number;
   required_staff_count: number | null;
   staffing_status: 'unstaffed' | 'partial' | 'staffed' | 'unknown';
