@@ -768,6 +768,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         const resolvedPlace = buildResolvedPlace(coordCentre ?? null, {
           isMatched,
           knownLabel: isMatched ? (visit?.label ?? placeLabel) : placeLabel,
+          nearestKnownSite: visit?.nearestKnownSite ?? null,
         });
 
         return {
