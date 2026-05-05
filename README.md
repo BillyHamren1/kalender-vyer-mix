@@ -71,3 +71,31 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Android builds — Scanner vs Time
+
+This repo ships two Android apps from one codebase:
+
+- **EventFlow Time** — `se.eventflow.time` (config: `capacitor.time.config.ts`)
+- **EventFlow Scanner** — `se.eventflow.scanner` (config: `capacitor.scanner.config.ts`)
+
+⚠️ **Do NOT run plain `npx cap sync android`.** It uses whatever is currently
+in `capacitor.config.ts` and will produce the wrong appId/appName.
+
+Always use the wrapper scripts, which copy the correct mode-specific
+Capacitor config into place before syncing:
+
+```bash
+npm run android:scanner       # full build + sync for Scanner
+npm run android:scanner:sync  # patch + sync only (skip frontend build)
+npm run android:time          # full build + sync for Time
+npm run android:time:sync     # patch + sync only
+```
+
+### Zebra RFID SDK (Scanner only)
+
+`ZebraRfidPlugin.java` imports `com.zebra.rfid.api3.*`. The required
+Zebra API3 `.aar` is **not** committed to this repo. Drop it into
+`android/app/libs/` (e.g. `API3_LIB-RELEASE-*.aar`) before building the
+Scanner Android app, otherwise the native RFID plugin will not compile.
+The build script prints a warning when the AAR is missing.
