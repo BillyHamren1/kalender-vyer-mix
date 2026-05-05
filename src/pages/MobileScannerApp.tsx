@@ -151,7 +151,7 @@ const MobileScannerApp: React.FC = () => {
   // Update active scan handler when state changes
   useEffect(() => {
     if (state === 'home') {
-      activeScanHandler.current = handleBarcodeScan;
+      activeScanHandler.current = (scan: ScanEvent) => { handleBarcodeScan(scan.value); };
     }
   }, [state, handleBarcodeScan]);
 
