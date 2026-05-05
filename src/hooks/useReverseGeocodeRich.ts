@@ -51,6 +51,7 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
   const fallback: RichGeocode = {
     label: UNRESOLVED_LABEL,
     address: null,
+    city: null,
     poiName: null,
     poiCategory: null,
     mapsUrl: mapsLink(lat, lng),
