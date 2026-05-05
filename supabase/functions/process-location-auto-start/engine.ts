@@ -423,15 +423,17 @@ async function ensureTravelLog(
   const dur = new Date(arrivalIso).getTime() - new Date(departureIso).getTime()
   if (dur < 60_000 || dur > 8 * 3600_000) return
 
+  // Idempotency: any prior auto-switch travel for this exact (staff, start, end)
+  // — both cron and backfill source tags count, so a second run never doubles.
   const { data: existing } = await supabase
     .from('travel_time_logs')
-    .select('id')
+    .select('id, source')
     .eq('staff_id', staffId)
-    .eq('source', 'geofence_auto_switch_server')
     .eq('start_time', departureIso)
     .eq('end_time', arrivalIso)
     .maybeSingle()
-  if (existing?.id) return
+  if (existing?.id && typeof existing.source === 'string'
+      && existing.source.startsWith('geofence_auto_switch_server')) return
 
   if (report.dry_run) {
     planPush(report, { action: 'travel_create', staff_id: staffId, start_time: departureIso, end_time: arrivalIso, from: prevHit.target.label, to: nextHit.target.label })
