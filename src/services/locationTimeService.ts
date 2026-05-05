@@ -78,7 +78,14 @@ export async function closeOpenEntriesForStaff(
     const minutes = Math.max(0, Math.round((cutoff - enteredMs) / 60000));
     const { error: updErr } = await supabase
       .from('location_time_entries')
-      .update({ exited_at: beforeIso, total_minutes: minutes })
+      .update({
+        exited_at: beforeIso,
+        total_minutes: minutes,
+        stop_source: 'user_manual',
+        stop_reason: 'duplicate_or_reconciled',
+        stopped_by: staffId,
+        stop_metadata: { closed_via: 'locationTimeService.closeOverlapping', before_iso: beforeIso },
+      })
       .eq('id', row.id)
       .is('exited_at', null); // race-safety
     if (!updErr) closed++;

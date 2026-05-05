@@ -116,7 +116,14 @@ export async function applyCloseStaleLocation(
   );
   const { error: uErr } = await supabase
     .from('location_time_entries')
-    .update({ exited_at: args.atIso, total_minutes: minutes })
+    .update({
+      exited_at: args.atIso,
+      total_minutes: minutes,
+      stop_source: 'watchdog_auto_close',
+      stop_reason: 'stale_timer_closed',
+      stopped_by: 'system:reality-actions',
+      stop_metadata: { at_iso: args.atIso, action: 'applyCloseStaleLocation' },
+    })
     .eq('id', args.entryId)
     .is('exited_at', null);
   if (uErr) return { ok: false, changed: false, error: uErr.message };

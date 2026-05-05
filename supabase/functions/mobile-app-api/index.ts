@@ -2908,7 +2908,13 @@ async function handleAdminCloseOpenEntry(
     }
     const { error: uErr } = await supabase
       .from('location_time_entries')
-      .update({ exited_at: end_iso })
+      .update({
+        exited_at: end_iso,
+        stop_source: 'admin_manual',
+        stop_reason: 'admin_adjustment',
+        stopped_by: data?.actor_id || 'admin',
+        stop_metadata: { closed_via: 'admin-close-open-entry', end_iso },
+      })
       .eq('id', id)
     if (uErr) {
       console.error('[admin-close-open-entry] LTE update error:', uErr)
@@ -5162,7 +5168,13 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         // Left — close GPS entry (never auto-close manual entries)
         await supabase
           .from('location_time_entries')
-          .update({ exited_at: new Date().toISOString() })
+          .update({
+            exited_at: new Date().toISOString(),
+            stop_source: 'foreground_geofence_exit',
+            stop_reason: 'stable_exit_detected',
+            stopped_by: staffId,
+            stop_metadata: { location_id: loc.id, location_name: loc.name },
+          })
           .eq('id', openEntry.id)
         console.log(`[geofence] Staff ${staffId} exited ${loc.name}`)
       } else if (isInside && openEntry) {
@@ -6125,11 +6137,17 @@ async function handleUploadLagerFile(supabase: any, staffId: string, data: any, 
 }
 
 async function handleStopLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { location_id, booking_id, large_project_id, entry_id } = data || {}
+  const { location_id, booking_id, large_project_id, entry_id, stop_source, stop_reason, stop_metadata } = data || {}
 
   let query = supabase
     .from('location_time_entries')
-    .update({ exited_at: new Date().toISOString() })
+    .update({
+      exited_at: new Date().toISOString(),
+      stop_source: stop_source || 'user_manual',
+      stop_reason: stop_reason || 'user_pressed_stop',
+      stopped_by: staffId,
+      stop_metadata: stop_metadata || {},
+    })
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
     .is('exited_at', null)
@@ -6451,7 +6469,13 @@ async function handleStartTravelLog(supabase: any, staffId: string, data: any, o
       const ids = openEntries.map((r: any) => r.id)
       const { error: updErr } = await supabase
         .from('location_time_entries')
-        .update({ exited_at: startIso })
+        .update({
+          exited_at: startIso,
+          stop_source: 'foreground_geofence_exit',
+          stop_reason: 'switched_to_new_work_site',
+          stopped_by: staffId,
+          stop_metadata: { closed_via: 'start_travel_log', start_iso: startIso },
+        })
         .in('id', ids)
         .is('exited_at', null)
       if (updErr) {
@@ -9038,7 +9062,13 @@ async function handleEndUnplannedSiteVisit(
   }
   const { data: updated, error } = await supabase
     .from('location_time_entries')
-    .update({ exited_at: new Date().toISOString() })
+    .update({
+      exited_at: new Date().toISOString(),
+      stop_source: 'user_manual',
+      stop_reason: 'user_pressed_stop',
+      stopped_by: staffId,
+      stop_metadata: { closed_via: 'end_unplanned_site_visit' },
+    })
     .eq('id', entry_id)
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
@@ -9237,7 +9267,14 @@ async function handleCorrectStaleDayEnd(
         )
         await supabase
           .from('location_time_entries')
-          .update({ exited_at: chosen.toISOString(), total_minutes: minutes })
+          .update({
+            exited_at: chosen.toISOString(),
+            total_minutes: minutes,
+            stop_source: 'user_manual',
+            stop_reason: 'user_saved_time_report',
+            stopped_by: staffId,
+            stop_metadata: { closed_via: 'resolve_workday_flag', flag_id: (flag as any)?.id },
+          })
           .eq('id', entry.id)
       }
     } else if (entry.table === 'travel_time_logs') {
