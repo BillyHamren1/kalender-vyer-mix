@@ -160,7 +160,7 @@ export function useAssignmentTimeStatuses(assignments: AssignmentKey[]) {
     }
     const trsByDay = new Map<string, AtsTimeReport[]>();
     for (const r of query.data.trs) {
-      const k = `${r.staff_id}|${r.work_date}`;
+      const k = `${r.staff_id}|${(r as any).report_date}`;
       const arr = trsByDay.get(k) || [];
       arr.push(r);
       trsByDay.set(k, arr);
@@ -173,7 +173,7 @@ export function useAssignmentTimeStatuses(assignments: AssignmentKey[]) {
     }
     const flagsByDay = new Map<string, AtsWorkdayFlag[]>();
     for (const r of query.data.flags) {
-      const k = `${r.staff_id}|${r.work_date}`;
+      const k = `${r.staff_id}|${(r as any).flag_date}`;
       const arr = flagsByDay.get(k) || [];
       arr.push(r);
       flagsByDay.set(k, arr);
