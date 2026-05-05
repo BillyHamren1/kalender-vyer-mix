@@ -1,11 +1,19 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { StaffCalendarEvent, StaffResource } from '@/services/staffCalendarService';
 import { format } from 'date-fns';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
+import {
+  useAssignmentTimeStatuses,
+  assignmentStatusKey,
+} from '@/hooks/useAssignmentTimeStatuses';
+import {
+  ASSIGNMENT_STATUS_LABEL,
+  ASSIGNMENT_STATUS_CLASS,
+} from '@/lib/staff/assignmentTimeStatus';
 
 interface IndividualStaffCalendarProps {
   events: StaffCalendarEvent[];
