@@ -1251,7 +1251,27 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             blocks={enrichedBlockTimeline}
             excludedKeys={excludedKeys}
             canExclude={canExclude && !!staffId}
-            onExcludeBlock={async (blockId) => { await exclude(blockId, 'manual_remove'); }}
+            onExcludeBlock={async (blockId) => {
+              const prevStartIso = effectiveDay?.startIso ?? wd?.started_at ?? null;
+              const ok = await exclude(blockId, 'manual_remove', { silent: true });
+              if (!ok) return;
+              // Räkna om ny dagsstart från kvarvarande presence/journey-block
+              const remaining = enrichedBlockTimeline.filter(
+                b => b.id !== blockId && !excludedKeys.has(b.id)
+              );
+              const work = remaining.filter(b => b.kind === 'presence' || b.kind === 'journey');
+              const newStartIso = work.length
+                ? work.reduce<string>((min, b) => (!min || b.startIso < min ? b.startIso : min), '')
+                : null;
+              const startChanged = !!newStartIso && newStartIso !== prevStartIso;
+              if (startChanged) {
+                toast.success('Händelsen togs bort. Dagen har räknats om.', {
+                  description: `Ny dagsstart: ${fmtHm(newStartIso)}`,
+                });
+              } else {
+                toast.success('Händelsen togs bort. Dagen har räknats om.');
+              }
+            }}
           />
         ) : mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">

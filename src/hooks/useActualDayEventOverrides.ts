@@ -39,7 +39,7 @@ export function useActualDayEventOverrides(staffId: string | null, localDate: st
 
   const excludedKeys = new Set((query.data ?? []).filter(o => o.action === 'exclude').map(o => o.event_key));
 
-  const exclude = useCallback(async (eventKey: string, reason = 'manual_remove') => {
+  const exclude = useCallback(async (eventKey: string, reason = 'manual_remove', opts?: { silent?: boolean }) => {
     if (!organizationId || !staffId || !localDate || !userId) {
       toast.error('Saknar org/användare');
       return false;
@@ -54,7 +54,6 @@ export function useActualDayEventOverrides(staffId: string | null, localDate: st
       created_by: userId,
     });
     if (error) {
-      // Ignore unique-violation as success
       if ((error as any).code !== '23505') {
         console.error('exclude override failed', error);
         toast.error('Kunde inte ta bort raden');
@@ -62,7 +61,7 @@ export function useActualDayEventOverrides(staffId: string | null, localDate: st
       }
     }
     await qc.invalidateQueries({ queryKey: [KEY, organizationId, staffId, localDate] });
-    toast.success('Raden borttagen från dagens rapport');
+    if (!opts?.silent) toast.success('Händelsen togs bort. Dagen har räknats om.');
     return true;
   }, [organizationId, staffId, localDate, userId, qc]);
 
