@@ -602,7 +602,7 @@ const MobileOverview: React.FC = () => {
                                   {lastSignal && (
                                     <>
                                       <span>·</span>
-                                      {status?.gps_status === 'fresh' ? <Wifi className="w-3 h-3 shrink-0 text-emerald-600" /> : <WifiOff className="w-3 h-3 shrink-0 text-muted-foreground" />}
+                                      {(status?.gps_status === 'live' || status?.gps_status === 'recent') ? <Wifi className="w-3 h-3 shrink-0 text-emerald-600" /> : <WifiOff className="w-3 h-3 shrink-0 text-muted-foreground" />}
                                       <span>{format(parseISO(lastSignal), 'HH:mm')}</span>
                                     </>
                                   )}
