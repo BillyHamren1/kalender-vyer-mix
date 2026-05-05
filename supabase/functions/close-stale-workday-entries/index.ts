@@ -326,7 +326,14 @@ async function processOrganization(supabase: any, organizationId: string) {
     );
     const { error } = await supabase
       .from("location_time_entries")
-      .update({ exited_at: exitedAt, total_minutes: totalMinutes })
+      .update({
+        exited_at: exitedAt,
+        total_minutes: totalMinutes,
+        stop_source: 'watchdog_auto_close',
+        stop_reason: 'stale_timer_closed',
+        stopped_by: 'system:close-stale-workday-entries',
+        stop_metadata: { exited_at: exitedAt, planned_end: plannedEnd, provisional_hours: PROVISIONAL_DURATION_HOURS },
+      })
       .eq("id", row.id)
       .is("exited_at", null); // idempotency guard
     if (error) {
