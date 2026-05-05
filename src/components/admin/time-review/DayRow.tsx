@@ -26,6 +26,10 @@ const initials = (name: string) =>
 
 const safeFormat = (value: string | null | undefined, pattern: string) => {
   if (!value) return null;
+  // För HH:mm-mönster: läs siffrorna direkt ur ISO-strängen — ingen
+  // tidszons-konvertering. Personalkalendern visar tider naivt ("08 = 08")
+  // och planerad tid måste matcha det exakt.
+  if (pattern === 'HH:mm') return extractUTCTime(value);
   const parsed = parseISO(value);
   return Number.isNaN(parsed.getTime()) ? null : format(parsed, pattern, { locale: sv });
 };
