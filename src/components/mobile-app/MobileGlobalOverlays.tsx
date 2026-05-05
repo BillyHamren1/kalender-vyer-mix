@@ -234,7 +234,7 @@ const MobileGlobalOverlays: React.FC = () => {
                 detail: { kind, targetId, label, arrivedAtIso },
               }));
               void mobileApi.createWorkdayFlag({
-                flag_type: 'activity_missing_after_auto_arrival',
+                flag_type: 'unclear_start_target',
                 flag_date: arrivedAtIso.slice(0, 10),
                 title: `Auto-start: aktivitet saknas (${label})`,
                 description: `Arbetsdag startades automatiskt vid ankomst till ${label} men aktivitetstimer kunde inte startas.`,
