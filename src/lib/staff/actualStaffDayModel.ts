@@ -645,6 +645,13 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         if (!synthetic) return { evidence: true, reason: 'timer_stop' };
       }
     }
+    // 6) Tiden har gått klart förbi visit end utan att personen är kvar.
+    //    Om "nu" är ≥30 min efter v.end OCH ingen aktiv timer pekar på platsen
+    //    OCH det inte är "senaste" visit med färska pings, räknas det som
+    //    avslutad vistelse (annars skulle gamla dagar aldrig få departure-rad).
+    if (now.getTime() - vEndMs >= 30 * 60_000) {
+      return { evidence: true, reason: 'visit_long_passed' };
+    }
     return { evidence: false, reason: null };
   };
   const isVisitOngoing = (v: PlaceVisit): boolean => {
