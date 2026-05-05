@@ -95,6 +95,8 @@ function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: 
   if (wd && !wd.ended_at) return { kind: 'ongoing', label: 'Pågår' };
   const hasPreWd = model.proposedReport.anomalies.some(a => a.id.startsWith('pre-wd:'));
   if (hasPreWd) return { kind: 'pre_workday', label: 'GPS före arbetsdag' };
+  const hasPlannedGap = model.proposedReport.anomalies.some(a => a.id.startsWith('planned-gap:'));
+  if (hasPlannedGap) return { kind: 'review', label: 'Kräver granskning – planerad tid saknar signal' };
   if (wd && model.reportState.timeReports.length === 0 && model.reportState.locationEntries.length === 0) {
     return { kind: 'missing_report', label: 'Saknar rapport' };
   }
