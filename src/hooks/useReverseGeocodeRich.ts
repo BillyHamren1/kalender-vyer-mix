@@ -25,6 +25,8 @@ export interface RichGeocode {
   label: string;
   /** Närmaste adress, om sådan finns. */
   address: string | null;
+  /** Ort/stad som extraherats från geocode-context. */
+  city: string | null;
   /** Punktintresse (POI) i närheten — företag, butik, station etc. */
   poiName: string | null;
   /** Mapbox category-tag(s), t.ex. "fuel", "fast_food", "restaurant". */
