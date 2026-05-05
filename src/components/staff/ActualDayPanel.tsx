@@ -940,6 +940,26 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     null as (typeof ongoing)[number] | null);
   }, [projectBlocks]);
 
+  // Block-baserad huvudjournal (presence/journey-block).
+  // Ersätter den event-listade kompaktvyn — admin ser dagen som "var personen
+  // var" och "när personen flyttade sig" istället för en lista av tekniska kinds.
+  const blockTimeline = useMemo(() => {
+    const visitMap = new Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>();
+    for (const v of model.actualVisits) {
+      visitMap.set(v.key, {
+        knownSiteId: v.knownSiteId,
+        label: v.label,
+        durationMin: v.durationMin,
+        end: v.end,
+      });
+    }
+    return buildDayBlockTimeline({
+      mainEvents,
+      allEvents: events,
+      visitByKey: visitMap,
+    });
+  }, [mainEvents, events, model.actualVisits]);
+
 
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
