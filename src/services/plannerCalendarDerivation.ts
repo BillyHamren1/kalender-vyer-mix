@@ -190,6 +190,12 @@ export const buildPlannerCalendarEvents = ({
 
   const events: CalendarEvent[] = [];
 
+  // Debug counters (dev-only summary at the end).
+  let eventDaysHidden = 0;
+  let largeProjectMissingAssignment = 0;
+  let largeProjectFallbackRendered = 0;
+  let largeProjectEmittedCount = 0;
+
   // ── Real calendar_events rows are the SOLE source of truth for TIMES.
   //
   // LARGE PROJECTS ARE PLANNED AT THE PROJECT LEVEL — NOT PER SIBLING BOOKING.
