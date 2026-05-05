@@ -1251,12 +1251,25 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   for (const ev of events) {
     if (ev.kind !== 'planned_signal_gap') continue;
     const meta = (ev.meta ?? {}) as any;
+    const plannedStartIso: string = meta.plannedStart ?? ev.at;
+    const firstSignalIso: string | null = meta.firstSignalAt ?? null;
+    const gapMin = ev.durationMin ?? (firstSignalIso
+      ? Math.max(0, Math.round((new Date(firstSignalIso).getTime() - new Date(plannedStartIso).getTime()) / 60_000))
+      : 0);
     anomalies.push({
       id: `planned-gap:${meta.assignmentId ?? ev.at}`,
       label: 'Planerad tid utan GPS/app-signal',
       detail: ev.detail ?? '',
       severity: 'warning',
       suggestion: 'Kräver granskning – välj: skapa arbetsdag från planerad start, starta från första GPS, ange annan starttid eller markera frånvaro.',
+      action: {
+        kind: 'planned_time_without_signal',
+        assignmentId: meta.assignmentId ?? null,
+        plannedStartIso,
+        firstSignalIso,
+        noSignalGapMinutes: gapMin,
+        label: ev.place ?? ev.label ?? 'Planerad aktivitet',
+      },
     });
   }
   if (signalLost) {
