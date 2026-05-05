@@ -635,6 +635,9 @@ const MobileOverview: React.FC = () => {
                           key={ev.id}
                           className="rounded-xl bg-card border border-border/60 overflow-hidden"
                         >
+                          {job?.jobActivity?.has_started && (
+                            <JobActivityStrip jobActivity={job.jobActivity} />
+                          )}
                           <button
                             onClick={() => {
                               if (ev.booking_id) navigate(`/m/job/${ev.booking_id}`);
