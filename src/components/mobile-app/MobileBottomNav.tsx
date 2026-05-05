@@ -23,9 +23,13 @@ const MobileBottomNav = () => {
   const navigate = useNavigate();
   const { count: unreadCount } = useUnreadMessageCount();
   const { t } = useLanguage();
+  const { isPlanner } = useMobileRoles();
 
+  const tabs: Tab[] = isPlanner
+    ? [baseTabs[0], baseTabs[1], overviewTab, baseTabs[2], baseTabs[3]]
+    : baseTabs;
 
-  const isActive = (tab: typeof tabs[0]) => {
+  const isActive = (tab: Tab) => {
     if (tab.exact) return location.pathname === tab.path;
     return location.pathname.startsWith(tab.path);
   };
