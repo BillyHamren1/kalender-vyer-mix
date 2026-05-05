@@ -345,6 +345,11 @@ async function closeOpenLteForSwitch(
   }
   const totalMinutes = Math.max(1, Math.round((departureTs - enteredAt) / 60000))
   const meta = (prevMatch.metadata && typeof prevMatch.metadata === 'object') ? prevMatch.metadata : {}
+  if (report.dry_run) {
+    planPush(report, { action: 'lte_close', lte_id: prevMatch.id, exited_at: departureIso, total_minutes: totalMinutes, target: prevHit.target.label })
+    report.ltes_closed++
+    return { closed: true, closedTargetKind: prevHit.target.kind, closedTargetId: prevHit.target.id, lteId: prevMatch.id }
+  }
   const { error } = await supabase
     .from('location_time_entries')
     .update({
