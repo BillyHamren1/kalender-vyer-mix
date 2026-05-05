@@ -280,6 +280,8 @@ async function ensureWorkdayOpen(
       metadata: {
         auto_started: true,
         auto_start_source: report.source_tag,
+        engine_version: report.engine_version,
+        run_id: report.run_id,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
         confidence: hit.confidence,
         arrival_pings_count: hit.pings.length,
