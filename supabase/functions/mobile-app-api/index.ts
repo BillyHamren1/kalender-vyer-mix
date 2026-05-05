@@ -5168,7 +5168,13 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         // Left — close GPS entry (never auto-close manual entries)
         await supabase
           .from('location_time_entries')
-          .update({ exited_at: new Date().toISOString() })
+          .update({
+            exited_at: new Date().toISOString(),
+            stop_source: 'foreground_geofence_exit',
+            stop_reason: 'stable_exit_detected',
+            stopped_by: staffId,
+            stop_metadata: { location_id: loc.id, location_name: loc.name },
+          })
           .eq('id', openEntry.id)
         console.log(`[geofence] Staff ${staffId} exited ${loc.name}`)
       } else if (isInside && openEntry) {
