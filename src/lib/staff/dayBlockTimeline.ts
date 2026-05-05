@@ -37,8 +37,8 @@ export type GapReason =
   | 'raw_only_only'             // Endast raw-events (timer/assistant/server) — inget block
   | 'no_signal';                // Tomt fönster — varken GPS eller timer
 
-/** Diskriminator för huvudradtyp i UI: ProjectBlock vs LocationBlock. */
-export type PresenceKind = 'project' | 'location';
+/** Diskriminator för huvudradtyp i UI: ProjectBlock / LocationBlock / UnknownBlock. */
+export type PresenceKind = 'project' | 'location' | 'unknown';
 
 export interface PresenceBlock {
   kind: 'presence';
