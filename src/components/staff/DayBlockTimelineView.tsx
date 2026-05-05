@@ -518,28 +518,46 @@ const GapRow: React.FC<{ block: GapBlock }> = ({ block }) => {
 /*  Main export                                                       */
 /* ------------------------------------------------------------------ */
 
-export const DayBlockTimeline: React.FC<{ blocks: DayBlock[] }> = ({ blocks }) => {
-  if (blocks.length === 0) {
+export interface DayBlockTimelineProps {
+  blocks: DayBlock[];
+  excludedKeys?: Set<string>;
+  onExcludeBlock?: (blockId: string) => void | Promise<void>;
+  canExclude?: boolean;
+}
+
+export const DayBlockTimeline: React.FC<DayBlockTimelineProps> = ({ blocks, excludedKeys, onExcludeBlock, canExclude }) => {
+  const visible = excludedKeys && excludedKeys.size > 0
+    ? blocks.filter(b => !excludedKeys.has(b.id))
+    : blocks;
+  const hiddenCount = blocks.length - visible.length;
+  if (visible.length === 0) {
     return (
       <div className="text-xs text-muted-foreground italic py-4 text-center">
-        Inga händelser registrerade för dagen.
+        {hiddenCount > 0 ? `${hiddenCount} rad${hiddenCount === 1 ? '' : 'er'} dolda av admin.` : 'Inga händelser registrerade för dagen.'}
       </div>
     );
   }
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className={`${GRID} px-2.5 py-1.5 bg-muted/40 border-b border-border text-[10px] uppercase tracking-wider font-semibold text-muted-foreground`}>
-        <div className="pl-1">Tid</div>
-        <div>Händelse</div>
-        <div className="text-right">Status</div>
-        <div />
+    <ExcludeContext.Provider value={{ canExclude: !!canExclude && !!onExcludeBlock, onExclude: onExcludeBlock }}>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className={`${GRID} px-2.5 py-1.5 bg-muted/40 border-b border-border text-[10px] uppercase tracking-wider font-semibold text-muted-foreground`}>
+          <div className="pl-1">Tid</div>
+          <div>Händelse</div>
+          <div className="text-right">Status</div>
+          <div />
+        </div>
+        {visible.map(b =>
+          b.kind === 'presence' ? <PresenceRow key={b.id} block={b} />
+          : b.kind === 'journey' ? <JourneyRow key={b.id} block={b} />
+          : <GapRow key={b.id} block={b} />
+        )}
+        {hiddenCount > 0 && (
+          <div className="px-3 py-1.5 text-[10px] text-muted-foreground italic border-t border-border bg-muted/20">
+            {hiddenCount} rad{hiddenCount === 1 ? '' : 'er'} dolda av admin (manuellt exkluderade).
+          </div>
+        )}
       </div>
-      {blocks.map(b =>
-        b.kind === 'presence' ? <PresenceRow key={b.id} block={b} />
-        : b.kind === 'journey' ? <JourneyRow key={b.id} block={b} />
-        : <GapRow key={b.id} block={b} />
-      )}
-    </div>
+    </ExcludeContext.Provider>
   );
 };
 
