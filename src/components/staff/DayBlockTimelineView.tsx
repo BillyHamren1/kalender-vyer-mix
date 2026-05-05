@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Briefcase, ChevronDown, ChevronRight, Clock, MapPin, Move, AlertTriangle, Activity } from 'lucide-react';
+import { Briefcase, ChevronDown, ChevronRight, Clock, MapPin, Move, AlertTriangle, Activity, HelpCircle, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { DayBlock, PresenceBlock, JourneyBlock } from '@/lib/staff/dayBlockTimeline';
+import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
 
 const fmtHm = (iso?: string | null) => {
   if (!iso) return '';
