@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
           .from('packing_projects')
           .select('*')
           .eq('organization_id', ORG_ID)
-          .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning'])
+          .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning', 'back'])
           .order('created_at', { ascending: false })
           .limit(500)
 
