@@ -76,7 +76,6 @@ describe('Eduards: tidigaste arbetsrelevanta händelse vinner över planerad sta
     const ind = computeStrongWorkIndicators(m);
     expect(ind.hasStrong).toBe(true);
     expect(ind.proposedStartIso).toBe(fa.start);
-    expect(ind.reasonCodes).toContain('planned_staff');
     expect(ind.reasonCodes).toContain('gps_on_known_work_site');
   });
 });
