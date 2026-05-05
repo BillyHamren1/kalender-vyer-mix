@@ -1,6 +1,67 @@
-import React, { useState } from 'react';
-import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import React, { createContext, useContext, useState } from 'react';
+import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle, ExternalLink, Trash2 } from 'lucide-react';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
+interface ExcludeCtx {
+  canExclude: boolean;
+  onExclude?: (blockId: string) => void | Promise<void>;
+}
+const ExcludeContext = createContext<ExcludeCtx>({ canExclude: false });
+
+const RowExcludeButton: React.FC<{ blockId: string; label: string }> = ({ blockId, label }) => {
+  const { canExclude, onExclude } = useContext(ExcludeContext);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!canExclude || !onExclude) return null;
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+          aria-label="Ta bort händelse från dagens rapport"
+          title="Ta bort från dagens rapport"
+          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Ta bort denna händelse från dagens rapport?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {label} markeras som exkluderad och försvinner från huvudjournalen.
+            Originaldata påverkas inte och borttagningen kan återställas via overlay-tabellen.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Avbryt</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy}
+            onClick={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              try { await onExclude(blockId); } finally { setBusy(false); setOpen(false); }
+            }}
+          >
+            Ta bort
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
 
 const fmtHm = (iso?: string | null) => {
   if (!iso) return '';
@@ -135,11 +196,13 @@ const RowShell: React.FC<{
   expandable?: boolean;
   expanded?: boolean;
   onToggle?: () => void;
+  trashSlot?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ accent, active, expandable, expanded, onToggle, children }) => {
+}> = ({ accent, active, expandable, expanded, onToggle, trashSlot, children }) => {
   return (
     <div
       className={`
+        group relative
         ${GRID}
         px-2.5 py-1
         border-b border-border last:border-b-0
@@ -153,7 +216,8 @@ const RowShell: React.FC<{
       tabIndex={expandable ? 0 : undefined}
     >
       {children}
-      <div className="flex justify-end text-muted-foreground">
+      <div className="flex items-center justify-end gap-0.5 text-muted-foreground">
+        {trashSlot}
         {expandable
           ? (expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />)
           : <span className="w-3.5" />}
@@ -313,6 +377,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
         expandable={expandable}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
+        trashSlot={<RowExcludeButton blockId={block.id} label={block.title ?? 'Händelse'} />}
       >
         <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} ongoing={block.ongoing} />
 
@@ -368,6 +433,7 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
         expandable={expandable}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
+        trashSlot={<RowExcludeButton blockId={block.id} label={`Resa ${block.fromLabel ?? ''} → ${block.toLabel ?? ''}`} />}
       >
         <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} />
 
@@ -423,6 +489,7 @@ const GapRow: React.FC<{ block: GapBlock }> = ({ block }) => {
         expandable={block.innerEvents.length > 0}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
+        trashSlot={<RowExcludeButton blockId={block.id} label={block.expectedLabel ?? 'Glapp'} />}
       >
         <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} />
 
@@ -451,28 +518,46 @@ const GapRow: React.FC<{ block: GapBlock }> = ({ block }) => {
 /*  Main export                                                       */
 /* ------------------------------------------------------------------ */
 
-export const DayBlockTimeline: React.FC<{ blocks: DayBlock[] }> = ({ blocks }) => {
-  if (blocks.length === 0) {
+export interface DayBlockTimelineProps {
+  blocks: DayBlock[];
+  excludedKeys?: Set<string>;
+  onExcludeBlock?: (blockId: string) => void | Promise<void>;
+  canExclude?: boolean;
+}
+
+export const DayBlockTimeline: React.FC<DayBlockTimelineProps> = ({ blocks, excludedKeys, onExcludeBlock, canExclude }) => {
+  const visible = excludedKeys && excludedKeys.size > 0
+    ? blocks.filter(b => !excludedKeys.has(b.id))
+    : blocks;
+  const hiddenCount = blocks.length - visible.length;
+  if (visible.length === 0) {
     return (
       <div className="text-xs text-muted-foreground italic py-4 text-center">
-        Inga händelser registrerade för dagen.
+        {hiddenCount > 0 ? `${hiddenCount} rad${hiddenCount === 1 ? '' : 'er'} dolda av admin.` : 'Inga händelser registrerade för dagen.'}
       </div>
     );
   }
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className={`${GRID} px-2.5 py-1.5 bg-muted/40 border-b border-border text-[10px] uppercase tracking-wider font-semibold text-muted-foreground`}>
-        <div className="pl-1">Tid</div>
-        <div>Händelse</div>
-        <div className="text-right">Status</div>
-        <div />
+    <ExcludeContext.Provider value={{ canExclude: !!canExclude && !!onExcludeBlock, onExclude: onExcludeBlock }}>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className={`${GRID} px-2.5 py-1.5 bg-muted/40 border-b border-border text-[10px] uppercase tracking-wider font-semibold text-muted-foreground`}>
+          <div className="pl-1">Tid</div>
+          <div>Händelse</div>
+          <div className="text-right">Status</div>
+          <div />
+        </div>
+        {visible.map(b =>
+          b.kind === 'presence' ? <PresenceRow key={b.id} block={b} />
+          : b.kind === 'journey' ? <JourneyRow key={b.id} block={b} />
+          : <GapRow key={b.id} block={b} />
+        )}
+        {hiddenCount > 0 && (
+          <div className="px-3 py-1.5 text-[10px] text-muted-foreground italic border-t border-border bg-muted/20">
+            {hiddenCount} rad{hiddenCount === 1 ? '' : 'er'} dolda av admin (manuellt exkluderade).
+          </div>
+        )}
       </div>
-      {blocks.map(b =>
-        b.kind === 'presence' ? <PresenceRow key={b.id} block={b} />
-        : b.kind === 'journey' ? <JourneyRow key={b.id} block={b} />
-        : <GapRow key={b.id} block={b} />
-      )}
-    </div>
+    </ExcludeContext.Provider>
   );
 };
 

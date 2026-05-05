@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      actual_day_event_overrides: {
+        Row: {
+          action: string
+          created_at: string
+          created_by: string | null
+          event_key: string
+          id: string
+          local_date: string
+          organization_id: string
+          reason: string
+          staff_id: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          created_by?: string | null
+          event_key: string
+          id?: string
+          local_date: string
+          organization_id: string
+          reason?: string
+          staff_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          created_by?: string | null
+          event_key?: string
+          id?: string
+          local_date?: string
+          organization_id?: string
+          reason?: string
+          staff_id?: string
+        }
+        Relationships: []
+      }
       ai_reality_corrections: {
         Row: {
           ai_model: string | null

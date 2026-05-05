@@ -39,6 +39,8 @@ import { resolvePlaceLabel } from '@/lib/staff/resolvePlaceLabel';
 import ProjectVisitBlock, { buildProjectBlocks } from './ProjectVisitBlock';
 import { buildDayBlockTimeline, type VisitInfo } from '@/lib/staff/dayBlockTimeline';
 import DayBlockTimeline from './DayBlockTimelineView';
+import { useUserRoles } from '@/hooks/useUserRoles';
+import { useActualDayEventOverrides } from '@/hooks/useActualDayEventOverrides';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
@@ -55,6 +57,8 @@ import DayBlockTimeline from './DayBlockTimelineView';
 
 interface ActualDayPanelProps {
   staffName: string;
+  /** Staff id (för admin-overrides per rad). Optional för bakåtkompat. */
+  staffId?: string;
   date: string;
   model: ActualStaffDayModel;
   /** Senast kända ping-tid (från staff_locations). */
@@ -452,6 +456,7 @@ const PlanningSection: React.FC<{ items: PlanningItemView[] }> = ({ items }) => 
 // ── Komponenten ─────────────────────────────────────────────────────
 export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   staffName,
+  staffId,
   date,
   model,
   lastPingIso,
@@ -467,6 +472,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   rawGpsSlot,
   onRepairWorkdayFromEvidence,
 }) => {
+  const { isAdmin, hasAnyRole } = useUserRoles();
+  const canExclude = isAdmin || hasAnyRole(['projekt', 'lager']);
+  const { excludedKeys, exclude } = useActualDayEventOverrides(staffId ?? null, date ?? null);
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [rawGpsOpen, setRawGpsOpen] = useState(false);
@@ -1177,7 +1185,12 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           </button>
         </div>
         {!showAllEvents ? (
-          <DayBlockTimeline blocks={enrichedBlockTimeline} />
+          <DayBlockTimeline
+            blocks={enrichedBlockTimeline}
+            excludedKeys={excludedKeys}
+            canExclude={canExclude && !!staffId}
+            onExcludeBlock={async (blockId) => { await exclude(blockId, 'manual_remove'); }}
+          />
         ) : mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
