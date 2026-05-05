@@ -310,6 +310,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                     </div>
                   );
                 })()}
+                {(typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) && (
                 <details className="group rounded-md border border-dashed border-muted-foreground/20 bg-muted/30 px-3 py-1.5 text-[11px]">
                   <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">
                     Varför syns {staff.name}? <span className="opacity-60">(debug)</span>
