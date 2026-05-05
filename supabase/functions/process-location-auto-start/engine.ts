@@ -582,6 +582,8 @@ export async function processStaff(
       metadata: {
         auto_started: true,
         auto_start_source: isSwitch ? 'geofence_auto_switch_server' : 'server_background_gps',
+        engine_version: report.engine_version,
+        run_id: report.run_id,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
         confidence: hit.confidence,
         arrival_pings_count: hit.pings.length,
