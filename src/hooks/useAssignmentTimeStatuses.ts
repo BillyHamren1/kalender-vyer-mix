@@ -108,10 +108,10 @@ export function useAssignmentTimeStatuses(assignments: AssignmentKey[]) {
           .lte('started_at', endIso),
         supabase
           .from('workday_flags')
-          .select('staff_id, work_date, flag_type, severity')
+          .select('staff_id, flag_date, flag_type, severity')
           .in('staff_id', staffIds)
-          .gte('work_date', dateRange.from)
-          .lte('work_date', dateRange.to),
+          .gte('flag_date', dateRange.from)
+          .lte('flag_date', dateRange.to),
       ]);
 
       return {
