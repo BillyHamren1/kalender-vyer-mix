@@ -569,7 +569,7 @@ async function ensureTravelLog(
     end_time: arrivalIso,
     hours_worked: Math.round((dur / 3600_000) * 100) / 100,
     auto_detected: true,
-    source: report.mode === 'backfill_day' ? 'geofence_auto_switch_server_backfill' : 'geofence_auto_switch_server',
+    source: 'gap_derived',
     classification: 'unclassified',
     needs_review: true,
     previous_target_type: prevHit.target.kind,
