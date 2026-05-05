@@ -368,6 +368,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       sources: { timeReport: false, timer: false, gpsVisit: true, assistant: false },
       evidenceLabel: null,
       confidence: 'low',
+      resolvedPlace: resolvePresencePlace(presenceKind, v as unknown as VisitInfo, v.label),
     });
   }
 
