@@ -428,7 +428,6 @@ async function closeOpenLteForSwitch(
     .from('location_time_entries')
     .update({
       exited_at: departureIso,
-      total_minutes: totalMinutes,
       stop_source: 'server_background_gps_switch',
       stop_reason: 'switched_to_new_work_site',
       stopped_by: 'system:process-location-auto-start',
