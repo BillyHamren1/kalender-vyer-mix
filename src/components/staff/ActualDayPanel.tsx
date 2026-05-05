@@ -617,11 +617,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       };
     }
     if (!lookup) {
+      // Coord finns men ingen lookup-queue än → behandla som pending så att
+      // huvudraden visar "Slår upp adress…" istället för rått "okänd plats".
       return {
-        label: 'Okänd plats – adress saknas',
+        label: lat == null || lng == null
+          ? 'Okänd plats – saknar koordinat'
+          : 'Slår upp adress…',
         address: null, city: null, poiName: null, poiCategory: null,
         lat, lng, mapUrl,
-        lookupStatus: 'failed',
+        lookupStatus: lat == null || lng == null ? 'failed' : 'pending',
         confidence: 'low',
       };
     }
@@ -636,7 +640,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     }
     if (lookup.status === 'error' || !lookup.geo) {
       return {
-        label: 'Okänd plats – adress saknas',
+        label: 'Okänd plats – adress kunde inte hämtas',
         address: null, city: null, poiName: null, poiCategory: null,
         lat, lng, mapUrl,
         lookupStatus: 'failed',
