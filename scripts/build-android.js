@@ -54,6 +54,37 @@ if (!mode || !MODES[mode]) {
 
 const config = MODES[mode];
 
+// ── Mode banner ────────────────────────────────────────────────
+if (mode === 'scanner') {
+  console.log('🛈  Building scanner app with capacitor.scanner.config.ts');
+} else if (mode === 'time') {
+  console.log('🛈  Building time app with capacitor.time.config.ts');
+}
+// ⚠ NEVER run plain `npx cap sync android` for scanner builds.
+//   Use:  npm run android:scanner  (or npm run android:scanner:sync).
+//   Plain `cap sync` will pick up whatever capacitor.config.ts currently
+//   holds (often the Time config) and ship the wrong appId/appName.
+
+// ── Scanner-only: warn if Zebra RFID SDK AAR is missing ───────
+if (mode === 'scanner') {
+  const libsDir = resolve(ROOT, 'android', 'app', 'libs');
+  let hasRfidAar = false;
+  try {
+    if (existsSync(libsDir)) {
+      const fs = await import('fs');
+      const files = fs.readdirSync(libsDir);
+      hasRfidAar = files.some(f => /\.aar$/i.test(f) && /(rfid|api3)/i.test(f));
+    }
+  } catch { /* ignore */ }
+  if (!hasRfidAar) {
+    console.warn('');
+    console.warn('⚠  Zebra RFID SDK AAR missing.');
+    console.warn('   RFID native plugin will not compile unless the SDK is added to android/app/libs.');
+    console.warn('   Place the Zebra API3 .aar (e.g. API3_LIB-RELEASE-*.aar) into android/app/libs/.');
+    console.warn('');
+  }
+}
+
 function run(cmd, opts = {}) {
   console.log(`  ▸ ${cmd}`);
   execSync(cmd, { cwd: ROOT, stdio: 'inherit', ...opts });
