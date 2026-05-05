@@ -363,9 +363,29 @@ export interface ReportState {
   travelLogs: ActualTravelLogInput[];
 }
 
+/**
+ * Planeringsobjekt — separerat från actualEvents. Får ALDRIG renderas
+ * som om det hade hänt; används för header/Planering-sektion + förslag.
+ */
+export interface PlanningItem {
+  id: string;
+  assignmentId: string;
+  label: string;
+  /** ISO för planerad start. */
+  plannedStart: string;
+  /** ISO för planerad slut, om känt. */
+  plannedEnd: string | null;
+  /** Källan, t.ex. 'planning'. */
+  source: 'planning';
+}
+
 export interface ActualStaffDayModel {
   date: string;
+  /** Hårda fakta: GPS, workday, timer, time_report, assistant, server, travel.
+   *  Innehåller ALDRIG planeringsförväntan (se planningItems). */
   actualEvents: ActualEvent[];
+  /** Planerade assignments — förväntan, inte bevis. */
+  planningItems: PlanningItem[];
   actualVisits: ActualVisit[];
   reportState: ReportState;
   proposedReport: ProposedReport;
