@@ -979,6 +979,13 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       meta: {
         fromCentre: tr.from.knownSite ? null : { lat: tr.from.centre.lat, lng: tr.from.centre.lng },
         toCentre: tr.to.knownSite ? null : { lat: tr.to.centre.lat, lng: tr.to.centre.lng },
+        fromPlaceKey: tr.from.placeKey,
+        toPlaceKey: tr.to.placeKey,
+        fromKnownSiteId: tr.from.knownSite?.id ?? null,
+        toKnownSiteId: tr.to.knownSite?.id ?? null,
+        // Slingrar tillbaka till samma plats — GPS-jitter / kort utsträckning.
+        samePlaceTravel: tr.from.placeKey === tr.to.placeKey
+          || (!!tr.from.knownSite && tr.from.knownSite.id === tr.to.knownSite?.id),
         travelOrigin: 'gps_movement',
         bothKnown,
         approved: false,
