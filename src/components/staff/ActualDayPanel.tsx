@@ -339,14 +339,79 @@ import {
   type TimelineHiddenReason,
 } from '@/lib/staff/timelineVisibility';
 
+type PlanningItemView = {
+  id: string;
+  label: string;
+  plannedStart: string;
+  plannedEnd: string | null;
+  role?: string | null;
+  team?: string | null;
+  source?: string | null;
+  address?: string | null;
+};
+
+/**
+ * Kompakt "Planerad"-pill i headern. Visar första uppdragets tid eller
+ * "N uppdrag" — popover ger full detalj utan att störa journalen.
+ */
+const PlanningHeaderPill: React.FC<{ items: PlanningItemView[] }> = ({ items }) => {
+  if (!items.length) return null;
+  const first = items[0];
+  const compact = items.length === 1
+    ? `${first.label} · ${extractUTCTime(first.plannedStart)}`
+    : `${items.length} uppdrag`;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="text-xs inline-flex items-center gap-1 rounded border border-dashed border-muted-foreground/40 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-muted-foreground/70"
+          title="Planerad förväntan — inte faktiska händelser"
+        >
+          <Clock className="h-3 w-3" />
+          <span className="font-medium">Planerad:</span>
+          <span className="truncate max-w-[14rem]">{compact}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-3">
+        <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
+          Planerad förväntan ({items.length})
+        </div>
+        <ul className="space-y-2">
+          {items.map(it => (
+            <li key={it.id} className="text-xs border-b last:border-b-0 pb-2 last:pb-0">
+              <div className="font-medium text-foreground">{it.label}</div>
+              <div className="tabular-nums text-muted-foreground">
+                {extractUTCTime(it.plannedStart)}
+                {it.plannedEnd ? `–${extractUTCTime(it.plannedEnd)}` : ''}
+              </div>
+              {(it.role || it.team) && (
+                <div className="text-muted-foreground">
+                  {[it.role, it.team].filter(Boolean).join(' · ')}
+                </div>
+              )}
+              {it.address && <div className="text-muted-foreground">{it.address}</div>}
+              {it.source && (
+                <div className="text-[10px] text-muted-foreground/70 mt-0.5">Källa: {it.source}</div>
+              )}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          Förväntan, ej faktiska händelser.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 /**
  * "Planering"-sektion. Renderar `model.planningItems` (förväntan från
- * assignments) — aldrig events. Separerad från huvudjournalen.
+ * assignments) — aldrig events. Default collapsed; använd headerns
+ * Planerad-pill för snabb översikt.
  */
-const PlanningSection: React.FC<{
-  items: Array<{ id: string; label: string; plannedStart: string; plannedEnd: string | null }>;
-}> = ({ items }) => {
-  const [open, setOpen] = useState(true);
+const PlanningSection: React.FC<{ items: PlanningItemView[] }> = ({ items }) => {
+  const [open, setOpen] = useState(false);
   if (!items.length) return null;
   return (
     <section className="px-4 py-2 border-b bg-muted/20">
