@@ -742,50 +742,68 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         ? 'text-amber-600'
                         : 'text-muted-foreground';
 
-              // "Från / Till" för förflyttningar (gps_travel eller syntetiskt journey_block)
-              let displayLabel: React.ReactNode = ev.label;
-              const isJourneyBlock = (ev.meta as any)?.journey_block === true;
-              if ((ev.kind === 'gps_travel' || isJourneyBlock) && typeof ev.label === 'string' && ev.label.includes('→')) {
-                const stripped = ev.label.replace(/^Förflyttning:\s*/, '');
-                const [a, b] = stripped.split(' → ');
-                displayLabel = (
-                  <>
-                    <span className="font-medium">Förflyttning</span>
-                    {a && (
-                      <span className="text-muted-foreground"> · Från: <span className="text-foreground">{a.trim()}</span></span>
-                    )}
-                    {b && (
-                      <span className="text-muted-foreground"> · Till: <span className="text-foreground">{b.trim()}</span></span>
-                    )}
-                  </>
-                );
+              // Journey-rad: tydlig tvådelad "Från / Till"-uppställning
+              const jbMeta = (ev.meta as any)?.journey_block === true ? (ev.meta as any) : null;
+              const isJourneyRow =
+                !!jbMeta
+                || (ev.kind === 'gps_travel' && typeof ev.label === 'string' && ev.label.includes('→'));
+              let journeyFrom: string | null = null;
+              let journeyTo: string | null = null;
+              if (isJourneyRow) {
+                if (jbMeta) {
+                  journeyFrom = (jbMeta.from_label as string | null) ?? null;
+                  journeyTo = (jbMeta.to_label as string | null) ?? null;
+                }
+                if ((!journeyFrom || !journeyTo) && typeof ev.label === 'string' && ev.label.includes('→')) {
+                  const stripped = ev.label.replace(/^Förflyttning:\s*/, '');
+                  const [a, b] = stripped.split(' → ');
+                  journeyFrom = journeyFrom ?? (a ? a.trim() : null);
+                  journeyTo = journeyTo ?? (b ? b.trim() : null);
+                }
               }
+
+              // Default-label för icke-journey-rader
+              const displayLabel: React.ReactNode = ev.label;
 
               return (
                 <React.Fragment key={ev.id}>
                   <li
-                    className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-x-2 text-xs py-0.5 cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1"
+                    className="grid grid-cols-[auto_auto_1fr_auto_auto] items-start gap-x-2 text-xs py-0.5 cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1"
                     onClick={toggleRow}
                   >
-                    <span className="tabular-nums text-muted-foreground w-12">
+                    <span className="tabular-nums text-muted-foreground w-12 pt-0.5">
                       {fmtHm(ev.at)}
                       {ev.until ? `–${fmtHm(ev.until)}` : ''}
                     </span>
-                    <EventIcon kind={ev.kind} severity={ev.severity} />
-                    <span className="text-foreground truncate">{displayLabel}</span>
+                    <span className="pt-0.5"><EventIcon kind={ev.kind} severity={ev.severity} /></span>
+                    {isJourneyRow ? (
+                      <div className="min-w-0 leading-tight">
+                        <div className="font-medium text-foreground">Förflyttning</div>
+                        <div className="text-[11px] truncate">
+                          <span className="text-muted-foreground">Från: </span>
+                          <span className="text-foreground">{journeyFrom ?? '—'}</span>
+                        </div>
+                        <div className="text-[11px] truncate">
+                          <span className="text-muted-foreground">Till: </span>
+                          <span className="text-foreground">{journeyTo ?? '—'}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-foreground truncate pt-0.5">{displayLabel}</span>
+                    )}
                     {statusIsAction ? (
-                      <Badge variant="outline" className={`text-[10px] py-0 px-1.5 ${statusTone}`}>
+                      <Badge variant="outline" className={`text-[10px] py-0 px-1.5 mt-0.5 ${statusTone}`}>
                         {statusLabel}
                       </Badge>
                     ) : (
-                      <span className={`text-[10px] uppercase tracking-wide ${statusTone}`}>
+                      <span className={`text-[10px] uppercase tracking-wide pt-0.5 ${statusTone}`}>
                         {statusLabel}
                       </span>
                     )}
                     {isRowOpen ? (
-                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                      <ChevronDown className="h-3 w-3 text-muted-foreground mt-1" />
                     ) : (
-                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                      <ChevronRight className="h-3 w-3 text-muted-foreground mt-1" />
                     )}
                   </li>
                   {isRowOpen && (
