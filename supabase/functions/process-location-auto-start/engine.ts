@@ -254,6 +254,19 @@ export function evaluateStableSegments(target: Target, pings: Ping[]): StableHit
     const enoughCount = inside.length >= ENTRY_PING_MIN_COUNT
     const enoughDwell = dwell >= ENTRY_PING_MIN_DWELL_MS
     if (!enoughCount && !enoughDwell) continue
+    // Short-visit guard: 1–15 min GPS presence must NOT auto-start an
+    // activity/LTE on its own. The cluster is still preserved for the
+    // raw GPS view; we just refuse to materialise it as a workpass.
+    if (dwell < AUTO_START_MIN_DWELL_MS) {
+      console.log('[auto-start] short_visit_skipped', {
+        target: target.label,
+        target_kind: target.kind,
+        dwell_minutes: Math.round(dwell / 60_000),
+        ping_count: inside.length,
+        first_ping_at: new Date(inside[0].ts).toISOString(),
+      })
+      continue
+    }
     const goodAcc = inside.filter(p => p.accuracy == null || p.accuracy <= ENTRY_PING_MAX_ACCURACY_M)
     if (goodAcc.length * 2 < inside.length) continue
     const firstReliable = goodAcc[0] ?? inside[0]
