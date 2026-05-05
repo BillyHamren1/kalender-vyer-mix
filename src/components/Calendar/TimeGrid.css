@@ -266,13 +266,13 @@
     hsl(var(--calendar-primary) / 0.04) 100%
   );
   min-height: 88px;
-  height: 88px;
-  max-height: 88px;
+  height: auto;
+  max-height: none;
   display: flex;
   align-items: stretch;
   padding: 0;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border-left: 1px solid hsl(var(--border) / 0.6);
   border-right: 1px solid hsl(var(--foreground) / 0.2);
   border-bottom: 1px solid hsl(var(--border) / 0.6);
