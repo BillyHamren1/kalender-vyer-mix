@@ -1167,7 +1167,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           </button>
         </div>
         {!showAllEvents ? (
-          <DayBlockTimeline blocks={blockTimeline} />
+          <DayBlockTimeline blocks={enrichedBlockTimeline} />
         ) : mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
