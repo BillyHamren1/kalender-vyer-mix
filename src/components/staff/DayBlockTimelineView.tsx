@@ -102,6 +102,16 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
             {block.isProject && <Briefcase className="h-3 w-3 mr-1" />}
             {chipLabel}
           </Badge>
+          {block.evidenceLabel && (
+            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-blue-300 text-blue-800 dark:text-blue-200">
+              {block.evidenceLabel}
+            </Badge>
+          )}
+          {block.confidence === 'high' && (
+            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-emerald-300 text-emerald-800 dark:text-emerald-200">
+              Hög tillit
+            </Badge>
+          )}
           {block.requiresReview && (
             <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300">
               Kräver granskning

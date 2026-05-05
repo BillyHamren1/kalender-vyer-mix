@@ -73,6 +73,17 @@ export interface PresenceBlock {
     active: boolean;
     present: boolean;
   };
+  /** Bevisflaggor — vilka källor stödjer detta arbetsblock. */
+  sources: {
+    timeReport: boolean;
+    timer: boolean;
+    gpsVisit: boolean;
+    assistant: boolean;
+  };
+  /** Mänsklig sammanfattning av sources, t.ex. "Tidrapport + GPS". */
+  evidenceLabel: string | null;
+  /** 'high' om TR + (timer eller gps), 'medium' annars. */
+  confidence: 'high' | 'medium' | 'low';
 }
 
 export interface JourneyBlock {
@@ -195,6 +206,9 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sourceEventIds: [ev.id],
         innerEvents: [],
         timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+        sources: { timeReport: false, timer: false, gpsVisit: ev.kind === 'gps_visit' || ev.kind === 'gps_arrival', assistant: false },
+        evidenceLabel: null,
+        confidence: 'low',
       };
       blocks.push(block);
       continue;
@@ -319,6 +333,9 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       sourceEventIds: [cr.id, ...(cl ? [cl.id] : [])],
       innerEvents: [],
       timer: { startedIso: null, stoppedIso: null, active: !endIso, present: true },
+      sources: { timeReport: true, timer: false, gpsVisit: false, assistant: false },
+      evidenceLabel: null,
+      confidence: 'medium',
     };
     blocks.push(synthetic);
   }
@@ -376,6 +393,9 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sourceEventIds: [],
         innerEvents: rawInWindow,
         timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+        sources: { timeReport: false, timer: false, gpsVisit: false, assistant: false },
+        evidenceLabel: null,
+        confidence: 'low',
       });
       continue;
     }
@@ -413,10 +433,40 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     });
   }
 
-  // 6) Slå ihop INFERRED-presence med en omslutande TIDRAPPORT-presence:
-  //    om en TR-presence täcker hela tiden, låt inferred bli "innesluten"
-  //    detalj. Vi gör inget hårt här — TR-blocket finns redan och visas;
-  //    inferred-blocket ger mer granularitet mellan resor.
+  // 6) Beräkna sources/evidenceLabel/confidence för varje presence-block
+  //    baserat på vilka tekniska bevis som mergeats in.
+  for (const b of withGaps) {
+    if (b.kind !== 'presence') continue;
+    const hasTr = b.sources.timeReport
+      || b.innerEvents.some(e => e.kind === 'time_report_created' || e.kind === 'time_report_closed');
+    const hasTimer = b.sources.timer
+      || b.timer.present
+      || b.innerEvents.some(e => e.kind === 'timer_started' || e.kind === 'timer_stopped' || e.kind === 'timer_end_estimated');
+    const hasGps = b.sources.gpsVisit
+      || b.innerEvents.some(e => e.kind === 'gps_visit' || e.kind === 'gps_arrival' || e.kind === 'gps_departure');
+    const hasAssistant = b.sources.assistant
+      || b.innerEvents.some(e => e.kind === 'assistant_arrival' || e.kind === 'assistant_departure' || e.kind === 'assistant_other');
+    b.sources = { timeReport: hasTr, timer: hasTimer, gpsVisit: hasGps, assistant: hasAssistant };
+
+    const parts: string[] = [];
+    if (hasTr) parts.push('Tidrapport');
+    if (hasTimer && !hasTr) parts.push('Timer');
+    if (hasGps) parts.push('GPS');
+    if (hasAssistant && parts.length === 0) parts.push('Assistent');
+    b.evidenceLabel = parts.length > 0 ? parts.join(' + ') : null;
+
+    const evidenceCount = [hasTr, hasTimer, hasGps].filter(Boolean).length;
+    b.confidence = evidenceCount >= 2 ? 'high' : evidenceCount === 1 ? 'medium' : 'low';
+
+    // Sätt subtitle om saknas — "Arbete · <evidence>" för kända arbetsplatser
+    if (!b.subtitle && b.evidenceLabel) {
+      b.subtitle = b.isProject
+        ? `Projektarbete · ${b.evidenceLabel}`
+        : hasTr || hasTimer
+          ? `Arbete · ${b.evidenceLabel}`
+          : `Vistelse · ${b.evidenceLabel}`;
+    }
+  }
 
   return withGaps;
 }
