@@ -44,9 +44,10 @@ describe('planned_time_without_signal anomaly', () => {
         plannedEnd: `${date}T16:00:00Z`,
       }],
     });
-    const planned = m.actualEvents.find(e => e.kind === 'planned_start');
+    const planned = m.planningItems.find(p => p.assignmentId === 'a1');
     const gap = m.actualEvents.find(e => e.kind === 'planned_signal_gap');
-    expect(planned?.label).toMatch(/Planerad start: Projekt A/);
+    expect(planned?.label).toBe('Projekt A');
+    expect(m.actualEvents.find(e => e.kind === 'planned_start')).toBeUndefined();
     expect(gap).toBeDefined();
     const meta = (gap!.meta ?? {}) as any;
     expect(meta.anomalyType).toBe('planned_time_without_signal');
