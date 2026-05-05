@@ -237,7 +237,10 @@ const MobileScannerApp: React.FC = () => {
         <VerificationView 
           packingId={selectedPackingId}
           onBack={goHome}
-          registerScanHandler={(handler) => { activeScanHandler.current = handler; }}
+          registerScanHandler={(handler) => {
+            // VerificationView still consumes scan.value internally — wrap to preserve full event downstream
+            activeScanHandler.current = (scan: ScanEvent) => handler(scan.value);
+          }}
           scannerState={{
             currentMode: scanner.currentMode,
             isBarcodeReady: scanner.isBarcodeReady,
