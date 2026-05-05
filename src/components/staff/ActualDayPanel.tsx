@@ -1109,18 +1109,21 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             {showAllEvents ? 'Visa kompakt' : 'Visa alla händelser'}
           </button>
         </div>
-        {projectBlocks.length > 0 && (
-          <div className="space-y-2 mb-3">
-            {projectBlocks.map(b => (
-              <ProjectVisitBlock key={b.id} block={b} />
-            ))}
-          </div>
-        )}
-        {mainEvents.length === 0 && projectBlocks.length === 0 ? (
+        {!showAllEvents ? (
+          <DayBlockTimeline blocks={blockTimeline} />
+        ) : mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
           </div>
         ) : (
+          <>
+          {projectBlocks.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {projectBlocks.map(b => (
+                <ProjectVisitBlock key={b.id} block={b} />
+              ))}
+            </div>
+          )}
           <ol className="space-y-1">
             {mainEvents
               .filter(ev => {
