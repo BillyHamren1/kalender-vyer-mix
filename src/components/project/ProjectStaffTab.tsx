@@ -46,10 +46,13 @@ const ProjectStaffTabInner = ({ projectId, bookingId }: { projectId: string; boo
       <PlannedStaffSection staff={plannedStaff} isLoading={isLoading} />
 
       {bookingId && (
-        <ProjectAutoTimeSection target={{ kind: 'booking', bookingId }} />
+        <ProjectAutoTimeSection
+          target={{ kind: 'booking', bookingId }}
+          plannedStaff={plannedStaff}
+        />
       )}
 
-      
+
       <StaffTimeReportsSection
         reports={timeReports}
         isLoading={isLoading}
