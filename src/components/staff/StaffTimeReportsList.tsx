@@ -258,29 +258,28 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             return (
               <>
                 {plannedOnly.length > 0 && (
-                  <div className="rounded-lg border border-dashed border-amber-300/50 bg-amber-50/50 dark:bg-amber-950/20 p-3">
-                    <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-900 dark:text-amber-200">
-                      <span className="inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                  <div className="rounded-lg border bg-muted/30 p-3">
+                    <div className="mb-2 text-xs font-medium text-foreground">
                       Planerade – har inte rapporterat tid ({plannedOnly.length})
                     </div>
-                    <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
-                      {plannedOnly.map(staff => (
-                        <li key={staff.id}>
-                          <button
-                            type="button"
-                            onClick={() => onSelectStaff(staff.id, staff.name)}
-                            className="inline-flex items-center gap-2 text-sm text-foreground hover:text-primary hover:underline underline-offset-2"
-                            title={staff.plannedLabels.join(' · ') || 'Planerad'}
-                          >
-                            <span className="font-medium">{staff.name}</span>
-                            {staff.plannedLabels.length > 0 && (
-                              <span className="text-[11px] text-muted-foreground truncate max-w-[200px]">
-                                {staff.plannedLabels.slice(0, 2).join(' · ')}{staff.plannedLabels.length > 2 ? ' …' : ''}
+                    <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                      {[...plannedOnly]
+                        .sort((a, b) => a.name.localeCompare(b.name, 'sv'))
+                        .map(staff => (
+                          <li key={staff.id}>
+                            <button
+                              type="button"
+                              onClick={() => onSelectStaff(staff.id, staff.name)}
+                              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent hover:text-accent-foreground"
+                              title="Planerad i kalendern denna dag"
+                            >
+                              <span className="truncate font-medium">{staff.name}</span>
+                              <span className="ml-2 shrink-0 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">
+                                Planerad
                               </span>
-                            )}
-                          </button>
-                        </li>
-                      ))}
+                            </button>
+                          </li>
+                        ))}
                     </ul>
                   </div>
                 )}

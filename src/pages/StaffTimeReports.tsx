@@ -26,6 +26,8 @@ import {
 } from '@/lib/staff/actualStaffDayModel';
 import { buildPlaceVisits, buildDayTimeline, type KnownSite } from '@/lib/staff/pingPlaceSegments';
 import type { Ping } from '@/lib/staff/movementDetection';
+import { fetchStaffMembers } from '@/services/staffService';
+import { deriveStaffEvents } from '@/lib/staffCalendar/deriveStaffEvents';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
@@ -230,7 +232,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -271,6 +273,9 @@ const StaffTimeReports: React.FC = () => {
           .from('staff_assignments')
           .select('staff_id, team_id, assignment_date')
           .eq('assignment_date', dateStr),
+        supabase
+          .from('large_project_staff')
+          .select('staff_id, large_project_id'),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
@@ -314,10 +319,12 @@ const StaffTimeReports: React.FC = () => {
       const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
       const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
 
-      // ── Planerad personal: union av alla källor som personalkalendern
-      // använder. plannedStaffIds får INTE komma från calendar_events ensamt.
+      // ── Planerad personal: använd EXAKT samma kalenderderivering som
+      // personalkalendern, så tidrapportsidan aldrig visar andra namn än
+      // kalendern för vald dag.
       const bsaRows = ((bsaRes as any).error ? [] : (bsaRes as any).data || []) as any[];
       const saRows = ((saRes as any).error ? [] : (saRes as any).data || []) as any[];
+      const lpsRows = ((lpsRes as any).error ? [] : (lpsRes as any).data || []) as any[];
       const plannedStaffIds = new Set<string>();
       const plannedLabelsByStaff = new Map<string, Set<string>>();
       const plannedFromBSA = new Set<string>();
@@ -330,10 +337,78 @@ const StaffTimeReports: React.FC = () => {
         if (label) set.add(label);
         plannedLabelsByStaff.set(sid, set);
       };
-      for (const r of bsaRows) {
-        if (!r.staff_id) continue;
-        plannedFromBSA.add(r.staff_id);
-        addPlanned(r.staff_id, r.team_id ? `Bokning · ${r.team_id}` : 'Bokning');
+      const allStaff = await fetchStaffMembers();
+      const staffNames = new Map(allStaff.map(s => [s.id, s.name]));
+
+      const bookingIdsFromAssignments = Array.from(new Set(bsaRows.map(r => r.booking_id).filter(Boolean)));
+      const bookingsById = new Map<string, any>();
+      if (bookingIdsFromAssignments.length > 0) {
+        const { data: bookingRows } = await supabase
+          .from('bookings')
+          .select('id, client, booking_number, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, deliveryaddress')
+          .in('id', bookingIdsFromAssignments);
+        (bookingRows || []).forEach((b: any) => bookingsById.set(b.id, b));
+      }
+
+      const lpIds = Array.from(new Set([
+        ...[...bookingsById.values()].map((b: any) => b.large_project_id).filter(Boolean),
+        ...lpsRows.map((r: any) => r.large_project_id).filter(Boolean),
+      ]));
+      const largeProjectsById = new Map<string, any>();
+      let largeProjectBookings: Array<{ large_project_id: string; booking_id: string }> = [];
+      if (lpIds.length > 0) {
+        const [{ data: lpRows }, { data: lpbRows }] = await Promise.all([
+          supabase
+            .from('large_projects')
+            .select('id, name, address, start_date, event_date, end_date, deleted_at')
+            .in('id', lpIds)
+            .is('deleted_at', null),
+          supabase
+            .from('large_project_bookings')
+            .select('large_project_id, booking_id')
+            .in('large_project_id', lpIds),
+        ]);
+        (lpRows || []).forEach((p: any) => largeProjectsById.set(p.id, p));
+        largeProjectBookings = (lpbRows || []) as any[];
+      }
+
+      const calendarEventsByBookingIds = Array.from(new Set([
+        ...bookingIdsFromAssignments,
+        ...largeProjectBookings.map(row => row.booking_id),
+      ]));
+      let planningCalendarEvents: any[] = [];
+      if (calendarEventsByBookingIds.length > 0) {
+        const { data: ceRows } = await supabase
+          .from('calendar_events')
+          .select('id, booking_id, start_time, end_time, event_type, resource_id, booking_number, delivery_address, source_date')
+          .in('booking_id', calendarEventsByBookingIds)
+          .gte('start_time', `${dateStr}T00:00:00`)
+          .lt('start_time', `${nextDateStr}T00:00:00`);
+        planningCalendarEvents = ceRows || [];
+      }
+
+      const derivedPlannedEvents = deriveStaffEvents({
+        staffIds: allStaff.map(s => s.id),
+        startDate: dateStr,
+        endDate: dateStr,
+        staffNames,
+        bookingAssignments: bsaRows,
+        largeProjectStaff: lpsRows,
+        bookings: bookingsById,
+        largeProjects: largeProjectsById,
+        largeProjectBookings,
+        calendarEvents: planningCalendarEvents,
+      });
+
+      for (const event of derivedPlannedEvents) {
+        if (event.largeProjectId) {
+          plannedFromLPS.add(event.staffId);
+        } else {
+          plannedFromBSA.add(event.staffId);
+        }
+        plannedStaffIds.add(event.staffId);
+        const label = event.largeProjectName || event.client || 'Bokning';
+        addPlanned(event.staffId, label);
       }
       for (const r of saRows) {
         if (!r.staff_id) continue;
@@ -1275,7 +1350,7 @@ const StaffTimeReports: React.FC = () => {
                 hasAssistantEvents: staffAssistantEvents.length > 0,
                 hasWorkdayFlags: staffFlags.length > 0,
               };
-               const isPlanned = presenceFlags.plannedFromBookingStaffAssignments;
+               const isPlanned = plannedStaffIds.has(s.id);
               const hasActivity =
                 presenceFlags.hasTimeReports ||
                 presenceFlags.hasLocationTimeEntries ||
@@ -1298,7 +1373,8 @@ const StaffTimeReports: React.FC = () => {
                         : 'planned';
 
               const visibilityParts: string[] = [];
-              if (presenceFlags.plannedFromBookingStaffAssignments) visibilityParts.push('planerad i booking_staff_assignments');
+              if (isPlanned) visibilityParts.push('planerad i personalkalendern för vald dag');
+              if (presenceFlags.plannedFromBookingStaffAssignments) visibilityParts.push('underlag från booking_staff_assignments');
               if (presenceFlags.plannedFromStaffAssignments) visibilityParts.push('teamplacerad i staff_assignments');
               if (presenceFlags.plannedFromLargeProjectStaff) visibilityParts.push('medlem i aktivt large_project');
               if (presenceFlags.hasWorkday) visibilityParts.push(presenceFlags.hasOpenWorkday ? 'pågående workday finns' : 'workday finns');
