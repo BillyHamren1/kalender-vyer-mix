@@ -841,6 +841,25 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       });
     }
   }
+  // Första "arbetsankaret" för dagen — workday-start eller första arbetsrelevanta
+  // visit. Används för att förhindra att en gammal nattlig/bakgrunds-GPS före
+  // detta ankare blir "Förflyttning till första arbetsplatsen" i huvudjournalen.
+  const firstWorkVisitStartMs = (() => {
+    let min = Number.POSITIVE_INFINITY;
+    for (const v of input.visits) {
+      const r = visitRelevance.get(v.placeKey) ?? 'unknown_requires_lookup';
+      if (!isMainJournalRelevance(r)) continue;
+      const t = new Date(v.start).getTime();
+      if (t < min) min = t;
+    }
+    return Number.isFinite(min) ? min : null;
+  })();
+  const firstWorkAnchorMs = (() => {
+    const candidates = [wdStart, firstWorkVisitStartMs].filter((x): x is number => x != null);
+    return candidates.length ? Math.min(...candidates) : null;
+  })();
+  const ANCHOR_SLACK_MS = 5 * 60_000;
+
   for (const tr of input.travels) {
     const fromLabel = tr.from.knownSite?.name ?? null;
     const toLabel = tr.to.knownSite?.name ?? null;
@@ -851,8 +870,18 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       ?? (tr.from.knownSite ? 'work_confirmed' : 'unknown_requires_lookup');
     const toRel = visitRelevance.get(tr.to.placeKey)
       ?? (tr.to.knownSite ? 'work_confirmed' : 'unknown_requires_lookup');
+    // Pre-workday-gate: en travel som SLUTAR vid (eller före) dagens första
+    // arbetsankare och vars ORIGIN inte är arbetsrelevant räknas som
+    // bakgrunds-GPS — aldrig "Förflyttning till första arbetsplats".
+    // Ex: 02:03 (okänd/privat) → 13:10 (FA Warehouse) ska inte synas i
+    // huvudjournalen som arbetsförflyttning.
+    const isLeadInToFirstAnchor =
+      firstWorkAnchorMs != null
+      && endMs <= firstWorkAnchorMs + ANCHOR_SLACK_MS
+      && !isMainJournalRelevance(fromRel);
     let travelRelevance: WorkRelevance;
-    if (bothKnown) travelRelevance = 'work_confirmed';
+    if (isLeadInToFirstAnchor) travelRelevance = 'private_or_background';
+    else if (bothKnown) travelRelevance = 'work_confirmed';
     else if (isWindowRelevant(startMs, endMs)) travelRelevance = 'work_confirmed';
     else if (isMainJournalRelevance(fromRel) && isMainJournalRelevance(toRel)) travelRelevance = 'work_possible';
     else if (isMainJournalRelevance(fromRel) || isMainJournalRelevance(toRel)) travelRelevance = 'work_possible';
@@ -864,8 +893,10 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       at: tr.start,
       until: tr.end,
       kind: 'gps_travel',
-      severity: bothKnown ? 'info' : 'warning',
-      label: `Förflyttning: ${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`,
+      severity: bothKnown && !isLeadInToFirstAnchor ? 'info' : 'warning',
+      label: isLeadInToFirstAnchor
+        ? `Bakgrunds-GPS före arbetsdagens start: ${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`
+        : `Förflyttning: ${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`,
       durationMin: tr.durationMin,
       meta: {
         fromCentre: tr.from.knownSite ? null : { lat: tr.from.centre.lat, lng: tr.from.centre.lng },
@@ -875,6 +906,8 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         approved: false,
         workRelevant,
         workRelevance: travelRelevance,
+        preWorkdayLeadIn: isLeadInToFirstAnchor,
+        firstWorkAnchorAt: firstWorkAnchorMs ? new Date(firstWorkAnchorMs).toISOString() : null,
       },
     });
   }
