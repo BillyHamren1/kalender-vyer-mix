@@ -303,7 +303,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
             : 'projekt')
     : block.subtitle ?? '';
 
-  const expandable = block.innerEvents.length > 0 || extraBadges.length > 0;
+  const expandable = block.innerEvents.length > 0 || extraBadges.length > 0 || isDebugRelevant(block.resolvedPlace);
 
   return (
     <>
