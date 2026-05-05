@@ -269,11 +269,12 @@ export function evaluateStableSegments(target: Target, pings: Ping[]): StableHit
     const enoughCount = inside.length >= ENTRY_PING_MIN_COUNT
     const enoughDwell = dwell >= ENTRY_PING_MIN_DWELL_MS
     if (!enoughCount && !enoughDwell) continue
-    // Short-visit guard: 1–15 min GPS presence must NOT auto-start an
-    // activity/LTE on its own. The cluster is still preserved for the
-    // raw GPS view; we just refuse to materialise it as a workpass.
-    if (dwell < AUTO_START_MIN_DWELL_MS) {
-      console.log('[auto-start] short_visit_skipped', {
+    // Absolute floor — even a "suggestion/review" event needs ≥2 min dwell to
+    // avoid pure GPS noise. Per-target thresholds (location vs booking/project,
+    // assigned-or-not) are evaluated in processStaff which has access to
+    // staff_assignments to decide materialise vs suggestion-only.
+    if (dwell < AUTO_START_ABSOLUTE_FLOOR_MS) {
+      console.log('[auto-start] below_absolute_floor_skipped', {
         target: target.label,
         target_kind: target.kind,
         dwell_minutes: Math.round(dwell / 60_000),
