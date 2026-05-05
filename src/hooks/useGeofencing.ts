@@ -338,6 +338,20 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     return t;
   };
 
+  // ── Stable-entry tracker (Auto-start hardening 2026-05) ──────────
+  // En enskild inside-ping (GPS-spike) får ALDRIG starta workday/timer.
+  // Vi samlar konsekutiva inside-pings per target och kräver stabilitet
+  // (≥3 pings ELLER ≥2 min dwell, rimlig accuracy).
+  const entryTrackersRef = useRef<Map<string, EntryTrackerState>>(new Map());
+  const getEntryTracker = (key: string): EntryTrackerState => {
+    let t = entryTrackersRef.current.get(key);
+    if (!t) {
+      t = createEntryTracker();
+      entryTrackersRef.current.set(key, t);
+    }
+    return t;
+  };
+
   const noteEnterForDeparture = useCallback((
     key: string,
     kind: 'location' | 'project' | 'booking',
