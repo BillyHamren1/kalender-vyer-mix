@@ -16,6 +16,8 @@ import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ProjectInfo {
   booking_id: string;
@@ -93,8 +95,44 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+  const handleResolvePlannedGap = async (
+    staffId: string,
+    input: {
+      anomalyId: string;
+      mode: 'planned' | 'first_signal' | 'custom' | 'absence';
+      plannedStartIso: string;
+      firstSignalIso: string | null;
+      customStartIso?: string;
+      assignmentId: string | null;
+      noSignalGapMinutes: number;
+      label: string;
+    },
+  ) => {
+    const { data, error } = await supabase.functions.invoke('mobile-app-api', {
+      body: {
+        action: 'admin_create_workday_from_planned',
+        target_staff_id: staffId,
+        flag_date: dateStr,
+        mode: input.mode,
+        planned_start_iso: input.plannedStartIso,
+        first_signal_iso: input.firstSignalIso,
+        custom_start_iso: input.customStartIso,
+        assignment_id: input.assignmentId,
+        note: `Admin: ${input.label} (gap ${input.noSignalGapMinutes} min)`,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if ((data as any)?.error) throw new Error((data as any).error);
+    // Force a refresh of the day panel data.
+    await queryClient.invalidateQueries({ queryKey: ['staff-time-reports'] });
+    await queryClient.invalidateQueries({ queryKey: ['workdays'] });
+    await queryClient.invalidateQueries({ queryKey: ['workday-flags'] });
+  };
+
 
   const filtered = useMemo(() => {
     if (!search.trim()) return staffList;
@@ -410,6 +448,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       Öppna full detaljvy →
                     </button>
                   }
+                  onResolvePlannedGap={(input) => handleResolvePlannedGap(staff.id, input)}
                 />
               </div>
             );
