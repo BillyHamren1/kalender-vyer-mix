@@ -818,6 +818,52 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }
     };
 
+    // ── STABLE-ENTRY EVALUATION (Auto-start hardening 2026-05) ───────
+    // En enskild GPS-spike inom radien får ALDRIG starta workday/timer.
+    // Vi loggar inside-pingen i per-target entry-trackern. Endast 'stable'
+    // tillåter auto-start. 'insufficient'/'unstable' → emittera
+    // assistant_events 'possible_arrival' (throttlat) och returnera utan
+    // att starta. 'no_signal' → ingenting.
+    const evaluateEntry = (
+      key: string,
+      dist: number,
+    ): EntryEvaluation => {
+      const tracker = getEntryTracker(key);
+      recordEntryPing(tracker, {
+        ts: Date.now(),
+        distance: dist,
+        accuracy: userPosition?.accuracy ?? null,
+      });
+      return evaluateStableEntry(tracker, Date.now(), lastPingAgeMs);
+    };
+
+    const emitPossibleArrival = (params: {
+      kind: 'location' | 'project' | 'booking';
+      targetId: string;
+      label: string | null;
+      ev: EntryEvaluation;
+    }) => {
+      // Throttla: bara 1 event per 4:e ping så vi inte spammar.
+      if (params.ev.pings.length % 4 !== 1) return;
+      mobileApi.assistantEvents
+        .create({
+          event_type: 'arrival',
+          target_type: params.kind,
+          target_id: params.targetId,
+          target_label: params.label,
+          happened_at: new Date().toISOString(),
+          source: 'geofence',
+          suggested_action: 'possible_arrival',
+          metadata: {
+            ...buildEntryMetadata(params.ev),
+            note: 'Möjlig ankomst — instabil GPS, ingen auto-start',
+          },
+        })
+        .catch((err) =>
+          console.warn('[Geofence] possible_arrival emit failed:', err?.message || err),
+        );
+    };
+
     const exitDecision: ExitDecision = (() => {
       const signals = computePlannedDaySignals(bookings, new Date());
       return decideExitAction(signals);
