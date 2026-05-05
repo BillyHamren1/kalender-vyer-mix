@@ -15,6 +15,10 @@ import {
   UserX,
   Activity,
   Filter,
+  Wifi,
+  WifiOff,
+  PlayCircle,
+  CircleDot,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
