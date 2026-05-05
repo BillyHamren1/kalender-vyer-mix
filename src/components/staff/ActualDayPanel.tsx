@@ -113,42 +113,89 @@ type HeaderStatus =
   | 'signal_lost'
   | 'pre_workday'
   | 'missing_report'
+  | 'missing_strong_evidence'
+  | 'auto_repaired'
+  | 'planned_only'
   | 'evidence_repair_proposed'
-  | 'ongoing';
+  | 'ongoing'
+  | 'ended';
+
+const AUTO_REPAIR_SOURCES = new Set([
+  'auto_repair_from_timer',
+  'server_background_gps_repair',
+  'server_background_gps_backfill',
+  'server_background_gps',
+]);
+
+function isAutoRepairedWorkday(wd: any): boolean {
+  if (!wd) return false;
+  const meta = (wd.metadata ?? {}) as any;
+  if (AUTO_REPAIR_SOURCES.has(meta?.auto_start_source)) return true;
+  if (meta?.auto_started === true) return true;
+  if (typeof wd.started_by === 'string' && wd.started_by.startsWith('auto_repair')) return true;
+  if (typeof wd.started_by === 'string' && wd.started_by.startsWith('server_auto_start')) return true;
+  return false;
+}
 
 function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: string } {
   if (model.signalLost) return { kind: 'signal_lost', label: 'Signal tappad' };
   const wd = model.reportState.workday;
-  if (wd && !wd.ended_at) return { kind: 'ongoing', label: 'Pågår' };
+  if (wd && !wd.ended_at) {
+    if (isAutoRepairedWorkday(wd)) {
+      return { kind: 'auto_repaired', label: 'Auto-skapad arbetsdag · pågår' };
+    }
+    return { kind: 'ongoing', label: 'Pågående arbetsdag' };
+  }
+  if (wd && wd.ended_at) {
+    if (isAutoRepairedWorkday(wd)) {
+      return { kind: 'auto_repaired', label: 'Auto-skapad arbetsdag' };
+    }
+  }
   const hasPreWd = model.proposedReport.anomalies.some(a => a.id.startsWith('pre-wd:'));
   if (hasPreWd) return { kind: 'pre_workday', label: 'GPS före arbetsdag' };
   const hasPlannedGap = model.proposedReport.anomalies.some(a => a.id.startsWith('planned-gap:'));
-  if (hasPlannedGap) return { kind: 'review', label: 'Kräver granskning – planerad tid saknar signal' };
+  if (hasPlannedGap && !wd) {
+    // Planerad men inga arbetsbevis → "Planerad – ej startad"
+    const ind = computeStrongWorkIndicators(model);
+    if (!ind.hasStrong) {
+      return { kind: 'planned_only', label: 'Planerad – ej startad' };
+    }
+    return { kind: 'review', label: 'Kräver granskning – planerad tid saknar signal' };
+  }
   if (wd && model.reportState.timeReports.length === 0 && model.reportState.locationEntries.length === 0) {
     return { kind: 'missing_report', label: 'Saknar rapport' };
   }
   if (model.proposedReport.anomalies.length > 0) return { kind: 'review', label: 'Kräver granskning' };
   if (!wd && (model.actualVisits.length > 0 || model.actualEvents.length > 0)) {
-    // Stark arbetsindikator → erbjud reparation istället för passivt "Saknar arbetsdag"
     const ind = computeStrongWorkIndicators(model);
     if (ind.hasStrong && ind.proposedStartIso) {
-      return { kind: 'evidence_repair_proposed', label: 'Reparation föreslagen' };
+      return {
+        kind: 'missing_strong_evidence',
+        label: `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${ind.proposedStartIso.slice(11, 16)}`,
+      };
     }
     return { kind: 'missing_report', label: 'Saknar arbetsdag' };
   }
+  if (wd && wd.ended_at) return { kind: 'ended', label: 'Avslutad arbetsdag' };
   return { kind: 'ok', label: 'OK' };
 }
 
 const statusBadgeClass = (kind: HeaderStatus): string => {
   switch (kind) {
     case 'ok':
+    case 'ended':
       return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
     case 'ongoing':
       return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200';
+    case 'auto_repaired':
+      return 'bg-indigo-100 text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-100';
     case 'signal_lost':
       return 'bg-destructive/15 text-destructive';
     case 'evidence_repair_proposed':
+    case 'missing_strong_evidence':
       return 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100';
+    case 'planned_only':
+      return 'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200';
     case 'review':
     case 'pre_workday':
     case 'missing_report':
