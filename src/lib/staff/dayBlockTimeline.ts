@@ -742,6 +742,11 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sources,
         evidenceLabel: null,
         confidence: hasHardEvidence ? 'medium' : 'low',
+        resolvedPlace: resolvePresencePlace(
+          isProject ? 'project' : isKnownSite ? 'location' : 'unknown',
+          visit,
+          expectedLabel,
+        ),
       });
       continue;
     }
