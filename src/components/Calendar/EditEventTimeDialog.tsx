@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
+import { moveLargeProjectDay } from '@/services/largeProjectPlannerService';
 import { parse, isAfter } from 'date-fns';
 import { Clock, AlertTriangle } from 'lucide-react';
-import { extractUTCTime, extractUTCDate, buildUTCDateTime } from '@/utils/dateUtils';
+import { extractUTCTime, extractUTCDate, buildUTCDateTime, normalizePlannerEventType } from '@/utils/dateUtils';
 
 interface EditEventTimeDialogProps {
   open: boolean;
@@ -17,6 +18,13 @@ interface EditEventTimeDialogProps {
     title: string;
     start: string | Date;
     end: string | Date;
+    eventType?: string;
+    extendedProps?: {
+      largeProjectId?: string;
+      phase?: string;
+      eventType?: string;
+      sourceDate?: string;
+    };
   };
   onUpdate?: () => void;
   exactTimeNeeded?: boolean;
@@ -63,11 +71,29 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
       const newStartISO = buildUTCDateTime(datePart, startTime);
       const newEndISO = buildUTCDateTime(datePart, endTime);
 
-      // Update event in database
-      await updateCalendarEvent(event.id, {
-        start: newStartISO,
-        end: newEndISO
-      });
+      // Large-project-safe write path: route grouped large-project days through
+      // moveLargeProjectDay so all sibling bookings/calendar_events stay in sync.
+      const largeProjectId = event.extendedProps?.largeProjectId;
+      const phase = normalizePlannerEventType(
+        event.extendedProps?.phase ?? event.extendedProps?.eventType ?? event.eventType
+      );
+
+      if (largeProjectId && (phase === 'rig' || phase === 'rigDown')) {
+        const fromDate = event.extendedProps?.sourceDate || datePart;
+        await moveLargeProjectDay({
+          largeProjectId,
+          phase,
+          fromDate,
+          toDate: fromDate,
+          newStartISO,
+          newEndISO,
+        });
+      } else {
+        await updateCalendarEvent(event.id, {
+          start: newStartISO,
+          end: newEndISO,
+        });
+      }
 
       toast.success('Event time updated', {
         description: `${event.title} has been rescheduled`
