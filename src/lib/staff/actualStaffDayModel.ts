@@ -146,6 +146,8 @@ export interface BuildActualStaffDayInput {
    *  natt-kluster). GPS-vistelser inom dessa klassas alltid som
    *  private_or_background och visas aldrig i huvudjournalen. */
   privateZones?: PrivateZone[];
+  /** Planerade assignments för dagen — används som FÖRVÄNTAN, inte bevis. */
+  plannedAssignments?: ActualPlannedAssignmentInput[];
   /** "Nu" — testbar. */
   now?: Date;
 }
