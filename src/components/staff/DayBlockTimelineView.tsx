@@ -271,7 +271,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg[accent]}`}>
             <Building2 className="h-3.5 w-3.5" />
           </span>
-          <span className="font-semibold text-foreground truncate">{safePlaceLabel(block.resolvedPlace, block.title)}</span>
+          <PlaceLabel place={block.resolvedPlace} fallback={block.title} className="font-semibold text-foreground truncate" />
           {subtitle && (
             <>
               <span className="text-muted-foreground shrink-0">·</span>
