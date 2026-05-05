@@ -21,6 +21,7 @@ import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
 import { useScanTimeline } from '@/hooks/scanner/useScanTimeline';
 import { clearScanTimeline } from '@/hooks/scanner/scanTimeline';
+import { LiveScanStatusBar } from './LiveScanStatusBar';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
@@ -611,31 +612,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         />
       </div>
 
-      {/* Live scan status (single line) */}
-      {lastScanResult && (
-        <div className={`shrink-0 flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium border-b ${
-          lastScanResult.isMinusScan
-            ? 'bg-orange-100 text-orange-800'
-            : lastScanResult.success
-              ? 'bg-green-100 text-green-800'
-              : 'bg-red-100 text-red-800'
-        }`}>
-          <span>{lastScanResult.isMinusScan ? '➖' : lastScanResult.success ? '✅' : '❌'}</span>
-          <div className="flex-1 min-w-0 truncate">
-            <span className="font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
-            {lastScanResult.result && (
-              <span className="opacity-80"> — {lastScanResult.result}</span>
-            )}
-          </div>
-          <button
-            onClick={() => setScanResult(null)}
-            className="shrink-0 p-0.5 rounded-full hover:bg-black/10"
-            aria-label="Stäng"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
+      {/* Live scan status — derived from scanTimeline (single source, anti-flicker) */}
+      <LiveScanStatusBar showTiming={showScanDebug} />
 
       {/* Scan debug — timing for last 10 scans */}
       {showScanDebug && (
