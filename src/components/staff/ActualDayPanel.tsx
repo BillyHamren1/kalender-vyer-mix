@@ -1041,6 +1041,51 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     t => !t.approved && (t.autoDetected || t.source === 'gap_derived'),
   );
 
+  // ── Effektiv dag efter admin-exkluderingar ───────────────────────
+  // När admin exkluderar rader räknar vi om dagsstart/slut/lönegrundande
+  // direkt från kvarvarande presence/journey-block. Originaldata (wd) ändras
+  // inte, men huvudvyn visar den nya tolkningen omedelbart.
+  const effectiveDay = useMemo(() => {
+    if (!excludedKeys || excludedKeys.size === 0) return null;
+    const visible = enrichedBlockTimeline.filter(b => !excludedKeys.has(b.id));
+    const work = visible.filter(b => b.kind === 'presence' || b.kind === 'journey');
+    if (work.length === 0) {
+      return { startIso: null as string | null, endIso: null as string | null, ongoing: false, wdMin: 0, empty: true };
+    }
+    const startIso = work.reduce<string>((min, b) => (!min || b.startIso < min ? b.startIso : min), '');
+    const ongoing = work.some(b => (b as any).ongoing === true);
+    const endIso = ongoing
+      ? null
+      : work.reduce<string>((max, b) => {
+          const e = (b as any).endIso ?? b.startIso;
+          return !max || e > max ? e : max;
+        }, '');
+    const endMs = endIso ? new Date(endIso).getTime() : Date.now();
+    const wdMin = Math.max(0, Math.round((endMs - new Date(startIso).getTime()) / 60_000));
+    return { startIso, endIso, ongoing, wdMin, empty: false };
+  }, [excludedKeys, enrichedBlockTimeline]);
+
+  const showEffectiveOverlay = !!effectiveDay;
+  const headerWdStart = effectiveDay?.startIso ?? wd?.started_at ?? null;
+  const headerWdEnd = effectiveDay ? effectiveDay.endIso : wd?.ended_at ?? null;
+  const headerOngoing = effectiveDay ? effectiveDay.ongoing : !!wd && !wd.ended_at;
+  const headerWdMin = effectiveDay ? effectiveDay.wdMin : wdMin;
+  const headerWdEmpty = effectiveDay?.empty === true;
+
+  // Projektblock vars motsvarande presenceBlock har exkluderats — döljs
+  // direkt från "På projekt"-bannern.
+  const excludedProjectStartIsos = useMemo(() => {
+    if (!excludedKeys || excludedKeys.size === 0) return new Set<string>();
+    return new Set(
+      enrichedBlockTimeline
+        .filter(b => excludedKeys.has(b.id) && b.kind === 'presence' && (b as any).presenceKind === 'project')
+        .map(b => b.startIso),
+    );
+  }, [excludedKeys, enrichedBlockTimeline]);
+  const visibleOngoingProject = currentOngoingProject && !excludedProjectStartIsos.has(currentOngoingProject.startIso)
+    ? currentOngoingProject
+    : null;
+
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
       {/* A. Header */}
