@@ -118,6 +118,7 @@ export function useProjectTaskCalendarEvents({
             assignedIds: t.assigned_to_ids ?? [],
             published,
             publishedTo: published ? 'staff_calendar' : 'project_only',
+            inTimeApp,
             missingInfo,
             usesFallbackTime: !t.start_time || !t.end_time,
           },
