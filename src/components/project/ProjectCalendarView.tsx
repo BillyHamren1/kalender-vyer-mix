@@ -83,18 +83,48 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
 
   const { teamResources } = useTeamResources();
 
+  // Lägg till en fast Aktiviteter-kolumn i resurslistan.
+  const teamResourcesWithTasks = useMemo(() => {
+    if (teamResources.some((r) => r.id === TASK_RESOURCE.id)) return teamResources;
+    return [...teamResources, TASK_RESOURCE];
+  }, [teamResources]);
+
+  // Hämta projektets establishment_tasks och mappa till CalendarEvent.
+  const {
+    events: taskEvents,
+    refetch: refetchTasks,
+  } = useProjectTaskCalendarEvents({
+    bookingId: isLargeProject ? null : bookingId ?? null,
+    largeProjectId: isLargeProject ? projectId : null,
+    isLargeProject,
+  });
+
   // Anchor-datum = första projektdagen (för staff ops + tom-state).
   const anchorDate = projectDays[0] || new Date();
   const staffOps = useUnifiedStaffOperations(anchorDate, 'weekly', 'Montage');
 
-  // 4. Filtrera events till projektets bookings.
+  // 4. Filtrera events till projektets bookings + lägg på taskEvents.
   const filteredEvents = useMemo(() => {
-    if (projectBookingIds.size === 0) return [];
-    return allEvents.filter((e: any) => {
-      const bid = e.bookingId || e.booking_id || e.extendedProps?.bookingId;
-      return bid && projectBookingIds.has(bid);
+    const bookingEvents =
+      projectBookingIds.size === 0
+        ? []
+        : allEvents.filter((e: any) => {
+            const bid = e.bookingId || e.booking_id || e.extendedProps?.bookingId;
+            return bid && projectBookingIds.has(bid);
+          });
+    return [...bookingEvents, ...taskEvents];
+  }, [allEvents, projectBookingIds, taskEvents]);
+
+  // Aktivitetsdagar — säkerställer att projektkalendern visar dagar där
+  // bara aktiviteter finns (inga calendar_events).
+  const taskDayKeys = useMemo(() => {
+    const set = new Set<string>();
+    taskEvents.forEach((e) => {
+      const d = (e.start as string).slice(0, 10);
+      if (d) set.add(d);
     });
-  }, [allEvents, projectBookingIds]);
+    return set;
+  }, [taskEvents]);
 
   // 5. Synliga team per dag — samma default som personalkalendern.
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>({});
