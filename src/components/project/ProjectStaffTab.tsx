@@ -44,6 +44,11 @@ const ProjectStaffTabInner = ({ projectId, bookingId }: { projectId: string; boo
   return (
     <div className="space-y-6">
       <PlannedStaffSection staff={plannedStaff} isLoading={isLoading} />
+
+      {bookingId && (
+        <ProjectAutoTimeSection target={{ kind: 'booking', bookingId }} />
+      )}
+
       
       <StaffTimeReportsSection
         reports={timeReports}
