@@ -123,6 +123,13 @@ export interface AutoStartActivityArgs {
   label: string;
   /** Useful for assistant_event audit only — server uses arrived_at it stored. */
   arrivedAtIso: string;
+  /**
+   * True if this target is planned/assigned for today (booking on rig/event/
+   * down/assignment_dates, or sub-booking of a large project today). Locations
+   * are always considered "known workplaces" → planned=true.
+   * Drives confidence + "oplanerad aktivitet" tagging on the auto-start.
+   */
+  isPlannedToday: boolean;
 }
 export interface AutoStartActivityOutcome {
   /**
