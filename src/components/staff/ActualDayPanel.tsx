@@ -41,6 +41,7 @@ import { buildDayBlockTimeline, type VisitInfo } from '@/lib/staff/dayBlockTimel
 import DayBlockTimeline from './DayBlockTimelineView';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useActualDayEventOverrides } from '@/hooks/useActualDayEventOverrides';
+import ExcludedEventsSection from './ExcludedEventsSection';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
