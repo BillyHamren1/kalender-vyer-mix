@@ -468,6 +468,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                     </button>
                   }
                   onResolvePlannedGap={(input) => handleResolvePlannedGap(staff.id, input)}
+                  onRepairWorkdayFromEvidence={(input) => handleRepairFromEvidence(staff.id, input)}
                 />
               </div>
             );
