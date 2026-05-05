@@ -1180,9 +1180,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                             lines.push(['Vistelse', `${ev.place ?? '—'}${ev.until ? ` (${fmtHm(ev.at)}–${fmtHm(ev.until)})` : ` från ${fmtHm(ev.at)}`}`]);
                           }
                           const rp: ResolvedPlace | null = evAny.resolvedPlace ?? null;
-                          if (rp?.lat != null && rp?.lng != null) {
-                            lines.push(['Koordinater', `${rp.lat.toFixed(5)}, ${rp.lng.toFixed(5)}`]);
-                          }
+                          const hasCoords = rp?.lat != null && rp?.lng != null;
+                          lines.push(['Koordinater', hasCoords ? `${rp!.lat!.toFixed(5)}, ${rp!.lng!.toFixed(5)}` : 'saknas']);
                           if (rp?.mapUrl) {
                             lines.push(['Karta', (
                               <a href={rp.mapUrl} target="_blank" rel="noreferrer"
@@ -1192,10 +1191,24 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                               </a>
                             )]);
                           }
-                          if (rp?.lookupStatus === 'failed') {
-                            lines.push(['Adressuppslag', 'Misslyckades']);
-                          } else if (rp?.lookupStatus === 'pending') {
-                            lines.push(['Adressuppslag', 'Pågår']);
+                          if (rp) {
+                            const statusLbl = rp.lookupStatus === 'matched_internal' ? 'matchad intern plats'
+                              : rp.lookupStatus === 'poi_lookup' ? 'success (POI)'
+                              : rp.lookupStatus === 'reverse_geocoded' ? 'success (adress)'
+                              : rp.lookupStatus === 'pending' ? 'pending'
+                              : rp.lookupStatus === 'failed' ? 'failed'
+                              : String(rp.lookupStatus);
+                            lines.push(['lookupStatus', statusLbl]);
+                            lines.push(['lookupSource', rp.lookupSource ?? 'none']);
+                            if (rp.tokenAvailable === false) lines.push(['tokenAvailable', 'nej']);
+                            else if (rp.tokenAvailable === true) lines.push(['tokenAvailable', 'ja']);
+                            if (rp.lookupError) lines.push(['lookupError', rp.lookupError]);
+                            if (rp.cacheKey) lines.push(['cacheKey', rp.cacheKey]);
+                            if (rp.nearestKnownSite) {
+                              lines.push(['nearestKnownSite', `${rp.nearestKnownSite.name} · ${rp.nearestKnownSite.distanceMeters} m (radie ${rp.nearestKnownSite.radiusMeters} m)`]);
+                            } else if (rp.lookupStatus !== 'matched_internal') {
+                              lines.push(['nearestKnownSite', 'ingen inom rim']);
+                            }
                           }
                           if (visit?.pingCount != null) lines.push(['Pings', `${visit.pingCount}`]);
                           if (visit?.avgAccuracy != null) lines.push(['Accuracy', `±${visit.avgAccuracy} m`]);
