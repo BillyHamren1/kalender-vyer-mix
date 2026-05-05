@@ -294,7 +294,7 @@ const MobileOverview: React.FC = () => {
     setDetail({ kind: 'anomaly', anomaly: a });
   };
 
-
+  const dateModes: { key: DateMode; label: string }[] = [
     { key: 'today', label: t('jobs.today') },
     { key: 'tomorrow', label: t('jobs.tomorrow') },
     { key: 'week', label: t('overview.range.week') },
