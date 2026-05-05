@@ -418,6 +418,11 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sources: { timeReport: false, timer: false, gpsVisit: ev.kind === 'gps_visit' || ev.kind === 'gps_arrival', assistant: false },
         evidenceLabel: null,
         confidence: 'low',
+        resolvedPlace: resolvePresencePlace(
+          isProject ? 'project' : 'location',
+          visit,
+          visit?.label || ev.place || (typeof ev.label === 'string' ? ev.label : 'Plats'),
+        ),
       });
       consumedEventIds.add(ev.id);
     }
