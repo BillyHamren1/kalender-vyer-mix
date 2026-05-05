@@ -609,7 +609,8 @@ export function buildHiddenReasonMap(events: ActualEvent[]): Map<string, Timelin
 export function hiddenReasonLabel(reason: TimelineHiddenReason): string {
   switch (reason) {
     case 'short_movement': return 'Kort förflyttning';
-    case 'micro_stop': return 'Mikrostopp';
+    case 'micro_stop': return 'Mikrostopp (<2 min)';
+    case 'short_stop': return 'Kort stopp (2–15 min)';
     case 'same_site_noise': return 'GPS-brus runt samma plats';
     case 'low_confidence': return 'Låg tilltro';
     case 'private_background': return 'Privat/bakgrund';
