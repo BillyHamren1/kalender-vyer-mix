@@ -33,6 +33,8 @@ interface NoticeState {
   arrivedAtIso: string;
   workTarget?: WorkTarget;
   workdayOnly?: boolean;
+  /** False when staff is not assigned for today → show "Oplanerad aktivitet"-badge. */
+  isPlannedToday?: boolean;
 }
 
 const AUTO_HIDE_MS = 45_000;
