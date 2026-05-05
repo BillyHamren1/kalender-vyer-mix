@@ -1246,6 +1246,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       suggestion: 'Kräver granskning – välj: skapa arbetsdag från planerad start, starta från första GPS, ange annan starttid eller markera frånvaro.',
     });
   }
+  if (signalLost) {
     anomalies.push({
       id: 'stale-signal',
       label: 'Signal tappad under pågående arbetsdag/timer',
