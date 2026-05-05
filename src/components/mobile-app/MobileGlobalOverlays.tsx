@@ -3,6 +3,7 @@ import TravelBanner from './TravelBanner';
 import TravelCompletedDialog from './TravelCompletedDialog';
 import GlobalActiveTimerBanner from './GlobalActiveTimerBanner';
 import UnifiedArrivalPrompt from './UnifiedArrivalPrompt';
+import AutoArrivalNotice from './AutoArrivalNotice';
 import StaleTimerDialog from './StaleTimerDialog';
 import { WorkDayAssistant } from './WorkDayAssistant';
 import EndDayOnArrivalHomeDialog from './EndDayOnArrivalHomeDialog';
