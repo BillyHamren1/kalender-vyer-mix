@@ -793,19 +793,27 @@ export const createInternalWarehouseTask = async (
     );
 
     console.log('[lager-bridge] Mirroring assignees to Lager column (team_id=transport)', {
-      staffIds: assigneeIds,
+      taskId: task.id,
+      assigneeIds,
+      startISO,
+      endISO,
       dates,
       rowCount: rows.length,
     });
 
-    const { error: bridgeErr } = await supabase
+    const { data: bridgeRows, error: bridgeErr } = await supabase
       .from('staff_assignments')
-      .upsert(rows, { onConflict: 'staff_id,team_id,assignment_date' });
+      .upsert(rows, { onConflict: 'staff_id,team_id,assignment_date' })
+      .select('staff_id, team_id, assignment_date');
 
     if (bridgeErr) {
-      console.error('[lager-bridge] upsert failed', bridgeErr);
+      console.error('[lager-bridge] upsert failed', { taskId: task.id, error: bridgeErr });
     } else {
-      console.log('[lager-bridge] upsert OK');
+      console.log('[lager-bridge] upsert OK', {
+        taskId: task.id,
+        createdCount: bridgeRows?.length ?? 0,
+        rows: bridgeRows,
+      });
     }
   }
 

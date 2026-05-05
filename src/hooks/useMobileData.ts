@@ -6,7 +6,32 @@ const STALE_TIME = 2 * 60 * 1000; // 2 minutes
 export function useMobileBookings() {
   return useQuery({
     queryKey: ['mobile-bookings'],
-    queryFn: () => mobileApi.getBookings().then(r => r.bookings),
+    queryFn: async () => {
+      const r = await mobileApi.getBookings();
+      const bookings = r.bookings || [];
+      // Lager-flow debug: log every Lager pass we receive on the client.
+      try {
+        const lagerBookings = bookings.filter(
+          (b: any) =>
+            b?.is_internal &&
+            (b?.internal_type === 'lager' || /lager/i.test(b?.client || '')),
+        );
+        for (const lb of lagerBookings) {
+          const dates: string[] = Array.isArray((lb as any).assignment_dates)
+            ? (lb as any).assignment_dates
+            : [];
+          console.log('[mobile-bookings][lager] received', {
+            booking_id: (lb as any).id,
+            client: (lb as any).client,
+            dates,
+            dateCount: dates.length,
+          });
+        }
+      } catch (e) {
+        console.warn('[mobile-bookings][lager] log failed', e);
+      }
+      return bookings;
+    },
     staleTime: STALE_TIME,
   });
 }
