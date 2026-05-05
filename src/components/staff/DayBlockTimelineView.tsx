@@ -204,7 +204,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg[accent]}`}>
             <Building2 className="h-3.5 w-3.5" />
           </span>
-          <span className="font-semibold text-foreground truncate">{block.title}</span>
+          <span className="font-semibold text-foreground truncate">{block.resolvedPlace?.label ?? block.title}</span>
           {subtitle && (
             <>
               <span className="text-muted-foreground shrink-0">·</span>
@@ -254,9 +254,9 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg.journey}`}>
             <Car className="h-3.5 w-3.5" />
           </span>
-          <span className="font-medium text-foreground truncate">{block.fromLabel ?? 'okänd plats'}</span>
+          <span className="font-medium text-foreground truncate">{block.fromPlace?.label ?? block.fromLabel ?? 'okänd plats'}</span>
           <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-          <span className="font-medium text-foreground truncate">{block.toLabel ?? 'okänd plats'}</span>
+          <span className="font-medium text-foreground truncate">{block.toPlace?.label ?? block.toLabel ?? 'okänd plats'}</span>
         </div>
 
         <div className="flex items-center justify-end overflow-hidden">
