@@ -1031,6 +1031,20 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         <span>resolved_address:</span><span className="text-foreground">{geo?.address ?? geo?.label ?? '—'}</span>
                         <span>poi_name:</span><span className="text-foreground">{geo?.poiName ?? '—'}</span>
                         <span>poi_category:</span><span className="text-foreground">{geo?.poiCategory ?? '—'}</span>
+                        <span>karta:</span>
+                        <span className="text-foreground">
+                          {visit.centre ? (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${visit.centre.lat.toFixed(6)},${visit.centre.lng.toFixed(6)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 dark:text-blue-400 underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Öppna i Google Maps
+                            </a>
+                          ) : '—'}
+                        </span>
                         <span>nearest_location:</span>
                         <span className="text-foreground">
                           {visit.nearestKnownSite ? `${visit.nearestKnownSite.name} (${visit.nearestKnownSite.id})` : '—'}
