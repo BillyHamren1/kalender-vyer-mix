@@ -27,6 +27,7 @@ const MobileBottomNav = () => {
   const { count: unreadCount } = useUnreadMessageCount();
   const { t } = useLanguage();
   const { isPlanner } = useMobileRoles();
+  const qc = useQueryClient();
 
   const tabs: Tab[] = isPlanner
     ? [baseTabs[0], baseTabs[1], overviewTab, baseTabs[2], baseTabs[3]]
@@ -35,6 +36,18 @@ const MobileBottomNav = () => {
   const isActive = (tab: Tab) => {
     if (tab.exact) return location.pathname === tab.path;
     return location.pathname.startsWith(tab.path);
+  };
+
+  // Prefetch Overview-data för planners så att klick på tabben känns instant.
+  const prefetchOverview = () => {
+    if (!isPlanner || !getToken()) return;
+    const today = startOfDay(new Date());
+    const todayStr = format(today, 'yyyy-MM-dd');
+    qc.prefetchQuery({
+      queryKey: ['mobile-ops-overview', todayStr, todayStr, 'day'],
+      queryFn: () => mobileApi.getOpsOverview({ from: todayStr, to: todayStr, mode: 'day', include_anomalies: true }),
+      staleTime: 3 * 60_000,
+    });
   };
 
   return (
