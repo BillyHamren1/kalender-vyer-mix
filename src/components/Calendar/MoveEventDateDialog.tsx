@@ -13,6 +13,8 @@ import { CalendarIcon, Users, Copy, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Lock } from 'lucide-react';
 import CopyEventDialog from './CopyEventDialog';
 import AddRiggDayDialog from './AddRiggDayDialog';
 // handleBookingMove deprecated — BSA derives from staff_assignments × calendar_events via recompute_booking_staff_for_day RPC
