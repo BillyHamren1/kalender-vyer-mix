@@ -263,6 +263,11 @@ function targetMatchesLte(target: Target, lte: any): boolean {
 }
 
 async function emitAssistantEvent(supabase: any, payload: Record<string, any>, dk: string, report: ProcessReport, kind: string) {
+  if (report.dry_run) {
+    planPush(report, { action: `event_${kind}`, dedupe_key: dk, happened_at: payload.happened_at, target: payload.target_label })
+    report.events_emitted++
+    return
+  }
   const { error } = await supabase
     .from('assistant_events')
     .insert({ ...payload, dedupe_key: dk })
