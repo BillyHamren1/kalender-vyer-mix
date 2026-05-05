@@ -1122,7 +1122,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             locationType: 'booking', arrivalTimestamp: Date.now(),
           });
           if (startFn) {
-            void startFn({ kind: 'booking', targetId: booking.id, label: booking.client || 'Uppdrag', arrivedAtIso, isPlannedToday: isAssignedToday(booking) })
+            const entryMeta = buildEntryMetadata(entryEv);
+            void startFn({
+              kind: 'booking',
+              targetId: booking.id,
+              label: booking.client || 'Uppdrag',
+              arrivedAtIso,
+              isPlannedToday: isAssignedToday(booking),
+              arrivalPingsCount: entryMeta.entry_ping_count,
+              firstArrivalPingAtIso: (entryMeta as any).entry_first_at,
+              arrivalDwellMs: (entryMeta as any).entry_dwell_ms,
+            })
               .then((res) => {
                 if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
               })
