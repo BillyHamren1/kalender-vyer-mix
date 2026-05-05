@@ -157,6 +157,15 @@ export interface OpsOverviewJob {
   assigned_staff_count: number;
   required_staff_count: number | null;
   staffing_status: 'unstaffed' | 'partial' | 'staffed' | 'unknown';
+  jobActivity?: {
+    has_started: boolean;
+    started_at: string | null;
+    latest_activity_at: string | null;
+    on_site_minutes: number;
+    active_staff_count: number;
+    active_staff: Array<{ staff_id: string; name: string; since: string; status: 'on_site' | 'timer_active' | 'signal_lost' | 'left' }>;
+    timeline: Array<{ type: 'arrival' | 'timer_start' | 'on_site' | 'left' | 'travel' | 'timer_stop'; at: string; staff_id: string; staff_name: string; label: string; status: string }>;
+  };
 }
 export interface OpsStaffStatus {
   staff_id: string;
