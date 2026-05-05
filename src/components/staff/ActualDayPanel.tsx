@@ -39,6 +39,8 @@ import { resolvePlaceLabel } from '@/lib/staff/resolvePlaceLabel';
 import ProjectVisitBlock, { buildProjectBlocks } from './ProjectVisitBlock';
 import { buildDayBlockTimeline, type VisitInfo } from '@/lib/staff/dayBlockTimeline';
 import DayBlockTimeline from './DayBlockTimelineView';
+import { useUserRoles } from '@/hooks/useUserRoles';
+import { useActualDayEventOverrides } from '@/hooks/useActualDayEventOverrides';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
