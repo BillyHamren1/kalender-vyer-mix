@@ -303,6 +303,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   reportSlot,
   extraActions,
   rawGpsSlot,
+  onRepairWorkdayFromEvidence,
 }) => {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
