@@ -2908,7 +2908,13 @@ async function handleAdminCloseOpenEntry(
     }
     const { error: uErr } = await supabase
       .from('location_time_entries')
-      .update({ exited_at: end_iso })
+      .update({
+        exited_at: end_iso,
+        stop_source: 'admin_manual',
+        stop_reason: 'admin_adjustment',
+        stopped_by: data?.actor_id || 'admin',
+        stop_metadata: { closed_via: 'admin-close-open-entry', end_iso },
+      })
       .eq('id', id)
     if (uErr) {
       console.error('[admin-close-open-entry] LTE update error:', uErr)
