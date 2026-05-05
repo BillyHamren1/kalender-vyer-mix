@@ -27,6 +27,7 @@ export type TimelineHiddenReason =
   | 'private_background'    // workRelevance = private_or_background (privatzon/natt)
   | 'within_transition'     // mikrohändelse som tillhör ett annat block
   | 'assistant_merged'      // assistant_event som beskriver samma sak som en annan main-rad
+  | 'within_journey'        // departure/arrival som ingår i samma journey som en gps_travel-rad
   | 'raw_detail';           // tekniskt event (gps_gap) — alltid raw_only
 
 export interface ClassifiedEvent {
@@ -325,6 +326,171 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
     }
   }
 
+  // Steg 4: journey-merge.
+  //   Bygg ett "journey_block" där huvudjournalen visar EN rad
+  //   "Förflyttning A → B" istället för tre rader (Lämnade A · Travel · Anlände B).
+  //
+  //   Två varianter:
+  //     A) gps_travel finns som main-rad mellan A och B → den blir journey-rad,
+  //        och närliggande gps_departure(A)/gps_arrival(B) flyttas till raw_only
+  //        med reason_hidden='within_journey'. Travel-eventets meta utökas med
+  //        journey_block-data så att UI:s expand kan visa alla tre delhändelser.
+  //     B) Endast gps_departure(A) + gps_arrival(B) finns (ingen travel-rad)
+  //        inom rimligt fönster → departure-eventet promotas till journey-rad
+  //        (label/until/meta utökas) och arrival flyttas till raw_only.
+  const JOURNEY_WINDOW_MS = 10 * 60_000;
+  const ARR_DEP_PAIR_MAX_MS = 60 * 60_000;
+
+  type JourneyMeta = {
+    journey_block: true;
+    from_key: string | null;
+    to_key: string | null;
+    from_label: string | null;
+    to_label: string | null;
+    departure_at: string | null;
+    arrival_at: string | null;
+    departure_event_id: string | null;
+    arrival_event_id: string | null;
+    travel_event_id: string | null;
+  };
+
+  // Variant A — travel-driven
+  for (let i = 0; i < N; i++) {
+    const c = classified[i];
+    if (c.visibility !== 'main') continue;
+    const ev = c.event;
+    if (ev.kind !== 'gps_travel') continue;
+    const tp = travelEndpoints(ev);
+    if (tp.sameSite) continue;
+    const travelStart = new Date(ev.at).getTime();
+    const travelEnd = new Date(ev.until ?? ev.at).getTime();
+    if (!Number.isFinite(travelStart) || !Number.isFinite(travelEnd)) continue;
+
+    let depEv: ActualEvent | null = null;
+    let arrEv: ActualEvent | null = null;
+
+    for (let j = 0; j < N; j++) {
+      if (j === i) continue;
+      const other = classified[j];
+      if (other.visibility !== 'main') continue;
+      const oev = other.event;
+      const oKey = eventPlaceKey(oev);
+      const oMs = new Date(oev.at).getTime();
+      if (!Number.isFinite(oMs)) continue;
+
+      if (oev.kind === 'gps_departure' && tp.from && oKey === tp.from
+        && Math.abs(oMs - travelStart) <= JOURNEY_WINDOW_MS) {
+        other.visibility = 'raw_only';
+        other.reason_hidden = 'within_journey';
+        depEv = oev;
+        continue;
+      }
+      if (oev.kind === 'gps_arrival' && tp.to && oKey === tp.to
+        && Math.abs(oMs - travelEnd) <= JOURNEY_WINDOW_MS) {
+        other.visibility = 'raw_only';
+        other.reason_hidden = 'within_journey';
+        arrEv = oev;
+        continue;
+      }
+    }
+
+    // Bygg journey_block-meta på travel-eventet så UI kan visa subtitle/expand.
+    const labelStr = typeof ev.label === 'string' ? ev.label : '';
+    const stripped = labelStr.replace(/^Förflyttning:\s*/, '');
+    const [fromLbl, toLbl] = stripped.includes(' → ')
+      ? stripped.split(' → ').map(s => s.trim())
+      : [null, null];
+    const journeyMeta: JourneyMeta = {
+      journey_block: true,
+      from_key: tp.from,
+      to_key: tp.to,
+      from_label: depEv?.place ?? fromLbl ?? null,
+      to_label: arrEv?.place ?? toLbl ?? null,
+      departure_at: depEv?.at ?? ev.at,
+      arrival_at: arrEv?.at ?? ev.until ?? null,
+      departure_event_id: depEv?.id ?? null,
+      arrival_event_id: arrEv?.id ?? null,
+      travel_event_id: ev.id,
+    };
+    classified[i] = {
+      ...c,
+      event: {
+        ...ev,
+        meta: { ...(ev.meta ?? {}), ...journeyMeta },
+      },
+    };
+  }
+
+  // Variant B — departure + arrival utan travel
+  for (let i = 0; i < N; i++) {
+    const c = classified[i];
+    if (c.visibility !== 'main') continue;
+    const ev = c.event;
+    if (ev.kind !== 'gps_departure') continue;
+    const fromKey = eventPlaceKey(ev);
+    if (!fromKey) continue;
+    const depMs = new Date(ev.at).getTime();
+    if (!Number.isFinite(depMs)) continue;
+
+    // Finns redan en travel som täcker den här departuren? Hoppa.
+    let coveredByTravel = false;
+    for (let k = 0; k < N; k++) {
+      const o = classified[k];
+      if (o.event.kind !== 'gps_travel') continue;
+      const tMeta = (o.event.meta ?? {}) as Record<string, unknown>;
+      if (tMeta.departure_event_id === ev.id) { coveredByTravel = true; break; }
+    }
+    if (coveredByTravel) continue;
+
+    // Hitta nästa main-rad — måste vara gps_arrival på annan plats inom fönstret.
+    let arrIdx = -1;
+    for (let j = i + 1; j < N; j++) {
+      const nxt = classified[j];
+      if (nxt.visibility !== 'main') continue;
+      const nev = nxt.event;
+      // Bryts av annan viktig arbetsaktivitet
+      if (nev.kind !== 'gps_arrival' && nev.kind !== 'gps_departure' && nev.kind !== 'gps_visit' && nev.kind !== 'gps_travel') break;
+      if (nev.kind !== 'gps_arrival') break;
+      const nMs = new Date(nev.at).getTime();
+      if (!Number.isFinite(nMs)) break;
+      if (nMs - depMs > ARR_DEP_PAIR_MAX_MS) break;
+      const nKey = eventPlaceKey(nev);
+      if (!nKey || nKey === fromKey) break;
+      arrIdx = j;
+      break;
+    }
+    if (arrIdx < 0) continue;
+
+    const arrC = classified[arrIdx];
+    const arrEv = arrC.event;
+    arrC.visibility = 'raw_only';
+    arrC.reason_hidden = 'within_journey';
+
+    const journeyMeta: JourneyMeta = {
+      journey_block: true,
+      from_key: fromKey,
+      to_key: eventPlaceKey(arrEv),
+      from_label: ev.place ?? null,
+      to_label: arrEv.place ?? null,
+      departure_at: ev.at,
+      arrival_at: arrEv.at,
+      departure_event_id: ev.id,
+      arrival_event_id: arrEv.id,
+      travel_event_id: null,
+    };
+    const fromLbl = ev.place ?? '—';
+    const toLbl = arrEv.place ?? '—';
+    classified[i] = {
+      ...c,
+      event: {
+        ...ev,
+        until: arrEv.at,
+        label: `Förflyttning: ${fromLbl} → ${toLbl}`,
+        meta: { ...(ev.meta ?? {}), ...journeyMeta, synthetic_journey: true },
+      },
+    };
+  }
+
   return classified;
 }
 
@@ -366,6 +532,7 @@ export function hiddenReasonLabel(reason: TimelineHiddenReason): string {
     case 'private_background': return 'Privat/bakgrund';
     case 'within_transition': return 'Del av transition';
     case 'assistant_merged': return 'Assistent-händelse (matchad)';
+    case 'within_journey': return 'Del av förflyttning';
     case 'raw_detail': return 'Tekniskt rådata';
   }
 }

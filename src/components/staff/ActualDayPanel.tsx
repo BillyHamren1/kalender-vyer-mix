@@ -742,9 +742,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         ? 'text-amber-600'
                         : 'text-muted-foreground';
 
-              // "Från / Till" för förflyttningar
+              // "Från / Till" för förflyttningar (gps_travel eller syntetiskt journey_block)
               let displayLabel: React.ReactNode = ev.label;
-              if (ev.kind === 'gps_travel' && typeof ev.label === 'string' && ev.label.includes('→')) {
+              const isJourneyBlock = (ev.meta as any)?.journey_block === true;
+              if ((ev.kind === 'gps_travel' || isJourneyBlock) && typeof ev.label === 'string' && ev.label.includes('→')) {
                 const stripped = ev.label.replace(/^Förflyttning:\s*/, '');
                 const [a, b] = stripped.split(' → ');
                 displayLabel = (
@@ -832,7 +833,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                           sources.push({ source: 'GPS', lines });
                         } else if (ev.kind === 'gps_travel') {
                           const lines: Array<[string, React.ReactNode]> = [];
-                          lines.push(['Förflyttning', `${fmtHm(ev.at)}${ev.until ? `–${fmtHm(ev.until)}` : ''}`]);
+                          // Journey-block: visa Lämnade / Travel / Anlände som bevis
+                          const jb = mm.journey_block === true ? mm : null;
+                          if (jb) {
+                            if (jb.departure_at) lines.push(['Lämnade', `${jb.from_label ?? '—'} kl ${fmtHm(jb.departure_at)}`]);
+                            lines.push(['Förflyttning', `${fmtHm(ev.at)}${ev.until ? `–${fmtHm(ev.until)}` : ''}`]);
+                            if (jb.arrival_at) lines.push(['Anlände', `${jb.to_label ?? '—'} kl ${fmtHm(jb.arrival_at)}`]);
+                          } else {
+                            lines.push(['Förflyttning', `${fmtHm(ev.at)}${ev.until ? `–${fmtHm(ev.until)}` : ''}`]);
+                          }
                           if (mm.distance_m != null) lines.push(['Distans', `${mm.distance_m} m`]);
                           if (mm.confidence != null) lines.push(['Confidence', String(mm.confidence)]);
                           sources.push({ source: 'GPS-rörelse', lines });
