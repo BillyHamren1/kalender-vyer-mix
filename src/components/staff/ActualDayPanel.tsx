@@ -1008,13 +1008,95 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                           const lines: Array<[string, React.ReactNode]> = [];
                           // Journey-block: visa Lämnade / Travel / Anlände som bevis
                           const jb = mm.journey_block === true ? mm : null;
+                          const fp: JourneyPlace | null = (ev as any).fromPlace ?? null;
+                          const tp: JourneyPlace | null = (ev as any).toPlace ?? null;
+
                           if (jb) {
-                            if (jb.departure_at) lines.push(['Lämnade', `${jb.from_label ?? '—'} kl ${fmtHm(jb.departure_at)}`]);
+                            if (jb.departure_at) lines.push(['Lämnade', `${jb.from_label ?? fp?.label ?? '—'} kl ${fmtHm(jb.departure_at)}`]);
                             lines.push(['Förflyttning', `${fmtHm(ev.at)}${ev.until ? `–${fmtHm(ev.until)}` : ''}`]);
-                            if (jb.arrival_at) lines.push(['Anlände', `${jb.to_label ?? '—'} kl ${fmtHm(jb.arrival_at)}`]);
+                            if (jb.arrival_at) lines.push(['Anlände', `${jb.to_label ?? tp?.label ?? '—'} kl ${fmtHm(jb.arrival_at)}`]);
                           } else {
                             lines.push(['Förflyttning', `${fmtHm(ev.at)}${ev.until ? `–${fmtHm(ev.until)}` : ''}`]);
                           }
+
+                          // Från-endpoint
+                          if (fp) {
+                            const fromBits: React.ReactNode[] = [<span key="lbl">{fp.label}</span>];
+                            if (fp.lat != null && fp.lng != null) {
+                              fromBits.push(
+                                <span key="coord" className="text-muted-foreground">
+                                  {' '}· {fp.lat.toFixed(5)}, {fp.lng.toFixed(5)}
+                                </span>,
+                              );
+                            }
+                            if (fp.mapUrl) {
+                              fromBits.push(
+                                <span key="map">
+                                  {' '}·{' '}
+                                  <a href={fp.mapUrl} target="_blank" rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-0.5 underline decoration-dotted underline-offset-2 hover:text-blue-600">
+                                    Öppna karta <ArrowUpRight className="h-2.5 w-2.5" />
+                                  </a>
+                                </span>,
+                              );
+                            }
+                            lines.push(['Från (endpoint)', <>{fromBits}</>]);
+                          }
+                          // Till-endpoint
+                          if (tp) {
+                            const toBits: React.ReactNode[] = [<span key="lbl">{tp.label}</span>];
+                            if (tp.lat != null && tp.lng != null) {
+                              toBits.push(
+                                <span key="coord" className="text-muted-foreground">
+                                  {' '}· {tp.lat.toFixed(5)}, {tp.lng.toFixed(5)}
+                                </span>,
+                              );
+                            }
+                            if (tp.mapUrl) {
+                              toBits.push(
+                                <span key="map">
+                                  {' '}·{' '}
+                                  <a href={tp.mapUrl} target="_blank" rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-0.5 underline decoration-dotted underline-offset-2 hover:text-blue-600">
+                                    Öppna karta <ArrowUpRight className="h-2.5 w-2.5" />
+                                  </a>
+                                </span>,
+                              );
+                            }
+                            lines.push(['Till (endpoint)', <>{toBits}</>]);
+                          }
+
+                          // Lookup-källor + accuracy + ping count för respektive endpoint
+                          const fromKey = mm.fromPlaceKey as string | undefined;
+                          const toKey = mm.toPlaceKey as string | undefined;
+                          const fromVisit = fromKey ? visitByKey.get(fromKey) : undefined;
+                          const toVisit = toKey ? visitByKey.get(toKey) : undefined;
+                          if (fromVisit?.pingCount != null || fromVisit?.avgAccuracy != null) {
+                            const parts: string[] = [];
+                            if (fromVisit?.pingCount != null) parts.push(`${fromVisit.pingCount} pings`);
+                            if (fromVisit?.avgAccuracy != null) parts.push(`±${fromVisit.avgAccuracy} m`);
+                            lines.push(['Från-bevis', parts.join(' · ')]);
+                          }
+                          if (fromVisit?.nearestKnownSite) {
+                            lines.push(['Från: närmaste interna', `${fromVisit.nearestKnownSite.name} · ${fromVisit.nearestKnownSite.distanceMeters} m (radie ${fromVisit.nearestKnownSite.radiusMeters} m)`]);
+                          }
+                          if (toVisit?.pingCount != null || toVisit?.avgAccuracy != null) {
+                            const parts: string[] = [];
+                            if (toVisit?.pingCount != null) parts.push(`${toVisit.pingCount} pings`);
+                            if (toVisit?.avgAccuracy != null) parts.push(`±${toVisit.avgAccuracy} m`);
+                            lines.push(['Till-bevis', parts.join(' · ')]);
+                          }
+                          if (toVisit?.nearestKnownSite) {
+                            lines.push(['Till: närmaste interna', `${toVisit.nearestKnownSite.name} · ${toVisit.nearestKnownSite.distanceMeters} m (radie ${toVisit.nearestKnownSite.radiusMeters} m)`]);
+                          }
+
+                          // Lookup source-badges
+                          const fromInternal = mm.fromKnownSiteId != null;
+                          const toInternal = mm.toKnownSiteId != null;
+                          lines.push(['Lookup', `Från: ${fromInternal ? 'intern plats' : 'reverse geocode'} · Till: ${toInternal ? 'intern plats' : 'reverse geocode'}`]);
+
                           if (mm.distance_m != null) lines.push(['Distans', `${mm.distance_m} m`]);
                           if (mm.confidence != null) lines.push(['Confidence', String(mm.confidence)]);
                           sources.push({ source: 'GPS-rörelse', lines });
