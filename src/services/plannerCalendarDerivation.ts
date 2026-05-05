@@ -246,7 +246,12 @@ export const buildPlannerCalendarEvents = ({
       if (!assignedResourceId) {
         // Event-days are intentionally hidden from the planner calendar.
         // Keep that behavior — never emit event_type="event" rows here.
-        if (phase === 'event') continue;
+        if (phase === 'event') {
+          eventDaysHidden++;
+          continue;
+        }
+
+        largeProjectMissingAssignment++;
 
         // For visible planning phases (rig / rigDown), warn loudly and
         // fall back to the sibling row's resource_id so the project does
@@ -266,7 +271,10 @@ export const buildPlannerCalendarEvents = ({
         resourceId = row.resource_id;
         fallbackResourceUsed = true;
         missingLargeProjectTeamAssignment = true;
+        largeProjectFallbackRendered++;
       }
+
+      largeProjectEmittedCount++;
 
       projectEmitted.add(key);
       events.push({
