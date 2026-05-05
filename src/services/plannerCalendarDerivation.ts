@@ -228,18 +228,47 @@ export const buildPlannerCalendarEvents = ({
     if (projectId && phase && sourceDate) {
       const key = `${projectId}|${phase}|${sourceDate}`;
       if (projectEmitted.has(key)) continue;
-      projectEmitted.add(key);
       const project = projectsById.get(projectId);
       // ONLY the project-level assignment may place a large project in a team
       // column. Sibling resource_id is intentionally ignored.
-      const resourceId = projectTeamByKey.get(key);
-      if (!resourceId) continue;
+      const assignedResourceId = projectTeamByKey.get(key);
+
+      let resourceId = assignedResourceId;
+      let fallbackResourceUsed = false;
+      let missingLargeProjectTeamAssignment = false;
+
+      if (!assignedResourceId) {
+        // Event-days are intentionally hidden from the planner calendar.
+        // Keep that behavior — never emit event_type="event" rows here.
+        if (phase === 'event') continue;
+
+        // For visible planning phases (rig / rigDown), warn loudly and
+        // fall back to the sibling row's resource_id so the project does
+        // not silently disappear from the calendar.
+        // eslint-disable-next-line no-console
+        console.warn('[plannerCalendarDerivation] Missing large_project_team_assignments for large project calendar event', {
+          largeProjectId: projectId,
+          bookingId: row.booking_id,
+          phase,
+          sourceDate,
+          calendarEventId: row.id,
+          expectedAssignmentKey: `${projectId}:${phase}:${sourceDate}`,
+          message: 'Missing large_project_team_assignments for large project calendar event',
+        });
+
+        if (!row.resource_id) continue;
+        resourceId = row.resource_id;
+        fallbackResourceUsed = true;
+        missingLargeProjectTeamAssignment = true;
+      }
+
+      projectEmitted.add(key);
       events.push({
         id: row.id,
         title: project?.name || booking?.client || row.title,
         start: row.start_time,
         end: row.end_time,
-        resourceId,
+        resourceId: resourceId as string,
         bookingId: row.booking_id || undefined,
         bookingNumber: row.booking_number || booking?.booking_number || undefined,
         booking_number: row.booking_number || booking?.booking_number || undefined,
@@ -248,7 +277,7 @@ export const buildPlannerCalendarEvents = ({
         extendedProps: {
           bookingId: row.booking_id || undefined,
           booking_id: row.booking_id || undefined,
-          resourceId,
+          resourceId: resourceId as string,
           deliveryAddress: row.delivery_address || project?.address || booking?.deliveryaddress || undefined,
           bookingNumber: row.booking_number || booking?.booking_number || undefined,
           eventType: phase,
@@ -259,6 +288,10 @@ export const buildPlannerCalendarEvents = ({
           isSyntheticFallback: false,
           phase,
           manuallyAssigned: false,
+          missingLargeProjectTeamAssignment,
+          fallbackResourceUsed,
+          originalResourceId: row.resource_id || undefined,
+          expectedAssignmentKey: `${projectId}:${phase}:${sourceDate}`,
         },
       });
       continue;
