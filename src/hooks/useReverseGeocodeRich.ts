@@ -99,6 +99,7 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
     return {
       label,
       address: addressLine,
+      city: place,
       poiName,
       poiCategory,
       mapsUrl: mapsLink(lat, lng),
