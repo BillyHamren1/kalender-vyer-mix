@@ -10767,7 +10767,84 @@ async function handleAdminCreateWorkdayFromPlanned(
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
-// Wraps _shared/dayReality.ts. See PROMPT 1 spec for output shape.
+
+/**
+ * admin_repair_workday_from_evidence — skapar workday från starka arbetsbevis
+ * (assignment + GPS, timer/LTE finns, ≥2 arbetsplatser, server-engine confidence).
+ * UI:n beräknar proposed_start_iso via computeStrongWorkIndicators.
+ */
+async function handleAdminRepairWorkdayFromEvidence(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const { target_staff_id, flag_date, proposed_start_iso, proposed_end_iso, reason_codes } = data || {}
+  if (!target_staff_id || !flag_date || !proposed_start_iso) {
+    return new Response(JSON.stringify({ error: 'target_staff_id, flag_date, proposed_start_iso required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  const dayStart = `${flag_date}T00:00:00.000Z`
+  const dayEnd = `${flag_date}T23:59:59.999Z`
+  const { data: existing } = await supabase
+    .from('workdays')
+    .select('id, started_at, metadata')
+    .eq('staff_id', target_staff_id)
+    .eq('organization_id', organizationId)
+    .gte('started_at', dayStart).lte('started_at', dayEnd)
+    .order('started_at', { ascending: true }).limit(1)
+
+  const metadata = {
+    auto_started: true,
+    auto_start_source: 'server_background_gps_repair',
+    confidence: 'high',
+    reason_codes: Array.isArray(reason_codes) ? reason_codes : [],
+    repaired_by_admin: true,
+    admin_user_id: callerUserId,
+    proposed_end_iso: proposed_end_iso || null,
+  }
+
+  if (existing && existing.length > 0) {
+    const wd = existing[0]
+    const merged = { ...(wd.metadata ?? {}), repair: { ...metadata, previous_started_at: wd.started_at } }
+    const { error } = await supabase
+      .from('workdays')
+      .update({ started_at: proposed_start_iso, metadata: merged, review_status: 'needs_review' })
+      .eq('id', wd.id).eq('organization_id', organizationId)
+    if (error) {
+      return new Response(JSON.stringify({ error: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    return new Response(JSON.stringify({ created: 'workday_updated', workday_id: wd.id, started_at: proposed_start_iso }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const { data: ins, error: insErr } = await supabase
+    .from('workdays')
+    .insert({
+      staff_id: target_staff_id,
+      organization_id: organizationId,
+      started_at: proposed_start_iso,
+      ended_at: proposed_end_iso || null,
+      started_by: 'server_auto_start_repair',
+      notes: 'Auto-repair från starka arbetsbevis (admin)',
+      metadata,
+      review_status: 'needs_review',
+    })
+    .select('id').single()
+  if (insErr) {
+    return new Response(JSON.stringify({ error: insErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+  return new Response(JSON.stringify({ created: 'workday', workday_id: ins.id, started_at: proposed_start_iso, metadata }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+
 // ============================================================================
 import { buildDayReality, type RealitySessionInput, type KnownSite } from '../_shared/dayReality.ts'
 
