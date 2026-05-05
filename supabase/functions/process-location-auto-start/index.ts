@@ -612,9 +612,9 @@ Deno.serve(async (req) => {
   )
 
   const report: ProcessReport = {
-    staff: 0, pings: 0, arrivals: 0,
-    workdays_opened: 0, ltes_opened: 0,
-    events_emitted: 0, skipped_existing: 0, errors: [],
+    staff: 0, pings: 0, arrivals: 0, switches: 0,
+    workdays_opened: 0, ltes_opened: 0, ltes_closed: 0,
+    travels_created: 0, events_emitted: 0, skipped_existing: 0, errors: [],
   }
 
   try {
