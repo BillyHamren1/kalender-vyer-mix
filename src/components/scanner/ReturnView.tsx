@@ -65,7 +65,7 @@ const ReturnView: React.FC<Props> = ({
   const [highlightItemId, setHighlightItemId] = useState<string | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
   const [lastResult, setLastResult] = useState<{
-    success: boolean;
+    level: 'success' | 'warning' | 'error';
     text: string;
     productName?: string;
   } | null>(null);
