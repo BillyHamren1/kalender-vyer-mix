@@ -433,104 +433,7 @@ const MobileOverview: React.FC = () => {
 
       {!isLoading && !isError && (
         <div className="px-4 space-y-6">
-          {/* === Section 1: Dagens jobb === */}
-          {phase !== 'anomalies' && (
-            <Section title={t('overview.section.jobs')} icon={Briefcase}>
-              {eventsByDay.length === 0 ? (
-                <EmptyState text={t('overview.empty.calendar')} />
-              ) : (
-                eventsByDay.map(([day, events]) => (
-                  <div key={day} className="space-y-2">
-                    <DayHeader label={formatDay(day)} sub={format(parseISO(day), 'd MMM yyyy', { locale: dateLocale })} />
-                    {events.map(ev => {
-                      const staff = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${ev.source_date}`) ?? [] : [];
-                      const unstaffed = ev.booking_id && staff.length === 0;
-                      const job = jobsById.get(ev.id);
-                      const isLp = job?.target_type === 'large_project';
-                      return (
-                        <button
-                          key={ev.id}
-                          onClick={() => {
-                            if (ev.booking_id) navigate(`/m/job/${ev.booking_id}`);
-                            else if (job && isLp && job.target_id) navigate(`/m/project/${job.target_id}`);
-                            else setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
-                          }}
-                          className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
-                        >
-                          <div className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border', eventTypeColor(ev.event_type))}>
-                            {(ev.event_type ?? '—').toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm truncate">{ev.title}</div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                              <Clock className="w-3 h-3 shrink-0" />
-                              <span>{formatTimeRange(ev.start_time, ev.end_time)}</span>
-                              {ev.delivery_address && (
-                                <>
-                                  <span>·</span>
-                                  <MapPin className="w-3 h-3 shrink-0" />
-                                  <span className="truncate max-w-[140px]">{ev.delivery_address}</span>
-                                </>
-                              )}
-                            </div>
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              {unstaffed ? (
-                                <Badge variant="destructive" className="h-5 text-[10px]">
-                                  {t('overview.staffStatus.unstaffed')}
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="h-5 text-[10px]">
-                                  {staff.length} {t('overview.staffStatus.planned')}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))
-              )}
-            </Section>
-          )}
-
-          {/* === Section 2: Personalöversikt === */}
-          {phase !== 'anomalies' && (
-            <Section title={t('overview.section.staff')} icon={Users}>
-              {staffByDay.length === 0 ? (
-                <EmptyState text={t('overview.empty.staffing')} />
-              ) : (
-                staffByDay.map(([date, staff]) => (
-                  <div key={date} className="space-y-2">
-                    <DayHeader label={formatDay(date)} sub={format(parseISO(date), 'd MMM yyyy', { locale: dateLocale })} />
-                    <div className="flex flex-wrap gap-1.5">
-                      {staff.map(s => {
-                        const b = roleBadge(s.role);
-                        return (
-                          <button
-                            key={s.id}
-                            onClick={() => openStaff(s.staff_id, s.staff_name)}
-                            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-card border border-border/60 active:scale-[0.97]"
-                          >
-                            <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold border', b.cls)}>
-                              {b.label}
-                            </span>
-                            <span className="text-xs font-medium">{s.staff_name}</span>
-                            <span className="text-[10px] text-muted-foreground">
-                              · {s.client ?? s.booking_number ?? '—'}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
-              )}
-            </Section>
-          )}
-
-          {/* === Section 3: Avvikelser === */}
+          {/* === Section 1: Avvikelser (alltid överst) === */}
           <Section title={t('overview.section.anomalies')} icon={AlertTriangle}>
             {(() => {
               const opsAnomalies = opsData?.anomalies ?? [];
@@ -583,6 +486,148 @@ const MobileOverview: React.FC = () => {
               );
             })()}
           </Section>
+
+          {/* === Section 2: Dagens jobb === */}
+          {phase !== 'anomalies' && (
+            <Section title={t('overview.section.jobs')} icon={Briefcase}>
+              {eventsByDay.length === 0 ? (
+                <EmptyState text={t('overview.empty.calendar')} />
+              ) : (
+                eventsByDay.map(([day, events]) => (
+                  <div key={day} className="space-y-2">
+                    <DayHeader label={formatDay(day)} sub={format(parseISO(day), 'd MMM yyyy', { locale: dateLocale })} />
+                    {events.map(ev => {
+                      const staff = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${ev.source_date}`) ?? [] : [];
+                      const unstaffed = !!ev.booking_id && staff.length === 0;
+                      const job = jobsById.get(ev.id);
+                      const isLp = job?.target_type === 'large_project';
+                      const tone = deriveJobTone(staff, unstaffed);
+                      const sb = statusBadge(tone);
+                      const SbIcon = sb.icon;
+                      return (
+                        <div
+                          key={ev.id}
+                          className="rounded-xl bg-card border border-border/60 overflow-hidden"
+                        >
+                          <button
+                            onClick={() => {
+                              if (ev.booking_id) navigate(`/m/job/${ev.booking_id}`);
+                              else if (job && isLp && job.target_id) navigate(`/m/project/${job.target_id}`);
+                              else setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
+                            }}
+                            className="w-full flex items-start gap-3 p-3 active:scale-[0.99] transition-transform text-left"
+                          >
+                            <div className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0', eventTypeColor(ev.event_type))}>
+                              {(ev.event_type ?? '—').toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-sm truncate">{ev.title}</div>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                                <Clock className="w-3 h-3 shrink-0" />
+                                <span>{formatTimeRange(ev.start_time, ev.end_time)}</span>
+                                {ev.delivery_address && (
+                                  <>
+                                    <span>·</span>
+                                    <MapPin className="w-3 h-3 shrink-0" />
+                                    <span className="truncate max-w-[160px]">{ev.delivery_address}</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border', sb.cls)}>
+                                  {SbIcon && <SbIcon className="w-3 h-3" />}
+                                  {sb.label}
+                                </span>
+                                {!unstaffed && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {staff.length} {t('overview.staffStatus.planned')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </Section>
+          )}
+
+          {/* === Section 3: Personalöversikt (kort, inte chips) === */}
+          {phase !== 'anomalies' && (
+            <Section title={t('overview.section.staff')} icon={Users}>
+              {staffByDay.length === 0 ? (
+                <EmptyState text={t('overview.empty.staffing')} />
+              ) : (
+                staffByDay.map(([date, staff]) => {
+                  // Dedupe per staff_id för dagen — visa varje person en gång
+                  const seen = new Set<string>();
+                  const uniq = staff.filter(s => {
+                    if (seen.has(s.staff_id)) return false;
+                    seen.add(s.staff_id);
+                    return true;
+                  });
+                  return (
+                    <div key={date} className="space-y-2">
+                      <DayHeader label={formatDay(date)} sub={format(parseISO(date), 'd MMM yyyy', { locale: dateLocale })} />
+                      <div className="space-y-2">
+                        {uniq.map(s => {
+                          const rb = roleBadge(s.role);
+                          const status = staffStatusById.get(s.staff_id);
+                          const tone = deriveStaffTone(status);
+                          const sb = statusBadge(tone);
+                          const SbIcon = sb.icon;
+                          // Count planned targets för denna person (bland alla assignments idag)
+                          const plannedCount = staff.filter(x => x.staff_id === s.staff_id).length;
+                          const lastSignal = status?.latest_known_location?.updated_at;
+                          return (
+                            <button
+                              key={s.staff_id}
+                              onClick={() => openStaff(s.staff_id, s.staff_name)}
+                              className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
+                            >
+                              <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0', rb.cls)}>
+                                {rb.label}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-sm truncate">{s.staff_name}</div>
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                                  <Briefcase className="w-3 h-3 shrink-0" />
+                                  <span className="truncate max-w-[180px]">
+                                    {plannedCount > 1 ? `${plannedCount} jobb` : (s.client ?? s.booking_title ?? s.booking_number ?? '—')}
+                                  </span>
+                                  {lastSignal && (
+                                    <>
+                                      <span>·</span>
+                                      {status?.gps_status === 'fresh' ? <Wifi className="w-3 h-3 shrink-0 text-emerald-600" /> : <WifiOff className="w-3 h-3 shrink-0 text-muted-foreground" />}
+                                      <span>{format(parseISO(lastSignal), 'HH:mm')}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="mt-1.5 flex items-center gap-1.5">
+                                  <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border', sb.cls)}>
+                                    {SbIcon && <SbIcon className="w-3 h-3" />}
+                                    {sb.label}
+                                  </span>
+                                  {(status?.anomaly_count ?? 0) > 0 && (
+                                    <span className="text-[10px] text-destructive font-bold">⚠ {status?.anomaly_count}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </Section>
+          )}
 
           {/* === Section 4: Meddelanden === */}
           {phase !== 'anomalies' && (
