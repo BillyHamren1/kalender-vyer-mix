@@ -59,10 +59,10 @@ describe('buildProjectLaborBasis', () => {
     expect(basis.billableMinutes).toBe(240); // travel ej inkluderat per default
     // pending = active(240) + suggested(0) + suggested travel(25) + approved travel inte räknat (30)
     expect(basis.pendingMinutes).toBe(240 + 25 + 30);
-    // workday 450 − (confirmed 240 + approved travel 30) = 180 min ofördelad
-    expect(basis.unallocatedWorkdayMinutes).toBe(180);
+    // workday 480 − (confirmed 240 + approved travel 30) = 210 min ofördelad
+    expect(basis.unallocatedWorkdayMinutes).toBe(210);
     expect(basis.hasUnallocatedWorkday).toBe(true);
-    expect(basis.perStaff[0].workdayMinutes).toBe(450);
+    expect(basis.perStaff[0].workdayMinutes).toBe(480);
   });
 
   it('includeApprovedTravel=true lägger restid i kostnaden', () => {
