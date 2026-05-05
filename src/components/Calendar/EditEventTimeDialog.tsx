@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
+import { moveLargeProjectDay } from '@/services/largeProjectPlannerService';
 import { parse, isAfter } from 'date-fns';
 import { Clock, AlertTriangle } from 'lucide-react';
-import { extractUTCTime, extractUTCDate, buildUTCDateTime } from '@/utils/dateUtils';
+import { extractUTCTime, extractUTCDate, buildUTCDateTime, normalizePlannerEventType } from '@/utils/dateUtils';
 
 interface EditEventTimeDialogProps {
   open: boolean;
@@ -17,6 +18,13 @@ interface EditEventTimeDialogProps {
     title: string;
     start: string | Date;
     end: string | Date;
+    eventType?: string;
+    extendedProps?: {
+      largeProjectId?: string;
+      phase?: string;
+      eventType?: string;
+      sourceDate?: string;
+    };
   };
   onUpdate?: () => void;
   exactTimeNeeded?: boolean;
