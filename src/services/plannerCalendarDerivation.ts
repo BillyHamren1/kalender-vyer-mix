@@ -315,5 +315,24 @@ export const buildPlannerCalendarEvents = ({
     events.push(mapRealRowToCalendarEvent(row, booking, undefined));
   }
 
-  return events.sort((a, b) => String(a.start).localeCompare(String(b.start)));
+  const sorted = events.sort((a, b) => String(a.start).localeCompare(String(b.start)));
+
+  if (import.meta.env?.DEV) {
+    /* eslint-disable no-console */
+    console.groupCollapsed('[PlannerCalendar] derivation summary');
+    console.log('window', { fromDate, toDate });
+    console.log('calendar_events fetched', realEvents.length);
+    console.log('bookings', bookings.length);
+    console.log('large_projects', largeProjects.length);
+    console.log('large_project_team_assignments', largeProjectTeamAssignments.length);
+    console.log('event-days hidden (project, no assignment)', eventDaysHidden);
+    console.log('large-project rows missing assignment', largeProjectMissingAssignment);
+    console.log('large-project rows rendered via fallback', largeProjectFallbackRendered);
+    console.log('large-project rows emitted (total)', largeProjectEmittedCount);
+    console.log('final calendar events emitted', sorted.length);
+    console.groupEnd();
+    /* eslint-enable no-console */
+  }
+
+  return sorted;
 };
