@@ -615,6 +615,7 @@ const MobileOverview: React.FC = () => {
 
           {/* === Section 2: Dagens jobb === */}
           {mainTab === 'projects' && phase !== 'anomalies' && (
+            <Section title={t('overview.section.jobs')} icon={Briefcase}>
               {eventsByDay.length === 0 ? (
                 <EmptyState text={t('overview.empty.calendar')} />
               ) : (
