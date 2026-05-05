@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import {
   Activity,
   AlertTriangle,
+  ArrowUpRight,
   Check,
   ChevronDown,
   ChevronRight,
