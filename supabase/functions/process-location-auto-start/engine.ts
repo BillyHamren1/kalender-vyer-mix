@@ -428,7 +428,6 @@ async function closeOpenLteForSwitch(
     .from('location_time_entries')
     .update({
       exited_at: departureIso,
-      total_minutes: totalMinutes,
       stop_source: 'server_background_gps_switch',
       stop_reason: 'switched_to_new_work_site',
       stopped_by: 'system:process-location-auto-start',
@@ -571,7 +570,7 @@ async function ensureTravelLog(
     hours_worked: Math.round((dur / 3600_000) * 100) / 100,
     auto_detected: true,
     source: report.mode === 'backfill_day' ? 'geofence_auto_switch_server_backfill' : 'geofence_auto_switch_server',
-    classification: 'needs_review',
+    classification: 'unclassified',
     needs_review: true,
     previous_target_type: prevHit.target.kind,
     previous_target_id: prevHit.target.id,
