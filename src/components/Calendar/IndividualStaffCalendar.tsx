@@ -130,14 +130,21 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           eventClick={handleStaffEventClick}
           eventContent={(renderInfo) => {
             const { event } = renderInfo;
-            const props = event.extendedProps;
-            
+            const props = event.extendedProps as any;
+            const ts = props.timeStatus as keyof typeof ASSIGNMENT_STATUS_LABEL | undefined;
+            const badgeLabel = ts ? ASSIGNMENT_STATUS_LABEL[ts] : null;
+            const badgeCls = ts ? ASSIGNMENT_STATUS_CLASS[ts] : '';
             return (
-              <div className="fc-event-main-frame p-1 rounded text-xs" title={`Staff: ${props.staffName}`}>
+              <div className="fc-event-main-frame p-1 rounded text-xs" title={`Staff: ${props.staffName}${badgeLabel ? ' · ' + badgeLabel : ''}`}>
                 <div className="fc-event-title-container">
                   <div className="fc-event-title font-medium leading-tight truncate">
                     {event.title}
                   </div>
+                  {badgeLabel ? (
+                    <div className={`mt-0.5 inline-flex rounded px-1 py-[1px] text-[9px] font-medium ${badgeCls}`}>
+                      {badgeLabel}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             );
