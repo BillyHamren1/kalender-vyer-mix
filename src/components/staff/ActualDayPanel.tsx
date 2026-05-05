@@ -137,6 +137,8 @@ const EventIcon: React.FC<{ kind: ActualEventKind; severity: ActualEventSeverity
   if (kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit') return <MapPin className={`h-3.5 w-3.5 ${cls}`} />;
   if (kind === 'gps_travel' || kind === 'travel_suggestion') return <Plane className={`h-3.5 w-3.5 ${cls}`} />;
   if (kind === 'stale_signal') return <WifiOff className={`h-3.5 w-3.5 ${cls}`} />;
+  if (kind === 'planned_signal_gap') return <WifiOff className={`h-3.5 w-3.5 ${cls}`} />;
+  if (kind === 'planned_start') return <Clock className={`h-3.5 w-3.5 ${cls}`} />;
   if (kind === 'anomaly') return <AlertTriangle className={`h-3.5 w-3.5 ${cls}`} />;
   return <Activity className={`h-3.5 w-3.5 ${cls}`} />;
 };
