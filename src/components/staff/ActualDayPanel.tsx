@@ -619,14 +619,17 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                 });
               const isRowOpen = expandedDebugKeys.has(ev.id);
               const statusLabel = statusTagFor(ev);
+              const statusIsAction = isActionStatus(statusLabel);
               const statusTone =
-                ev.severity === 'critical'
-                  ? 'text-destructive'
-                  : ev.severity === 'warning'
-                    ? 'text-amber-600'
-                    : statusLabel.startsWith('osäker')
-                      ? 'text-amber-600'
-                      : 'text-muted-foreground';
+                statusLabel === 'Signal tappad' || statusLabel === 'Saknar stopp'
+                  ? 'bg-destructive/15 text-destructive border-destructive/30'
+                  : statusLabel === 'Kräver granskning'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-900/40 dark:text-amber-100'
+                    : statusLabel === 'Föreslagen'
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : statusLabel === 'Osäker'
+                        ? 'text-amber-600'
+                        : 'text-muted-foreground';
 
               // "Från / Till" för förflyttningar
               let displayLabel: React.ReactNode = ev.label;
