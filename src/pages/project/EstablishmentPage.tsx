@@ -1,11 +1,9 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { List, Users } from "lucide-react";
-import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
