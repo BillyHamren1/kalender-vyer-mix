@@ -102,6 +102,29 @@ interface StaffWithDayReport {
   planningStatus: PlanningStatus;
   /** Etiketter för planerade pass denna dag (för tooltip / sekundär rad). */
   plannedLabels: string[];
+  /**
+   * Debug-signaler som förklarar varför personen visas och varför
+   * planningStatus blev satt. Speglar exakt de boolean-flaggorna som
+   * UI:t exponerar i en expanderbar "Varför syns denna?"-sektion.
+   */
+  presence: PresenceDebug;
+}
+
+export interface PresenceDebug {
+  plannedFromBookingStaffAssignments: boolean;
+  plannedFromStaffAssignments: boolean;
+  plannedFromLargeProjectStaff: boolean;
+  hasWorkday: boolean;
+  hasOpenWorkday: boolean;
+  hasTimeReports: boolean;
+  hasLocationTimeEntries: boolean;
+  hasTravelLogs: boolean;
+  hasGpsPings: boolean;
+  hasAssistantEvents: boolean;
+  hasWorkdayFlags: boolean;
+  /** Mänskligt formulerade förklaringar (visningsorsak + statusorsak). */
+  visibilityReason: string;
+  statusReason: string;
 }
 
 export type PlanningStatus =
