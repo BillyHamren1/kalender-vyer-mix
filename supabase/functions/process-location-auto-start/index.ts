@@ -478,6 +478,11 @@ async function ensureTravelLog(
     .maybeSingle()
   if (existing?.id) return
 
+  if (report.dry_run) {
+    planPush(report, { action: 'travel_create', staff_id: staffId, start_time: departureIso, end_time: arrivalIso, from: prevHit.target.label, to: nextHit.target.label })
+    report.travels_created++
+    return
+  }
   const { error } = await supabase.from('travel_time_logs').insert({
     staff_id: staffId,
     organization_id: orgId,
@@ -486,7 +491,7 @@ async function ensureTravelLog(
     end_time: arrivalIso,
     hours_worked: Math.round((dur / 3600_000) * 100) / 100,
     auto_detected: true,
-    source: 'geofence_auto_switch_server',
+    source: report.mode === 'backfill_day' ? 'geofence_auto_switch_server_backfill' : 'geofence_auto_switch_server',
     classification: 'needs_review',
     needs_review: true,
     previous_target_type: prevHit.target.kind,
