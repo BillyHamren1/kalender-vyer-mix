@@ -20,6 +20,26 @@ const fmtDur = (m: number) => {
   return `${r}m`;
 };
 
+/**
+ * Härled en säker label för en endpoint (presence eller journey).
+ * Huvudvyn får ALDRIG visa "okänd plats" ensam — vi mappar alltid
+ * lookupStatus + lat/lng till en meningsfull text.
+ */
+const safePlaceLabel = (
+  place?: { label?: string | null; lat?: number | null; lng?: number | null; lookupStatus?: string } | null,
+  fallback?: string | null,
+): string => {
+  const raw = (place?.label ?? fallback ?? '').trim();
+  const isUnknownOnly = !raw || /^okänd plats$/i.test(raw);
+  if (!isUnknownOnly) return raw;
+  const status = place?.lookupStatus;
+  const hasCoord = place?.lat != null && place?.lng != null;
+  if (status === 'failed') return 'Okänd plats – adress kunde inte hämtas';
+  if (status === 'pending') return 'Slår upp adress…';
+  if (hasCoord) return 'Slår upp adress…';
+  return 'Okänd plats – saknar koordinat';
+};
+
 /* ------------------------------------------------------------------ */
 /*  Shared row primitives — kompakta rader (~34–40px höga)            */
 /* ------------------------------------------------------------------ */
@@ -204,7 +224,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg[accent]}`}>
             <Building2 className="h-3.5 w-3.5" />
           </span>
-          <span className="font-semibold text-foreground truncate">{block.resolvedPlace?.label ?? block.title}</span>
+          <span className="font-semibold text-foreground truncate">{safePlaceLabel(block.resolvedPlace, block.title)}</span>
           {subtitle && (
             <>
               <span className="text-muted-foreground shrink-0">·</span>
@@ -254,9 +274,9 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg.journey}`}>
             <Car className="h-3.5 w-3.5" />
           </span>
-          <span className="font-medium text-foreground truncate">{block.fromPlace?.label ?? block.fromLabel ?? 'okänd plats'}</span>
+          <span className="font-medium text-foreground truncate">{safePlaceLabel(block.fromPlace, block.fromLabel)}</span>
           <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-          <span className="font-medium text-foreground truncate">{block.toPlace?.label ?? block.toLabel ?? 'okänd plats'}</span>
+          <span className="font-medium text-foreground truncate">{safePlaceLabel(block.toPlace, block.toLabel)}</span>
         </div>
 
         <div className="flex items-center justify-end overflow-hidden">
