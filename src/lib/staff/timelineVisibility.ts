@@ -27,6 +27,7 @@ export type TimelineHiddenReason =
   | 'private_background'    // workRelevance = private_or_background (privatzon/natt)
   | 'within_transition'     // mikrohändelse som tillhör ett annat block
   | 'assistant_merged'      // assistant_event som beskriver samma sak som en annan main-rad
+  | 'within_journey'        // departure/arrival som ingår i samma journey som en gps_travel-rad
   | 'raw_detail';           // tekniskt event (gps_gap) — alltid raw_only
 
 export interface ClassifiedEvent {
@@ -325,6 +326,52 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
     }
   }
 
+  // Steg 4: journey-merge.
+  //   En main-rad gps_travel "Förflyttning A → B" representerar redan hela
+  //   bytet. Dölj då närliggande gps_departure (på A) och gps_arrival (på B)
+  //   så att huvudjournalen visar EN journey-rad istället för tre rader
+  //   (Lämnade A · Förflyttning A→B · Anlände B). Mellanliggande events finns
+  //   kvar i raw/expand-vyn som bevis.
+  const JOURNEY_WINDOW_MS = 10 * 60_000;
+  for (let i = 0; i < N; i++) {
+    const c = classified[i];
+    if (c.visibility !== 'main') continue;
+    const ev = c.event;
+    if (ev.kind !== 'gps_travel') continue;
+    const tp = travelEndpoints(ev);
+    if (tp.sameSite) continue;
+    const travelStart = new Date(ev.at).getTime();
+    const travelEnd = new Date(ev.until ?? ev.at).getTime();
+    if (!Number.isFinite(travelStart) || !Number.isFinite(travelEnd)) continue;
+
+    for (let j = 0; j < N; j++) {
+      if (j === i) continue;
+      const other = classified[j];
+      if (other.visibility !== 'main') continue;
+      const oev = other.event;
+      const oKey = eventPlaceKey(oev);
+      const oMs = new Date(oev.at).getTime();
+      if (!Number.isFinite(oMs)) continue;
+
+      // gps_departure på A inom fönstret runt travel.start
+      if (oev.kind === 'gps_departure' && tp.from && oKey === tp.from) {
+        if (Math.abs(oMs - travelStart) <= JOURNEY_WINDOW_MS) {
+          other.visibility = 'raw_only';
+          other.reason_hidden = 'within_journey';
+          continue;
+        }
+      }
+      // gps_arrival på B inom fönstret runt travel.end
+      if (oev.kind === 'gps_arrival' && tp.to && oKey === tp.to) {
+        if (Math.abs(oMs - travelEnd) <= JOURNEY_WINDOW_MS) {
+          other.visibility = 'raw_only';
+          other.reason_hidden = 'within_journey';
+          continue;
+        }
+      }
+    }
+  }
+
   return classified;
 }
 
@@ -366,6 +413,7 @@ export function hiddenReasonLabel(reason: TimelineHiddenReason): string {
     case 'private_background': return 'Privat/bakgrund';
     case 'within_transition': return 'Del av transition';
     case 'assistant_merged': return 'Assistent-händelse (matchad)';
+    case 'within_journey': return 'Del av förflyttning';
     case 'raw_detail': return 'Tekniskt rådata';
   }
 }
