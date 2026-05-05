@@ -335,6 +335,8 @@ async function closeOpenLteForSwitch(
         ...meta,
         closed_by: 'server_auto_switch',
         closed_at_source: 'geofence_auto_switch_server',
+        engine_version: report.engine_version,
+        run_id: report.run_id,
         switch: {
           previous_target: { kind: prevHit.target.kind, id: prevHit.target.id, label: prevHit.target.label },
           next_target: { kind: nextHit.target.kind, id: nextHit.target.id, label: nextHit.target.label },
