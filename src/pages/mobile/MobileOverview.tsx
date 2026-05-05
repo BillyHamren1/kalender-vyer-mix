@@ -43,6 +43,7 @@ const MobileOverview: React.FC = () => {
   const { isPlanner, isLoading: rolesLoading } = useMobileRoles();
   const [dateMode, setDateMode] = useState<DateMode>('today');
   const [phase, setPhase] = useState<PhaseFilter>('all');
+  const [mainTab, setMainTab] = useState<MainTab>('projects');
   const dateLocale = locale === 'en' ? enUS : svLocale;
 
   const hasToken = isAuthenticated && !!getToken();
