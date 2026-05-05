@@ -122,13 +122,23 @@ export async function moveLargeProjectDay({
   // 2. Update all linked bookings — match by current phase date (fromDate)
   //    and write new date + new times. Even when only the time changed,
   //    fromDate === toDate so this still updates the times in place.
-  const { data: links, error: linksErr } = await supabase
-    .from('large_project_bookings')
-    .select('booking_id')
-    .eq('large_project_id', largeProjectId);
-  if (linksErr) throw linksErr;
+  const [linksRes, directRes] = await Promise.all([
+    supabase
+      .from('large_project_bookings')
+      .select('booking_id')
+      .eq('large_project_id', largeProjectId),
+    supabase
+      .from('bookings')
+      .select('id')
+      .eq('large_project_id', largeProjectId),
+  ]);
+  if (linksRes.error) throw linksRes.error;
+  if (directRes.error) throw directRes.error;
 
-  const bookingIds = (links || []).map(l => l.booking_id);
+  const bookingIdSet = new Set<string>();
+  (linksRes.data || []).forEach((l: any) => l?.booking_id && bookingIdSet.add(l.booking_id));
+  (directRes.data || []).forEach((b: any) => b?.id && bookingIdSet.add(b.id));
+  const bookingIds = Array.from(bookingIdSet);
   const bookingDateCol = PHASE_TO_BOOKING_DATE[phase];
   const bookingTimes = PHASE_TO_BOOKING_TIMES[phase];
 
