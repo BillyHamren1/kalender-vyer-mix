@@ -1303,6 +1303,31 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     : 0;
   const undistributedMinutes = Math.max(0, workdayMinutes - distributedMinutes);
 
+  // Beslutsmatris för arbetsstart (Case A–E).
+  const firstSignalIsoForDecision = (() => {
+    const candidates: number[] = [];
+    if (sortedPings.length) candidates.push(new Date(sortedPings[0].recorded_at).getTime());
+    for (const e of input.locationEntries) candidates.push(new Date(e.entered_at).getTime());
+    for (const r of input.timeReports) candidates.push(new Date(r.start_iso).getTime());
+    if (input.workday) candidates.push(new Date(input.workday.started_at).getTime());
+    if (!candidates.length) return null;
+    return new Date(Math.min(...candidates)).toISOString();
+  })();
+  const earliestPlannedStartIso = (input.plannedAssignments ?? []).length
+    ? (input.plannedAssignments ?? [])
+        .map(a => a.plannedStart)
+        .sort()[0] ?? null
+    : null;
+  const workStartDecision = classifyWorkStart({
+    visits: input.visits,
+    travels: input.travels,
+    plannedAssignments: input.plannedAssignments ?? [],
+    privateZones: input.privateZones ?? [],
+    visitRelevance,
+    earliestPlannedStartIso,
+    firstSignalIso: firstSignalIsoForDecision,
+  });
+
   return {
     date: input.date,
     actualEvents: events,
@@ -1323,5 +1348,6 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     },
     lastPingAgeMin,
     signalLost,
+    workStartDecision,
   };
 }
