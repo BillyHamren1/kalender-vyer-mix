@@ -1049,7 +1049,88 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     });
   }
 
-  // ── Sort + härled durationMin där möjligt ────────────────────────
+  // 10) Planerade assignments → "Planerad start" + ev. "Ingen app/GPS-signal"
+  // Assignment är FÖRVÄNTAN, inte bevis. Om det inte finns någon
+  // arbetssignal mellan planerad start och första bekräftade händelse,
+  // emittera planned_signal_gap så UI kan visa "Kräver granskning".
+  const plannedAssignments = input.plannedAssignments ?? [];
+  if (plannedAssignments.length > 0) {
+    // Första bekräftade arbetssignalen idag: workday.started_at, första timer/
+    // tidrapport-start, eller första GPS-ping.
+    const firstPingMs = sortedPings.length
+      ? new Date(sortedPings[0].recorded_at).getTime()
+      : null;
+    const firstTimerMs = (() => {
+      const candidates: number[] = [];
+      for (const e of input.locationEntries) candidates.push(new Date(e.entered_at).getTime());
+      for (const r of input.timeReports) candidates.push(new Date(r.start_iso).getTime());
+      if (input.workday) candidates.push(new Date(input.workday.started_at).getTime());
+      return candidates.length ? Math.min(...candidates) : null;
+    })();
+    const firstSignalMs = [firstPingMs, firstTimerMs]
+      .filter((x): x is number => x != null)
+      .reduce<number | null>((m, x) => (m == null || x < m ? x : m), null);
+
+    for (const pa of plannedAssignments) {
+      const plannedStartMs = new Date(pa.plannedStart).getTime();
+      events.push({
+        id: `planned-start:${pa.id}`,
+        at: pa.plannedStart,
+        kind: 'planned_start',
+        severity: 'info',
+        label: `Planerad start: ${pa.label}`,
+        place: pa.label,
+        meta: {
+          assignmentId: pa.id,
+          plannedStart: pa.plannedStart,
+          plannedEnd: pa.plannedEnd ?? null,
+          source: 'planning',
+          isEvidence: false,
+        },
+      });
+
+      // Om första bekräftade signal saknas, eller är >15 min efter planerad
+      // start → planned_signal_gap.
+      const SIGNAL_GAP_MS = 15 * 60_000;
+      if (firstSignalMs == null || firstSignalMs > plannedStartMs + SIGNAL_GAP_MS) {
+        const gapEndIso = firstSignalMs != null
+          ? new Date(firstSignalMs).toISOString()
+          : (now > new Date(plannedStartMs) ? now.toISOString() : pa.plannedEnd ?? pa.plannedStart);
+        const gapMin = Math.max(
+          0,
+          Math.round(((firstSignalMs ?? now.getTime()) - plannedStartMs) / 60_000),
+        );
+        events.push({
+          id: `planned-gap:${pa.id}`,
+          at: pa.plannedStart,
+          until: gapEndIso,
+          kind: 'planned_signal_gap',
+          severity: 'warning',
+          label: 'Ingen app/GPS-signal under planerad tid',
+          detail: `Planerad start ${pa.plannedStart.slice(11, 16)} på ${pa.label}, men ingen GPS-ping eller timer registrerad${firstSignalMs != null ? ` förrän ${new Date(firstSignalMs).toISOString().slice(11, 16)}` : ' under perioden'}.`,
+          durationMin: gapMin,
+          meta: {
+            assignmentId: pa.id,
+            plannedStart: pa.plannedStart,
+            plannedEnd: pa.plannedEnd ?? null,
+            firstSignalAt: firstSignalMs != null ? new Date(firstSignalMs).toISOString() : null,
+            anomalyType: 'planned_time_without_signal',
+            isEvidence: false,
+            requiresReview: true,
+            suggestedActions: [
+              { id: 'create_workday_from_planned', label: `Skapa arbetsdag från planerad start ${pa.plannedStart.slice(11, 16)}` },
+              firstSignalMs != null
+                ? { id: 'start_from_first_signal', label: `Starta från första GPS ${new Date(firstSignalMs).toISOString().slice(11, 16)}` }
+                : null,
+              { id: 'set_custom_start', label: 'Ange annan starttid' },
+              { id: 'mark_absence', label: 'Markera frånvaro / ignorera planerad tid' },
+            ].filter(Boolean),
+          },
+        });
+      }
+    }
+  }
+
   events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
   for (const ev of events) {
     if (ev.durationMin == null && ev.until) {
