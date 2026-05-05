@@ -78,6 +78,16 @@ import {
   type ExitTrackerState,
   type ExitEvaluation,
 } from '@/lib/geofence/stableExit';
+import {
+  createEntryTracker,
+  resetEntryTracker,
+  recordEntryPing,
+  evaluateStableEntry,
+  buildEntryMetadata,
+  firstReliableArrivalTs,
+  type EntryTrackerState,
+  type EntryEvaluation,
+} from '@/lib/geofence/stableEntry';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
@@ -324,6 +334,20 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     if (!t) {
       t = createExitTracker();
       exitTrackersRef.current.set(key, t);
+    }
+    return t;
+  };
+
+  // ── Stable-entry tracker (Auto-start hardening 2026-05) ──────────
+  // En enskild inside-ping (GPS-spike) får ALDRIG starta workday/timer.
+  // Vi samlar konsekutiva inside-pings per target och kräver stabilitet
+  // (≥3 pings ELLER ≥2 min dwell, rimlig accuracy).
+  const entryTrackersRef = useRef<Map<string, EntryTrackerState>>(new Map());
+  const getEntryTracker = (key: string): EntryTrackerState => {
+    let t = entryTrackersRef.current.get(key);
+    if (!t) {
+      t = createEntryTracker();
+      entryTrackersRef.current.set(key, t);
     }
     return t;
   };
@@ -794,6 +818,52 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }
     };
 
+    // ── STABLE-ENTRY EVALUATION (Auto-start hardening 2026-05) ───────
+    // En enskild GPS-spike inom radien får ALDRIG starta workday/timer.
+    // Vi loggar inside-pingen i per-target entry-trackern. Endast 'stable'
+    // tillåter auto-start. 'insufficient'/'unstable' → emittera
+    // assistant_events 'possible_arrival' (throttlat) och returnera utan
+    // att starta. 'no_signal' → ingenting.
+    const evaluateEntry = (
+      key: string,
+      dist: number,
+    ): EntryEvaluation => {
+      const tracker = getEntryTracker(key);
+      recordEntryPing(tracker, {
+        ts: Date.now(),
+        distance: dist,
+        accuracy: userPosition?.accuracy ?? null,
+      });
+      return evaluateStableEntry(tracker, Date.now(), lastPingAgeMs);
+    };
+
+    const emitPossibleArrival = (params: {
+      kind: 'location' | 'project' | 'booking';
+      targetId: string;
+      label: string | null;
+      ev: EntryEvaluation;
+    }) => {
+      // Throttla: bara 1 event per 4:e ping så vi inte spammar.
+      if (params.ev.pings.length % 4 !== 1) return;
+      mobileApi.assistantEvents
+        .create({
+          event_type: 'arrival',
+          target_type: params.kind,
+          target_id: params.targetId,
+          target_label: params.label,
+          happened_at: new Date().toISOString(),
+          source: 'geofence',
+          suggested_action: 'possible_arrival',
+          metadata: {
+            ...buildEntryMetadata(params.ev),
+            note: 'Möjlig ankomst — instabil GPS, ingen auto-start',
+          },
+        })
+        .catch((err) =>
+          console.warn('[Geofence] possible_arrival emit failed:', err?.message || err),
+        );
+    };
+
     const exitDecision: ExitDecision = (() => {
       const signals = computePlannedDaySignals(bookings, new Date());
       return decideExitAction(signals);
@@ -875,18 +945,22 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
 
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
-          // AUTO-START på alla kända arbetsplatser. assigned-today-gaten
-          // togs bort 2026-05 (se kommentaren ovan vid isAssignedToday).
-          const assignedToday = bookings.some(
-            (b) => b.large_project_id === lpId && isAssignedToday(b),
-          );
-
+          // STABLE-ENTRY GATE — en GPS-spike får inte starta workday/timer.
+          const entryEv = evaluateEntry(projectKey, dist);
+          if (entryEv.status !== 'stable') {
+            if (entryEv.status === 'insufficient' || entryEv.status === 'unstable') {
+              emitPossibleArrival({ kind: 'project', targetId: lpId, label: lpName, ev: entryEv });
+            }
+            continue;
+          }
+          // Stabil ankomst — fortsätt med auto-start.
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          // (workday is ensured centrally by autoActionsRef.start →
-          // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
-          const arrivedAtIso = new Date().toISOString();
+          // Använd FÖRSTA pålitliga ping-tiden som arrival-tid, inte "nu".
+          const firstTs = firstReliableArrivalTs(getEntryTracker(projectKey));
+          const arrivedAtIso = new Date(firstTs ?? Date.now()).toISOString();
+          resetEntryTracker(getEntryTracker(projectKey));
           mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
           noteEnterForDeparture(projectKey, 'project', lpId, lpName);
@@ -999,15 +1073,20 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const hasTimer = activeTimers.has(booking.id);
 
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
-          // AUTO-START på kända arbetsplatser — assigned-today-gaten borttagen 2026-05.
-          const assignedToday = isAssignedToday(booking);
-
+          // STABLE-ENTRY GATE — kräv stabil ankomst innan auto-start.
+          const entryEv = evaluateEntry(booking.id, dist);
+          if (entryEv.status !== 'stable') {
+            if (entryEv.status === 'insufficient' || entryEv.status === 'unstable') {
+              emitPossibleArrival({ kind: 'booking', targetId: booking.id, label: booking.client || null, ev: entryEv });
+            }
+            continue;
+          }
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          // (workday is ensured centrally by autoActionsRef.start →
-          // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
-          const arrivedAtIso = new Date().toISOString();
+          const firstTs = firstReliableArrivalTs(getEntryTracker(booking.id));
+          const arrivedAtIso = new Date(firstTs ?? Date.now()).toISOString();
+          resetEntryTracker(getEntryTracker(booking.id));
           mobileApi.reportArrival({ kind: 'booking', target_id: booking.id, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] booking register failed:', err?.message || err));
           noteEnterForDeparture(booking.id, 'booking', booking.id, booking.client || null);
@@ -1116,16 +1195,20 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         !hasTimer &&
         !triggeredEnterRef.current.has(locKey)
       ) {
+        // STABLE-ENTRY GATE — kräv stabil ankomst.
+        const entryEv = evaluateEntry(locKey, dist);
+        if (entryEv.status !== 'stable') {
+          if (entryEv.status === 'insufficient' || entryEv.status === 'unstable') {
+            emitPossibleArrival({ kind: 'location', targetId: loc.id, label: loc.name, ev: entryEv });
+          }
+          continue;
+        }
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
         emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-        // (workday is ensured centrally by autoActionsRef.start →
-        // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
-        // Report arrival to the server as well — the pre-workday travel
-        // gate uses arrival signals to know that "the day has truly started".
-        // Without this call, arriving at the warehouse first wouldn't unlock
-        // legitimate auto-travel later in the day.
-        const arrivedAtIso = new Date().toISOString();
+        const firstTs = firstReliableArrivalTs(getEntryTracker(locKey));
+        const arrivedAtIso = new Date(firstTs ?? Date.now()).toISOString();
+        resetEntryTracker(getEntryTracker(locKey));
         mobileApi.reportArrival({ kind: 'location', target_id: loc.id, arrived_at: arrivedAtIso })
           .catch(err => console.warn('[Arrival] location register failed:', err?.message || err));
         noteEnterForDeparture(locKey, 'location', loc.id, loc.name);
