@@ -333,6 +333,9 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       sourceEventIds: [cr.id, ...(cl ? [cl.id] : [])],
       innerEvents: [],
       timer: { startedIso: null, stoppedIso: null, active: !endIso, present: true },
+      sources: { timeReport: true, timer: false, gpsVisit: false, assistant: false },
+      evidenceLabel: null,
+      confidence: 'medium',
     };
     blocks.push(synthetic);
   }
