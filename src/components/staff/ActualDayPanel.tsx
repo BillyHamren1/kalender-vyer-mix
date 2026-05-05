@@ -265,6 +265,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   onIgnoreEvent,
   onRecomputeDay,
   onShowRawGps,
+  onResolvePlannedGap,
   reportSlot,
   extraActions,
   rawGpsSlot,
@@ -274,6 +275,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   const [rawGpsOpen, setRawGpsOpen] = useState(false);
   const [reprocessOpen, setReprocessOpen] = useState(false);
   const [expandedDebugKeys, setExpandedDebugKeys] = useState<Set<string>>(() => new Set());
+  const [plannedGapBusy, setPlannedGapBusy] = useState<string | null>(null);
+  const [customTimeByAnomaly, setCustomTimeByAnomaly] = useState<Record<string, string>>({});
 
   const handleApplyReprocess = (plan: ReprocessChoice[]) => {
     if (onRecomputeDay) {
