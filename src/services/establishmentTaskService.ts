@@ -384,6 +384,13 @@ export const bulkUpdateEstablishmentTasks = async (
     .update(updates)
     .in('id', ids);
   if (error) throw error;
+
+  // CALENDAR MIRROR: bulk date/time/status changes ska speglas till
+  // calendar_events för redan publicerade aktiviteter.
+  const touchesMirror = Object.keys(updates).some((k) => CALENDAR_MIRROR_FIELDS.has(k));
+  if (touchesMirror) {
+    await Promise.all(ids.map((id) => reSyncIfPublished(id)));
+  }
 };
 
 export const deleteEstablishmentTask = async (id: string): Promise<void> => {
