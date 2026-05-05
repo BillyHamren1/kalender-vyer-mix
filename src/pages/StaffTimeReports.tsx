@@ -322,8 +322,15 @@ const StaffTimeReports: React.FC = () => {
       // ── Planerad personal: använd EXAKT samma kalenderderivering som
       // personalkalendern, så tidrapportsidan aldrig visar andra namn än
       // kalendern för vald dag.
-      const bsaRows = ((bsaRes as any).error ? [] : (bsaRes as any).data || []) as any[];
+      const bsaRowsRaw = ((bsaRes as any).error ? [] : (bsaRes as any).data || []) as any[];
+      // Per [Mobile Calendar Authority v1]: team_id='project' = projektmedlemskap,
+      // INTE dagsplanering. Får aldrig generera "planerad denna dag".
+      const bsaRows = bsaRowsRaw.filter(r => r && r.team_id && r.team_id !== 'project');
       const saRows = ((saRes as any).error ? [] : (saRes as any).data || []) as any[];
+      // large_project_staff är projektmedlemskap över hela projektets livstid —
+      // det säger ingenting om vilken dag personen är planerad. Skickas
+      // medvetet inte vidare till deriveStaffEvents (annars markeras alla
+      // projektets medlemmar som "planerade" varje rig/rigDown-datum).
       const lpsRows = ((lpsRes as any).error ? [] : (lpsRes as any).data || []) as any[];
       const plannedStaffIds = new Set<string>();
       const plannedLabelsByStaff = new Map<string, Set<string>>();
@@ -393,7 +400,7 @@ const StaffTimeReports: React.FC = () => {
         endDate: dateStr,
         staffNames,
         bookingAssignments: bsaRows,
-        largeProjectStaff: lpsRows,
+        largeProjectStaff: [],
         bookings: bookingsById,
         largeProjects: largeProjectsById,
         largeProjectBookings,
