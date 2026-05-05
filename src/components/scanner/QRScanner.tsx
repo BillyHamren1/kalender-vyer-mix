@@ -1024,6 +1024,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
                   <span className="font-mono opacity-80">{detectedFlash.tail}</span>
                 </div>
               )}
+              {feedbackFlash && feedbackFlash.success && (
                 <div
                   key={`ok-${feedbackFlash.key}`}
                   className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none px-3 py-1.5 rounded-full bg-emerald-500/90 text-white text-sm font-semibold shadow-lg flex items-center gap-2"
