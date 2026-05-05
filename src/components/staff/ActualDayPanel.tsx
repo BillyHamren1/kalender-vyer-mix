@@ -588,7 +588,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               const isUnknownCluster =
                 (ev.kind === 'gps_visit' || ev.kind === 'gps_arrival' || ev.kind === 'gps_departure') &&
                 !!visit && !visit.knownSiteId;
-              const isExpanded = isUnknownCluster && expandedDebugKeys.has(ev.id);
+              const isExpanded = expandedDebugKeys.has(ev.id) && !!visit;
               const lookupKey = visit?.centre
                 ? `${visit.centre.lat.toFixed(3)},${visit.centre.lng.toFixed(3)}`
                 : null;
