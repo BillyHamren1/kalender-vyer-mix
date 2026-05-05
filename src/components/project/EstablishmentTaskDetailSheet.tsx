@@ -941,19 +941,53 @@ const EstablishmentTaskDetailSheet = ({
           </div>
         </div>
 
-        {/* Calendar sync toggle */}
-        <div className="py-2">
+        {/* Visibility toggles: project calendar / staff calendar / Time-app */}
+        <div className="py-2 space-y-2">
+          <div className="text-xs font-medium text-muted-foreground px-1">Synlighet</div>
+
+          <label className="flex items-center gap-3 px-3 py-2 rounded-md border border-dashed border-border hover:bg-accent/40 cursor-pointer">
+            <Switch
+              checked={(taskDbData as any)?.visible_in_project_calendar !== false}
+              onCheckedChange={async (checked) => {
+                await handleFieldUpdate({ visible_in_project_calendar: checked } as any);
+                queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
+              }}
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium">📋 Visa i projektkalender</div>
+              <div className="text-[11px] text-muted-foreground">
+                Kortet syns i projektets kalendervy. Stäng av för att hålla aktiviteten dold internt.
+              </div>
+            </div>
+          </label>
+
           <label className="flex items-center gap-3 px-3 py-2 rounded-md border border-dashed border-border hover:bg-accent/40 cursor-pointer">
             <Switch
               checked={isCalendarSynced}
               onCheckedChange={handleToggleCalendarSync}
             />
             <div className="flex-1">
-              <div className="text-sm font-medium">📅 Synca med personalkalender</div>
+              <div className="text-sm font-medium">📅 Visa i personalkalender</div>
               <div className="text-[11px] text-muted-foreground">
                 {isCalendarSynced
-                  ? "Aktiviteten visas som händelse i kalendern och uppdateras när tid/datum ändras."
-                  : "Aktivera för att skapa en kalenderhändelse i Tasks-kolumnen."}
+                  ? "Publicerad som kalenderhändelse — uppdateras automatiskt vid tid/datumändring."
+                  : "Aktivera för att skapa en kalenderhändelse i personalkalendern."}
+              </div>
+            </div>
+          </label>
+
+          <label className="flex items-center gap-3 px-3 py-2 rounded-md border border-dashed border-border hover:bg-accent/40 cursor-pointer">
+            <Switch
+              checked={(taskDbData as any)?.visible_in_time_app === true}
+              onCheckedChange={async (checked) => {
+                await handleFieldUpdate({ visible_in_time_app: checked } as any);
+                toast.success(checked ? "Visas i Time-appen" : "Dold från Time-appen");
+              }}
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium">📱 Visa i Time-app</div>
+              <div className="text-[11px] text-muted-foreground">
+                Tilldelad personal ser aktiviteten i mobilappens jobbvy. Kräver att personen är tilldelad.
               </div>
             </div>
           </label>
