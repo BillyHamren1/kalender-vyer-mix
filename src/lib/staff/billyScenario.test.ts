@@ -36,9 +36,9 @@ const faVisit: PlaceVisit = {
   knownSite: { id: FA.id, name: FA.name },
   centre: { lat: FA.lat, lng: FA.lng },
   start: `${date}T13:10:00Z`,
-  end: `${date}T15:00:00Z`,
-  durationMin: 110,
-  pingCount: 50,
+  end: `${date}T13:25:00Z`,
+  durationMin: 15,
+  pingCount: 8,
   pings: [],
 };
 
@@ -51,6 +51,12 @@ const travel: TravelGap = {
   to: faVisit,
   pings: [],
 };
+
+const billyPings = [
+  { recorded_at: `${date}T02:03:00Z`, latitude: 59.31, longitude: 18.05, accuracy: 30 } as any,
+  { recorded_at: `${date}T13:10:00Z`, latitude: FA.lat, longitude: FA.lng, accuracy: 10 } as any,
+  { recorded_at: `${date}T13:25:00Z`, latitude: FA.lat, longitude: FA.lng, accuracy: 10 } as any,
+];
 
 const baseInput: BuildActualStaffDayInput = {
   date,
@@ -68,12 +74,12 @@ const baseInput: BuildActualStaffDayInput = {
   flags: [],
   visits: [nightVisit, faVisit],
   travels: [travel],
-  pings: [],
-  latestPing: { recorded_at: faVisit.end },
+  pings: billyPings,
+  latestPing: { recorded_at: `${date}T13:25:00Z` },
   knownSites: [FA],
   privateZones: [],
   plannedAssignments: [],
-  now: new Date(`${date}T16:00:00Z`),
+  now: new Date(`${date}T13:30:00Z`),
 };
 
 describe('Billy-scenariot — utan assignment', () => {
