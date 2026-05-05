@@ -3,30 +3,41 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, isToday, isTomorrow, addDays, startOfDay } from 'date-fns';
 import { sv as svLocale, enUS } from 'date-fns/locale';
-import { Calendar, Users, MessageSquare, ChevronRight, MapPin, Clock } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  Calendar,
+  Users,
+  MessageSquare,
+  ChevronRight,
+  MapPin,
+  Clock,
+  Briefcase,
+  AlertTriangle,
+  UserX,
+  Activity,
+  Filter,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { mobileApi, getToken } from '@/services/mobileApiService';
+import { mobileApi, getToken, type OverviewCalendarEvent, type OverviewAssignment } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
-import { extractUTCDate, extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
+import { extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
 
-const RANGE_DAYS_BACK = 7;
-const RANGE_DAYS_FWD = 21;
+const RANGE_DAYS_BACK = 1;
+const RANGE_DAYS_FWD = 14;
+
+type DateMode = 'today' | 'tomorrow' | 'week';
+type PhaseFilter = 'all' | 'rig' | 'event' | 'rigdown' | 'anomalies';
 
 const MobileOverview: React.FC = () => {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
   const { isAuthenticated, isLoading: authLoading } = useMobileAuth();
-  const [tab, setTab] = useState<'calendar' | 'staffing' | 'messages'>('calendar');
+  const [dateMode, setDateMode] = useState<DateMode>('today');
+  const [phase, setPhase] = useState<PhaseFilter>('all');
   const dateLocale = locale === 'en' ? enUS : svLocale;
 
-  // Don't issue Overview API calls until the mobile token is actually
-  // present in localStorage. Without this, a brief race during route
-  // mount can fire the request with hasToken=false → server 401 →
-  // silent AbortError → empty list with no error indicator.
   const hasToken = isAuthenticated && !!getToken();
 
   const range = useMemo(() => {
@@ -39,60 +50,131 @@ const MobileOverview: React.FC = () => {
   const calendarQ = useQuery({
     queryKey: ['mobile-overview-calendar', range.from, range.to],
     queryFn: () => mobileApi.getOverviewCalendar(range),
-    enabled: hasToken && tab === 'calendar',
+    enabled: hasToken,
     staleTime: 60_000,
   });
 
   const assignmentsQ = useQuery({
     queryKey: ['mobile-overview-assignments', range.from, range.to],
     queryFn: () => mobileApi.getOverviewAssignments(range),
-    enabled: hasToken && tab === 'staffing',
+    enabled: hasToken,
     staleTime: 60_000,
   });
 
   const threadsQ = useQuery({
     queryKey: ['mobile-overview-threads'],
     queryFn: () => mobileApi.getOverviewThreads(),
-    enabled: hasToken && tab === 'messages',
+    enabled: hasToken,
     staleTime: 30_000,
   });
 
-  // === Group calendar events by source_date ===
-  const eventsByDay = useMemo(() => {
-    const events = calendarQ.data?.events ?? [];
-    const map = new Map<string, typeof events>();
-    for (const e of events) {
-      const key = e.source_date;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(e);
-    }
-    // Sort each day's events by start_time
-    for (const arr of map.values()) {
-      arr.sort((a, b) => a.start_time.localeCompare(b.start_time));
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [calendarQ.data]);
+  // === Active date set based on mode ===
+  const activeDates = useMemo(() => {
+    const today = startOfDay(new Date());
+    if (dateMode === 'today') return [format(today, 'yyyy-MM-dd')];
+    if (dateMode === 'tomorrow') return [format(addDays(today, 1), 'yyyy-MM-dd')];
+    return Array.from({ length: 7 }, (_, i) => format(addDays(today, i), 'yyyy-MM-dd'));
+  }, [dateMode]);
 
-  // === Group assignments by date → booking ===
-  const staffingByDay = useMemo(() => {
-    const list = assignmentsQ.data?.assignments ?? [];
-    const byDate = new Map<string, Map<string, typeof list>>();
-    for (const a of list) {
-      if (!byDate.has(a.assignment_date)) byDate.set(a.assignment_date, new Map());
-      const byBooking = byDate.get(a.assignment_date)!;
-      if (!byBooking.has(a.booking_id)) byBooking.set(a.booking_id, []);
-      byBooking.get(a.booking_id)!.push(a);
+  // === Filter helpers ===
+  const eventsInRange = useMemo<OverviewCalendarEvent[]>(() => {
+    const all = calendarQ.data?.events ?? [];
+    return all.filter(e => activeDates.includes(e.source_date));
+  }, [calendarQ.data, activeDates]);
+
+  const assignmentsInRange = useMemo<OverviewAssignment[]>(() => {
+    const all = assignmentsQ.data?.assignments ?? [];
+    return all.filter(a => activeDates.includes(a.assignment_date));
+  }, [assignmentsQ.data, activeDates]);
+
+  // Group: bookingId+date → assignments[]
+  const staffByBookingDate = useMemo(() => {
+    const map = new Map<string, OverviewAssignment[]>();
+    for (const a of assignmentsInRange) {
+      const key = `${a.booking_id}|${a.assignment_date}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
     }
-    return Array.from(byDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, bookings]) => ({
-        date,
-        bookings: Array.from(bookings.entries()).map(([bookingId, staff]) => ({
-          bookingId,
-          staff,
-        })),
-      }));
-  }, [assignmentsQ.data]);
+    return map;
+  }, [assignmentsInRange]);
+
+  // === Anomalies (computed from available data) ===
+  const anomalies = useMemo(() => {
+    const items: Array<{ kind: string; label: string; bookingId?: string | null; date: string; detail: string }> = [];
+    // 1) Jobb utan bemanning
+    for (const ev of eventsInRange) {
+      if (!ev.booking_id) continue;
+      const key = `${ev.booking_id}|${ev.source_date}`;
+      if (!staffByBookingDate.has(key)) {
+        items.push({
+          kind: 'unstaffed',
+          label: t('overview.anomaly.unstaffed'),
+          bookingId: ev.booking_id,
+          date: ev.source_date,
+          detail: `${ev.title} · ${(ev.event_type ?? '—').toUpperCase()}`,
+        });
+      }
+    }
+    // 2) Bemanning utan jobb i kalender (workday utan kalenderpost)
+    const eventKeys = new Set(eventsInRange.filter(e => e.booking_id).map(e => `${e.booking_id}|${e.source_date}`));
+    const seen = new Set<string>();
+    for (const a of assignmentsInRange) {
+      const key = `${a.booking_id}|${a.assignment_date}`;
+      if (seen.has(key) || eventKeys.has(key)) continue;
+      seen.add(key);
+      items.push({
+        kind: 'orphan_assignment',
+        label: t('overview.anomaly.orphanAssignment'),
+        bookingId: a.booking_id,
+        date: a.assignment_date,
+        detail: a.client ?? a.booking_title ?? a.booking_number ?? '—',
+      });
+    }
+    return items;
+  }, [eventsInRange, assignmentsInRange, staffByBookingDate, t]);
+
+  // === KPI ===
+  const kpi = useMemo(() => {
+    const jobs = eventsInRange.length;
+    const distinctStaff = new Set(assignmentsInRange.map(a => a.staff_id)).size;
+    const unstaffedJobs = anomalies.filter(a => a.kind === 'unstaffed').length;
+    const phaseCount = (p: string) => eventsInRange.filter(e => e.event_type === p).length;
+    return {
+      jobs,
+      distinctStaff,
+      unstaffedJobs,
+      anomaliesTotal: anomalies.length,
+      rig: phaseCount('rig'),
+      event: phaseCount('event'),
+      rigdown: phaseCount('rigdown'),
+    };
+  }, [eventsInRange, assignmentsInRange, anomalies]);
+
+  // === Filtered events for "Dagens jobb" section ===
+  const filteredEvents = useMemo(() => {
+    if (phase === 'all' || phase === 'anomalies') return eventsInRange;
+    return eventsInRange.filter(e => e.event_type === phase);
+  }, [eventsInRange, phase]);
+
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, OverviewCalendarEvent[]>();
+    for (const e of filteredEvents) {
+      if (!map.has(e.source_date)) map.set(e.source_date, []);
+      map.get(e.source_date)!.push(e);
+    }
+    for (const arr of map.values()) arr.sort((a, b) => a.start_time.localeCompare(b.start_time));
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredEvents]);
+
+  // === Personalöversikt ===
+  const staffByDay = useMemo(() => {
+    const byDate = new Map<string, OverviewAssignment[]>();
+    for (const a of assignmentsInRange) {
+      if (!byDate.has(a.assignment_date)) byDate.set(a.assignment_date, []);
+      byDate.get(a.assignment_date)!.push(a);
+    }
+    return Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [assignmentsInRange]);
 
   const formatDay = (iso: string) => {
     const d = parsePlannerDate(iso);
@@ -102,11 +184,8 @@ const MobileOverview: React.FC = () => {
     return format(d, 'EEE d MMM', { locale: dateLocale });
   };
 
-  const formatTimeRange = (start: string, end: string) => {
-    const startClock = extractUTCTime(start);
-    const endClock = extractUTCTime(end);
-    return `${startClock}–${endClock}`;
-  };
+  const formatTimeRange = (start: string, end: string) =>
+    `${extractUTCTime(start)}–${extractUTCTime(end)}`;
 
   const eventTypeColor = (type: string | null) => {
     switch (type) {
@@ -124,171 +203,317 @@ const MobileOverview: React.FC = () => {
     return { label: role.toUpperCase().slice(0, 4), cls: 'bg-muted text-muted-foreground border-border' };
   };
 
+  const isLoading = authLoading || !hasToken || calendarQ.isLoading || assignmentsQ.isLoading;
+  const isError = calendarQ.isError || assignmentsQ.isError;
+
+  const dateModes: { key: DateMode; label: string }[] = [
+    { key: 'today', label: t('jobs.today') },
+    { key: 'tomorrow', label: t('jobs.tomorrow') },
+    { key: 'week', label: t('overview.range.week') },
+  ];
+
+  const phaseFilters: { key: PhaseFilter; label: string }[] = [
+    { key: 'all', label: t('overview.filter.all') },
+    { key: 'rig', label: 'Rig' },
+    { key: 'event', label: 'Event' },
+    { key: 'rigdown', label: 'Rigdown' },
+    { key: 'anomalies', label: t('overview.filter.anomalies') },
+  ];
+
   return (
     <div className="min-h-screen bg-background pb-24">
-      <header className="px-5 pt-6 pb-4">
+      <header className="px-5 pt-6 pb-3">
         <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
           {t('overview.subtitle')}
         </p>
         <h1 className="text-2xl font-bold mt-1">{t('overview.title')}</h1>
       </header>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="px-4">
-        <TabsList className="w-full grid grid-cols-3 h-11">
-          <TabsTrigger value="calendar" className="gap-1.5">
-            <Calendar className="w-4 h-4" />
-            <span className="text-xs">{t('overview.tabs.calendar')}</span>
-          </TabsTrigger>
-          <TabsTrigger value="staffing" className="gap-1.5">
-            <Users className="w-4 h-4" />
-            <span className="text-xs">{t('overview.tabs.staffing')}</span>
-          </TabsTrigger>
-          <TabsTrigger value="messages" className="gap-1.5">
-            <MessageSquare className="w-4 h-4" />
-            <span className="text-xs">{t('overview.tabs.messages')}</span>
-          </TabsTrigger>
-        </TabsList>
+      {/* Date selector */}
+      <div className="px-4 flex gap-2 mb-3">
+        {dateModes.map(m => (
+          <button
+            key={m.key}
+            onClick={() => setDateMode(m.key)}
+            className={cn(
+              'flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors',
+              dateMode === m.key
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-card text-muted-foreground border-border/60 active:bg-muted',
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
 
-        {/* === Calendar === */}
-        <TabsContent value="calendar" className="mt-4 space-y-4">
-          {(authLoading || (!hasToken && tab === 'calendar') || calendarQ.isLoading) && <ListSkeleton />}
-          {calendarQ.isError && <ErrorState text={t('overview.error')} />}
-          {hasToken && !calendarQ.isLoading && !calendarQ.isError && eventsByDay.length === 0 && (
-            <EmptyState text={t('overview.empty.calendar')} />
-          )}
-          {eventsByDay.map(([day, events]) => (
-            <div key={day}>
-              <DayHeader label={formatDay(day)} sub={format(parsePlannerDate(day) ?? parseISO(day), 'd MMM yyyy', { locale: dateLocale })} />
-              <div className="space-y-2 mt-2">
-                {events.map(ev => (
-                  <button
-                    key={ev.id}
-                    onClick={() => ev.booking_id && navigate(`/m/job/${ev.booking_id}`)}
-                    className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
-                  >
-                    <div className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border', eventTypeColor(ev.event_type))}>
-                      {(ev.event_type ?? '—').toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm truncate">{ev.title}</div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                        <Clock className="w-3 h-3 shrink-0" />
-                        <span>{formatTimeRange(ev.start_time, ev.end_time)}</span>
-                        {ev.delivery_address && (
-                          <>
-                            <span>·</span>
-                            <MapPin className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{ev.delivery_address}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {ev.booking_id && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </TabsContent>
+      {/* Phase filter */}
+      <div className="px-4 flex gap-1.5 overflow-x-auto pb-1 mb-3">
+        <Filter className="w-4 h-4 text-muted-foreground self-center shrink-0" />
+        {phaseFilters.map(f => (
+          <button
+            key={f.key}
+            onClick={() => setPhase(f.key)}
+            className={cn(
+              'px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition-colors',
+              phase === f.key
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-card text-muted-foreground border-border/60',
+            )}
+          >
+            {f.label}
+            {f.key === 'anomalies' && kpi.anomaliesTotal > 0 && (
+              <span className="ml-1 text-destructive">({kpi.anomaliesTotal})</span>
+            )}
+          </button>
+        ))}
+      </div>
 
-        {/* === Staffing === */}
-        <TabsContent value="staffing" className="mt-4 space-y-4">
-          {(authLoading || (!hasToken && tab === 'staffing') || assignmentsQ.isLoading) && <ListSkeleton />}
-          {assignmentsQ.isError && <ErrorState text={t('overview.error')} />}
-          {hasToken && !assignmentsQ.isLoading && !assignmentsQ.isError && staffingByDay.length === 0 && (
-            <EmptyState text={t('overview.empty.staffing')} />
+      {/* KPI row */}
+      <div className="px-4 grid grid-cols-2 gap-2 mb-4">
+        <KpiCard icon={Briefcase} label={t('overview.kpi.jobs')} value={kpi.jobs} />
+        <KpiCard icon={Users} label={t('overview.kpi.staff')} value={kpi.distinctStaff} />
+        <KpiCard
+          icon={UserX}
+          label={t('overview.kpi.unstaffed')}
+          value={kpi.unstaffedJobs}
+          tone={kpi.unstaffedJobs > 0 ? 'warn' : 'default'}
+        />
+        <KpiCard
+          icon={AlertTriangle}
+          label={t('overview.kpi.anomalies')}
+          value={kpi.anomaliesTotal}
+          tone={kpi.anomaliesTotal > 0 ? 'warn' : 'default'}
+        />
+      </div>
+
+      {/* Phase counters */}
+      <div className="px-4 flex gap-2 mb-4 text-[11px]">
+        <PhaseChip label="Rig" count={kpi.rig} cls="bg-amber-500/10 text-amber-700 dark:text-amber-300" />
+        <PhaseChip label="Event" count={kpi.event} cls="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" />
+        <PhaseChip label="Rigdown" count={kpi.rigdown} cls="bg-blue-500/10 text-blue-700 dark:text-blue-300" />
+      </div>
+
+      {isLoading && <div className="px-4"><ListSkeleton /></div>}
+      {isError && <ErrorState text={t('overview.error')} />}
+
+      {!isLoading && !isError && (
+        <div className="px-4 space-y-6">
+          {/* === Section 1: Dagens jobb === */}
+          {phase !== 'anomalies' && (
+            <Section title={t('overview.section.jobs')} icon={Briefcase}>
+              {eventsByDay.length === 0 ? (
+                <EmptyState text={t('overview.empty.calendar')} />
+              ) : (
+                eventsByDay.map(([day, events]) => (
+                  <div key={day} className="space-y-2">
+                    <DayHeader label={formatDay(day)} sub={format(parseISO(day), 'd MMM yyyy', { locale: dateLocale })} />
+                    {events.map(ev => {
+                      const staff = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${ev.source_date}`) ?? [] : [];
+                      const unstaffed = ev.booking_id && staff.length === 0;
+                      return (
+                        <button
+                          key={ev.id}
+                          onClick={() => ev.booking_id && navigate(`/m/job/${ev.booking_id}`)}
+                          className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
+                        >
+                          <div className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border', eventTypeColor(ev.event_type))}>
+                            {(ev.event_type ?? '—').toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate">{ev.title}</div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                              <Clock className="w-3 h-3 shrink-0" />
+                              <span>{formatTimeRange(ev.start_time, ev.end_time)}</span>
+                              {ev.delivery_address && (
+                                <>
+                                  <span>·</span>
+                                  <MapPin className="w-3 h-3 shrink-0" />
+                                  <span className="truncate max-w-[140px]">{ev.delivery_address}</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                              {unstaffed ? (
+                                <Badge variant="destructive" className="h-5 text-[10px]">
+                                  {t('overview.staffStatus.unstaffed')}
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="h-5 text-[10px]">
+                                  {staff.length} {t('overview.staffStatus.planned')}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          {ev.booking_id && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </Section>
           )}
-          {staffingByDay.map(({ date, bookings }) => (
-            <div key={date}>
-              <DayHeader label={formatDay(date)} sub={format(parseISO(date), 'd MMM yyyy', { locale: dateLocale })} />
-              <div className="space-y-2 mt-2">
-                {bookings.map(({ bookingId, staff }) => (
-                  <button
-                    key={bookingId}
-                    onClick={() => navigate(`/m/job/${bookingId}`)}
-                    className="w-full p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs font-semibold text-muted-foreground">
-                        {staff.length} {t('jobs.bookings')}
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    </div>
+
+          {/* === Section 2: Personalöversikt === */}
+          {phase !== 'anomalies' && (
+            <Section title={t('overview.section.staff')} icon={Users}>
+              {staffByDay.length === 0 ? (
+                <EmptyState text={t('overview.empty.staffing')} />
+              ) : (
+                staffByDay.map(([date, staff]) => (
+                  <div key={date} className="space-y-2">
+                    <DayHeader label={formatDay(date)} sub={format(parseISO(date), 'd MMM yyyy', { locale: dateLocale })} />
                     <div className="flex flex-wrap gap-1.5">
                       {staff.map(s => {
                         const b = roleBadge(s.role);
                         return (
-                          <div key={s.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-secondary/50 border border-border/40">
+                          <button
+                            key={s.id}
+                            onClick={() => navigate(`/m/job/${s.booking_id}`)}
+                            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-card border border-border/60 active:scale-[0.97]"
+                          >
                             <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold border', b.cls)}>
                               {b.label}
                             </span>
                             <span className="text-xs font-medium">{s.staff_name}</span>
-                          </div>
+                            <span className="text-[10px] text-muted-foreground">
+                              · {s.client ?? s.booking_number ?? '—'}
+                            </span>
+                          </button>
                         );
                       })}
                     </div>
+                  </div>
+                ))
+              )}
+            </Section>
+          )}
+
+          {/* === Section 3: Avvikelser === */}
+          <Section title={t('overview.section.anomalies')} icon={AlertTriangle}>
+            {anomalies.length === 0 ? (
+              <EmptyState text={t('overview.empty.anomalies')} />
+            ) : (
+              <div className="space-y-2">
+                {anomalies.map((a, i) => (
+                  <button
+                    key={`${a.kind}-${i}`}
+                    onClick={() => a.bookingId && navigate(`/m/job/${a.bookingId}`)}
+                    className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-destructive/30 active:scale-[0.99] transition-transform text-left"
+                  >
+                    <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-destructive">{a.label}</div>
+                      <div className="text-sm font-medium truncate">{a.detail}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {format(parseISO(a.date), 'd MMM', { locale: dateLocale })}
+                      </div>
+                    </div>
+                    {a.bookingId && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />}
                   </button>
                 ))}
               </div>
-            </div>
-          ))}
-        </TabsContent>
+            )}
+          </Section>
 
-        {/* === Messages === */}
-        <TabsContent value="messages" className="mt-4 space-y-2">
-          {(authLoading || (!hasToken && tab === 'messages') || threadsQ.isLoading) && <ListSkeleton />}
-          {threadsQ.isError && <ErrorState text={t('overview.error')} />}
-          {hasToken && !threadsQ.isLoading && !threadsQ.isError && (threadsQ.data?.threads.length ?? 0) === 0 && (
-            <EmptyState text={t('overview.empty.messages')} />
-          )}
-          {threadsQ.data?.threads.map(thread => (
-            <button
-              key={thread.booking_id}
-              onClick={() => navigate(`/m/job/${thread.booking_id}?tab=chat`)}
-              className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
-            >
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary shrink-0">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-semibold text-sm truncate">
-                    {thread.client}
-                    {thread.booking_number && (
-                      <span className="text-muted-foreground font-normal"> · {thread.booking_number}</span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground shrink-0">
-                    {format(parseISO(thread.last_message_at), 'd MMM HH:mm', { locale: dateLocale })}
-                  </div>
+          {/* === Section 4: Meddelanden === */}
+          {phase !== 'anomalies' && (
+            <Section title={t('overview.section.messages')} icon={MessageSquare}>
+              {threadsQ.isLoading ? (
+                <ListSkeleton />
+              ) : (threadsQ.data?.threads.length ?? 0) === 0 ? (
+                <EmptyState text={t('overview.empty.messages')} />
+              ) : (
+                <div className="space-y-2">
+                  {threadsQ.data!.threads.map(thread => (
+                    <button
+                      key={thread.booking_id}
+                      onClick={() => navigate(`/m/job/${thread.booking_id}?tab=chat`)}
+                      className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
+                    >
+                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary shrink-0">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold text-sm truncate">
+                            {thread.client}
+                            {thread.booking_number && (
+                              <span className="text-muted-foreground font-normal"> · {thread.booking_number}</span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground shrink-0">
+                            {format(parseISO(thread.last_message_at), 'd MMM HH:mm', { locale: dateLocale })}
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate mt-0.5">
+                          <span className="font-medium text-foreground/80">{thread.last_sender_name}:</span>{' '}
+                          {thread.last_message_preview}
+                        </div>
+                      </div>
+                      {thread.unread_count > 0 && (
+                        <Badge variant="destructive" className="shrink-0 h-5 min-w-[20px] px-1.5 text-[10px]">
+                          {thread.unread_count > 99 ? '99+' : thread.unread_count}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
                 </div>
-                <div className="text-xs text-muted-foreground truncate mt-0.5">
-                  <span className="font-medium text-foreground/80">{thread.last_sender_name}:</span>{' '}
-                  {thread.last_message_preview}
-                </div>
-              </div>
-              {thread.unread_count > 0 && (
-                <Badge variant="destructive" className="shrink-0 h-5 min-w-[20px] px-1.5 text-[10px]">
-                  {thread.unread_count > 99 ? '99+' : thread.unread_count}
-                </Badge>
               )}
-            </button>
-          ))}
-        </TabsContent>
-      </Tabs>
+            </Section>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
+const Section: React.FC<{ title: string; icon: React.ElementType; children: React.ReactNode }> = ({ title, icon: Icon, children }) => (
+  <section>
+    <div className="flex items-center gap-2 mb-2 px-1">
+      <Icon className="w-4 h-4 text-muted-foreground" />
+      <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">{title}</h2>
+    </div>
+    <div className="space-y-3">{children}</div>
+  </section>
+);
+
+const KpiCard: React.FC<{ icon: React.ElementType; label: string; value: number; tone?: 'default' | 'warn' }> = ({
+  icon: Icon, label, value, tone = 'default',
+}) => (
+  <div className={cn(
+    'p-3 rounded-xl border bg-card flex items-center gap-3',
+    tone === 'warn' && value > 0 ? 'border-destructive/40' : 'border-border/60',
+  )}>
+    <div className={cn(
+      'flex items-center justify-center w-9 h-9 rounded-lg',
+      tone === 'warn' && value > 0 ? 'bg-destructive/15 text-destructive' : 'bg-primary/10 text-primary',
+    )}>
+      <Icon className="w-5 h-5" />
+    </div>
+    <div className="min-w-0">
+      <div className="text-xl font-bold leading-none">{value}</div>
+      <div className="text-[11px] text-muted-foreground mt-1 truncate">{label}</div>
+    </div>
+  </div>
+);
+
+const PhaseChip: React.FC<{ label: string; count: number; cls: string }> = ({ label, count, cls }) => (
+  <div className={cn('flex-1 px-3 py-1.5 rounded-lg font-semibold text-center', cls)}>
+    {label} · {count}
+  </div>
+);
+
 const DayHeader: React.FC<{ label: string; sub?: string }> = ({ label, sub }) => (
   <div className="flex items-baseline gap-2 px-1">
-    <h2 className="text-sm font-bold text-foreground">{label}</h2>
+    <h3 className="text-sm font-bold text-foreground">{label}</h3>
     {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
   </div>
 );
 
 const EmptyState: React.FC<{ text: string }> = ({ text }) => (
-  <div className="text-center py-12 text-sm text-muted-foreground">{text}</div>
+  <div className="text-center py-8 text-sm text-muted-foreground">{text}</div>
 );
 
 const ErrorState: React.FC<{ text: string }> = ({ text }) => (
