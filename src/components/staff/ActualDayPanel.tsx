@@ -238,64 +238,18 @@ const statusTagFor = (ev: ActualEvent): string => {
 };
 
 // Kompaktläge = "Dagens faktiska händelser" (huvudjournalen).
-// Vi gömmer:
-//   • gps_gap (rådetalj — alltid debug)
-//   • korta gps_travel (< MIN_TRAVEL_MIN) eller travel där from==to
-//   • korta gps_visit (< MIN_VISIT_MIN) som inte matchar känd plats /
-//     inte är arbetsbekräftade
-//   • korta okända gps_arrival/departure-mikrohändelser
-// Allt finns kvar i model.actualEvents och visas via "Visa alla händelser"
-// + "Rå GPS / debug".
-const RAW_DETAIL_KINDS: ReadonlySet<ActualEventKind> = new Set<ActualEventKind>([
-  'gps_gap',
-]);
-const MIN_TRAVEL_MIN = 10;
-// Kort vistelse-policy: besök < 15 min på okänd/oklar plats visas inte
-// som eget "projektbesök" i huvudjournalen — det räknas som transition
-// (resa) eller del av föregående/nästa arbetsblock. Allt finns kvar i
-// "Visa alla händelser" + Rå GPS. Matchad känd plats eller
-// work_confirmed (manuell timer / scanner / admin) visas alltid.
-const MIN_VISIT_MIN = 15;
-
-function compactEvents(events: ActualEvent[]): ActualEvent[] {
-  return events.filter(e => {
-    if (RAW_DETAIL_KINDS.has(e.kind)) return false;
-
-    const meta = (e.meta || {}) as Record<string, unknown>;
-    const dur = e.durationMin ?? 0;
-
-    // Korta GPS-förflyttningar — mikrostopp/jitter runt samma plats
-    if (e.kind === 'gps_travel') {
-      const fromCentre = meta.fromCentre as { lat: number; lng: number } | null | undefined;
-      const toCentre = meta.toCentre as { lat: number; lng: number } | null | undefined;
-      const bothKnown = !!meta.bothKnown;
-      const sameSpot =
-        !bothKnown
-        && fromCentre && toCentre
-        && Math.abs(fromCentre.lat - toCentre.lat) < 0.0005
-        && Math.abs(fromCentre.lng - toCentre.lng) < 0.0005;
-      if (sameSpot) return false;
-      if (dur > 0 && dur < MIN_TRAVEL_MIN && !bothKnown) return false;
-    }
-
-    // Korta okända besök — inte matchad känd plats, inte arbetsbekräftade
-    if (e.kind === 'gps_visit') {
-      const matched = meta.internal_match_status === 'matched'
-        || e.internal_match_status === 'matched';
-      const workConfirmed = meta.workRelevance === 'work_confirmed';
-      if (!matched && !workConfirmed && dur > 0 && dur < MIN_VISIT_MIN) return false;
-    }
-
-    // Korta okända ankomst/lämning utan match → mikrohändelser
-    if (e.kind === 'gps_arrival' || e.kind === 'gps_departure') {
-      const matched = e.internal_match_status === 'matched';
-      const workConfirmed = meta.workRelevance === 'work_confirmed';
-      if (!matched && !workConfirmed && dur > 0 && dur < MIN_VISIT_MIN) return false;
-    }
-
-    return true;
-  });
-}
+// All visibility-klassning bor i src/lib/staff/timelineVisibility.ts:
+//   • mainTimeline()       — endast meningsfulla arbetsblock
+//   • rawTimeline()        — alla GPS-segment, pings, mikrostopp m.m.
+//   • classifyTimeline()   — sätter visibility + reason_hidden per event
+// INGENTING raderas; raw-vyn visar dolda events med en reason-badge.
+import {
+  mainTimeline as buildMainTimeline,
+  rawTimeline as buildRawTimeline,
+  buildHiddenReasonMap,
+  hiddenReasonLabel,
+  type TimelineHiddenReason,
+} from '@/lib/staff/timelineVisibility';
 
 // ── Komponenten ─────────────────────────────────────────────────────
 export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
@@ -352,7 +306,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
     : 0;
 
-  const rawEvents = showAllEvents ? model.actualEvents : compactEvents(model.actualEvents);
+  const rawEvents = showAllEvents ? buildRawTimeline(model.actualEvents) : buildMainTimeline(model.actualEvents);
+  const hiddenReasons = useMemo(() => buildHiddenReasonMap(model.actualEvents), [model.actualEvents]);
 
   // Samla unika okända kluster-coords (centre på gps_arrival/visit/departure/travel)
   // för reverse-geocode. Per-cluster, INTE per ping. useReverseGeocode cachear
@@ -648,6 +603,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     <EventIcon kind={ev.kind} severity={ev.severity} />
                     <span className="text-foreground truncate">
                       {ev.label}
+                      {showAllEvents && hiddenReasons.has(ev.id) && (
+                        <Badge variant="outline" className="ml-1.5 text-[9px] py-0 px-1 border-muted-foreground/40 text-muted-foreground">
+                          {hiddenReasonLabel(hiddenReasons.get(ev.id) as TimelineHiddenReason)}
+                        </Badge>
+                      )}
                       {ev.kind === 'timer_stopped' && (() => {
                         const mm = (ev.meta ?? {}) as any;
                         if (mm.stop_origin === 'system_review') return null;
