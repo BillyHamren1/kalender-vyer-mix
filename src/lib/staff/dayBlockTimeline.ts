@@ -647,6 +647,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       sources: { timeReport: true, timer: false, gpsVisit: false, assistant: false },
       evidenceLabel: null,
       confidence: 'medium',
+      resolvedPlace: { label, lat: null, lng: null, mapUrl: null, lookupStatus: 'matched_internal' },
     };
     blocks.push(synthetic);
   }
