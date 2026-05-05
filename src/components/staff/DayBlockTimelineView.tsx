@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle, ExternalLink } from 'lucide-react';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
 
 const fmtHm = (iso?: string | null) => {
@@ -38,6 +38,53 @@ const safePlaceLabel = (
   if (status === 'pending') return 'Slår upp adress…';
   if (hasCoord) return 'Slår upp adress…';
   return 'Okänd plats – saknar koordinat';
+};
+
+type PlaceLike = {
+  label?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  mapUrl?: string | null;
+  lookupStatus?: string;
+} | null | undefined;
+
+const buildMapUrl = (p: PlaceLike): string | null => {
+  if (!p) return null;
+  if (p.mapUrl) return p.mapUrl;
+  if (p.lat != null && p.lng != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+  }
+  return null;
+};
+
+/**
+ * Renderar platsetikett som klickbar länk när lat/lng finns.
+ * Faller tillbaka till vanlig <span> när vi saknar koordinater
+ * (t.ex. matched_internal utan koordinat).
+ */
+const PlaceLabel: React.FC<{
+  place: PlaceLike;
+  fallback?: string | null;
+  className?: string;
+}> = ({ place, fallback, className }) => {
+  const label = safePlaceLabel(place, fallback);
+  const href = buildMapUrl(place);
+  if (!href) {
+    return <span className={className}>{label}</span>;
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className={`${className ?? ''} inline-flex items-center gap-0.5 hover:underline`}
+      title="Öppna i Google Maps"
+    >
+      <span className="truncate">{label}</span>
+      <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+    </a>
+  );
 };
 
 /* ------------------------------------------------------------------ */
@@ -224,7 +271,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg[accent]}`}>
             <Building2 className="h-3.5 w-3.5" />
           </span>
-          <span className="font-semibold text-foreground truncate">{safePlaceLabel(block.resolvedPlace, block.title)}</span>
+          <PlaceLabel place={block.resolvedPlace} fallback={block.title} className="font-semibold text-foreground truncate" />
           {subtitle && (
             <>
               <span className="text-muted-foreground shrink-0">·</span>
@@ -274,9 +321,9 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg.journey}`}>
             <Car className="h-3.5 w-3.5" />
           </span>
-          <span className="font-medium text-foreground truncate">{safePlaceLabel(block.fromPlace, block.fromLabel)}</span>
+          <PlaceLabel place={block.fromPlace} fallback={block.fromLabel} className="font-medium text-foreground truncate" />
           <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-          <span className="font-medium text-foreground truncate">{safePlaceLabel(block.toPlace, block.toLabel)}</span>
+          <PlaceLabel place={block.toPlace} fallback={block.toLabel} className="font-medium text-foreground truncate" />
         </div>
 
         <div className="flex items-center justify-end overflow-hidden">
