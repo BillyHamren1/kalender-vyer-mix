@@ -41,6 +41,7 @@ const MobileOverview: React.FC = () => {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
   const { isAuthenticated, isLoading: authLoading } = useMobileAuth();
+  const { isPlanner, isLoading: rolesLoading } = useMobileRoles();
   const [dateMode, setDateMode] = useState<DateMode>('today');
   const [phase, setPhase] = useState<PhaseFilter>('all');
   const dateLocale = locale === 'en' ? enUS : svLocale;
