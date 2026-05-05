@@ -56,6 +56,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [lockedTimes, setLockedTimes] = useState(false);
 
   // Initialize when dialog opens
   useEffect(() => {
