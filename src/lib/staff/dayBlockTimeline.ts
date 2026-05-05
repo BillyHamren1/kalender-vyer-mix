@@ -196,6 +196,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         : strengthFromMeta(ev, durationMin);
       const block: PresenceBlock = {
         kind: 'presence',
+        presenceKind: isProject ? 'project' : 'location',
         id: `pb:${ev.id}`,
         startIso,
         endIso,
