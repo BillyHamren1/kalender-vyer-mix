@@ -1146,8 +1146,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         </div>
       </div>
 
-      {currentOngoingProject && (() => {
-        const b = currentOngoingProject;
+      {visibleOngoingProject && (() => {
+        const b = visibleOngoingProject;
         const timerState: 'active' | 'missing' | 'uncertain' =
           b.timerActive ? 'active' : b.hasTimer ? 'uncertain' : 'missing';
         const wdMissing = !b.workdayStarted;
