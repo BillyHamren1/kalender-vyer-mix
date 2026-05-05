@@ -726,11 +726,36 @@ Deno.serve(async (req) => {
 
         const currentPacked = (selectedItem as any).quantity_packed || 0
         const quantityToPack = (selectedItem as any).quantity_to_pack
-        const incrementBy = Math.max(successfulAllocations, 1)
+        // WMS = source of truth. quantity_packed may only grow by NEW
+        // successful allocations confirmed by WMS. already_allocated /
+        // fully_allocated must NOT bump local count.
+        const incrementBy = successfulAllocations
         const isAlreadyFull = currentPacked >= quantityToPack
-        const newQuantity = currentPacked + incrementBy
-        const isNowFull = newQuantity >= quantityToPack
+        const productName = (selectedItem as any).booking_products?.name
         const now = new Date().toISOString()
+
+        if (incrementBy <= 0) {
+          console.log('[scanner-api] duplicate_scan_blocked_no_local_increment', {
+            packingId,
+            itemId: (selectedItem as any).id,
+            serialNumbers,
+            alreadyAllocatedSerials,
+            currentPacked,
+            quantityToPack,
+          })
+          return json({
+            success: true,
+            alreadyScanned: true,
+            overscan: true,
+            itemId: (selectedItem as any).id,
+            newQuantity: currentPacked,
+            quantityToPack,
+            productName: `${productName} (${currentPacked}/${quantityToPack})`,
+          })
+        }
+
+        const newQuantity = Math.min(currentPacked + incrementBy, quantityToPack)
+        const isNowFull = newQuantity >= quantityToPack
 
         await supabase.from('packing_list_items').update({
           quantity_packed: newQuantity,
@@ -741,8 +766,17 @@ Deno.serve(async (req) => {
           ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
         }).eq('id', (selectedItem as any).id)
 
+        console.log('[scanner-api] local_quantity_packed_incremented', {
+          packingId,
+          itemId: (selectedItem as any).id,
+          from: currentPacked,
+          to: newQuantity,
+          incrementBy,
+          source: 'wms_allocations',
+        })
+
         // PARCEL ALLOCATION: log how many units of this scan went into the active parcel
-        if (activeParcelId && incrementBy > 0 && !isAlreadyFull) {
+        if (activeParcelId && !isAlreadyFull) {
           const allocQty = Math.min(incrementBy, quantityToPack - currentPacked)
           if (allocQty > 0) {
             await supabase.from('packing_list_item_allocations').insert({
@@ -759,7 +793,6 @@ Deno.serve(async (req) => {
         // STATUS FLOW: Check if all items are now packed
         await checkIfAllPacked(supabase, packingId, ORG_ID)
 
-        const productName = (selectedItem as any).booking_products?.name
         return json({
           success: true,
           overscan: isAlreadyFull,
