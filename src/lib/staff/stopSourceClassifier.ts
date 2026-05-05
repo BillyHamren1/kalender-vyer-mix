@@ -197,6 +197,62 @@ export function classifyStopSource(args: {
   };
 }
 
+/**
+ * Kort suffix att rendera direkt efter "Timer stoppad: <plats>".
+ * Exempel:
+ *   " · av användare"
+ *   " · auto-switch till Workman Event AB"
+ *   " · lämnade plats"
+ *   " · sparad tidrapport"
+ *   " · av admin"
+ *   " · källa okänd"
+ */
+export function inlineStopSuffix(
+  cls: StopSourceClass,
+  metadata: Record<string, any> | null,
+): string {
+  const m = (metadata && typeof metadata === 'object') ? metadata : {};
+  const stopMeta = (m as any).stop_metadata && typeof (m as any).stop_metadata === 'object'
+    ? (m as any).stop_metadata : {};
+  const merged: any = { ...stopMeta, ...m };
+  const sw = merged?.switch ?? null;
+  const nextLabel: string | null =
+    sw?.next_target?.label ?? sw?.next_target?.name ?? null;
+
+  switch (cls.key) {
+    case 'admin':
+      return ' · av admin';
+    case 'watchdog':
+      return ' · stale / auto-stängd';
+    case 'server_auto_switch':
+      return nextLabel ? ` · auto-switch till ${nextLabel}` : ' · auto-switch (server)';
+    case 'server_background_gps':
+      return ' · servermotor: lämnade plats';
+    case 'geofence_foreground':
+      return ' · lämnade plats';
+    case 'time_report_save':
+      return ' · sparad tidrapport';
+    case 'user_manual':
+      return ' · av användare';
+    case 'unknown':
+    default:
+      return ' · källa okänd';
+  }
+}
+
+/**
+ * Är stoppet säkert nog för att markeras som "bekräftad"?
+ * Säkert: user/admin/time_report/server-källor (har konkret metadata).
+ * Osäkert: unknown / legacy_unknown / saknar källa.
+ */
+export function isStopConfident(cls: StopSourceClass): boolean {
+  if (cls.key === 'unknown') return false;
+  const src = (cls.details.stopSource ?? '').toLowerCase();
+  if (!src) return false;
+  if (src === 'legacy_unknown' || src === 'unknown') return false;
+  return true;
+}
+
 export const STOP_SOURCE_BADGE_CLASSES: Record<StopSourceClass['tone'], string> = {
   slate:   'bg-slate-100 text-slate-800 dark:bg-slate-800/60 dark:text-slate-200',
   violet:  'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
