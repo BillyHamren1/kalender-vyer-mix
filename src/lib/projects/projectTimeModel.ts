@@ -66,6 +66,9 @@ export interface PtmTravelLog {
   id: string;
   staff_id: string;
   destination_booking_id: string | null;
+  /** Auto-switch travel taggas med next_target_type/id (booking|large_project|location). */
+  next_target_type?: string | null;
+  next_target_id?: string | null;
   start_time: string;
   end_time: string | null;
   hours_worked: number;
