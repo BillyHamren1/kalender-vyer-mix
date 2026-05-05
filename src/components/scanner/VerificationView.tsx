@@ -585,6 +585,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           >
             ⏱
           </Button>
+        </div>
 
         {isMinusMode && (
           <div className="bg-destructive text-destructive-foreground rounded px-2 py-1 flex items-center justify-between text-[11px]">
