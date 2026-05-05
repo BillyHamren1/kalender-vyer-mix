@@ -235,6 +235,9 @@ function evaluateStableSegments(target: Target, pings: Ping[]): StableHit[] {
 }
 
 interface ProcessReport {
+  mode: 'cron' | 'backfill_day'
+  dry_run: boolean
+  source_tag: string
   staff: number
   pings: number
   arrivals: number
@@ -246,6 +249,11 @@ interface ProcessReport {
   events_emitted: number
   skipped_existing: number
   errors: string[]
+  plan: Array<Record<string, any>>
+}
+
+function planPush(report: ProcessReport, entry: Record<string, any>) {
+  if (report.dry_run) report.plan.push(entry)
 }
 
 function targetMatchesLte(target: Target, lte: any): boolean {
@@ -255,6 +263,11 @@ function targetMatchesLte(target: Target, lte: any): boolean {
 }
 
 async function emitAssistantEvent(supabase: any, payload: Record<string, any>, dk: string, report: ProcessReport, kind: string) {
+  if (report.dry_run) {
+    planPush(report, { action: `event_${kind}`, dedupe_key: dk, happened_at: payload.happened_at, target: payload.target_label })
+    report.events_emitted++
+    return
+  }
   const { error } = await supabase
     .from('assistant_events')
     .insert({ ...payload, dedupe_key: dk })
@@ -275,17 +288,22 @@ async function ensureWorkdayOpen(
     report.skipped_existing++
     return existing.id
   }
+  if (report.dry_run) {
+    planPush(report, { action: 'workday_open', staff_id: staffId, started_at: arrivalIso, target: hit.target.label })
+    report.workdays_opened++
+    return 'dry-run-workday'
+  }
   const { data: wd, error: wdErr } = await supabase
     .from('workdays')
     .insert({
       staff_id: staffId,
       organization_id: orgId,
       started_at: arrivalIso,
-      started_by: 'server_auto_start',
+      started_by: report.mode === 'backfill_day' ? 'server_auto_start_backfill' : 'server_auto_start',
       notes: `Auto-started from GPS arrival at ${hit.target.label}`,
       metadata: {
         auto_started: true,
-        auto_start_source: 'server_background_gps',
+        auto_start_source: report.source_tag,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
         confidence: hit.confidence,
         arrival_pings_count: hit.pings.length,
@@ -327,6 +345,11 @@ async function closeOpenLteForSwitch(
   }
   const totalMinutes = Math.max(1, Math.round((departureTs - enteredAt) / 60000))
   const meta = (prevMatch.metadata && typeof prevMatch.metadata === 'object') ? prevMatch.metadata : {}
+  if (report.dry_run) {
+    planPush(report, { action: 'lte_close', lte_id: prevMatch.id, exited_at: departureIso, total_minutes: totalMinutes, target: prevHit.target.label })
+    report.ltes_closed++
+    return { closed: true, closedTargetKind: prevHit.target.kind, closedTargetId: prevHit.target.id, lteId: prevMatch.id }
+  }
   const { error } = await supabase
     .from('location_time_entries')
     .update({
@@ -399,11 +422,11 @@ async function ensureLteOpenForTarget(
     staff_id: staffId,
     entry_date: arrivalIso.slice(0, 10),
     entered_at: arrivalIso,
-    source: 'auto_geofence_server',
+    source: report.mode === 'backfill_day' ? 'auto_geofence_server_backfill' : 'auto_geofence_server',
     client_dedupe_key: `srv:${staffId}:${hit.target.kind}:${hit.target.id}:${bucketTo5Min(arrivalIso)}`,
     metadata: {
       auto_started: true,
-      auto_start_source: 'server_background_gps',
+      auto_start_source: report.source_tag,
       matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
       confidence: hit.confidence,
       arrival_pings_count: hit.pings.length,
@@ -422,6 +445,11 @@ async function ensureLteOpenForTarget(
   else if (hit.target.kind === 'booking') payload.booking_id = hit.target.id
   else payload.large_project_id = hit.target.id
 
+  if (report.dry_run) {
+    planPush(report, { action: 'lte_open', staff_id: staffId, target: hit.target.label, kind: hit.target.kind, target_id: hit.target.id, entered_at: arrivalIso })
+    report.ltes_opened++
+    return 'dry-run-lte'
+  }
   const { data: lte, error } = await supabase
     .from('location_time_entries').insert(payload).select('id').maybeSingle()
   if (error) {
@@ -450,6 +478,11 @@ async function ensureTravelLog(
     .maybeSingle()
   if (existing?.id) return
 
+  if (report.dry_run) {
+    planPush(report, { action: 'travel_create', staff_id: staffId, start_time: departureIso, end_time: arrivalIso, from: prevHit.target.label, to: nextHit.target.label })
+    report.travels_created++
+    return
+  }
   const { error } = await supabase.from('travel_time_logs').insert({
     staff_id: staffId,
     organization_id: orgId,
@@ -458,7 +491,7 @@ async function ensureTravelLog(
     end_time: arrivalIso,
     hours_worked: Math.round((dur / 3600_000) * 100) / 100,
     auto_detected: true,
-    source: 'geofence_auto_switch_server',
+    source: report.mode === 'backfill_day' ? 'geofence_auto_switch_server_backfill' : 'geofence_auto_switch_server',
     classification: 'needs_review',
     needs_review: true,
     previous_target_type: prevHit.target.kind,
@@ -628,26 +661,64 @@ Deno.serve(async (req) => {
     { auth: { persistSession: false } },
   )
 
+  let body: any = {}
+  if (req.method === 'POST') {
+    try { body = await req.json() } catch { body = {} }
+  } else {
+    const url = new URL(req.url)
+    body = Object.fromEntries(url.searchParams.entries())
+  }
+  const action: 'cron' | 'backfill_day' = body.action === 'backfill_day' ? 'backfill_day' : 'cron'
+  const dryRun: boolean = action === 'backfill_day'
+    ? (body.dry_run !== false && body.dry_run !== 'false')
+    : false
+
   const report: ProcessReport = {
+    mode: action,
+    dry_run: dryRun,
+    source_tag: action === 'backfill_day' ? 'server_background_gps_backfill' : 'server_background_gps',
     staff: 0, pings: 0, arrivals: 0, switches: 0,
     workdays_opened: 0, ltes_opened: 0, ltes_closed: 0,
     travels_created: 0, events_emitted: 0, skipped_existing: 0, errors: [],
+    plan: [],
   }
 
   try {
-    const cursorIso = await loadCursor(supabase)
-    const fromIso = new Date(Math.min(
-      Date.now() - PROCESS_OVERLAP_MS,
-      new Date(cursorIso).getTime() - PROCESS_OVERLAP_MS,
-    )).toISOString()
+    let fromIso: string
+    let toIso: string
+    let staffFilter: string | null = null
+    let orgFilter: string | null = null
 
-    const { data: rawPings, error: pingErr } = await supabase
+    if (action === 'backfill_day') {
+      const date: string = String(body.date || '')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return new Response(JSON.stringify({ ok: false, error: 'date (YYYY-MM-DD) required for backfill_day' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      fromIso = new Date(`${date}T00:00:00.000Z`).toISOString()
+      toIso = new Date(`${date}T23:59:59.999Z`).toISOString()
+      staffFilter = body.staff_id || null
+      orgFilter = body.organization_id || null
+    } else {
+      const cursorIso = await loadCursor(supabase)
+      fromIso = new Date(Math.min(
+        Date.now() - PROCESS_OVERLAP_MS,
+        new Date(cursorIso).getTime() - PROCESS_OVERLAP_MS,
+      )).toISOString()
+      toIso = new Date().toISOString()
+    }
+
+    let q = supabase
       .from('staff_location_history')
       .select('id, staff_id, organization_id, lat, lng, accuracy, recorded_at')
       .gte('recorded_at', fromIso)
+      .lte('recorded_at', toIso)
       .order('recorded_at', { ascending: true })
-      .limit(5000)
+      .limit(action === 'backfill_day' ? 20000 : 5000)
+    if (staffFilter) q = q.eq('staff_id', staffFilter)
+    if (orgFilter) q = q.eq('organization_id', orgFilter)
 
+    const { data: rawPings, error: pingErr } = await q
     if (pingErr) throw pingErr
 
     const pings: Ping[] = (rawPings ?? []).map((r: any) => ({
@@ -669,10 +740,10 @@ Deno.serve(async (req) => {
 
     const targets = await loadTargets(supabase)
 
-    // Group per staff.
     const byStaff = new Map<string, Ping[]>()
     for (const p of pings) {
       if (!p.staff_id) continue
+      if (orgFilter && p.organization_id !== orgFilter) continue
       const arr = byStaff.get(p.staff_id) ?? []
       arr.push(p)
       byStaff.set(p.staff_id, arr)
@@ -687,8 +758,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const maxIso = pings[pings.length - 1].recorded_at
-    await saveCursor(supabase, maxIso)
+    if (action === 'cron' && !dryRun) {
+      const maxIso = pings[pings.length - 1].recorded_at
+      await saveCursor(supabase, maxIso)
+    }
 
     return new Response(JSON.stringify({ ok: true, report }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
