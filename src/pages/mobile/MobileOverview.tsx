@@ -47,6 +47,14 @@ const MobileOverview: React.FC = () => {
     return { from, to };
   }, []);
 
+  // === Active date set based on mode ===
+  const activeDates = useMemo(() => {
+    const today = startOfDay(new Date());
+    if (dateMode === 'today') return [format(today, 'yyyy-MM-dd')];
+    if (dateMode === 'tomorrow') return [format(addDays(today, 1), 'yyyy-MM-dd')];
+    return Array.from({ length: 7 }, (_, i) => format(addDays(today, i), 'yyyy-MM-dd'));
+  }, [dateMode]);
+
   // Primary: unified ops overview
   const opsQ = useQuery({
     queryKey: ['mobile-ops-overview', range.from, range.to],
