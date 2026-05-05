@@ -13,6 +13,8 @@ import { CalendarIcon, Users, Copy, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Lock } from 'lucide-react';
 import CopyEventDialog from './CopyEventDialog';
 import AddRiggDayDialog from './AddRiggDayDialog';
 // handleBookingMove deprecated — BSA derives from staff_assignments × calendar_events via recompute_booking_staff_for_day RPC
@@ -56,6 +58,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [lockedTimes, setLockedTimes] = useState(false);
 
   // Initialize when dialog opens
   useEffect(() => {
@@ -371,6 +374,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   className="w-[120px]"
+                  disabled={lockedTimes}
                 />
                 <span className="text-muted-foreground">–</span>
                 <Input
@@ -378,8 +382,17 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
                   className="w-[120px]"
+                  disabled={lockedTimes}
                 />
               </div>
+              <label className="flex items-center gap-2 pt-1 text-xs text-muted-foreground cursor-pointer select-none">
+                <Checkbox
+                  checked={lockedTimes}
+                  onCheckedChange={(c) => setLockedTimes(c === true)}
+                />
+                <Lock className="h-3 w-3" />
+                Fasta tider (lås mot ändring)
+              </label>
             </div>
             </div>
 
