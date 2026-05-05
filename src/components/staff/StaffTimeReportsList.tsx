@@ -290,6 +290,25 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             }
             return (
               <div key={staff.id} className="space-y-2">
+                {(() => {
+                  const badge = PLANNING_BADGE[staff.planningStatus];
+                  if (!badge && staff.plannedLabels.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="font-medium text-foreground">{staff.name}</span>
+                      {badge && (
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                      )}
+                      {staff.plannedLabels.length > 0 && (
+                        <span className="text-muted-foreground truncate" title={staff.plannedLabels.join(' · ')}>
+                          Planerad: {staff.plannedLabels.slice(0, 3).join(' · ')}{staff.plannedLabels.length > 3 ? ' …' : ''}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
                 {staff.pingsFetchError && (
                   <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     ⚠️ GPS-historik kunde inte hämtas för {staff.name}. Dagens händelser kan vara ofullständiga. ({staff.pingsFetchError})
