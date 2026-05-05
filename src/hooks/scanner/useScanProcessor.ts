@@ -52,7 +52,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
 
   const queueRef = useRef<string[]>([]);
   const isProcessingRef = useRef(false);
-  const scannedThisSessionRef = useRef<Set<string>>(new Set());
+  // Removed: scannedThisSessionRef. Lagersystemet (WMS) is the single source of
+  // truth for duplicate / minus / overscan detection. No local cache.
   const [recentScans, setRecentScans] = useState<RecentScanEntry[]>([]);
 
   // When a scan returns an unknown product, we PAUSE the queue and surface a
@@ -80,36 +81,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
 
-    // Classify FIRST so dedup applies only to unique codes (RFID / serials).
-    // Repeatable codes (SKU, article barcodes) may be scanned many times.
+    // No local session dedup — WMS (lagersystemet) is the single source of truth
+    // for whether a code has already been scanned. This avoids blocking legitimate
+    // minus scans / re-scans on the client.
     const parsed = parseScanResult(scannedValue);
     const normalised = scannedValue.trim().toLowerCase();
-
-    // Skip session dedup entirely in minus mode — the user is intentionally
-    // re-scanning a unique code to remove it.
-    const isMinus = optRef.current.getIsMinusMode();
-
-    if (!isMinus && parsed.unique && scannedThisSessionRef.current.has(normalised)) {
-      scanLog('scan_ignored_duplicate_session', { value: scannedValue, type: parsed.type });
-      optRef.current.onScanResult({
-        value: scannedValue,
-        result: `Already scanned this session`,
-        success: false,
-      });
-      addRecentScan({
-        value: scannedValue,
-        productName: scannedValue,
-        success: false,
-        timestamp: Date.now(),
-        reason: 'duplicate',
-      });
-      isProcessingRef.current = false;
-      if (queueRef.current.length > 0) processNext();
-      return;
-    }
-    if (!isMinus && parsed.unique) {
-      scannedThisSessionRef.current.add(normalised);
-    }
 
     scanLog('scan_received', { value: scannedValue, type: parsed.type, unique: parsed.unique });
 
@@ -156,13 +132,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             onScanResult({ value: scannedValue, result: result.error || 'Kunde inte ta bort koden', success: false });
             toast.error(result.error || 'Kunde inte ta bort koden');
             // Allow user to retry / re-scan
-            scannedThisSessionRef.current.delete(normalised);
             addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
             return;
           }
           const matchingItem = items.find(i => i.id === result.itemId);
           const productName = result.productName || matchingItem?.booking_products?.name || scannedValue;
-          scannedThisSessionRef.current.delete(normalised);
           scanLog('item_matched', { itemId: result.itemId, productName, mode: 'minus_serial' });
           onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
           onHighlight(result.itemId);
@@ -185,7 +159,6 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         await decrementPackingItem(matchingItem.id, verifierName);
-        scannedThisSessionRef.current.delete(normalised);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
         onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
@@ -220,7 +193,6 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             success: false,
           });
           // Allow user to re-scan same code after responding
-          scannedThisSessionRef.current.delete(normalised);
           notifyRfid(scannedValue, false, undefined, undefined);
           return;
         }
@@ -362,7 +334,6 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
   }, []); // No deps — reads from optRef
 
   const clearSessionDedup = useCallback(() => {
-    scannedThisSessionRef.current.clear();
     scanLog('session_dedup_cleared');
   }, []);
 
