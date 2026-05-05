@@ -205,6 +205,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
       (navigator as any).vibrate?.(feedback.success ? 30 : [40, 30, 40]);
     } catch { /* noop */ }
     feedbackTimerRef.current = setTimeout(() => setFeedbackFlash(null), 1400);
+    // Backend has answered — drop the "Kod hittad – skickar..." chip.
+    if (detectedFlashTimerRef.current) clearTimeout(detectedFlashTimerRef.current);
+    setDetectedFlash(null);
   }, [feedback]);
 
   useEffect(() => () => {
