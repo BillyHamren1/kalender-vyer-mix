@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
           .from('packing_projects')
           .select('*')
           .eq('organization_id', ORG_ID)
-          .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning'])
+          .in('status', ['planning', 'in_progress', 'packed', 'delivered', 'returning', 'back'])
           .order('created_at', { ascending: false })
           .limit(500)
 
@@ -1508,6 +1508,40 @@ Deno.serve(async (req) => {
           return json({ success: false, error: 'Lagersystem ej konfigurerat' })
         }
 
+        // 0) Resolve expected booking_number for this packing so WMS can
+        //    block returns scanned against the wrong project/booking.
+        let expectedBookingNumber: string | null = null
+        try {
+          const { data: packingRow } = await supabase
+            .from('packing_projects')
+            .select('id, booking_id')
+            .eq('id', packingId)
+            .eq('organization_id', ORG_ID)
+            .maybeSingle()
+          if (packingRow?.booking_id) {
+            const { data: bookingRow } = await supabase
+              .from('bookings')
+              .select('id, booking_number')
+              .eq('id', packingRow.booking_id)
+              .eq('organization_id', ORG_ID)
+              .maybeSingle()
+            expectedBookingNumber = bookingRow?.booking_number ? String(bookingRow.booking_number) : null
+          }
+          if (expectedBookingNumber) {
+            console.log('[scanner-api] physical_return_expected_booking_loaded', {
+              packingId, expected_booking_number: expectedBookingNumber,
+            })
+          } else {
+            console.warn('[scanner-api] physical_return_expected_booking_missing', {
+              packingId, reason: packingRow?.booking_id ? 'booking_without_number' : 'packing_without_booking',
+            })
+          }
+        } catch (e) {
+          console.warn('[scanner-api] physical_return_expected_booking_missing', {
+            packingId, error: String(e),
+          })
+        }
+
         // 1) WMS checkin-scan FIRST.
         let checkinData: any = null
         let checkinStatus = 0
@@ -1521,7 +1555,13 @@ Deno.serve(async (req) => {
                 'Authorization': `Bearer ${PRICELIST_API_KEY}`,
                 'x-organization-id': ORG_ID,
               },
-              body: JSON.stringify({ serial_number: serial }),
+              body: JSON.stringify({
+                serial_number: serial,
+                ...(expectedBookingNumber ? {
+                  booking_number: expectedBookingNumber,
+                  expected_booking_number: expectedBookingNumber,
+                } : {}),
+              }),
             }
           )
           checkinStatus = checkinResponse.status
@@ -1531,10 +1571,25 @@ Deno.serve(async (req) => {
           const wmsBlocked = !checkinResponse.ok || checkinData?.success === false
           if (wmsBlocked) {
             const wmsError = checkinData?.error || checkinData?.message || `WMS svarade ${checkinStatus}`
-            console.warn('[scanner-api] wms_checkin_failed', {
-              packingId, serialPrefix: serial.slice(0, 12), status: checkinStatus, error: wmsError,
-            })
-            return json({ success: false, error: wmsError, data: checkinData?.data, wmsStatus: checkinStatus })
+            const wrongBooking =
+              checkinData?.code === 'wrong_booking' ||
+              checkinData?.error_code === 'wrong_booking' ||
+              /wrong[_ ]booking|fel\s*bokning|annan\s*bokning/i.test(String(wmsError))
+            if (wrongBooking) {
+              console.warn('[scanner-api] physical_return_wrong_booking_blocked', {
+                packingId,
+                expected_booking_number: expectedBookingNumber,
+                actual_booking_number:
+                  checkinData?.actual_booking_number || checkinData?.booking_number || null,
+                serialPrefix: serial.slice(0, 12),
+                wmsError,
+              })
+            } else {
+              console.warn('[scanner-api] wms_checkin_failed', {
+                packingId, serialPrefix: serial.slice(0, 12), status: checkinStatus, error: wmsError,
+              })
+            }
+            return json({ success: false, error: wmsError, data: checkinData?.data, wmsStatus: checkinStatus, wrongBooking })
           }
         } catch (err) {
           console.error('[scanner-api] wms_checkin_failed (network)', { serialPrefix: serial.slice(0, 12), err: String(err) })

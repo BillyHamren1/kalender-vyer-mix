@@ -197,24 +197,39 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           return;
         }
 
+        const alreadyScanned = !!(result as any).alreadyScanned;
+
         onScanResult({
           value: scannedValue,
           result: result.success
-            ? (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`)
+            ? (alreadyScanned
+                ? `↩️ Redan scannad: ${result.productName || scannedValue}`
+                : (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`))
             : result.error || 'Unknown error',
-          success: result.success && !result.overscan,
+          success: result.success && !result.overscan && !alreadyScanned,
           productName: result.productName || undefined,
         });
 
-        if (result.success) {
-          // Increment UI optimistically for both normal and overscan cases
-          // (backend has already incremented quantity_packed)
+        if (result.success && !alreadyScanned) {
+          // Guard: don't bump UI optimistically if backend's newQuantity does
+          // not exceed what we already show locally for this item. Protects
+          // against duplicate/idempotent server replies sneaking past.
           if (result.itemId) {
-            scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal', overscan: !!result.overscan });
+            const items = getItems();
+            const existing = items.find(i => i.id === result.itemId);
+            const currentQty = existing?.quantity_packed ?? 0;
+            const newQty = (result as any).newQuantity;
+            const shouldIncrement = typeof newQty !== 'number' || newQty > currentQty;
+
+            scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal', overscan: !!result.overscan, currentQty, newQty, shouldIncrement });
             onHighlight(result.itemId);
-            onOptimisticIncrement(result.itemId);
-            if (getIsKolliMode()) {
-              await onAssignToKolli(result.itemId);
+            if (shouldIncrement) {
+              onOptimisticIncrement(result.itemId);
+              if (getIsKolliMode()) {
+                await onAssignToKolli(result.itemId);
+              }
+            } else {
+              scanLog('optimistic_increment_skipped_no_progress', { itemId: result.itemId, currentQty, newQty });
             }
           } else {
             const items = getItems();
@@ -230,17 +245,23 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             reason: result.overscan ? 'overscan' : undefined,
           });
           notifyRfid(scannedValue, true, result.productName || undefined, scannedValue);
+        } else if (alreadyScanned) {
+          // Duplicate: no optimistic bump, no kolli assign, mark as duplicate
+          // in recent scans so the user sees feedback but local quantity is
+          // unchanged.
+          scanLog('duplicate_scan_no_increment', { value: scannedValue, itemId: (result as any).itemId, newQuantity: (result as any).newQuantity });
+          // still trigger a sync so any divergent state from server resolves
+          onTriggerSync();
+          addRecentScan({
+            value: scannedValue,
+            productName: result.productName || scannedValue,
+            success: false,
+            timestamp: Date.now(),
+            reason: 'duplicate',
+          });
+          notifyRfid(scannedValue, false, result.productName || undefined, undefined);
         } else {
-          if ((result as any).alreadyScanned) {
-            // No toast — just show in feedback header
-            onScanResult({
-              value: scannedValue,
-              result: result.error || `#${scannedValue} already scanned`,
-              success: false,
-            });
-          } else {
-            toast.error(result.error);
-          }
+          toast.error(result.error);
           addRecentScan({
             value: scannedValue,
             productName: scannedValue,
