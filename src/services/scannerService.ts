@@ -197,6 +197,8 @@ export interface ReturnScanResult {
   productName?: string;
   quantity_returned?: number;
   quantity_packed?: number;
+  alreadyReturned?: boolean;
+  wms?: { item_type_id?: string; sku?: string; instance_id?: string } | null;
   error?: string;
   debugCode?: string;
 }
@@ -208,6 +210,18 @@ export const returnScanSku = async (
 ): Promise<ReturnScanResult> => {
   try {
     return await callScannerApi('return_scan_sku', { packingId, sku, returnedBy });
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode };
+  }
+};
+
+export const physicalReturnScan = async (
+  packingId: string,
+  scannedValue: string,
+  returnedBy?: string,
+): Promise<ReturnScanResult> => {
+  try {
+    return await callScannerApi('physical_return_scan', { packingId, scannedValue, returnedBy });
   } catch (err: any) {
     return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode };
   }
