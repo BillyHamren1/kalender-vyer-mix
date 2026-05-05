@@ -1234,7 +1234,18 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     }
   }
 
-  if (signalLost) {
+  // Planerad tid utan signal → anomaly per assignment.
+  for (const ev of events) {
+    if (ev.kind !== 'planned_signal_gap') continue;
+    const meta = (ev.meta ?? {}) as any;
+    anomalies.push({
+      id: `planned-gap:${meta.assignmentId ?? ev.at}`,
+      label: 'Planerad tid utan GPS/app-signal',
+      detail: ev.detail ?? '',
+      severity: 'warning',
+      suggestion: 'Kräver granskning – välj: skapa arbetsdag från planerad start, starta från första GPS, ange annan starttid eller markera frånvaro.',
+    });
+  }
     anomalies.push({
       id: 'stale-signal',
       label: 'Signal tappad under pågående arbetsdag/timer',
