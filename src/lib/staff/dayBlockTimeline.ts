@@ -15,7 +15,7 @@
  * Output: BlockTimeline[].
  */
 
-import type { ActualEvent } from '@/lib/staff/actualStaffDayModel';
+import type { ActualEvent, ActualVisit } from '@/lib/staff/actualStaffDayModel';
 
 export type BlockKind = 'presence' | 'journey' | 'gap';
 
