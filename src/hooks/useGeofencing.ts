@@ -123,6 +123,13 @@ export interface AutoStartActivityArgs {
   label: string;
   /** Useful for assistant_event audit only — server uses arrived_at it stored. */
   arrivedAtIso: string;
+  /**
+   * True if this target is planned/assigned for today (booking on rig/event/
+   * down/assignment_dates, or sub-booking of a large project today). Locations
+   * are always considered "known workplaces" → planned=true.
+   * Drives confidence + "oplanerad aktivitet" tagging on the auto-start.
+   */
+  isPlannedToday: boolean;
 }
 export interface AutoStartActivityOutcome {
   /**
@@ -969,7 +976,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           // äkta osäkerhet (conflict / workday-failed). ───────────────────
           const startFn = autoActionsRef.start;
           if (startFn) {
-            void startFn({ kind: 'project', targetId: lpId, label: lpName, arrivedAtIso })
+            const projectPlannedToday = bookings.some(
+              (b) => b.large_project_id === lpId && isAssignedToday(b),
+            );
+            void startFn({ kind: 'project', targetId: lpId, label: lpName, arrivedAtIso, isPlannedToday: projectPlannedToday })
               .then((res) => {
                 if (res.status === 'conflict' || res.status === 'workday_failed') {
                   setGeofenceEvent({
@@ -1098,7 +1108,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             locationType: 'booking', arrivalTimestamp: Date.now(),
           });
           if (startFn) {
-            void startFn({ kind: 'booking', targetId: booking.id, label: booking.client || 'Uppdrag', arrivedAtIso })
+            void startFn({ kind: 'booking', targetId: booking.id, label: booking.client || 'Uppdrag', arrivedAtIso, isPlannedToday: isAssignedToday(booking) })
               .then((res) => {
                 if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
               })
@@ -1222,7 +1232,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           arrivalTimestamp: Date.now(),
         });
         if (startFn) {
-          void startFn({ kind: 'location', targetId: loc.id, label: loc.name, arrivedAtIso })
+          void startFn({ kind: 'location', targetId: loc.id, label: loc.name, arrivedAtIso, isPlannedToday: true })
             .then((res) => {
               if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
             })

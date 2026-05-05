@@ -33,6 +33,8 @@ interface NoticeState {
   arrivedAtIso: string;
   workTarget?: WorkTarget;
   workdayOnly?: boolean;
+  /** False when staff is not assigned for today → show "Oplanerad aktivitet"-badge. */
+  isPlannedToday?: boolean;
 }
 
 const AUTO_HIDE_MS = 45_000;
@@ -128,6 +130,11 @@ export const AutoArrivalNotice: React.FC = () => {
                 ? `Arbetsdag startad ${arrivalHHmm} från ${notice.label}`
                 : `Arbetsdag och timer startades ${arrivalHHmm} från ${notice.label}`}
             </p>
+            {notice.isPlannedToday === false && (
+              <span className="mt-1 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                Oplanerad aktivitet – auto-startad från GPS
+              </span>
+            )}
             <p className="mt-0.5 text-xs text-muted-foreground">
               Auto-startat från GPS. Ändra om något är fel.
             </p>

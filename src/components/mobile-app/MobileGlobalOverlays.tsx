@@ -207,12 +207,17 @@ const MobileGlobalOverlays: React.FC = () => {
       }
     };
     const dispose = registerGeofenceAutoActions({
-      start: async ({ kind, targetId, label, arrivedAtIso }) => {
+      start: async ({ kind, targetId, label, arrivedAtIso, isPlannedToday }) => {
         const workTarget: WorkTarget | null =
           kind === 'location' ? { kind: 'location', locationId: targetId, name: label }
           : kind === 'project' ? { kind: 'project', largeProjectId: targetId, name: label }
           : { kind: 'booking', bookingId: targetId, client: label };
         if (!workTarget) return { status: 'workday_failed' };
+        // CONFIDENCE:
+        //   • assigned + on site = 'high' (planned activity)
+        //   • unassigned + known workplace = 'medium' (unplanned)
+        // Locations alltid 'high' — known fixed sites är per definition planerade.
+        const confidence: 'high' | 'medium' = isPlannedToday ? 'high' : 'medium';
         // AUTO-SWITCH: om en annan timer är aktiv på en tidigare arbetsplats,
         // stoppa den vid arrival-tid och starta den nya — ingen prompt.
         // Använd första stabila GPS-arrival som starttid — inte "nu" när
@@ -221,14 +226,44 @@ const MobileGlobalOverlays: React.FC = () => {
         const status = await tryAutoSwitchFromArrival(workTarget, {
           startedAtIso: arrivedAtIso,
           departureAtIso: arrivedAtIso,
-          confidence: 'high',
+          confidence,
           label,
           suppressToast: true,
+          switchMetadata: { is_planned_today: isPlannedToday },
         });
         if (status === 'started' || status === 'already_running') {
           window.dispatchEvent(new CustomEvent('auto-arrival-started', {
-            detail: { kind, targetId, label, arrivedAtIso, workTarget },
+            detail: { kind, targetId, label, arrivedAtIso, workTarget, isPlannedToday },
           }));
+          // OPLANERAD AKTIVITET — flagga + audit-event så admin ser det.
+          if (!isPlannedToday) {
+            void mobileApi.createWorkdayFlag({
+              flag_type: 'geofence_presence_mismatch',
+              flag_date: arrivedAtIso.slice(0, 10),
+              title: `Oplanerad aktivitet: ${label}`,
+              description: `Auto-startad från GPS på känd arbetsplats utan att personalen var planerad/assignad där idag.`,
+              severity: 'info',
+              needs_user_input: false,
+              related_booking_id: kind === 'booking' ? targetId : undefined,
+              related_large_project_id: kind === 'project' ? targetId : undefined,
+              related_location_id: kind === 'location' ? targetId : undefined,
+              context: {
+                source: 'geofence_auto_arrival_unplanned',
+                arrived_at: arrivedAtIso,
+                confidence,
+              },
+            }).catch(() => {});
+            void mobileApi.assistantEvents.create({
+              event_type: 'arrival',
+              target_type: kind,
+              target_id: targetId,
+              target_label: label,
+              happened_at: arrivedAtIso,
+              source: 'geofence',
+              suggested_action: 'auto_started_unplanned',
+              metadata: { source: 'geofence_auto_unplanned', confidence, is_planned_today: false },
+            }).catch(() => {});
+          }
         } else if (status === 'workday_failed' || status === 'start_failed') {
           // Workday får inte blockeras pga aktivitet — se till att dagen
           // ändå öppnas och flagga att aktivitet saknas.
@@ -237,7 +272,7 @@ const MobileGlobalOverlays: React.FC = () => {
             if (wd) {
               toast.message('Arbetsdag startad — välj projekt/plats för aktivitet');
               window.dispatchEvent(new CustomEvent('auto-arrival-workday-only', {
-                detail: { kind, targetId, label, arrivedAtIso },
+                detail: { kind, targetId, label, arrivedAtIso, isPlannedToday },
               }));
               void mobileApi.createWorkdayFlag({
                 flag_type: 'unclear_start_target',
@@ -249,7 +284,7 @@ const MobileGlobalOverlays: React.FC = () => {
                 related_booking_id: kind === 'booking' ? targetId : undefined,
                 related_large_project_id: kind === 'project' ? targetId : undefined,
                 related_location_id: kind === 'location' ? targetId : undefined,
-                context: { source: 'geofence_auto_arrival', arrived_at: arrivedAtIso },
+                context: { source: 'geofence_auto_arrival', arrived_at: arrivedAtIso, is_planned_today: isPlannedToday },
               }).catch(() => {});
             }
           } catch (err) {
