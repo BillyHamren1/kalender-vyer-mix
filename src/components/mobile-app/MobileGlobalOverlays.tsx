@@ -124,7 +124,7 @@ const MobileGlobalOverlays: React.FC = () => {
 
   // Workday state — vi måste verifiera att dagen faktiskt syns innan
   // arrival-prompten markeras resolved.
-  const { current: currentWorkday, refresh: refreshWorkday } = useWorkDay();
+  const { current: currentWorkday, refresh: refreshWorkday, ensureActive: ensureWorkDayActive } = useWorkDay();
   const currentWorkdayRef = useRef(currentWorkday);
   useEffect(() => {
     currentWorkdayRef.current = currentWorkday;
