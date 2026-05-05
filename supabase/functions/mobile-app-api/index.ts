@@ -11167,17 +11167,19 @@ async function handleGetOpsOverview(
     if (!staffByLpDate.has(k)) staffByLpDate.set(k, new Set())
     staffByLpDate.get(k)!.add(a.staff_id)
   }
-  const jobs: (Job & { booking_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null; jobActivity?: any })[] = events.map((ev: any) => {
+  const jobs: (Job & { booking_id: string | null; large_project_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null; jobActivity?: any })[] = events.map((ev: any) => {
     const date = ev.source_date || (ev.start_time || '').slice(0, 10)
     const bk = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${date}`) : undefined
     const count = bk?.size ?? 0
-    const isLp = !ev.booking_id && typeof ev.id === 'string' && ev.id.startsWith('synthetic-lp-')
+    const lpId: string | null = ev.large_project_id ?? null
+    const isLp = !ev.booking_id && !!lpId
     return {
       id: ev.id,
       type: isLp ? 'large_project' : 'booking',
       target_type: isLp ? 'large_project' : 'booking',
-      target_id: ev.booking_id ?? null,
+      target_id: isLp ? lpId : (ev.booking_id ?? null),
       booking_id: ev.booking_id ?? null,
+      large_project_id: lpId,
       title: ev.title,
       booking_number: ev.booking_number ?? null,
       client: ev.title ?? null,
