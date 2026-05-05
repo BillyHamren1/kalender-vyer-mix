@@ -18,8 +18,10 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { mobileApi, getToken, type OverviewCalendarEvent, type OverviewAssignment } from '@/services/mobileApiService';
+import { mobileApi, getToken, type OverviewCalendarEvent, type OverviewAssignment, type OpsAnomaly, type OpsStaffStatus, type OpsOverviewJob } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
@@ -96,13 +98,19 @@ const MobileOverview: React.FC = () => {
         end_time: j.end_time,
         source_date: j.date,
         resource_id: '',
-        booking_id: j.type === 'booking' ? j.id.replace(/^synthetic-([^-]+)-.*/, '$1') : null,
+        booking_id: j.booking_id,
         booking_number: j.booking_number,
         delivery_address: j.address,
       }) as OverviewCalendarEvent);
     }
     return calendarQ.data?.events ?? [];
   }, [opsData, calendarQ.data]);
+
+  const jobsById = useMemo(() => {
+    const m = new Map<string, OpsOverviewJob>();
+    for (const j of opsData?.jobs ?? []) m.set(j.id, j);
+    return m;
+  }, [opsData]);
 
   const allAssignments: OverviewAssignment[] = opsData?.assignments ?? assignmentsQ.data?.assignments ?? [];
   const allThreads = opsData?.messageThreads ?? threadsQ.data?.threads ?? [];
@@ -235,6 +243,63 @@ const MobileOverview: React.FC = () => {
   const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
   const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
 
+  // === Detail dialog (fallback when no dedicated route exists) ===
+  type DetailContent =
+    | { kind: 'large_project'; id: string; name: string; date?: string; address?: string | null }
+    | { kind: 'staff'; staff: OpsStaffStatus }
+    | { kind: 'anomaly'; anomaly: OpsAnomaly };
+  const [detail, setDetail] = useState<DetailContent | null>(null);
+
+  const staffStatusById = useMemo(() => {
+    const m = new Map<string, OpsStaffStatus>();
+    for (const s of opsData?.staffStatus ?? []) m.set(s.staff_id, s);
+    return m;
+  }, [opsData]);
+
+  const openJob = (a: OverviewAssignment | { booking_id?: string | null; target_type?: string; target_id?: string | null; target_name?: string | null; assignment_date?: string; address?: string | null }) => {
+    if (a.booking_id) { navigate(`/m/job/${a.booking_id}`); return; }
+    if (a.target_type === 'large_project' && a.target_id) {
+      navigate(`/m/project/${a.target_id}`);
+      return;
+    }
+    setDetail({
+      kind: 'large_project',
+      id: (a.target_id as string) || '',
+      name: (a.target_name as string) || '—',
+      date: (a as any).assignment_date,
+      address: (a as any).address ?? null,
+    });
+  };
+
+  const openStaff = (staffId: string, name?: string) => {
+    const s = staffStatusById.get(staffId);
+    if (s) { setDetail({ kind: 'staff', staff: s }); return; }
+    // Synthetic minimal status if missing from payload
+    setDetail({
+      kind: 'staff',
+      staff: {
+        staff_id: staffId, name: name || '—',
+        planned_targets: [],
+        has_open_workday: false, active_timer: null,
+        latest_known_location: null, gps_status: 'unknown', anomaly_count: 0,
+      },
+    });
+  };
+
+  const openAnomaly = (a: OpsAnomaly) => {
+    switch (a.action) {
+      case 'staff_job':
+        if (a.target_id) { navigate(`/m/job/${a.target_id}`); return; }
+        break;
+      case 'contact_staff':
+      case 'review_workday':
+      case 'review_timer':
+        if (a.staff_id) { openStaff(a.staff_id); return; }
+        break;
+    }
+    setDetail({ kind: 'anomaly', anomaly: a });
+  };
+
   const dateModes: { key: DateMode; label: string }[] = [
     { key: 'today', label: t('jobs.today') },
     { key: 'tomorrow', label: t('jobs.tomorrow') },
@@ -340,10 +405,16 @@ const MobileOverview: React.FC = () => {
                     {events.map(ev => {
                       const staff = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${ev.source_date}`) ?? [] : [];
                       const unstaffed = ev.booking_id && staff.length === 0;
+                      const job = jobsById.get(ev.id);
+                      const isLp = job?.target_type === 'large_project';
                       return (
                         <button
                           key={ev.id}
-                          onClick={() => ev.booking_id && navigate(`/m/job/${ev.booking_id}`)}
+                          onClick={() => {
+                            if (ev.booking_id) navigate(`/m/job/${ev.booking_id}`);
+                            else if (job && isLp && job.target_id) navigate(`/m/project/${job.target_id}`);
+                            else setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
+                          }}
                           className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
                         >
                           <div className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border', eventTypeColor(ev.event_type))}>
@@ -374,7 +445,7 @@ const MobileOverview: React.FC = () => {
                               )}
                             </div>
                           </div>
-                          {ev.booking_id && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />}
+                          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
                         </button>
                       );
                     })}
@@ -399,7 +470,7 @@ const MobileOverview: React.FC = () => {
                         return (
                           <button
                             key={s.id}
-                            onClick={() => s.booking_id && navigate(`/m/job/${s.booking_id}`)}
+                            onClick={() => openStaff(s.staff_id, s.staff_name)}
                             className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-card border border-border/60 active:scale-[0.97]"
                           >
                             <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold border', b.cls)}>
@@ -421,29 +492,56 @@ const MobileOverview: React.FC = () => {
 
           {/* === Section 3: Avvikelser === */}
           <Section title={t('overview.section.anomalies')} icon={AlertTriangle}>
-            {anomalies.length === 0 ? (
-              <EmptyState text={t('overview.empty.anomalies')} />
-            ) : (
-              <div className="space-y-2">
-                {anomalies.map((a, i) => (
-                  <button
-                    key={`${a.kind}-${i}`}
-                    onClick={() => a.bookingId && navigate(`/m/job/${a.bookingId}`)}
-                    className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-destructive/30 active:scale-[0.99] transition-transform text-left"
-                  >
-                    <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-bold text-destructive">{a.label}</div>
-                      <div className="text-sm font-medium truncate">{a.detail}</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        {format(parseISO(a.date), 'd MMM', { locale: dateLocale })}
+            {(() => {
+              const opsAnomalies = opsData?.anomalies ?? [];
+              if (opsAnomalies.length > 0) {
+                return (
+                  <div className="space-y-2">
+                    {opsAnomalies.map((a, i) => (
+                      <button
+                        key={`${a.type}-${i}`}
+                        onClick={() => openAnomaly(a)}
+                        className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-destructive/30 active:scale-[0.99] transition-transform text-left"
+                      >
+                        <AlertTriangle className={cn('w-5 h-5 shrink-0 mt-0.5', a.severity === 'high' ? 'text-destructive' : a.severity === 'medium' ? 'text-amber-500' : 'text-muted-foreground')} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-destructive">{a.type.replace(/_/g, ' ').toUpperCase()}</div>
+                          <div className="text-sm font-medium truncate">{a.label}</div>
+                          {a.date && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {format(parseISO(a.date), 'd MMM', { locale: dateLocale })}
+                            </div>
+                          )}
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+                      </button>
+                    ))}
+                  </div>
+                );
+              }
+              if (anomalies.length === 0) return <EmptyState text={t('overview.empty.anomalies')} />;
+              return (
+                <div className="space-y-2">
+                  {anomalies.map((a, i) => (
+                    <button
+                      key={`${a.kind}-${i}`}
+                      onClick={() => a.bookingId ? navigate(`/m/job/${a.bookingId}`) : setDetail({ kind: 'anomaly', anomaly: { type: a.kind, severity: 'medium', staff_id: null, target_id: a.bookingId ?? null, label: a.label, action: null, date: a.date } })}
+                      className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-destructive/30 active:scale-[0.99] transition-transform text-left"
+                    >
+                      <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold text-destructive">{a.label}</div>
+                        <div className="text-sm font-medium truncate">{a.detail}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {format(parseISO(a.date), 'd MMM', { locale: dateLocale })}
+                        </div>
                       </div>
-                    </div>
-                    {a.bookingId && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />}
-                  </button>
-                ))}
-              </div>
-            )}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </Section>
 
           {/* === Section 4: Meddelanden === */}
@@ -494,6 +592,119 @@ const MobileOverview: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Detail dialog (fallback when no dedicated route exists) */}
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent className="max-w-md">
+          {detail?.kind === 'large_project' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{detail.name}</DialogTitle>
+                <DialogDescription>{'Stort projekt'}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 text-sm">
+                {detail.date && <div><span className="text-muted-foreground">Datum:</span> {detail.date}</div>}
+                {detail.address && <div className="flex items-start gap-1"><MapPin className="w-4 h-4 mt-0.5 shrink-0" /><span>{detail.address}</span></div>}
+              </div>
+              <DialogFooter>
+                {detail.id && !detail.id.startsWith('synthetic-') && (
+                  <Button onClick={() => { navigate(`/m/project/${detail.id}`); setDetail(null); }}>
+                    Öppna projekt
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setDetail(null)}>Stäng</Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {detail?.kind === 'staff' && (() => {
+            const s = detail.staff;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{s.name || '—'}</DialogTitle>
+                  <DialogDescription>{'Personöversikt'}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4" />
+                    <span>{s.has_open_workday ? 'Arbetsdag pågår' : 'Ingen aktiv arbetsdag'}</span>
+                  </div>
+                  {s.active_timer && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <span>Aktiv timer ({s.active_timer.target_type}) sedan {format(parseISO(s.active_timer.started_at), 'HH:mm')}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>GPS: {s.gps_status}{s.latest_known_location ? ` · ${format(parseISO(s.latest_known_location.updated_at), 'HH:mm')}` : ''}</span>
+                  </div>
+                  {s.planned_targets.length > 0 && (
+                    <div>
+                      <div className="text-xs font-bold text-muted-foreground uppercase mb-1">Planerat</div>
+                      <ul className="space-y-1">
+                        {s.planned_targets.slice(0, 5).map((p, i) => (
+                          <li key={i} className="text-xs">
+                            {p.date} · {p.target_name ?? '—'}{p.phase ? ` (${p.phase})` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {s.anomaly_count > 0 && (
+                    <div className="text-destructive text-xs">⚠ {s.anomaly_count} avvikelser</div>
+                  )}
+                </div>
+                <DialogFooter className="gap-2 flex-wrap">
+                  {s.planned_targets[0]?.target_id && s.planned_targets[0].target_type === 'booking' && (
+                    <Button onClick={() => { navigate(`/m/job/${s.planned_targets[0].target_id}`); setDetail(null); }}>
+                      Öppna jobb
+                    </Button>
+                  )}
+                  {s.planned_targets[0]?.target_id && s.planned_targets[0].target_type === 'large_project' && (
+                    <Button onClick={() => { navigate(`/m/project/${s.planned_targets[0].target_id}`); setDetail(null); }}>
+                      Öppna projekt
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setDetail(null)}>Stäng</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+
+          {detail?.kind === 'anomaly' && (() => {
+            const a = detail.anomaly;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                    {a.label}
+                  </DialogTitle>
+                  <DialogDescription>{a.type.replace(/_/g, ' ')}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-1 text-sm">
+                  <div><span className="text-muted-foreground">Allvar:</span> {a.severity}</div>
+                  {a.date && <div><span className="text-muted-foreground">Datum:</span> {a.date}</div>}
+                  {a.action && <div><span className="text-muted-foreground">Föreslagen åtgärd:</span> {a.action}</div>}
+                </div>
+                <DialogFooter className="gap-2 flex-wrap">
+                  {a.target_id && (a.action === 'staff_job' || a.type === 'unstaffed_job') && (
+                    <Button onClick={() => { navigate(`/m/job/${a.target_id}`); setDetail(null); }}>Öppna jobb</Button>
+                  )}
+                  {a.staff_id && (
+                    <Button variant="secondary" onClick={() => { setDetail(null); openStaff(a.staff_id!); }}>
+                      Visa person
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setDetail(null)}>Stäng</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
