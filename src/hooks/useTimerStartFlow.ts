@@ -36,6 +36,7 @@ import { evaluateStartConflict, type StartEvaluation } from '@/lib/timerConcurre
 import {
   useWorkSession,
   resolveTargetKey,
+  timerToTarget,
   type WorkTarget,
 } from '@/hooks/useWorkSession';
 import {
