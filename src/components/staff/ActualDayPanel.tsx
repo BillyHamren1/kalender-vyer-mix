@@ -553,6 +553,18 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     <span className="text-foreground truncate">
                       {ev.label}
                       {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
+                      {(() => {
+                        const mm = (ev.meta ?? {}) as any;
+                        if (!mm.autoStarted) return null;
+                        const isServer = mm.autoStartSource === 'server_background_gps'
+                          || mm.autoStartSource === 'server_background_gps_backfill';
+                        return (
+                          <Badge className="ml-2 align-middle bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 text-[10px] py-0 px-1.5">
+                            {isServer ? 'Server auto-start' : 'Auto-startad från GPS'}
+                            {mm.confidence ? ` · ${mm.confidence}` : ''}
+                          </Badge>
+                        );
+                      })()}
                       {isUnknownCluster && (
                         <button
                           type="button"
