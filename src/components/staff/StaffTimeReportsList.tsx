@@ -11,7 +11,7 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { TimeReportReviewTable } from './TimeReportReviewTable';
 import { ActualDayPanel } from './ActualDayPanel';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
-import type { DaySegment, LatestPing } from '@/pages/StaffTimeReports';
+import type { DaySegment, LatestPing, PlanningStatus } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
@@ -43,7 +43,18 @@ interface StaffWithDayReport {
   actualModel: ActualStaffDayModel;
   pingsTruncated?: boolean;
   pingsFetchError?: string | null;
+  planningStatus: PlanningStatus;
+  plannedLabels: string[];
 }
+
+const PLANNING_BADGE: Record<PlanningStatus, { label: string; className: string } | null> = {
+  planned_not_started: { label: 'Planerad – ej startad', className: 'bg-muted text-muted-foreground border' },
+  missing_workday: { label: 'Saknar arbetsdag', className: 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 border border-amber-300/40' },
+  unplanned_activity: { label: 'Oplanerad aktivitet', className: 'bg-blue-100 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200 border border-blue-300/40' },
+  workday_active: { label: 'Pågående arbetsdag', className: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-300/40' },
+  planned: { label: 'Planerad', className: 'bg-muted text-muted-foreground border' },
+  completed: null,
+};
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
 const STALE_PING_MS = 10 * 60 * 1000;
