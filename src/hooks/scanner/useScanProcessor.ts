@@ -11,6 +11,7 @@ import {
 import { PackingItem } from './useOptimisticPacking';
 import { ScanResult } from './useScanFeedback';
 import { scanLog } from './scanLog';
+import { recordReceived, recordApiStart, recordApiEnd, ScanStatus } from './scanTimeline';
 
 export interface RecentScanEntry {
   value: string;
