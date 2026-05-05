@@ -113,6 +113,7 @@ type HeaderStatus =
   | 'signal_lost'
   | 'pre_workday'
   | 'missing_report'
+  | 'evidence_repair_proposed'
   | 'ongoing';
 
 function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: string } {
@@ -128,6 +129,11 @@ function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: 
   }
   if (model.proposedReport.anomalies.length > 0) return { kind: 'review', label: 'Kräver granskning' };
   if (!wd && (model.actualVisits.length > 0 || model.actualEvents.length > 0)) {
+    // Stark arbetsindikator → erbjud reparation istället för passivt "Saknar arbetsdag"
+    const ind = computeStrongWorkIndicators(model);
+    if (ind.hasStrong && ind.proposedStartIso) {
+      return { kind: 'evidence_repair_proposed', label: 'Reparation föreslagen' };
+    }
     return { kind: 'missing_report', label: 'Saknar arbetsdag' };
   }
   return { kind: 'ok', label: 'OK' };
