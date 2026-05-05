@@ -257,6 +257,61 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     }
   }, [moveDateHandlers, event.id, event.title]);
 
+  // Project-activity rendering (establishment_tasks visualiserade i
+  // ProjectCalendarView). Eget kort med tydlig "Endast projekt"-/publicerad-
+  // markering. Klick öppnar ingen booking-detaljvy — vi hoverar/dblclick:ar
+  // bara info via EventHoverCard.
+  const ext = event.extendedProps as any;
+  if (ext?.isProjectActivity) {
+    const published = !!ext.published;
+    const missing = !!ext.missingInfo;
+    const status = String(ext.status ?? 'todo');
+    const category = ext.category ? String(ext.category) : null;
+    const assignedCount = Array.isArray(ext.assignedIds) ? ext.assignedIds.length : 0;
+    return (
+      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+        <div
+          className="h-full w-full rounded-md border-l-4 px-1.5 py-1 text-[11px] leading-tight overflow-hidden"
+          style={{
+            background: event.backgroundColor ?? '#F5F3FF',
+            borderLeftColor: event.borderColor ?? '#A78BFA',
+          }}
+        >
+          <div className="flex items-center gap-1">
+            <span className="font-semibold truncate">{event.title}</span>
+            {missing && (
+              <span className="ml-auto text-[9px] uppercase tracking-wide text-amber-700 bg-amber-100 rounded px-1 shrink-0">
+                Saknar info
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+            {category && <span className="truncate">{category}</span>}
+            {category && <span>·</span>}
+            <span>{status}</span>
+            {assignedCount > 0 && (
+              <>
+                <span>·</span>
+                <span>{assignedCount} pers</span>
+              </>
+            )}
+          </div>
+          <div className="mt-0.5">
+            <span
+              className={`inline-block text-[9px] uppercase tracking-wide rounded px-1 ${
+                published
+                  ? 'bg-violet-200 text-violet-900'
+                  : 'bg-violet-50 text-violet-700 border border-violet-200'
+              }`}
+            >
+              {published ? 'I personalkalender' : 'Endast projekt'}
+            </span>
+          </div>
+        </div>
+      </EventHoverCard>
+    );
+  }
+
   // If read-only, just render the card with double-click for details
   if (readOnly) {
     return (

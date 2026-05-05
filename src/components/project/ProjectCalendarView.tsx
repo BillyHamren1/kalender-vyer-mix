@@ -23,6 +23,8 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useProjectCalendarDays } from '@/hooks/useProjectCalendarDays';
+import { useProjectTaskCalendarEvents } from '@/hooks/useProjectTaskCalendarEvents';
+import type { Resource } from '@/components/Calendar/ResourceData';
 import './ProjectCalendarView.css';
 
 interface Props {
@@ -31,7 +33,8 @@ interface Props {
   isLargeProject?: boolean;
 }
 
-const DEFAULT_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport'];
+const TASK_RESOURCE: Resource = { id: 'team-tasks', title: 'Aktiviteter', eventColor: '#A78BFA' };
+const DEFAULT_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-tasks'];
 
 const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
   // 1. Hämta projektets events.
@@ -80,18 +83,56 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
 
   const { teamResources } = useTeamResources();
 
+  // Lägg till en fast Aktiviteter-kolumn i resurslistan.
+  const teamResourcesWithTasks = useMemo(() => {
+    if (teamResources.some((r) => r.id === TASK_RESOURCE.id)) return teamResources;
+    return [...teamResources, TASK_RESOURCE];
+  }, [teamResources]);
+
+  // Hämta projektets establishment_tasks och mappa till CalendarEvent.
+  const {
+    events: taskEvents,
+    refetch: refetchTasks,
+  } = useProjectTaskCalendarEvents({
+    bookingId: isLargeProject ? null : bookingId ?? null,
+    largeProjectId: isLargeProject ? projectId : null,
+    isLargeProject,
+  });
+
   // Anchor-datum = första projektdagen (för staff ops + tom-state).
   const anchorDate = projectDays[0] || new Date();
   const staffOps = useUnifiedStaffOperations(anchorDate, 'weekly', 'Montage');
 
-  // 4. Filtrera events till projektets bookings.
+  // 4. Filtrera events till projektets bookings + lägg på taskEvents.
   const filteredEvents = useMemo(() => {
-    if (projectBookingIds.size === 0) return [];
-    return allEvents.filter((e: any) => {
-      const bid = e.bookingId || e.booking_id || e.extendedProps?.bookingId;
-      return bid && projectBookingIds.has(bid);
+    const bookingEvents =
+      projectBookingIds.size === 0
+        ? []
+        : allEvents.filter((e: any) => {
+            const bid = e.bookingId || e.booking_id || e.extendedProps?.bookingId;
+            return bid && projectBookingIds.has(bid);
+          });
+    return [...bookingEvents, ...taskEvents];
+  }, [allEvents, projectBookingIds, taskEvents]);
+
+  // Aktivitetsdagar — säkerställer att projektkalendern visar dagar där
+  // bara aktiviteter finns (inga calendar_events).
+  const taskDayKeys = useMemo(() => {
+    const set = new Set<string>();
+    taskEvents.forEach((e) => {
+      const d = (e.start as string).slice(0, 10);
+      if (d) set.add(d);
     });
-  }, [allEvents, projectBookingIds]);
+    return set;
+  }, [taskEvents]);
+
+  // Slå ihop projektets calendar_event-dagar med aktivitetsdagar (för fall
+  // där en aktivitet ligger på en dag utan rig/event/rigDown).
+  const effectiveDays = useMemo(() => {
+    const phaseKeys = new Set(projectDays.map((d) => format(d, 'yyyy-MM-dd')));
+    const merged = new Set<string>([...phaseKeys, ...taskDayKeys]);
+    return Array.from(merged).sort().map((s) => parseISO(s));
+  }, [projectDays, taskDayKeys]);
 
   // 5. Synliga team per dag — samma default som personalkalendern.
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>({});
@@ -116,7 +157,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
   };
 
   const handleRefresh = async () => {
-    await Promise.all([refreshEvents(), refetchProject()]);
+    await Promise.all([refreshEvents(), refetchProject(), refetchTasks()]);
   };
 
   if (!projectId) return null;
@@ -128,8 +169,8 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
           <CalIcon className="h-4 w-4 text-primary" />
           <CardTitle className="text-base">Projektkalender</CardTitle>
           <Badge variant="outline" className="text-[10px]">
-            {projectDays.length > 0
-              ? `${projectDays.length} ${projectDays.length === 1 ? 'dag' : 'dagar'}`
+            {effectiveDays.length > 0
+              ? `${effectiveDays.length} ${effectiveDays.length === 1 ? 'dag' : 'dagar'}`
               : 'Inga planerade dagar'}
           </Badge>
         </div>
@@ -141,7 +182,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
       <CardContent className="p-0">
         <div className="project-calendar-shell">
           <div style={{ minHeight: '1020px', height: 'calc(100vh - 260px)' }}>
-            {projectDays.length === 0 ? (
+            {effectiveDays.length === 0 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted-foreground italic">
                 Projektet saknar planerade dagar
               </div>
@@ -149,7 +190,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
               <CustomCalendar
                 events={filteredEvents}
                 setEvents={setEvents}
-                resources={teamResources}
+                resources={teamResourcesWithTasks}
                 isLoading={isLoading}
                 isMounted={isMounted}
                 currentDate={anchorDate}
@@ -161,9 +202,9 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                 weeklyStaffOperations={staffOps}
                 getVisibleTeamsForDay={getVisibleTeamsForDay}
                 onToggleTeamForDay={handleToggleTeamForDay}
-                allTeams={teamResources}
+                allTeams={teamResourcesWithTasks}
                 isEventReadOnly={() => false}
-                daysOverride={projectDays}
+                daysOverride={effectiveDays}
                 getDayCardClassName={getDayCardClassName}
                 timeGridFullWidth
               />
