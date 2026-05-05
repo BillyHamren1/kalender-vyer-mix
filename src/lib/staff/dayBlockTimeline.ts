@@ -165,7 +165,7 @@ export interface VisitInfo {
   label: string;
   durationMin: number;
   end: string;
-  centre: { lat: number; lng: number } | null;
+  centre?: { lat: number; lng: number } | null;
   nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
   unmatchReason?: string | null;
   pingCount?: number;
