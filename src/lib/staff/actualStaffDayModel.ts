@@ -334,6 +334,8 @@ export interface ActualStaffDayModel {
   lastPingAgeMin: number | null;
   /** True om senaste ping är äldre än 10 min OCH workday/timer pågår. */
   signalLost: boolean;
+  /** Beslut från arbetsstart-matrisen (Case A–E). Speglas server-side. */
+  workStartDecision: WorkStartDecision;
 }
 
 // ── Konstanter ───────────────────────────────────────────────────────
