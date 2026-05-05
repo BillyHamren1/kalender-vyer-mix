@@ -85,6 +85,7 @@ export function useProjectTaskCalendarEvents({
 
   const events: CalendarEvent[] = useMemo(() => {
     return tasks
+      .filter((t) => t.visible_in_project_calendar !== false)
       .map((t) => {
         const startDate = t.start_date || t.due_date;
         const endDate = t.end_date || t.start_date || t.due_date;
@@ -94,6 +95,7 @@ export function useProjectTaskCalendarEvents({
         const start = `${startDate}T${startTime}`;
         const end = `${endDate}T${endTime}`;
         const published = !!t.calendar_event_id;
+        const inTimeApp = t.visible_in_time_app === true;
         const missingInfo =
           !t.start_time || !t.end_time || (t.assigned_to_ids?.length ?? 0) === 0;
 
