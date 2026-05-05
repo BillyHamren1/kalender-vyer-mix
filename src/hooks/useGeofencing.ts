@@ -1108,7 +1108,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             locationType: 'booking', arrivalTimestamp: Date.now(),
           });
           if (startFn) {
-            void startFn({ kind: 'booking', targetId: booking.id, label: booking.client || 'Uppdrag', arrivedAtIso })
+            void startFn({ kind: 'booking', targetId: booking.id, label: booking.client || 'Uppdrag', arrivedAtIso, isPlannedToday: isAssignedToday(booking) })
               .then((res) => {
                 if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
               })
