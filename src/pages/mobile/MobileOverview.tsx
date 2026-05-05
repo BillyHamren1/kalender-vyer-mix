@@ -33,6 +33,7 @@ import { extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
 
 type DateMode = 'today' | 'tomorrow' | 'week';
 type PhaseFilter = 'all' | 'rig' | 'event' | 'rigdown' | 'anomalies';
+type MainTab = 'projects' | 'staff';
 
 const MobileOverview: React.FC = () => {
   const navigate = useNavigate();
