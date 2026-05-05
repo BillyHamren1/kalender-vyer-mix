@@ -36,6 +36,8 @@ export const EVENING_FROM = 17;
 export const EVENING_TO = 28; // wraps past midnight
 export const LAST_WORKPLACE_GAP_MIN = 15;
 export const LAST_WORKPLACE_GAP_MAX_HOURS = 12;
+/** Hur länge efter planerad start vi börjar fråga "när började du?" */
+export const LATE_AFTER_PLANNED_MIN = 30;
 
 export const COOLDOWNS_MS: Record<DecisionKind, number> = {
   daystart: 8 * 3600 * 1000,
@@ -43,6 +45,7 @@ export const COOLDOWNS_MS: Record<DecisionKind, number> = {
   last_workplace_for_day: 60 * 60 * 1000,
   long_pass_no_break: 60 * 60 * 1000,
   unclassified_anomaly: 24 * 3600 * 1000,
+  late_after_planned_start: 24 * 3600 * 1000,
 };
 
 export type DecisionKind =
@@ -50,7 +53,8 @@ export type DecisionKind =
   | 'activity_leave'
   | 'last_workplace_for_day'
   | 'long_pass_no_break'
-  | 'unclassified_anomaly';
+  | 'unclassified_anomaly'
+  | 'late_after_planned_start';
 
 export interface DaystartDecision {
   kind: 'daystart';
@@ -81,13 +85,25 @@ export interface UnclassifiedAnomalyDecision {
   count: number;
   oldestStartedAtIso: string;
 }
+export interface LateAfterPlannedStartDecision {
+  kind: 'late_after_planned_start';
+  /** ISO för planerad start idag. */
+  plannedStartIso: string;
+  /** Mänsklig label på planerad arbetsplats/projekt. */
+  plannedLabel: string;
+  /** ISO för första GPS/app-signal idag. */
+  firstSignalIso: string;
+  /** Minuter mellan planerad start och första signal. */
+  lateMinutes: number;
+}
 
 export type AssistantDecision =
   | DaystartDecision
   | ActivityLeaveDecision
   | LastWorkplaceForDayDecision
   | LongPassNoBreakDecision
-  | UnclassifiedAnomalyDecision;
+  | UnclassifiedAnomalyDecision
+  | LateAfterPlannedStartDecision;
 
 // ── State som regelmotorn behöver ──
 export interface CachedTarget {
@@ -120,6 +136,10 @@ export interface WorkDayState {
   outsideSinceByTimer: Map<string, number>;
   /** Första signifikanta GPS-signalen idag, om vi sett den. */
   firstSignalToday: { iso: string; arrivedAtWorkplace: boolean } | null;
+  /** Finns aktiv (öppen) workday redan? Om ja → vi frågar inte om sen ankomst. */
+  hasOpenWorkday?: boolean;
+  /** Tidigaste planerade start idag (assignments-baserad). Null om inget planerat. */
+  earliestPlannedStartToday?: { iso: string; label: string } | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -205,7 +225,30 @@ export function nextAssistantDecision(state: WorkDayState): AssistantDecision | 
     }
   }
 
-  // ── 4) Sista arbetsplatsen för dagen ──
+  // ── Sen ankomst efter planerad start (telefon avstängd / ingen signal) ──
+  // Trigger: planerad start finns idag, ingen öppen workday, första signal
+  // dyker upp >LATE_AFTER_PLANNED_MIN efter planerad start.
+  if (
+    !state.hasOpenWorkday &&
+    state.earliestPlannedStartToday &&
+    state.firstSignalToday &&
+    cooldownExpired('late_after_planned_start', now, state.lastShownByKind)
+  ) {
+    const plannedMs = new Date(state.earliestPlannedStartToday.iso).getTime();
+    const firstMs = new Date(state.firstSignalToday.iso).getTime();
+    const sameDay = new Date(plannedMs).toDateString() === new Date(firstMs).toDateString();
+    const lateMin = (firstMs - plannedMs) / 60_000;
+    if (sameDay && lateMin >= LATE_AFTER_PLANNED_MIN) {
+      return {
+        kind: 'late_after_planned_start',
+        plannedStartIso: state.earliestPlannedStartToday.iso,
+        plannedLabel: state.earliestPlannedStartToday.label,
+        firstSignalIso: state.firstSignalToday.iso,
+        lateMinutes: Math.round(lateMin),
+      };
+    }
+  }
+
   if (
     state.timers.length === 0 &&
     state.lastExit &&
