@@ -232,7 +232,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -273,6 +273,9 @@ const StaffTimeReports: React.FC = () => {
           .from('staff_assignments')
           .select('staff_id, team_id, assignment_date')
           .eq('assignment_date', dateStr),
+        supabase
+          .from('large_project_staff')
+          .select('staff_id, large_project_id'),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
@@ -321,6 +324,7 @@ const StaffTimeReports: React.FC = () => {
       // kalendern för vald dag.
       const bsaRows = ((bsaRes as any).error ? [] : (bsaRes as any).data || []) as any[];
       const saRows = ((saRes as any).error ? [] : (saRes as any).data || []) as any[];
+      const lpsRows = ((lpsRes as any).error ? [] : (lpsRes as any).data || []) as any[];
       const plannedStaffIds = new Set<string>();
       const plannedLabelsByStaff = new Map<string, Set<string>>();
       const plannedFromBSA = new Set<string>();
@@ -346,11 +350,10 @@ const StaffTimeReports: React.FC = () => {
         (bookingRows || []).forEach((b: any) => bookingsById.set(b.id, b));
       }
 
-      const lpIds = Array.from(new Set(
-        [...bookingsById.values()]
-          .map((b: any) => b.large_project_id)
-          .filter(Boolean)
-      ));
+      const lpIds = Array.from(new Set([
+        ...[...bookingsById.values()].map((b: any) => b.large_project_id).filter(Boolean),
+        ...lpsRows.map((r: any) => r.large_project_id).filter(Boolean),
+      ]));
       const largeProjectsById = new Map<string, any>();
       let largeProjectBookings: Array<{ large_project_id: string; booking_id: string }> = [];
       if (lpIds.length > 0) {
@@ -390,7 +393,7 @@ const StaffTimeReports: React.FC = () => {
         endDate: dateStr,
         staffNames,
         bookingAssignments: bsaRows,
-        largeProjectStaff: [],
+        largeProjectStaff: lpsRows,
         bookings: bookingsById,
         largeProjects: largeProjectsById,
         largeProjectBookings,
@@ -399,6 +402,9 @@ const StaffTimeReports: React.FC = () => {
 
       for (const event of derivedPlannedEvents) {
         plannedFromBSA.add(event.staffId);
+        if (event.largeProjectId && !bsaRows.some(r => r.staff_id === event.staffId)) {
+          plannedFromLPS.add(event.staffId);
+        }
         plannedStaffIds.add(event.staffId);
         const label = event.largeProjectName || event.client || 'Bokning';
         addPlanned(event.staffId, label);
