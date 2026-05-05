@@ -283,8 +283,25 @@ const MobileOverview: React.FC = () => {
     return 'onsite';
   };
 
-  const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
-  const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
+  const authNotReady = authLoading || rolesLoading || !hasToken;
+  const isLoading = !authNotReady && ((opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading)));
+
+  // Detect 403 / forbidden specifically so we can show a permission message
+  const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e ?? '')).toLowerCase();
+  const isForbidden = (() => {
+    const msgs = [
+      opsQ.error, calendarQ.error, assignmentsQ.error, threadsQ.error,
+    ].filter(Boolean).map(errMsg);
+    return msgs.some(m => m.includes('403') || m.includes('forbidden') || m.includes('not authorized') || m.includes('unauthorized'));
+  })();
+
+  const isError = !isForbidden && opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
+  const hasNoData = !isLoading && !isError && !isForbidden && !opsQ.isLoading
+    && (opsData?.jobs?.length ?? 0) === 0
+    && (opsData?.assignments?.length ?? 0) === 0
+    && (opsData?.anomalies?.length ?? 0) === 0
+    && allEvents.length === 0
+    && allAssignments.length === 0;
 
   // === Detail dialog (fallback when no dedicated route exists) ===
   type DetailContent =
