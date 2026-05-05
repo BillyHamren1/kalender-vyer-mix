@@ -244,7 +244,43 @@ const MobileOverview: React.FC = () => {
     return { label: role.toUpperCase().slice(0, 4), cls: 'bg-muted text-muted-foreground border-border' };
   };
 
-  const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
+  // Compact status badge component
+  type BadgeTone = 'planned' | 'onsite' | 'missing_workday' | 'active' | 'unstaffed' | 'signal_lost' | 'unplanned';
+  const statusBadge = (tone: BadgeTone): { label: string; cls: string; icon?: React.ElementType } => {
+    switch (tone) {
+      case 'planned': return { label: 'Planerad', cls: 'bg-muted text-foreground border-border', icon: CircleDot };
+      case 'onsite': return { label: 'På plats', cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30', icon: MapPin };
+      case 'missing_workday': return { label: 'Saknar arbetsdag', cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30', icon: AlertTriangle };
+      case 'active': return { label: 'Pågående', cls: 'bg-primary/15 text-primary border-primary/30', icon: PlayCircle };
+      case 'unstaffed': return { label: 'Obemannad', cls: 'bg-destructive/15 text-destructive border-destructive/40', icon: UserX };
+      case 'signal_lost': return { label: 'Signal tappad', cls: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30', icon: WifiOff };
+      case 'unplanned': return { label: 'Oplanerad aktivitet', cls: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30', icon: Activity };
+    }
+  };
+
+  // Derive per-staff tone from OpsStaffStatus
+  const deriveStaffTone = (s?: OpsStaffStatus): BadgeTone => {
+    if (!s) return 'planned';
+    if (s.gps_status === 'stale' && s.active_timer) return 'signal_lost';
+    if (s.active_timer) return 'active';
+    if (s.has_open_workday) return 'onsite';
+    if (s.planned_targets.length > 0 && !s.has_open_workday) return 'missing_workday';
+    return 'planned';
+  };
+
+  // Job tone from staff list
+  const deriveJobTone = (staff: OverviewAssignment[], unstaffed: boolean): BadgeTone => {
+    if (unstaffed) return 'unstaffed';
+    const anyActive = staff.some(s => {
+      const st = staffStatusById.get(s.staff_id);
+      return st?.active_timer != null;
+    });
+    if (anyActive) return 'active';
+    const allMissing = staff.every(s => !staffStatusById.get(s.staff_id)?.has_open_workday);
+    if (allMissing) return 'planned';
+    return 'onsite';
+  };
+
   const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
 
   // === Detail dialog (fallback when no dedicated route exists) ===
