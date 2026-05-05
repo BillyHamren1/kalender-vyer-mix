@@ -875,12 +875,11 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
 
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
-          // CONFIDENCE-GATE: assigned-today required (se ENTER-contract högst upp).
-          // Bara att passera adressen räcker inte för autostart.
+          // AUTO-START på alla kända arbetsplatser. assigned-today-gaten
+          // togs bort 2026-05 (se kommentaren ovan vid isAssignedToday).
           const assignedToday = bookings.some(
             (b) => b.large_project_id === lpId && isAssignedToday(b),
           );
-          if (!assignedToday) continue;
 
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
