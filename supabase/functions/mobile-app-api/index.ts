@@ -9781,13 +9781,18 @@ async function handleGetOverviewCalendar(
 }
 
 // ── get_overview_assignments ──
-// Returns booking_staff_assignments for the caller's organization within the
-// given date window, enriched with booking metadata (number, client/title)
-// and staff info (name, role, color).
+// Mirrors the personalkalender source-of-truth: same logic as
+// src/services/staffCalendarService.ts → deriveStaffEvents.
 //
-// `booking_ids` is OPTIONAL — when omitted the backend returns ALL relevant
-// assignments for the org/window. The mobile overview never knows
-// booking_ids in advance, so we must not require them.
+// Inputs:
+//   - booking_staff_assignments (per-booking, per-date)
+//   - large_project_staff (project-wide visibility)
+//   - bookings + large_projects + large_project_bookings (timing/labels)
+//   - calendar_events (ENRICHMENT only — never the sole source)
+//
+// One row per staff × target × date × phase. Mobile Overview consumes the
+// existing fields (staff_id, staff_name, role, assignment_date, booking_id,
+// team_id, client) plus the richer target_* / planned_* fields.
 async function handleGetOverviewAssignments(
   supabase: any,
   callerUserId: string | null,
@@ -9796,90 +9801,273 @@ async function handleGetOverviewAssignments(
 ) {
   if (!(await callerIsPlanner(supabase, callerUserId))) return plannerForbidden()
 
-  const bookingIds = Array.isArray(data?.booking_ids)
-    ? data.booking_ids.filter((s: any) => typeof s === 'string')
-    : []
-
-  // Default to a sane window if caller didn't pass one.
   const now = new Date()
-  const defaultFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
-  const defaultTo = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const defaultFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const defaultTo = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const fromDate = (typeof data?.from === 'string' && data.from) || defaultFrom
   const toDate = (typeof data?.to === 'string' && data.to) || defaultTo
 
-  let query = supabase
+  // ── 1) BSA in window ────────────────────────────────────────────────
+  const { data: bsaRows, error: bsaErr } = await supabase
     .from('booking_staff_assignments')
     .select('id, booking_id, staff_id, team_id, assignment_date, role')
     .eq('organization_id', organizationId)
     .gte('assignment_date', fromDate)
     .lte('assignment_date', toDate)
-    .order('assignment_date', { ascending: true })
-
-  // booking_ids is an OPTIONAL extra filter — never required.
-  if (bookingIds.length > 0) {
-    query = query.in('booking_id', bookingIds)
-  }
-
-  const { data: bsaRows, error: bsaErr } = await query
   if (bsaErr) {
     console.error('[overview-assignments] BSA fetch failed:', bsaErr)
     return new Response(
       JSON.stringify({ error: 'Failed to fetch assignments' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   }
+  const bsa = bsaRows || []
 
-  const rows = bsaRows || []
+  // ── 2) Large project memberships (project-wide visibility) ──────────
+  const { data: lpsRows } = await supabase
+    .from('large_project_staff')
+    .select('staff_id, large_project_id, role')
+    .eq('organization_id', organizationId)
+  const lps = lpsRows || []
 
-  // Hydrate staff (name/role/color)
-  const staffIds = [...new Set(rows.map((r: any) => r.staff_id).filter(Boolean))]
-  const staffMap: Record<string, { id: string; name: string; role: string | null; color: string | null }> = {}
+  // ── 3) Hydrate staff ────────────────────────────────────────────────
+  const staffIds = [...new Set([
+    ...bsa.map((r: any) => r.staff_id),
+    ...lps.map((r: any) => r.staff_id),
+  ].filter(Boolean))]
+  const staffMap = new Map<string, { id: string; name: string; role: string | null }>()
   if (staffIds.length > 0) {
     const { data: staffRows } = await supabase
       .from('staff_members')
-      .select('id, name, role, color')
+      .select('id, name, role')
       .in('id', staffIds)
       .eq('organization_id', organizationId)
-    for (const s of staffRows || []) staffMap[s.id] = s
+    for (const s of staffRows || []) staffMap.set(s.id, s)
   }
 
-  // Hydrate bookings (number/client) — used by the overview UI to label the row
-  const bIds = [...new Set(rows.map((r: any) => r.booking_id).filter(Boolean))]
-  const bookingMap: Record<string, { id: string; client: string | null; booking_number: string | null }> = {}
-  if (bIds.length > 0) {
-    const { data: bookingRows } = await supabase
+  // ── 4) Hydrate bookings referenced by BSA ───────────────────────────
+  const bookingIds = [...new Set(bsa.map((r: any) => r.booking_id).filter(Boolean))]
+  const bookings = new Map<string, any>()
+  if (bookingIds.length > 0) {
+    const { data: bookRows } = await supabase
       .from('bookings')
-      .select('id, client, booking_number')
-      .in('id', bIds)
+      .select('id, client, booking_number, deliveryaddress, large_project_id, status, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
+      .in('id', bookingIds)
       .eq('organization_id', organizationId)
-    for (const b of bookingRows || []) bookingMap[b.id] = b
+    for (const b of bookRows || []) bookings.set(b.id, b)
   }
 
-  const enriched = rows.map((r: any) => {
-    const staff = staffMap[r.staff_id] || null
-    const booking = bookingMap[r.booking_id] || null
-    return {
-      id: r.id,
-      booking_id: r.booking_id,
-      booking_number: booking?.booking_number ?? null,
-      booking_title: booking?.client ?? null,
-      client: booking?.client ?? null,
-      staff_id: r.staff_id,
-      staff_name: staff?.name ?? '',
-      role: r.role,
-      assignment_date: r.assignment_date,
-      team_id: r.team_id,
-      staff,
+  // ── 5) Hydrate large projects referenced via LPS or via bookings ────
+  const lpIdsFromBookings = [...bookings.values()].map((b: any) => b.large_project_id).filter(Boolean)
+  const lpIds = [...new Set([...lps.map((r: any) => r.large_project_id), ...lpIdsFromBookings])]
+  const projects = new Map<string, any>()
+  const lpBookings: Array<{ large_project_id: string; booking_id: string }> = []
+  if (lpIds.length > 0) {
+    const [{ data: lpRows }, { data: lpbRows }] = await Promise.all([
+      supabase
+        .from('large_projects')
+        .select('id, name, address, start_date, event_date, end_date, status')
+        .in('id', lpIds)
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null),
+      supabase
+        .from('large_project_bookings')
+        .select('large_project_id, booking_id')
+        .in('large_project_id', lpIds)
+        .eq('organization_id', organizationId),
+    ])
+    for (const p of lpRows || []) projects.set(p.id, p)
+    for (const r of lpbRows || []) lpBookings.push(r)
+  }
+
+  // ── 6) Calendar events for enrichment ───────────────────────────────
+  const enrichBookingIds = [...new Set([...bookingIds, ...lpBookings.map(r => r.booking_id)])]
+  const ceByBooking = new Map<string, any[]>()
+  if (enrichBookingIds.length > 0) {
+    const { data: ceRows } = await supabase
+      .from('calendar_events')
+      .select('id, booking_id, start_time, end_time, event_type, resource_id, source_date, delivery_address, booking_number')
+      .in('booking_id', enrichBookingIds)
+      .eq('organization_id', organizationId)
+      .gte('start_time', `${fromDate}T00:00:00`)
+      .lt('start_time', `${toDate}T23:59:59`)
+    for (const ce of ceRows || []) {
+      if (!ce.booking_id) continue
+      const arr = ceByBooking.get(ce.booking_id) || []
+      arr.push(ce)
+      ceByBooking.set(ce.booking_id, arr)
     }
-  })
+  }
+
+  // ── helpers ─────────────────────────────────────────────────────────
+  const PHASE_FROM_TYPE: Record<string, 'rig' | 'event' | 'rigDown' | undefined> = {
+    rig: 'rig', event: 'event', rigDown: 'rigDown', rigdown: 'rigDown',
+  }
+  const DEFAULT_HOURS: Record<string, [string, string]> = {
+    rig: ['08:00:00', '12:00:00'],
+    event: ['08:00:00', '17:00:00'],
+    rigDown: ['08:00:00', '12:00:00'],
+  }
+  const isoTime = (v: any): string | null => {
+    if (!v) return null
+    const s = String(v)
+    // "08:30" / "08:30:00" / full ISO → time-of-day
+    const m = s.match(/T(\d{2}:\d{2}(?::\d{2})?)/) || s.match(/^(\d{2}:\d{2}(?::\d{2})?)$/)
+    if (!m) return null
+    return m[1].length === 5 ? `${m[1]}:00` : m[1]
+  }
+  const buildTimes = (date: string, phase: string, s: any, e: any) => {
+    const [defS, defE] = DEFAULT_HOURS[phase] || DEFAULT_HOURS.event
+    const st = isoTime(s) || defS
+    const et = isoTime(e) || defE
+    return { start: `${date}T${st}`, end: `${date}T${et}` }
+  }
+  const phasesForBookingDate = (b: any, date: string): Array<'rig' | 'event' | 'rigDown'> => {
+    const out: Array<'rig' | 'event' | 'rigDown'> = []
+    if (b.rigdaydate === date) out.push('rig')
+    if (b.eventdate === date) out.push('event')
+    if (b.rigdowndate === date) out.push('rigDown')
+    return out
+  }
+  const findCE = (bookingId: string, phase: string, date: string) => {
+    const list = ceByBooking.get(bookingId) || []
+    return list.find((ce: any) => {
+      const p = PHASE_FROM_TYPE[ce.event_type || '']
+      const d = ce.source_date || (ce.start_time || '').slice(0, 10)
+      return p === phase && d === date
+    })
+  }
+
+  // ── 7) Derive ───────────────────────────────────────────────────────
+  type Out = {
+    id: string;
+    staff_id: string;
+    staff_name: string;
+    role: string;
+    assignment_date: string;
+    target_type: 'booking' | 'large_project';
+    target_id: string;
+    target_name: string;
+    booking_id: string | null;
+    booking_number: string | null;
+    booking_title: string | null;
+    client: string | null;
+    planned_start: string;
+    planned_end: string;
+    address: string | null;
+    team_id: string | null;
+    status: string | null;
+    phase: 'rig' | 'event' | 'rigDown';
+  }
+  const seen = new Map<string, Out>()
+  const upsert = (row: Out) => {
+    const existing = seen.get(row.id)
+    if (!existing) { seen.set(row.id, row); return }
+    if (row.planned_start < existing.planned_start) existing.planned_start = row.planned_start
+    if (row.planned_end > existing.planned_end) existing.planned_end = row.planned_end
+  }
+
+  // 7a) BSA → per phase
+  for (const a of bsa) {
+    const booking = bookings.get(a.booking_id)
+    if (!booking) continue
+    const staff = staffMap.get(a.staff_id)
+    const lpId = booking.large_project_id
+    const phases = phasesForBookingDate(booking, a.assignment_date)
+    for (const phase of phases) {
+      const ce = findCE(booking.id, phase, a.assignment_date)
+      const times = ce
+        ? { start: ce.start_time, end: ce.end_time }
+        : buildTimes(
+            a.assignment_date,
+            phase,
+            phase === 'rig' ? booking.rig_start_time : phase === 'event' ? booking.event_start_time : booking.rigdown_start_time,
+            phase === 'rig' ? booking.rig_end_time : phase === 'event' ? booking.event_end_time : booking.rigdown_end_time,
+          )
+      const targetIsLP = !!lpId && projects.has(lpId)
+      const project = targetIsLP ? projects.get(lpId) : null
+      const targetId = targetIsLP ? lpId : booking.id
+      const targetName = targetIsLP ? (project?.name || 'Stort projekt') : (booking.client || 'Bokning')
+      const id = `bsa-${a.staff_id}-${targetIsLP ? 'lp-' + lpId : 'b-' + booking.id}-${a.assignment_date}-${phase}`
+      upsert({
+        id,
+        staff_id: a.staff_id,
+        staff_name: staff?.name || '',
+        role: a.role || staff?.role || '',
+        assignment_date: a.assignment_date,
+        target_type: targetIsLP ? 'large_project' : 'booking',
+        target_id: targetId,
+        target_name: targetName,
+        booking_id: booking.id,
+        booking_number: booking.booking_number || null,
+        booking_title: booking.client || null,
+        client: booking.client || null,
+        planned_start: times.start,
+        planned_end: times.end,
+        address: (ce?.delivery_address) || booking.deliveryaddress || (project?.address ?? null),
+        team_id: ce?.resource_id || a.team_id || null,
+        status: targetIsLP ? (project?.status ?? null) : (booking.status ?? null),
+        phase,
+      })
+    }
+  }
+
+  // 7b) large_project_staff → project-wide visibility
+  const bookingsByLP = new Map<string, string[]>()
+  for (const r of lpBookings) {
+    const arr = bookingsByLP.get(r.large_project_id) || []
+    arr.push(r.booking_id)
+    bookingsByLP.set(r.large_project_id, arr)
+  }
+  for (const m of lps) {
+    const project = projects.get(m.large_project_id)
+    if (!project) continue
+    const staff = staffMap.get(m.staff_id)
+    const phaseDates: Array<{ date: string; phase: 'rig' | 'event' | 'rigDown' }> = [
+      ...((project.start_date || []).map((d: string) => ({ date: d, phase: 'rig' as const }))),
+      ...((project.end_date || []).map((d: string) => ({ date: d, phase: 'rigDown' as const }))),
+    ].filter(p => p.date && p.date >= fromDate && p.date <= toDate)
+
+    const linked = bookingsByLP.get(m.large_project_id) || []
+    for (const { date, phase } of phaseDates) {
+      let ce: any
+      let bookingHint: string | null = linked[0] || null
+      for (const bid of linked) {
+        const c = findCE(bid, phase, date)
+        if (c) { ce = c; bookingHint = bid; break }
+      }
+      const times = ce ? { start: ce.start_time, end: ce.end_time } : buildTimes(date, phase, null, null)
+      const id = `lps-${m.staff_id}-lp-${m.large_project_id}-${date}-${phase}`
+      upsert({
+        id,
+        staff_id: m.staff_id,
+        staff_name: staff?.name || '',
+        role: m.role || staff?.role || '',
+        assignment_date: date,
+        target_type: 'large_project',
+        target_id: m.large_project_id,
+        target_name: project.name || 'Stort projekt',
+        booking_id: bookingHint,
+        booking_number: ce?.booking_number || null,
+        booking_title: project.name || null,
+        client: project.name || null,
+        planned_start: times.start,
+        planned_end: times.end,
+        address: ce?.delivery_address || project.address || null,
+        team_id: ce?.resource_id || null,
+        status: project.status || null,
+        phase,
+      })
+    }
+  }
+
+  const enriched = [...seen.values()].sort((a, b) =>
+    a.assignment_date.localeCompare(b.assignment_date) || a.planned_start.localeCompare(b.planned_start)
+  )
 
   return new Response(
     JSON.stringify({ assignments: enriched, from: fromDate, to: toDate }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
 
