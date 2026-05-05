@@ -9062,7 +9062,13 @@ async function handleEndUnplannedSiteVisit(
   }
   const { data: updated, error } = await supabase
     .from('location_time_entries')
-    .update({ exited_at: new Date().toISOString() })
+    .update({
+      exited_at: new Date().toISOString(),
+      stop_source: 'user_manual',
+      stop_reason: 'user_pressed_stop',
+      stopped_by: staffId,
+      stop_metadata: { closed_via: 'end_unplanned_site_visit' },
+    })
     .eq('id', entry_id)
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
