@@ -191,6 +191,20 @@ const statusTagFor = (ev: ActualEvent): string => {
     if (m.bothKnown) return 'föreslagen';
     return 'osäker';
   }
+  if (kind === 'timer_stopped') {
+    const mm = (ev.meta ?? {}) as any;
+    // Syntetiska/clamp-stopp betraktas som osäkra.
+    const stopOrigin = mm.stop_origin as string | undefined;
+    if (stopOrigin === 'system_review') return 'osäker · syntetiskt stopp';
+    const cls = classifyStopSource({
+      source: (mm.lteSource ?? mm.source) ?? null,
+      metadata: (mm.lteMetadata ?? null) as Record<string, any> | null,
+      exitedAt: mm.stoppedAt ?? ev.at ?? null,
+      lteId: mm.lteId ?? '',
+    });
+    if (!isStopConfident(cls)) return 'osäker · källa okänd';
+    return 'bekräftad';
+  }
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
   if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
     if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'adressuppslag';
