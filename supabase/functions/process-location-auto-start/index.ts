@@ -175,51 +175,286 @@ async function loadTargets(supabase: any): Promise<Target[]> {
 
 interface StableHit {
   target: Target
-  pings: Ping[]
-  firstReliableTs: number
+  pings: Ping[]            // contiguous inside-pings for this segment
+  firstReliableTs: number  // arrival
+  lastInsideTs: number     // departure (last inside ping)
   dwellMs: number
   avgAccuracy: number
   confidence: 'low' | 'medium' | 'high'
 }
 
-function evaluateStable(target: Target, pings: Ping[]): StableHit | null {
-  const inside = pings.filter(p => isInsideGeofence(p.lat, p.lng, target.geofence))
-  if (inside.length === 0) return null
-  const dwell = inside[inside.length - 1].ts - inside[0].ts
-  const enoughCount = inside.length >= ENTRY_PING_MIN_COUNT
-  const enoughDwell = dwell >= ENTRY_PING_MIN_DWELL_MS
-  if (!enoughCount && !enoughDwell) return null
-  const goodAcc = inside.filter(p => p.accuracy == null || p.accuracy <= ENTRY_PING_MAX_ACCURACY_M)
-  if (goodAcc.length * 2 < inside.length) return null
-  const firstReliable = goodAcc[0] ?? inside[0]
-  const accSum = inside.reduce((s, p) => s + (p.accuracy ?? 0), 0)
-  const avgAcc = accSum / inside.length
-  const confidence: 'low' | 'medium' | 'high' =
-    inside.length >= 5 && dwell >= 4 * 60_000 ? 'high' :
-    inside.length >= 3 && dwell >= 2 * 60_000 ? 'medium' : 'low'
-  return {
-    target,
-    pings: inside,
-    firstReliableTs: firstReliable.ts,
-    dwellMs: dwell,
-    avgAccuracy: avgAcc,
-    confidence,
+/**
+ * Evaluate ALL stable visit segments to a target within the ping window.
+ * Each segment is a contiguous run of inside-pings separated from the next
+ * by a gap > 10 min. Each segment that meets the stable-entry rule becomes
+ * its own hit, so back-and-forth movement produces multiple hits.
+ */
+function evaluateStableSegments(target: Target, pings: Ping[]): StableHit[] {
+  const SEG_GAP_MS = 10 * 60 * 1000
+  const segments: Ping[][] = []
+  let cur: Ping[] = []
+  for (const p of pings) {
+    const inside = isInsideGeofence(p.lat, p.lng, target.geofence)
+    if (inside) {
+      if (cur.length === 0 || p.ts - cur[cur.length - 1].ts <= SEG_GAP_MS) {
+        cur.push(p)
+      } else {
+        segments.push(cur)
+        cur = [p]
+      }
+    }
   }
-}
+  if (cur.length) segments.push(cur)
 
-function pickBestHit(target: Target, pings: Ping[]): StableHit | null {
-  return evaluateStable(target, pings)
+  const out: StableHit[] = []
+  for (const inside of segments) {
+    if (inside.length === 0) continue
+    const dwell = inside[inside.length - 1].ts - inside[0].ts
+    const enoughCount = inside.length >= ENTRY_PING_MIN_COUNT
+    const enoughDwell = dwell >= ENTRY_PING_MIN_DWELL_MS
+    if (!enoughCount && !enoughDwell) continue
+    const goodAcc = inside.filter(p => p.accuracy == null || p.accuracy <= ENTRY_PING_MAX_ACCURACY_M)
+    if (goodAcc.length * 2 < inside.length) continue
+    const firstReliable = goodAcc[0] ?? inside[0]
+    const accSum = inside.reduce((s, p) => s + (p.accuracy ?? 0), 0)
+    const avgAcc = accSum / inside.length
+    const confidence: 'low' | 'medium' | 'high' =
+      inside.length >= 5 && dwell >= 4 * 60_000 ? 'high' :
+      inside.length >= 3 && dwell >= 2 * 60_000 ? 'medium' : 'low'
+    out.push({
+      target,
+      pings: inside,
+      firstReliableTs: firstReliable.ts,
+      lastInsideTs: inside[inside.length - 1].ts,
+      dwellMs: dwell,
+      avgAccuracy: avgAcc,
+      confidence,
+    })
+  }
+  return out
 }
 
 interface ProcessReport {
   staff: number
   pings: number
   arrivals: number
+  switches: number
   workdays_opened: number
   ltes_opened: number
+  ltes_closed: number
+  travels_created: number
   events_emitted: number
   skipped_existing: number
   errors: string[]
+}
+
+function targetMatchesLte(target: Target, lte: any): boolean {
+  if (target.kind === 'location') return lte.location_id === target.id
+  if (target.kind === 'booking') return lte.booking_id === target.id
+  return lte.large_project_id === target.id
+}
+
+async function emitAssistantEvent(supabase: any, payload: Record<string, any>, dk: string, report: ProcessReport, kind: string) {
+  const { error } = await supabase
+    .from('assistant_events')
+    .insert({ ...payload, dedupe_key: dk })
+  if (error && String(error.code) !== '23505') {
+    report.errors.push(`assistant_event ${kind}: ${error.message}`)
+  } else {
+    report.events_emitted++
+  }
+}
+
+async function ensureWorkdayOpen(
+  supabase: any, staffId: string, orgId: string, arrivalIso: string,
+  hit: StableHit, report: ProcessReport,
+): Promise<string | null> {
+  const { data: existing } = await supabase
+    .from('workdays').select('id').eq('staff_id', staffId).is('ended_at', null).maybeSingle()
+  if (existing?.id) {
+    report.skipped_existing++
+    return existing.id
+  }
+  const { data: wd, error: wdErr } = await supabase
+    .from('workdays')
+    .insert({
+      staff_id: staffId,
+      organization_id: orgId,
+      started_at: arrivalIso,
+      started_by: 'server_auto_start',
+      notes: `Auto-started from GPS arrival at ${hit.target.label}`,
+      metadata: {
+        auto_started: true,
+        auto_start_source: 'server_background_gps',
+        matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+        confidence: hit.confidence,
+        arrival_pings_count: hit.pings.length,
+        first_arrival_ping_at: arrivalIso,
+        dwell_ms: hit.dwellMs,
+        avg_accuracy_m: hit.avgAccuracy,
+      },
+    })
+    .select('id').maybeSingle()
+  if (wdErr) {
+    if (String(wdErr.code) !== '23505') report.errors.push(`workday insert: ${wdErr.message}`)
+    const { data: again } = await supabase
+      .from('workdays').select('id').eq('staff_id', staffId).is('ended_at', null).maybeSingle()
+    return again?.id ?? null
+  }
+  report.workdays_opened++
+  return wd?.id ?? null
+}
+
+async function closeOpenLteForSwitch(
+  supabase: any, staffId: string, departureIso: string, prevHit: StableHit,
+  nextHit: StableHit, report: ProcessReport,
+): Promise<{ closed: boolean; closedTargetKind: string | null; closedTargetId: string | null; lteId: string | null }> {
+  const { data: openLtes } = await supabase
+    .from('location_time_entries')
+    .select('id, location_id, booking_id, large_project_id, entered_at, source, metadata')
+    .eq('staff_id', staffId)
+    .is('exited_at', null)
+  if (!openLtes || openLtes.length === 0) return { closed: false, closedTargetKind: null, closedTargetId: null, lteId: null }
+
+  // Close the LTE matching the previous target (or any open one if no match).
+  const prevMatch = openLtes.find((l: any) => targetMatchesLte(prevHit.target, l)) ?? null
+  if (!prevMatch) return { closed: false, closedTargetKind: null, closedTargetId: null, lteId: null }
+
+  const enteredAt = new Date(prevMatch.entered_at).getTime()
+  const departureTs = new Date(departureIso).getTime()
+  if (departureTs <= enteredAt) {
+    return { closed: false, closedTargetKind: null, closedTargetId: null, lteId: null }
+  }
+  const totalMinutes = Math.max(1, Math.round((departureTs - enteredAt) / 60000))
+  const meta = (prevMatch.metadata && typeof prevMatch.metadata === 'object') ? prevMatch.metadata : {}
+  const { error } = await supabase
+    .from('location_time_entries')
+    .update({
+      exited_at: departureIso,
+      total_minutes: totalMinutes,
+      metadata: {
+        ...meta,
+        closed_by: 'server_auto_switch',
+        closed_at_source: 'geofence_auto_switch_server',
+        switch: {
+          previous_target: { kind: prevHit.target.kind, id: prevHit.target.id, label: prevHit.target.label },
+          next_target: { kind: nextHit.target.kind, id: nextHit.target.id, label: nextHit.target.label },
+          departure_at: departureIso,
+          arrival_at: new Date(nextHit.firstReliableTs).toISOString(),
+          confidence: nextHit.confidence,
+          ping_range_prev: {
+            first: new Date(prevHit.pings[0].ts).toISOString(),
+            last: new Date(prevHit.pings[prevHit.pings.length - 1].ts).toISOString(),
+          },
+        },
+      },
+    })
+    .eq('id', prevMatch.id)
+    .is('exited_at', null)
+  if (error) {
+    report.errors.push(`lte close: ${error.message}`)
+    return { closed: false, closedTargetKind: null, closedTargetId: null, lteId: null }
+  }
+  report.ltes_closed++
+  return {
+    closed: true,
+    closedTargetKind: prevHit.target.kind,
+    closedTargetId: prevHit.target.id,
+    lteId: prevMatch.id,
+  }
+}
+
+async function ensureLteOpenForTarget(
+  supabase: any, staffId: string, orgId: string, arrivalIso: string,
+  hit: StableHit, report: ProcessReport,
+): Promise<string | null> {
+  // Already open for this target?
+  const baseQ = supabase.from('location_time_entries')
+    .select('id').eq('staff_id', staffId).is('exited_at', null)
+  const q = hit.target.kind === 'location' ? baseQ.eq('location_id', hit.target.id)
+    : hit.target.kind === 'booking' ? baseQ.eq('booking_id', hit.target.id)
+    : baseQ.eq('large_project_id', hit.target.id)
+  const { data: open } = await q.maybeSingle()
+  if (open?.id) { report.skipped_existing++; return open.id }
+
+  const payload: Record<string, any> = {
+    organization_id: orgId,
+    staff_id: staffId,
+    entry_date: arrivalIso.slice(0, 10),
+    entered_at: arrivalIso,
+    source: 'auto_geofence_server',
+    client_dedupe_key: `srv:${staffId}:${hit.target.kind}:${hit.target.id}:${bucketTo5Min(arrivalIso)}`,
+    metadata: {
+      auto_started: true,
+      auto_start_source: 'server_background_gps',
+      matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+      confidence: hit.confidence,
+      arrival_pings_count: hit.pings.length,
+      first_arrival_ping_at: arrivalIso,
+      ping_ids: hit.pings.map(p => p.id),
+      ping_range: {
+        first: new Date(hit.pings[0].ts).toISOString(),
+        last: new Date(hit.pings[hit.pings.length - 1].ts).toISOString(),
+      },
+      radius_m: hit.target.geofence.radius_meters,
+      avg_accuracy_m: hit.avgAccuracy,
+      dwell_ms: hit.dwellMs,
+    },
+  }
+  if (hit.target.kind === 'location') payload.location_id = hit.target.id
+  else if (hit.target.kind === 'booking') payload.booking_id = hit.target.id
+  else payload.large_project_id = hit.target.id
+
+  const { data: lte, error } = await supabase
+    .from('location_time_entries').insert(payload).select('id').maybeSingle()
+  if (error) {
+    if (String(error.code) !== '23505') report.errors.push(`lte insert: ${error.message}`)
+    return null
+  }
+  report.ltes_opened++
+  return lte?.id ?? null
+}
+
+async function ensureTravelLog(
+  supabase: any, staffId: string, orgId: string, prevHit: StableHit, nextHit: StableHit,
+  departureIso: string, arrivalIso: string, report: ProcessReport,
+) {
+  const dur = new Date(arrivalIso).getTime() - new Date(departureIso).getTime()
+  if (dur < 60_000 || dur > 8 * 3600_000) return // <1 min or >8h: skip
+
+  // Idempotency check: existing auto-switch travel for this exact range/staff.
+  const { data: existing } = await supabase
+    .from('travel_time_logs')
+    .select('id')
+    .eq('staff_id', staffId)
+    .eq('source', 'geofence_auto_switch_server')
+    .eq('start_time', departureIso)
+    .eq('end_time', arrivalIso)
+    .maybeSingle()
+  if (existing?.id) return
+
+  const { error } = await supabase.from('travel_time_logs').insert({
+    staff_id: staffId,
+    organization_id: orgId,
+    report_date: arrivalIso.slice(0, 10),
+    start_time: departureIso,
+    end_time: arrivalIso,
+    hours_worked: Math.round((dur / 3600_000) * 100) / 100,
+    auto_detected: true,
+    source: 'geofence_auto_switch_server',
+    classification: 'needs_review',
+    needs_review: true,
+    previous_target_type: prevHit.target.kind,
+    previous_target_id: prevHit.target.id,
+    next_target_type: nextHit.target.kind,
+    next_target_id: nextHit.target.id,
+    description: `Auto-switch ${prevHit.target.label} → ${nextHit.target.label}`,
+  })
+  if (error) {
+    report.errors.push(`travel insert: ${error.message}`)
+  } else {
+    report.travels_created++
+  }
 }
 
 async function processStaff(
@@ -229,171 +464,142 @@ async function processStaff(
   targets: Target[],
   report: ProcessReport,
 ) {
-  // Pick the target with the longest stable window for this staff.
-  let best: StableHit | null = null
+  const orgId = pings[0].organization_id
+
+  // Collect all stable visit segments across all targets and order them.
+  const allHits: StableHit[] = []
   for (const t of targets) {
-    if (t.organization_id !== pings[0].organization_id) continue
-    const hit = pickBestHit(t, pings)
-    if (!hit) continue
-    if (!best || hit.dwellMs > best.dwellMs || hit.pings.length > best.pings.length) {
-      best = hit
-    }
+    if (t.organization_id !== orgId) continue
+    for (const h of evaluateStableSegments(t, pings)) allHits.push(h)
   }
-  if (!best) return
+  if (allHits.length === 0) return
 
-  report.arrivals++
-  const arrivalIso = new Date(best.firstReliableTs).toISOString()
-  const orgId = best.target.organization_id
+  allHits.sort((a, b) => a.firstReliableTs - b.firstReliableTs)
 
-  // ── 1. Workday: open if no open one. Idempotent via partial unique index.
+  // Dedupe overlapping consecutive segments on same target.
+  const ordered: StableHit[] = []
+  for (const h of allHits) {
+    const last = ordered[ordered.length - 1]
+    if (last && last.target.kind === h.target.kind && last.target.id === h.target.id
+        && h.firstReliableTs <= last.lastInsideTs + 10 * 60_000) {
+      // merge: extend last segment
+      last.lastInsideTs = Math.max(last.lastInsideTs, h.lastInsideTs)
+      last.pings = [...last.pings, ...h.pings]
+      last.dwellMs = last.lastInsideTs - last.firstReliableTs
+      continue
+    }
+    ordered.push({ ...h })
+  }
+
+  report.arrivals += ordered.length
+
   let workdayId: string | null = null
-  const { data: existingWorkday } = await supabase
-    .from('workdays')
-    .select('id')
-    .eq('staff_id', staffId)
-    .is('ended_at', null)
-    .maybeSingle()
+  let prevHit: StableHit | null = null
 
-  if (existingWorkday?.id) {
-    workdayId = existingWorkday.id
-    report.skipped_existing++
-  } else {
-    const { data: wd, error: wdErr } = await supabase
-      .from('workdays')
-      .insert({
-        staff_id: staffId,
+  for (const hit of ordered) {
+    const arrivalIso = new Date(hit.firstReliableTs).toISOString()
+
+    // Open workday on first hit (idempotent).
+    if (!workdayId) {
+      workdayId = await ensureWorkdayOpen(supabase, staffId, orgId, arrivalIso, hit, report)
+    }
+
+    // ── Switch handling ────────────────────────────────────────────────────
+    if (prevHit && (prevHit.target.kind !== hit.target.kind || prevHit.target.id !== hit.target.id)) {
+      // Departure ts = last inside ping of prev segment, but never after this arrival.
+      const departureTs = Math.min(prevHit.lastInsideTs, hit.firstReliableTs)
+      const departureIso = new Date(departureTs).toISOString()
+      report.switches++
+
+      // 1. Close open LTE on previous target (if any).
+      await closeOpenLteForSwitch(supabase, staffId, departureIso, prevHit, hit, report)
+
+      // 2. Departure assistant_event for prev target.
+      const depDk = `${staffId}:departure:${prevHit.target.kind}:${prevHit.target.id}:${bucketTo5Min(departureIso)}`
+      await emitAssistantEvent(supabase, {
         organization_id: orgId,
-        started_at: arrivalIso,
-        started_by: 'server_auto_start',
-        notes: `Auto-started from GPS arrival at ${best.target.label}`,
+        staff_id: staffId,
+        event_type: 'departure',
+        target_type: prevHit.target.kind,
+        target_id: prevHit.target.id,
+        target_label: prevHit.target.label,
+        happened_at: departureIso,
+        source: 'geofence_background',
+        suggested_action: 'end_activity',
+        resolution_status: 'auto_closed_by_later_action',
+        resolution_notes: 'auto_switch by server_background_gps',
+        resolved_at: new Date().toISOString(),
+        resolved_by: 'server_auto_switch',
+        stale_for_prompt: true,
+        still_relevant_for_review: true,
+        linked_workday_id: workdayId,
         metadata: {
           auto_started: true,
-          auto_start_source: 'server_background_gps',
-          matched_target: { kind: best.target.kind, id: best.target.id, label: best.target.label },
-          confidence: best.confidence,
-          arrival_pings_count: best.pings.length,
-          first_arrival_ping_at: arrivalIso,
-          dwell_ms: best.dwellMs,
-          avg_accuracy_m: best.avgAccuracy,
+          source: 'geofence_auto_switch_server',
+          previous_target: { kind: prevHit.target.kind, id: prevHit.target.id, label: prevHit.target.label },
+          next_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+          departure_at: departureIso,
+          arrival_at: arrivalIso,
+          ping_range: {
+            prev_first: new Date(prevHit.pings[0].ts).toISOString(),
+            prev_last: new Date(prevHit.lastInsideTs).toISOString(),
+            next_first: new Date(hit.pings[0].ts).toISOString(),
+            next_last: new Date(hit.lastInsideTs).toISOString(),
+          },
+          confidence: hit.confidence,
         },
-      })
-      .select('id')
-      .maybeSingle()
-    if (wdErr) {
-      // Race with another runner / a concurrent foreground start: treat as soft success.
-      if (String(wdErr.code) !== '23505') {
-        report.errors.push(`workday insert: ${wdErr.message}`)
-      }
-      const { data: again } = await supabase
-        .from('workdays')
-        .select('id').eq('staff_id', staffId).is('ended_at', null).maybeSingle()
-      workdayId = again?.id ?? null
-    } else {
-      workdayId = wd?.id ?? null
-      report.workdays_opened++
+      }, depDk, report, 'departure')
+
+      // 3. Travel log between departure and arrival.
+      await ensureTravelLog(supabase, staffId, orgId, prevHit, hit, departureIso, arrivalIso, report)
     }
-  }
 
-  // ── 2. LTE: open one for this target if none open for that target.
-  const lteFilter = supabase.from('location_time_entries')
-    .select('id')
-    .eq('staff_id', staffId)
-    .is('exited_at', null)
-  let openLteQuery
-  if (best.target.kind === 'location') {
-    openLteQuery = lteFilter.eq('location_id', best.target.id)
-  } else if (best.target.kind === 'booking') {
-    openLteQuery = lteFilter.eq('booking_id', best.target.id)
-  } else {
-    openLteQuery = lteFilter.eq('large_project_id', best.target.id)
-  }
-  const { data: openLte } = await openLteQuery.maybeSingle()
+    // ── Open LTE for current target ──────────────────────────────────────
+    const lteId = await ensureLteOpenForTarget(supabase, staffId, orgId, arrivalIso, hit, report)
 
-  let lteId: string | null = openLte?.id ?? null
-  if (!lteId) {
-    const payload: Record<string, any> = {
-      organization_id: orgId,
-      staff_id: staffId,
-      entry_date: arrivalIso.slice(0, 10),
-      entered_at: arrivalIso,
-      source: 'auto_geofence_server',
-      client_dedupe_key: `srv:${staffId}:${best.target.kind}:${best.target.id}:${bucketTo5Min(arrivalIso)}`,
-      metadata: {
-        auto_started: true,
-        auto_start_source: 'server_background_gps',
-        matched_target: { kind: best.target.kind, id: best.target.id, label: best.target.label },
-        confidence: best.confidence,
-        arrival_pings_count: best.pings.length,
-        first_arrival_ping_at: arrivalIso,
-        ping_ids: best.pings.map(p => p.id),
-        ping_range: {
-          first: new Date(best.pings[0].ts).toISOString(),
-          last: new Date(best.pings[best.pings.length - 1].ts).toISOString(),
-        },
-        radius_m: best.target.geofence.radius_meters,
-        avg_accuracy_m: best.avgAccuracy,
-        dwell_ms: best.dwellMs,
-      },
-    }
-    if (best.target.kind === 'location') payload.location_id = best.target.id
-    else if (best.target.kind === 'booking') payload.booking_id = best.target.id
-    else payload.large_project_id = best.target.id
-
-    const { data: lte, error: lteErr } = await supabase
-      .from('location_time_entries')
-      .insert(payload)
-      .select('id')
-      .maybeSingle()
-    if (lteErr) {
-      if (String(lteErr.code) !== '23505') {
-        report.errors.push(`lte insert: ${lteErr.message}`)
-      }
-    } else {
-      lteId = lte?.id ?? null
-      report.ltes_opened++
-    }
-  } else {
-    report.skipped_existing++
-  }
-
-  // ── 3. assistant_event arrival (auto_started). Idempotent via dedupe_key.
-  const targetTypeForEvent = best.target.kind // 'location' | 'project' | 'booking'
-  const dk = dedupeKey(staffId, targetTypeForEvent, best.target.id, arrivalIso)
-  const { error: evErr } = await supabase
-    .from('assistant_events')
-    .insert({
+    // ── Arrival assistant_event ──────────────────────────────────────────
+    const isSwitch = !!prevHit && (prevHit.target.kind !== hit.target.kind || prevHit.target.id !== hit.target.id)
+    const arrDk = `${staffId}:arrival:${hit.target.kind}:${hit.target.id}:${bucketTo5Min(arrivalIso)}`
+    await emitAssistantEvent(supabase, {
       organization_id: orgId,
       staff_id: staffId,
       event_type: 'arrival',
-      target_type: targetTypeForEvent,
-      target_id: best.target.id,
-      target_label: best.target.label,
+      target_type: hit.target.kind,
+      target_id: hit.target.id,
+      target_label: hit.target.label,
       happened_at: arrivalIso,
       source: 'geofence_background',
       suggested_action: 'start_activity',
-      resolution_status: 'auto_closed_by_later_action',  // closest existing enum for "auto_started"
-      resolution_notes: 'auto_started by server_background_gps',
+      resolution_status: 'auto_closed_by_later_action',
+      resolution_notes: isSwitch
+        ? 'auto_switch by server_background_gps'
+        : 'auto_started by server_background_gps',
       resolved_at: new Date().toISOString(),
-      resolved_by: 'server_auto_start',
+      resolved_by: isSwitch ? 'server_auto_switch' : 'server_auto_start',
       stale_for_prompt: true,
       still_relevant_for_review: true,
       linked_workday_id: workdayId,
-      linked_time_report_id: null,
-      dedupe_key: dk,
       metadata: {
         auto_started: true,
-        auto_start_source: 'server_background_gps',
-        matched_target: { kind: best.target.kind, id: best.target.id, label: best.target.label },
-        confidence: best.confidence,
-        arrival_pings_count: best.pings.length,
+        auto_start_source: isSwitch ? 'geofence_auto_switch_server' : 'server_background_gps',
+        matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+        previous_target: prevHit ? { kind: prevHit.target.kind, id: prevHit.target.id, label: prevHit.target.label } : null,
+        next_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+        departure_at: prevHit ? new Date(Math.min(prevHit.lastInsideTs, hit.firstReliableTs)).toISOString() : null,
+        arrival_at: arrivalIso,
+        confidence: hit.confidence,
+        arrival_pings_count: hit.pings.length,
         first_arrival_ping_at: arrivalIso,
+        ping_range: {
+          first: new Date(hit.pings[0].ts).toISOString(),
+          last: new Date(hit.lastInsideTs).toISOString(),
+        },
         linked_lte_id: lteId,
       },
-    })
-  if (evErr && String(evErr.code) !== '23505') {
-    report.errors.push(`assistant_event insert: ${evErr.message}`)
+    }, arrDk, report, isSwitch ? 'arrival(switch)' : 'arrival')
+
+    prevHit = hit
   }
-  report.events_emitted++
 }
 
 Deno.serve(async (req) => {
@@ -406,9 +612,9 @@ Deno.serve(async (req) => {
   )
 
   const report: ProcessReport = {
-    staff: 0, pings: 0, arrivals: 0,
-    workdays_opened: 0, ltes_opened: 0,
-    events_emitted: 0, skipped_existing: 0, errors: [],
+    staff: 0, pings: 0, arrivals: 0, switches: 0,
+    workdays_opened: 0, ltes_opened: 0, ltes_closed: 0,
+    travels_created: 0, events_emitted: 0, skipped_existing: 0, errors: [],
   }
 
   try {
