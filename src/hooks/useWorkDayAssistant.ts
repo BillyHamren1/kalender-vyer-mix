@@ -130,6 +130,10 @@ export interface WorkDayAssistantInput {
    * critical prompt. Mobile layout passes this in.
    */
   isQuiet?: boolean;
+  /** Finns en aktiv (öppen) workday redan? */
+  hasOpenWorkday?: boolean;
+  /** Tidigaste planerad start idag (assignments). */
+  earliestPlannedStartToday?: { iso: string; label: string } | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────
