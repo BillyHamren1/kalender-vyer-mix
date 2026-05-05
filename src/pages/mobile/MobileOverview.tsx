@@ -592,6 +592,119 @@ const MobileOverview: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Detail dialog (fallback when no dedicated route exists) */}
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent className="max-w-md">
+          {detail?.kind === 'large_project' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{detail.name}</DialogTitle>
+                <DialogDescription>{t('overview.detail.largeProject') ?? 'Stort projekt'}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 text-sm">
+                {detail.date && <div><span className="text-muted-foreground">Datum:</span> {detail.date}</div>}
+                {detail.address && <div className="flex items-start gap-1"><MapPin className="w-4 h-4 mt-0.5 shrink-0" /><span>{detail.address}</span></div>}
+              </div>
+              <DialogFooter>
+                {detail.id && !detail.id.startsWith('synthetic-') && (
+                  <Button onClick={() => { navigate(`/m/project/${detail.id}`); setDetail(null); }}>
+                    Öppna projekt
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setDetail(null)}>Stäng</Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {detail?.kind === 'staff' && (() => {
+            const s = detail.staff;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{s.name || '—'}</DialogTitle>
+                  <DialogDescription>{t('overview.detail.staff') ?? 'Personöversikt'}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4" />
+                    <span>{s.has_open_workday ? 'Arbetsdag pågår' : 'Ingen aktiv arbetsdag'}</span>
+                  </div>
+                  {s.active_timer && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <span>Aktiv timer ({s.active_timer.target_type}) sedan {format(parseISO(s.active_timer.started_at), 'HH:mm')}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>GPS: {s.gps_status}{s.latest_known_location ? ` · ${format(parseISO(s.latest_known_location.updated_at), 'HH:mm')}` : ''}</span>
+                  </div>
+                  {s.planned_targets.length > 0 && (
+                    <div>
+                      <div className="text-xs font-bold text-muted-foreground uppercase mb-1">Planerat</div>
+                      <ul className="space-y-1">
+                        {s.planned_targets.slice(0, 5).map((p, i) => (
+                          <li key={i} className="text-xs">
+                            {p.date} · {p.target_name ?? '—'}{p.phase ? ` (${p.phase})` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {s.anomaly_count > 0 && (
+                    <div className="text-destructive text-xs">⚠ {s.anomaly_count} avvikelser</div>
+                  )}
+                </div>
+                <DialogFooter className="gap-2 flex-wrap">
+                  {s.planned_targets[0]?.target_id && s.planned_targets[0].target_type === 'booking' && (
+                    <Button onClick={() => { navigate(`/m/job/${s.planned_targets[0].target_id}`); setDetail(null); }}>
+                      Öppna jobb
+                    </Button>
+                  )}
+                  {s.planned_targets[0]?.target_id && s.planned_targets[0].target_type === 'large_project' && (
+                    <Button onClick={() => { navigate(`/m/project/${s.planned_targets[0].target_id}`); setDetail(null); }}>
+                      Öppna projekt
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setDetail(null)}>Stäng</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+
+          {detail?.kind === 'anomaly' && (() => {
+            const a = detail.anomaly;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                    {a.label}
+                  </DialogTitle>
+                  <DialogDescription>{a.type.replace(/_/g, ' ')}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-1 text-sm">
+                  <div><span className="text-muted-foreground">Allvar:</span> {a.severity}</div>
+                  {a.date && <div><span className="text-muted-foreground">Datum:</span> {a.date}</div>}
+                  {a.action && <div><span className="text-muted-foreground">Föreslagen åtgärd:</span> {a.action}</div>}
+                </div>
+                <DialogFooter className="gap-2 flex-wrap">
+                  {a.target_id && (a.action === 'staff_job' || a.type === 'unstaffed_job') && (
+                    <Button onClick={() => { navigate(`/m/job/${a.target_id}`); setDetail(null); }}>Öppna jobb</Button>
+                  )}
+                  {a.staff_id && (
+                    <Button variant="secondary" onClick={() => { setDetail(null); openStaff(a.staff_id!); }}>
+                      Visa person
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setDetail(null)}>Stäng</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
