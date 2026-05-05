@@ -225,11 +225,18 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
           </div>
         </div>
 
-        {/* STATUS */}
-        <div className="flex items-center">
-          <span className={`text-xs px-2.5 py-1 rounded-full border ${statusPillClass}`}>
-            {statusPillLabel}
-          </span>
+        {/* STATUS — sekundära badges */}
+        <div className="flex items-center gap-1 flex-wrap justify-end max-w-[280px]">
+          {badges.length === 0 && (
+            <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded-full border ${badgeClass('info')}`}>
+              {isProject ? 'PÅ PROJEKT' : block.strength === 'short_stop' ? 'KORT STOPP' : 'VISTELSE'}
+            </span>
+          )}
+          {badges.map((b, i) => (
+            <span key={i} className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded-full border ${badgeClass(b.tone)}`}>
+              {b.label}
+            </span>
+          ))}
         </div>
       </RowShell>
       {open && <InnerEvents block={block} />}
