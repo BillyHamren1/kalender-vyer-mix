@@ -98,13 +98,19 @@ const MobileOverview: React.FC = () => {
         end_time: j.end_time,
         source_date: j.date,
         resource_id: '',
-        booking_id: j.type === 'booking' ? j.id.replace(/^synthetic-([^-]+)-.*/, '$1') : null,
+        booking_id: j.booking_id,
         booking_number: j.booking_number,
         delivery_address: j.address,
       }) as OverviewCalendarEvent);
     }
     return calendarQ.data?.events ?? [];
   }, [opsData, calendarQ.data]);
+
+  const jobsById = useMemo(() => {
+    const m = new Map<string, typeof opsData.jobs[number]>();
+    for (const j of opsData?.jobs ?? []) m.set(j.id, j);
+    return m;
+  }, [opsData]);
 
   const allAssignments: OverviewAssignment[] = opsData?.assignments ?? assignmentsQ.data?.assignments ?? [];
   const allThreads = opsData?.messageThreads ?? threadsQ.data?.threads ?? [];
