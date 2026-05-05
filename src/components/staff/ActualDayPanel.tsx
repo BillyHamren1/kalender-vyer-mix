@@ -35,6 +35,7 @@ import type {
 } from '@/lib/staff/actualStaffDayModel';
 import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStopConfident } from '@/lib/staff/stopSourceClassifier';
 import { computeStrongWorkIndicators, type StrongWorkReasonCode } from '@/lib/staff/strongWorkIndicators';
+import { resolvePlaceLabel } from '@/lib/staff/resolvePlaceLabel';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
@@ -761,33 +762,35 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         } as any;
       }
       if (ev.kind === 'gps_travel') {
-        // Etikettera ALLTID via lookup när koordinater finns — gäller även
-        // "Bakgrunds-GPS / pendling" och "Möjlig förflyttning"-prefix, inte
-        // bara "Förflyttning". "okänd plats" får aldrig läcka till huvudraden.
-        const fromKnown = !m?.fromCentre;
-        const toKnown = !m?.toCentre;
-        const fromLookup = fromKnown ? null : lookupCoord(m?.fromCentre);
-        const toLookup = toKnown ? null : lookupCoord(m?.toCentre);
-
-        // Plocka original-segmenten ur label, så att kända platser bevaras.
+        // All journey-label-logik går via resolvePlaceLabel() — UI får aldrig
+        // fallbacka till råa "okänd plats". Internal-match (känd plats utan
+        // koordinat-meta) bevaras genom att läsa ut label-segmenten.
         const stripPrefix = (s: string) => s.replace(/^[^:]+:\s*/, '');
         const segs = stripPrefix(ev.label).split(' → ');
         const origFrom = segs[0] ?? '';
         const origTo = segs[1] ?? '';
+        const fromKnown = !m?.fromCentre; // ingen koord = intern match
+        const toKnown = !m?.toCentre;
+        const fromLookup = fromKnown ? null : lookupCoord(m?.fromCentre);
+        const toLookup = toKnown ? null : lookupCoord(m?.toCentre);
 
-        const resolveLbl = (
-          known: boolean,
-          orig: string,
-          lookup: ReturnType<typeof lookupCoord>,
-        ): string => {
-          if (known) return orig || '—';
-          if (lookup?.status === 'ok') return lookup.label;
-          if (lookup?.status === 'loading') return 'Slår upp adress…';
-          if (lookup?.status === 'error') return 'Okänd plats – adress kunde inte hämtas';
-          return 'Slår upp adress…';
-        };
-        const fromLbl = resolveLbl(fromKnown, origFrom, fromLookup);
-        const toLbl = resolveLbl(toKnown, origTo, toLookup);
+        const toState = (s?: 'ok' | 'loading' | 'error'): 'ok' | 'loading' | 'error' | 'idle' =>
+          s ?? 'idle';
+
+        const fromResolved = resolvePlaceLabel({
+          internalLabel: fromKnown ? origFrom : null,
+          resolvedLabel: fromLookup?.label ?? null,
+          lookupState: toState(fromLookup?.status),
+          lat: m?.fromCentre?.lat ?? null,
+          lng: m?.fromCentre?.lng ?? null,
+        });
+        const toResolved = resolvePlaceLabel({
+          internalLabel: toKnown ? origTo : null,
+          resolvedLabel: toLookup?.label ?? null,
+          lookupState: toState(toLookup?.status),
+          lat: m?.toCentre?.lat ?? null,
+          lng: m?.toCentre?.lng ?? null,
+        });
 
         const fromMaps = !fromKnown && m?.fromCentre
           ? `https://www.google.com/maps/search/?api=1&query=${m.fromCentre.lat.toFixed(6)},${m.fromCentre.lng.toFixed(6)}`
@@ -797,25 +800,24 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           : null;
 
         const fromPlace: JourneyPlace = {
-          label: fromLbl,
+          label: fromResolved.label,
           mapUrl: fromMaps,
           lat: m?.fromCentre?.lat ?? null,
           lng: m?.fromCentre?.lng ?? null,
         };
         const toPlace: JourneyPlace = {
-          label: toLbl,
+          label: toResolved.label,
           mapUrl: toMaps,
           lat: m?.toCentre?.lat ?? null,
           lng: m?.toCentre?.lng ?? null,
         };
 
-        // Behåll ev. ursprungligt prefix (Förflyttning / Bakgrunds-GPS / Möjlig…)
         const prefixMatch = ev.label.match(/^([^:]+):/);
         const prefix = prefixMatch ? prefixMatch[1] : 'Förflyttning';
 
         return {
           ...ev,
-          label: `${prefix}: ${fromLbl} → ${toLbl}`,
+          label: `${prefix}: ${fromResolved.label} → ${toResolved.label}`,
           from_maps_url: fromMaps,
           to_maps_url: toMaps,
           fromPlace,
