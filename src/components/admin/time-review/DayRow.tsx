@@ -7,6 +7,7 @@ import { DayStatusBadge } from './DayStatusBadge';
 import { MiniTimelineBar } from './MiniTimelineBar';
 import { DayApprovalAction } from './DayApprovalAction';
 import type { DayReviewRow } from '@/lib/admin/timeReviewQueries';
+import { extractUTCTime } from '@/utils/dateUtils';
 
 const fmtMinutes = (m: number) => {
   if (!m) return '0m';
