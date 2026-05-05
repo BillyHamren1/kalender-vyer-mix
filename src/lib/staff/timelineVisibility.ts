@@ -52,6 +52,10 @@ export const MIN_TRAVEL_MIN = 10;
  * del av föregående/nästa block. Se short-visit-no-auto-workpass-v1.
  */
 export const MIN_VISIT_MIN = 15;
+/** Under denna gräns är ett stopp alltid GPS-brus / raw_only. */
+export const MIN_NOISE_MIN = 2;
+/** Stark arbetsvistelse — visa som "möjlig arbetsvistelse" i journalen. */
+export const STRONG_VISIT_MIN = 30;
 
 function isMatched(ev: ActualEvent): boolean {
   const meta = (ev.meta ?? {}) as Record<string, unknown>;
