@@ -854,18 +854,21 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         ? 'text-amber-600'
                         : 'text-muted-foreground';
 
-              // Journey-rad: tydlig tvådelad "Från / Till"-uppställning
+              // Journey-rad: tydlig tvådelad "Från / Till"-uppställning.
+              // Prio: ev.fromPlace/toPlace (strukturerat) > journey_block-meta > parsed label.
+              const evAny = ev as any;
+              const fromPlaceObj: JourneyPlace | null = evAny.fromPlace ?? null;
+              const toPlaceObj: JourneyPlace | null = evAny.toPlace ?? null;
               const jbMeta = (ev.meta as any)?.journey_block === true ? (ev.meta as any) : null;
               const isJourneyRow =
-                !!jbMeta
+                !!fromPlaceObj || !!toPlaceObj
+                || !!jbMeta
                 || (ev.kind === 'gps_travel' && typeof ev.label === 'string' && ev.label.includes('→'));
-              let journeyFrom: string | null = null;
-              let journeyTo: string | null = null;
+              let journeyFrom: string | null = fromPlaceObj?.label ?? null;
+              let journeyTo: string | null = toPlaceObj?.label ?? null;
               if (isJourneyRow) {
-                if (jbMeta) {
-                  journeyFrom = (jbMeta.from_label as string | null) ?? null;
-                  journeyTo = (jbMeta.to_label as string | null) ?? null;
-                }
+                if (!journeyFrom && jbMeta) journeyFrom = (jbMeta.from_label as string | null) ?? null;
+                if (!journeyTo && jbMeta) journeyTo = (jbMeta.to_label as string | null) ?? null;
                 if ((!journeyFrom || !journeyTo) && typeof ev.label === 'string' && ev.label.includes('→')) {
                   const stripped = ev.label.replace(/^Förflyttning:\s*/, '');
                   const [a, b] = stripped.split(' → ');
@@ -874,15 +877,24 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                 }
               }
 
-              // Default-label för icke-journey-rader
-              const displayLabel: React.ReactNode = ev.label;
+              // Default-label för icke-journey-rader — föredra resolvedPlace.label.
+              const resolvedPlace: ResolvedPlace | null = evAny.resolvedPlace ?? null;
+              const displayLabel: React.ReactNode =
+                resolvedPlace && (ev.kind === 'gps_arrival' || ev.kind === 'gps_visit' || ev.kind === 'gps_departure')
+                  ? ev.label // ev.label är redan byggd från resolvedPlace.label i events-mappen
+                  : ev.label;
 
-              // Klickbar kartlänk för externa/okända platser (lat/lng utan internt mål)
-              const evAny = ev as any;
-              const ownMapsUrl: string | null = evAny.maps_url ?? null;
-              const fromMapsUrl: string | null = evAny.from_maps_url ?? jbMeta?.from_maps_url ?? null;
-              const toMapsUrl: string | null = evAny.to_maps_url ?? jbMeta?.to_maps_url ?? null;
-              const ownCoords = (evAny.coords as { lat: number; lng: number } | null) ?? null;
+              // Klickbar kartlänk för externa/okända platser.
+              const ownMapsUrl: string | null =
+                resolvedPlace?.mapUrl ?? evAny.maps_url ?? null;
+              const fromMapsUrl: string | null =
+                fromPlaceObj?.mapUrl ?? evAny.from_maps_url ?? jbMeta?.from_maps_url ?? null;
+              const toMapsUrl: string | null =
+                toPlaceObj?.mapUrl ?? evAny.to_maps_url ?? jbMeta?.to_maps_url ?? null;
+              const ownCoords =
+                (resolvedPlace && resolvedPlace.lat != null && resolvedPlace.lng != null
+                  ? { lat: resolvedPlace.lat, lng: resolvedPlace.lng }
+                  : (evAny.coords as { lat: number; lng: number } | null) ?? null);
               const coordsTooltip = ownCoords ? `${ownCoords.lat.toFixed(5)}, ${ownCoords.lng.toFixed(5)}` : undefined;
 
               const MapsLink = ({ url, label, title }: { url: string; label: React.ReactNode; title?: string }) => (
