@@ -588,6 +588,86 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   const isMainJournalRelevance = (r: WorkRelevance) =>
     r === 'work_confirmed' || r === 'work_possible';
 
+  // ── Departure-evidence: en visit får ENDAST emittera "Lämnade"-event om
+  // det finns faktisk evidens för att personen lämnade platsen. Sista ping
+  // i ett kluster räcker INTE — då kan personen fortfarande vara kvar med
+  // aktiv timer eller bara temporärt utan signal. Se constraint:
+  //   gps_visit_exact_ping_membership-v1 + work_in_progress-v1
+  const sortedVisitsForDep = [...input.visits].sort(
+    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+  );
+  const lastVisitKeyChrono = sortedVisitsForDep[sortedVisitsForDep.length - 1]?.placeKey ?? null;
+  const fmtLocalHM = (iso: string): string => {
+    try {
+      return new Date(iso).toLocaleTimeString('sv-SE', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Stockholm',
+      });
+    } catch {
+      return iso.slice(11, 16);
+    }
+  };
+  const hasDepartureEvidence = (v: PlaceVisit): { evidence: boolean; reason: string | null } => {
+    const vEndMs = new Date(v.end).getTime();
+    // 1) Travel som startar från denna placeKey
+    for (const t of input.travels) {
+      if (t.from.placeKey === v.placeKey && new Date(t.start).getTime() >= vEndMs - 60_000) {
+        return { evidence: true, reason: 'travel_after' };
+      }
+    }
+    // 2) Senare visit på annan plats
+    for (const v2 of input.visits) {
+      if (v2.placeKey !== v.placeKey && new Date(v2.start).getTime() >= vEndMs - 60_000) {
+        return { evidence: true, reason: 'next_visit_other_place' };
+      }
+    }
+    // 3) assistant_event departure ±20 min
+    for (const a of input.assistantEvents) {
+      const t = (a.event_type || '').toLowerCase();
+      if (t.includes('depart') || t.includes('left')) {
+        const d = Math.abs(new Date(a.happened_at).getTime() - vEndMs);
+        if (d <= 20 * 60_000) return { evidence: true, reason: 'assistant_departure' };
+      }
+    }
+    // 4) Godkänd travel_log som startar vid/efter v.end
+    for (const tl of input.travelLogs) {
+      if (tl.approved && new Date(tl.start_iso).getTime() >= vEndMs - 5 * 60_000) {
+        return { evidence: true, reason: 'travel_log' };
+      }
+    }
+    // 5) Riktigt (icke-syntetiskt) timer-stopp ±20 min
+    for (const e of input.locationEntries) {
+      if (!e.exited_at) continue;
+      const stopMs = new Date(e.exited_at).getTime();
+      if (Math.abs(stopMs - vEndMs) <= 20 * 60_000) {
+        const { synthetic } = isSyntheticStop(e);
+        if (!synthetic) return { evidence: true, reason: 'timer_stop' };
+      }
+    }
+    return { evidence: false, reason: null };
+  };
+  const isVisitOngoing = (v: PlaceVisit): boolean => {
+    const vEndMs = new Date(v.end).getTime();
+    // Aktiv timer/lte som startade före v.end och inte stängts.
+    for (const e of input.locationEntries) {
+      if (e.exited_at) continue;
+      const enterMs = new Date(e.entered_at).getTime();
+      if (enterMs <= vEndMs + 10 * 60_000) return true;
+    }
+    for (const r of input.timeReports) {
+      if (r.end_iso) continue;
+      const sMs = new Date(r.start_iso).getTime();
+      if (sMs <= vEndMs + 10 * 60_000) return true;
+    }
+    // Senaste visit-kluster och relativt färsk ping → troligen kvar.
+    if (v.placeKey === lastVisitKeyChrono && lastPingMsForSynthetic) {
+      const ageMin = (now.getTime() - lastPingMsForSynthetic) / 60_000;
+      if (ageMin <= STALE_PING_MIN * 2) return true;
+    }
+    return false;
+  };
+
   for (const v of input.visits) {
     const centreMeta = v.knownSite ? null : { lat: v.centre.lat, lng: v.centre.lng };
     const matched = !!v.knownSite;
@@ -637,28 +717,45 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       meta: { ...baseMeta, pingCount: v.pingCount },
       ...baseEnrichment,
     });
+    const dep = hasDepartureEvidence(v);
+    const ongoing = isVisitOngoing(v) && !dep.evidence;
+    const visitMeta = {
+      ...baseMeta,
+      ongoing,
+      departureEvidence: dep.evidence ? dep.reason : null,
+      lastPingAt: v.end,
+    };
+    const visitDisplayLabel = pz
+      ? visitLabel
+      : (ongoing
+        ? (placeLabel
+          ? `Vistelse pågår: ${placeLabel} · senaste GPS ${fmtLocalHM(v.end)}`
+          : `Vistelse pågår · senaste GPS ${fmtLocalHM(v.end)}`)
+        : visitLabel);
     events.push({
       id: `gps-visit:${v.placeKey}:${v.start}`,
       at: v.start,
-      until: v.end,
+      until: ongoing ? null : v.end,
       kind: 'gps_visit',
       severity: 'info',
-      label: visitLabel,
+      label: visitDisplayLabel,
       place: placeLabel,
       durationMin: v.durationMin,
-      meta: baseMeta,
+      meta: visitMeta,
       ...baseEnrichment,
     });
-    events.push({
-      id: `gps-dep:${v.placeKey}:${v.end}`,
-      at: v.end,
-      kind: 'gps_departure',
-      severity: 'info',
-      label: departureLabel,
-      place: placeLabel,
-      meta: baseMeta,
-      ...baseEnrichment,
-    });
+    if (!ongoing) {
+      events.push({
+        id: `gps-dep:${v.placeKey}:${v.end}`,
+        at: v.end,
+        kind: 'gps_departure',
+        severity: 'info',
+        label: departureLabel,
+        place: placeLabel,
+        meta: { ...baseMeta, departureEvidence: dep.reason ?? 'visit_ended_no_active_timer' },
+        ...baseEnrichment,
+      });
+    }
   }
   for (const tr of input.travels) {
     const fromLabel = tr.from.knownSite?.name ?? null;

@@ -341,8 +341,22 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         const visit = placeKey ? visitByKey.get(placeKey) : undefined;
         const lookup = ev.place ? null : lookupCoord(m?.centre);
         const placeLabel = ev.place ?? lookup?.label ?? null;
+        const ongoing = m?.ongoing === true;
+        const lastPingAt = (m?.lastPingAt as string | undefined) ?? null;
+        const fmtHM = (iso: string | null) => {
+          if (!iso) return '';
+          try {
+            return new Date(iso).toLocaleTimeString('sv-SE', {
+              hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm',
+            });
+          } catch { return iso.slice(11, 16); }
+        };
         const verb =
-          ev.kind === 'gps_arrival' ? 'Anlände' : ev.kind === 'gps_departure' ? 'Lämnade' : 'Vistelse';
+          ev.kind === 'gps_arrival'
+            ? 'Anlände'
+            : ev.kind === 'gps_departure'
+              ? 'Lämnade'
+              : (ongoing ? 'Vistelse pågår' : 'Vistelse');
 
         const inference = inferActivityFromPlace({
           knownSiteId: visit?.knownSiteId ?? null,
@@ -353,12 +367,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         });
 
         const baseLabel = placeLabel ? `${verb}: ${placeLabel}` : ev.label;
-        // Visa tolkningen som suffix bara på vistelse-raden (inte arr/dep)
-        // för att inte spamma — arrival/departure ärver knownSiteId-inferensen
-        // i UI:t via egna fält men labeln hålls ren.
+        const ongoingSuffix = ongoing && lastPingAt ? ` · senaste GPS ${fmtHM(lastPingAt)}` : '';
         const label =
           ev.kind === 'gps_visit'
-            ? `${baseLabel} · ${inference.label}`
+            ? `${baseLabel}${ongoingSuffix}${ongoing ? '' : ` · ${inference.label}`}`
             : baseLabel;
 
         const isMatched = !!visit?.knownSiteId;
