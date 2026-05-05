@@ -1033,13 +1033,30 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             {showAllEvents ? 'Visa kompakt' : 'Visa alla händelser'}
           </button>
         </div>
-        {mainEvents.length === 0 ? (
+        {projectBlocks.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {projectBlocks.map(b => (
+              <ProjectVisitBlock key={b.id} block={b} />
+            ))}
+          </div>
+        )}
+        {mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
           </div>
         ) : (
           <ol className="space-y-1">
-            {mainEvents.map(ev => {
+            {mainEvents
+              .filter(ev => {
+                // Vistelser/ankomster/avgångar som ägs av ett projektblock
+                // får inte renderas igen som vanliga GPS-rader.
+                const pk = (ev.meta as any)?.placeKey as string | undefined;
+                if (!pk || !blockedPlaceKeys.has(pk)) return true;
+                return ev.kind !== 'gps_visit'
+                  && ev.kind !== 'gps_arrival'
+                  && ev.kind !== 'gps_departure';
+              })
+              .map(ev => {
               const m = (ev.meta ?? {}) as any;
               const placeKey = m.placeKey as string | undefined;
               const visit = placeKey ? visitByKey.get(placeKey) : undefined;
