@@ -246,14 +246,17 @@ export const useRealTimeCalendarEvents = () => {
     // Set up real-time subscription for calendar events (read-only reactions to backend changes)
     const calendarChannel = supabase
       .channel('calendar_events_realtime')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'calendar_events' 
-        }, 
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'calendar_events' },
+        handleCalendarEventChange)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'large_project_team_assignments' },
         handleCalendarEventChange)
       .subscribe();
+
+    // Manual cross-component refresh signal (dispatched after planning saves)
+    const onManualRefresh = () => handleCalendarEventChange();
+    window.addEventListener('planner-calendar-refresh', onManualRefresh);
 
     console.log('Real-time calendar subscription established (read-only mode)');
 
@@ -262,6 +265,7 @@ export const useRealTimeCalendarEvents = () => {
       if (reloadTimerRef.current !== null) {
         clearTimeout(reloadTimerRef.current);
       }
+      window.removeEventListener('planner-calendar-refresh', onManualRefresh);
       supabase.removeChannel(calendarChannel);
       console.log('Real-time subscriptions cleaned up');
     };
