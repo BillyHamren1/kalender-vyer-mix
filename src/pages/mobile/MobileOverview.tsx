@@ -107,7 +107,7 @@ const MobileOverview: React.FC = () => {
   }, [opsData, calendarQ.data]);
 
   const jobsById = useMemo(() => {
-    const m = new Map<string, typeof opsData.jobs[number]>();
+    const m = new Map<string, OpsOverviewJob>();
     for (const j of opsData?.jobs ?? []) m.set(j.id, j);
     return m;
   }, [opsData]);
