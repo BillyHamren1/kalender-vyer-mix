@@ -146,6 +146,7 @@ export interface OpsOverviewJob {
   target_type: 'booking' | 'large_project';
   target_id: string | null;
   booking_id: string | null;
+  large_project_id?: string | null;
   title: string;
   booking_number: string | null;
   client: string | null;
