@@ -355,7 +355,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       sourceEventIds: [cr.id, ...(cl ? [cl.id] : [])],
       innerEvents: [],
       timer: { startedIso: null, stoppedIso: null, active: !endIso, present: true },
-      timeReport: { startedIso, closedIso: endIso, present: true },
+      timeReport: { startedIso: startIso, closedIso: endIso, present: true },
       arrivalIso: null,
       departureIso: null,
       plannedStartIso: null,
