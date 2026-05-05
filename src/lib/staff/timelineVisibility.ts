@@ -21,7 +21,8 @@ export type TimelineVisibility = 'main' | 'raw_only';
 
 export type TimelineHiddenReason =
   | 'short_movement'        // gps_travel < 10 min mellan okända/oklara platser
-  | 'micro_stop'            // gps_visit/arrival/departure < 15 min utan match
+  | 'micro_stop'            // gps_visit/arrival/departure < 2 min — GPS-brus
+  | 'short_stop'            // gps_visit 2–15 min — kort stopp, ej eget pass
   | 'same_site_noise'       // gps_travel där from-coord ≈ to-coord
   | 'low_confidence'        // workRelevance = unknown_requires_lookup / raw_debug_only
   | 'private_background'    // workRelevance = private_or_background (privatzon/natt)
