@@ -340,12 +340,14 @@ import {
 } from '@/lib/staff/timelineVisibility';
 
 /**
- * "Planering"-sektion. Visar planerade starter (planned_start) som collapsed
- * lista — separerad från huvudjournalen så förväntan aldrig läses som faktum.
+ * "Planering"-sektion. Renderar `model.planningItems` (förväntan från
+ * assignments) — aldrig events. Separerad från huvudjournalen.
  */
-const PlanningSection: React.FC<{ events: ActualEvent[] }> = ({ events }) => {
+const PlanningSection: React.FC<{
+  items: Array<{ id: string; label: string; plannedStart: string; plannedEnd: string | null }>;
+}> = ({ items }) => {
   const [open, setOpen] = useState(true);
-  if (!events.length) return null;
+  if (!items.length) return null;
   return (
     <section className="px-4 py-2 border-b bg-muted/20">
       <button
@@ -355,7 +357,7 @@ const PlanningSection: React.FC<{ events: ActualEvent[] }> = ({ events }) => {
       >
         <span className="inline-flex items-center gap-1.5">
           {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-          Planering ({events.length})
+          Planering ({items.length})
         </span>
         <span className="text-[10px] font-normal normal-case text-muted-foreground">
           Förväntan, ej faktiska händelser
@@ -363,18 +365,14 @@ const PlanningSection: React.FC<{ events: ActualEvent[] }> = ({ events }) => {
       </button>
       {open && (
         <ul className="mt-2 space-y-1 pl-5">
-          {events.map(ev => {
-            const meta = (ev.meta ?? {}) as any;
-            const endIso = meta?.plannedEnd as string | null | undefined;
-            return (
-              <li key={ev.id} className="text-xs text-foreground tabular-nums flex gap-2">
-                <span className="text-muted-foreground w-24">
-                  {extractUTCTime(ev.at)}{endIso ? `–${extractUTCTime(endIso)}` : ''}
-                </span>
-                <span>Start · {ev.place ?? ev.label?.replace(/^Planerad start:\s*/, '') ?? '—'}</span>
-              </li>
-            );
-          })}
+          {items.map(it => (
+            <li key={it.id} className="text-xs text-foreground tabular-nums flex gap-2">
+              <span className="text-muted-foreground w-24">
+                {extractUTCTime(it.plannedStart)}{it.plannedEnd ? `–${extractUTCTime(it.plannedEnd)}` : ''}
+              </span>
+              <span>Start · {it.label}</span>
+            </li>
+          ))}
         </ul>
       )}
     </section>
@@ -757,19 +755,21 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     if (r == null) return true;
     return r === 'work_confirmed' || r === 'work_possible';
   };
-  const [mainEvents, backgroundEvents, plannedEvents] = useMemo(() => {
+  const [mainEvents, backgroundEvents] = useMemo(() => {
     const main: ActualEvent[] = [];
     const bg: ActualEvent[] = [];
-    const planned: ActualEvent[] = [];
     for (const ev of events) {
-      // planned_start är planeringsförväntan, inte en faktisk händelse —
-      // visas i separata "Planering"-sektionen, aldrig i huvudjournalen.
-      if (ev.kind === 'planned_start') { planned.push(ev); continue; }
+      // Säkerhetsbälte: ev. legacy planned_start hör inte hemma i journalen.
+      if (ev.kind === 'planned_start') continue;
       (isMainJournalEvent(ev) ? main : bg).push(ev);
     }
-    planned.sort((a, b) => a.at.localeCompare(b.at));
-    return [main, bg, planned] as const;
+    return [main, bg] as const;
   }, [events]);
+  // Planering kommer från model.planningItems — ren förväntan, inga events.
+  const planningItems = useMemo(
+    () => [...(model.planningItems ?? [])].sort((a, b) => a.plannedStart.localeCompare(b.plannedStart)),
+    [model.planningItems],
+  );
   const [showBackground, setShowBackground] = useState(false);
 
   // Föreslagna restider för "Godkänn"-knappar
@@ -853,8 +853,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
 
       {/* A2. Planering — collapsed sektion ovanför huvudjournalen.
           Visar enbart förväntan; aldrig blandat med faktiska händelser. */}
-      {plannedEvents.length > 0 && (
-        <PlanningSection events={plannedEvents} />
+      {planningItems.length > 0 && (
+        <PlanningSection items={planningItems} />
       )}
 
       {/* B. Faktiska händelser — alltid synlig */}

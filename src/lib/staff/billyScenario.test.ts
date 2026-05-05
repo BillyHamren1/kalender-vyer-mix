@@ -142,10 +142,11 @@ describe('Billy-scenariot — med assignment 08:00 utan signal förrän 13:10', 
     }],
   });
 
-  it('planerad start 08:00 visas', () => {
-    const ps = m.actualEvents.find(e => e.kind === 'planned_start');
-    expect(ps?.at).toBe(`${date}T08:00:00Z`);
-    expect(ps!.label).toMatch(/Planerad start/);
+  it('planerad start 08:00 finns i planningItems (ej i actualEvents)', () => {
+    expect(m.actualEvents.find(e => e.kind === 'planned_start')).toBeUndefined();
+    const pi = m.planningItems.find(p => p.plannedStart === `${date}T08:00:00Z`);
+    expect(pi).toBeDefined();
+    expect(pi!.label).toBeTruthy();
   });
 
   it('"Ingen app/GPS-signal" 08:00 → 13:10', () => {

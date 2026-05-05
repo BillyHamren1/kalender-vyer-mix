@@ -363,9 +363,29 @@ export interface ReportState {
   travelLogs: ActualTravelLogInput[];
 }
 
+/**
+ * Planeringsobjekt — separerat från actualEvents. Får ALDRIG renderas
+ * som om det hade hänt; används för header/Planering-sektion + förslag.
+ */
+export interface PlanningItem {
+  id: string;
+  assignmentId: string;
+  label: string;
+  /** ISO för planerad start. */
+  plannedStart: string;
+  /** ISO för planerad slut, om känt. */
+  plannedEnd: string | null;
+  /** Källan, t.ex. 'planning'. */
+  source: 'planning';
+}
+
 export interface ActualStaffDayModel {
   date: string;
+  /** Hårda fakta: GPS, workday, timer, time_report, assistant, server, travel.
+   *  Innehåller ALDRIG planeringsförväntan (se planningItems). */
   actualEvents: ActualEvent[];
+  /** Planerade assignments — förväntan, inte bevis. */
+  planningItems: PlanningItem[];
   actualVisits: ActualVisit[];
   reportState: ReportState;
   proposedReport: ProposedReport;
@@ -1135,22 +1155,9 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
 
     for (const pa of plannedAssignments) {
       const plannedStartMs = new Date(pa.plannedStart).getTime();
-      events.push({
-        id: `planned-start:${pa.id}`,
-        at: pa.plannedStart,
-        kind: 'planned_start',
-        severity: 'info',
-        label: `Planerad start: ${pa.label}`,
-        place: pa.label,
-        meta: {
-          assignmentId: pa.id,
-          plannedStart: pa.plannedStart,
-          plannedEnd: pa.plannedEnd ?? null,
-          source: 'planning',
-          isEvidence: false,
-        },
-      });
-
+      // OBS: planned_start emitteras INTE längre som ett event — planeringen
+      // är ren förväntan och exponeras separat via model.planningItems så
+      // den aldrig kan blandas in som faktisk händelse i tidslinjen.
       // Om första bekräftade signal saknas, eller är >15 min efter planerad
       // start → planned_signal_gap.
       const SIGNAL_GAP_MS = 15 * 60_000;
@@ -1377,6 +1384,14 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   return {
     date: input.date,
     actualEvents: events,
+    planningItems: (input.plannedAssignments ?? []).map(pa => ({
+      id: `planning:${pa.id}`,
+      assignmentId: pa.id,
+      label: pa.label,
+      plannedStart: pa.plannedStart,
+      plannedEnd: pa.plannedEnd ?? null,
+      source: 'planning' as const,
+    })),
     actualVisits,
     reportState: {
       workday: input.workday,
