@@ -929,6 +929,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     [projectBlocks],
   );
 
+  // "På projekt just nu" — senaste pågående projektblock (om något).
+  const currentOngoingProject = useMemo(() => {
+    const ongoing = projectBlocks.filter(b => b.ongoing);
+    if (ongoing.length === 0) return null;
+    return ongoing.reduce((latest, b) =>
+      !latest || b.startIso > latest.startIso ? b : latest,
+    null as (typeof ongoing)[number] | null);
+  }, [projectBlocks]);
+
 
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
@@ -986,6 +995,51 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <Badge className={`${statusBadgeClass(status.kind)} font-medium`}>{status.label}</Badge>
         </div>
       </div>
+
+      {currentOngoingProject && (() => {
+        const b = currentOngoingProject;
+        const timerState: 'active' | 'missing' | 'uncertain' =
+          b.timerActive ? 'active' : b.hasTimer ? 'uncertain' : 'missing';
+        const wdMissing = !b.workdayStarted;
+        const headline =
+          wdMissing ? 'På projekt – arbetsdag saknas'
+          : timerState === 'active' ? 'På projekt – timer aktiv'
+          : timerState === 'missing' ? 'På projekt – timer saknas'
+          : 'På projekt – timer osäker';
+        const tone =
+          wdMissing || timerState === 'missing'
+            ? 'border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100'
+            : timerState === 'uncertain'
+              ? 'border-amber-400/50 bg-amber-50/60 dark:bg-amber-950/20 text-amber-900 dark:text-amber-100'
+              : 'border-emerald-500/60 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100';
+        return (
+          <div className={`px-4 py-3 border-b border-2 ${tone} flex flex-wrap items-center gap-x-4 gap-y-1`}>
+            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 font-bold uppercase tracking-wider text-[10px]">
+              ● På projekt
+            </Badge>
+            <div className="font-semibold text-sm truncate min-w-0 max-w-[40ch]">
+              {b.title}
+            </div>
+            <div className="text-xs tabular-nums">
+              <span className="opacity-70">Sedan </span>
+              <span className="font-medium">{fmtHm(b.startIso)}</span>
+            </div>
+            {b.lastPingIso && (
+              <div className="text-xs tabular-nums">
+                <span className="opacity-70">senaste GPS </span>
+                <span className="font-medium">{fmtHm(b.lastPingIso)}</span>
+              </div>
+            )}
+            <div className="text-xs">
+              <span className="opacity-70">Pågått </span>
+              <span className="font-medium tabular-nums">{fmtMin(b.durationMin)}</span>
+            </div>
+            <div className="ml-auto text-xs font-semibold">
+              {headline}
+            </div>
+          </div>
+        );
+      })()}
 
       {showRepairBanner && (
         <div className="px-4 py-3 border-b bg-blue-50/60 dark:bg-blue-950/20 flex flex-wrap items-center gap-x-3 gap-y-2">
