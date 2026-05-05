@@ -714,11 +714,18 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     if (r == null) return true;
     return r === 'work_confirmed' || r === 'work_possible';
   };
-  const [mainEvents, backgroundEvents] = useMemo(() => {
+  const [mainEvents, backgroundEvents, plannedEvents] = useMemo(() => {
     const main: ActualEvent[] = [];
     const bg: ActualEvent[] = [];
-    for (const ev of events) (isMainJournalEvent(ev) ? main : bg).push(ev);
-    return [main, bg] as const;
+    const planned: ActualEvent[] = [];
+    for (const ev of events) {
+      // planned_start är planeringsförväntan, inte en faktisk händelse —
+      // visas i separata "Planering"-sektionen, aldrig i huvudjournalen.
+      if (ev.kind === 'planned_start') { planned.push(ev); continue; }
+      (isMainJournalEvent(ev) ? main : bg).push(ev);
+    }
+    planned.sort((a, b) => a.at.localeCompare(b.at));
+    return [main, bg, planned] as const;
   }, [events]);
   const [showBackground, setShowBackground] = useState(false);
 
