@@ -1155,22 +1155,9 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
 
     for (const pa of plannedAssignments) {
       const plannedStartMs = new Date(pa.plannedStart).getTime();
-      events.push({
-        id: `planned-start:${pa.id}`,
-        at: pa.plannedStart,
-        kind: 'planned_start',
-        severity: 'info',
-        label: `Planerad start: ${pa.label}`,
-        place: pa.label,
-        meta: {
-          assignmentId: pa.id,
-          plannedStart: pa.plannedStart,
-          plannedEnd: pa.plannedEnd ?? null,
-          source: 'planning',
-          isEvidence: false,
-        },
-      });
-
+      // OBS: planned_start emitteras INTE längre som ett event — planeringen
+      // är ren förväntan och exponeras separat via model.planningItems så
+      // den aldrig kan blandas in som faktisk händelse i tidslinjen.
       // Om första bekräftade signal saknas, eller är >15 min efter planerad
       // start → planned_signal_gap.
       const SIGNAL_GAP_MS = 15 * 60_000;
