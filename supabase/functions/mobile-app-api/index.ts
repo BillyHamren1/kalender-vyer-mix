@@ -3781,14 +3781,15 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     .order('report_date', { ascending: false })
 
   // Fetch establishment tasks for this booking — ONLY activities explicitly
-  // marked visible_in_time_app=true are sent to field staff. Tasks where this
-  // staff member IS in assigned_to_ids get is_mine=true so the client can
-  // highlight them.
+  // marked visible_in_time_app=true AND where the requesting staff is in
+  // assigned_to_ids (or legacy assigned_to). Enforces:
+  // "Endast tilldelad personal ser aktiviteten i Time-appen."
   const { data: rawEstablishmentTasks } = await supabase
     .from('establishment_tasks')
     .select('id, title, category, start_date, end_date, completed, notes, sort_order, assigned_to, assigned_to_ids, start_time, end_time, status, calendar_event_id, visible_in_time_app, visible_in_project_calendar')
     .eq('booking_id', booking_id)
     .eq('visible_in_time_app', true)
+    .or(`assigned_to_ids.cs.{${staffId}},assigned_to.eq.${staffId}`)
     .order('start_date', { ascending: true })
     .order('sort_order', { ascending: true })
 

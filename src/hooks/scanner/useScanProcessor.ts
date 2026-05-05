@@ -11,6 +11,7 @@ import {
 import { PackingItem } from './useOptimisticPacking';
 import { ScanResult } from './useScanFeedback';
 import { scanLog } from './scanLog';
+import { recordReceived, recordApiStart, recordApiEnd, ScanStatus } from './scanTimeline';
 
 export interface RecentScanEntry {
   value: string;
@@ -81,6 +82,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
 
+    // Mark "received by processor" timestamp for instrumentation.
+    recordReceived(scannedValue);
+
     // No local session dedup — WMS (lagersystemet) is the single source of truth
     // for whether a code has already been scanned. This avoids blocking legitimate
     // minus scans / re-scans on the client.
@@ -126,7 +130,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // For unique codes (RFID / serials) we don't know the SKU locally.
         // Ask the backend to look it up via the WMS, then decrement.
         if (parsed.unique) {
+          recordApiStart(scannedValue);
           const result = await decrementBySerial(packingId, scannedValue);
+          recordApiEnd(scannedValue, result.success ? 'success' : 'failed', result.productName);
           if (!result.success || !result.itemId) {
             scanLog('minus_serial_failed', { value: scannedValue, error: result.error });
             onScanResult({ value: scannedValue, result: result.error || 'Kunde inte ta bort koden', success: false });
@@ -158,7 +164,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           return;
         }
 
+        recordApiStart(scannedValue);
         await decrementPackingItem(matchingItem.id, verifierName);
+        recordApiEnd(scannedValue, 'success', matchingItem.booking_products?.name);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
         onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
@@ -171,7 +179,12 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // === NORMAL MODE ===
         scanLog('verify_start', { packingId, sku: scannedValue });
         const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
+        recordApiStart(scannedValue);
         const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId, verifierStaffId);
+        const apiStatus: ScanStatus = result.success
+          ? ((result as any).alreadyScanned ? 'duplicate' : (result.overscan ? 'overscan' : 'success'))
+          : (result.notInPackingList ? 'unknown_product' : 'failed');
+        recordApiEnd(scannedValue, apiStatus, result.productName);
         scanLog('verify_result', result);
 
         // === Special branch: product not in packing list — pause + prompt user ===
