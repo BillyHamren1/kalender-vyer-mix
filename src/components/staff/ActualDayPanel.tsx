@@ -250,7 +250,12 @@ const RAW_DETAIL_KINDS: ReadonlySet<ActualEventKind> = new Set<ActualEventKind>(
   'gps_gap',
 ]);
 const MIN_TRAVEL_MIN = 10;
-const MIN_VISIT_MIN = 10;
+// Kort vistelse-policy: besök < 15 min på okänd/oklar plats visas inte
+// som eget "projektbesök" i huvudjournalen — det räknas som transition
+// (resa) eller del av föregående/nästa arbetsblock. Allt finns kvar i
+// "Visa alla händelser" + Rå GPS. Matchad känd plats eller
+// work_confirmed (manuell timer / scanner / admin) visas alltid.
+const MIN_VISIT_MIN = 15;
 
 function compactEvents(events: ActualEvent[]): ActualEvent[] {
   return events.filter(e => {
