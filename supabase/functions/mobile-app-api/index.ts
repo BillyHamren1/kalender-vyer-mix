@@ -5833,6 +5833,156 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
 
 // ==================== LAGER (INTERNAL PROJECT) TASKS ====================
 
+/**
+ * Returns the warehouse assignments for the logged-in staff member,
+ * shown in the Time-app's Lager detail view ("Mina lageruppgifter").
+ *
+ * Sources:
+ *  1. project_tasks under the org's internal Lager project where
+ *     assigned_to_ids includes staffId (interna lageruppgifter).
+ *  2. warehouse_calendar_events for the dates the staff member is
+ *     assigned to a warehouse team (staff_assignments.team_id starts
+ *     with 'lager-' or equals 'transport') — best-effort koppling.
+ *
+ * TODO(next): När vi har en explicit person↔warehouse_calendar_events
+ * koppling (t.ex. warehouse_event_assignments), filtrera direkt på den
+ * istället för dag/team-härledning.
+ */
+async function handleGetLagerAssignments(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const dateFrom: string = (data?.date_from as string) ||
+    new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+  const dateTo: string = (data?.date_to as string) ||
+    new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+
+  const assignments: any[] = []
+
+  // 1) Internal lager project tasks assigned to this staff
+  try {
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, name, booking_id')
+      .eq('organization_id', organizationId)
+      .eq('is_internal', true)
+      .maybeSingle()
+
+    if (project) {
+      const { data: tasks, error: tErr } = await supabase
+        .from('project_tasks')
+        .select('id, title, description, deadline, completed, assigned_to_ids, created_at')
+        .eq('project_id', project.id)
+        .contains('assigned_to_ids', [staffId])
+        .order('deadline', { ascending: true, nullsFirst: false })
+
+      if (tErr) {
+        console.warn('[get_lager_assignments] project_tasks err:', tErr)
+      } else {
+        for (const t of tasks || []) {
+          assignments.push({
+            id: `task-${t.id}`,
+            title: t.title,
+            description: t.description ?? null,
+            start_time: t.deadline ?? t.created_at,
+            end_time: t.deadline ?? null,
+            event_type: 'internal_task',
+            booking_id: project.booking_id ?? null,
+            booking_number: null,
+            delivery_address: null,
+            completed: !!t.completed,
+            status: t.completed ? 'completed' : 'open',
+          })
+        }
+      }
+    } else {
+      console.warn('[get_lager_assignments] internal lager project missing for org', organizationId)
+    }
+  } catch (e) {
+    console.error('[get_lager_assignments] tasks block failed:', e)
+  }
+
+  // 2) warehouse_calendar_events on dates where the staff is assigned to a lager/transport team
+  try {
+    const { data: sa, error: saErr } = await supabase
+      .from('staff_assignments')
+      .select('team_id, assignment_date')
+      .eq('staff_id', staffId)
+      .gte('assignment_date', dateFrom)
+      .lte('assignment_date', dateTo)
+
+    if (saErr) {
+      console.warn('[get_lager_assignments] staff_assignments err:', saErr)
+    }
+
+    const lagerDates = new Set<string>()
+    const lagerTeams = new Set<string>()
+    for (const row of sa || []) {
+      const tid = String(row.team_id || '')
+      if (tid === 'transport' || tid.startsWith('lager-')) {
+        lagerDates.add(row.assignment_date)
+        if (tid.startsWith('lager-')) lagerTeams.add(tid)
+      }
+    }
+
+    if (lagerDates.size > 0) {
+      // TODO(next): När warehouse_calendar_events får explicit person-koppling,
+      // filtrera per staff_id istället för per team/datum.
+      let q = supabase
+        .from('warehouse_calendar_events')
+        .select('id, title, booking_id, booking_number, start_time, end_time, event_type, delivery_address, resource_id')
+        .eq('organization_id', organizationId)
+        .gte('start_time', `${dateFrom}T00:00:00`)
+        .lte('start_time', `${dateTo}T23:59:59`)
+
+      if (lagerTeams.size > 0) {
+        q = q.in('resource_id', Array.from(lagerTeams))
+      }
+
+      const { data: wEvents, error: wErr } = await q
+      if (wErr) {
+        console.warn('[get_lager_assignments] warehouse_calendar_events err:', wErr)
+      } else {
+        for (const w of wEvents || []) {
+          const day = (w.start_time as string)?.slice(0, 10)
+          if (!day || !lagerDates.has(day)) continue
+          assignments.push({
+            id: `wce-${w.id}`,
+            title: w.title || w.booking_number || 'Lageruppgift',
+            description: null,
+            start_time: w.start_time,
+            end_time: w.end_time,
+            event_type: w.event_type || 'warehouse',
+            booking_id: w.booking_id ?? null,
+            booking_number: w.booking_number ?? null,
+            delivery_address: w.delivery_address ?? null,
+            completed: false,
+            status: 'scheduled',
+          })
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[get_lager_assignments] warehouse block failed:', e)
+  }
+
+  // Sort: scheduled times first (asc), tasks without time last
+  assignments.sort((a, b) => {
+    const ta = a.start_time ? new Date(a.start_time).getTime() : Number.MAX_SAFE_INTEGER
+    const tb = b.start_time ? new Date(b.start_time).getTime() : Number.MAX_SAFE_INTEGER
+    return ta - tb
+  })
+
+  console.log('[get_lager_assignments] returning', { staffId, count: assignments.length })
+
+  return new Response(
+    JSON.stringify({ assignments }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
+
 async function handleGetLagerTasks(supabase: any, staffId: string, organizationId: string) {
   // Find internal Lager project for org
   const { data: project, error: pErr } = await supabase
