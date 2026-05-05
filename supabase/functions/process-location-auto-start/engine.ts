@@ -661,6 +661,7 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     staffFilter = body.staff_id || null
     orgFilter = body.organization_id || null
   } else {
+    orgFilter = body.organization_id || null
     const cursorIso = await loadCursor(supabase, orgFilter)
     console.log(`[auto-start] cron cursor BEFORE org=${orgFilter ?? 'global'}: ${cursorIso}`)
     fromIso = new Date(Math.min(
