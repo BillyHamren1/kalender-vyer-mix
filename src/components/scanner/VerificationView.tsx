@@ -167,6 +167,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   }), [rfid, clearSessionDedup]);
 
   const [showRecentScans, setShowRecentScans] = useState(false);
+  const [showScanDebug, setShowScanDebug] = useState(false);
+  const scanTimeline = useScanTimeline();
 
   // Realtime sync: refetch when packing_list_items or packing_projects change
   const realtimeTables = useMemo(() => ['packing_list_items', 'packing_projects'], []);
