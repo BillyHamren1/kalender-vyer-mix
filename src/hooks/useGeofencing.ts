@@ -799,9 +799,12 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       return decideExitAction(signals);
     })();
 
-    // Today (local YYYY-MM-DD) — bookings/projects only auto-prompt if user is
-    // assigned TODAY. Geofence is for warehouses + jobs you're scheduled on,
-    // never for jobs planned weeks ahead.
+    // AUTO-START POLICY (2026-05): Personal som befinner sig på en KÄND
+    // arbetsplats (org_location, någon projekt-/booking-adress vi har i
+    // EventFlow) ska få workday + activity-timer auto-startat — även om
+    // de inte är assignade just idag. 9/10 är detta korrekt; det fåtal
+    // gånger det är fel hanteras av "Detta var inte arbete"-knappen i
+    // banner-notisen som visas direkt efter auto-start.
     const todayLocal = getLocalIsoDate();
     const isAssignedToday = (b: MobileBooking) =>
       isBookingPlannedOnDate(b, todayLocal);
