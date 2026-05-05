@@ -478,6 +478,76 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     return set;
   }, [model.actualVisits]);
 
+  // Bygg ResolvedPlace för en koordinat ur lookup + ev. matchad känd plats.
+  const buildResolvedPlace = (
+    coord: { lat: number; lng: number } | null | undefined,
+    opts: {
+      isMatched: boolean;
+      knownLabel?: string | null;
+    },
+  ): ResolvedPlace | null => {
+    if (!coord && !opts.isMatched) return null;
+    const lookup = coord ? lookupCoord(coord) : null;
+    const lat = coord?.lat ?? null;
+    const lng = coord?.lng ?? null;
+    const mapUrl = lookup?.geo?.mapsUrl
+      ?? (lat != null && lng != null
+        ? `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`
+        : null);
+
+    if (opts.isMatched) {
+      return {
+        label: opts.knownLabel ?? 'Känd plats',
+        address: null,
+        city: null,
+        poiName: null,
+        poiCategory: null,
+        lat, lng, mapUrl,
+        lookupStatus: 'matched_internal',
+        confidence: 'high',
+      };
+    }
+    if (!lookup) {
+      return {
+        label: 'Okänd plats – adress saknas',
+        address: null, city: null, poiName: null, poiCategory: null,
+        lat, lng, mapUrl,
+        lookupStatus: 'failed',
+        confidence: 'low',
+      };
+    }
+    if (lookup.status === 'loading') {
+      return {
+        label: 'Slår upp adress…',
+        address: null, city: null, poiName: null, poiCategory: null,
+        lat, lng, mapUrl,
+        lookupStatus: 'pending',
+        confidence: 'low',
+      };
+    }
+    if (lookup.status === 'error' || !lookup.geo) {
+      return {
+        label: 'Okänd plats – adress saknas',
+        address: null, city: null, poiName: null, poiCategory: null,
+        lat, lng, mapUrl,
+        lookupStatus: 'failed',
+        confidence: 'low',
+      };
+    }
+    const g = lookup.geo;
+    const status: PlaceLookupStatus = g.poiName ? 'poi_lookup' : 'reverse_geocoded';
+    return {
+      label: g.label,
+      address: g.address,
+      city: g.city,
+      poiName: g.poiName,
+      poiCategory: g.poiCategory,
+      lat, lng, mapUrl,
+      lookupStatus: status,
+      confidence: 'medium',
+    };
+  };
+
   // Substituera "okänd plats" med uppslagen adress/POI och addera försiktig
   // tolkning (inferred_label / inferred_activity_type / confidence).
   const events: ActualEvent[] = useMemo(() => {
@@ -557,6 +627,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           ? `https://www.google.com/maps/search/?api=1&query=${coordCentre.lat.toFixed(6)},${coordCentre.lng.toFixed(6)}`
           : null;
 
+        const resolvedPlace = buildResolvedPlace(coordCentre ?? null, {
+          isMatched,
+          knownLabel: isMatched ? (visit?.label ?? placeLabel) : placeLabel,
+        });
+
         return {
           ...ev,
           label,
@@ -574,6 +649,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           internal_match_status: internalMatchStatus as any,
           maps_url: mapsUrl,
           coords: coordCentre,
+          resolvedPlace,
         } as any;
       }
       if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
@@ -591,11 +667,27 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         const toMaps = !toKnown && m?.toCentre
           ? `https://www.google.com/maps/search/?api=1&query=${m.toCentre.lat.toFixed(6)},${m.toCentre.lng.toFixed(6)}`
           : null;
+
+        const fromPlace: JourneyPlace = {
+          label: (m?.from_label as string | undefined) ?? fromLbl ?? '—',
+          mapUrl: fromMaps,
+          lat: m?.fromCentre?.lat ?? null,
+          lng: m?.fromCentre?.lng ?? null,
+        };
+        const toPlace: JourneyPlace = {
+          label: (m?.to_label as string | undefined) ?? toLbl ?? '—',
+          mapUrl: toMaps,
+          lat: m?.toCentre?.lat ?? null,
+          lng: m?.toCentre?.lng ?? null,
+        };
+
         return {
           ...ev,
           label: `Förflyttning: ${fromLbl} → ${toLbl}`,
           from_maps_url: fromMaps,
           to_maps_url: toMaps,
+          fromPlace,
+          toPlace,
         } as any;
       }
       return ev;
