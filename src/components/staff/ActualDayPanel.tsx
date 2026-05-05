@@ -342,6 +342,25 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   const wdMin = wd
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
     : 0;
+  const repairIndicators = useMemo(() => computeStrongWorkIndicators(model), [model]);
+  const showRepairBanner = !wd && repairIndicators.hasStrong && !!repairIndicators.proposedStartIso;
+  const [repairBusy, setRepairBusy] = useState(false);
+  const handleRepair = async () => {
+    if (!onRepairWorkdayFromEvidence || !repairIndicators.proposedStartIso) return;
+    try {
+      setRepairBusy(true);
+      await onRepairWorkdayFromEvidence({
+        proposedStartIso: repairIndicators.proposedStartIso,
+        proposedEndIso: repairIndicators.proposedEndIso,
+        reasonCodes: repairIndicators.reasonCodes,
+      });
+      toast.success('Arbetsdag skapad från arbetsbevis');
+    } catch (e: any) {
+      toast.error(`Kunde inte skapa arbetsdag: ${e?.message ?? e}`);
+    } finally {
+      setRepairBusy(false);
+    }
+  };
 
   const rawEvents = showAllEvents ? buildRawTimeline(model.actualEvents) : buildMainTimeline(model.actualEvents);
   const hiddenReasons = useMemo(() => buildHiddenReasonMap(model.actualEvents), [model.actualEvents]);
