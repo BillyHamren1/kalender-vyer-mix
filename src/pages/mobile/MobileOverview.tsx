@@ -447,10 +447,45 @@ const MobileOverview: React.FC = () => {
         <PhaseChip label="Rigdown" count={kpi.rigdown} cls="bg-blue-500/10 text-blue-700 dark:text-blue-300" />
       </div>
 
-      {isLoading && <div className="px-4"><ListSkeleton /></div>}
-      {isError && <ErrorState text={t('overview.error')} />}
+      {authNotReady && (
+        <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+          {t('overview.state.loading')}
+        </div>
+      )}
+      {!authNotReady && !isPlanner && (
+        <div className="px-4 py-12 text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-2" />
+          <div className="text-sm font-semibold">{t('overview.state.forbidden')}</div>
+          <div className="text-xs text-muted-foreground mt-1">{t('overview.state.forbiddenDesc')}</div>
+        </div>
+      )}
+      {!authNotReady && isPlanner && isForbidden && (
+        <div className="px-4 py-12 text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto text-destructive mb-2" />
+          <div className="text-sm font-semibold text-destructive">{t('overview.state.forbidden')}</div>
+          <div className="text-xs text-muted-foreground mt-1">{t('overview.state.forbiddenDesc')}</div>
+        </div>
+      )}
+      {!authNotReady && isPlanner && !isForbidden && isLoading && (
+        <div className="px-4">
+          <div className="text-xs text-muted-foreground mb-2 text-center">{t('overview.state.loading')}</div>
+          <ListSkeleton />
+        </div>
+      )}
+      {!authNotReady && isPlanner && !isForbidden && isError && (
+        <div className="px-4 py-12 text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto text-destructive mb-2" />
+          <div className="text-sm font-semibold text-destructive">{t('overview.state.error')}</div>
+          <div className="text-xs text-muted-foreground mt-1">{t('overview.state.errorDesc')}</div>
+        </div>
+      )}
+      {!authNotReady && isPlanner && !isForbidden && !isLoading && !isError && hasNoData && (
+        <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+          {t('overview.state.empty')}
+        </div>
+      )}
 
-      {!isLoading && !isError && (
+      {!authNotReady && isPlanner && !isForbidden && !isLoading && !isError && !hasNoData && (
         <div className="px-4 space-y-6">
           {/* === Section 1: Avvikelser (alltid överst) === */}
           <Section title={t('overview.section.anomalies')} icon={AlertTriangle}>
