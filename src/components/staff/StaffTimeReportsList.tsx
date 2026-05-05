@@ -11,7 +11,7 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { TimeReportReviewTable } from './TimeReportReviewTable';
 import { ActualDayPanel } from './ActualDayPanel';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
-import type { DaySegment, LatestPing, PlanningStatus } from '@/pages/StaffTimeReports';
+import type { DaySegment, LatestPing, PlanningStatus, PresenceDebug } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
@@ -45,6 +45,7 @@ interface StaffWithDayReport {
   pingsFetchError?: string | null;
   planningStatus: PlanningStatus;
   plannedLabels: string[];
+  presence: PresenceDebug;
 }
 
 const PLANNING_BADGE: Record<PlanningStatus, { label: string; className: string } | null> = {
@@ -309,6 +310,38 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                     </div>
                   );
                 })()}
+                <details className="group rounded-md border border-dashed border-muted-foreground/20 bg-muted/30 px-3 py-1.5 text-[11px]">
+                  <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">
+                    Varför syns {staff.name}? <span className="opacity-60">(debug)</span>
+                  </summary>
+                  <div className="mt-2 space-y-1.5 text-foreground/90">
+                    <p className="text-foreground"><span className="font-semibold">{staff.presence.visibilityReason}</span></p>
+                    <p className="text-muted-foreground"><span className="font-semibold text-foreground">Status:</span> {staff.presence.statusReason}</p>
+                    <ul className="grid grid-cols-2 gap-x-3 gap-y-0.5 pt-1 font-mono text-[10.5px]">
+                      {([
+                        ['plannedFromBookingStaffAssignments', staff.presence.plannedFromBookingStaffAssignments],
+                        ['plannedFromStaffAssignments', staff.presence.plannedFromStaffAssignments],
+                        ['plannedFromLargeProjectStaff', staff.presence.plannedFromLargeProjectStaff],
+                        ['hasWorkday', staff.presence.hasWorkday],
+                        ['hasOpenWorkday', staff.presence.hasOpenWorkday],
+                        ['hasTimeReports', staff.presence.hasTimeReports],
+                        ['hasLocationTimeEntries', staff.presence.hasLocationTimeEntries],
+                        ['hasTravelLogs', staff.presence.hasTravelLogs],
+                        ['hasGpsPings', staff.presence.hasGpsPings],
+                        ['hasAssistantEvents', staff.presence.hasAssistantEvents],
+                        ['hasWorkdayFlags', staff.presence.hasWorkdayFlags],
+                      ] as Array<[string, boolean]>).map(([k, v]) => (
+                        <li key={k} className="flex items-center gap-1.5">
+                          <span className={v ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}>
+                            {v ? '✓' : '·'}
+                          </span>
+                          <span className={v ? 'text-foreground' : 'text-muted-foreground'}>{k}</span>
+                          <span className="ml-auto opacity-70">{String(v)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </details>
                 {staff.pingsFetchError && (
                   <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     ⚠️ GPS-historik kunde inte hämtas för {staff.name}. Dagens händelser kan vara ofullständiga. ({staff.pingsFetchError})
