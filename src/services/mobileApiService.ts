@@ -521,6 +521,9 @@ export const mobileApi = {
   getOverviewThreads: () =>
     callApi<{ threads: OverviewThread[] }>('get_overview_threads'),
 
+  getOpsOverview: (opts?: { from?: string; to?: string; mode?: 'day' | 'week'; include_anomalies?: boolean }) =>
+    callApi<OpsOverviewPayload>('get_ops_overview', opts || {}),
+
   // Broadcasts
   getBroadcasts: () =>
     callApi<{ broadcasts: any[] }>('get_broadcasts'),
