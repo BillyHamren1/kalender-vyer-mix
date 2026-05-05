@@ -1487,6 +1487,181 @@ Deno.serve(async (req) => {
         })
       }
 
+      case 'physical_return_scan': {
+        // WMS-first physical return scan (RFID/serial/QR).
+        // 1) Call WMS checkin-scan — that is the source of truth.
+        // 2) Only if WMS confirms, mirror locally by bumping quantity_returned
+        //    on the packing_list_items row that matches WMS item_type_id/sku.
+        const { packingId, scannedValue, returnedBy } = params
+        const serial = String(scannedValue || '').trim()
+        if (!packingId || !serial) {
+          return json({ success: false, error: 'packingId och scannedValue krävs' }, 400)
+        }
+        console.log('[scanner-api] physical_return_scan_start', {
+          packingId,
+          scannedValuePrefix: serial.slice(0, 12),
+          returnedBy,
+        })
+
+        const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
+        if (!PRICELIST_API_KEY) {
+          return json({ success: false, error: 'Lagersystem ej konfigurerat' })
+        }
+
+        // 1) WMS checkin-scan FIRST.
+        let checkinData: any = null
+        let checkinStatus = 0
+        try {
+          const checkinResponse = await fetch(
+            'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/checkin-scan',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+                'x-organization-id': ORG_ID,
+              },
+              body: JSON.stringify({ serial_number: serial }),
+            }
+          )
+          checkinStatus = checkinResponse.status
+          const text = await checkinResponse.text()
+          try { checkinData = JSON.parse(text) } catch { checkinData = { raw: text } }
+
+          const wmsBlocked = !checkinResponse.ok || checkinData?.success === false
+          if (wmsBlocked) {
+            const wmsError = checkinData?.error || checkinData?.message || `WMS svarade ${checkinStatus}`
+            console.warn('[scanner-api] wms_checkin_failed', {
+              packingId, serialPrefix: serial.slice(0, 12), status: checkinStatus, error: wmsError,
+            })
+            return json({ success: false, error: wmsError, data: checkinData?.data, wmsStatus: checkinStatus })
+          }
+        } catch (err) {
+          console.error('[scanner-api] wms_checkin_failed (network)', { serialPrefix: serial.slice(0, 12), err: String(err) })
+          return json({ success: false, error: 'Kunde inte nå lagersystemet' })
+        }
+
+        // Unwrap .data nesting
+        if (checkinData?.data && typeof checkinData.data === 'object') {
+          checkinData = { ...checkinData, ...checkinData.data }
+        }
+
+        const wmsItemTypeId: string | null = checkinData?.item_type_id || null
+        const wmsSku: string | null = checkinData?.sku || null
+        const wmsItemTypeName: string | null =
+          checkinData?.item_type_name || checkinData?.item_type || checkinData?.product_name || checkinData?.name || null
+        const wmsInstanceId: string | null = checkinData?.instance_id || null
+        const wmsSerialNumber: string | null = checkinData?.serial_number || null
+
+        console.log('[scanner-api] wms_checkin_success', {
+          packingId,
+          instance_id: wmsInstanceId,
+          serial_number: wmsSerialNumber,
+          item_type_id: wmsItemTypeId,
+          sku: wmsSku,
+          item_type_name: wmsItemTypeName,
+        })
+
+        // 2) Match local packing_list_items strictly by item_type_id then sku.
+        const { data: rows, error: rowsErr } = await supabase
+          .from('packing_list_items')
+          .select('id, quantity_packed, quantity_returned, booking_products (id, name, sku, inventory_item_type_id)')
+          .eq('packing_id', packingId)
+          .eq('organization_id', ORG_ID)
+          .gt('quantity_packed', 0)
+
+        if (rowsErr) {
+          console.error('[scanner-api] physical_return_scan rows fetch failed', rowsErr)
+          return json({ success: false, error: 'Kunde inte läsa packlistan' })
+        }
+
+        const itemTypeLower = wmsItemTypeId?.toLowerCase() || null
+        const skuLower = wmsSku?.toLowerCase() || null
+
+        let matched: any[] = []
+        if (itemTypeLower) {
+          matched = (rows || []).filter((r: any) =>
+            r.booking_products?.inventory_item_type_id?.toLowerCase() === itemTypeLower
+          )
+        }
+        if (matched.length === 0 && skuLower) {
+          matched = (rows || []).filter((r: any) =>
+            r.booking_products?.sku?.toLowerCase() === skuLower
+          )
+        }
+
+        if (matched.length === 0) {
+          console.warn('[scanner-api] local_return_match_missing', {
+            packingId,
+            item_type_id: wmsItemTypeId,
+            sku: wmsSku,
+            item_type_name: wmsItemTypeName,
+          })
+          return json({
+            success: false,
+            error: `WMS bekräftade scan men hittar ingen rad i packlistan (item_type=${wmsItemTypeId || '?'}, sku=${wmsSku || '?'})`,
+            wms: { instance_id: wmsInstanceId, item_type_id: wmsItemTypeId, sku: wmsSku, item_type_name: wmsItemTypeName },
+            debugCode: 'LOCAL_RETURN_MATCH_MISSING',
+          })
+        }
+
+        // Pick the row with most remaining-to-return (sent − back), deterministic
+        const target = [...matched].sort((a: any, b: any) => {
+          const remA = Math.max(0, (a.quantity_packed || 0) - (a.quantity_returned || 0))
+          const remB = Math.max(0, (b.quantity_packed || 0) - (b.quantity_returned || 0))
+          return (remB - remA) || String(a.id).localeCompare(String(b.id))
+        })[0]
+
+        const sentOut = Math.max(0, (target as any).quantity_packed ?? 0)
+        const currentBack = Math.max(0, (target as any).quantity_returned ?? 0)
+
+        console.log('[scanner-api] local_return_match_found', {
+          packingId,
+          itemId: (target as any).id,
+          sentOut,
+          currentBack,
+          via: itemTypeLower && (target as any).booking_products?.inventory_item_type_id?.toLowerCase() === itemTypeLower ? 'item_type_id' : 'sku',
+        })
+
+        if (currentBack >= sentOut) {
+          return json({
+            success: true,
+            alreadyReturned: true,
+            itemId: (target as any).id,
+            quantity_returned: currentBack,
+            quantity_packed: sentOut,
+            productName: (target as any).booking_products?.name || wmsItemTypeName,
+          })
+        }
+
+        const newQty = Math.min(currentBack + 1, sentOut)
+        await supabase.from('packing_list_items').update({
+          quantity_returned: newQty,
+          returned_at: new Date().toISOString(),
+          returned_by: returnedBy || null,
+        }).eq('id', (target as any).id).eq('organization_id', ORG_ID)
+
+        console.log('[scanner-api] local_quantity_returned_incremented', {
+          packingId,
+          itemId: (target as any).id,
+          from: currentBack,
+          to: newQty,
+          source: 'wms_checkin',
+        })
+
+        await transitionToReturning(supabase, packingId, ORG_ID)
+        await checkIfAllReturned(supabase, packingId, ORG_ID)
+
+        return json({
+          success: true,
+          itemId: (target as any).id,
+          productName: (target as any).booking_products?.name || wmsItemTypeName,
+          quantity_returned: newQty,
+          quantity_packed: sentOut,
+          wms: { instance_id: wmsInstanceId, item_type_id: wmsItemTypeId, sku: wmsSku },
+        })
+      }
+
       case 'return_scan_sku': {
         // Local-only return scan: match scanned value (SKU or product name)
         // against the packing's items where quantity_packed > quantity_returned,
