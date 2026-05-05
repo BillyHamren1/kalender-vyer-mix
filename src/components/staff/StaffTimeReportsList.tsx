@@ -448,6 +448,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                       Öppna full detaljvy →
                     </button>
                   }
+                  onResolvePlannedGap={(input) => handleResolvePlannedGap(staff.id, input)}
                 />
               </div>
             );
