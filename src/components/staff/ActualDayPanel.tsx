@@ -941,8 +941,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   }, [projectBlocks]);
 
   // Block-baserad huvudjournal (presence/journey-block).
-  // Ersätter den event-listade kompaktvyn — admin ser dagen som "var personen
-  // var" och "när personen flyttade sig" istället för en lista av tekniska kinds.
+  // VIKTIGT: bygger PÅ model.actualVisits + model.actualEvents — inte på den
+  // redan filtrerade mainEvents. timelineVisibility får aldrig vara gatekeeper
+  // för presenceBlocks i kompakt huvudjournal.
   const blockTimeline = useMemo(() => {
     const visitMap = new Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>();
     for (const v of model.actualVisits) {
@@ -954,11 +955,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       });
     }
     return buildDayBlockTimeline({
-      mainEvents,
-      allEvents: events,
+      allEvents: model.actualEvents,
+      actualVisits: model.actualVisits,
       visitByKey: visitMap,
     });
-  }, [mainEvents, events, model.actualVisits]);
+  }, [model.actualEvents, model.actualVisits]);
 
 
   // Föreslagna restider för "Godkänn"-knappar
