@@ -976,7 +976,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           // äkta osäkerhet (conflict / workday-failed). ───────────────────
           const startFn = autoActionsRef.start;
           if (startFn) {
-            void startFn({ kind: 'project', targetId: lpId, label: lpName, arrivedAtIso })
+            const projectPlannedToday = bookings.some(
+              (b) => b.large_project_id === lpId && isAssignedToday(b),
+            );
+            void startFn({ kind: 'project', targetId: lpId, label: lpName, arrivedAtIso, isPlannedToday: projectPlannedToday })
               .then((res) => {
                 if (res.status === 'conflict' || res.status === 'workday_failed') {
                   setGeofenceEvent({
