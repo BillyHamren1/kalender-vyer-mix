@@ -31,6 +31,12 @@ interface QuickTimeEditPopoverProps {
     bookingId?: string;
     eventType?: string;
     resourceId?: string;
+    extendedProps?: {
+      largeProjectId?: string;
+      sourceDate?: string;
+      eventType?: string;
+      [key: string]: any;
+    };
   };
   children: React.ReactNode;
   onUpdate?: () => void;
