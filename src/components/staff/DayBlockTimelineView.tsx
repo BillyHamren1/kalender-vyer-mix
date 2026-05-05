@@ -196,11 +196,13 @@ const RowShell: React.FC<{
   expandable?: boolean;
   expanded?: boolean;
   onToggle?: () => void;
+  trashSlot?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ accent, active, expandable, expanded, onToggle, children }) => {
+}> = ({ accent, active, expandable, expanded, onToggle, trashSlot, children }) => {
   return (
     <div
       className={`
+        group relative
         ${GRID}
         px-2.5 py-1
         border-b border-border last:border-b-0
@@ -214,7 +216,8 @@ const RowShell: React.FC<{
       tabIndex={expandable ? 0 : undefined}
     >
       {children}
-      <div className="flex justify-end text-muted-foreground">
+      <div className="flex items-center justify-end gap-0.5 text-muted-foreground">
+        {trashSlot}
         {expandable
           ? (expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />)
           : <span className="w-3.5" />}
