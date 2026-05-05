@@ -10068,8 +10068,235 @@ async function handleAdminUnapproveDay(
   )
 }
 
-// ============================================================================
-// GET_STAFF_DAY_REALITY — admin-only fact engine for one staff/day.
+/**
+ * admin_create_workday_from_planned — admin escalation path for the
+ * "planned time without signal" case (Prompt 6).
+ *
+ * Triggered from ActualDayPanel "Föreslagna korrigeringar" when staff was
+ * scheduled (e.g. 08:00) but no GPS/timer signal arrived until much later.
+ *
+ * Creates (or backdates) the workday from a chosen start time and persists
+ * audit metadata so it is OBVIOUS the period before first GPS comes from
+ * planning/confirmation, NOT from GPS evidence.
+ *
+ * Modes:
+ *   - mode='planned'      → start = plannedStartIso
+ *                            source='admin_from_assignment_no_signal'
+ *   - mode='first_signal' → start = firstSignalIso (regular evidence)
+ *                            source='admin_from_first_signal'
+ *   - mode='custom'       → start = customStartIso
+ *                            source='admin_custom_start_no_signal'
+ *   - mode='absence'      → no workday created; just a workday_flag
+ *                            (planned_time_without_signal, resolved=true)
+ */
+async function handleAdminCreateWorkdayFromPlanned(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden: admin or projekt role required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const {
+    target_staff_id,
+    flag_date,
+    mode,
+    planned_start_iso,
+    first_signal_iso,
+    custom_start_iso,
+    assignment_id,
+    note,
+  } = data || {}
+
+  const ALLOWED_MODES = ['planned', 'first_signal', 'custom', 'absence']
+  if (!target_staff_id || !flag_date || !ALLOWED_MODES.includes(mode)) {
+    return new Response(
+      JSON.stringify({ error: 'target_staff_id, flag_date, valid mode required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Common context written into both workdays.metadata and workday_flags.context
+  const plannedMs = planned_start_iso ? new Date(planned_start_iso).getTime() : null
+  const firstMs = first_signal_iso ? new Date(first_signal_iso).getTime() : null
+  const noSignalGapMin = (plannedMs != null && firstMs != null)
+    ? Math.max(0, Math.round((firstMs - plannedMs) / 60_000))
+    : null
+
+  // ── Mode: absence — no workday, just a resolved flag.
+  if (mode === 'absence') {
+    const { data: flag, error: fErr } = await supabase
+      .from('workday_flags')
+      .insert({
+        organization_id: organizationId,
+        staff_id: target_staff_id,
+        flag_type: 'planned_time_without_signal',
+        severity: 'info',
+        flag_date,
+        title: 'Markerad som frånvaro av admin (planerad tid utan signal)',
+        description: note || null,
+        needs_user_input: false,
+        resolved: true,
+        resolved_at: new Date().toISOString(),
+        resolution_source: 'admin',
+        resolution_note: note || null,
+        resolved_by: callerUserId,
+        context: {
+          source: 'admin_marked_absence_no_signal',
+          assignment_id: assignment_id || null,
+          planned_start: planned_start_iso || null,
+          first_signal_at: first_signal_iso || null,
+          no_signal_gap_minutes: noSignalGapMin,
+          confirmation_required: false,
+        },
+      })
+      .select('id, flag_type, flag_date')
+      .single()
+    if (fErr) {
+      return new Response(JSON.stringify({ error: fErr.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    return new Response(JSON.stringify({ created: 'flag', flag, workday: null }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  // ── Mode: workday creation/backdating.
+  let startedAtIso: string | null = null
+  let source: string = ''
+  if (mode === 'planned') {
+    if (!planned_start_iso) {
+      return new Response(JSON.stringify({ error: 'planned_start_iso required for mode=planned' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    startedAtIso = planned_start_iso
+    source = 'admin_from_assignment_no_signal'
+  } else if (mode === 'first_signal') {
+    if (!first_signal_iso) {
+      return new Response(JSON.stringify({ error: 'first_signal_iso required for mode=first_signal' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    startedAtIso = first_signal_iso
+    source = 'admin_from_first_signal'
+  } else if (mode === 'custom') {
+    if (!custom_start_iso) {
+      return new Response(JSON.stringify({ error: 'custom_start_iso required for mode=custom' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    startedAtIso = custom_start_iso
+    source = 'admin_custom_start_no_signal'
+  }
+
+  if (!startedAtIso) {
+    return new Response(JSON.stringify({ error: 'could not derive startedAtIso' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  const metadata = {
+    source,
+    assignment_id: assignment_id || null,
+    planned_start: planned_start_iso || null,
+    first_signal_at: first_signal_iso || null,
+    no_signal_gap_minutes: noSignalGapMin,
+    confirmation_required: mode === 'planned' || mode === 'custom',
+    created_by_admin: true,
+    admin_user_id: callerUserId,
+    admin_note: note || null,
+  }
+
+  // Find existing workday on this date for the target staff (if any).
+  const dayStart = `${flag_date}T00:00:00.000Z`
+  const dayEnd = `${flag_date}T23:59:59.999Z`
+  const { data: existing } = await supabase
+    .from('workdays')
+    .select('id, started_at, ended_at, metadata')
+    .eq('staff_id', target_staff_id)
+    .eq('organization_id', organizationId)
+    .gte('started_at', dayStart)
+    .lte('started_at', dayEnd)
+    .order('started_at', { ascending: true })
+    .limit(1)
+
+  let workdayId: string | null = null
+  let createdNew = false
+
+  if (existing && existing.length > 0) {
+    const wd = existing[0]
+    workdayId = wd.id
+    const mergedMeta = { ...(wd.metadata ?? {}), admin_backdated: { ...metadata, previous_started_at: wd.started_at } }
+    const { error: upErr } = await supabase
+      .from('workdays')
+      .update({
+        started_at: startedAtIso,
+        metadata: mergedMeta,
+        review_status: 'needs_review',
+        review_note: `Admin justerade arbetsdagsstart (${source}). ${note || ''}`.slice(0, 2000),
+      })
+      .eq('id', wd.id)
+      .eq('organization_id', organizationId)
+    if (upErr) {
+      return new Response(JSON.stringify({ error: upErr.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+  } else {
+    const { data: ins, error: insErr } = await supabase
+      .from('workdays')
+      .insert({
+        staff_id: target_staff_id,
+        organization_id: organizationId,
+        started_at: startedAtIso,
+        started_by: 'admin',
+        notes: `Admin skapade arbetsdag (${source}). ${note || ''}`.slice(0, 2000),
+        metadata,
+        review_status: 'needs_review',
+      })
+      .select('id')
+      .single()
+    if (insErr) {
+      return new Response(JSON.stringify({ error: insErr.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    workdayId = ins.id
+    createdNew = true
+  }
+
+  // Always log a resolved workday_flag so admins can see the audit trail.
+  await supabase
+    .from('workday_flags')
+    .insert({
+      organization_id: organizationId,
+      staff_id: target_staff_id,
+      flag_type: 'planned_time_without_signal',
+      severity: 'info',
+      flag_date,
+      title: createdNew
+        ? `Arbetsdag skapad av admin (${source})`
+        : `Arbetsdagsstart justerad av admin (${source})`,
+      description: note || null,
+      needs_user_input: false,
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      resolution_source: 'admin',
+      resolution_note: note || null,
+      resolved_by: callerUserId,
+      context: { ...metadata, workday_id: workdayId, mode, started_at: startedAtIso },
+    })
+
+  return new Response(
+    JSON.stringify({
+      created: createdNew ? 'workday' : 'workday_updated',
+      workday_id: workdayId,
+      started_at: startedAtIso,
+      source,
+      metadata,
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
 // Wraps _shared/dayReality.ts. See PROMPT 1 spec for output shape.
 // ============================================================================
 import { buildDayReality, type RealitySessionInput, type KnownSite } from '../_shared/dayReality.ts'
