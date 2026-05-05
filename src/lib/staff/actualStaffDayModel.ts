@@ -717,28 +717,45 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       meta: { ...baseMeta, pingCount: v.pingCount },
       ...baseEnrichment,
     });
+    const dep = hasDepartureEvidence(v);
+    const ongoing = isVisitOngoing(v) && !dep.evidence;
+    const visitMeta = {
+      ...baseMeta,
+      ongoing,
+      departureEvidence: dep.evidence ? dep.reason : null,
+      lastPingAt: v.end,
+    };
+    const visitDisplayLabel = pz
+      ? visitLabel
+      : (ongoing
+        ? (placeLabel
+          ? `Vistelse pågår: ${placeLabel} · senaste GPS ${fmtLocalHM(v.end)}`
+          : `Vistelse pågår · senaste GPS ${fmtLocalHM(v.end)}`)
+        : visitLabel);
     events.push({
       id: `gps-visit:${v.placeKey}:${v.start}`,
       at: v.start,
-      until: v.end,
+      until: ongoing ? null : v.end,
       kind: 'gps_visit',
       severity: 'info',
-      label: visitLabel,
+      label: visitDisplayLabel,
       place: placeLabel,
       durationMin: v.durationMin,
-      meta: baseMeta,
+      meta: visitMeta,
       ...baseEnrichment,
     });
-    events.push({
-      id: `gps-dep:${v.placeKey}:${v.end}`,
-      at: v.end,
-      kind: 'gps_departure',
-      severity: 'info',
-      label: departureLabel,
-      place: placeLabel,
-      meta: baseMeta,
-      ...baseEnrichment,
-    });
+    if (dep.evidence) {
+      events.push({
+        id: `gps-dep:${v.placeKey}:${v.end}`,
+        at: v.end,
+        kind: 'gps_departure',
+        severity: 'info',
+        label: departureLabel,
+        place: placeLabel,
+        meta: { ...baseMeta, departureEvidence: dep.reason },
+        ...baseEnrichment,
+      });
+    }
   }
   for (const tr of input.travels) {
     const fromLabel = tr.from.knownSite?.name ?? null;
