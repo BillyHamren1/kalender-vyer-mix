@@ -36,6 +36,7 @@ import { evaluateStartConflict, type StartEvaluation } from '@/lib/timerConcurre
 import {
   useWorkSession,
   resolveTargetKey,
+  timerToTarget,
   type WorkTarget,
 } from '@/hooks/useWorkSession';
 import {
@@ -516,9 +517,149 @@ export function useTimerStartFlow(
     [activeTimers, labelFor, performStart],
   );
 
+  /**
+   * Auto-switch from geofence arrival on workplace B while a timer for
+   * workplace A is still running.
+   *
+   * Flow (no user prompt):
+   *   1. evaluate concurrency. If `duplicate` → already_running. If `allow`
+   *      → behaves identically to tryStartFromArrival.
+   *   2. If `switch` → stop the conflicting timer at `departureAtIso`
+   *      (defaults to arrival time of B), then start B at `arrivedAtIso`.
+   *   3. Emit a `geofence_auto_switch` assistant_event with metadata
+   *      (previous_target / next_target / departure_at / arrival_at /
+   *      confidence) so admin can audit the transition.
+   *
+   * Caller (geofence ENTER) is responsible for ensuring B is a known and
+   * stable arrival before invoking this. Workday is preserved (stopSession
+   * never ends the day; performStart re-uses the open workday).
+   */
+  const tryAutoSwitchFromArrival = useCallback(
+    async (
+      target: WorkTarget,
+      opts: RequestStartOptions & {
+        departureAtIso?: string;
+        confidence?: 'high' | 'medium' | 'low';
+        switchMetadata?: Record<string, unknown>;
+      } = {},
+    ): Promise<StartStatus> => {
+      const label = opts.label ?? labelFor(target);
+      const evalResult = evaluateStartConflict(target, activeTimers);
+
+      if (evalResult.status === 'duplicate') return 'already_running';
+
+      if (evalResult.status === 'allow') {
+        return performStart(target, {
+          startedAtIso: opts.startedAtIso,
+          label,
+          taskId: opts.taskId,
+          taskTitle: opts.taskTitle,
+          suppressToast: opts.suppressToast,
+        });
+      }
+
+      // status === 'switch' → auto-switch silently.
+      const arrivedAtIso = opts.startedAtIso ?? new Date().toISOString();
+      const departureAtIso = opts.departureAtIso ?? arrivedAtIso;
+      const conflict = evalResult.conflict;
+      const existing = activeTimers.get(conflict.key);
+
+      let prevTargetType: 'booking' | 'project' | 'location' | null = null;
+      let prevTargetId: string | null = null;
+      let prevLabel: string | null = conflict.label;
+
+      if (existing) {
+        const stopTarget = timerToTarget(conflict.key, existing);
+        prevTargetType = stopTarget.kind;
+        prevTargetId =
+          stopTarget.kind === 'booking'
+            ? stopTarget.bookingId
+            : stopTarget.kind === 'project'
+              ? stopTarget.largeProjectId
+              : stopTarget.locationId;
+        prevLabel =
+          stopTarget.kind === 'booking'
+            ? stopTarget.client
+            : stopTarget.name;
+
+        try {
+          const res = await stopSession(stopTarget, {
+            stopAtIso: departureAtIso,
+          });
+          if (res?.cancelled) {
+            // User-cancellable break-prompt etc. should not happen on the
+            // auto-switch path (geofence is silent), but bail safely.
+            return 'start_failed';
+          }
+        } catch (err: any) {
+          console.warn('[AutoSwitch] stopSession threw:', err);
+          return 'start_failed';
+        }
+      }
+
+      const startStatus = await performStart(target, {
+        startedAtIso: arrivedAtIso,
+        label,
+        taskId: opts.taskId,
+        taskTitle: opts.taskTitle,
+        suppressToast: true,
+      });
+
+      if (startStatus === 'started' || startStatus === 'already_running') {
+        const nextTargetId =
+          target.kind === 'booking'
+            ? target.bookingId
+            : target.kind === 'project'
+              ? target.largeProjectId
+              : target.locationId;
+
+        // Audit event so admin can see exactly why a switch occurred.
+        void mobileApi.assistantEvents
+          .create({
+            event_type: 'arrival',
+            target_type: target.kind,
+            target_id: nextTargetId,
+            target_label: label,
+            happened_at: arrivedAtIso,
+            source: 'geofence',
+            suggested_action: 'auto_switched_activity',
+            metadata: {
+              source: 'geofence_auto_switch',
+              previous_target: prevTargetId
+                ? {
+                    kind: prevTargetType,
+                    id: prevTargetId,
+                    label: prevLabel,
+                  }
+                : null,
+              next_target: {
+                kind: target.kind,
+                id: nextTargetId,
+                label,
+              },
+              departure_at: departureAtIso,
+              arrival_at: arrivedAtIso,
+              confidence: opts.confidence ?? 'high',
+              ...(opts.switchMetadata ?? {}),
+            },
+          })
+          .catch(() => {});
+
+        // Soft toast so the user sees what happened.
+        if (!opts.suppressToast) {
+          toast.message(`Bytte aktivitet → ${label}`);
+        }
+      }
+
+      return startStatus;
+    },
+    [activeTimers, labelFor, performStart, stopSession],
+  );
+
   return {
     requestStart,
     tryStartFromArrival,
+    tryAutoSwitchFromArrival,
     cancelConflict,
     confirmSwitch,
     conflictEval,
