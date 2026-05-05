@@ -36,6 +36,7 @@ import type {
 import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStopConfident } from '@/lib/staff/stopSourceClassifier';
 import { computeStrongWorkIndicators, type StrongWorkReasonCode } from '@/lib/staff/strongWorkIndicators';
 import { resolvePlaceLabel } from '@/lib/staff/resolvePlaceLabel';
+import ProjectVisitBlock, { buildProjectBlocks } from './ProjectVisitBlock';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
