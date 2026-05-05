@@ -168,8 +168,14 @@ const CustomCalendarPage = () => {
 
   const { teamResources } = useTeamResources();
 
+  // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
+  const syncToStore = usePlannerSync();
+
   // Week navigation state (for desktop) and month state (for mobile)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    if (persisted?.currentWeekStart) {
+      return startOfWeek(new Date(persisted.currentWeekStart), { weekStartsOn: 1 });
+    }
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
 
@@ -183,6 +189,17 @@ const CustomCalendarPage = () => {
       setMonthlyDate(startOfMonth(currentWeekStart));
     }
   }, [viewMode]);
+
+  // Persist view state so back-navigation restores the same calendar position
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CALENDAR_STATE_KEY, JSON.stringify({
+        viewMode,
+        currentWeekStart: currentWeekStart.toISOString(),
+        monthlyDate: monthlyDate.toISOString(),
+      }));
+    } catch { /* ignore quota */ }
+  }, [viewMode, currentWeekStart, monthlyDate]);
 
   // STORE SYNC: Keep PlannerStore in sync with local state (legacy bridge)
   useEffect(() => {
