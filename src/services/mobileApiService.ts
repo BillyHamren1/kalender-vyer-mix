@@ -143,6 +143,9 @@ export interface MobileTravelLog {
 export interface OpsOverviewJob {
   id: string;
   type: 'booking' | 'large_project';
+  target_type: 'booking' | 'large_project';
+  target_id: string | null;
+  booking_id: string | null;
   title: string;
   booking_number: string | null;
   client: string | null;
