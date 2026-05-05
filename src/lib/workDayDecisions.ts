@@ -36,6 +36,8 @@ export const EVENING_FROM = 17;
 export const EVENING_TO = 28; // wraps past midnight
 export const LAST_WORKPLACE_GAP_MIN = 15;
 export const LAST_WORKPLACE_GAP_MAX_HOURS = 12;
+/** Hur länge efter planerad start vi börjar fråga "när började du?" */
+export const LATE_AFTER_PLANNED_MIN = 30;
 
 export const COOLDOWNS_MS: Record<DecisionKind, number> = {
   daystart: 8 * 3600 * 1000,
@@ -43,6 +45,7 @@ export const COOLDOWNS_MS: Record<DecisionKind, number> = {
   last_workplace_for_day: 60 * 60 * 1000,
   long_pass_no_break: 60 * 60 * 1000,
   unclassified_anomaly: 24 * 3600 * 1000,
+  late_after_planned_start: 24 * 3600 * 1000,
 };
 
 export type DecisionKind =
@@ -50,7 +53,8 @@ export type DecisionKind =
   | 'activity_leave'
   | 'last_workplace_for_day'
   | 'long_pass_no_break'
-  | 'unclassified_anomaly';
+  | 'unclassified_anomaly'
+  | 'late_after_planned_start';
 
 export interface DaystartDecision {
   kind: 'daystart';
