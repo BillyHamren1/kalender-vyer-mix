@@ -19,6 +19,7 @@ import {
   fetchPackingForScanner,
   fetchPackingListItems,
   returnScanSku,
+  physicalReturnScan,
   returnToggleItem,
   returnDecrementItem,
   returnResetItem,
