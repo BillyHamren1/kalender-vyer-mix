@@ -39,10 +39,13 @@ const RowExcludeButton: React.FC<{ blockId: string; label: string }> = ({ blockI
       </AlertDialogTrigger>
       <AlertDialogContent onClick={(e) => e.stopPropagation()}>
         <AlertDialogHeader>
-          <AlertDialogTitle>Ta bort denna händelse från dagens rapport?</AlertDialogTitle>
+          <AlertDialogTitle>Ta bort denna händelse från dagens tolkning?</AlertDialogTitle>
           <AlertDialogDescription>
-            {label} markeras som exkluderad och försvinner från huvudjournalen.
-            Originaldata påverkas inte och borttagningen kan återställas via overlay-tabellen.
+            "{label}" döljs från huvudjournalen och räknas inte längre med i dagsstart, dagslut,
+            arbetsdag, projektvistelser, förflyttningar eller summeringar.
+            <br /><br />
+            <strong>Inget raderas:</strong> rå GPS-pings, assistant-events och time-tracking-data
+            ligger kvar oförändrade i råvyn ("Visa alla händelser") och kan när som helst återställas.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

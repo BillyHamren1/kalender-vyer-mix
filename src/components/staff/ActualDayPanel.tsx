@@ -1259,6 +1259,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           </div>
         ) : (
           <>
+          <div className="mb-2 rounded-md border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900 px-2.5 py-1.5 text-[11px] text-blue-900 dark:text-blue-200">
+            Rådata-vy. Här visas alla GPS-pings, assistant-events och tekniska rader oförändrat.
+            Admin-exkluderingar ({excludedKeys?.size ?? 0}) påverkar bara den tolkade huvudjournalen —
+            inget raderas i grunddatan och exkluderade rader visas fortfarande nedan.
+          </div>
           {projectBlocks.length > 0 && (
             <div className="space-y-2 mb-3">
               {projectBlocks.map(b => (
