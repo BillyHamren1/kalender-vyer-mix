@@ -95,8 +95,8 @@ interface StaffWithDayReport {
   /** Senaste GPS-fetchfel för dagen (om något), så UI kan varna istället för att tolka tomheten som "inga händelser". */
   pingsFetchError: string | null;
   /**
-   * Planeringsstatus för dagen — beräknas mot dagsbundna assignments i
-   * personalkalendern (booking_staff_assignments + staff_assignments)
+   * Planeringsstatus för dagen — beräknas mot dagsbundna JOBB-assignments
+   * (booking_staff_assignments)
    * unionat med faktisk aktivitet (workday/time_reports/LTE/travel/GPS).
    */
   planningStatus: PlanningStatus;
@@ -338,7 +338,6 @@ const StaffTimeReports: React.FC = () => {
       for (const r of saRows) {
         if (!r.staff_id) continue;
         plannedFromSA.add(r.staff_id);
-        addPlanned(r.staff_id, r.team_id ? `Team ${r.team_id}` : 'Team');
       }
       // OBS: large_project_staff är projektmedlemskap, inte dagsassignering.
       // Det får därför INTE användas för att visa någon som "planerad" på
@@ -1276,10 +1275,7 @@ const StaffTimeReports: React.FC = () => {
                 hasAssistantEvents: staffAssistantEvents.length > 0,
                 hasWorkdayFlags: staffFlags.length > 0,
               };
-              const isPlanned =
-                presenceFlags.plannedFromBookingStaffAssignments ||
-                presenceFlags.plannedFromStaffAssignments ||
-                presenceFlags.plannedFromLargeProjectStaff;
+               const isPlanned = presenceFlags.plannedFromBookingStaffAssignments;
               const hasActivity =
                 presenceFlags.hasTimeReports ||
                 presenceFlags.hasLocationTimeEntries ||
@@ -1303,7 +1299,7 @@ const StaffTimeReports: React.FC = () => {
 
               const visibilityParts: string[] = [];
               if (presenceFlags.plannedFromBookingStaffAssignments) visibilityParts.push('planerad i booking_staff_assignments');
-              if (presenceFlags.plannedFromStaffAssignments) visibilityParts.push('planerad i staff_assignments');
+              if (presenceFlags.plannedFromStaffAssignments) visibilityParts.push('teamplacerad i staff_assignments');
               if (presenceFlags.plannedFromLargeProjectStaff) visibilityParts.push('medlem i aktivt large_project');
               if (presenceFlags.hasWorkday) visibilityParts.push(presenceFlags.hasOpenWorkday ? 'pågående workday finns' : 'workday finns');
               if (presenceFlags.hasTimeReports) visibilityParts.push('time_reports finns');
@@ -1318,11 +1314,11 @@ const StaffTimeReports: React.FC = () => {
 
               const statusReasonMap: Record<PlanningStatus, string> = {
                 workday_active: 'Pågående arbetsdag — workdays.ended_at är null.',
-                planned_not_started: 'Planerad men ingen workday/timer/rapport/GPS finns ännu.',
+                planned_not_started: 'Jobbassignerad denna dag men ingen workday/timer/rapport finns ännu.',
                 unplanned_activity: 'Aktivitet finns men personen är inte planerad i någon assignment-källa.',
                 missing_workday: 'Aktivitet finns (rapport/timer/GPS) men ingen workday-rad har skapats.',
                 completed: 'Workday avslutad (ended_at satt).',
-                planned: 'Planerad och normal dag.',
+                planned: 'Jobbassignerad och normal dag.',
               };
 
               return {
