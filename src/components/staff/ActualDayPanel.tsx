@@ -544,8 +544,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       add(m.fromCentre);
       add(m.toCentre);
     }
+    // Block-vyn renderar PresenceBlock/JourneyBlock från actualVisits.
+    // Säkerställ att även unknown-visits' centre slås upp så blocklabels
+    // aldrig fastnar på "okänd plats" när vi har lat/lng.
+    for (const v of model.actualVisits) {
+      if (!v.knownSiteId) add(v.centre as any);
+    }
     return Array.from(seen.entries()).map(([key, c]) => ({ key, ...c }));
-  }, [rawEvents]);
+  }, [rawEvents, model.actualVisits]);
 
   const richGeo = useReverseGeocodeRichStatus(unknownCoords.map(c => ({ lat: c.lat, lng: c.lng })));
   const geoByKey = useMemo(() => {
@@ -972,6 +978,46 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   }, [model.actualEvents, model.actualVisits]);
 
 
+  // Berika blockTimeline med reverse-geocode-resultat så att PresenceBlock-/
+  // JourneyBlock-labels aldrig fastnar på "okänd plats" om vi har lat/lng.
+  // Regel: matched_internal lämnas orörd. Övriga får pending/success/failed
+  // label baserat på geoByKey (samma källa som rawEvents använder).
+  const enrichedBlockTimeline = useMemo(() => {
+    const applyEndpoint = <T extends { label: string; lat: number | null; lng: number | null; mapUrl: string | null; lookupStatus: string }>(p: T): T => {
+      if (!p) return p;
+      if (p.lookupStatus === 'matched_internal') return p;
+      if (p.lat == null || p.lng == null) return p;
+      const lookup = lookupCoord({ lat: p.lat, lng: p.lng });
+      if (!lookup) return p;
+      const mapUrl = lookup.geo?.mapsUrl
+        ?? p.mapUrl
+        ?? `https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+      if (lookup.status === 'loading') {
+        return { ...p, label: 'Slår upp adress…', mapUrl, lookupStatus: 'pending' as any };
+      }
+      if (lookup.status === 'error' || !lookup.geo) {
+        return { ...p, label: 'Okänd plats – adress kunde inte hämtas', mapUrl, lookupStatus: 'failed' as any };
+      }
+      const g = lookup.geo;
+      const status = g.poiName ? 'poi_lookup' : 'reverse_geocoded';
+      return { ...p, label: g.label, mapUrl, lookupStatus: status as any };
+    };
+    return blockTimeline.map(b => {
+      if (b.kind === 'presence') {
+        return { ...b, resolvedPlace: applyEndpoint(b.resolvedPlace) };
+      }
+      if (b.kind === 'journey') {
+        return {
+          ...b,
+          fromPlace: applyEndpoint(b.fromPlace),
+          toPlace: applyEndpoint(b.toPlace),
+        };
+      }
+      return b;
+    });
+  }, [blockTimeline, geoByKey]);
+
+
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
     t => !t.approved && (t.autoDetected || t.source === 'gap_derived'),
@@ -1121,7 +1167,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           </button>
         </div>
         {!showAllEvents ? (
-          <DayBlockTimeline blocks={blockTimeline} />
+          <DayBlockTimeline blocks={enrichedBlockTimeline} />
         ) : mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
