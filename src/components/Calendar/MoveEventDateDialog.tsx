@@ -374,6 +374,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   className="w-[120px]"
+                  disabled={lockedTimes}
                 />
                 <span className="text-muted-foreground">–</span>
                 <Input
@@ -381,8 +382,17 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
                   className="w-[120px]"
+                  disabled={lockedTimes}
                 />
               </div>
+              <label className="flex items-center gap-2 pt-1 text-xs text-muted-foreground cursor-pointer select-none">
+                <Checkbox
+                  checked={lockedTimes}
+                  onCheckedChange={(c) => setLockedTimes(c === true)}
+                />
+                <Lock className="h-3 w-3" />
+                Fasta tider (lås mot ändring)
+              </label>
             </div>
             </div>
 
