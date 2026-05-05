@@ -900,13 +900,18 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   // Bygg projektvistelseblock — visas separat och med högre vikt än vanliga
   // GPS-rader. Källan är gps_visit mot known site av typ booking:/large:.
   const projectBlocks = useMemo(() => {
-    const visitMap = new Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>();
+    const visitMap = new Map<string, VisitInfo>();
     for (const v of model.actualVisits) {
       visitMap.set(v.key, {
         knownSiteId: v.knownSiteId,
         label: v.label,
         durationMin: v.durationMin,
         end: v.end,
+        centre: v.centre,
+        nearestKnownSite: v.nearestKnownSite ?? null,
+        unmatchReason: v.unmatchReason ?? null,
+        pingCount: v.pingCount,
+        avgAccuracy: v.avgAccuracy,
       });
     }
     const plannedTargetIds = new Set<string>();
@@ -945,13 +950,18 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   // redan filtrerade mainEvents. timelineVisibility får aldrig vara gatekeeper
   // för presenceBlocks i kompakt huvudjournal.
   const blockTimeline = useMemo(() => {
-    const visitMap = new Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>();
+    const visitMap = new Map<string, VisitInfo>();
     for (const v of model.actualVisits) {
       visitMap.set(v.key, {
         knownSiteId: v.knownSiteId,
         label: v.label,
         durationMin: v.durationMin,
         end: v.end,
+        centre: v.centre,
+        nearestKnownSite: v.nearestKnownSite ?? null,
+        unmatchReason: v.unmatchReason ?? null,
+        pingCount: v.pingCount,
+        avgAccuracy: v.avgAccuracy,
       });
     }
     return buildDayBlockTimeline({
