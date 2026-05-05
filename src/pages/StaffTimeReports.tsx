@@ -188,9 +188,20 @@ const composeLocalIso = (dateStr: string, timeStr: string): string =>
   stockholmWallClockToIso(dateStr, timeStr);
 
 const StaffTimeReports: React.FC = () => {
-  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  // Deep-link support: ?staff=<id>&date=YYYY-MM-DD öppnar direkt i detaljvyn.
+  const initialParams = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+  const initialStaff = initialParams.get('staff');
+  const initialDateParam = initialParams.get('date');
+  const parsedInitialDate = initialDateParam && /^\d{4}-\d{2}-\d{2}$/.test(initialDateParam)
+    ? new Date(`${initialDateParam}T12:00:00Z`)
+    : new Date();
+
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(initialStaff);
   const [selectedStaffName, setSelectedStaffName] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(parsedInitialDate);
+
 
   // Tolka selectedDate som Europe/Stockholm-dag oavsett webbläsarens TZ.
   // Vi formaterar YYYY-MM-DD i Stockholm-zonen och bygger UTC-instans-gränser
