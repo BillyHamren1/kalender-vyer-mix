@@ -71,8 +71,7 @@ if (mode === 'scanner') {
   let hasRfidAar = false;
   try {
     if (existsSync(libsDir)) {
-      const fs = await import('fs');
-      const files = fs.readdirSync(libsDir);
+      const files = readdirSync(libsDir);
       hasRfidAar = files.some(f => /\.aar$/i.test(f) && /(rfid|api3)/i.test(f));
     }
   } catch { /* ignore */ }
