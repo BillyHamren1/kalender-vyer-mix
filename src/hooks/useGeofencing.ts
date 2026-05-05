@@ -78,6 +78,16 @@ import {
   type ExitTrackerState,
   type ExitEvaluation,
 } from '@/lib/geofence/stableExit';
+import {
+  createEntryTracker,
+  resetEntryTracker,
+  recordEntryPing,
+  evaluateStableEntry,
+  buildEntryMetadata,
+  firstReliableArrivalTs,
+  type EntryTrackerState,
+  type EntryEvaluation,
+} from '@/lib/geofence/stableEntry';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
