@@ -408,10 +408,16 @@ const ActivityPlannerSheet = ({
     if (fail === 0) toast.success(`${ok} aktivitet(er) skapade`);
     else toast.warning(`${ok} skapade, ${fail} misslyckades`);
 
+    // Säkerställ att projektkalendern och alla task-listor uppdateras direkt
+    queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
+    queryClient.invalidateQueries({ queryKey: ["establishment-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+
     onTaskCreated();
     onOpenChange(false);
     setIsSubmitting(false);
-  }, [validRows, isProjectMode, selectedBookingId, bookingId, largeProjectId, onTaskCreated, onOpenChange]);
+  }, [validRows, isProjectMode, selectedBookingId, bookingId, largeProjectId, onTaskCreated, onOpenChange, queryClient]);
 
   // --- Render ---
   const toggleExpandProduct = useCallback((productId: string) => {
