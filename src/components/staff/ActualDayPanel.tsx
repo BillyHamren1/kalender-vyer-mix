@@ -37,6 +37,8 @@ import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStop
 import { computeStrongWorkIndicators, type StrongWorkReasonCode } from '@/lib/staff/strongWorkIndicators';
 import { resolvePlaceLabel } from '@/lib/staff/resolvePlaceLabel';
 import ProjectVisitBlock, { buildProjectBlocks } from './ProjectVisitBlock';
+import { buildDayBlockTimeline } from '@/lib/staff/dayBlockTimeline';
+import DayBlockTimeline from './DayBlockTimelineView';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
@@ -938,6 +940,26 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     null as (typeof ongoing)[number] | null);
   }, [projectBlocks]);
 
+  // Block-baserad huvudjournal (presence/journey-block).
+  // Ersätter den event-listade kompaktvyn — admin ser dagen som "var personen
+  // var" och "när personen flyttade sig" istället för en lista av tekniska kinds.
+  const blockTimeline = useMemo(() => {
+    const visitMap = new Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>();
+    for (const v of model.actualVisits) {
+      visitMap.set(v.key, {
+        knownSiteId: v.knownSiteId,
+        label: v.label,
+        durationMin: v.durationMin,
+        end: v.end,
+      });
+    }
+    return buildDayBlockTimeline({
+      mainEvents,
+      allEvents: events,
+      visitByKey: visitMap,
+    });
+  }, [mainEvents, events, model.actualVisits]);
+
 
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
@@ -1087,18 +1109,21 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             {showAllEvents ? 'Visa kompakt' : 'Visa alla händelser'}
           </button>
         </div>
-        {projectBlocks.length > 0 && (
-          <div className="space-y-2 mb-3">
-            {projectBlocks.map(b => (
-              <ProjectVisitBlock key={b.id} block={b} />
-            ))}
-          </div>
-        )}
-        {mainEvents.length === 0 && projectBlocks.length === 0 ? (
+        {!showAllEvents ? (
+          <DayBlockTimeline blocks={blockTimeline} />
+        ) : mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
           </div>
         ) : (
+          <>
+          {projectBlocks.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {projectBlocks.map(b => (
+                <ProjectVisitBlock key={b.id} block={b} />
+              ))}
+            </div>
+          )}
           <ol className="space-y-1">
             {mainEvents
               .filter(ev => {
@@ -1738,7 +1763,6 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               );
             })}
           </ol>
-        )}
         {backgroundEvents.length > 0 && (
           <div className="mt-3 pt-2 border-t border-dashed">
             <button
@@ -1779,6 +1803,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               </ol>
             )}
           </div>
+        )}
+        </>
         )}
       </section>
 

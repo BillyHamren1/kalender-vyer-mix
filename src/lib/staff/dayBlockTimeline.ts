@@ -1,0 +1,246 @@
+/**
+ * Day Block Timeline
+ * ──────────────────
+ * Bygger huvudjournalen som en sekvens av BLOCK istället för en lista av råa
+ * tekniska events. Detta ersätter "lista av kinds"-renderingen i
+ * ActualDayPanel så att admin ser dagen som:
+ *
+ *   PresenceBlock  →  JourneyBlock  →  PresenceBlock  →  JourneyBlock …
+ *
+ * Tekniska events (timer_started/stopped, time_report_*, gps_arrival/departure,
+ * assistant_*, server_*) dras IN i blocket de logiskt tillhör och visas bara i
+ * blockets expand-vy. Inget raderas — blocken refererar till sina källrader.
+ *
+ * Input: mainTimeline-events (efter classifyTimelineCoalesced) + actualVisits.
+ * Output: BlockTimeline[].
+ */
+
+import type { ActualEvent } from '@/lib/staff/actualStaffDayModel';
+
+export type BlockKind = 'presence' | 'journey';
+
+export type PresenceStrength = 'strong_visit' | 'possible_visit' | 'short_stop' | 'project';
+
+export interface PresenceBlock {
+  kind: 'presence';
+  id: string;
+  /** ISO start och slut. endIso=null om vistelsen pågår. */
+  startIso: string;
+  endIso: string | null;
+  durationMin: number;
+  /** placeKey från source-eventet (när det finns). */
+  placeKey: string | null;
+  /** Visningsetikett. */
+  title: string;
+  /** Sekundär rad — adress eller bookingnamn. */
+  subtitle: string | null;
+  /** Är det ett projekt/booking/large_project? */
+  isProject: boolean;
+  /** Stark/möjlig/kort/projekt — styr visuell vikt. */
+  strength: PresenceStrength;
+  /** Om en short_stop som behöver granskning. */
+  requiresReview: boolean;
+  /** Pågår vistelsen fortfarande (ingen departure)? */
+  ongoing: boolean;
+  /** Senaste ping inom vistelsen. */
+  lastPingIso: string | null;
+  /** Eventid som BYGGDE blocket (huvud-event). */
+  sourceEventIds: string[];
+  /** Tekniska events som mergeats in (raw_events i expand). */
+  innerEvents: ActualEvent[];
+  /** Timer-info om någon timer/LTE överlappade. */
+  timer: {
+    startedIso: string | null;
+    stoppedIso: string | null;
+    active: boolean;
+    present: boolean;
+  };
+}
+
+export interface JourneyBlock {
+  kind: 'journey';
+  id: string;
+  startIso: string;
+  endIso: string;
+  durationMin: number;
+  fromLabel: string | null;
+  toLabel: string | null;
+  fromPlaceKey: string | null;
+  toPlaceKey: string | null;
+  /** Om båda endpoints är arbetsplatser (annars osäker). */
+  bothKnown: boolean;
+  uncertain: boolean;
+  sourceEventIds: string[];
+  innerEvents: ActualEvent[];
+}
+
+export type DayBlock = PresenceBlock | JourneyBlock;
+
+export interface BuildBlockTimelineInput {
+  /** mainTimeline-events från classifyTimelineCoalesced (visibility=main). */
+  mainEvents: ActualEvent[];
+  /** Alla råa events (inkl raw_only) — används för att hitta mergeable detaljer. */
+  allEvents: ActualEvent[];
+  /** Indexerad på placeKey för label/duration-konsistens. */
+  visitByKey: Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>;
+}
+
+const META = (ev: ActualEvent): Record<string, unknown> => (ev.meta ?? {}) as Record<string, unknown>;
+
+const placeKeyOf = (ev: ActualEvent): string | null => {
+  const k = META(ev).placeKey;
+  return typeof k === 'string' ? k : null;
+};
+
+const isPresenceEvent = (ev: ActualEvent): boolean =>
+  ev.kind === 'gps_visit'
+  || ev.kind === 'gps_arrival'
+  || (ev.kind as string) === 'time_report_active'
+  || (ev.kind as string) === 'time_report_window';
+
+const isJourneyEvent = (ev: ActualEvent): boolean =>
+  ev.kind === 'gps_travel';
+
+const isInnerTechnical = (ev: ActualEvent): boolean =>
+  ev.kind === 'gps_arrival'
+  || ev.kind === 'gps_departure'
+  || ev.kind === 'timer_started'
+  || ev.kind === 'timer_stopped'
+  || ev.kind === 'assistant_arrival'
+  || ev.kind === 'assistant_departure'
+  || ev.kind === 'assistant_other'
+  || (ev.kind as string).startsWith('time_report')
+  || (ev.kind as string).startsWith('server_');
+
+const strengthFromMeta = (ev: ActualEvent, fallbackMin: number): PresenceStrength => {
+  const m = META(ev);
+  const s = m.stopStrength;
+  if (s === 'strong_visit' || s === 'possible_visit' || s === 'short_stop' || s === 'project') return s;
+  if (fallbackMin >= 30) return 'strong_visit';
+  if (fallbackMin >= 15) return 'possible_visit';
+  return 'short_stop';
+};
+
+export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[] {
+  const { mainEvents, allEvents, visitByKey } = input;
+
+  // 1) Bygg presence/journey kärnor (chronologiskt)
+  const sortedMain = [...mainEvents].sort((a, b) => a.at.localeCompare(b.at));
+  const blocks: DayBlock[] = [];
+
+  for (const ev of sortedMain) {
+    if (isPresenceEvent(ev)) {
+      const m = META(ev);
+      const pk = placeKeyOf(ev);
+      const visit = pk ? visitByKey.get(pk) : undefined;
+      const knownSiteId = visit?.knownSiteId ?? null;
+      const isProject = !!knownSiteId
+        && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
+      const ongoing = m.ongoing === true;
+      const startIso = ev.at;
+      const endIso = ongoing ? null : (ev.until ?? visit?.end ?? null);
+      const durationMin = ev.durationMin ?? visit?.durationMin ?? 0;
+      const requiresReview = m.requires_review === true || m.shortStopPromoted === true;
+      const strength: PresenceStrength = isProject
+        ? 'project'
+        : strengthFromMeta(ev, durationMin);
+      const block: PresenceBlock = {
+        kind: 'presence',
+        id: `pb:${ev.id}`,
+        startIso,
+        endIso,
+        durationMin,
+        placeKey: pk,
+        title: visit?.label || ev.place || (typeof ev.label === 'string' ? ev.label : 'Plats'),
+        subtitle: null,
+        isProject,
+        strength,
+        requiresReview,
+        ongoing,
+        lastPingIso: (m.visit_last_seen_at as string | undefined) ?? (m.lastPingAt as string | undefined) ?? visit?.end ?? null,
+        sourceEventIds: [ev.id],
+        innerEvents: [],
+        timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+      };
+      blocks.push(block);
+      continue;
+    }
+    if (isJourneyEvent(ev)) {
+      const m = META(ev);
+      const labelStr = typeof ev.label === 'string' ? ev.label : '';
+      const stripped = labelStr.replace(/^(Förflyttning|Möjlig förflyttning[^:]*|Bakgrunds-GPS[^:]*):\s*/, '');
+      const [from, to] = stripped.includes(' → ') ? stripped.split(' → ').map(s => s.trim()) : [null, null];
+      const fromKey = (m.fromPlaceKey as string | undefined) ?? null;
+      const toKey = (m.toPlaceKey as string | undefined) ?? null;
+      const bothKnown = !!m.bothKnown;
+      const journey: JourneyBlock = {
+        kind: 'journey',
+        id: `jb:${ev.id}`,
+        startIso: ev.at,
+        endIso: ev.until ?? ev.at,
+        durationMin: ev.durationMin ?? 0,
+        fromLabel: (m.from_label as string | undefined) ?? from ?? null,
+        toLabel: (m.to_label as string | undefined) ?? to ?? null,
+        fromPlaceKey: fromKey,
+        toPlaceKey: toKey,
+        bothKnown,
+        uncertain: !bothKnown,
+        sourceEventIds: [ev.id],
+        innerEvents: [],
+      };
+      blocks.push(journey);
+    }
+  }
+
+  // 2) Slå samman tekniska events (gps_arrival/departure, timer, assistant,
+  //    server, time_report_*) in i närmaste presence/journey-block. Gäller
+  //    BÅDE main- och raw_only-events — block äger detaljerna.
+  const allSorted = [...allEvents].sort((a, b) => a.at.localeCompare(b.at));
+  for (const ev of allSorted) {
+    if (!isInnerTechnical(ev)) continue;
+    // Skip om eventet redan är källa till ett block
+    if (blocks.some(b => b.sourceEventIds.includes(ev.id))) continue;
+
+    const evMs = new Date(ev.at).getTime();
+    const evPk = placeKeyOf(ev);
+
+    // Hitta bästa block: presence med samma placeKey som täcker tiden, annars
+    // närmaste journey som täcker tiden, annars närmaste block i tiden.
+    let target: DayBlock | null = null;
+    let bestScore = Infinity;
+    for (const b of blocks) {
+      const startMs = new Date(b.startIso).getTime();
+      const endMs = b.kind === 'presence'
+        ? (b.endIso ? new Date(b.endIso).getTime() : Number.POSITIVE_INFINITY)
+        : new Date(b.endIso).getTime();
+      const inside = evMs >= startMs - 60_000 && evMs <= endMs + 60_000;
+      const samePlace = b.kind === 'presence' && evPk && evPk === b.placeKey;
+      let score: number;
+      if (inside && samePlace) score = 0;
+      else if (inside) score = 1_000;
+      else score = Math.min(Math.abs(evMs - startMs), Math.abs(evMs - endMs)) + 10_000;
+      if (score < bestScore) {
+        bestScore = score;
+        target = b;
+      }
+    }
+    // Om ingen kandidat inom 30 min — släpp event (kommer att synas i raw-vyn ändå)
+    if (!target || bestScore > 1_800_000) continue;
+    target.innerEvents.push(ev);
+
+    // Uppdatera timer-info på presence-block
+    if (target.kind === 'presence') {
+      if (ev.kind === 'timer_started') {
+        if (!target.timer.startedIso) target.timer.startedIso = ev.at;
+        target.timer.present = true;
+        target.timer.active = true;
+      } else if (ev.kind === 'timer_stopped') {
+        target.timer.stoppedIso = ev.at;
+        target.timer.present = true;
+        target.timer.active = false;
+      }
+    }
+  }
+
+  return blocks;
+}
