@@ -114,13 +114,26 @@ export function classifyEventVisibility(ev: ActualEvent): ClassifiedEvent {
     }
   }
 
-  // 5) Korta okända besök / mikrostopp
+  // 5) Korta stopp / vistelser
+  //   0–2 min  → micro_stop (GPS-brus, alltid raw_only)
+  //   2–15 min → short_stop (raw_only by default; coalesce-pass kan promota
+  //              till main om stoppet ligger MELLAN två arbetsblock)
+  //   15+ min  → main (möjlig arbetsvistelse)
+  //   30+ min  → main (stark arbetsvistelse — annoteras i meta)
   if (ev.kind === 'gps_visit' || ev.kind === 'gps_arrival' || ev.kind === 'gps_departure') {
-    if (!matched && !workConfirmed && dur > 0 && dur < MIN_VISIT_MIN) {
-      return { event: ev, visibility: 'raw_only', reason_hidden: 'micro_stop' };
+    if (!matched && !workConfirmed && dur > 0) {
+      if (dur < MIN_NOISE_MIN) {
+        return { event: ev, visibility: 'raw_only', reason_hidden: 'micro_stop' };
+      }
+      if (dur < MIN_VISIT_MIN) {
+        // Markera som short_stop. Steg "short_stop_promotion" nedan kan lyfta
+        // det till main om det ligger mellan två arbetsblock och då labelas
+        // det "Kort stopp / kräver granskning".
+        return { event: ev, visibility: 'raw_only', reason_hidden: 'short_stop' };
+      }
     }
     // Okänd plats utan tydlig arbetskoppling — visa endast i raw.
-    if (!matched && rel === 'unknown_requires_lookup' && dur < MIN_VISIT_MIN) {
+    if (!matched && rel === 'unknown_requires_lookup' && dur < MIN_NOISE_MIN) {
       return { event: ev, visibility: 'raw_only', reason_hidden: 'low_confidence' };
     }
   }
