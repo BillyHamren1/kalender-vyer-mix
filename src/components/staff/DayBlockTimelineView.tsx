@@ -20,6 +20,26 @@ const fmtDur = (m: number) => {
   return `${r}m`;
 };
 
+/**
+ * Härled en säker label för en endpoint (presence eller journey).
+ * Huvudvyn får ALDRIG visa "okänd plats" ensam — vi mappar alltid
+ * lookupStatus + lat/lng till en meningsfull text.
+ */
+const safePlaceLabel = (
+  place?: { label?: string | null; lat?: number | null; lng?: number | null; lookupStatus?: string } | null,
+  fallback?: string | null,
+): string => {
+  const raw = (place?.label ?? fallback ?? '').trim();
+  const isUnknownOnly = !raw || /^okänd plats$/i.test(raw);
+  if (!isUnknownOnly) return raw;
+  const status = place?.lookupStatus;
+  const hasCoord = place?.lat != null && place?.lng != null;
+  if (status === 'failed') return 'Okänd plats – adress kunde inte hämtas';
+  if (status === 'pending') return 'Slår upp adress…';
+  if (hasCoord) return 'Slår upp adress…';
+  return 'Okänd plats – saknar koordinat';
+};
+
 /* ------------------------------------------------------------------ */
 /*  Shared row primitives — kompakta rader (~34–40px höga)            */
 /* ------------------------------------------------------------------ */
