@@ -305,27 +305,93 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
 
   // 2) JOURNEYS från ALLA events (inte filtrerade) — gps_travel är alltid main
   //    men vi går via allEvents så vi inte är beroende av buildMainTimeline.
+  //
+  //    REGEL (Steg 5): JourneyBlock får ENDAST skapas mellan två presenceBlocks.
+  //    Förbjudna fall (släpps från huvudjournalen, lever kvar i råvyn):
+  //      - samma plats (FA Warehouse → FA Warehouse / samePlaceTravel)
+  //      - privat/bakgrund/pre-workday lead-in (nattlig första GPS)
+  //      - saknad destination-presence (resa utan toBlock)
+  //      - duration < 1 min eller orimligt lång (>8h)
+  //    Resor som ersätter en faktisk vistelse förbjuds också (presence vinner).
   const sortedAll = [...allEvents].sort((a, b) => a.at.localeCompare(b.at));
+  const presenceBlocks = blocks.filter((b): b is PresenceBlock => b.kind === 'presence');
+  const findPresenceForJourney = (
+    journeyStartMs: number,
+    journeyEndMs: number,
+    side: 'from' | 'to',
+    placeKey: string | null,
+  ): PresenceBlock | null => {
+    let best: PresenceBlock | null = null;
+    let bestDist = Infinity;
+    for (const pb of presenceBlocks) {
+      const pbStart = new Date(pb.startIso).getTime();
+      const pbEnd = pb.endIso ? new Date(pb.endIso).getTime() : Number.POSITIVE_INFINITY;
+      const edgeMs = side === 'from' ? pbEnd : pbStart;
+      const journeyEdgeMs = side === 'from' ? journeyStartMs : journeyEndMs;
+      // Sidesregel: 'from' måste sluta före (eller överlappa) journey-start
+      if (side === 'from' && pbStart > journeyStartMs) continue;
+      if (side === 'to' && (pb.endIso ? pbEnd < journeyEndMs : false)) continue;
+      const placeMatch = !!placeKey && pb.placeKey === placeKey;
+      const dist = Math.abs(edgeMs - journeyEdgeMs);
+      // PlaceKey-match vinner alltid; annars närmaste inom 30 min
+      const score = placeMatch ? dist : dist + 60 * 60_000;
+      if (score < bestDist && (placeMatch || dist <= 30 * 60_000)) {
+        bestDist = score;
+        best = pb;
+      }
+    }
+    return best;
+  };
+
   for (const ev of sortedAll) {
     if (!isJourneyEvent(ev)) continue;
     if (consumedEventIds.has(ev.id)) continue;
     const m = META(ev);
+
+    // Förbud 1: privat/bakgrund/lead-in
+    const travelClass = m.travelClass as string | undefined;
+    const workRelevance = m.workRelevance as string | undefined;
+    const preWorkday = m.preWorkdayLeadIn === true;
+    if (travelClass === 'commute_or_background' || workRelevance === 'private_or_background' || preWorkday) {
+      continue;
+    }
+
+    const fromKey = (m.fromPlaceKey as string | undefined) ?? null;
+    const toKey = (m.toPlaceKey as string | undefined) ?? null;
+
+    // Förbud 2: samma plats (FA → FA)
+    if (m.samePlaceTravel === true || (fromKey && toKey && fromKey === toKey)) continue;
+
+    const startMs = new Date(ev.at).getTime();
+    const endMs = ev.until ? new Date(ev.until).getTime() : startMs;
+    const durMin = ev.durationMin ?? Math.round((endMs - startMs) / 60_000);
+
+    // Förbud 3: orimlig duration
+    if (durMin < 1 || durMin > 8 * 60) continue;
+
+    // Förbud 4: saknad fromBlock eller toBlock
+    const fromBlock = findPresenceForJourney(startMs, endMs, 'from', fromKey);
+    const toBlock = findPresenceForJourney(startMs, endMs, 'to', toKey);
+    if (!fromBlock || !toBlock) continue;
+
+    // Förbud 5: from och to mappar till samma presenceBlock
+    if (fromBlock === toBlock) continue;
+    if (fromBlock.placeKey && toBlock.placeKey && fromBlock.placeKey === toBlock.placeKey) continue;
+
     const labelStr = typeof ev.label === 'string' ? ev.label : '';
     const stripped = labelStr.replace(/^(Förflyttning|Möjlig förflyttning[^:]*|Bakgrunds-GPS[^:]*):\s*/, '');
     const [from, to] = stripped.includes(' → ') ? stripped.split(' → ').map(s => s.trim()) : [null, null];
-    const fromKey = (m.fromPlaceKey as string | undefined) ?? null;
-    const toKey = (m.toPlaceKey as string | undefined) ?? null;
     const bothKnown = !!m.bothKnown;
     blocks.push({
       kind: 'journey',
       id: `jb:${ev.id}`,
       startIso: ev.at,
       endIso: ev.until ?? ev.at,
-      durationMin: ev.durationMin ?? 0,
-      fromLabel: (m.from_label as string | undefined) ?? from ?? null,
-      toLabel: (m.to_label as string | undefined) ?? to ?? null,
-      fromPlaceKey: fromKey,
-      toPlaceKey: toKey,
+      durationMin: durMin,
+      fromLabel: (m.from_label as string | undefined) ?? from ?? fromBlock.title ?? null,
+      toLabel: (m.to_label as string | undefined) ?? to ?? toBlock.title ?? null,
+      fromPlaceKey: fromKey ?? fromBlock.placeKey,
+      toPlaceKey: toKey ?? toBlock.placeKey,
       bothKnown,
       uncertain: !bothKnown,
       sourceEventIds: [ev.id],
