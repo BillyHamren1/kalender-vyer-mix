@@ -97,11 +97,16 @@ export const useCalendarEvents = () => {
       }
     }, 45000);
 
+    // Manual cross-component refresh signal (dispatched after planning saves)
+    const onManualRefresh = () => loadEvents(true);
+    window.addEventListener('planner-calendar-refresh', onManualRefresh);
+
     return () => {
       activeRef.current = false;
       if (pollIntervalRef.current !== null) {
         clearInterval(pollIntervalRef.current);
       }
+      window.removeEventListener('planner-calendar-refresh', onManualRefresh);
     };
   }, [loadEvents]);
 
