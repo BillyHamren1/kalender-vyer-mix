@@ -169,6 +169,7 @@ const ActivityPlannerSheet = ({
   staffPool = [],
   existingTasks = [],
 }: ActivityPlannerSheetProps) => {
+  const queryClient = useQueryClient();
   const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [plannedProductIds, setPlannedProductIds] = useState<Set<string>>(new Set());
