@@ -401,9 +401,10 @@ const StaffTimeReports: React.FC = () => {
       });
 
       for (const event of derivedPlannedEvents) {
-        plannedFromBSA.add(event.staffId);
-        if (event.largeProjectId && !bsaRows.some(r => r.staff_id === event.staffId)) {
+        if (event.largeProjectId) {
           plannedFromLPS.add(event.staffId);
+        } else {
+          plannedFromBSA.add(event.staffId);
         }
         plannedStaffIds.add(event.staffId);
         const label = event.largeProjectName || event.client || 'Bokning';
@@ -1349,7 +1350,7 @@ const StaffTimeReports: React.FC = () => {
                 hasAssistantEvents: staffAssistantEvents.length > 0,
                 hasWorkdayFlags: staffFlags.length > 0,
               };
-               const isPlanned = presenceFlags.plannedFromBookingStaffAssignments;
+               const isPlanned = plannedStaffIds.has(s.id);
               const hasActivity =
                 presenceFlags.hasTimeReports ||
                 presenceFlags.hasLocationTimeEntries ||
@@ -1372,7 +1373,8 @@ const StaffTimeReports: React.FC = () => {
                         : 'planned';
 
               const visibilityParts: string[] = [];
-              if (presenceFlags.plannedFromBookingStaffAssignments) visibilityParts.push('planerad i booking_staff_assignments');
+              if (isPlanned) visibilityParts.push('planerad i personalkalendern för vald dag');
+              if (presenceFlags.plannedFromBookingStaffAssignments) visibilityParts.push('underlag från booking_staff_assignments');
               if (presenceFlags.plannedFromStaffAssignments) visibilityParts.push('teamplacerad i staff_assignments');
               if (presenceFlags.plannedFromLargeProjectStaff) visibilityParts.push('medlem i aktivt large_project');
               if (presenceFlags.hasWorkday) visibilityParts.push(presenceFlags.hasOpenWorkday ? 'pågående workday finns' : 'workday finns');
