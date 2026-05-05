@@ -1124,7 +1124,8 @@ export type WorkdayFlagType =
   | 'auto_closed_overnight'
   | 'auto_closed_travel'
   | 'auto_closed_report'
-  | 'unclear_start_target';
+  | 'unclear_start_target'
+  | 'planned_time_without_signal';
 
 export interface WorkdayFlag {
   id: string;
