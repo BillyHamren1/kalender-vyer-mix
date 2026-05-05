@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Briefcase, ChevronDown, ChevronRight, Clock, MapPin, Move, AlertTriangle, Activity, HelpCircle, FileText } from 'lucide-react';
+import { Briefcase, ChevronDown, ChevronRight, Clock, MapPin, Move, AlertTriangle, Activity, HelpCircle, FileText, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
 
