@@ -650,6 +650,33 @@ export async function processStaff(
     ordered.push({ ...h })
   }
 
+  // ── Assignment lookup (per dag) ──────────────────────────────────────────
+  // Used to lower the dwell threshold from 15 → 5 min for booking/project when
+  // staff is actually assigned to that target on the visit date.
+  const dayKeys = new Set<string>(ordered.map(h => new Date(h.firstReliableTs).toISOString().slice(0, 10)))
+  const assignedKey = (kind: string, id: string, day: string) => `${kind}:${id}:${day}`
+  const assignedSet = new Set<string>()
+  try {
+    const days = Array.from(dayKeys)
+    if (days.length > 0) {
+      const fromDay = days.reduce((a, b) => a < b ? a : b)
+      const toDay = days.reduce((a, b) => a > b ? a : b)
+      const { data: sa } = await supabase
+        .from('staff_assignments')
+        .select('booking_id, large_project_id, work_date')
+        .eq('staff_id', staffId)
+        .gte('work_date', fromDay)
+        .lte('work_date', toDay)
+      for (const row of sa ?? []) {
+        const day = String(row.work_date).slice(0, 10)
+        if (row.booking_id) assignedSet.add(assignedKey('booking', row.booking_id, day))
+        if (row.large_project_id) assignedSet.add(assignedKey('project', row.large_project_id, day))
+      }
+    }
+  } catch (e: any) {
+    console.warn('[auto-start] assignment lookup failed', e?.message ?? e)
+  }
+
   report.arrivals += ordered.length
 
   let workdayId: string | null = null
