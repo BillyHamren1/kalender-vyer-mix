@@ -36,6 +36,7 @@ import type {
 import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStopConfident } from '@/lib/staff/stopSourceClassifier';
 import { computeStrongWorkIndicators, type StrongWorkReasonCode } from '@/lib/staff/strongWorkIndicators';
 import { resolvePlaceLabel } from '@/lib/staff/resolvePlaceLabel';
+import ProjectVisitBlock, { buildProjectBlocks } from './ProjectVisitBlock';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
@@ -894,6 +895,41 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   );
   const [showBackground, setShowBackground] = useState(false);
 
+  // Bygg projektvistelseblock — visas separat och med högre vikt än vanliga
+  // GPS-rader. Källan är gps_visit mot known site av typ booking:/large:.
+  const projectBlocks = useMemo(() => {
+    const visitMap = new Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>();
+    for (const v of model.actualVisits) {
+      visitMap.set(v.key, {
+        knownSiteId: v.knownSiteId,
+        label: v.label,
+        durationMin: v.durationMin,
+        end: v.end,
+      });
+    }
+    const plannedTargetIds = new Set<string>();
+    for (const p of model.planningItems ?? []) {
+      const meta = (p as any).meta ?? {};
+      if (meta.bookingId) plannedTargetIds.add(`booking:${meta.bookingId}`);
+      if (meta.largeProjectId) plannedTargetIds.add(`large:${meta.largeProjectId}`);
+      if (meta.bookingId) plannedTargetIds.add(meta.bookingId);
+      if (meta.largeProjectId) plannedTargetIds.add(meta.largeProjectId);
+    }
+    return buildProjectBlocks({
+      events: mainEvents,
+      visitByKey: visitMap,
+      plannedTargetIds,
+      workdayStartedIso: wd?.started_at ?? null,
+    });
+  }, [mainEvents, model.actualVisits, model.planningItems, wd?.started_at]);
+
+  // PlaceKeys som projektblock äger — vi döljer deras gps_visit-rader från listan
+  const blockedPlaceKeys = useMemo(
+    () => new Set(projectBlocks.map(b => b.placeKey)),
+    [projectBlocks],
+  );
+
+
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
     t => !t.approved && (t.autoDetected || t.source === 'gap_derived'),
@@ -997,13 +1033,30 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             {showAllEvents ? 'Visa kompakt' : 'Visa alla händelser'}
           </button>
         </div>
-        {mainEvents.length === 0 ? (
+        {projectBlocks.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {projectBlocks.map(b => (
+              <ProjectVisitBlock key={b.id} block={b} />
+            ))}
+          </div>
+        )}
+        {mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
             Inga händelser registrerade för dagen.
           </div>
         ) : (
           <ol className="space-y-1">
-            {mainEvents.map(ev => {
+            {mainEvents
+              .filter(ev => {
+                // Vistelser/ankomster/avgångar som ägs av ett projektblock
+                // får inte renderas igen som vanliga GPS-rader.
+                const pk = (ev.meta as any)?.placeKey as string | undefined;
+                if (!pk || !blockedPlaceKeys.has(pk)) return true;
+                return ev.kind !== 'gps_visit'
+                  && ev.kind !== 'gps_arrival'
+                  && ev.kind !== 'gps_departure';
+              })
+              .map(ev => {
               const m = (ev.meta ?? {}) as any;
               const placeKey = m.placeKey as string | undefined;
               const visit = placeKey ? visitByKey.get(placeKey) : undefined;
