@@ -211,13 +211,31 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
     if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
   }, []);
 
+  // Transient "detected — sending" indicator shown immediately on detection,
+  // BEFORE the API has responded. Cleared by external feedback overlay or timeout.
+  const [detectedFlash, setDetectedFlash] = useState<{ tail: string; key: number } | null>(null);
+  const detectedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const detectedFlashKeyRef = useRef(0);
+
   const handleDetected = useCallback((value: string) => {
     if (value && value !== lastScanRef.current) {
       successfulDetectionRef.current = true;
       noPixelsSinceRef.current = null;
       lastScanRef.current = value;
       setManualInput(value);
+      // 1) Record exact moment of detection (camera path).
+      recordDetected({ value, source: 'camera' });
+      // 2) Immediate haptic feedback so user knows the camera saw it.
+      try { (navigator as any).vibrate?.(15); } catch { /* noop */ }
+      // 3) Tiny audible chirp (existing behaviour).
       playBeep(true);
+      // 4) Visual "Kod hittad – skickar..." chip until backend replies.
+      const tail = value.length > 10 ? `…${value.slice(-8)}` : value;
+      detectedFlashKeyRef.current += 1;
+      setDetectedFlash({ tail, key: detectedFlashKeyRef.current });
+      if (detectedFlashTimerRef.current) clearTimeout(detectedFlashTimerRef.current);
+      detectedFlashTimerRef.current = setTimeout(() => setDetectedFlash(null), 1500);
+      // 5) Hand off to processor.
       onScanRef.current(value);
       setTimeout(() => {
         lastScanRef.current = '';
