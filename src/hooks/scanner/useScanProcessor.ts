@@ -353,6 +353,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     }
 
     const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
+    const items = getItems();
+    const itemBefore = items.find(i => i.id === itemId);
+    const productName = itemBefore?.booking_products?.name || 'Produkt';
     const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName, activeParcelId);
     if (result.success) {
       if (!isCurrentlyPacked) {
@@ -360,12 +363,39 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         if (getIsKolliMode()) {
           await onAssignToKolli(itemId);
         }
+        // Treat manual check-off as a successful scan in the recent log.
+        if (result.manualScan) {
+          const value = `MANUAL_CHECKOFF:${itemId}`;
+          const displayName = result.productName || productName;
+          if (result.bundleSynced) {
+            optRef.current.onScanResult({
+              value,
+              result: `✅ Manuellt godkänd: ${displayName}`,
+              success: true,
+              productName: displayName,
+            });
+          } else {
+            optRef.current.onScanResult({
+              value,
+              result: result.warning || '⚠️ Packad lokalt, men Bundle-sync misslyckades',
+              success: true,
+              productName: displayName,
+            });
+            toast.warning(result.warning || 'Packad lokalt, men Bundle-sync misslyckades');
+          }
+          addRecentScan({
+            value,
+            productName: displayName,
+            success: true,
+            timestamp: Date.now(),
+          });
+        }
       }
       onTriggerSync();
     } else {
       toast.error(result.error || 'Could not update');
     }
-  }, []); // No deps — reads from optRef
+  }, [addRecentScan]); // reads rest from optRef
 
   const clearSessionDedup = useCallback(() => {
     scanLog('session_dedup_cleared');
