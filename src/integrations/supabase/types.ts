@@ -2560,6 +2560,93 @@ export type Database = {
         }
         Relationships: []
       }
+      location_auto_start_runs: {
+        Row: {
+          arrivals: number
+          closed_ltes: number
+          created_assistant_events: number
+          created_travel_logs: number
+          created_workdays: number
+          date_filter: string | null
+          dry_run: boolean
+          engine_version: string
+          errors: Json
+          finished_at: string | null
+          from_iso: string | null
+          id: string
+          mode: string
+          opened_ltes: number
+          organization_id: string | null
+          pings_processed: number
+          plan: Json | null
+          request_body: Json | null
+          skipped_existing: number
+          source_tag: string
+          staff_count: number
+          staff_id: string | null
+          started_at: string
+          status: string
+          switches: number
+          to_iso: string | null
+        }
+        Insert: {
+          arrivals?: number
+          closed_ltes?: number
+          created_assistant_events?: number
+          created_travel_logs?: number
+          created_workdays?: number
+          date_filter?: string | null
+          dry_run?: boolean
+          engine_version: string
+          errors?: Json
+          finished_at?: string | null
+          from_iso?: string | null
+          id?: string
+          mode: string
+          opened_ltes?: number
+          organization_id?: string | null
+          pings_processed?: number
+          plan?: Json | null
+          request_body?: Json | null
+          skipped_existing?: number
+          source_tag: string
+          staff_count?: number
+          staff_id?: string | null
+          started_at?: string
+          status?: string
+          switches?: number
+          to_iso?: string | null
+        }
+        Update: {
+          arrivals?: number
+          closed_ltes?: number
+          created_assistant_events?: number
+          created_travel_logs?: number
+          created_workdays?: number
+          date_filter?: string | null
+          dry_run?: boolean
+          engine_version?: string
+          errors?: Json
+          finished_at?: string | null
+          from_iso?: string | null
+          id?: string
+          mode?: string
+          opened_ltes?: number
+          organization_id?: string | null
+          pings_processed?: number
+          plan?: Json | null
+          request_body?: Json | null
+          skipped_existing?: number
+          source_tag?: string
+          staff_count?: number
+          staff_id?: string | null
+          started_at?: string
+          status?: string
+          switches?: number
+          to_iso?: string | null
+        }
+        Relationships: []
+      }
       location_time_entries: {
         Row: {
           booking_id: string | null

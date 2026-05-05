@@ -26,6 +26,8 @@ export const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+export const ENGINE_VERSION = 'auto-start@1.0.0'
+
 // ── Tuning constants (mirror src/lib/geofence/stableEntry.ts) ───────────────
 export const ENTRY_PING_MIN_COUNT = 3
 export const ENTRY_PING_MIN_DWELL_MS = 2 * 60 * 1000
@@ -64,6 +66,8 @@ export interface StableHit {
 }
 
 export interface ProcessReport {
+  run_id: string
+  engine_version: string
   mode: 'cron' | 'backfill_day'
   dry_run: boolean
   source_tag: string
@@ -276,6 +280,8 @@ async function ensureWorkdayOpen(
       metadata: {
         auto_started: true,
         auto_start_source: report.source_tag,
+        engine_version: report.engine_version,
+        run_id: report.run_id,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
         confidence: hit.confidence,
         arrival_pings_count: hit.pings.length,
@@ -329,6 +335,8 @@ async function closeOpenLteForSwitch(
         ...meta,
         closed_by: 'server_auto_switch',
         closed_at_source: 'geofence_auto_switch_server',
+        engine_version: report.engine_version,
+        run_id: report.run_id,
         switch: {
           previous_target: { kind: prevHit.target.kind, id: prevHit.target.id, label: prevHit.target.label },
           next_target: { kind: nextHit.target.kind, id: nextHit.target.id, label: nextHit.target.label },
@@ -383,6 +391,8 @@ async function ensureLteOpenForTarget(
     metadata: {
       auto_started: true,
       auto_start_source: report.source_tag,
+      engine_version: report.engine_version,
+      run_id: report.run_id,
       matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
       confidence: hit.confidence,
       arrival_pings_count: hit.pings.length,
@@ -533,6 +543,8 @@ export async function processStaff(
         metadata: {
           auto_started: true,
           source: 'geofence_auto_switch_server',
+          engine_version: report.engine_version,
+          run_id: report.run_id,
           previous_target: { kind: prevHit.target.kind, id: prevHit.target.id, label: prevHit.target.label },
           next_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
           departure_at: departureIso,
@@ -570,6 +582,8 @@ export async function processStaff(
       metadata: {
         auto_started: true,
         auto_start_source: isSwitch ? 'geofence_auto_switch_server' : 'server_background_gps',
+        engine_version: report.engine_version,
+        run_id: report.run_id,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
         confidence: hit.confidence,
         arrival_pings_count: hit.pings.length,
@@ -588,7 +602,11 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     ? (body.dry_run !== false && body.dry_run !== 'false')
     : !!body?.dry_run
 
+  const runId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`)
+
   const report: ProcessReport = {
+    run_id: runId,
+    engine_version: ENGINE_VERSION,
     mode: action,
     dry_run: dryRun,
     source_tag: action === 'backfill_day' ? 'server_background_gps_backfill' : 'server_background_gps',
@@ -602,12 +620,14 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
   let toIso: string
   let staffFilter: string | null = null
   let orgFilter: string | null = null
+  let dateFilter: string | null = null
 
   if (action === 'backfill_day') {
     const date: string = String(body.date || '')
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       throw new Error('date (YYYY-MM-DD) required for backfill_day')
     }
+    dateFilter = date
     fromIso = new Date(`${date}T00:00:00.000Z`).toISOString()
     toIso = new Date(`${date}T23:59:59.999Z`).toISOString()
     staffFilter = body.staff_id || null
@@ -621,57 +641,154 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     toIso = new Date().toISOString()
   }
 
-  let q = supabase
-    .from('staff_location_history')
-    .select('id, staff_id, organization_id, lat, lng, accuracy, recorded_at')
-    .gte('recorded_at', fromIso)
-    .lte('recorded_at', toIso)
-    .order('recorded_at', { ascending: true })
-    .limit(action === 'backfill_day' ? 20000 : 5000)
-  if (staffFilter) q = q.eq('staff_id', staffFilter)
-  if (orgFilter) q = q.eq('organization_id', orgFilter)
-
-  const { data: rawPings, error: pingErr } = await q
-  if (pingErr) throw pingErr
-
-  const pings: Ping[] = (rawPings ?? []).map((r: any) => ({
-    id: r.id,
-    staff_id: r.staff_id,
-    organization_id: r.organization_id,
-    lat: Number(r.lat),
-    lng: Number(r.lng),
-    accuracy: r.accuracy != null ? Number(r.accuracy) : null,
-    recorded_at: r.recorded_at,
-    ts: new Date(r.recorded_at).getTime(),
-  }))
-  report.pings = pings.length
-
-  if (pings.length === 0) return report
-
-  const targets = await loadTargets(supabase)
-
-  const byStaff = new Map<string, Ping[]>()
-  for (const p of pings) {
-    if (!p.staff_id) continue
-    if (orgFilter && p.organization_id !== orgFilter) continue
-    const arr = byStaff.get(p.staff_id) ?? []
-    arr.push(p)
-    byStaff.set(p.staff_id, arr)
-  }
-  report.staff = byStaff.size
-
-  for (const [staffId, sp] of byStaff) {
+  // Open run-log row (best-effort; never blocks engine)
+  if (!dryRun) {
     try {
-      await processStaff(supabase, staffId, sp, targets, report)
+      await supabase.from('location_auto_start_runs').insert({
+        id: runId,
+        engine_version: ENGINE_VERSION,
+        mode: action,
+        dry_run: false,
+        source_tag: report.source_tag,
+        organization_id: orgFilter,
+        staff_id: staffFilter,
+        date_filter: dateFilter,
+        from_iso: fromIso,
+        to_iso: toIso,
+        status: 'running',
+        request_body: body ?? null,
+      })
     } catch (e: any) {
-      report.errors.push(`staff ${staffId}: ${e?.message ?? e}`)
+      report.errors.push(`run-log open: ${e?.message ?? e}`)
     }
   }
 
-  if (action === 'cron' && !dryRun) {
-    const maxIso = pings[pings.length - 1].recorded_at
-    await saveCursor(supabase, maxIso)
+  const finalize = async (status: 'ok' | 'error') => {
+    if (dryRun) return
+    try {
+      await supabase.from('location_auto_start_runs').update({
+        finished_at: new Date().toISOString(),
+        status,
+        staff_count: report.staff,
+        pings_processed: report.pings,
+        arrivals: report.arrivals,
+        switches: report.switches,
+        created_workdays: report.workdays_opened,
+        opened_ltes: report.ltes_opened,
+        closed_ltes: report.ltes_closed,
+        created_travel_logs: report.travels_created,
+        created_assistant_events: report.events_emitted,
+        skipped_existing: report.skipped_existing,
+        errors: report.errors,
+      }).eq('id', runId)
+    } catch (e: any) {
+      // swallow — engine result already returned
+      console.error('run-log finalize failed', e?.message ?? e)
+    }
   }
 
-  return report
+  try {
+    let q = supabase
+      .from('staff_location_history')
+      .select('id, staff_id, organization_id, lat, lng, accuracy, recorded_at')
+      .gte('recorded_at', fromIso)
+      .lte('recorded_at', toIso)
+      .order('recorded_at', { ascending: true })
+      .limit(action === 'backfill_day' ? 20000 : 5000)
+    if (staffFilter) q = q.eq('staff_id', staffFilter)
+    if (orgFilter) q = q.eq('organization_id', orgFilter)
+
+    const { data: rawPings, error: pingErr } = await q
+    if (pingErr) throw pingErr
+
+    const pings: Ping[] = (rawPings ?? []).map((r: any) => ({
+      id: r.id,
+      staff_id: r.staff_id,
+      organization_id: r.organization_id,
+      lat: Number(r.lat),
+      lng: Number(r.lng),
+      accuracy: r.accuracy != null ? Number(r.accuracy) : null,
+      recorded_at: r.recorded_at,
+      ts: new Date(r.recorded_at).getTime(),
+    }))
+    report.pings = pings.length
+
+    if (pings.length === 0) {
+      await finalize('ok')
+      return report
+    }
+
+    const targets = await loadTargets(supabase)
+
+    const byStaff = new Map<string, Ping[]>()
+    for (const p of pings) {
+      if (!p.staff_id) continue
+      if (orgFilter && p.organization_id !== orgFilter) continue
+      const arr = byStaff.get(p.staff_id) ?? []
+      arr.push(p)
+      byStaff.set(p.staff_id, arr)
+    }
+    report.staff = byStaff.size
+
+    // Per-staff isolation: a single staff failure must NOT abort the whole run.
+    for (const [staffId, sp] of byStaff) {
+      try {
+        await processStaff(supabase, staffId, sp, targets, report)
+      } catch (e: any) {
+        report.errors.push(`staff ${staffId}: ${e?.message ?? e}`)
+      }
+    }
+
+    if (action === 'cron' && !dryRun) {
+      try {
+        const maxIso = pings[pings.length - 1].recorded_at
+        await saveCursor(supabase, maxIso)
+      } catch (e: any) {
+        report.errors.push(`cursor save: ${e?.message ?? e}`)
+      }
+    }
+
+    if (dryRun) {
+      // Persist a dry-run row for audit/visibility
+      try {
+        await supabase.from('location_auto_start_runs').insert({
+          id: runId,
+          engine_version: ENGINE_VERSION,
+          mode: action,
+          dry_run: true,
+          source_tag: report.source_tag,
+          organization_id: orgFilter,
+          staff_id: staffFilter,
+          date_filter: dateFilter,
+          from_iso: fromIso,
+          to_iso: toIso,
+          finished_at: new Date().toISOString(),
+          status: report.errors.length ? 'error' : 'ok',
+          staff_count: report.staff,
+          pings_processed: report.pings,
+          arrivals: report.arrivals,
+          switches: report.switches,
+          created_workdays: report.workdays_opened,
+          opened_ltes: report.ltes_opened,
+          closed_ltes: report.ltes_closed,
+          created_travel_logs: report.travels_created,
+          created_assistant_events: report.events_emitted,
+          skipped_existing: report.skipped_existing,
+          errors: report.errors,
+          request_body: body ?? null,
+          plan: report.plan,
+        })
+      } catch (e: any) {
+        report.errors.push(`run-log dry insert: ${e?.message ?? e}`)
+      }
+    } else {
+      await finalize(report.errors.length ? 'error' : 'ok')
+    }
+
+    return report
+  } catch (e: any) {
+    report.errors.push(`fatal: ${e?.message ?? e}`)
+    await finalize('error')
+    throw e
+  }
 }
