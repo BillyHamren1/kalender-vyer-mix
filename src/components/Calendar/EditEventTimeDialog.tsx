@@ -80,7 +80,7 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
 
       if (largeProjectId && (phase === 'rig' || phase === 'rigDown')) {
         const fromDate = event.extendedProps?.sourceDate || datePart;
-        await moveLargeProjectDay({
+        const result = await moveLargeProjectDay({
           largeProjectId,
           phase,
           fromDate,
@@ -88,16 +88,27 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
           newStartISO,
           newEndISO,
         });
+
+        if (result.bookingsUpdated === 0 || result.calendarEventsUpdated === 0) {
+          console.warn('Large project time update did not touch any rows', result);
+          toast.warning(
+            `Tid sparades men 0 ${result.bookingsUpdated === 0 ? 'bokningar' : 'kalenderhändelser'} uppdaterades`
+          );
+        } else {
+          toast.success('Event time updated', {
+            description: `${event.title} – ${result.bookingsUpdated} bokningar, ${result.calendarEventsUpdated} kalenderhändelser`
+          });
+        }
       } else {
         await updateCalendarEvent(event.id, {
           start: newStartISO,
           end: newEndISO,
         });
-      }
 
-      toast.success('Event time updated', {
-        description: `${event.title} has been rescheduled`
-      });
+        toast.success('Event time updated', {
+          description: `${event.title} has been rescheduled`
+        });
+      }
 
       onOpenChange(false);
       
