@@ -181,6 +181,8 @@ export type ActualEventKind =
   | 'travel_suggestion'
   | 'stale_signal'
   | 'gps_gap'
+  | 'planned_start'
+  | 'planned_signal_gap'
   | 'anomaly';
 
 export type ActualEventSeverity = 'info' | 'success' | 'warning' | 'critical';
