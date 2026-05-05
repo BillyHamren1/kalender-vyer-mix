@@ -400,7 +400,7 @@ const StaffTimeReports: React.FC = () => {
         endDate: dateStr,
         staffNames,
         bookingAssignments: bsaRows,
-        largeProjectStaff: lpsRows,
+        largeProjectStaff: [],
         bookings: bookingsById,
         largeProjects: largeProjectsById,
         largeProjectBookings,
