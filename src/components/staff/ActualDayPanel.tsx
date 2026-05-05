@@ -549,6 +549,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               ? 'unmatched_outside_radius'
               : (visit ? 'unmatched_no_nearest' : (ev.internal_match_status ?? 'unmatched_no_sites')));
 
+        const coordCentre = (m?.centre as { lat: number; lng: number } | undefined) ?? null;
+        const mapsUrl = !isMatched && coordCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${coordCentre.lat.toFixed(6)},${coordCentre.lng.toFixed(6)}`
+          : null;
+
         return {
           ...ev,
           label,
@@ -564,19 +569,31 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           resolved_poi: isMatched ? (visit?.label ?? placeLabel) : (lookup?.geo?.poiName ?? null),
           match_confidence: matchConfidence,
           internal_match_status: internalMatchStatus as any,
-        };
+          maps_url: mapsUrl,
+          coords: coordCentre,
+        } as any;
       }
       if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
         const fromKnown = !m?.fromCentre;
         const toKnown = !m?.toCentre;
-        if (fromKnown && toKnown) return ev;
         const fromLbl = fromKnown
           ? ev.label.replace(/^Förflyttning:\s*/, '').split(' → ')[0]
           : (lookupCoord(m?.fromCentre)?.label ?? 'okänd plats');
         const toLbl = toKnown
           ? (ev.label.split(' → ')[1] ?? '')
           : (lookupCoord(m?.toCentre)?.label ?? 'okänd plats');
-        return { ...ev, label: `Förflyttning: ${fromLbl} → ${toLbl}` };
+        const fromMaps = !fromKnown && m?.fromCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${m.fromCentre.lat.toFixed(6)},${m.fromCentre.lng.toFixed(6)}`
+          : null;
+        const toMaps = !toKnown && m?.toCentre
+          ? `https://www.google.com/maps/search/?api=1&query=${m.toCentre.lat.toFixed(6)},${m.toCentre.lng.toFixed(6)}`
+          : null;
+        return {
+          ...ev,
+          label: `Förflyttning: ${fromLbl} → ${toLbl}`,
+          from_maps_url: fromMaps,
+          to_maps_url: toMaps,
+        } as any;
       }
       return ev;
     });
@@ -765,6 +782,27 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               // Default-label för icke-journey-rader
               const displayLabel: React.ReactNode = ev.label;
 
+              // Klickbar kartlänk för externa/okända platser (lat/lng utan internt mål)
+              const evAny = ev as any;
+              const ownMapsUrl: string | null = evAny.maps_url ?? null;
+              const fromMapsUrl: string | null = evAny.from_maps_url ?? jbMeta?.from_maps_url ?? null;
+              const toMapsUrl: string | null = evAny.to_maps_url ?? jbMeta?.to_maps_url ?? null;
+              const ownCoords = (evAny.coords as { lat: number; lng: number } | null) ?? null;
+              const coordsTooltip = ownCoords ? `${ownCoords.lat.toFixed(5)}, ${ownCoords.lng.toFixed(5)}` : undefined;
+
+              const MapsLink = ({ url, label, title }: { url: string; label: React.ReactNode; title?: string }) => (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={title ?? 'Öppna i Google Maps'}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  {label}
+                </a>
+              );
+
               return (
                 <React.Fragment key={ev.id}>
                   <li
@@ -781,15 +819,23 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         <div className="font-medium text-foreground">Förflyttning</div>
                         <div className="text-[11px] truncate">
                           <span className="text-muted-foreground">Från: </span>
-                          <span className="text-foreground">{journeyFrom ?? '—'}</span>
+                          {fromMapsUrl
+                            ? <MapsLink url={fromMapsUrl} label={journeyFrom ?? '—'} />
+                            : <span className="text-foreground">{journeyFrom ?? '—'}</span>}
                         </div>
                         <div className="text-[11px] truncate">
                           <span className="text-muted-foreground">Till: </span>
-                          <span className="text-foreground">{journeyTo ?? '—'}</span>
+                          {toMapsUrl
+                            ? <MapsLink url={toMapsUrl} label={journeyTo ?? '—'} />
+                            : <span className="text-foreground">{journeyTo ?? '—'}</span>}
                         </div>
                       </div>
+                    ) : ownMapsUrl ? (
+                      <span className="truncate pt-0.5" title={coordsTooltip}>
+                        <MapsLink url={ownMapsUrl} label={displayLabel} title={coordsTooltip ?? 'Öppna i Google Maps'} />
+                      </span>
                     ) : (
-                      <span className="text-foreground truncate pt-0.5">{displayLabel}</span>
+                      <span className="text-foreground truncate pt-0.5" title={coordsTooltip}>{displayLabel}</span>
                     )}
                     {statusIsAction ? (
                       <Badge variant="outline" className={`text-[10px] py-0 px-1.5 mt-0.5 ${statusTone}`}>
@@ -1031,6 +1077,20 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         <span>resolved_address:</span><span className="text-foreground">{geo?.address ?? geo?.label ?? '—'}</span>
                         <span>poi_name:</span><span className="text-foreground">{geo?.poiName ?? '—'}</span>
                         <span>poi_category:</span><span className="text-foreground">{geo?.poiCategory ?? '—'}</span>
+                        <span>karta:</span>
+                        <span className="text-foreground">
+                          {visit.centre ? (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${visit.centre.lat.toFixed(6)},${visit.centre.lng.toFixed(6)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 dark:text-blue-400 underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Öppna i Google Maps
+                            </a>
+                          ) : '—'}
+                        </span>
                         <span>nearest_location:</span>
                         <span className="text-foreground">
                           {visit.nearestKnownSite ? `${visit.nearestKnownSite.name} (${visit.nearestKnownSite.id})` : '—'}
