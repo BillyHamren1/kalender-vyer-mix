@@ -99,21 +99,49 @@ function targetMatchesLte(target: Target, lte: any): boolean {
   return lte.large_project_id === target.id
 }
 
-async function loadCursor(supabase: any): Promise<string> {
-  const { data } = await supabase
+/**
+ * Cursor model — per organization (org_id NULL = legacy 'global' fallback).
+ *
+ * Cron uses cursor + small overlap (PROCESS_OVERLAP_MS) to avoid missing late
+ * pings; idempotency on workdays/LTEs/travel/events handles the duplicates the
+ * overlap inevitably re-feeds. If a run fails BEFORE finishing successfully,
+ * the cursor is NOT advanced — the next run picks up from the same point.
+ */
+async function loadCursor(supabase: any, orgId: string | null): Promise<string> {
+  const fallback = new Date(Date.now() - PROCESS_LOOKBACK_MS).toISOString()
+  if (orgId) {
+    const { data } = await supabase
+      .from('location_auto_start_cursor')
+      .select('last_processed_recorded_at')
+      .eq('organization_id', orgId)
+      .maybeSingle()
+    if (data?.last_processed_recorded_at) return data.last_processed_recorded_at
+  }
+  const { data: g } = await supabase
     .from('location_auto_start_cursor')
     .select('last_processed_recorded_at')
     .eq('id', 'global')
     .maybeSingle()
-  const fallback = new Date(Date.now() - PROCESS_LOOKBACK_MS).toISOString()
-  return data?.last_processed_recorded_at ?? fallback
+  return g?.last_processed_recorded_at ?? fallback
 }
 
-async function saveCursor(supabase: any, iso: string) {
+async function saveCursor(supabase: any, iso: string, orgId: string | null) {
+  if (orgId) {
+    await supabase
+      .from('location_auto_start_cursor')
+      .upsert({
+        id: `org:${orgId}`,
+        organization_id: orgId,
+        last_processed_recorded_at: iso,
+        updated_at: new Date().toISOString(),
+      })
+    return
+  }
   await supabase
     .from('location_auto_start_cursor')
     .upsert({ id: 'global', last_processed_recorded_at: iso, updated_at: new Date().toISOString() })
 }
+
 
 export async function loadTargets(supabase: any): Promise<Target[]> {
   const yesterdayIso = new Date(Date.now() - TARGET_DAY_TOLERANCE_MS).toISOString().slice(0, 10)
@@ -633,13 +661,16 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     staffFilter = body.staff_id || null
     orgFilter = body.organization_id || null
   } else {
-    const cursorIso = await loadCursor(supabase)
+    orgFilter = body.organization_id || null
+    const cursorIso = await loadCursor(supabase, orgFilter)
+    console.log(`[auto-start] cron cursor BEFORE org=${orgFilter ?? 'global'}: ${cursorIso}`)
     fromIso = new Date(Math.min(
       Date.now() - PROCESS_OVERLAP_MS,
       new Date(cursorIso).getTime() - PROCESS_OVERLAP_MS,
     )).toISOString()
     toIso = new Date().toISOString()
   }
+
 
   // Open run-log row (best-effort; never blocks engine)
   if (!dryRun) {
@@ -740,11 +771,19 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     }
 
     if (action === 'cron' && !dryRun) {
-      try {
-        const maxIso = pings[pings.length - 1].recorded_at
-        await saveCursor(supabase, maxIso)
-      } catch (e: any) {
-        report.errors.push(`cursor save: ${e?.message ?? e}`)
+      // Fail-safe: only advance the cursor when the whole run succeeded
+      // (no per-staff errors). Otherwise the next cron picks up the same
+      // window again — duplicates are blocked by per-row idempotency.
+      if (report.errors.length === 0) {
+        try {
+          const maxIso = pings[pings.length - 1].recorded_at
+          await saveCursor(supabase, maxIso, orgFilter)
+          console.log(`[auto-start] cron cursor AFTER  org=${orgFilter ?? 'global'}: ${maxIso}`)
+        } catch (e: any) {
+          report.errors.push(`cursor save: ${e?.message ?? e}`)
+        }
+      } else {
+        console.warn(`[auto-start] cron cursor NOT advanced — ${report.errors.length} error(s); will retry next run`)
       }
     }
 
