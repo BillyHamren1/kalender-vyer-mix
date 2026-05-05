@@ -282,6 +282,16 @@ export interface ResolvedPlace {
   mapUrl: string | null;
   lookupStatus: PlaceLookupStatus;
   confidence: 'low' | 'medium' | 'high';
+  /** Debug: vilken provider svaret kom från. */
+  lookupSource?: 'mapbox' | 'none' | 'internal' | null;
+  /** Debug: felbeskrivning om uppslaget misslyckades. */
+  lookupError?: string | null;
+  /** Debug: cachekey som queryn använde (rundade koordinater). */
+  cacheKey?: string | null;
+  /** Debug: om Mapbox-token kunde hämtas. */
+  tokenAvailable?: boolean | null;
+  /** Debug: närmaste kända interna plats (om någon inom radius-rim). */
+  nearestKnownSite?: { id: string; name: string; distanceMeters: number; radiusMeters: number } | null;
 }
 
 export interface JourneyPlace {
