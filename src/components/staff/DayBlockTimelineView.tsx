@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Briefcase, ChevronDown, ChevronRight, Clock, MapPin, Move, AlertTriangle, Activity, HelpCircle, FileText, ArrowRight } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
 
 const fmtHm = (iso?: string | null) => {
@@ -21,188 +20,247 @@ const fmtDur = (m: number) => {
   return `${r}m`;
 };
 
-const Inner: React.FC<{ block: DayBlock }> = ({ block }) => {
-  const [open, setOpen] = useState(false);
+/* ------------------------------------------------------------------ */
+/*  Shared row primitives                                             */
+/* ------------------------------------------------------------------ */
+
+const TimeCell: React.FC<{ startIso: string; endIso?: string | null; durationMin: number; ongoing?: boolean }> = ({ startIso, endIso, durationMin, ongoing }) => {
+  const range = endIso && !ongoing
+    ? `${fmtHm(startIso)}–${fmtHm(endIso)}`
+    : `${fmtHm(startIso)} → pågår`;
+  return (
+    <div className="flex items-baseline gap-2 tabular-nums">
+      <span className="text-sm font-semibold text-foreground">{range}</span>
+      <span className="text-xs text-muted-foreground">·</span>
+      <span className="text-xs text-muted-foreground">{fmtDur(durationMin)}</span>
+    </div>
+  );
+};
+
+type RowAccent = 'project' | 'location' | 'journey' | 'gap';
+
+const accentDot: Record<RowAccent, string> = {
+  project: 'bg-emerald-500',
+  location: 'bg-blue-500',
+  journey: 'bg-slate-400',
+  gap: 'bg-amber-400',
+};
+
+const accentBorder: Record<RowAccent, string> = {
+  project: 'border-l-emerald-500',
+  location: 'border-l-transparent',
+  journey: 'border-l-transparent',
+  gap: 'border-l-transparent',
+};
+
+const accentIconBg: Record<RowAccent, string> = {
+  project: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  location: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  journey: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  gap: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+};
+
+const RowShell: React.FC<{
+  accent: RowAccent;
+  active?: boolean;
+  expandable?: boolean;
+  expanded?: boolean;
+  onToggle?: () => void;
+  children: React.ReactNode;
+}> = ({ accent, active, expandable, expanded, onToggle, children }) => {
+  return (
+    <div
+      className={`
+        grid grid-cols-[160px_1fr_auto_24px] items-center gap-3
+        px-3 py-3
+        border-b border-border last:border-b-0
+        border-l-4 ${accentBorder[accent]}
+        ${active ? 'bg-emerald-50/40 dark:bg-emerald-950/15' : ''}
+        ${expandable ? 'cursor-pointer hover:bg-muted/40' : ''}
+        transition-colors
+      `}
+      onClick={expandable ? onToggle : undefined}
+      role={expandable ? 'button' : undefined}
+      tabIndex={expandable ? 0 : undefined}
+    >
+      {children}
+      <div className="flex justify-end text-muted-foreground">
+        {expandable
+          ? (expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />)
+          : <span className="w-4" />}
+      </div>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/*  Inner technical events                                            */
+/* ------------------------------------------------------------------ */
+
+const InnerEvents: React.FC<{ block: DayBlock }> = ({ block }) => {
   if (block.innerEvents.length === 0) return null;
   return (
-    <div className="mt-2 border-t pt-1.5">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-      >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        {block.innerEvents.length} tekniska händelser
-      </button>
-      {open && (
-        <ul className="mt-1.5 space-y-0.5 pl-4 border-l text-[11px] text-muted-foreground">
-          {[...block.innerEvents]
-            .sort((a, b) => a.at.localeCompare(b.at))
-            .map(e => (
-              <li key={e.id} className="flex gap-2">
-                <span className="tabular-nums shrink-0">{fmtHm(e.at)}</span>
-                <span className="truncate">
-                  <span className="opacity-60">{e.kind}</span>
-                  {' · '}
-                  {typeof e.label === 'string' ? e.label : ''}
-                </span>
-              </li>
-            ))}
-        </ul>
-      )}
+    <div className="bg-muted/30 border-b border-border px-3 py-2 pl-[180px]">
+      <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+        {[...block.innerEvents]
+          .sort((a, b) => a.at.localeCompare(b.at))
+          .map(e => (
+            <li key={e.id} className="flex gap-2">
+              <span className="tabular-nums shrink-0 w-12">{fmtHm(e.at)}</span>
+              <span className="opacity-60 shrink-0 min-w-[120px]">{e.kind}</span>
+              <span className="truncate">{typeof e.label === 'string' ? e.label : ''}</span>
+            </li>
+          ))}
+      </ul>
     </div>
   );
 };
+
+/* ------------------------------------------------------------------ */
+/*  PresenceRow (PÅ PLATS / PÅ PROJEKT)                               */
+/* ------------------------------------------------------------------ */
 
 const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
-  const range = block.endIso && !block.ongoing
-    ? `${fmtHm(block.startIso)}–${fmtHm(block.endIso)}`
-    : `${fmtHm(block.startIso)} → pågår`;
+  const [open, setOpen] = useState(false);
+  const isProject = block.presenceKind === 'project';
+  const accent: RowAccent = isProject ? 'project' : 'location';
 
-  const isProjectBlock = block.presenceKind === 'project';
+  const chipLabel = isProject
+    ? (block.ongoing ? 'PÅ PROJEKT' : 'PÅ PROJEKT')
+    : block.strength === 'short_stop' ? 'KORT STOPP'
+    : block.strength === 'time_report_window' ? 'TIDRAPPORT'
+    : 'PÅ PLATS';
 
-  const tone = isProjectBlock
-    ? (block.ongoing
-        ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/25 ring-1 ring-emerald-500/30'
-        : 'border-emerald-500/70 bg-emerald-50/50 dark:bg-emerald-950/15')
-    : block.strength === 'strong_visit'
-      ? 'border-slate-300 bg-card'
-      : block.strength === 'possible_visit'
-        ? 'border-slate-200 bg-card'
-        : block.strength === 'time_report_window'
-          ? 'border-dashed border-blue-400/60 bg-blue-50/40 dark:bg-blue-950/20'
-          : block.strength === 'inferred_between_journeys'
-            ? 'border-dashed border-slate-300 bg-card/70'
-            : 'border-amber-400/50 bg-amber-50/40 dark:bg-amber-950/10';
-
-  const chipLabel = isProjectBlock
-    ? (block.ongoing ? 'PÅ PROJEKT NU' : 'PÅ PROJEKT')
+  const chipClass = isProject
+    ? 'bg-emerald-600 text-white'
     : block.strength === 'short_stop'
-      ? 'KORT STOPP'
-      : block.strength === 'time_report_window'
-        ? 'TIDRAPPORT-VISTELSE'
-        : 'PÅ PLATS';
+      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+      : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200';
 
-  const chipClass = isProjectBlock
-    ? 'bg-emerald-600 text-white hover:bg-emerald-600 border-emerald-600'
-    : block.strength === 'time_report_window'
-      ? 'border-blue-400 text-blue-900 dark:text-blue-100'
-      : block.strength === 'short_stop'
-        ? 'border-amber-400 text-amber-900 dark:text-amber-100'
-        : 'border-slate-300 text-slate-700 dark:text-slate-200';
+  const statusPillLabel = isProject
+    ? 'På projekt'
+    : block.strength === 'short_stop' ? 'Kort stopp'
+    : 'Vistelse';
 
-  const padding = isProjectBlock ? 'px-3.5 py-3' : 'px-3 py-2';
-  const borderWidth = isProjectBlock ? 'border-2' : 'border';
+  const statusPillClass = isProject
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800'
+    : block.strength === 'short_stop'
+      ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800'
+      : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800';
+
+  const contextBits = [
+    fmtDur(block.durationMin),
+    isProject ? 'projekt' : 'arbete / vistelse',
+    block.timer.present ? (block.timer.active ? `timer aktiv sedan ${fmtHm(block.timer.startedIso)}` : `timer ${fmtHm(block.timer.startedIso)}–${fmtHm(block.timer.stoppedIso)}`) : null,
+  ].filter(Boolean) as string[];
 
   return (
-    <div className={`rounded-lg ${borderWidth} ${tone} ${padding} shadow-sm`}>
-      <div className="grid grid-cols-12 gap-3 items-start">
-        {/* Tid */}
-        <div className="col-span-12 md:col-span-2 flex flex-col gap-0.5">
-          <span className="tabular-nums text-xs text-foreground font-semibold">{range}</span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
-            <Clock className="h-3 w-3" />
-            {fmtDur(block.durationMin)}
+    <>
+      <RowShell
+        accent={accent}
+        active={isProject && block.ongoing}
+        expandable={block.innerEvents.length > 0}
+        expanded={open}
+        onToggle={() => setOpen(o => !o)}
+      >
+        {/* TID */}
+        <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} ongoing={block.ongoing} />
+
+        {/* HÄNDELSE */}
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${accentDot[accent]}`} />
+          <span className={`flex items-center justify-center h-8 w-8 rounded-full shrink-0 ${accentIconBg[accent]}`}>
+            <Building2 className="h-4 w-4" />
+          </span>
+          <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded shrink-0 ${chipClass}`}>
+            {chipLabel}
+          </span>
+          <div className="flex items-center gap-2 min-w-0 text-sm">
+            <span className="font-semibold text-foreground truncate">{block.title}</span>
+            {contextBits.map((b, i) => (
+              <React.Fragment key={i}>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground truncate">{b}</span>
+              </React.Fragment>
+            ))}
+            {block.requiresReview && (
+              <>
+                <span className="text-muted-foreground">·</span>
+                <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="h-3 w-3" /> granska
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* STATUS */}
+        <div className="flex items-center">
+          <span className={`text-xs px-2.5 py-1 rounded-full border ${statusPillClass}`}>
+            {statusPillLabel}
           </span>
         </div>
-
-        {/* På plats / Projekt */}
-        <div className="col-span-12 md:col-span-7 min-w-0">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
-            {block.isProject ? 'På projekt' : 'På plats'}
-          </div>
-          <div className="text-sm font-semibold text-foreground leading-tight truncate flex items-center gap-1.5">
-            {block.isProject ? <Briefcase className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> : <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-            <span className="truncate">{block.title}</span>
-          </div>
-          {block.subtitle && (
-            <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-              {block.subtitle}
-            </div>
-          )}
-        </div>
-
-        {/* Status */}
-        <div className="col-span-12 md:col-span-3 flex flex-col items-start md:items-end gap-1">
-          <Badge variant={block.strength === 'project' ? 'default' : 'outline'} className={`text-[10px] uppercase tracking-wider font-bold ${chipClass}`}>
-            {chipLabel}
-          </Badge>
-          <div className="flex flex-wrap gap-1 justify-start md:justify-end">
-            {block.evidenceLabel && (
-              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-blue-300 text-blue-800 dark:text-blue-200">
-                {block.evidenceLabel}
-              </Badge>
-            )}
-            {block.confidence === 'high' && (
-              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-emerald-300 text-emerald-800 dark:text-emerald-200">
-                Hög tillit
-              </Badge>
-            )}
-            {block.timer.present && (
-              <Badge variant="outline" className="text-[10px] py-0 px-1.5 inline-flex items-center gap-1">
-                <Activity className="h-3 w-3" />
-                {block.timer.active ? 'timer aktiv' : 'timer'}
-              </Badge>
-            )}
-            {block.requiresReview && (
-              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300 inline-flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Kräver granskning
-              </Badge>
-            )}
-          </div>
-          {block.ongoing && block.lastPingIso && (
-            <span className="text-[10px] text-muted-foreground tabular-nums">
-              senaste GPS {fmtHm(block.lastPingIso)}
-            </span>
-          )}
-        </div>
-      </div>
-      <Inner block={block} />
-    </div>
+      </RowShell>
+      {open && <InnerEvents block={block} />}
+    </>
   );
 };
+
+/* ------------------------------------------------------------------ */
+/*  JourneyRow (FÖRFLYTTNING)                                         */
+/* ------------------------------------------------------------------ */
 
 const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
-  const range = `${fmtHm(block.startIso)}–${fmtHm(block.endIso)}`;
-  const tone = block.uncertain
-    ? 'border-amber-400/40 bg-amber-50/30 dark:bg-amber-950/10'
-    : 'border-slate-200 bg-card/60';
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className={`rounded-lg border ${tone} px-3 py-2`}>
-      <div className="grid grid-cols-12 gap-3 items-center">
-        {/* Tid */}
-        <div className="col-span-12 md:col-span-2 flex flex-col gap-0.5">
-          <span className="tabular-nums text-xs text-foreground font-semibold">{range}</span>
-          <span className="text-[11px] text-muted-foreground tabular-nums">{fmtDur(block.durationMin)}</span>
+    <>
+      <RowShell
+        accent="journey"
+        expandable={block.innerEvents.length > 0}
+        expanded={open}
+        onToggle={() => setOpen(o => !o)}
+      >
+        {/* TID */}
+        <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} />
+
+        {/* HÄNDELSE */}
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${accentDot.journey}`} />
+          <span className={`flex items-center justify-center h-8 w-8 rounded-full shrink-0 ${accentIconBg.journey}`}>
+            <Car className="h-4 w-4" />
+          </span>
+          <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded shrink-0 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            FÖRFLYTTNING
+          </span>
+          <div className="flex items-center gap-2 min-w-0 text-sm">
+            <span className="text-muted-foreground">Från:</span>
+            <span className="font-medium text-foreground truncate">{block.fromLabel ?? 'okänd plats'}</span>
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Till:</span>
+            <span className="font-medium text-foreground truncate">{block.toLabel ?? 'okänd plats'}</span>
+          </div>
         </div>
 
-        {/* Från → Till */}
-        <div className="col-span-12 md:col-span-7 grid grid-cols-[1fr_auto_1fr] gap-2 items-center min-w-0">
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Från</div>
-            <div className="text-sm font-medium text-foreground truncate">{block.fromLabel ?? 'okänd plats'}</div>
-          </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Till</div>
-            <div className="text-sm font-medium text-foreground truncate">{block.toLabel ?? 'okänd plats'}</div>
-          </div>
+        {/* STATUS */}
+        <div className="flex items-center">
+          <span className={`text-xs px-2.5 py-1 rounded-full border ${
+            block.uncertain
+              ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800'
+              : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-700'
+          }`}>
+            {block.uncertain ? 'Möjlig' : 'Förflyttning'}
+          </span>
         </div>
-
-        {/* Status */}
-        <div className="col-span-12 md:col-span-3 flex flex-col items-start md:items-end gap-1">
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-            <Move className="h-3 w-3 mr-1" />
-            {block.uncertain ? 'Möjlig förflyttning' : 'Förflyttning'}
-          </Badge>
-          <span className="text-[10px] text-muted-foreground">föreslagen</span>
-        </div>
-      </div>
-      <Inner block={block} />
-    </div>
+      </RowShell>
+      {open && <InnerEvents block={block} />}
+    </>
   );
 };
+
+/* ------------------------------------------------------------------ */
+/*  GapRow                                                            */
+/* ------------------------------------------------------------------ */
 
 const GAP_REASON_LABEL: Record<GapReason, string> = {
   no_visit_generated: 'Ingen vistelse genererades',
@@ -215,43 +273,66 @@ const GAP_REASON_LABEL: Record<GapReason, string> = {
 };
 
 const GapRow: React.FC<{ block: GapBlock }> = ({ block }) => {
-  const range = `${fmtHm(block.startIso)}–${fmtHm(block.endIso)}`;
+  const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-lg border border-dashed border-amber-400/60 bg-amber-50/30 dark:bg-amber-950/10 px-3 py-2">
-      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-        <span className="tabular-nums text-xs text-muted-foreground font-medium shrink-0">{range}</span>
-        <Badge variant="outline" className="text-[10px] uppercase tracking-wider border-amber-400 text-amber-800 dark:text-amber-200">
-          <HelpCircle className="h-3 w-3 mr-1" />
-          Vistelse saknas
-        </Badge>
-        <span className="text-[11px] text-muted-foreground tabular-nums">{fmtDur(block.durationMin)}</span>
-        <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-300 text-amber-700 dark:text-amber-300">
-          {GAP_REASON_LABEL[block.reason]}
-        </Badge>
-      </div>
-      <div className="text-sm text-foreground">
-        {block.expectedLabel ? <>Förväntad: <span className="font-medium">{block.expectedLabel}</span></> : 'Plats okänd'}
-      </div>
-      <div className="text-[11px] text-muted-foreground mt-0.5">{block.explanation}</div>
-      {block.innerEvents.length > 0 && (
-        <div className="mt-1.5 border-t pt-1.5">
-          <Inner block={block as unknown as DayBlock} />
+    <>
+      <RowShell
+        accent="gap"
+        expandable={block.innerEvents.length > 0}
+        expanded={open}
+        onToggle={() => setOpen(o => !o)}
+      >
+        <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} />
+
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${accentDot.gap}`} />
+          <span className={`flex items-center justify-center h-8 w-8 rounded-full shrink-0 ${accentIconBg.gap}`}>
+            <HelpCircle className="h-4 w-4" />
+          </span>
+          <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+            VISTELSE SAKNAS
+          </span>
+          <div className="flex items-center gap-2 min-w-0 text-sm">
+            <span className="font-medium text-foreground truncate">
+              {block.expectedLabel ?? 'Plats okänd'}
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground truncate">{GAP_REASON_LABEL[block.reason]}</span>
+          </div>
         </div>
-      )}
-    </div>
+
+        <div className="flex items-center">
+          <span className="text-xs px-2.5 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800">
+            Granska
+          </span>
+        </div>
+      </RowShell>
+      {open && <InnerEvents block={block} />}
+    </>
   );
 };
+
+/* ------------------------------------------------------------------ */
+/*  Main export                                                       */
+/* ------------------------------------------------------------------ */
 
 export const DayBlockTimeline: React.FC<{ blocks: DayBlock[] }> = ({ blocks }) => {
   if (blocks.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground italic py-2">
+      <div className="text-xs text-muted-foreground italic py-4 text-center">
         Inga händelser registrerade för dagen.
       </div>
     );
   }
   return (
-    <div className="space-y-2">
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      {/* Header */}
+      <div className="grid grid-cols-[160px_1fr_auto_24px] items-center gap-3 px-3 py-2 bg-muted/40 border-b border-border text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+        <div className="pl-1">Tid</div>
+        <div>Händelse</div>
+        <div>Status</div>
+        <div />
+      </div>
       {blocks.map(b =>
         b.kind === 'presence' ? <PresenceRow key={b.id} block={b} />
         : b.kind === 'journey' ? <JourneyRow key={b.id} block={b} />
