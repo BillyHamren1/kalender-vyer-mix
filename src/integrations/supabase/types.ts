@@ -2665,6 +2665,10 @@ export type Database = {
           organization_id: string
           source: string
           staff_id: string
+          stop_metadata: Json
+          stop_reason: string | null
+          stop_source: string | null
+          stopped_by: string | null
           task_id: string | null
           total_minutes: number | null
         }
@@ -2682,6 +2686,10 @@ export type Database = {
           organization_id: string
           source?: string
           staff_id: string
+          stop_metadata?: Json
+          stop_reason?: string | null
+          stop_source?: string | null
+          stopped_by?: string | null
           task_id?: string | null
           total_minutes?: number | null
         }
@@ -2699,6 +2707,10 @@ export type Database = {
           organization_id?: string
           source?: string
           staff_id?: string
+          stop_metadata?: Json
+          stop_reason?: string | null
+          stop_source?: string | null
+          stopped_by?: string | null
           task_id?: string | null
           total_minutes?: number | null
         }
