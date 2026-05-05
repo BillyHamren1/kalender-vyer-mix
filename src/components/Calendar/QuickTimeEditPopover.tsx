@@ -130,6 +130,32 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           end_time: newEnd.toISOString()
         });
       } else {
+        // Large project routing: phase + project means we update the entire
+        // project-day (all sibling bookings + calendar_events) atomically.
+        // Eventdays (phase==='event') are still hidden from the calendar; we
+        // never edit them through this popover.
+        const largeProjectId = event.extendedProps?.largeProjectId;
+        const phaseRaw = (event.extendedProps?.eventType || event.eventType) as string | undefined;
+        const isLargeProjectPhase = phaseRaw === 'rig' || phaseRaw === 'rigDown';
+
+        if (largeProjectId && isLargeProjectPhase) {
+          const sourceDate = event.extendedProps?.sourceDate || eventDate;
+          const newStartISO = `${sourceDate}T${startTime}:00Z`;
+          const newEndISO = `${sourceDate}T${endTime}:00Z`;
+          await moveLargeProjectDay({
+            largeProjectId,
+            phase: phaseRaw as LargeProjectPhase,
+            fromDate: sourceDate,
+            toDate: sourceDate,
+            newStartISO,
+            newEndISO,
+          });
+          toast.success('Tid uppdaterad för hela projektdagen');
+          setOpen(false);
+          if (onUpdate) onUpdate();
+          return;
+        }
+
         // Update calendar event — booking row + sibling bookings (if part of
         // a large project) are mirrored automatically by syncPhaseTime.
         const result = await updateCalendarEvent(event.id, {
