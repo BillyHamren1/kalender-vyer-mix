@@ -729,6 +729,18 @@ const MobileOverview: React.FC = () => {
                           // Count planned targets för denna person (bland alla assignments idag)
                           const plannedCount = staff.filter(x => x.staff_id === s.staff_id).length;
                           const lastSignal = status?.latest_known_location?.updated_at;
+                          const cs = status?.current_status;
+                          const csLabel = cs === 'on_project' ? 'På projekt'
+                            : cs === 'on_location' ? 'På plats'
+                            : cs === 'traveling' ? 'Reser'
+                            : cs === 'active_timer' ? 'Timer aktiv'
+                            : cs === 'signal_lost' ? 'GPS-signal förlorad'
+                            : cs === 'missing_workday' ? 'Planerad – ej startad'
+                            : cs === 'planned_not_started' ? 'Planerad'
+                            : null;
+                          const elapsedTxt = status?.elapsed_minutes != null
+                            ? (status.elapsed_minutes < 60 ? `${status.elapsed_minutes}m` : `${Math.floor(status.elapsed_minutes/60)}h ${status.elapsed_minutes%60}m`)
+                            : null;
                           return (
                             <button
                               key={s.staff_id}
@@ -740,24 +752,51 @@ const MobileOverview: React.FC = () => {
                               </span>
                               <div className="flex-1 min-w-0">
                                 <div className="font-semibold text-sm truncate">{s.staff_name}</div>
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                                  <Briefcase className="w-3 h-3 shrink-0" />
-                                  <span className="truncate max-w-[180px]">
-                                    {plannedCount > 1 ? `${plannedCount} jobb` : (s.client ?? s.booking_title ?? s.booking_number ?? '—')}
-                                  </span>
+                                {status?.current_target_label ? (
+                                  <div className="text-xs font-medium mt-0.5 truncate">
+                                    {csLabel ? `${csLabel}: ` : ''}{status.current_target_label}
+                                  </div>
+                                ) : csLabel ? (
+                                  <div className="text-xs font-medium mt-0.5 truncate">{csLabel}</div>
+                                ) : (
+                                  <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                                    {plannedCount > 1 ? `${plannedCount} planerade jobb` : (s.client ?? s.booking_title ?? s.booking_number ?? '—')}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-1 flex-wrap">
+                                  {status?.current_since && (
+                                    <>
+                                      <Clock className="w-3 h-3 shrink-0" />
+                                      <span>Sedan {format(parseISO(status.current_since), 'HH:mm')}</span>
+                                      {elapsedTxt && <span>· {elapsedTxt}</span>}
+                                    </>
+                                  )}
+                                  {status?.active_timer_label && (
+                                    <>
+                                      {status?.current_since && <span>·</span>}
+                                      <span>{status.active_timer_label}</span>
+                                    </>
+                                  )}
                                   {lastSignal && (
                                     <>
                                       <span>·</span>
-                                      {(status?.gps_status === 'live' || status?.gps_status === 'recent') ? <Wifi className="w-3 h-3 shrink-0 text-emerald-600" /> : <WifiOff className="w-3 h-3 shrink-0 text-muted-foreground" />}
-                                      <span>{format(parseISO(lastSignal), 'HH:mm')}</span>
+                                      {(status?.gps_status === 'live' || status?.gps_status === 'recent')
+                                        ? <Wifi className="w-3 h-3 shrink-0 text-emerald-600" />
+                                        : <WifiOff className="w-3 h-3 shrink-0 text-amber-500" />}
+                                      <span>{status?.gps_status === 'live' ? 'GPS färsk' : status?.gps_status === 'recent' ? 'GPS nyligen' : status?.gps_status === 'stale' ? 'GPS gammal' : 'GPS okänd'}</span>
                                     </>
                                   )}
                                 </div>
-                                <div className="mt-1.5 flex items-center gap-1.5">
+                                <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                                   <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border', sb.cls)}>
                                     {SbIcon && <SbIcon className="w-3 h-3" />}
                                     {sb.label}
                                   </span>
+                                  {status?.workday_started_at && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      Arbetsdag {format(parseISO(status.workday_started_at), 'HH:mm')}
+                                    </span>
+                                  )}
                                   {(status?.anomaly_count ?? 0) > 0 && (
                                     <span className="text-[10px] text-destructive font-bold">⚠ {status?.anomaly_count}</span>
                                   )}
