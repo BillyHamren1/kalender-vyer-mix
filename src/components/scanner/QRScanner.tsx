@@ -9,6 +9,7 @@ import { isScannerApp } from '@/config/appMode';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeDetector as BarcodeDetectorPolyfill } from 'barcode-detector';
 import { reportDiagnostic } from '@/services/diagnostics/diagnostics';
+import { recordDetected } from '@/hooks/scanner/scanTimeline';
 
 export interface QRScannerFeedback {
   /** Increments every time parent received a scan and processed it */
