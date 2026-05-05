@@ -53,7 +53,7 @@ const travel: TravelGap = {
 };
 
 const billyPings = [
-  { recorded_at: `${date}T02:03:00Z`, latitude: 59.31, longitude: 18.05, accuracy: 30 } as any,
+  // Telefonen är "tyst" mellan 02:03 och 13:10 — first signal = 13:10.
   { recorded_at: `${date}T13:10:00Z`, latitude: FA.lat, longitude: FA.lng, accuracy: 10 } as any,
   { recorded_at: `${date}T13:25:00Z`, latitude: FA.lat, longitude: FA.lng, accuracy: 10 } as any,
 ];
