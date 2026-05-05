@@ -9736,19 +9736,22 @@ async function handleGetOverviewCalendar(
     date: string,
     startT: string | null,
     endT: string | null,
+    largeProjectId: string | null = null,
   ) => {
     if (!date || date < fromDate || date > toDate) return
-    const key = `${bookingId || ''}|${eventType}|${date}`
+    const key = `${bookingId || largeProjectId || ''}|${eventType}|${date}`
     if (seen.has(key)) return
     const [defS, defE] = phaseDefaults[eventType]
+    const idSuffix = bookingId || (largeProjectId ? `lp-${largeProjectId}` : 'lp')
     synthetic.push({
-      id: `synthetic-${bookingId || 'lp'}-${eventType}-${date}`,
+      id: `synthetic-${idSuffix}-${eventType}-${date}`,
       title,
       start_time: buildIso(date, startT, defS),
       end_time: buildIso(date, endT, defE),
       event_type: eventType,
       resource_id: null,
       booking_id: bookingId,
+      large_project_id: largeProjectId,
       booking_number: bookingNumber,
       delivery_address: address,
       source_date: date,
@@ -9766,8 +9769,8 @@ async function handleGetOverviewCalendar(
 
   for (const p of projects || []) {
     const title = p.name || 'Stort projekt'
-    for (const d of p.start_date || []) pushSynthetic(null, null, `${title} - rig`, p.address, 'rig', d, null, null)
-    for (const d of p.end_date || []) pushSynthetic(null, null, `${title} - rigDown`, p.address, 'rigDown', d, null, null)
+    for (const d of p.start_date || []) pushSynthetic(null, null, `${title} - rig`, p.address, 'rig', d, null, null, p.id)
+    for (const d of p.end_date || []) pushSynthetic(null, null, `${title} - rigDown`, p.address, 'rigDown', d, null, null, p.id)
   }
 
   const merged = [...real, ...synthetic].sort((a, b) =>
