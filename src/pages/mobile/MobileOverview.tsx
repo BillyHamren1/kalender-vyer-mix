@@ -232,8 +232,8 @@ const MobileOverview: React.FC = () => {
     return { label: role.toUpperCase().slice(0, 4), cls: 'bg-muted text-muted-foreground border-border' };
   };
 
-  const isLoading = authLoading || !hasToken || calendarQ.isLoading || assignmentsQ.isLoading;
-  const isError = calendarQ.isError || assignmentsQ.isError;
+  const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
+  const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
 
   const dateModes: { key: DateMode; label: string }[] = [
     { key: 'today', label: t('jobs.today') },
