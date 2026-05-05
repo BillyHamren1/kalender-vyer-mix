@@ -46,6 +46,7 @@ interface StaffWithDayReport {
   planningStatus: PlanningStatus;
   plannedLabels: string[];
   presence: PresenceDebug;
+}
 
 const PLANNING_BADGE: Record<PlanningStatus, { label: string; className: string } | null> = {
   planned_not_started: { label: 'Planerad – ej startad', className: 'bg-muted text-muted-foreground border' },
