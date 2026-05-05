@@ -84,6 +84,11 @@ export const DeleteDayButton: React.FC<Props> = ({ event, setEvents, onUpdate })
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
+          // Skydda mot dubbla popups: om någon annan dialog/popover redan är öppen, ignorera klick.
+          const hasOpenOverlay = document.querySelector(
+            '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [data-radix-popper-content-wrapper]'
+          );
+          if (hasOpenOverlay) return;
           setOpen(true);
         }}
         className="event-hover-action absolute top-0.5 left-0.5 p-0.5 rounded bg-white/70 hover:bg-destructive/20 z-20"
