@@ -149,7 +149,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
   };
 
   const handleRefresh = async () => {
-    await Promise.all([refreshEvents(), refetchProject()]);
+    await Promise.all([refreshEvents(), refetchProject(), refetchTasks()]);
   };
 
   if (!projectId) return null;
