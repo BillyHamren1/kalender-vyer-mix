@@ -344,6 +344,9 @@ const StaffTimeReports: React.FC = () => {
       );
       const plannedStaffIds = new Set<string>();
       const plannedLabelsByStaff = new Map<string, Set<string>>();
+      const plannedFromBSA = new Set<string>();
+      const plannedFromSA = new Set<string>();
+      const plannedFromLPS = new Set<string>();
       const addPlanned = (sid: string, label: string) => {
         if (!sid) return;
         plannedStaffIds.add(sid);
@@ -351,10 +354,19 @@ const StaffTimeReports: React.FC = () => {
         if (label) set.add(label);
         plannedLabelsByStaff.set(sid, set);
       };
-      for (const r of bsaRows) addPlanned(r.staff_id, r.team_id ? `Bokning · ${r.team_id}` : 'Bokning');
-      for (const r of saRows) addPlanned(r.staff_id, r.team_id ? `Team ${r.team_id}` : 'Team');
+      for (const r of bsaRows) {
+        if (!r.staff_id) continue;
+        plannedFromBSA.add(r.staff_id);
+        addPlanned(r.staff_id, r.team_id ? `Bokning · ${r.team_id}` : 'Bokning');
+      }
+      for (const r of saRows) {
+        if (!r.staff_id) continue;
+        plannedFromSA.add(r.staff_id);
+        addPlanned(r.staff_id, r.team_id ? `Team ${r.team_id}` : 'Team');
+      }
       for (const r of lpsStaffRows) {
-        if (lpsActiveIds.has(r.large_project_id)) {
+        if (lpsActiveIds.has(r.large_project_id) && r.staff_id) {
+          plannedFromLPS.add(r.staff_id);
           const lp = lpsAllRows.find(p => p.id === r.large_project_id);
           addPlanned(r.staff_id, lp?.name ?? 'Stort projekt');
         }
