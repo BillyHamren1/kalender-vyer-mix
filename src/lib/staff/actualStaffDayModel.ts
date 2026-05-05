@@ -744,7 +744,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       meta: visitMeta,
       ...baseEnrichment,
     });
-    if (dep.evidence) {
+    if (!ongoing) {
       events.push({
         id: `gps-dep:${v.placeKey}:${v.end}`,
         at: v.end,
@@ -752,7 +752,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         severity: 'info',
         label: departureLabel,
         place: placeLabel,
-        meta: { ...baseMeta, departureEvidence: dep.reason },
+        meta: { ...baseMeta, departureEvidence: dep.reason ?? 'visit_ended_no_active_timer' },
         ...baseEnrichment,
       });
     }
