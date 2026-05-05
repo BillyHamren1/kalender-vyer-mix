@@ -298,7 +298,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     if (!target || bestScore > 1_800_000) continue;
     target.innerEvents.push(ev);
 
-    // Uppdatera timer-info på presence-block
+    // Uppdatera timer/time_report/arrival-info på presence-block
     if (target.kind === 'presence') {
       if (ev.kind === 'timer_started') {
         if (!target.timer.startedIso) target.timer.startedIso = ev.at;
@@ -308,6 +308,16 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         target.timer.stoppedIso = ev.at;
         target.timer.present = true;
         target.timer.active = false;
+      } else if (ev.kind === 'time_report_created') {
+        target.timeReport.startedIso = ev.at;
+        target.timeReport.present = true;
+      } else if (ev.kind === 'time_report_closed') {
+        target.timeReport.closedIso = ev.at;
+        target.timeReport.present = true;
+      } else if (ev.kind === 'gps_arrival' || ev.kind === 'assistant_arrival') {
+        if (!target.arrivalIso || ev.at < target.arrivalIso) target.arrivalIso = ev.at;
+      } else if (ev.kind === 'gps_departure' || ev.kind === 'assistant_departure') {
+        if (!target.departureIso || ev.at > target.departureIso) target.departureIso = ev.at;
       }
     }
   }
