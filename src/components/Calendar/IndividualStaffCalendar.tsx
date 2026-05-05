@@ -1,11 +1,19 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { StaffCalendarEvent, StaffResource } from '@/services/staffCalendarService';
 import { format } from 'date-fns';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
+import {
+  useAssignmentTimeStatuses,
+  assignmentStatusKey,
+} from '@/hooks/useAssignmentTimeStatuses';
+import {
+  ASSIGNMENT_STATUS_LABEL,
+  ASSIGNMENT_STATUS_CLASS,
+} from '@/lib/staff/assignmentTimeStatus';
 
 interface IndividualStaffCalendarProps {
   events: StaffCalendarEvent[];
@@ -48,12 +56,33 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     handleProjectEventClick(clickInfo);
   };
 
+  // Bygg assignment-keys från events och hämta tidsstatus (delad helper med
+  // projekt- och tidrapportvyn)
+  const assignmentKeys = useMemo(() => {
+    return events
+      .filter(e => e.eventType === 'booking_event' && e.resourceId)
+      .map(e => ({
+        staffId: e.resourceId,
+        date: (e.start || '').slice(0, 10),
+        bookingId: e.bookingId || e.extendedProps?.bookingId || null,
+        largeProjectId: e.extendedProps?.largeProjectId || null,
+      }))
+      .filter(a => a.date);
+  }, [events]);
+  const { statuses } = useAssignmentTimeStatuses(assignmentKeys);
+
   // Format events for FullCalendar - Show only booking events with client name and event type
   const formattedEvents = events
     .filter(event => event.eventType === 'booking_event') // Only show actual booking events
     .map(event => {
-      
-      
+      const date = (event.start || '').slice(0, 10);
+      const key = assignmentStatusKey({
+        staffId: event.resourceId,
+        date,
+        bookingId: event.bookingId || event.extendedProps?.bookingId || null,
+        largeProjectId: event.extendedProps?.largeProjectId || null,
+      });
+      const status = statuses.get(key);
       return {
         id: event.id,
         title: event.title, // Already formatted as "Client Name - event type"
@@ -68,8 +97,10 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           bookingId: event.bookingId,
           eventType: event.extendedProps?.eventType,
           staffName: event.staffName,
-          client: event.client
-        }
+          client: event.client,
+          timeStatus: status?.status,
+          actualMinutes: status?.actualMinutes,
+        },
       };
     });
 
@@ -99,14 +130,21 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           eventClick={handleStaffEventClick}
           eventContent={(renderInfo) => {
             const { event } = renderInfo;
-            const props = event.extendedProps;
-            
+            const props = event.extendedProps as any;
+            const ts = props.timeStatus as keyof typeof ASSIGNMENT_STATUS_LABEL | undefined;
+            const badgeLabel = ts ? ASSIGNMENT_STATUS_LABEL[ts] : null;
+            const badgeCls = ts ? ASSIGNMENT_STATUS_CLASS[ts] : '';
             return (
-              <div className="fc-event-main-frame p-1 rounded text-xs" title={`Staff: ${props.staffName}`}>
+              <div className="fc-event-main-frame p-1 rounded text-xs" title={`Staff: ${props.staffName}${badgeLabel ? ' · ' + badgeLabel : ''}`}>
                 <div className="fc-event-title-container">
                   <div className="fc-event-title font-medium leading-tight truncate">
                     {event.title}
                   </div>
+                  {badgeLabel ? (
+                    <div className={`mt-0.5 inline-flex rounded px-1 py-[1px] text-[9px] font-medium ${badgeCls}`}>
+                      {badgeLabel}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             );
