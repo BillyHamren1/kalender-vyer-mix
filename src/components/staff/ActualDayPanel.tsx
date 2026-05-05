@@ -593,21 +593,114 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                 ? `${visit.centre.lat.toFixed(3)},${visit.centre.lng.toFixed(3)}`
                 : null;
               const geo = lookupKey ? (geoByKey.get(lookupKey)?.data ?? null) : null;
+              const toggleRow = () =>
+                setExpandedDebugKeys(prev => {
+                  const next = new Set(prev);
+                  if (next.has(ev.id)) next.delete(ev.id);
+                  else next.add(ev.id);
+                  return next;
+                });
+              const isRowOpen = expandedDebugKeys.has(ev.id);
+              const statusLabel = statusTagFor(ev);
+              const statusTone =
+                ev.severity === 'critical'
+                  ? 'text-destructive'
+                  : ev.severity === 'warning'
+                    ? 'text-amber-600'
+                    : statusLabel.startsWith('osäker')
+                      ? 'text-amber-600'
+                      : 'text-muted-foreground';
+
+              // "Från / Till" för förflyttningar
+              let displayLabel: React.ReactNode = ev.label;
+              if (ev.kind === 'gps_travel' && typeof ev.label === 'string' && ev.label.includes('→')) {
+                const stripped = ev.label.replace(/^Förflyttning:\s*/, '');
+                const [a, b] = stripped.split(' → ');
+                displayLabel = (
+                  <>
+                    <span className="font-medium">Förflyttning</span>
+                    {a && (
+                      <span className="text-muted-foreground"> · Från: <span className="text-foreground">{a.trim()}</span></span>
+                    )}
+                    {b && (
+                      <span className="text-muted-foreground"> · Till: <span className="text-foreground">{b.trim()}</span></span>
+                    )}
+                  </>
+                );
+              }
+
               return (
                 <React.Fragment key={ev.id}>
-                  <li className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-x-2 text-xs py-0.5">
+                  <li
+                    className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-x-2 text-xs py-0.5 cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1"
+                    onClick={toggleRow}
+                  >
                     <span className="tabular-nums text-muted-foreground w-12">
                       {fmtHm(ev.at)}
                       {ev.until ? `–${fmtHm(ev.until)}` : ''}
                     </span>
                     <EventIcon kind={ev.kind} severity={ev.severity} />
-                    <span className="text-foreground truncate">
-                      {ev.label}
-                      {showAllEvents && hiddenReasons.has(ev.id) && (
-                        <Badge variant="outline" className="ml-1.5 text-[9px] py-0 px-1 border-muted-foreground/40 text-muted-foreground">
-                          {hiddenReasonLabel(hiddenReasons.get(ev.id) as TimelineHiddenReason)}
+                    <span className="text-foreground truncate">{displayLabel}</span>
+                    <span className={`text-[10px] uppercase tracking-wide ${statusTone}`}>
+                      {statusLabel}
+                    </span>
+                    {isRowOpen ? (
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    )}
+                  </li>
+                  {isRowOpen && (
+                    <li className="col-span-5 ml-14 mr-2 mb-1 rounded border border-dashed bg-muted/20 px-2 py-2 text-[11px] leading-relaxed text-muted-foreground space-y-1.5">
+                      {/* Källa + dold-orsak + detail */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] uppercase tracking-wide">Källa:</span>
+                        <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                          {sourceTagFor(ev)}
                         </Badge>
-                      )}
+                        {hiddenReasons.has(ev.id) && (
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-muted-foreground/40">
+                            {hiddenReasonLabel(hiddenReasons.get(ev.id) as TimelineHiddenReason)}
+                          </Badge>
+                        )}
+                        {ev.detail && <span className="text-[10px]">· {ev.detail}</span>}
+                      </div>
+
+                      {/* Auto-start från GPS */}
+                      {(() => {
+                        const mm = (ev.meta ?? {}) as any;
+                        const cls: string | undefined = mm.sourceClass;
+                        if (!mm.autoStarted && cls !== 'foreground_geofence' && cls !== 'server_background' && cls !== 'backfill') return null;
+                        const isServer = cls === 'server_background' || cls === 'backfill'
+                          || mm.autoStartSource === 'server_background_gps'
+                          || mm.autoStartSource === 'server_background_gps_backfill';
+                        const isBackfill = cls === 'backfill' || mm.isBackfill === true
+                          || mm.autoStartSource === 'server_background_gps_backfill';
+                        return (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge className="bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 text-[10px] py-0 px-1.5">
+                              Auto-startad från GPS{mm.confidence ? ` · ${mm.confidence}` : ''}
+                            </Badge>
+                            {isServer && (
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5">Servermotor</Badge>
+                            )}
+                            {isBackfill && (
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300">
+                                Backfill
+                              </Badge>
+                            )}
+                            {(mm.pingCount != null || mm.avgAccuracyM != null) && (
+                              <span className="text-[10px] tabular-nums">
+                                {mm.pingCount != null ? `${mm.pingCount} pings` : ''}
+                                {mm.pingCount != null && mm.avgAccuracyM != null ? ' · ' : ''}
+                                {mm.avgAccuracyM != null ? `±${Math.round(mm.avgAccuracyM)}m` : ''}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Stop-källa för timer_stopped */}
                       {ev.kind === 'timer_stopped' && (() => {
                         const mm = (ev.meta ?? {}) as any;
                         if (mm.stop_origin === 'system_review') return null;
@@ -619,127 +712,19 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         });
                         const suffix = inlineStopSuffix(cls, mm.lteMetadata ?? null);
                         return (
-                          <span className={cls.key === 'unknown' ? 'text-amber-600' : 'text-muted-foreground'}>
-                            {suffix}
-                          </span>
-                        );
-                      })()}
-                      {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
-                      {(() => {
-                        const mm = (ev.meta ?? {}) as any;
-                        const cls: string | undefined = mm.sourceClass;
-                        if (!mm.autoStarted && cls !== 'foreground_geofence' && cls !== 'server_background' && cls !== 'backfill') return null;
-                        const isServer = cls === 'server_background' || cls === 'backfill'
-                          || mm.autoStartSource === 'server_background_gps'
-                          || mm.autoStartSource === 'server_background_gps_backfill';
-                        const isBackfill = cls === 'backfill' || mm.isBackfill === true
-                          || mm.autoStartSource === 'server_background_gps_backfill';
-                        const detailBits: string[] = [];
-                        if (mm.confidence) detailBits.push(String(mm.confidence));
-                        if (mm.pingCount != null) detailBits.push(`${mm.pingCount} pings`);
-                        if (mm.avgAccuracyM != null) detailBits.push(`±${Math.round(mm.avgAccuracyM)}m`);
-                        const tooltip = detailBits.join(' · ') || undefined;
-                        return (
-                          <span className="inline-flex items-center gap-1 ml-2 align-middle" title={tooltip}>
-                            <Badge className="bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 text-[10px] py-0 px-1.5">
-                              Auto-startad från GPS
-                              {mm.confidence ? ` · ${mm.confidence}` : ''}
-                            </Badge>
-                            {isServer && (
-                              <Badge variant="outline" className="text-[10px] py-0 px-1.5">Servermotor</Badge>
-                            )}
-                            {isBackfill && (
-                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300">
-                                Backfill
-                              </Badge>
-                            )}
-                            {(mm.pingCount != null || mm.avgAccuracyM != null) && (
-                              <span className="text-[10px] text-muted-foreground tabular-nums">
-                                {mm.pingCount != null ? `${mm.pingCount}p` : ''}
-                                {mm.pingCount != null && mm.avgAccuracyM != null ? ' · ' : ''}
-                                {mm.avgAccuracyM != null ? `±${Math.round(mm.avgAccuracyM)}m` : ''}
-                              </span>
-                            )}
-                          </span>
-                        );
-                      })()}
-                      {ev.kind === 'timer_stopped' && (() => {
-                        const mm = (ev.meta ?? {}) as any;
-                        const cls = classifyStopSource({
-                          source: (mm.lteSource ?? mm.source) ?? null,
-                          metadata: (mm.lteMetadata ?? null) as Record<string, any> | null,
-                          exitedAt: mm.stoppedAt ?? ev.at ?? null,
-                          lteId: mm.lteId ?? '',
-                        });
-                        const d = cls.details;
-                        const tooltipLines = [
-                          cls.fullText,
-                          d.stoppedAt ? `Tid: ${d.stoppedAt}` : null,
-                          d.stopReason ? `Anledning: ${d.stopReason}` : null,
-                          d.stoppedBy ? `Av: ${d.stoppedBy}` : null,
-                          d.runId ? `run_id: ${d.runId}` : null,
-                          d.departureAt ? `departure_at: ${d.departureAt}` : null,
-                          d.confidence != null ? `confidence: ${d.confidence}` : null,
-                          d.linkedTimeReportId ? `time_report: ${d.linkedTimeReportId}` : null,
-                          d.sourceEntryId ? `lte: ${d.sourceEntryId}` : null,
-                        ].filter(Boolean).join('\n');
-                        return (
-                          <span className="inline-flex items-center gap-1 ml-2 align-middle" title={tooltipLines}>
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <Badge className={`${STOP_SOURCE_BADGE_CLASSES[cls.tone]} text-[10px] py-0 px-1.5`}>
                               Stoppad: {cls.shortLabel}
                             </Badge>
                             {cls.key === 'unknown' && (
                               <span className="text-[10px] text-amber-600 uppercase tracking-wide">okänd källa</span>
                             )}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setExpandedDebugKeys(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(ev.id)) next.delete(ev.id);
-                                  else next.add(ev.id);
-                                  return next;
-                                })
-                              }
-                              className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground underline"
-                            >
-                              {expandedDebugKeys.has(ev.id) ? 'dölj bevis' : 'bevis'}
-                            </button>
-                          </span>
+                            {suffix && <span className="text-[10px]">{suffix}</span>}
+                          </div>
                         );
                       })()}
-                      {isUnknownCluster && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedDebugKeys(prev => {
-                              const next = new Set(prev);
-                              if (next.has(ev.id)) next.delete(ev.id);
-                              else next.add(ev.id);
-                              return next;
-                            })
-                          }
-                          className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground underline"
-                        >
-                          {isExpanded ? 'dölj debug' : 'debug'}
-                        </button>
-                      )}
-                    </span>
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {sourceTagFor(ev)}
-                    </span>
-                    <span
-                      className={`text-[10px] uppercase tracking-wide ${
-                        ev.severity === 'critical'
-                          ? 'text-destructive'
-                          : ev.severity === 'warning'
-                            ? 'text-amber-600'
-                            : 'text-muted-foreground'
-                      }`}
-                    >
-                      {statusTagFor(ev)}
-                    </span>
-                  </li>
+                    </li>
+                  )}
                   {isExpanded && visit && (
                     <li className="col-span-5 ml-14 mr-2 mb-1 rounded border border-dashed bg-muted/20 px-2 py-1.5 text-[10px] font-mono leading-relaxed text-muted-foreground">
                       <div className="grid grid-cols-[auto_1fr] gap-x-2">
