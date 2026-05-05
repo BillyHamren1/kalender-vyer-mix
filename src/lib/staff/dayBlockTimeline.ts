@@ -92,7 +92,23 @@ export interface JourneyBlock {
   innerEvents: ActualEvent[];
 }
 
-export type DayBlock = PresenceBlock | JourneyBlock;
+export interface GapBlock {
+  kind: 'gap';
+  id: string;
+  startIso: string;
+  endIso: string;
+  durationMin: number;
+  /** Var skulle blocket varit? (label från endpoints). */
+  expectedLabel: string | null;
+  /** Diagnostisk anledning. */
+  reason: GapReason;
+  /** Mänskligt förklarande text. */
+  explanation: string;
+  /** Raw-events som täcker fönstret men inte blev block. */
+  innerEvents: ActualEvent[];
+}
+
+export type DayBlock = PresenceBlock | JourneyBlock | GapBlock;
 
 export interface BuildBlockTimelineInput {
   /** mainTimeline-events från classifyTimelineCoalesced (visibility=main). */
