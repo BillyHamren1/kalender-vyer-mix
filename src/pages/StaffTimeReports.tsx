@@ -1305,7 +1305,15 @@ const StaffTimeReports: React.FC = () => {
           };
         })
         .sort((a, b) => {
-          if (a.has_open_report !== b.has_open_report) return a.has_open_report ? -1 : 1;
+          // Sortering: pågående arbetsdag → öppen rapport → övriga, sedan namn
+          const rank = (s: typeof a) =>
+            s.planningStatus === 'workday_active' ? 0 :
+            s.has_open_report ? 1 :
+            s.planningStatus === 'missing_workday' ? 2 :
+            s.planningStatus === 'unplanned_activity' ? 3 :
+            s.planningStatus === 'planned_not_started' ? 4 : 5;
+          const ra = rank(a); const rb = rank(b);
+          if (ra !== rb) return ra - rb;
           return a.name.localeCompare(b.name, 'sv');
         });
     },
