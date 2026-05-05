@@ -40,7 +40,35 @@ export type GapReason =
 /** Diskriminator för huvudradtyp i UI: ProjectBlock / LocationBlock / UnknownBlock. */
 export type PresenceKind = 'project' | 'location' | 'unknown';
 
-export interface PresenceBlock {
+/**
+ * Status för platsupplösning. Styr hur UI ska rendera label:
+ *  - matched_internal  → intern plats/projekt — använd label rakt av
+ *  - pending_geocode   → okänd plats med koordinater — visa "Slår upp adress…"
+ *                        tills reverse geocode lagts in
+ *  - unknown_no_coords → varken intern match eller koordinater
+ */
+export type PlaceLookupStatus = 'matched_internal' | 'pending_geocode' | 'unknown_no_coords';
+
+export interface ResolvedPlace {
+  label: string;
+  lat: number | null;
+  lng: number | null;
+  /** Google Maps-url från lat/lng om koordinater finns. */
+  mapUrl: string | null;
+  lookupStatus: PlaceLookupStatus;
+  /** Endast satt för okända platser. */
+  nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
+  unmatchReason?: string | null;
+}
+
+export interface JourneyEndpointPlace {
+  label: string;
+  lat: number | null;
+  lng: number | null;
+  mapUrl: string | null;
+  lookupStatus: PlaceLookupStatus;
+}
+
   kind: 'presence';
   /** Huvudradtyp för UI-rendering. ProjectBlock har högre visuell vikt. */
   presenceKind: PresenceKind;
