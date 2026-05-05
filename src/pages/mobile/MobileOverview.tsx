@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { mobileApi, getToken, type OverviewCalendarEvent, type OverviewAssignment, type OpsAnomaly, type OpsStaffStatus, type OpsOverviewJob } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
 
@@ -40,6 +41,7 @@ const MobileOverview: React.FC = () => {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
   const { isAuthenticated, isLoading: authLoading } = useMobileAuth();
+  const { isPlanner, isLoading: rolesLoading } = useMobileRoles();
   const [dateMode, setDateMode] = useState<DateMode>('today');
   const [phase, setPhase] = useState<PhaseFilter>('all');
   const dateLocale = locale === 'en' ? enUS : svLocale;
@@ -281,8 +283,25 @@ const MobileOverview: React.FC = () => {
     return 'onsite';
   };
 
-  const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
-  const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
+  const authNotReady = authLoading || rolesLoading || !hasToken;
+  const isLoading = !authNotReady && ((opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading)));
+
+  // Detect 403 / forbidden specifically so we can show a permission message
+  const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e ?? '')).toLowerCase();
+  const isForbidden = (() => {
+    const msgs = [
+      opsQ.error, calendarQ.error, assignmentsQ.error, threadsQ.error,
+    ].filter(Boolean).map(errMsg);
+    return msgs.some(m => m.includes('403') || m.includes('forbidden') || m.includes('not authorized') || m.includes('unauthorized'));
+  })();
+
+  const isError = !isForbidden && opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
+  const hasNoData = !isLoading && !isError && !isForbidden && !opsQ.isLoading
+    && (opsData?.jobs?.length ?? 0) === 0
+    && (opsData?.assignments?.length ?? 0) === 0
+    && (opsData?.anomalies?.length ?? 0) === 0
+    && allEvents.length === 0
+    && allAssignments.length === 0;
 
   // === Detail dialog (fallback when no dedicated route exists) ===
   type DetailContent =
@@ -428,10 +447,45 @@ const MobileOverview: React.FC = () => {
         <PhaseChip label="Rigdown" count={kpi.rigdown} cls="bg-blue-500/10 text-blue-700 dark:text-blue-300" />
       </div>
 
-      {isLoading && <div className="px-4"><ListSkeleton /></div>}
-      {isError && <ErrorState text={t('overview.error')} />}
+      {authNotReady && (
+        <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+          {t('overview.state.loading')}
+        </div>
+      )}
+      {!authNotReady && !isPlanner && (
+        <div className="px-4 py-12 text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-2" />
+          <div className="text-sm font-semibold">{t('overview.state.forbidden')}</div>
+          <div className="text-xs text-muted-foreground mt-1">{t('overview.state.forbiddenDesc')}</div>
+        </div>
+      )}
+      {!authNotReady && isPlanner && isForbidden && (
+        <div className="px-4 py-12 text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto text-destructive mb-2" />
+          <div className="text-sm font-semibold text-destructive">{t('overview.state.forbidden')}</div>
+          <div className="text-xs text-muted-foreground mt-1">{t('overview.state.forbiddenDesc')}</div>
+        </div>
+      )}
+      {!authNotReady && isPlanner && !isForbidden && isLoading && (
+        <div className="px-4">
+          <div className="text-xs text-muted-foreground mb-2 text-center">{t('overview.state.loading')}</div>
+          <ListSkeleton />
+        </div>
+      )}
+      {!authNotReady && isPlanner && !isForbidden && isError && (
+        <div className="px-4 py-12 text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto text-destructive mb-2" />
+          <div className="text-sm font-semibold text-destructive">{t('overview.state.error')}</div>
+          <div className="text-xs text-muted-foreground mt-1">{t('overview.state.errorDesc')}</div>
+        </div>
+      )}
+      {!authNotReady && isPlanner && !isForbidden && !isLoading && !isError && hasNoData && (
+        <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+          {t('overview.state.empty')}
+        </div>
+      )}
 
-      {!isLoading && !isError && (
+      {!authNotReady && isPlanner && !isForbidden && !isLoading && !isError && !hasNoData && (
         <div className="px-4 space-y-6">
           {/* === Section 1: Avvikelser (alltid överst) === */}
           <Section title={t('overview.section.anomalies')} icon={AlertTriangle}>
