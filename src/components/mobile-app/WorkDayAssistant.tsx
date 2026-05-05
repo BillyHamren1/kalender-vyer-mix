@@ -17,13 +17,16 @@ import type {
   LongPassNoBreakDecision,
   LastWorkplaceForDayDecision,
   ActivityLeaveDecision,
+  LateAfterPlannedStartDecision,
 } from '@/hooks/useWorkDayAssistant';
 import { mobileApi } from '@/services/mobileApiService';
 import { useWorkSession, type WorkTarget } from '@/hooks/useWorkSession';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { ActivityLeaveDialog } from './ActivityLeaveDialog';
+import { LateAfterPlannedStartDialog } from './LateAfterPlannedStartDialog';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { workdayApi } from '@/services/workdayApi';
 
 interface Props {
   decision: AssistantDecision | null;
