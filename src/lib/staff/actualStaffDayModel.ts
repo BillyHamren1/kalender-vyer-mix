@@ -105,6 +105,23 @@ export interface ActualLatestPingInput {
   recorded_at: string | null;
 }
 
+/**
+ * Planerad assignment för dagen (från booking_staff_assignments / staff_assignments
+ * + bookings.rig/event/rigdown_start_time, eller large_project schema). Används
+ * ENDAST som förväntan — aldrig som lönegrundande bevis.
+ *
+ * Om systemet ser en assignment med planerad starttid men utan GPS/timer-signal
+ * fram till första ping → emitterar UI/förslag, inte automatisk bekräftelse.
+ */
+export interface ActualPlannedAssignmentInput {
+  id: string;
+  label: string;
+  /** ISO för planerad start denna dag. */
+  plannedStart: string;
+  /** ISO för planerad slut, om känt. */
+  plannedEnd?: string | null;
+}
+
 export interface BuildActualStaffDayInput {
   /** Lokalt datum för dagen (YYYY-MM-DD), används bara för logging/keys. */
   date: string;
