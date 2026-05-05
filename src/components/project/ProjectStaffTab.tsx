@@ -7,6 +7,7 @@ import { StaffSummaryCard } from './StaffSummaryCard';
 import { AddLaborCostDialog } from './AddLaborCostDialog';
 import { AddTimeReportDialog } from './AddTimeReportDialog';
 import { LocationTimeSection } from './LocationTimeSection';
+import { ProjectAutoTimeSection } from './ProjectAutoTimeSection';
 
 interface ProjectStaffTabProps {
   projectId: string;
@@ -43,6 +44,11 @@ const ProjectStaffTabInner = ({ projectId, bookingId }: { projectId: string; boo
   return (
     <div className="space-y-6">
       <PlannedStaffSection staff={plannedStaff} isLoading={isLoading} />
+
+      {bookingId && (
+        <ProjectAutoTimeSection target={{ kind: 'booking', bookingId }} />
+      )}
+
       
       <StaffTimeReportsSection
         reports={timeReports}

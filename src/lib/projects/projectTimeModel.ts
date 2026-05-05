@@ -66,6 +66,9 @@ export interface PtmTravelLog {
   id: string;
   staff_id: string;
   destination_booking_id: string | null;
+  /** Auto-switch travel taggas med next_target_type/id (booking|large_project|location). */
+  next_target_type?: string | null;
+  next_target_id?: string | null;
   start_time: string;
   end_time: string | null;
   hours_worked: number;
@@ -168,18 +171,32 @@ const round = (n: number) => Math.round(n);
 
 /** Targetar raden detta projekt? */
 const matchesTarget = (
-  row: { booking_id?: string | null; large_project_id?: string | null; destination_booking_id?: string | null },
+  row: {
+    booking_id?: string | null;
+    large_project_id?: string | null;
+    destination_booking_id?: string | null;
+    next_target_type?: string | null;
+    next_target_id?: string | null;
+  },
   target: ProjectTarget,
   includeBookingIds: Set<string>,
 ): boolean => {
   const bookingRef = row.booking_id ?? row.destination_booking_id ?? null;
+  // Auto-switch travel taggar destinationen via next_target_type/id även om
+  // destination_booking_id är null (t.ex. för large_project / location).
+  const nextBookingRef = row.next_target_type === 'booking' ? row.next_target_id ?? null : null;
+  const nextLargeProjectRef = row.next_target_type === 'large_project' ? row.next_target_id ?? null : null;
+
   if (target.kind === 'large_project') {
     if (row.large_project_id === target.largeProjectId) return true;
+    if (nextLargeProjectRef === target.largeProjectId) return true;
     if (bookingRef && includeBookingIds.has(bookingRef)) return true;
+    if (nextBookingRef && includeBookingIds.has(nextBookingRef)) return true;
     return false;
   }
   // booking-target
   if (bookingRef === target.bookingId) return true;
+  if (nextBookingRef === target.bookingId) return true;
   return false;
 };
 
