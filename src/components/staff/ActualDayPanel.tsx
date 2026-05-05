@@ -1763,7 +1763,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               );
             })}
           </ol>
-        )}
+</ol>
         {backgroundEvents.length > 0 && (
           <div className="mt-3 pt-2 border-t border-dashed">
             <button
