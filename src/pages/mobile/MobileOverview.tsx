@@ -31,7 +31,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
-import { JobActivityStrip } from '@/components/mobile-app/JobActivityStrip';
+import OpsMiniTimeline, { buildJobMiniTimeline, buildStaffMiniTimeline } from '@/components/mobile-app/OpsMiniTimeline';
 import { toast } from 'sonner';
 
 type DateMode = 'today' | 'tomorrow' | 'week';
