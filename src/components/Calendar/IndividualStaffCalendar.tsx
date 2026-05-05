@@ -56,12 +56,33 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     handleProjectEventClick(clickInfo);
   };
 
+  // Bygg assignment-keys från events och hämta tidsstatus (delad helper med
+  // projekt- och tidrapportvyn)
+  const assignmentKeys = useMemo(() => {
+    return events
+      .filter(e => e.eventType === 'booking_event' && e.resourceId)
+      .map(e => ({
+        staffId: e.resourceId,
+        date: (e.start || '').slice(0, 10),
+        bookingId: e.bookingId || e.extendedProps?.bookingId || null,
+        largeProjectId: e.extendedProps?.largeProjectId || null,
+      }))
+      .filter(a => a.date);
+  }, [events]);
+  const { statuses } = useAssignmentTimeStatuses(assignmentKeys);
+
   // Format events for FullCalendar - Show only booking events with client name and event type
   const formattedEvents = events
     .filter(event => event.eventType === 'booking_event') // Only show actual booking events
     .map(event => {
-      
-      
+      const date = (event.start || '').slice(0, 10);
+      const key = assignmentStatusKey({
+        staffId: event.resourceId,
+        date,
+        bookingId: event.bookingId || event.extendedProps?.bookingId || null,
+        largeProjectId: event.extendedProps?.largeProjectId || null,
+      });
+      const status = statuses.get(key);
       return {
         id: event.id,
         title: event.title, // Already formatted as "Client Name - event type"
@@ -76,8 +97,10 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           bookingId: event.bookingId,
           eventType: event.extendedProps?.eventType,
           staffName: event.staffName,
-          client: event.client
-        }
+          client: event.client,
+          timeStatus: status?.status,
+          actualMinutes: status?.actualMinutes,
+        },
       };
     });
 
