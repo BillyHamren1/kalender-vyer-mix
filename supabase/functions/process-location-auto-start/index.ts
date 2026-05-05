@@ -422,11 +422,11 @@ async function ensureLteOpenForTarget(
     staff_id: staffId,
     entry_date: arrivalIso.slice(0, 10),
     entered_at: arrivalIso,
-    source: 'auto_geofence_server',
+    source: report.mode === 'backfill_day' ? 'auto_geofence_server_backfill' : 'auto_geofence_server',
     client_dedupe_key: `srv:${staffId}:${hit.target.kind}:${hit.target.id}:${bucketTo5Min(arrivalIso)}`,
     metadata: {
       auto_started: true,
-      auto_start_source: 'server_background_gps',
+      auto_start_source: report.source_tag,
       matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
       confidence: hit.confidence,
       arrival_pings_count: hit.pings.length,
