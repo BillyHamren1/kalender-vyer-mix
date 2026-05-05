@@ -390,7 +390,7 @@ export function buildStaffDayEventTimeline(input: BuildDayTimelineInput): DayEve
       label: isPreWorkday
         ? `GPS visar aktivitet före arbetsdag (${fmtMin(s.durationMin)})`
         : `GPS: Anlände plats (${fmtMin(s.durationMin)})`,
-      detail: `${s.pingCount} pings · centrum ${s.centre.lat.toFixed(4)}, ${s.centre.lng.toFixed(4)}`,
+      detail: `${s.pingCount} pings`,
       meta: { centre: s.centre, pingCount: s.pingCount },
     });
     // Lämnade
