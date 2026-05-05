@@ -860,6 +860,13 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
   })();
   const ANCHOR_SLACK_MS = 5 * 60_000;
 
+  // ── Travel-klassning ──────────────────────────────────────────────
+  // Tre tydliga kategorier:
+  //   A. work_travel            → huvudjournal ("Förflyttning: A → B")
+  //   B. commute_or_background  → endast under "Bakgrunds-GPS"
+  //   C. uncertain_travel       → huvudjournal som "Möjlig förflyttning – kräver granskning"
+  type TravelClass = 'work_travel' | 'commute_or_background' | 'uncertain_travel';
+
   for (const tr of input.travels) {
     const fromLabel = tr.from.knownSite?.name ?? null;
     const toLabel = tr.to.knownSite?.name ?? null;
@@ -870,33 +877,67 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       ?? (tr.from.knownSite ? 'work_confirmed' : 'unknown_requires_lookup');
     const toRel = visitRelevance.get(tr.to.placeKey)
       ?? (tr.to.knownSite ? 'work_confirmed' : 'unknown_requires_lookup');
-    // Pre-workday-gate: en travel som SLUTAR vid (eller före) dagens första
-    // arbetsankare och vars ORIGIN inte är arbetsrelevant räknas som
-    // bakgrunds-GPS — aldrig "Förflyttning till första arbetsplats".
-    // Ex: 02:03 (okänd/privat) → 13:10 (FA Warehouse) ska inte synas i
-    // huvudjournalen som arbetsförflyttning.
+    const fromIsWork = isMainJournalRelevance(fromRel);
+    const toIsWork = isMainJournalRelevance(toRel);
+    const fromIsPrivate = fromRel === 'private_or_background';
+    const toIsPrivate = toRel === 'private_or_background';
+    const overlapsWorkContext = isWindowRelevant(startMs, endMs);
+
+    // Pre-workday lead-in: SLUTAR vid (eller före) dagens första arbetsankare
+    // och origin är inte arbetsrelevant → privat/pendling, aldrig huvudjournal.
     const isLeadInToFirstAnchor =
       firstWorkAnchorMs != null
       && endMs <= firstWorkAnchorMs + ANCHOR_SLACK_MS
-      && !isMainJournalRelevance(fromRel);
-    let travelRelevance: WorkRelevance;
-    if (isLeadInToFirstAnchor) travelRelevance = 'private_or_background';
-    else if (bothKnown) travelRelevance = 'work_confirmed';
-    else if (isWindowRelevant(startMs, endMs)) travelRelevance = 'work_confirmed';
-    else if (isMainJournalRelevance(fromRel) && isMainJournalRelevance(toRel)) travelRelevance = 'work_possible';
-    else if (isMainJournalRelevance(fromRel) || isMainJournalRelevance(toRel)) travelRelevance = 'work_possible';
-    else if (isNightLocal(tr.start) && isNightLocal(tr.end)) travelRelevance = 'private_or_background';
-    else travelRelevance = 'unknown_requires_lookup';
+      && !fromIsWork;
+
+    let travelClass: TravelClass;
+    let reason: string;
+    if (isLeadInToFirstAnchor) {
+      travelClass = 'commute_or_background';
+      reason = 'pre_workday_lead_in';
+    } else if (fromIsPrivate && !toIsWork) {
+      travelClass = 'commute_or_background';
+      reason = 'private_origin_no_work_destination';
+    } else if (isNightLocal(tr.start) && isNightLocal(tr.end) && !overlapsWorkContext) {
+      travelClass = 'commute_or_background';
+      reason = 'night_no_work_overlap';
+    } else if (bothKnown || (fromIsWork && toIsWork) || overlapsWorkContext) {
+      travelClass = 'work_travel';
+      reason = bothKnown ? 'both_known_sites'
+        : overlapsWorkContext ? 'overlaps_workday_or_timer'
+        : 'both_endpoints_work_relevant';
+    } else if (fromIsWork || toIsWork) {
+      travelClass = 'uncertain_travel';
+      reason = 'one_endpoint_work_relevant';
+    } else {
+      travelClass = 'commute_or_background';
+      reason = 'no_work_context';
+    }
+
+    // Bakåtkompat: mappa till WorkRelevance som UI redan filtrerar på.
+    const travelRelevance: WorkRelevance =
+      travelClass === 'work_travel' ? 'work_confirmed'
+      : travelClass === 'uncertain_travel' ? 'work_possible'
+      : 'private_or_background';
     const workRelevant = isMainJournalRelevance(travelRelevance);
+
+    const labelFromTo = `${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`;
+    const label =
+      travelClass === 'commute_or_background'
+        ? (isLeadInToFirstAnchor
+            ? `Bakgrunds-GPS före arbetsdagens start: ${labelFromTo}`
+            : `Bakgrunds-GPS / pendling: ${labelFromTo}`)
+        : travelClass === 'uncertain_travel'
+          ? `Möjlig förflyttning – kräver granskning: ${labelFromTo}`
+          : `Förflyttning: ${labelFromTo}`;
+
     events.push({
       id: `gps-trv:${tr.key}`,
       at: tr.start,
       until: tr.end,
       kind: 'gps_travel',
-      severity: bothKnown && !isLeadInToFirstAnchor ? 'info' : 'warning',
-      label: isLeadInToFirstAnchor
-        ? `Bakgrunds-GPS före arbetsdagens start: ${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`
-        : `Förflyttning: ${fromLabel ?? 'okänd plats'} → ${toLabel ?? 'okänd plats'}`,
+      severity: travelClass === 'work_travel' && bothKnown ? 'info' : 'warning',
+      label,
       durationMin: tr.durationMin,
       meta: {
         fromCentre: tr.from.knownSite ? null : { lat: tr.from.centre.lat, lng: tr.from.centre.lng },
@@ -906,6 +947,8 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         approved: false,
         workRelevant,
         workRelevance: travelRelevance,
+        travelClass,
+        travelClassReason: reason,
         preWorkdayLeadIn: isLeadInToFirstAnchor,
         firstWorkAnchorAt: firstWorkAnchorMs ? new Date(firstWorkAnchorMs).toISOString() : null,
       },
