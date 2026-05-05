@@ -52,7 +52,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
 
   const queueRef = useRef<string[]>([]);
   const isProcessingRef = useRef(false);
-  const scannedThisSessionRef = useRef<Set<string>>(new Set());
+  // Removed: scannedThisSessionRef. Lagersystemet (WMS) is the single source of
+  // truth for duplicate / minus / overscan detection. No local cache.
   const [recentScans, setRecentScans] = useState<RecentScanEntry[]>([]);
 
   // When a scan returns an unknown product, we PAUSE the queue and surface a
