@@ -55,6 +55,8 @@ import DayBlockTimeline from './DayBlockTimelineView';
 
 interface ActualDayPanelProps {
   staffName: string;
+  /** Staff id (för admin-overrides per rad). Optional för bakåtkompat. */
+  staffId?: string;
   date: string;
   model: ActualStaffDayModel;
   /** Senast kända ping-tid (från staff_locations). */
