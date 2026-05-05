@@ -31,6 +31,7 @@ import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
 import { JobActivityStrip } from '@/components/mobile-app/JobActivityStrip';
+import { toast } from 'sonner';
 
 type DateMode = 'today' | 'tomorrow' | 'week';
 type PhaseFilter = 'all' | 'rig' | 'event' | 'rigdown' | 'anomalies';
@@ -641,9 +642,24 @@ const MobileOverview: React.FC = () => {
                           )}
                           <button
                             onClick={() => {
-                              if (ev.booking_id) navigate(`/m/job/${ev.booking_id}`);
-                              else if (job && isLp && job.target_id) navigate(`/m/project/${job.target_id}`);
-                              else setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
+                              const lpId = job?.large_project_id ?? (job?.target_type === 'large_project' ? job?.target_id : null);
+                              if (job?.target_type === 'large_project') {
+                                if (lpId) {
+                                  navigate(`/m/project/${lpId}`);
+                                } else {
+                                  toast.error('Saknar projekt-id', { description: ev.title || 'Stort projekt' });
+                                  setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
+                                }
+                                return;
+                              }
+                              if (ev.booking_id) {
+                                navigate(`/m/job/${ev.booking_id}`);
+                              } else if (lpId) {
+                                navigate(`/m/project/${lpId}`);
+                              } else {
+                                toast.error('Saknar booking-id', { description: ev.title || 'Jobb' });
+                                setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
+                              }
                             }}
                             className="w-full flex items-start gap-3 p-3 active:scale-[0.99] transition-transform text-left"
                           >

@@ -9736,19 +9736,22 @@ async function handleGetOverviewCalendar(
     date: string,
     startT: string | null,
     endT: string | null,
+    largeProjectId: string | null = null,
   ) => {
     if (!date || date < fromDate || date > toDate) return
-    const key = `${bookingId || ''}|${eventType}|${date}`
+    const key = `${bookingId || largeProjectId || ''}|${eventType}|${date}`
     if (seen.has(key)) return
     const [defS, defE] = phaseDefaults[eventType]
+    const idSuffix = bookingId || (largeProjectId ? `lp-${largeProjectId}` : 'lp')
     synthetic.push({
-      id: `synthetic-${bookingId || 'lp'}-${eventType}-${date}`,
+      id: `synthetic-${idSuffix}-${eventType}-${date}`,
       title,
       start_time: buildIso(date, startT, defS),
       end_time: buildIso(date, endT, defE),
       event_type: eventType,
       resource_id: null,
       booking_id: bookingId,
+      large_project_id: largeProjectId,
       booking_number: bookingNumber,
       delivery_address: address,
       source_date: date,
@@ -9766,8 +9769,8 @@ async function handleGetOverviewCalendar(
 
   for (const p of projects || []) {
     const title = p.name || 'Stort projekt'
-    for (const d of p.start_date || []) pushSynthetic(null, null, `${title} - rig`, p.address, 'rig', d, null, null)
-    for (const d of p.end_date || []) pushSynthetic(null, null, `${title} - rigDown`, p.address, 'rigDown', d, null, null)
+    for (const d of p.start_date || []) pushSynthetic(null, null, `${title} - rig`, p.address, 'rig', d, null, null, p.id)
+    for (const d of p.end_date || []) pushSynthetic(null, null, `${title} - rigDown`, p.address, 'rigDown', d, null, null, p.id)
   }
 
   const merged = [...real, ...synthetic].sort((a, b) =>
@@ -11164,17 +11167,19 @@ async function handleGetOpsOverview(
     if (!staffByLpDate.has(k)) staffByLpDate.set(k, new Set())
     staffByLpDate.get(k)!.add(a.staff_id)
   }
-  const jobs: (Job & { booking_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null; jobActivity?: any })[] = events.map((ev: any) => {
+  const jobs: (Job & { booking_id: string | null; large_project_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null; jobActivity?: any })[] = events.map((ev: any) => {
     const date = ev.source_date || (ev.start_time || '').slice(0, 10)
     const bk = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${date}`) : undefined
     const count = bk?.size ?? 0
-    const isLp = !ev.booking_id && typeof ev.id === 'string' && ev.id.startsWith('synthetic-lp-')
+    const lpId: string | null = ev.large_project_id ?? null
+    const isLp = !ev.booking_id && !!lpId
     return {
       id: ev.id,
       type: isLp ? 'large_project' : 'booking',
       target_type: isLp ? 'large_project' : 'booking',
-      target_id: ev.booking_id ?? null,
+      target_id: isLp ? lpId : (ev.booking_id ?? null),
       booking_id: ev.booking_id ?? null,
+      large_project_id: lpId,
       title: ev.title,
       booking_number: ev.booking_number ?? null,
       client: ev.title ?? null,
