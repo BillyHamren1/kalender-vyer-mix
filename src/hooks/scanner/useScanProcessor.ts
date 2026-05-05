@@ -179,7 +179,12 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // === NORMAL MODE ===
         scanLog('verify_start', { packingId, sku: scannedValue });
         const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
+        recordApiStart(scannedValue);
         const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId, verifierStaffId);
+        const apiStatus: ScanStatus = result.success
+          ? ((result as any).alreadyScanned ? 'duplicate' : (result.overscan ? 'overscan' : 'success'))
+          : (result.notInPackingList ? 'unknown_product' : 'failed');
+        recordApiEnd(scannedValue, apiStatus, result.productName);
         scanLog('verify_result', result);
 
         // === Special branch: product not in packing list — pause + prompt user ===
