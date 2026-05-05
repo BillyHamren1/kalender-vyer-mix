@@ -1,5 +1,35 @@
 import { supabase } from "@/integrations/supabase/client";
 import { subDays, addDays, format, eachDayOfInterval, parseISO } from "date-fns";
+import { syncActivityToCalendar } from "@/services/activityCalendarSyncService";
+
+// Fält som påverkar speglingen i personalkalendern.
+// När någon av dessa ändras OCH aktiviteten redan är publicerad
+// (calendar_event_id != null) ska calendar_events-raden automatiskt
+// uppdateras så att personalkalendern aldrig blir stale.
+const CALENDAR_MIRROR_FIELDS = new Set([
+  'title',
+  'start_date',
+  'end_date',
+  'start_time',
+  'end_time',
+  'category',
+  'task_type',
+]);
+
+const reSyncIfPublished = async (taskId: string) => {
+  try {
+    const { data } = await supabase
+      .from('establishment_tasks')
+      .select('calendar_event_id')
+      .eq('id', taskId)
+      .maybeSingle();
+    if (data?.calendar_event_id) {
+      await syncActivityToCalendar(taskId);
+    }
+  } catch (err) {
+    console.error('[establishmentTaskService] re-sync to calendar failed:', err);
+  }
+};
 
 export type TaskStatus = 'todo' | 'in_progress' | 'blocked' | 'done';
 export type TaskReadiness = 'ready' | 'missing_information' | 'waiting_for_decision' | 'waiting_for_external';
