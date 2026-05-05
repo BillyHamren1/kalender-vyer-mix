@@ -23,6 +23,8 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useProjectCalendarDays } from '@/hooks/useProjectCalendarDays';
+import { useProjectTaskCalendarEvents } from '@/hooks/useProjectTaskCalendarEvents';
+import type { Resource } from '@/components/Calendar/ResourceData';
 import './ProjectCalendarView.css';
 
 interface Props {
@@ -31,7 +33,8 @@ interface Props {
   isLargeProject?: boolean;
 }
 
-const DEFAULT_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport'];
+const TASK_RESOURCE: Resource = { id: 'team-tasks', title: 'Aktiviteter', eventColor: '#A78BFA' };
+const DEFAULT_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-tasks'];
 
 const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
   // 1. Hämta projektets events.
