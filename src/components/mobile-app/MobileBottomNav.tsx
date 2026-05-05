@@ -1,18 +1,21 @@
-import { Briefcase, Clock, Wrench, MessageCircle } from 'lucide-react';
+import { Briefcase, Clock, Wrench, MessageCircle, LayoutDashboard } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUnreadMessageCount } from '@/hooks/useUnreadMessageCount';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 import type { TranslationKey } from '@/i18n/translations';
 
 type Tab = { path: string; labelKey: TranslationKey; icon: typeof Briefcase; exact?: boolean; showBadge?: boolean };
 
-const tabs: Tab[] = [
+const baseTabs: Tab[] = [
   { path: '/m', labelKey: 'nav.jobs', icon: Briefcase, exact: true },
   { path: '/m/report', labelKey: 'nav.time', icon: Clock },
   { path: '/m/inbox', labelKey: 'nav.messages', icon: MessageCircle, showBadge: true },
   { path: '/m/tools', labelKey: 'nav.tools', icon: Wrench },
 ];
+
+const overviewTab: Tab = { path: '/m/overview', labelKey: 'nav.overview', icon: LayoutDashboard };
 
 const MobileBottomNav = () => {
   const location = useLocation();
