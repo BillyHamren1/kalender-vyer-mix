@@ -32,13 +32,28 @@ export const ENGINE_VERSION = 'auto-start@1.0.0'
 export const ENTRY_PING_MIN_COUNT = 3
 export const ENTRY_PING_MIN_DWELL_MS = 2 * 60 * 1000
 export const ENTRY_PING_MAX_ACCURACY_M = 75
-// Kort vistelse-policy: 0–15 min på projekt/location ska INTE bli eget
-// arbetspass automatiskt. Detta är dwell-tröskeln innan auto-start engine
-// öppnar workday/LTE/skapar arrival-event. Kort GPS-närvaro tillhör
-// resa eller föregående/nästa arbetsblock, inte ett separat pass.
-// Undantag (manuell timer, scanner, admin-godkänd) går aldrig genom denna
-// kodväg — de skapar LTE direkt via mobile-app-api.
+// Kort vistelse-policy (per target-typ). Auto-start får ALDRIG materialisera
+// workday/LTE/arrival på en dwell under dessa trösklar — då skapas istället
+// ett suggestion/review-event (assistant_events) som admin/användare kan
+// bekräfta manuellt. Manuell timer, scanner, admin-godkänd går aldrig genom
+// denna kodväg — de skapar LTE direkt via mobile-app-api.
+//
+//   - location (känt arbetsställe, t.ex. Lager): 5 min
+//   - booking/project: 15 min, eller 5 min om personen är assigned till det
+//   - absolut golv (även för suggestion): 2 min
+//
+// AUTO_START_MIN_DWELL_MS behålls bara som default/legacy fallback för tester.
 export const AUTO_START_MIN_DWELL_MS = 15 * 60 * 1000
+export const AUTO_START_MIN_DWELL_LOCATION_MS = 5 * 60 * 1000
+export const AUTO_START_MIN_DWELL_PROJECT_MS = 15 * 60 * 1000
+export const AUTO_START_MIN_DWELL_ASSIGNED_MS = 5 * 60 * 1000
+export const AUTO_START_ABSOLUTE_FLOOR_MS = 2 * 60 * 1000
+
+export function requiredDwellMs(kind: 'location' | 'booking' | 'project', isAssigned: boolean): number {
+  if (kind === 'location') return AUTO_START_MIN_DWELL_LOCATION_MS
+  if (isAssigned) return AUTO_START_MIN_DWELL_ASSIGNED_MS
+  return AUTO_START_MIN_DWELL_PROJECT_MS
+}
 const PROCESS_LOOKBACK_MS = 60 * 60 * 1000
 const PROCESS_OVERLAP_MS = 5 * 60 * 1000
 const TARGET_DAY_TOLERANCE_MS = 24 * 60 * 60 * 1000
@@ -254,11 +269,12 @@ export function evaluateStableSegments(target: Target, pings: Ping[]): StableHit
     const enoughCount = inside.length >= ENTRY_PING_MIN_COUNT
     const enoughDwell = dwell >= ENTRY_PING_MIN_DWELL_MS
     if (!enoughCount && !enoughDwell) continue
-    // Short-visit guard: 1–15 min GPS presence must NOT auto-start an
-    // activity/LTE on its own. The cluster is still preserved for the
-    // raw GPS view; we just refuse to materialise it as a workpass.
-    if (dwell < AUTO_START_MIN_DWELL_MS) {
-      console.log('[auto-start] short_visit_skipped', {
+    // Absolute floor — even a "suggestion/review" event needs ≥2 min dwell to
+    // avoid pure GPS noise. Per-target thresholds (location vs booking/project,
+    // assigned-or-not) are evaluated in processStaff which has access to
+    // staff_assignments to decide materialise vs suggestion-only.
+    if (dwell < AUTO_START_ABSOLUTE_FLOOR_MS) {
+      console.log('[auto-start] below_absolute_floor_skipped', {
         target: target.label,
         target_kind: target.kind,
         dwell_minutes: Math.round(dwell / 60_000),
@@ -634,6 +650,33 @@ export async function processStaff(
     ordered.push({ ...h })
   }
 
+  // ── Assignment lookup (per dag) ──────────────────────────────────────────
+  // Used to lower the dwell threshold from 15 → 5 min for booking/project when
+  // staff is actually assigned to that target on the visit date.
+  const dayKeys = new Set<string>(ordered.map(h => new Date(h.firstReliableTs).toISOString().slice(0, 10)))
+  const assignedKey = (kind: string, id: string, day: string) => `${kind}:${id}:${day}`
+  const assignedSet = new Set<string>()
+  try {
+    const days = Array.from(dayKeys)
+    if (days.length > 0) {
+      const fromDay = days.reduce((a, b) => a < b ? a : b)
+      const toDay = days.reduce((a, b) => a > b ? a : b)
+      const { data: sa } = await supabase
+        .from('staff_assignments')
+        .select('booking_id, large_project_id, work_date')
+        .eq('staff_id', staffId)
+        .gte('work_date', fromDay)
+        .lte('work_date', toDay)
+      for (const row of sa ?? []) {
+        const day = String(row.work_date).slice(0, 10)
+        if (row.booking_id) assignedSet.add(assignedKey('booking', row.booking_id, day))
+        if (row.large_project_id) assignedSet.add(assignedKey('project', row.large_project_id, day))
+      }
+    }
+  } catch (e: any) {
+    console.warn('[auto-start] assignment lookup failed', e?.message ?? e)
+  }
+
   report.arrivals += ordered.length
 
   let workdayId: string | null = null
@@ -641,6 +684,68 @@ export async function processStaff(
 
   for (const hit of ordered) {
     const arrivalIso = new Date(hit.firstReliableTs).toISOString()
+    const visitDay = arrivalIso.slice(0, 10)
+    const isAssigned =
+      hit.target.kind !== 'location' &&
+      assignedSet.has(assignedKey(hit.target.kind, hit.target.id, visitDay))
+    const requiredDwell = requiredDwellMs(hit.target.kind, isAssigned)
+    const meetsDwell = hit.dwellMs >= requiredDwell
+    const lowConfidence = hit.confidence === 'low'
+    const materialise = meetsDwell && !lowConfidence
+
+    if (!materialise) {
+      // Suggestion-only path: emit a review event, do NOT open workday/LTE,
+      // do NOT close prev LTE, do NOT create travel — preserves the visit
+      // for admin review without polluting time reports.
+      const sugDk = `${staffId}:suggestion:${hit.target.kind}:${hit.target.id}:${bucketTo5Min(arrivalIso)}`
+      const reason =
+        lowConfidence ? 'low_confidence'
+        : hit.target.kind === 'location' ? 'short_visit_below_location_threshold'
+        : isAssigned ? 'short_visit_below_assigned_threshold'
+        : 'short_visit_below_project_threshold'
+      console.log('[auto-start] suggestion_only', {
+        staff_id: staffId,
+        target: hit.target.label,
+        target_kind: hit.target.kind,
+        is_assigned: isAssigned,
+        dwell_minutes: Math.round(hit.dwellMs / 60_000),
+        required_minutes: Math.round(requiredDwell / 60_000),
+        confidence: hit.confidence,
+        reason,
+      })
+      await emitAssistantEvent(supabase, {
+        organization_id: orgId,
+        staff_id: staffId,
+        event_type: 'arrival_suggestion',
+        target_type: hit.target.kind,
+        target_id: hit.target.id,
+        target_label: hit.target.label,
+        happened_at: arrivalIso,
+        source: 'geofence_background',
+        suggested_action: 'review_short_visit',
+        resolution_status: 'pending',
+        stale_for_prompt: false,
+        still_relevant_for_review: true,
+        linked_workday_id: null,
+        metadata: {
+          auto_started: false,
+          suggestion_only: true,
+          reason,
+          dwell_ms: hit.dwellMs,
+          required_dwell_ms: requiredDwell,
+          is_assigned: isAssigned,
+          confidence: hit.confidence,
+          engine_version: report.engine_version,
+          run_id: report.run_id,
+          matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+          arrival_pings_count: hit.pings.length,
+          first_arrival_ping_at: arrivalIso,
+        },
+      }, sugDk, report, 'arrival_suggestion')
+      // Do NOT update prevHit — the next real materialised hit should
+      // continue any switch logic from the previous real hit.
+      continue
+    }
 
     if (!workdayId) {
       workdayId = await ensureWorkdayOpen(supabase, staffId, orgId, arrivalIso, hit, report)
@@ -717,6 +822,9 @@ export async function processStaff(
         run_id: report.run_id,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
         confidence: hit.confidence,
+        is_assigned: isAssigned,
+        dwell_ms: hit.dwellMs,
+        required_dwell_ms: requiredDwell,
         arrival_pings_count: hit.pings.length,
         first_arrival_ping_at: arrivalIso,
         linked_lte_id: lteId,
