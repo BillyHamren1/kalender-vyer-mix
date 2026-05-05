@@ -170,11 +170,36 @@ export const ProjectAutoTimeSection = ({ target, includeBookingIds = [], planned
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Bekräftad tid" minutes={summary.confirmedMinutes} tone="confirmed" />
-          <Stat label="Pågående" minutes={summary.activeMinutes} tone="active" />
-          <Stat label="Föreslagen restid" minutes={summary.travelMinutesSuggested} tone="travel" />
-          <Stat label="Ofördelad/oklar" minutes={summary.suggestedMinutes} tone="suggested" />
+          <Stat
+            label="Bekräftad tid"
+            sublabel="Stängda timrar & godkänd restid"
+            minutes={summary.confirmedMinutes + summary.travelMinutesApproved}
+            tone="confirmed"
+          />
+          <Stat
+            label="Pågående nu"
+            sublabel="Aktiv timer på projektet"
+            minutes={summary.activeMinutes}
+            tone="active"
+          />
+          <Stat
+            label="Föreslagen tid"
+            sublabel="GPS/auto-detect, ej godkänd"
+            minutes={summary.suggestedMinutes + summary.travelMinutesSuggested}
+            tone="suggested"
+          />
+          <Stat
+            label="Kräver granskning"
+            sublabel="Avvikelser & oklara rader"
+            minutes={null}
+            count={summary.anomalies.length + rows.filter(r => computeStatus(r) === 'needs_review').length}
+            tone="review"
+          />
         </div>
+        <p className="text-[11px] text-muted-foreground -mt-2">
+          OBS: Bekräftad, Pågående och Föreslagen är separata kategorier — summeras
+          aldrig till en gemensam total. Endast bekräftad tid är slutlig.
+        </p>
 
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">Ingen personal eller tid ännu.</p>
