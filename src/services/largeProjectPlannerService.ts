@@ -70,6 +70,17 @@ interface MoveLargeProjectDayInput {
   newEndISO: string;
 }
 
+export interface MoveLargeProjectDayResult {
+  bookingIdsFound: number;
+  bookingsUpdated: number;
+  calendarEventsUpdated: number;
+  phase: LargeProjectPhase;
+  fromDate: string;
+  toDate: string;
+  newStartISO: string;
+  newEndISO: string;
+}
+
 /**
  * Move a single project day for a large project from `fromDate` → `toDate`
  * for the given phase. Updates:
@@ -84,7 +95,7 @@ export async function moveLargeProjectDay({
   toDate,
   newStartISO,
   newEndISO,
-}: MoveLargeProjectDayInput): Promise<void> {
+}: MoveLargeProjectDayInput): Promise<MoveLargeProjectDayResult> {
   const dateChanged = fromDate !== toDate;
 
   // 1. Update large_projects.<phase>_date array — only if the date changed
@@ -104,12 +115,10 @@ export async function moveLargeProjectDay({
 
     const idx = dates.indexOf(fromDate);
     if (idx === -1) {
-      // Add the new date if old not found (defensive)
       if (!dates.includes(toDate)) dates.push(toDate);
     } else {
       dates[idx] = toDate;
     }
-    // De-dupe + sort
     const finalDates = Array.from(new Set(dates)).sort();
 
     const { error: updErr } = await supabase
@@ -119,9 +128,7 @@ export async function moveLargeProjectDay({
     if (updErr) throw updErr;
   }
 
-  // 2. Update all linked bookings — match by current phase date (fromDate)
-  //    and write new date + new times. Even when only the time changed,
-  //    fromDate === toDate so this still updates the times in place.
+  // 2. Collect bookingIds from BOTH link table and direct bookings.large_project_id
   const [linksRes, directRes] = await Promise.all([
     supabase
       .from('large_project_bookings')
@@ -139,11 +146,15 @@ export async function moveLargeProjectDay({
   (linksRes.data || []).forEach((l: any) => l?.booking_id && bookingIdSet.add(l.booking_id));
   (directRes.data || []).forEach((b: any) => b?.id && bookingIdSet.add(b.id));
   const bookingIds = Array.from(bookingIdSet);
+
   const bookingDateCol = PHASE_TO_BOOKING_DATE[phase];
   const bookingTimes = PHASE_TO_BOOKING_TIMES[phase];
 
+  let bookingsUpdated = 0;
+  let calendarEventsUpdated = 0;
+
   if (bookingIds.length > 0) {
-    const { error: bookErr } = await supabase
+    const { data: bookData, error: bookErr } = await supabase
       .from('bookings')
       .update({
         [bookingDateCol]: toDate,
@@ -151,13 +162,12 @@ export async function moveLargeProjectDay({
         [bookingTimes.end]: newEndISO,
       })
       .in('id', bookingIds)
-      .eq(bookingDateCol, fromDate);
+      .eq(bookingDateCol, fromDate)
+      .select('id');
     if (bookErr) throw bookErr;
-  }
+    bookingsUpdated = bookData?.length ?? 0;
 
-  // 3. Update calendar_events rows for these bookings on this phase/date
-  if (bookingIds.length > 0) {
-    const { error: ceErr } = await supabase
+    const { data: ceData, error: ceErr } = await supabase
       .from('calendar_events')
       .update({
         start_time: newStartISO,
@@ -166,40 +176,69 @@ export async function moveLargeProjectDay({
       })
       .in('booking_id', bookingIds)
       .eq('event_type', phase)
-      .eq('source_date', fromDate);
-    if (ceErr) console.warn('[moveLargeProjectDay] calendar_events update warning:', ceErr);
+      .eq('source_date', fromDate)
+      .select('id');
+    if (ceErr) {
+      console.warn('[moveLargeProjectDay] calendar_events update warning:', ceErr);
+    } else {
+      calendarEventsUpdated = ceData?.length ?? 0;
+    }
   }
 
-  // Skip team-assignment row move if date didn't change
-  if (!dateChanged) return;
-
-  // 4. Move team assignment (if any)
-  const { data: existing } = await supabase
-    .from('large_project_team_assignments')
-    .select('id, team_id')
-    .eq('large_project_id', largeProjectId)
-    .eq('phase', phase)
-    .eq('assignment_date', fromDate)
-    .maybeSingle();
-
-  if (existing?.team_id) {
-    await supabase
-      .from('large_project_team_assignments')
-      .upsert(
-        {
-          large_project_id: largeProjectId,
-          phase,
-          assignment_date: toDate,
-          team_id: existing.team_id,
-        },
-        { onConflict: 'large_project_id,phase,assignment_date' }
-      );
-
-    await supabase
-      .from('large_project_team_assignments')
-      .delete()
-      .eq('id', existing.id);
+  if (import.meta.env?.DEV) {
+    console.info('[moveLargeProjectDay] result', {
+      largeProjectId,
+      phase,
+      fromDate,
+      toDate,
+      newStartISO,
+      newEndISO,
+      bookingIdsFound: bookingIds.length,
+      bookingsUpdated,
+      calendarEventsUpdated,
+    });
   }
+
+  // Move team assignment if date changed
+  if (dateChanged) {
+    const { data: existing } = await supabase
+      .from('large_project_team_assignments')
+      .select('id, team_id')
+      .eq('large_project_id', largeProjectId)
+      .eq('phase', phase)
+      .eq('assignment_date', fromDate)
+      .maybeSingle();
+
+    if (existing?.team_id) {
+      await supabase
+        .from('large_project_team_assignments')
+        .upsert(
+          {
+            large_project_id: largeProjectId,
+            phase,
+            assignment_date: toDate,
+            team_id: existing.team_id,
+          },
+          { onConflict: 'large_project_id,phase,assignment_date' }
+        );
+
+      await supabase
+        .from('large_project_team_assignments')
+        .delete()
+        .eq('id', existing.id);
+    }
+  }
+
+  return {
+    bookingIdsFound: bookingIds.length,
+    bookingsUpdated,
+    calendarEventsUpdated,
+    phase,
+    fromDate,
+    toDate,
+    newStartISO,
+    newEndISO,
+  };
 }
 
 /**
