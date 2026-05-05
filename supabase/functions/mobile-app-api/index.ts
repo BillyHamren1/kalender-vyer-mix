@@ -6156,50 +6156,69 @@ async function handleClaimLagerTask(supabase: any, staffId: string, data: any, o
 // ==================== LAGER TEAM / PURCHASES / FILES ====================
 
 async function handleGetLagerTeam(supabase: any, organizationId: string) {
+  // Dagens Lager-team = personal som faktiskt är assignad till
+  // personalkalenderns Lager-kolumn idag (staff_assignments.team_id='transport').
+  // Lager-tagg och warehouse_staff_activations används INTE som källa här —
+  // de styr endast tillgänglighet/synlighet i lagerflödet.
   const today = new Date().toISOString().split('T')[0]
 
-  // Get staff with 'Lager' tag
-  const { data: staffMembers, error: sErr } = await supabase
-    .from('staff_members')
-    .select('id, name, phone, email, role, color, tags')
+  const { data: assignments, error: aErr } = await supabase
+    .from('staff_assignments')
+    .select('staff_id')
     .eq('organization_id', organizationId)
-    .eq('is_active', true)
-    .contains('tags', ['Lager'])
+    .eq('team_id', 'transport')
+    .eq('assignment_date', today)
 
-  if (sErr) {
-    console.error('Get lager team — staff err:', sErr)
-    return new Response(JSON.stringify({ team: [] }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  if (aErr) {
+    console.error('[get_lager_team] staff_assignments err:', aErr)
+    return new Response(
+      JSON.stringify({ team: [] }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
   }
 
-  const { data: activations } = await supabase
-    .from('warehouse_staff_activations')
-    .select('*')
+  const staffIds = Array.from(
+    new Set((assignments || []).map((r: any) => r.staff_id).filter(Boolean)),
+  )
+  if (staffIds.length === 0) {
+    console.log('[get_lager_team] no transport assignments today', { organizationId, today })
+    return new Response(
+      JSON.stringify({ team: [] }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const { data: staffMembers, error: sErr } = await supabase
+    .from('staff_members')
+    .select('id, name, phone, email, role, color')
     .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .in('id', staffIds)
 
-  const actMap = new Map((activations || []).map((a: any) => [a.staff_id, a]))
+  if (sErr) {
+    console.error('[get_lager_team] staff_members err:', sErr)
+    return new Response(
+      JSON.stringify({ team: [] }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
 
-  const team = (staffMembers || []).filter((s: any) => {
-    const a = actMap.get(s.id)
-    if (!a || !a.is_active) return false
-    if (a.activation_type === 'permanent') return true
-    if (a.activation_type === 'temporary') {
-      const start = a.start_date || today
-      const end = a.end_date
-      return today >= start && (!end || today <= end)
-    }
-    return false
-  }).map((s: any) => ({
-    id: s.id,
-    name: s.name,
-    phone: s.phone,
-    email: s.email,
-    role: s.role,
-    color: s.color,
-  }))
+  const team = (staffMembers || [])
+    .map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      phone: s.phone,
+      email: s.email,
+      role: s.role,
+      color: s.color,
+    }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'sv'))
+
+  console.log('[get_lager_team] returning team', { organizationId, today, count: team.length })
 
   return new Response(
     JSON.stringify({ team }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
 
