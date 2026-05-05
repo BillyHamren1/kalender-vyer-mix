@@ -26,6 +26,8 @@ export const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+export const ENGINE_VERSION = 'auto-start@1.0.0'
+
 // ── Tuning constants (mirror src/lib/geofence/stableEntry.ts) ───────────────
 export const ENTRY_PING_MIN_COUNT = 3
 export const ENTRY_PING_MIN_DWELL_MS = 2 * 60 * 1000
