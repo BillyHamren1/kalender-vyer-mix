@@ -41,6 +41,7 @@ import { buildDayBlockTimeline, type VisitInfo } from '@/lib/staff/dayBlockTimel
 import DayBlockTimeline from './DayBlockTimelineView';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useActualDayEventOverrides } from '@/hooks/useActualDayEventOverrides';
+import ExcludedEventsSection from './ExcludedEventsSection';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
@@ -474,7 +475,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
 }) => {
   const { isAdmin, hasAnyRole } = useUserRoles();
   const canExclude = isAdmin || hasAnyRole(['projekt', 'lager']);
-  const { excludedKeys, exclude } = useActualDayEventOverrides(staffId ?? null, date ?? null);
+  const { excludedKeys, exclude, restore, overrides } = useActualDayEventOverrides(staffId ?? null, date ?? null);
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [rawGpsOpen, setRawGpsOpen] = useState(false);
@@ -1220,6 +1221,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           Visar enbart förväntan; aldrig blandat med faktiska händelser. */}
       {planningItems.length > 0 && (
         <PlanningSection items={planningItems} />
+      )}
+
+      {canExclude && overrides.length > 0 && (
+        <ExcludedEventsSection
+          overrides={overrides}
+          blocks={enrichedBlockTimeline}
+          onRestore={(id) => restore(id)}
+        />
       )}
 
       {/* B. Faktiska händelser — alltid synlig */}

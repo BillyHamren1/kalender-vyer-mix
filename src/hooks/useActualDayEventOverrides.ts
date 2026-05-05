@@ -66,10 +66,27 @@ export function useActualDayEventOverrides(staffId: string | null, localDate: st
     return true;
   }, [organizationId, staffId, localDate, userId, qc]);
 
+  const restore = useCallback(async (overrideId: string) => {
+    if (!organizationId || !staffId || !localDate) return false;
+    const { error } = await supabase
+      .from('actual_day_event_overrides')
+      .delete()
+      .eq('id', overrideId);
+    if (error) {
+      console.error('restore override failed', error);
+      toast.error('Kunde inte återställa raden');
+      return false;
+    }
+    await qc.invalidateQueries({ queryKey: [KEY, organizationId, staffId, localDate] });
+    toast.success('Raden återställd');
+    return true;
+  }, [organizationId, staffId, localDate, qc]);
+
   return {
     overrides: query.data ?? [],
     excludedKeys,
     isLoading: query.isLoading,
     exclude,
+    restore,
   };
 }
