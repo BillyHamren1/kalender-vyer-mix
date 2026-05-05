@@ -365,6 +365,7 @@ export function hiddenReasonLabel(reason: TimelineHiddenReason): string {
     case 'low_confidence': return 'Låg tilltro';
     case 'private_background': return 'Privat/bakgrund';
     case 'within_transition': return 'Del av transition';
+    case 'assistant_merged': return 'Assistent-händelse (matchad)';
     case 'raw_detail': return 'Tekniskt rådata';
   }
 }
