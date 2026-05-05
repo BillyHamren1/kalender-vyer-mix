@@ -760,15 +760,35 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           resolvedPlace,
         } as any;
       }
-      if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
+      if (ev.kind === 'gps_travel') {
+        // Etikettera ALLTID via lookup när koordinater finns — gäller även
+        // "Bakgrunds-GPS / pendling" och "Möjlig förflyttning"-prefix, inte
+        // bara "Förflyttning". "okänd plats" får aldrig läcka till huvudraden.
         const fromKnown = !m?.fromCentre;
         const toKnown = !m?.toCentre;
-        const fromLbl = fromKnown
-          ? ev.label.replace(/^Förflyttning:\s*/, '').split(' → ')[0]
-          : (lookupCoord(m?.fromCentre)?.label ?? 'okänd plats');
-        const toLbl = toKnown
-          ? (ev.label.split(' → ')[1] ?? '')
-          : (lookupCoord(m?.toCentre)?.label ?? 'okänd plats');
+        const fromLookup = fromKnown ? null : lookupCoord(m?.fromCentre);
+        const toLookup = toKnown ? null : lookupCoord(m?.toCentre);
+
+        // Plocka original-segmenten ur label, så att kända platser bevaras.
+        const stripPrefix = (s: string) => s.replace(/^[^:]+:\s*/, '');
+        const segs = stripPrefix(ev.label).split(' → ');
+        const origFrom = segs[0] ?? '';
+        const origTo = segs[1] ?? '';
+
+        const resolveLbl = (
+          known: boolean,
+          orig: string,
+          lookup: ReturnType<typeof lookupCoord>,
+        ): string => {
+          if (known) return orig || '—';
+          if (lookup?.status === 'ok') return lookup.label;
+          if (lookup?.status === 'loading') return 'Slår upp adress…';
+          if (lookup?.status === 'error') return 'Okänd plats – adress kunde inte hämtas';
+          return 'Slår upp adress…';
+        };
+        const fromLbl = resolveLbl(fromKnown, origFrom, fromLookup);
+        const toLbl = resolveLbl(toKnown, origTo, toLookup);
+
         const fromMaps = !fromKnown && m?.fromCentre
           ? `https://www.google.com/maps/search/?api=1&query=${m.fromCentre.lat.toFixed(6)},${m.fromCentre.lng.toFixed(6)}`
           : null;
@@ -777,21 +797,25 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           : null;
 
         const fromPlace: JourneyPlace = {
-          label: (m?.from_label as string | undefined) ?? fromLbl ?? '—',
+          label: fromLbl,
           mapUrl: fromMaps,
           lat: m?.fromCentre?.lat ?? null,
           lng: m?.fromCentre?.lng ?? null,
         };
         const toPlace: JourneyPlace = {
-          label: (m?.to_label as string | undefined) ?? toLbl ?? '—',
+          label: toLbl,
           mapUrl: toMaps,
           lat: m?.toCentre?.lat ?? null,
           lng: m?.toCentre?.lng ?? null,
         };
 
+        // Behåll ev. ursprungligt prefix (Förflyttning / Bakgrunds-GPS / Möjlig…)
+        const prefixMatch = ev.label.match(/^([^:]+):/);
+        const prefix = prefixMatch ? prefixMatch[1] : 'Förflyttning';
+
         return {
           ...ev,
-          label: `Förflyttning: ${fromLbl} → ${toLbl}`,
+          label: `${prefix}: ${fromLbl} → ${toLbl}`,
           from_maps_url: fromMaps,
           to_maps_url: toMaps,
           fromPlace,
