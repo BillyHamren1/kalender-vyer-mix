@@ -543,6 +543,8 @@ export async function processStaff(
         metadata: {
           auto_started: true,
           source: 'geofence_auto_switch_server',
+          engine_version: report.engine_version,
+          run_id: report.run_id,
           previous_target: { kind: prevHit.target.kind, id: prevHit.target.id, label: prevHit.target.label },
           next_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
           departure_at: departureIso,
