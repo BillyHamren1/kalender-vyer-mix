@@ -234,6 +234,72 @@ const isInnerTechnical = (ev: ActualEvent): boolean =>
   || (ev.kind as string).startsWith('time_report')
   || (ev.kind as string).startsWith('server_');
 
+const mapUrlOf = (lat: number | null | undefined, lng: number | null | undefined): string | null =>
+  (lat != null && lng != null) ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+
+const PENDING_GEOCODE_LABEL = 'Slår upp adress…';
+
+/**
+ * Resolve a presence-block's place from a VisitInfo + presenceKind.
+ * - matched_internal → använd label rakt av (intern plats/projekt)
+ * - pending_geocode  → koordinater finns men ingen intern match → "Slår upp adress…"
+ * - unknown_no_coords → varken match eller koordinater
+ */
+const resolvePresencePlace = (
+  presenceKind: PresenceKind,
+  visit: VisitInfo | undefined,
+  fallbackLabel: string,
+): ResolvedPlace => {
+  const lat = visit?.centre?.lat ?? null;
+  const lng = visit?.centre?.lng ?? null;
+  const mapUrl = mapUrlOf(lat, lng);
+  if (presenceKind !== 'unknown' && (visit?.knownSiteId || fallbackLabel)) {
+    return {
+      label: visit?.label || fallbackLabel,
+      lat, lng, mapUrl,
+      lookupStatus: 'matched_internal',
+    };
+  }
+  if (lat != null && lng != null) {
+    return {
+      label: PENDING_GEOCODE_LABEL,
+      lat, lng, mapUrl,
+      lookupStatus: 'pending_geocode',
+      nearestKnownSite: visit?.nearestKnownSite ?? null,
+      unmatchReason: visit?.unmatchReason ?? null,
+    };
+  }
+  return {
+    label: fallbackLabel || 'Okänd plats',
+    lat: null, lng: null, mapUrl: null,
+    lookupStatus: 'unknown_no_coords',
+    nearestKnownSite: visit?.nearestKnownSite ?? null,
+    unmatchReason: visit?.unmatchReason ?? null,
+  };
+};
+
+const resolveJourneyEndpoint = (
+  placeKey: string | null,
+  fallbackLabel: string | null,
+  visitByKey: Map<string, VisitInfo>,
+): JourneyEndpointPlace => {
+  const visit = placeKey ? visitByKey.get(placeKey) : undefined;
+  const lat = visit?.centre?.lat ?? null;
+  const lng = visit?.centre?.lng ?? null;
+  const mapUrl = mapUrlOf(lat, lng);
+  const isInternal = !!visit?.knownSiteId
+    || !!(placeKey && (placeKey.startsWith('booking:') || placeKey.startsWith('large:')
+      || placeKey.startsWith('site:') || placeKey.startsWith('location:') || placeKey.startsWith('warehouse:')));
+  if (isInternal && (visit?.label || fallbackLabel)) {
+    return { label: visit?.label || fallbackLabel || 'Plats', lat, lng, mapUrl, lookupStatus: 'matched_internal' };
+  }
+  if (lat != null && lng != null) {
+    return { label: PENDING_GEOCODE_LABEL, lat, lng, mapUrl, lookupStatus: 'pending_geocode' };
+  }
+  return { label: fallbackLabel || 'Okänd plats', lat: null, lng: null, mapUrl: null, lookupStatus: 'unknown_no_coords' };
+};
+
+
 const strengthFromMeta = (ev: ActualEvent, fallbackMin: number): PresenceStrength => {
   const m = META(ev);
   const s = m.stopStrength;
