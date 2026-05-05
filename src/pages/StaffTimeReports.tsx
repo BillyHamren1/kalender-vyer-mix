@@ -95,8 +95,8 @@ interface StaffWithDayReport {
   /** Senaste GPS-fetchfel för dagen (om något), så UI kan varna istället för att tolka tomheten som "inga händelser". */
   pingsFetchError: string | null;
   /**
-   * Planeringsstatus för dagen — beräknas mot personalkalenderns assignments
-   * (booking_staff_assignments + staff_assignments + large_project_staff)
+   * Planeringsstatus för dagen — beräknas mot dagsbundna assignments i
+   * personalkalendern (booking_staff_assignments + staff_assignments)
    * unionat med faktisk aktivitet (workday/time_reports/LTE/travel/GPS).
    */
   planningStatus: PlanningStatus;
@@ -230,7 +230,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsStaffRes, lpsByDateForPlanRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -271,15 +271,6 @@ const StaffTimeReports: React.FC = () => {
           .from('staff_assignments')
           .select('staff_id, team_id, assignment_date')
           .eq('assignment_date', dateStr),
-        supabase
-          .from('large_project_staff')
-          .select('staff_id, large_project_id'),
-        // Stora projekt vars datum-array innehåller selectedDate (start/event/end).
-        // Filtrering klientsidan eftersom kolumnerna är text[].
-        supabase
-          .from('large_projects')
-          .select('id, name, start_date, event_date, end_date, deleted_at')
-          .is('deleted_at', null),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
@@ -327,21 +318,6 @@ const StaffTimeReports: React.FC = () => {
       // använder. plannedStaffIds får INTE komma från calendar_events ensamt.
       const bsaRows = ((bsaRes as any).error ? [] : (bsaRes as any).data || []) as any[];
       const saRows = ((saRes as any).error ? [] : (saRes as any).data || []) as any[];
-      const lpsStaffRows = ((lpsStaffRes as any).error ? [] : (lpsStaffRes as any).data || []) as any[];
-      const lpsAllRows = ((lpsByDateForPlanRes as any).error ? [] : (lpsByDateForPlanRes as any).data || []) as any[];
-      // Stora projekt vars rig/event/rigDown täcker dateStr (text[]-kolumner).
-      const lpsActiveIds = new Set<string>(
-        lpsAllRows
-          .filter(p => {
-            const dates = [
-              ...((p.start_date as string[] | null) ?? []),
-              ...((p.event_date as string[] | null) ?? []),
-              ...((p.end_date as string[] | null) ?? []),
-            ];
-            return dates.includes(dateStr);
-          })
-          .map(p => p.id),
-      );
       const plannedStaffIds = new Set<string>();
       const plannedLabelsByStaff = new Map<string, Set<string>>();
       const plannedFromBSA = new Set<string>();
@@ -364,13 +340,9 @@ const StaffTimeReports: React.FC = () => {
         plannedFromSA.add(r.staff_id);
         addPlanned(r.staff_id, r.team_id ? `Team ${r.team_id}` : 'Team');
       }
-      for (const r of lpsStaffRows) {
-        if (lpsActiveIds.has(r.large_project_id) && r.staff_id) {
-          plannedFromLPS.add(r.staff_id);
-          const lp = lpsAllRows.find(p => p.id === r.large_project_id);
-          addPlanned(r.staff_id, lp?.name ?? 'Stort projekt');
-        }
-      }
+      // OBS: large_project_staff är projektmedlemskap, inte dagsassignering.
+      // Det får därför INTE användas för att visa någon som "planerad" på
+      // denna sida, annars syns personen på alla projektets dagar.
 
       // Resolve location -> internal booking (e.g. Lager) for project label.
       // Include location_id from BOTH location_time_entries AND time_reports so
