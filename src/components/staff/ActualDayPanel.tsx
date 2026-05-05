@@ -237,20 +237,59 @@ const statusTagFor = (ev: ActualEvent): string => {
   return 'bekräftad';
 };
 
-// Kompaktläge gömmer ENDAST rådetaljer (stale_signal, gps_gap) — aldrig
-// ankomst/lämning eller besök. Användaren ska alltid se basflödet:
-//   06:00 Anlände Lager
-//   06:05 Lämnade Lager
-//   06:05–06:40 Förflyttning
-//   06:40 Anlände Projekt
-// "Visa alla händelser" lägger till gps_gap/stale_signal-rader på toppen.
+// Kompaktläge = "Dagens faktiska händelser" (huvudjournalen).
+// Vi gömmer:
+//   • gps_gap (rådetalj — alltid debug)
+//   • korta gps_travel (< MIN_TRAVEL_MIN) eller travel där from==to
+//   • korta gps_visit (< MIN_VISIT_MIN) som inte matchar känd plats /
+//     inte är arbetsbekräftade
+//   • korta okända gps_arrival/departure-mikrohändelser
+// Allt finns kvar i model.actualEvents och visas via "Visa alla händelser"
+// + "Rå GPS / debug".
 const RAW_DETAIL_KINDS: ReadonlySet<ActualEventKind> = new Set<ActualEventKind>([
-  // stale_signal ("Signal tappad") MÅSTE alltid synas i huvudjournalen —
-  // det är en operativ varning, inte rådebug. Endast gps_gap döljs.
   'gps_gap',
 ]);
+const MIN_TRAVEL_MIN = 10;
+const MIN_VISIT_MIN = 10;
+
 function compactEvents(events: ActualEvent[]): ActualEvent[] {
-  return events.filter(e => !RAW_DETAIL_KINDS.has(e.kind));
+  return events.filter(e => {
+    if (RAW_DETAIL_KINDS.has(e.kind)) return false;
+
+    const meta = (e.meta || {}) as Record<string, unknown>;
+    const dur = e.durationMin ?? 0;
+
+    // Korta GPS-förflyttningar — mikrostopp/jitter runt samma plats
+    if (e.kind === 'gps_travel') {
+      const fromCentre = meta.fromCentre as { lat: number; lng: number } | null | undefined;
+      const toCentre = meta.toCentre as { lat: number; lng: number } | null | undefined;
+      const bothKnown = !!meta.bothKnown;
+      const sameSpot =
+        !bothKnown
+        && fromCentre && toCentre
+        && Math.abs(fromCentre.lat - toCentre.lat) < 0.0005
+        && Math.abs(fromCentre.lng - toCentre.lng) < 0.0005;
+      if (sameSpot) return false;
+      if (dur > 0 && dur < MIN_TRAVEL_MIN && !bothKnown) return false;
+    }
+
+    // Korta okända besök — inte matchad känd plats, inte arbetsbekräftade
+    if (e.kind === 'gps_visit') {
+      const matched = meta.internal_match_status === 'matched'
+        || e.internal_match_status === 'matched';
+      const workConfirmed = meta.workRelevance === 'work_confirmed';
+      if (!matched && !workConfirmed && dur > 0 && dur < MIN_VISIT_MIN) return false;
+    }
+
+    // Korta okända ankomst/lämning utan match → mikrohändelser
+    if (e.kind === 'gps_arrival' || e.kind === 'gps_departure') {
+      const matched = e.internal_match_status === 'matched';
+      const workConfirmed = meta.workRelevance === 'work_confirmed';
+      if (!matched && !workConfirmed && dur > 0 && dur < MIN_VISIT_MIN) return false;
+    }
+
+    return true;
+  });
 }
 
 // ── Komponenten ─────────────────────────────────────────────────────
