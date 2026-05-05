@@ -281,6 +281,7 @@ const MobileOverview: React.FC = () => {
     return 'onsite';
   };
 
+  const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
   const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
 
   // === Detail dialog (fallback when no dedicated route exists) ===
