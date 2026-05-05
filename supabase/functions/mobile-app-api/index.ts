@@ -1421,6 +1421,16 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     console.error('[get_bookings] shifts build failed:', e)
   }
 
+  // Merge lager bridge shifts (dedup by booking_id|date)
+  if (lagerShifts.length > 0) {
+    const seen = new Set(shifts.map((s: any) => `${s.booking_id}|${(s.start_time || '').slice(0, 10)}`))
+    for (const ls of lagerShifts) {
+      const key = `${ls.booking_id}|${(ls.start_time || '').slice(0, 10)}`
+      if (!seen.has(key)) { shifts.push(ls); seen.add(key) }
+    }
+    shifts.sort((a: any, b: any) => a.start_time.localeCompare(b.start_time))
+  }
+
   return new Response(
     JSON.stringify({ bookings: bookingsWithAssignments, shifts }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
