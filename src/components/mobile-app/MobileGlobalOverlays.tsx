@@ -36,7 +36,7 @@ import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { registerGeofenceAutoActions } from '@/hooks/useGeofencing';
 import type { ArrivalTarget } from '@/types/arrivalTarget';
 import { initLocationPingHandler } from '@/services/locationPingHandler';
-import { isArrivalTargetPlannedToday } from '@/lib/mobileBookingPlanning';
+import { isArrivalTargetPlannedToday, getEarliestPlannedStartToday } from '@/lib/mobileBookingPlanning';
 
 /**
  * MobileGlobalOverlays — single source of truth for ALL global mobile flows.
