@@ -69,6 +69,7 @@ export interface JourneyEndpointPlace {
   lookupStatus: PlaceLookupStatus;
 }
 
+export interface PresenceBlock {
   kind: 'presence';
   /** Huvudradtyp för UI-rendering. ProjectBlock har högre visuell vikt. */
   presenceKind: PresenceKind;
@@ -126,6 +127,8 @@ export interface JourneyEndpointPlace {
   evidenceLabel: string | null;
   /** 'high' om TR + (timer eller gps), 'medium' annars. */
   confidence: 'high' | 'medium' | 'low';
+  /** Upplöst plats för rendering — UI ska föredra detta över `title`. */
+  resolvedPlace: ResolvedPlace;
 }
 
 export interface JourneyBlock {
