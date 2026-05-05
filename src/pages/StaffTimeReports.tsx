@@ -94,7 +94,23 @@ interface StaffWithDayReport {
   pingsTruncated: boolean;
   /** Senaste GPS-fetchfel för dagen (om något), så UI kan varna istället för att tolka tomheten som "inga händelser". */
   pingsFetchError: string | null;
+  /**
+   * Planeringsstatus för dagen — beräknas mot personalkalenderns assignments
+   * (booking_staff_assignments + staff_assignments + large_project_staff)
+   * unionat med faktisk aktivitet (workday/time_reports/LTE/travel/GPS).
+   */
+  planningStatus: PlanningStatus;
+  /** Etiketter för planerade pass denna dag (för tooltip / sekundär rad). */
+  plannedLabels: string[];
 }
+
+export type PlanningStatus =
+  | 'planned_not_started'   // Planerad, ingen faktisk aktivitet
+  | 'missing_workday'        // Faktisk aktivitet finns men ingen workday
+  | 'unplanned_activity'     // Aktivitet finns men ingen planering
+  | 'workday_active'         // Pågående arbetsdag
+  | 'planned'                // Planerad + workday/aktivitet (normalt fall)
+  | 'completed';             // Workday avslutad
 
 /**
  * Hämta hela dagens staff_location_history för EN staff via paginering.
