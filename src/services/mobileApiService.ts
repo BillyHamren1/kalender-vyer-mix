@@ -139,7 +139,64 @@ export interface MobileTravelLog {
   created_at: string;
 }
 
-
+// === Unified Ops Overview ===
+export interface OpsOverviewJob {
+  id: string;
+  type: 'booking' | 'large_project';
+  title: string;
+  booking_number: string | null;
+  client: string | null;
+  phase: string | null;
+  date: string;
+  start_time: string;
+  end_time: string;
+  address: string | null;
+  assigned_staff_count: number;
+  required_staff_count: number | null;
+  staffing_status: 'unstaffed' | 'partial' | 'staffed' | 'unknown';
+}
+export interface OpsStaffStatus {
+  staff_id: string;
+  name: string;
+  planned_targets: Array<{
+    target_type?: string; target_id?: string; target_name?: string;
+    date: string; phase?: string;
+    planned_start?: string; planned_end?: string; address?: string | null;
+  }>;
+  has_open_workday: boolean;
+  active_timer: { id: string; target_type: string; target_id: string | null; started_at: string } | null;
+  latest_known_location: { latitude: number; longitude: number; accuracy: number | null; updated_at: string } | null;
+  gps_status: 'live' | 'recent' | 'stale' | 'unknown';
+  anomaly_count: number;
+}
+export interface OpsAnomaly {
+  type: string;
+  severity: 'low' | 'medium' | 'high';
+  staff_id: string | null;
+  target_id: string | null;
+  label: string;
+  action: string | null;
+  date?: string;
+}
+export interface OpsOverviewPayload {
+  jobs: OpsOverviewJob[];
+  assignments: OverviewAssignment[];
+  staffStatus: OpsStaffStatus[];
+  anomalies: OpsAnomaly[];
+  messageThreads: OverviewThread[];
+  summary: {
+    jobs_today: number;
+    planned_staff: number;
+    active_workdays: number;
+    missing_workdays: number;
+    unstaffed_jobs: number;
+    unread_threads: number;
+  };
+  from: string;
+  to: string;
+  mode: 'day' | 'week';
+  server_time: string;
+}
 export interface MobilePurchase {
   id: string;
   description: string;
@@ -520,6 +577,9 @@ export const mobileApi = {
 
   getOverviewThreads: () =>
     callApi<{ threads: OverviewThread[] }>('get_overview_threads'),
+
+  getOpsOverview: (opts?: { from?: string; to?: string; mode?: 'day' | 'week'; include_anomalies?: boolean }) =>
+    callApi<OpsOverviewPayload>('get_ops_overview', opts || {}),
 
   // Broadcasts
   getBroadcasts: () =>

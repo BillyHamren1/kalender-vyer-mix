@@ -47,27 +47,6 @@ const MobileOverview: React.FC = () => {
     return { from, to };
   }, []);
 
-  const calendarQ = useQuery({
-    queryKey: ['mobile-overview-calendar', range.from, range.to],
-    queryFn: () => mobileApi.getOverviewCalendar(range),
-    enabled: hasToken,
-    staleTime: 60_000,
-  });
-
-  const assignmentsQ = useQuery({
-    queryKey: ['mobile-overview-assignments', range.from, range.to],
-    queryFn: () => mobileApi.getOverviewAssignments(range),
-    enabled: hasToken,
-    staleTime: 60_000,
-  });
-
-  const threadsQ = useQuery({
-    queryKey: ['mobile-overview-threads'],
-    queryFn: () => mobileApi.getOverviewThreads(),
-    enabled: hasToken,
-    staleTime: 30_000,
-  });
-
   // === Active date set based on mode ===
   const activeDates = useMemo(() => {
     const today = startOfDay(new Date());
@@ -76,16 +55,66 @@ const MobileOverview: React.FC = () => {
     return Array.from({ length: 7 }, (_, i) => format(addDays(today, i), 'yyyy-MM-dd'));
   }, [dateMode]);
 
+  // Primary: unified ops overview
+  const opsQ = useQuery({
+    queryKey: ['mobile-ops-overview', range.from, range.to],
+    queryFn: () => mobileApi.getOpsOverview({ from: range.from, to: range.to, mode: 'week', include_anomalies: true }),
+    enabled: hasToken,
+    staleTime: 30_000,
+  });
+
+  // Legacy fallbacks (only fire if unified call fails)
+  const useFallback = opsQ.isError;
+  const calendarQ = useQuery({
+    queryKey: ['mobile-overview-calendar', range.from, range.to],
+    queryFn: () => mobileApi.getOverviewCalendar(range),
+    enabled: hasToken && useFallback,
+    staleTime: 60_000,
+  });
+  const assignmentsQ = useQuery({
+    queryKey: ['mobile-overview-assignments', range.from, range.to],
+    queryFn: () => mobileApi.getOverviewAssignments(range),
+    enabled: hasToken && useFallback,
+    staleTime: 60_000,
+  });
+  const threadsQ = useQuery({
+    queryKey: ['mobile-overview-threads'],
+    queryFn: () => mobileApi.getOverviewThreads(),
+    enabled: hasToken && useFallback,
+    staleTime: 30_000,
+  });
+
+  // Unified data sources (prefer ops payload, fall back to legacy)
+  const opsData = opsQ.data;
+  const allEvents: OverviewCalendarEvent[] = useMemo(() => {
+    if (opsData?.jobs) {
+      return opsData.jobs.map(j => ({
+        id: j.id,
+        title: j.title,
+        event_type: j.phase,
+        start_time: j.start_time,
+        end_time: j.end_time,
+        source_date: j.date,
+        resource_id: '',
+        booking_id: j.type === 'booking' ? j.id.replace(/^synthetic-([^-]+)-.*/, '$1') : null,
+        booking_number: j.booking_number,
+        delivery_address: j.address,
+      }) as OverviewCalendarEvent);
+    }
+    return calendarQ.data?.events ?? [];
+  }, [opsData, calendarQ.data]);
+
+  const allAssignments: OverviewAssignment[] = opsData?.assignments ?? assignmentsQ.data?.assignments ?? [];
+  const allThreads = opsData?.messageThreads ?? threadsQ.data?.threads ?? [];
+
   // === Filter helpers ===
   const eventsInRange = useMemo<OverviewCalendarEvent[]>(() => {
-    const all = calendarQ.data?.events ?? [];
-    return all.filter(e => activeDates.includes(e.source_date));
-  }, [calendarQ.data, activeDates]);
+    return allEvents.filter(e => activeDates.includes(e.source_date));
+  }, [allEvents, activeDates]);
 
   const assignmentsInRange = useMemo<OverviewAssignment[]>(() => {
-    const all = assignmentsQ.data?.assignments ?? [];
-    return all.filter(a => activeDates.includes(a.assignment_date));
-  }, [assignmentsQ.data, activeDates]);
+    return allAssignments.filter(a => activeDates.includes(a.assignment_date));
+  }, [allAssignments, activeDates]);
 
   // Group: bookingId+date → assignments[]
   const staffByBookingDate = useMemo(() => {
@@ -203,8 +232,8 @@ const MobileOverview: React.FC = () => {
     return { label: role.toUpperCase().slice(0, 4), cls: 'bg-muted text-muted-foreground border-border' };
   };
 
-  const isLoading = authLoading || !hasToken || calendarQ.isLoading || assignmentsQ.isLoading;
-  const isError = calendarQ.isError || assignmentsQ.isError;
+  const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
+  const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
 
   const dateModes: { key: DateMode; label: string }[] = [
     { key: 'today', label: t('jobs.today') },
@@ -420,13 +449,13 @@ const MobileOverview: React.FC = () => {
           {/* === Section 4: Meddelanden === */}
           {phase !== 'anomalies' && (
             <Section title={t('overview.section.messages')} icon={MessageSquare}>
-              {threadsQ.isLoading ? (
+              {(useFallback && threadsQ.isLoading) ? (
                 <ListSkeleton />
-              ) : (threadsQ.data?.threads.length ?? 0) === 0 ? (
+              ) : (allThreads.length === 0) ? (
                 <EmptyState text={t('overview.empty.messages')} />
               ) : (
                 <div className="space-y-2">
-                  {threadsQ.data!.threads.map(thread => (
+                  {allThreads.map(thread => (
                     <button
                       key={thread.booking_id}
                       onClick={() => navigate(`/m/job/${thread.booking_id}?tab=chat`)}
