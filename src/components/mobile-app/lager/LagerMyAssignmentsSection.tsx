@@ -46,7 +46,15 @@ const LagerMyAssignmentsSection = () => {
     (async () => {
       try {
         const res = await mobileApi.getLagerAssignments();
-        if (!cancelled) setItems(res.assignments || []);
+        if (cancelled) return;
+        const list = res.assignments || [];
+        console.log('[lager-assignments] received', {
+          count: list.length,
+          dates: Array.from(
+            new Set(list.map((a) => (a.start_time || '').slice(0, 10)).filter(Boolean)),
+          ),
+        });
+        setItems(list);
       } catch (e) {
         console.error('[LagerMyAssignments] load failed', e);
       } finally {
