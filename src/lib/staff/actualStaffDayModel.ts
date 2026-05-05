@@ -66,6 +66,8 @@ export interface ActualLocationTimeEntryInput {
   /** Lokal datum-sträng (YYYY-MM-DD) för entry — används för att se om
    *  exited_at är clampad till 23:59 av watchdogen. */
   entry_date?: string | null;
+  /** location_time_entries.metadata — innehåller bl.a. auto_start info. */
+  metadata?: Record<string, any> | null;
 }
 
 export interface ActualTravelLogInput {
