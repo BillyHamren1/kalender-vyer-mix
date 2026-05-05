@@ -11164,7 +11164,7 @@ async function handleGetOpsOverview(
     if (!staffByLpDate.has(k)) staffByLpDate.set(k, new Set())
     staffByLpDate.get(k)!.add(a.staff_id)
   }
-  const jobs: (Job & { booking_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null })[] = events.map((ev: any) => {
+  const jobs: (Job & { booking_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null; jobActivity?: any })[] = events.map((ev: any) => {
     const date = ev.source_date || (ev.start_time || '').slice(0, 10)
     const bk = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${date}`) : undefined
     const count = bk?.size ?? 0
@@ -11173,7 +11173,7 @@ async function handleGetOpsOverview(
       id: ev.id,
       type: isLp ? 'large_project' : 'booking',
       target_type: isLp ? 'large_project' : 'booking',
-      target_id: ev.booking_id ?? null, // best-effort; LP synthetic carries no id today
+      target_id: ev.booking_id ?? null,
       booking_id: ev.booking_id ?? null,
       title: ev.title,
       booking_number: ev.booking_number ?? null,
@@ -11188,6 +11188,117 @@ async function handleGetOpsOverview(
       staffing_status: ev.booking_id ? (count === 0 ? 'unstaffed' : 'staffed') : 'unknown',
     }
   })
+
+  // ── jobActivity (live timeline per job from location_time_entries) ───
+  const bookingIdsForJobs = [...new Set(jobs.map(j => j.booking_id).filter(Boolean) as string[])]
+  let lteForJobs: any[] = []
+  if (bookingIdsForJobs.length > 0) {
+    const { data: lteJobs } = await supabase
+      .from('location_time_entries')
+      .select('id, staff_id, booking_id, large_project_id, entered_at, exited_at, source')
+      .eq('organization_id', organizationId)
+      .in('booking_id', bookingIdsForJobs)
+      .gte('entered_at', `${fromDate}T00:00:00.000Z`)
+      .lte('entered_at', `${toDate}T23:59:59.999Z`)
+    lteForJobs = lteJobs || []
+  }
+  const nowMs = Date.now()
+  const lteByJobKey = new Map<string, any[]>()
+  for (const lte of lteForJobs) {
+    if (!lte.booking_id) continue
+    const d = (lte.entered_at || '').slice(0, 10)
+    const key = `${lte.booking_id}|${d}`
+    if (!lteByJobKey.has(key)) lteByJobKey.set(key, [])
+    lteByJobKey.get(key)!.push(lte)
+  }
+  const allStaffNameMap = new Map<string, string>(staffNameMap)
+  // Resolve names for staff that appear in LTE but not assignments
+  const missingStaffIds = [...new Set(lteForJobs.map(l => l.staff_id).filter((sid: string) => sid && !allStaffNameMap.has(sid)))]
+  if (missingStaffIds.length > 0) {
+    const { data: extra } = await supabase
+      .from('staff')
+      .select('id, name')
+      .eq('organization_id', organizationId)
+      .in('id', missingStaffIds)
+    for (const s of extra || []) allStaffNameMap.set(s.id, s.name)
+  }
+  for (const j of jobs) {
+    if (!j.booking_id) continue
+    const ltes = lteByJobKey.get(`${j.booking_id}|${j.date}`) || []
+    if (ltes.length === 0) {
+      j.jobActivity = {
+        has_started: false,
+        started_at: null,
+        latest_activity_at: null,
+        on_site_minutes: 0,
+        active_staff_count: 0,
+        active_staff: [],
+        timeline: [],
+      }
+      continue
+    }
+    ltes.sort((a, b) => (a.entered_at || '').localeCompare(b.entered_at || ''))
+    const started_at = ltes[0].entered_at
+    const latest_activity_at = ltes.reduce((acc: string, l: any) => {
+      const cand = l.exited_at || l.entered_at
+      return !acc || cand > acc ? cand : acc
+    }, '')
+    // active = open LTE per staff
+    const openByStaff = new Map<string, any>()
+    for (const l of ltes) {
+      if (!l.exited_at) openByStaff.set(l.staff_id, l)
+    }
+    const active_staff = [...openByStaff.entries()].map(([sid, l]) => {
+      const loc = locationsByStaff.get(sid)
+      const ageMs = loc?.updated_at ? nowMs - new Date(loc.updated_at).getTime() : null
+      const status = ageMs == null ? 'on_site'
+        : ageMs < 5 * 60_000 ? 'on_site'
+        : ageMs < 30 * 60_000 ? 'on_site'
+        : 'signal_lost'
+      return {
+        staff_id: sid,
+        name: allStaffNameMap.get(sid) || '',
+        since: l.entered_at,
+        status,
+      }
+    })
+    const timeline: any[] = []
+    for (const l of ltes) {
+      timeline.push({
+        type: 'timer_start',
+        at: l.entered_at,
+        staff_id: l.staff_id,
+        staff_name: allStaffNameMap.get(l.staff_id) || '',
+        label: 'Påbörjade',
+        status: 'on_site',
+      })
+      if (l.exited_at) {
+        timeline.push({
+          type: 'timer_stop',
+          at: l.exited_at,
+          staff_id: l.staff_id,
+          staff_name: allStaffNameMap.get(l.staff_id) || '',
+          label: 'Avslutade',
+          status: 'left',
+        })
+      }
+    }
+    timeline.sort((a, b) => (a.at || '').localeCompare(b.at || ''))
+    const startedMs = started_at ? new Date(started_at).getTime() : nowMs
+    const endRefMs = openByStaff.size > 0
+      ? nowMs
+      : (latest_activity_at ? new Date(latest_activity_at).getTime() : nowMs)
+    const on_site_minutes = Math.max(0, Math.round((endRefMs - startedMs) / 60_000))
+    j.jobActivity = {
+      has_started: true,
+      started_at,
+      latest_activity_at,
+      on_site_minutes,
+      active_staff_count: openByStaff.size,
+      active_staff,
+      timeline,
+    }
+  }
 
   // ── staffStatus[] ────────────────────────────────────────────────────
   const staffIds = [...new Set(assignments.map((a: any) => a.staff_id).filter(Boolean))]
