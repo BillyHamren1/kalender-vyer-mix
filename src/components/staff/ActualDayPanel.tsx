@@ -630,6 +630,20 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                             {cls.key === 'unknown' && (
                               <span className="text-[10px] text-amber-600 uppercase tracking-wide">okänd källa</span>
                             )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedDebugKeys(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(ev.id)) next.delete(ev.id);
+                                  else next.add(ev.id);
+                                  return next;
+                                })
+                              }
+                              className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground underline"
+                            >
+                              {expandedDebugKeys.has(ev.id) ? 'dölj bevis' : 'bevis'}
+                            </button>
                           </span>
                         );
                       })()}
