@@ -7,6 +7,7 @@ import { StaffSummaryCard } from './StaffSummaryCard';
 import { AddLaborCostDialog } from './AddLaborCostDialog';
 import { AddTimeReportDialog } from './AddTimeReportDialog';
 import { LocationTimeSection } from './LocationTimeSection';
+import { ProjectAutoTimeSection } from './ProjectAutoTimeSection';
 
 interface ProjectStaffTabProps {
   projectId: string;
