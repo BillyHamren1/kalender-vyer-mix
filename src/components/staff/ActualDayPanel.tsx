@@ -577,6 +577,22 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     <EventIcon kind={ev.kind} severity={ev.severity} />
                     <span className="text-foreground truncate">
                       {ev.label}
+                      {ev.kind === 'timer_stopped' && (() => {
+                        const mm = (ev.meta ?? {}) as any;
+                        if (mm.stop_origin === 'system_review') return null;
+                        const cls = classifyStopSource({
+                          source: (mm.lteSource ?? mm.source) ?? null,
+                          metadata: (mm.lteMetadata ?? null) as Record<string, any> | null,
+                          exitedAt: mm.stoppedAt ?? ev.at ?? null,
+                          lteId: mm.lteId ?? '',
+                        });
+                        const suffix = inlineStopSuffix(cls, mm.lteMetadata ?? null);
+                        return (
+                          <span className={cls.key === 'unknown' ? 'text-amber-600' : 'text-muted-foreground'}>
+                            {suffix}
+                          </span>
+                        );
+                      })()}
                       {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
                       {(() => {
                         const mm = (ev.meta ?? {}) as any;
