@@ -929,6 +929,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     [projectBlocks],
   );
 
+  // "På projekt just nu" — senaste pågående projektblock (om något).
+  const currentOngoingProject = useMemo(() => {
+    const ongoing = projectBlocks.filter(b => b.ongoing);
+    if (ongoing.length === 0) return null;
+    return ongoing.reduce((latest, b) =>
+      !latest || b.startIso > latest.startIso ? b : latest,
+    null as (typeof ongoing)[number] | null);
+  }, [projectBlocks]);
+
 
   // Föreslagna restider för "Godkänn"-knappar
   const travelSuggestions = model.reportState.travelLogs.filter(
