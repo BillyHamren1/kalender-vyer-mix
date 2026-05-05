@@ -115,11 +115,18 @@ export function computeStrongWorkIndicators(
 
   const hasStrong = codes.size > 0;
 
-  // Proposed start = tidigaste arbetsrelevant tidpunkt
+  // Proposed start = tidigaste arbetsrelevanta bekräftade händelse.
+  // Vi tar MIN av:
+  //  - workStartDecision.effectiveWorkStartIso (Case A/B/C-utfallet)
+  //  - tidigaste arbetsrelevanta visit/event/timer/location-entry
+  // Planerad starttid används ALDRIG som golv — om GPS visar arbete på
+  // annan känd arbetsplats tidigare ska workday starta där.
   let proposedStartIso: string | null = null;
   let proposedEndIso: string | null = null;
   if (hasStrong) {
     const candidates: string[] = [];
+    const decisionStart = (model as any).workStartDecision?.effectiveWorkStartIso as string | null | undefined;
+    if (decisionStart) candidates.push(decisionStart);
     if (workRelevantVisits.length) {
       candidates.push(...workRelevantVisits.map(v => v.start));
     }
