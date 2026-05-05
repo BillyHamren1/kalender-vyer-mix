@@ -455,6 +455,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleAdminApproveDay(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'admin_unapprove_day':
         return await handleAdminUnapproveDay(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'admin_create_workday_from_planned':
+        return await handleAdminCreateWorkdayFromPlanned(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'toggle_establishment_task':
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
       case 'get_organization_locations':
