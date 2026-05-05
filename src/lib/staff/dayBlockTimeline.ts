@@ -59,6 +59,10 @@ export interface ResolvedPlace {
   /** Endast satt för okända platser. */
   nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
   unmatchReason?: string | null;
+  /** Diagnostik (sätts av enrichment i ActualDayPanel). */
+  lookupError?: string | null;
+  pingCount?: number | null;
+  avgAccuracy?: number | null;
 }
 
 export interface JourneyEndpointPlace {
@@ -67,6 +71,12 @@ export interface JourneyEndpointPlace {
   lng: number | null;
   mapUrl: string | null;
   lookupStatus: PlaceLookupStatus;
+  /** Diagnostik (sätts av enrichment i ActualDayPanel). */
+  lookupError?: string | null;
+  nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
+  unmatchReason?: string | null;
+  pingCount?: number | null;
+  avgAccuracy?: number | null;
 }
 
 export interface PresenceBlock {
@@ -267,6 +277,8 @@ const resolvePresencePlace = (
       lookupStatus: 'pending_geocode',
       nearestKnownSite: visit?.nearestKnownSite ?? null,
       unmatchReason: visit?.unmatchReason ?? null,
+      pingCount: visit?.pingCount ?? null,
+      avgAccuracy: visit?.avgAccuracy ?? null,
     };
   }
   return {
@@ -275,6 +287,8 @@ const resolvePresencePlace = (
     lookupStatus: 'unknown_no_coords',
     nearestKnownSite: visit?.nearestKnownSite ?? null,
     unmatchReason: visit?.unmatchReason ?? null,
+    pingCount: visit?.pingCount ?? null,
+    avgAccuracy: visit?.avgAccuracy ?? null,
   };
 };
 
@@ -294,9 +308,25 @@ const resolveJourneyEndpoint = (
     return { label: visit?.label || fallbackLabel || 'Plats', lat, lng, mapUrl, lookupStatus: 'matched_internal' };
   }
   if (lat != null && lng != null) {
-    return { label: PENDING_GEOCODE_LABEL, lat, lng, mapUrl, lookupStatus: 'pending_geocode' };
+    return {
+      label: PENDING_GEOCODE_LABEL,
+      lat, lng, mapUrl,
+      lookupStatus: 'pending_geocode',
+      nearestKnownSite: visit?.nearestKnownSite ?? null,
+      unmatchReason: visit?.unmatchReason ?? null,
+      pingCount: visit?.pingCount ?? null,
+      avgAccuracy: visit?.avgAccuracy ?? null,
+    };
   }
-  return { label: fallbackLabel || 'Okänd plats', lat: null, lng: null, mapUrl: null, lookupStatus: 'unknown_no_coords' };
+  return {
+    label: fallbackLabel || 'Okänd plats',
+    lat: null, lng: null, mapUrl: null,
+    lookupStatus: 'unknown_no_coords',
+    nearestKnownSite: visit?.nearestKnownSite ?? null,
+    unmatchReason: visit?.unmatchReason ?? null,
+    pingCount: visit?.pingCount ?? null,
+    avgAccuracy: visit?.avgAccuracy ?? null,
+  };
 };
 
 

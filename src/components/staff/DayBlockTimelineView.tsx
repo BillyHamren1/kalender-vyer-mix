@@ -209,6 +209,57 @@ const InnerEvents: React.FC<{ block: DayBlock }> = ({ block }) => {
   );
 };
 
+/**
+ * Debug-panel: visar varför en plats inte fick en upplöst adress.
+ * Renderas i expand för okända/external endpoints så admin direkt ser
+ * om koordinater saknas, lookup misslyckats, token saknas eller liknande.
+ */
+const isDebugRelevant = (p: PlaceLike): boolean => {
+  if (!p) return false;
+  // matched_internal med label = inget att felsöka
+  if (p.lookupStatus === 'matched_internal' && p.label && !/okänd plats/i.test(p.label)) return false;
+  return true;
+};
+
+const PlaceDebugPanel: React.FC<{
+  title: string;
+  place: PlaceLike & { lookupError?: string | null; nearestKnownSite?: any; unmatchReason?: string | null; pingCount?: number | null; avgAccuracy?: number | null };
+}> = ({ title, place }) => {
+  if (!place || !isDebugRelevant(place)) return null;
+  const hasCoord = place.lat != null && place.lng != null;
+  const mapUrl = buildMapUrl(place);
+  const nearest = (place as any).nearestKnownSite ?? null;
+  const distM = nearest?.distanceMeters ?? null;
+  const rows: Array<[string, React.ReactNode]> = [
+    ['lat/lng', hasCoord ? `${place.lat!.toFixed(6)}, ${place.lng!.toFixed(6)}` : <span className="text-rose-600">saknas</span>],
+    ['lookupStatus', String(place.lookupStatus ?? '—')],
+    ['lookupError', place.lookupError ? <span className="text-rose-600">{place.lookupError}</span> : '—'],
+    ['mapUrl', mapUrl
+      ? <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">öppna<ExternalLink className="h-3 w-3" /></a>
+      : '—'],
+    ['nearestKnownSite', nearest ? `${nearest.name ?? nearest.id}` : '—'],
+    ['distanceToNearestSite', distM != null ? `${Math.round(distM)} m (radie ${Math.round(nearest?.radiusMeters ?? 0)} m)` : '—'],
+    ['unmatchReason', place.unmatchReason ?? '—'],
+    ['pingCount', place.pingCount != null ? String(place.pingCount) : '—'],
+    ['avgAccuracy', place.avgAccuracy != null ? `${Math.round(place.avgAccuracy)} m` : '—'],
+  ];
+  return (
+    <div className="bg-muted/20 border-b border-border px-3 py-1.5 pl-[200px]">
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">
+        Plats-debug · {title}
+      </div>
+      <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+        {rows.map(([k, v]) => (
+          <React.Fragment key={k}>
+            <dt className="opacity-70">{k}</dt>
+            <dd className="text-foreground/80 truncate">{v}</dd>
+          </React.Fragment>
+        ))}
+      </dl>
+    </div>
+  );
+};
+
 /* ------------------------------------------------------------------ */
 /*  PresenceRow                                                       */
 /* ------------------------------------------------------------------ */
@@ -252,7 +303,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
             : 'projekt')
     : block.subtitle ?? '';
 
-  const expandable = block.innerEvents.length > 0 || extraBadges.length > 0;
+  const expandable = block.innerEvents.length > 0 || extraBadges.length > 0 || isDebugRelevant(block.resolvedPlace);
 
   return (
     <>
@@ -293,6 +344,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
       {open && (
         <>
           <ExtraBadges badges={extraBadges} />
+          <PlaceDebugPanel title="plats" place={block.resolvedPlace as any} />
           <InnerEvents block={block} />
         </>
       )}
@@ -306,11 +358,14 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
 
 const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
   const [open, setOpen] = useState(false);
+  const debugFrom = isDebugRelevant(block.fromPlace);
+  const debugTo = isDebugRelevant(block.toPlace);
+  const expandable = block.innerEvents.length > 0 || debugFrom || debugTo;
   return (
     <>
       <RowShell
         accent="journey"
-        expandable={block.innerEvents.length > 0}
+        expandable={expandable}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
       >
@@ -334,7 +389,13 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
           </span>
         </div>
       </RowShell>
-      {open && <InnerEvents block={block} />}
+      {open && (
+        <>
+          <PlaceDebugPanel title="från" place={block.fromPlace as any} />
+          <PlaceDebugPanel title="till" place={block.toPlace as any} />
+          <InnerEvents block={block} />
+        </>
+      )}
     </>
   );
 };
