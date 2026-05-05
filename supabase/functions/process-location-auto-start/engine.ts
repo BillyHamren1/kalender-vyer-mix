@@ -661,13 +661,15 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     staffFilter = body.staff_id || null
     orgFilter = body.organization_id || null
   } else {
-    const cursorIso = await loadCursor(supabase)
+    const cursorIso = await loadCursor(supabase, orgFilter)
+    console.log(`[auto-start] cron cursor BEFORE org=${orgFilter ?? 'global'}: ${cursorIso}`)
     fromIso = new Date(Math.min(
       Date.now() - PROCESS_OVERLAP_MS,
       new Date(cursorIso).getTime() - PROCESS_OVERLAP_MS,
     )).toISOString()
     toIso = new Date().toISOString()
   }
+
 
   // Open run-log row (best-effort; never blocks engine)
   if (!dryRun) {
