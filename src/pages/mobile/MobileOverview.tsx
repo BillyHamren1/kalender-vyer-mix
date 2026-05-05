@@ -370,7 +370,7 @@ const MobileOverview: React.FC = () => {
                         return (
                           <button
                             key={s.id}
-                            onClick={() => navigate(`/m/job/${s.booking_id}`)}
+                            onClick={() => s.booking_id && navigate(`/m/job/${s.booking_id}`)}
                             className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-card border border-border/60 active:scale-[0.97]"
                           >
                             <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold border', b.cls)}>
