@@ -905,9 +905,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                   rel="noreferrer"
                   title={title ?? 'Öppna i Google Maps'}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid hover:text-blue-600 dark:hover:text-blue-400"
+                  className="inline-flex items-center gap-0.5 text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid hover:text-blue-600 dark:hover:text-blue-400"
                 >
-                  {label}
+                  <span className="truncate">{label}</span>
+                  <ArrowUpRight className="h-3 w-3 shrink-0 opacity-70" />
                 </a>
               );
 
