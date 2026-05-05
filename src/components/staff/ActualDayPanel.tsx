@@ -602,6 +602,37 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                           </span>
                         );
                       })()}
+                      {ev.kind === 'timer_stopped' && (() => {
+                        const mm = (ev.meta ?? {}) as any;
+                        const cls = classifyStopSource({
+                          source: (mm.lteSource ?? mm.source) ?? null,
+                          metadata: (mm.lteMetadata ?? null) as Record<string, any> | null,
+                          exitedAt: mm.stoppedAt ?? ev.at ?? null,
+                          lteId: mm.lteId ?? '',
+                        });
+                        const d = cls.details;
+                        const tooltipLines = [
+                          cls.fullText,
+                          d.stoppedAt ? `Tid: ${d.stoppedAt}` : null,
+                          d.stopReason ? `Anledning: ${d.stopReason}` : null,
+                          d.stoppedBy ? `Av: ${d.stoppedBy}` : null,
+                          d.runId ? `run_id: ${d.runId}` : null,
+                          d.departureAt ? `departure_at: ${d.departureAt}` : null,
+                          d.confidence != null ? `confidence: ${d.confidence}` : null,
+                          d.linkedTimeReportId ? `time_report: ${d.linkedTimeReportId}` : null,
+                          d.sourceEntryId ? `lte: ${d.sourceEntryId}` : null,
+                        ].filter(Boolean).join('\n');
+                        return (
+                          <span className="inline-flex items-center gap-1 ml-2 align-middle" title={tooltipLines}>
+                            <Badge className={`${STOP_SOURCE_BADGE_CLASSES[cls.tone]} text-[10px] py-0 px-1.5`}>
+                              Stoppad: {cls.shortLabel}
+                            </Badge>
+                            {cls.key === 'unknown' && (
+                              <span className="text-[10px] text-amber-600 uppercase tracking-wide">okänd källa</span>
+                            )}
+                          </span>
+                        );
+                      })()}
                       {isUnknownCluster && (
                         <button
                           type="button"
