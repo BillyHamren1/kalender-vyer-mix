@@ -28,6 +28,7 @@
  */
 import type { PlaceVisit, TravelGap, KnownSite } from './pingPlaceSegments';
 import { haversineMeters, type Ping } from './movementDetection';
+import { classifyWorkStart, type WorkStartDecision } from './workStartDecisionMatrix';
 
 // ── Inputs ───────────────────────────────────────────────────────────
 
