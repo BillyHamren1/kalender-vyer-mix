@@ -617,11 +617,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       };
     }
     if (!lookup) {
+      // Coord finns men ingen lookup-queue än → behandla som pending så att
+      // huvudraden visar "Slår upp adress…" istället för rått "okänd plats".
       return {
-        label: 'Okänd plats – adress saknas',
+        label: lat == null || lng == null
+          ? 'Okänd plats – saknar koordinat'
+          : 'Slår upp adress…',
         address: null, city: null, poiName: null, poiCategory: null,
         lat, lng, mapUrl,
-        lookupStatus: 'failed',
+        lookupStatus: lat == null || lng == null ? 'failed' : 'pending',
         confidence: 'low',
       };
     }
@@ -636,7 +640,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     }
     if (lookup.status === 'error' || !lookup.geo) {
       return {
-        label: 'Okänd plats – adress saknas',
+        label: 'Okänd plats – adress kunde inte hämtas',
         address: null, city: null, poiName: null, poiCategory: null,
         lat, lng, mapUrl,
         lookupStatus: 'failed',
@@ -1148,6 +1152,24 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                           if (ev.kind === 'gps_departure') lines.push(['Lämnade', `${ev.place ?? '—'} kl ${fmtHm(ev.at)}`]);
                           if (ev.kind === 'gps_visit') {
                             lines.push(['Vistelse', `${ev.place ?? '—'}${ev.until ? ` (${fmtHm(ev.at)}–${fmtHm(ev.until)})` : ` från ${fmtHm(ev.at)}`}`]);
+                          }
+                          const rp: ResolvedPlace | null = evAny.resolvedPlace ?? null;
+                          if (rp?.lat != null && rp?.lng != null) {
+                            lines.push(['Koordinater', `${rp.lat.toFixed(5)}, ${rp.lng.toFixed(5)}`]);
+                          }
+                          if (rp?.mapUrl) {
+                            lines.push(['Karta', (
+                              <a href={rp.mapUrl} target="_blank" rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 underline decoration-dotted underline-offset-2 hover:text-blue-600">
+                                Öppna i Google Maps <ArrowUpRight className="h-2.5 w-2.5" />
+                              </a>
+                            )]);
+                          }
+                          if (rp?.lookupStatus === 'failed') {
+                            lines.push(['Adressuppslag', 'Misslyckades']);
+                          } else if (rp?.lookupStatus === 'pending') {
+                            lines.push(['Adressuppslag', 'Pågår']);
                           }
                           if (visit?.pingCount != null) lines.push(['Pings', `${visit.pingCount}`]);
                           if (visit?.avgAccuracy != null) lines.push(['Accuracy', `±${visit.avgAccuracy} m`]);
