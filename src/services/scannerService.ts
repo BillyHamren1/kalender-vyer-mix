@@ -44,7 +44,7 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
     clearAuth();
     // Redirect to login so user gets a clear path forward instead of a silent failure on every scan.
     if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-      setTimeout(() => { window.location.href = '/login'; }, 300);
+      setTimeout(() => { window.location.href = '/scanner/login'; }, 300);
     }
     throw new Error('Session expired — logga in igen');
   }
