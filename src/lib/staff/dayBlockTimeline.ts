@@ -523,11 +523,15 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
   // 4) Sortera om kronologiskt
   blocks.sort((a, b) => a.startIso.localeCompare(b.startIso));
 
-  // 5) Mellan två journeys: om destinationen är en KÄND plats (FA Warehouse,
-  //    booking, lager, location) — syntetisera en INFERRED presence där
-  //    personen rimligen vistades. Annars infoga GAP-markör som förklarar
-  //    varför ingen presence gick att skapa.
+  // 5) Mellan två journeys: inferred_between_journeys är FALLBACK, inte default.
+  //    Vi får ALDRIG skapa en falsk arbetsvistelse bara för att två förflyttningar
+  //    råkar dela endpoint. Skapa inferred presence ENDAST om:
+  //      A) det finns starkt stöd i fönstret (time_report/LTE/timer/assistant/server), ELLER
+  //      B) knownSiteId är tydligt OCH gapet är långt (≥30 min)
+  //    Annars infogas en diagnostisk GAP. requiresReview=true sätts alltid när
+  //    blocket saknar GPS/timer/time_report-bevis.
   const MIN_INFERRED_PRESENCE_MIN = 5;
+  const MIN_INFERRED_KNOWN_SITE_MIN = 30; // krav för "B"-fallet utan tekniska bevis
   const withGaps: DayBlock[] = [];
   for (let i = 0; i < blocks.length; i++) {
     const cur = blocks[i];
@@ -540,47 +544,72 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const gapMin = Math.round((nextStartMs - curEndMs) / 60_000);
     if (gapMin < 2) continue;
 
-    // Föredra cur.toPlaceKey, fall tillbaka till next.fromPlaceKey
     const expectedKey = cur.toPlaceKey ?? next.fromPlaceKey ?? null;
     const expectedLabel = cur.toLabel ?? next.fromLabel ?? null;
     const visit = expectedKey ? visitByKey.get(expectedKey) : undefined;
-    const isKnownSite = !!visit?.knownSiteId
+    const knownSiteId = visit?.knownSiteId ?? null;
+    const isKnownSite = !!knownSiteId
       || !!(expectedKey && (expectedKey.startsWith('booking:') || expectedKey.startsWith('large:') || expectedKey.startsWith('site:') || expectedKey.startsWith('location:')));
+    const isProject = !!knownSiteId
+      && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
+
     const rawInWindow = allSorted.filter(e => {
       const ms = new Date(e.at).getTime();
-      return ms >= curEndMs - 30_000 && ms <= nextStartMs + 30_000;
+      return ms >= curEndMs - 60_000 && ms <= nextStartMs + 60_000;
     });
 
-    // INFERRED PRESENCE — destinationen är känd och fönstret är meningsfullt
-    if (gapMin >= MIN_INFERRED_PRESENCE_MIN && expectedLabel && (isKnownSite || expectedKey)) {
-      const knownSiteId = visit?.knownSiteId ?? null;
-      const isProject = !!knownSiteId
-        && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
+    // Starkt stöd = teknisk evidens i fönstret (timer/TR/LTE/assistant/server)
+    const hasTimer = rawInWindow.some(e => e.kind === 'timer_started' || e.kind === 'timer_stopped');
+    const hasTimeReport = rawInWindow.some(e =>
+      e.kind === 'time_report_created'
+      || e.kind === 'time_report_closed'
+      || (e.kind as string).startsWith('time_report'));
+    const hasAssistant = rawInWindow.some(e =>
+      e.kind === 'assistant_arrival' || e.kind === 'assistant_departure' || e.kind === 'assistant_other');
+    const hasServer = rawInWindow.some(e => (e.kind as string).startsWith('server_'));
+    const hasStrongSupport = hasTimer || hasTimeReport || hasAssistant || hasServer;
+
+    // A) starkt stöd → tillåt inferred (även med kort gap ≥5 min)
+    // B) knownSite + långt gap → tillåt inferred utan tekniskt stöd
+    const allowA = hasStrongSupport && expectedLabel && gapMin >= MIN_INFERRED_PRESENCE_MIN;
+    const allowB = isKnownSite && expectedLabel && gapMin >= MIN_INFERRED_KNOWN_SITE_MIN;
+
+    if (allowA || allowB) {
+      const sources = {
+        timeReport: hasTimeReport,
+        timer: hasTimer,
+        gpsVisit: false,
+        assistant: hasAssistant,
+      };
+      // requiresReview=true om vi saknar GPS/timer/TR-evidens (assistent/server räknas inte som hård evidens)
+      const hasHardEvidence = hasTimer || hasTimeReport;
       withGaps.push({
         kind: 'presence',
-        presenceKind: isProject ? 'project' : 'location',
+        presenceKind: isProject ? 'project' : isKnownSite ? 'location' : 'unknown',
         id: `pb:inferred:${cur.id}:${next.id}`,
         startIso: cur.endIso,
         endIso: next.startIso,
         durationMin: gapMin,
         placeKey: expectedKey,
         title: expectedLabel,
-        subtitle: isKnownSite ? 'mellan resor (känd plats)' : 'mellan resor',
+        subtitle: hasHardEvidence
+          ? `Härledd vistelse · stöd från ${hasTimeReport ? 'tidrapport' : 'timer'}`
+          : 'Härledd mellan resor — kräver granskning',
         isProject,
         strength: isProject ? 'project' : 'inferred_between_journeys',
-        requiresReview: !isKnownSite,
+        requiresReview: !hasHardEvidence,
         ongoing: false,
         lastPingIso: null,
         sourceEventIds: [],
         innerEvents: rawInWindow,
-        timer: { startedIso: null, stoppedIso: null, active: false, present: false },
-        timeReport: { startedIso: null, closedIso: null, present: false },
+        timer: { startedIso: null, stoppedIso: null, active: false, present: hasTimer },
+        timeReport: { startedIso: null, closedIso: null, present: hasTimeReport },
         arrivalIso: null,
         departureIso: null,
         plannedStartIso: null,
-        sources: { timeReport: false, timer: false, gpsVisit: false, assistant: false },
+        sources,
         evidenceLabel: null,
-        confidence: 'low',
+        confidence: hasHardEvidence ? 'medium' : 'low',
       });
       continue;
     }
