@@ -11263,29 +11263,133 @@ async function handleGetOpsOverview(
   const staffNameMap = new Map<string, string>()
   for (const a of assignments) if (a.staff_id) staffNameMap.set(a.staff_id, a.staff_name)
 
+  // Resolve labels for active-timer targets so admin sees "vart de är just nu"
+  const activeBookingIds = [...new Set([...openLteByStaff.values()].map((l: any) => l.booking_id).filter(Boolean))] as string[]
+  const activeLpIds = [...new Set([...openLteByStaff.values()].map((l: any) => l.large_project_id).filter(Boolean))] as string[]
+  const activeLocIds = [...new Set([...openLteByStaff.values()].map((l: any) => l.location_id).filter(Boolean))] as string[]
+  const bookingLabelMap = new Map<string, { label: string; address: string | null }>()
+  const lpLabelMap = new Map<string, { label: string; address: string | null }>()
+  const locLabelMap = new Map<string, { label: string; address: string | null }>()
+  if (activeBookingIds.length > 0) {
+    const { data } = await supabase
+      .from('bookings')
+      .select('id, client, booking_number, deliveryaddress')
+      .eq('organization_id', organizationId)
+      .in('id', activeBookingIds)
+    for (const b of data || []) {
+      const label = [b.booking_number, b.client].filter(Boolean).join(' · ') || 'Bokning'
+      bookingLabelMap.set(b.id, { label, address: b.deliveryaddress ?? null })
+    }
+  }
+  if (activeLpIds.length > 0) {
+    const { data } = await supabase
+      .from('large_projects')
+      .select('id, name, address')
+      .eq('organization_id', organizationId)
+      .in('id', activeLpIds)
+    for (const p of data || []) lpLabelMap.set(p.id, { label: p.name || 'Stort projekt', address: p.address ?? null })
+  }
+  if (activeLocIds.length > 0) {
+    const { data } = await supabase
+      .from('fixed_locations')
+      .select('id, name, address')
+      .eq('organization_id', organizationId)
+      .in('id', activeLocIds)
+    for (const l of data || []) locLabelMap.set(l.id, { label: l.name || 'Plats', address: l.address ?? null })
+  }
+
   const now = Date.now()
+  const todayKeyForStaff = todayKey
   const staffStatus = staffIds.map((sid: string) => {
     const wd = workdaysByStaff.get(sid)
     const openLte = openLteByStaff.get(sid)
     const loc = locationsByStaff.get(sid)
     const ageMs = loc?.updated_at ? now - new Date(loc.updated_at).getTime() : null
     const gpsStatus = ageMs == null ? 'unknown' : ageMs < 5 * 60_000 ? 'live' : ageMs < 30 * 60_000 ? 'recent' : 'stale'
+
+    const planned = plannedTargetsByStaff.get(sid) || []
+    const plannedToday = planned.filter((p: any) => p.date === todayKeyForStaff)
+    const hasOpenWorkday = !!(wd && !wd.ended_at)
+
+    // Resolve active timer label
+    let activeTimerInfo: any = null
+    let currentTargetType: string | null = null
+    let currentTargetId: string | null = null
+    let currentTargetLabel: string | null = null
+    let currentTargetAddress: string | null = null
+    let currentSince: string | null = null
+    let activeTimerLabel: string | null = null
+    if (openLte) {
+      const targetType = openLte.location_id ? 'location' : openLte.large_project_id ? 'large_project' : 'booking'
+      const targetId = openLte.location_id || openLte.large_project_id || openLte.booking_id || null
+      let lbl: { label: string; address: string | null } | undefined
+      if (targetType === 'booking' && targetId) lbl = bookingLabelMap.get(targetId)
+      else if (targetType === 'large_project' && targetId) lbl = lpLabelMap.get(targetId)
+      else if (targetType === 'location' && targetId) lbl = locLabelMap.get(targetId)
+      activeTimerInfo = {
+        id: openLte.id,
+        target_type: targetType,
+        target_id: targetId,
+        target_label: lbl?.label ?? null,
+        started_at: openLte.entered_at,
+      }
+      currentTargetType = targetType
+      currentTargetId = targetId
+      currentTargetLabel = lbl?.label ?? null
+      currentTargetAddress = lbl?.address ?? null
+      currentSince = openLte.entered_at
+      activeTimerLabel = targetType === 'location' ? 'Plats-timer'
+        : targetType === 'large_project' ? 'Projekt-timer'
+        : 'Jobb-timer'
+    }
+
+    // Determine current_status
+    let currentStatus: string
+    if (openLte) {
+      if (gpsStatus === 'stale') currentStatus = 'signal_lost'
+      else if (currentTargetType === 'large_project') currentStatus = 'on_project'
+      else if (currentTargetType === 'location') currentStatus = 'on_location'
+      else currentStatus = 'active_timer'
+    } else if (hasOpenWorkday) {
+      currentStatus = 'active_timer'
+    } else if (plannedToday.length > 0) {
+      currentStatus = 'planned_not_started'
+    } else {
+      currentStatus = 'unknown'
+    }
+    if (plannedToday.length > 0 && !hasOpenWorkday && !openLte) {
+      currentStatus = 'missing_workday'
+    }
+
+    const elapsedMinutes = currentSince
+      ? Math.max(0, Math.round((now - new Date(currentSince).getTime()) / 60_000))
+      : null
+
+    const mapUrl = loc
+      ? `https://www.google.com/maps/search/?api=1&query=${loc.latitude},${loc.longitude}`
+      : null
+
     return {
       staff_id: sid,
       name: staffNameMap.get(sid) || '',
-      planned_targets: plannedTargetsByStaff.get(sid) || [],
-      has_open_workday: !!(wd && !wd.ended_at),
-      active_timer: openLte ? {
-        id: openLte.id,
-        target_type: openLte.location_id ? 'location' : openLte.large_project_id ? 'large_project' : 'booking',
-        target_id: openLte.location_id || openLte.large_project_id || openLte.booking_id || null,
-        started_at: openLte.entered_at,
-      } : null,
+      planned_targets: planned,
+      has_open_workday: hasOpenWorkday,
+      workday_started_at: wd?.started_at ?? null,
+      active_timer: activeTimerInfo,
+      active_timer_label: activeTimerLabel,
+      current_status: currentStatus,
+      current_target_type: currentTargetType,
+      current_target_id: currentTargetId,
+      current_target_label: currentTargetLabel,
+      current_target_address: currentTargetAddress,
+      current_since: currentSince,
+      elapsed_minutes: elapsedMinutes,
       latest_known_location: loc ? {
         latitude: loc.latitude, longitude: loc.longitude,
         accuracy: loc.accuracy, updated_at: loc.updated_at,
       } : null,
       gps_status: gpsStatus,
+      map_url: mapUrl,
       anomaly_count: anomalyCountByStaff.get(sid) || 0,
     }
   })

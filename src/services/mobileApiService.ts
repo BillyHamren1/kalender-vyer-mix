@@ -177,9 +177,19 @@ export interface OpsStaffStatus {
     planned_start?: string; planned_end?: string; address?: string | null;
   }>;
   has_open_workday: boolean;
-  active_timer: { id: string; target_type: string; target_id: string | null; started_at: string } | null;
+  workday_started_at?: string | null;
+  active_timer: { id: string; target_type: string; target_id: string | null; target_label?: string | null; started_at: string } | null;
+  active_timer_label?: string | null;
+  current_status?: 'planned_not_started' | 'on_project' | 'on_location' | 'traveling' | 'active_timer' | 'signal_lost' | 'missing_workday' | 'unknown';
+  current_target_type?: string | null;
+  current_target_id?: string | null;
+  current_target_label?: string | null;
+  current_target_address?: string | null;
+  current_since?: string | null;
+  elapsed_minutes?: number | null;
   latest_known_location: { latitude: number; longitude: number; accuracy: number | null; updated_at: string } | null;
   gps_status: 'live' | 'recent' | 'stale' | 'unknown';
+  map_url?: string | null;
   anomaly_count: number;
 }
 export interface OpsAnomaly {
