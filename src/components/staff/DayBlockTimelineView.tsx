@@ -489,6 +489,7 @@ const GapRow: React.FC<{ block: GapBlock }> = ({ block }) => {
         expandable={block.innerEvents.length > 0}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
+        trashSlot={<RowExcludeButton blockId={block.id} label={block.expectedLabel ?? 'Glapp'} />}
       >
         <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} />
 
