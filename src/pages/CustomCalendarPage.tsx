@@ -70,11 +70,31 @@ const SimpleStaffCurtainWrapper: React.FC<{
   );
 };
 
+const CALENDAR_STATE_KEY = 'calendarPage.viewState.v1';
+
+type PersistedCalendarState = {
+  viewMode: 'day' | 'weekly' | 'monthly' | 'list';
+  currentWeekStart: string; // ISO
+  monthlyDate: string;       // ISO
+};
+
+const readPersistedState = (): Partial<PersistedCalendarState> | null => {
+  try {
+    const raw = sessionStorage.getItem(CALENDAR_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 const CustomCalendarPage = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const persisted = useMemo(() => readPersistedState(), []);
   // Default to 'weekly' - the full 7-day view with all teams
-  const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+  const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>(
+    (persisted?.viewMode as any) || 'weekly'
+  );
 
   // Task overlay toggle (persisted in localStorage)
   const [showTasks, setShowTasks] = useState(() => {
@@ -84,11 +104,10 @@ const CustomCalendarPage = () => {
     localStorage.setItem('calendar-show-tasks', String(showTasks));
   }, [showTasks]);
 
-  // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
-  const syncToStore = usePlannerSync();
-  
   // Monthly view state (for desktop) - now used for the month tabs
-  const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));
+  const [monthlyDate, setMonthlyDate] = useState<Date>(
+    persisted?.monthlyDate ? startOfMonth(new Date(persisted.monthlyDate)) : startOfMonth(new Date())
+  );
   
   // Real-time calendar events (these will update UI when background import updates DB)
   const {
@@ -149,8 +168,14 @@ const CustomCalendarPage = () => {
 
   const { teamResources } = useTeamResources();
 
+  // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
+  const syncToStore = usePlannerSync();
+
   // Week navigation state (for desktop) and month state (for mobile)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    if (persisted?.currentWeekStart) {
+      return startOfWeek(new Date(persisted.currentWeekStart), { weekStartsOn: 1 });
+    }
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
 
@@ -164,6 +189,17 @@ const CustomCalendarPage = () => {
       setMonthlyDate(startOfMonth(currentWeekStart));
     }
   }, [viewMode]);
+
+  // Persist view state so back-navigation restores the same calendar position
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CALENDAR_STATE_KEY, JSON.stringify({
+        viewMode,
+        currentWeekStart: currentWeekStart.toISOString(),
+        monthlyDate: monthlyDate.toISOString(),
+      }));
+    } catch { /* ignore quota */ }
+  }, [viewMode, currentWeekStart, monthlyDate]);
 
   // STORE SYNC: Keep PlannerStore in sync with local state (legacy bridge)
   useEffect(() => {
