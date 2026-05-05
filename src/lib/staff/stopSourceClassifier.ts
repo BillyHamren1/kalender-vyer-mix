@@ -86,7 +86,7 @@ export function classifyStopSource(args: {
     sourceEntryId: args.lteId,
     linkedTimeReportId: linkedTr ?? null,
     runId: runId ?? null,
-    autoSwitch: !!m?.switch || metaStopSrc.includes('switch'),
+    autoSwitch: !!merged?.switch || metaStopSrc.includes('switch'),
     departureAt: departureAt ?? null,
     confidence: confidence ?? null,
   };
