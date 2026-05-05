@@ -668,7 +668,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <Sparkles className="h-4 w-4 text-blue-700 dark:text-blue-300 shrink-0" />
           <div className="text-xs flex-1 min-w-[16rem]">
             <div className="font-medium text-blue-900 dark:text-blue-100">
-              Stark arbetsindikator – skapa arbetsdag automatiskt
+              Arbetsdag saknas – hög säkerhet · kan auto-skapa från {fmtHm(repairIndicators.proposedStartIso!)}
             </div>
             <div className="text-blue-900/80 dark:text-blue-100/80">
               Föreslagen start <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedStartIso!)}</span>
