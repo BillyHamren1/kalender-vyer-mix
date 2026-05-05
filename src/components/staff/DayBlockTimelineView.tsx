@@ -125,28 +125,42 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
   const isProject = block.presenceKind === 'project';
   const accent: RowAccent = isProject ? 'project' : 'location';
 
+  // Primär chip — vad raden ÄR
   const chipLabel = isProject
-    ? (block.ongoing ? 'PÅ PROJEKT' : 'PÅ PROJEKT')
+    ? (block.ongoing ? 'PÅ PROJEKT NU' : (block.departureIso ? 'LÄMNAT PROJEKT' : 'PÅ PROJEKT'))
     : block.strength === 'short_stop' ? 'KORT STOPP'
     : block.strength === 'time_report_window' ? 'TIDRAPPORT'
     : 'PÅ PLATS';
 
   const chipClass = isProject
-    ? 'bg-emerald-600 text-white'
+    ? (block.ongoing ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200')
     : block.strength === 'short_stop'
       ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
       : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200';
 
-  const statusPillLabel = isProject
-    ? 'På projekt'
-    : block.strength === 'short_stop' ? 'Kort stopp'
-    : 'Vistelse';
+  // Sekundära statusbadges — vad som GÄLLER just nu
+  type StatusBadge = { label: string; tone: 'ok' | 'warn' | 'info' | 'planned' | 'review' };
+  const badges: StatusBadge[] = [];
+  if (isProject) {
+    if (block.timer.active) badges.push({ label: 'TIMER AKTIV', tone: 'ok' });
+    else if (!block.timer.present && !block.timeReport.present) badges.push({ label: 'TIMER SAKNAS', tone: 'warn' });
+    if (!block.timeReport.present && !block.timer.present) badges.push({ label: 'ARBETSDAG SAKNAS', tone: 'warn' });
+    if (block.plannedStartIso) badges.push({ label: 'PLANERAD', tone: 'planned' });
+    else if (block.sources.gpsVisit || block.arrivalIso) badges.push({ label: 'OPLANERAD AKTIVITET', tone: 'info' });
+    if (block.sources.gpsVisit || block.arrivalIso) badges.push({ label: 'GPS BEKRÄFTAD', tone: 'info' });
+  }
+  if (block.requiresReview) badges.push({ label: 'KRÄVER GRANSKNING', tone: 'review' });
 
-  const statusPillClass = isProject
-    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800'
-    : block.strength === 'short_stop'
-      ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800'
-      : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800';
+  const badgeClass = (tone: StatusBadge['tone']) => {
+    switch (tone) {
+      case 'ok': return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800';
+      case 'warn': return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800';
+      case 'review': return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800';
+      case 'planned': return 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-800';
+      case 'info':
+      default: return 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-700';
+    }
+  };
 
   // Sammanslagen undertext: GPS · timer · TR · planerad
   const gpsLabel = block.arrivalIso || block.departureIso
@@ -211,11 +225,18 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
           </div>
         </div>
 
-        {/* STATUS */}
-        <div className="flex items-center">
-          <span className={`text-xs px-2.5 py-1 rounded-full border ${statusPillClass}`}>
-            {statusPillLabel}
-          </span>
+        {/* STATUS — sekundära badges */}
+        <div className="flex items-center gap-1 flex-wrap justify-end max-w-[280px]">
+          {badges.length === 0 && (
+            <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded-full border ${badgeClass('info')}`}>
+              {isProject ? 'PÅ PROJEKT' : block.strength === 'short_stop' ? 'KORT STOPP' : 'VISTELSE'}
+            </span>
+          )}
+          {badges.map((b, i) => (
+            <span key={i} className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded-full border ${badgeClass(b.tone)}`}>
+              {b.label}
+            </span>
+          ))}
         </div>
       </RowShell>
       {open && <InnerEvents block={block} />}
