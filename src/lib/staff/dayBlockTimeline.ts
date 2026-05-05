@@ -146,6 +146,10 @@ export interface JourneyBlock {
   uncertain: boolean;
   sourceEventIds: string[];
   innerEvents: ActualEvent[];
+  /** Upplöst from-endpoint för rendering — UI ska föredra detta över `fromLabel`. */
+  fromPlace: JourneyEndpointPlace;
+  /** Upplöst to-endpoint för rendering — UI ska föredra detta över `toLabel`. */
+  toPlace: JourneyEndpointPlace;
 }
 
 export interface GapBlock {
