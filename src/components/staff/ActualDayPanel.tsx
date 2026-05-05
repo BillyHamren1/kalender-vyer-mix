@@ -55,6 +55,21 @@ interface ActualDayPanelProps {
   onIgnoreEvent?: (eventId: string) => void;
   onRecomputeDay?: () => void;
   onShowRawGps?: () => void;
+  /**
+   * Resolve a "planned_time_without_signal" anomaly via admin action.
+   * Caller is responsible for invoking the `admin_create_workday_from_planned`
+   * edge action with the chosen mode + ISO start time.
+   */
+  onResolvePlannedGap?: (input: {
+    anomalyId: string;
+    mode: 'planned' | 'first_signal' | 'custom' | 'absence';
+    plannedStartIso: string;
+    firstSignalIso: string | null;
+    customStartIso?: string;
+    assignmentId: string | null;
+    noSignalGapMinutes: number;
+    label: string;
+  }) => Promise<void> | void;
   /** Renderas inuti collapse-sektionen "Nuvarande sparad rapport". */
   reportSlot?: React.ReactNode;
   /** Renderas i den gemensamma actionbaren (E). */
