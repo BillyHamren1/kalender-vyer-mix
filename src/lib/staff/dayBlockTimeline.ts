@@ -150,8 +150,26 @@ export interface BuildBlockTimelineInput {
    * presence-block — får INTE filtreras via timelineVisibility innan.
    */
   actualVisits?: ActualVisit[];
-  /** Indexerad på placeKey för label/duration-konsistens. */
-  visitByKey: Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>;
+  /** Indexerad på placeKey för label/duration-konsistens + lat/lng för okända block och journey endpoints. */
+  visitByKey: Map<string, VisitInfo>;
+}
+
+/**
+ * Information om en GPS-vistelse, indexerad på placeKey.
+ * Speglar fälten från ActualVisit som blockmotorn behöver veta —
+ * inkl. centre/coords så att okända presenceBlocks och journey
+ * endpoints kan visa lat/lng och utvärdera närhet.
+ */
+export interface VisitInfo {
+  knownSiteId: string | null;
+  label: string;
+  durationMin: number;
+  end: string;
+  centre?: { lat: number; lng: number } | null;
+  nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
+  unmatchReason?: string | null;
+  pingCount?: number;
+  avgAccuracy?: number | null;
 }
 
 const META = (ev: ActualEvent): Record<string, unknown> => (ev.meta ?? {}) as Record<string, unknown>;

@@ -159,7 +159,7 @@ const ProjectVisitBlock: React.FC<Props> = ({ block }) => {
 export interface BuildProjectBlocksInput {
   events: ActualEvent[];
   /** model.actualVisits, indexerad på placeKey. Vi tar knownSiteId därifrån. */
-  visitByKey: Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>;
+  visitByKey: Map<string, import('@/lib/staff/dayBlockTimeline').VisitInfo>;
   /** Planerade items från model.planningItems — bara behöver veta vilka booking/lp som är planerade idag. */
   plannedTargetIds: Set<string>;
   workdayStartedIso: string | null;
