@@ -235,6 +235,9 @@ function evaluateStableSegments(target: Target, pings: Ping[]): StableHit[] {
 }
 
 interface ProcessReport {
+  mode: 'cron' | 'backfill_day'
+  dry_run: boolean
+  source_tag: string
   staff: number
   pings: number
   arrivals: number
@@ -246,6 +249,11 @@ interface ProcessReport {
   events_emitted: number
   skipped_existing: number
   errors: string[]
+  plan: Array<Record<string, any>>
+}
+
+function planPush(report: ProcessReport, entry: Record<string, any>) {
+  if (report.dry_run) report.plan.push(entry)
 }
 
 function targetMatchesLte(target: Target, lte: any): boolean {
