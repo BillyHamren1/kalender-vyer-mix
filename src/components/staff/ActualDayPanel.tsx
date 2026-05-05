@@ -1041,6 +1041,51 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     t => !t.approved && (t.autoDetected || t.source === 'gap_derived'),
   );
 
+  // ── Effektiv dag efter admin-exkluderingar ───────────────────────
+  // När admin exkluderar rader räknar vi om dagsstart/slut/lönegrundande
+  // direkt från kvarvarande presence/journey-block. Originaldata (wd) ändras
+  // inte, men huvudvyn visar den nya tolkningen omedelbart.
+  const effectiveDay = useMemo(() => {
+    if (!excludedKeys || excludedKeys.size === 0) return null;
+    const visible = enrichedBlockTimeline.filter(b => !excludedKeys.has(b.id));
+    const work = visible.filter(b => b.kind === 'presence' || b.kind === 'journey');
+    if (work.length === 0) {
+      return { startIso: null as string | null, endIso: null as string | null, ongoing: false, wdMin: 0, empty: true };
+    }
+    const startIso = work.reduce<string>((min, b) => (!min || b.startIso < min ? b.startIso : min), '');
+    const ongoing = work.some(b => (b as any).ongoing === true);
+    const endIso = ongoing
+      ? null
+      : work.reduce<string>((max, b) => {
+          const e = (b as any).endIso ?? b.startIso;
+          return !max || e > max ? e : max;
+        }, '');
+    const endMs = endIso ? new Date(endIso).getTime() : Date.now();
+    const wdMin = Math.max(0, Math.round((endMs - new Date(startIso).getTime()) / 60_000));
+    return { startIso, endIso, ongoing, wdMin, empty: false };
+  }, [excludedKeys, enrichedBlockTimeline]);
+
+  const showEffectiveOverlay = !!effectiveDay;
+  const headerWdStart = effectiveDay?.startIso ?? wd?.started_at ?? null;
+  const headerWdEnd = effectiveDay ? effectiveDay.endIso : wd?.ended_at ?? null;
+  const headerOngoing = effectiveDay ? effectiveDay.ongoing : !!wd && !wd.ended_at;
+  const headerWdMin = effectiveDay ? effectiveDay.wdMin : wdMin;
+  const headerWdEmpty = effectiveDay?.empty === true;
+
+  // Projektblock vars motsvarande presenceBlock har exkluderats — döljs
+  // direkt från "På projekt"-bannern.
+  const excludedProjectStartIsos = useMemo(() => {
+    if (!excludedKeys || excludedKeys.size === 0) return new Set<string>();
+    return new Set(
+      enrichedBlockTimeline
+        .filter(b => excludedKeys.has(b.id) && b.kind === 'presence' && (b as any).presenceKind === 'project')
+        .map(b => b.startIso),
+    );
+  }, [excludedKeys, enrichedBlockTimeline]);
+  const visibleOngoingProject = currentOngoingProject && !excludedProjectStartIsos.has(currentOngoingProject.startIso)
+    ? currentOngoingProject
+    : null;
+
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
       {/* A. Header */}
@@ -1049,10 +1094,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         <div className="text-xs text-muted-foreground tabular-nums">{date}</div>
         <div className="text-xs">
           <span className="text-muted-foreground">Arbetsdag </span>
-          {wd ? (
+          {headerWdStart ? (
             <span className="tabular-nums font-medium text-foreground">
-              {fmtHm(wd.started_at)} → {wd.ended_at ? fmtHm(wd.ended_at) : 'pågår'}
+              {fmtHm(headerWdStart)} → {headerOngoing ? 'pågår' : headerWdEnd ? fmtHm(headerWdEnd) : 'pågår'}
+              {showEffectiveOverlay && (
+                <span className="ml-1 text-[10px] text-amber-700 dark:text-amber-300" title="Tolkning räknad efter admin-exkludering">(omräknad)</span>
+              )}
             </span>
+          ) : headerWdEmpty ? (
+            <span className="text-amber-600">tom efter exkludering</span>
           ) : status.kind === 'missing_strong_evidence' ? (
             <span className="text-blue-700 dark:text-blue-300">saknas (hög säkerhet)</span>
           ) : status.kind === 'planned_only' ? (
@@ -1063,7 +1113,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         </div>
         <div className="text-xs">
           <span className="text-muted-foreground">Lönegrundande </span>
-          <span className="tabular-nums font-medium text-foreground">{fmtMin(wdMin)}</span>
+          <span className="tabular-nums font-medium text-foreground">{fmtMin(headerWdMin)}</span>
+          {showEffectiveOverlay && wd && headerWdMin !== wdMin && (
+            <span className="ml-1 text-[10px] text-muted-foreground line-through tabular-nums">{fmtMin(wdMin)}</span>
+          )}
         </div>
         {(() => {
           if (!isAutoRepairedWorkday(wd)) return null;
@@ -1093,8 +1146,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         </div>
       </div>
 
-      {currentOngoingProject && (() => {
-        const b = currentOngoingProject;
+      {visibleOngoingProject && (() => {
+        const b = visibleOngoingProject;
         const timerState: 'active' | 'missing' | 'uncertain' =
           b.timerActive ? 'active' : b.hasTimer ? 'uncertain' : 'missing';
         const wdMissing = !b.workdayStarted;
