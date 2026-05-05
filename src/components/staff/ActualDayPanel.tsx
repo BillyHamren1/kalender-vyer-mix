@@ -77,6 +77,16 @@ interface ActualDayPanelProps {
   extraActions?: React.ReactNode;
   /** Renderas inuti collapse-sektionen "Rå GPS / debug". */
   rawGpsSlot?: React.ReactNode;
+  /**
+   * Repair-action när workday saknas men det finns starka arbetsbevis
+   * (assignment + GPS, timer existerar, två arbetsplatser, etc.).
+   * Caller bör trigga `admin_repair_workday_from_evidence` edge-action.
+   */
+  onRepairWorkdayFromEvidence?: (input: {
+    proposedStartIso: string;
+    proposedEndIso: string | null;
+    reasonCodes: StrongWorkReasonCode[];
+  }) => Promise<void> | void;
 }
 
 const fmtHm = (iso: string) => {
