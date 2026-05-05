@@ -454,6 +454,7 @@ const PlanningSection: React.FC<{ items: PlanningItemView[] }> = ({ items }) => 
 // ── Komponenten ─────────────────────────────────────────────────────
 export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   staffName,
+  staffId,
   date,
   model,
   lastPingIso,
@@ -469,6 +470,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   rawGpsSlot,
   onRepairWorkdayFromEvidence,
 }) => {
+  const { isAdmin, hasAnyRole } = useUserRoles();
+  const canExclude = isAdmin || hasAnyRole(['projekt', 'lager']);
+  const { excludedKeys, exclude } = useActualDayEventOverrides(staffId ?? null, date ?? null);
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [rawGpsOpen, setRawGpsOpen] = useState(false);
