@@ -207,7 +207,10 @@ const MobileGlobalOverlays: React.FC = () => {
       }
     };
     const dispose = registerGeofenceAutoActions({
-      start: async ({ kind, targetId, label, arrivedAtIso, isPlannedToday }) => {
+      start: async ({
+        kind, targetId, label, arrivedAtIso, isPlannedToday,
+        arrivalPingsCount, firstArrivalPingAtIso, arrivalDwellMs,
+      }) => {
         const workTarget: WorkTarget | null =
           kind === 'location' ? { kind: 'location', locationId: targetId, name: label }
           : kind === 'project' ? { kind: 'project', largeProjectId: targetId, name: label }
@@ -218,6 +221,20 @@ const MobileGlobalOverlays: React.FC = () => {
         //   • unassigned + known workplace = 'medium' (unplanned)
         // Locations alltid 'high' — known fixed sites är per definition planerade.
         const confidence: 'high' | 'medium' = isPlannedToday ? 'high' : 'medium';
+        const arrivalHHmm = (() => {
+          try { return format(parseISO(arrivedAtIso), 'HH:mm'); } catch { return ''; }
+        })();
+        // Common audit metadata persisted on every auto_start assistant_event.
+        const autoStartMeta = {
+          auto_started: true,
+          auto_start_source: 'gps_geofence',
+          matched_target: { kind, id: targetId, label },
+          confidence,
+          arrival_pings_count: arrivalPingsCount ?? null,
+          first_arrival_ping_at: firstArrivalPingAtIso ?? null,
+          arrival_dwell_ms: arrivalDwellMs ?? null,
+          is_planned_today: isPlannedToday,
+        };
         // AUTO-SWITCH: om en annan timer är aktiv på en tidigare arbetsplats,
         // stoppa den vid arrival-tid och starta den nya — ingen prompt.
         // Använd första stabila GPS-arrival som starttid — inte "nu" när
@@ -229,13 +246,37 @@ const MobileGlobalOverlays: React.FC = () => {
           confidence,
           label,
           suppressToast: true,
-          switchMetadata: { is_planned_today: isPlannedToday },
+          switchMetadata: autoStartMeta,
         });
         if (status === 'started' || status === 'already_running') {
+          // VISIBLE FEEDBACK — auto-start får aldrig vara osynligt.
+          if (status === 'started') {
+            toast.success(`Arbetsdag startad automatiskt från ${arrivalHHmm}`, {
+              description: `Timer startad: ${label}`,
+            });
+          }
           window.dispatchEvent(new CustomEvent('auto-arrival-started', {
-            detail: { kind, targetId, label, arrivedAtIso, workTarget, isPlannedToday },
+            detail: {
+              kind, targetId, label, arrivedAtIso, workTarget, isPlannedToday,
+              arrivalPingsCount, firstArrivalPingAtIso, arrivalDwellMs, confidence,
+            },
           }));
-          // OPLANERAD AKTIVITET — flagga + audit-event så admin ser det.
+          // Authoritative audit-event for ALL auto-starts (planned & unplanned).
+          // resolution_status='auto_started' är vår semantiska markör.
+          void mobileApi.assistantEvents.create({
+            event_type: 'arrival',
+            target_type: kind,
+            target_id: targetId,
+            target_label: label,
+            happened_at: arrivedAtIso,
+            source: 'geofence',
+            suggested_action: isPlannedToday ? 'auto_started' : 'auto_started_unplanned',
+            metadata: {
+              ...autoStartMeta,
+              resolution_status: 'auto_started',
+            },
+          }).catch(() => {});
+          // OPLANERAD AKTIVITET — extra workday_flag så admin ser det.
           if (!isPlannedToday) {
             void mobileApi.createWorkdayFlag({
               flag_type: 'geofence_presence_mismatch',
@@ -247,44 +288,39 @@ const MobileGlobalOverlays: React.FC = () => {
               related_booking_id: kind === 'booking' ? targetId : undefined,
               related_large_project_id: kind === 'project' ? targetId : undefined,
               related_location_id: kind === 'location' ? targetId : undefined,
-              context: {
-                source: 'geofence_auto_arrival_unplanned',
-                arrived_at: arrivedAtIso,
-                confidence,
-              },
-            }).catch(() => {});
-            void mobileApi.assistantEvents.create({
-              event_type: 'arrival',
-              target_type: kind,
-              target_id: targetId,
-              target_label: label,
-              happened_at: arrivedAtIso,
-              source: 'geofence',
-              suggested_action: 'auto_started_unplanned',
-              metadata: { source: 'geofence_auto_unplanned', confidence, is_planned_today: false },
+              context: { ...autoStartMeta, source: 'geofence_auto_arrival_unplanned', arrived_at: arrivedAtIso },
             }).catch(() => {});
           }
         } else if (status === 'workday_failed' || status === 'start_failed') {
+          // RECOVERY — auto-start misslyckades. Visa tydlig toast + banner.
+          toast.error(
+            `GPS visar att du är på ${label}, men timer kunde inte startas.`,
+            { description: 'Försök starta manuellt eller välj projekt/plats.' },
+          );
           // Workday får inte blockeras pga aktivitet — se till att dagen
           // ändå öppnas och flagga att aktivitet saknas.
           try {
             const wd = await ensureWorkDayActive(arrivedAtIso);
             if (wd) {
-              toast.message('Arbetsdag startad — välj projekt/plats för aktivitet');
+              toast.message(`Arbetsdag startad ${arrivalHHmm} — välj projekt/plats för aktivitet`);
               window.dispatchEvent(new CustomEvent('auto-arrival-workday-only', {
-                detail: { kind, targetId, label, arrivedAtIso, isPlannedToday },
+                detail: {
+                  kind, targetId, label, arrivedAtIso, isPlannedToday,
+                  arrivalPingsCount, firstArrivalPingAtIso, confidence,
+                  failureReason: status,
+                },
               }));
               void mobileApi.createWorkdayFlag({
                 flag_type: 'unclear_start_target',
                 flag_date: arrivedAtIso.slice(0, 10),
                 title: `Auto-start: aktivitet saknas (${label})`,
-                description: `Arbetsdag startades automatiskt vid ankomst till ${label} men aktivitetstimer kunde inte startas.`,
+                description: `Arbetsdag startades automatiskt vid ankomst till ${label} men aktivitetstimer kunde inte startas (${status}).`,
                 severity: 'warning',
                 needs_user_input: true,
                 related_booking_id: kind === 'booking' ? targetId : undefined,
                 related_large_project_id: kind === 'project' ? targetId : undefined,
                 related_location_id: kind === 'location' ? targetId : undefined,
-                context: { source: 'geofence_auto_arrival', arrived_at: arrivedAtIso, is_planned_today: isPlannedToday },
+                context: { ...autoStartMeta, source: 'geofence_auto_arrival', arrived_at: arrivedAtIso, failure_reason: status },
               }).catch(() => {});
             }
           } catch (err) {

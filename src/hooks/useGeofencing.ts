@@ -130,6 +130,10 @@ export interface AutoStartActivityArgs {
    * Drives confidence + "oplanerad aktivitet" tagging on the auto-start.
    */
   isPlannedToday: boolean;
+  /** Stable-entry audit fields. Persisted in assistant_events metadata. */
+  arrivalPingsCount?: number;
+  firstArrivalPingAtIso?: string;
+  arrivalDwellMs?: number;
 }
 export interface AutoStartActivityOutcome {
   /**
@@ -979,7 +983,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             const projectPlannedToday = bookings.some(
               (b) => b.large_project_id === lpId && isAssignedToday(b),
             );
-            void startFn({ kind: 'project', targetId: lpId, label: lpName, arrivedAtIso, isPlannedToday: projectPlannedToday })
+            const entryMeta = buildEntryMetadata(entryEv);
+            void startFn({
+              kind: 'project',
+              targetId: lpId,
+              label: lpName,
+              arrivedAtIso,
+              isPlannedToday: projectPlannedToday,
+              arrivalPingsCount: entryMeta.entry_ping_count,
+              firstArrivalPingAtIso: (entryMeta as any).entry_first_at,
+              arrivalDwellMs: (entryMeta as any).entry_dwell_ms,
+            })
               .then((res) => {
                 if (res.status === 'conflict' || res.status === 'workday_failed') {
                   setGeofenceEvent({
@@ -1108,7 +1122,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             locationType: 'booking', arrivalTimestamp: Date.now(),
           });
           if (startFn) {
-            void startFn({ kind: 'booking', targetId: booking.id, label: booking.client || 'Uppdrag', arrivedAtIso, isPlannedToday: isAssignedToday(booking) })
+            const entryMeta = buildEntryMetadata(entryEv);
+            void startFn({
+              kind: 'booking',
+              targetId: booking.id,
+              label: booking.client || 'Uppdrag',
+              arrivedAtIso,
+              isPlannedToday: isAssignedToday(booking),
+              arrivalPingsCount: entryMeta.entry_ping_count,
+              firstArrivalPingAtIso: (entryMeta as any).entry_first_at,
+              arrivalDwellMs: (entryMeta as any).entry_dwell_ms,
+            })
               .then((res) => {
                 if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
               })
@@ -1232,7 +1256,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           arrivalTimestamp: Date.now(),
         });
         if (startFn) {
-          void startFn({ kind: 'location', targetId: loc.id, label: loc.name, arrivedAtIso, isPlannedToday: true })
+          const entryMeta = buildEntryMetadata(entryEv);
+          void startFn({
+            kind: 'location',
+            targetId: loc.id,
+            label: loc.name,
+            arrivedAtIso,
+            isPlannedToday: true,
+            arrivalPingsCount: entryMeta.entry_ping_count,
+            firstArrivalPingAtIso: (entryMeta as any).entry_first_at,
+            arrivalDwellMs: (entryMeta as any).entry_dwell_ms,
+          })
             .then((res) => {
               if (res.status === 'conflict' || res.status === 'workday_failed') fallbackPrompt();
             })
