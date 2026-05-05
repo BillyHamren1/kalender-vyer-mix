@@ -521,6 +521,7 @@ const MobileGlobalOverlays: React.FC = () => {
     <>
       {/* Visual banners — render at mount position in the JSX tree */}
       <GlobalActiveTimerBanner />
+      <AutoArrivalNotice />
       <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
       {unplannedVisit && <UnplannedVisitBanner visit={unplannedVisit} onEnd={endUnplannedVisit} />}
 
