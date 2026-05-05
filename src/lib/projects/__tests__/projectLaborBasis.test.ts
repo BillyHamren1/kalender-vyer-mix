@@ -86,11 +86,11 @@ describe('buildProjectLaborBasis', () => {
     expect(basis.unallocatedWorkdayMinutes).toBe(0);
   });
 
-  it('workday lever separat från projektkostnad: 240 confirmed ≠ 450 workday', () => {
+  it('workday lever separat från projektkostnad: 240 confirmed ≠ 480 workday', () => {
     const basis = buildProjectLaborBasis(summary, { workdays });
     expect(basis.billableMinutes).not.toBe(basis.perStaff[0].workdayMinutes);
     // Lön kan basera sig på workdayMinutes; projekt på billableMinutes.
-    expect(basis.perStaff[0].workdayMinutes).toBe(450);
+    expect(basis.perStaff[0].workdayMinutes).toBe(480);
     expect(basis.billableMinutes).toBe(240);
   });
 });
