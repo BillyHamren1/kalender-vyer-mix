@@ -639,21 +639,17 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <span className="tabular-nums font-medium text-foreground">{fmtMin(wdMin)}</span>
         </div>
         {(() => {
+          if (!isAutoRepairedWorkday(wd)) return null;
           const wmeta = (wd as any)?.metadata as any;
-          const wstart = (wd as any)?.started_by as string | null;
-          const isBackfill = wmeta?.auto_start_source === 'server_background_gps_backfill'
-            || wstart === 'server_auto_start_backfill';
-          const isServerAuto = isBackfill
-            || wmeta?.auto_start_source === 'server_background_gps'
-            || wstart === 'server_auto_start';
-          if (!isServerAuto) return null;
+          const src = wmeta?.auto_start_source as string | undefined;
+          const isTimerRepair = src === 'auto_repair_from_timer';
+          const isBackfill = src === 'server_background_gps_backfill' || wmeta?.backfilled === true;
           return (
             <div className="flex items-center gap-1.5 flex-wrap">
-              <Badge className="bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 font-medium">
-                Auto-startad från GPS
+              <Badge className="bg-indigo-100 text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-100 font-medium">
+                {isTimerRepair ? 'Auto-skapad från timer' : 'Auto-skapad från GPS'}
                 {wmeta?.confidence ? ` · ${wmeta.confidence}` : ''}
               </Badge>
-              <Badge variant="outline" className="text-[10px] py-0 px-1.5">Servermotor</Badge>
               {isBackfill && (
                 <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300">
                   Backfill
