@@ -95,6 +95,8 @@ function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: 
   if (wd && !wd.ended_at) return { kind: 'ongoing', label: 'Pågår' };
   const hasPreWd = model.proposedReport.anomalies.some(a => a.id.startsWith('pre-wd:'));
   if (hasPreWd) return { kind: 'pre_workday', label: 'GPS före arbetsdag' };
+  const hasPlannedGap = model.proposedReport.anomalies.some(a => a.id.startsWith('planned-gap:'));
+  if (hasPlannedGap) return { kind: 'review', label: 'Kräver granskning – planerad tid saknar signal' };
   if (wd && model.reportState.timeReports.length === 0 && model.reportState.locationEntries.length === 0) {
     return { kind: 'missing_report', label: 'Saknar rapport' };
   }
@@ -135,6 +137,8 @@ const EventIcon: React.FC<{ kind: ActualEventKind; severity: ActualEventSeverity
   if (kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit') return <MapPin className={`h-3.5 w-3.5 ${cls}`} />;
   if (kind === 'gps_travel' || kind === 'travel_suggestion') return <Plane className={`h-3.5 w-3.5 ${cls}`} />;
   if (kind === 'stale_signal') return <WifiOff className={`h-3.5 w-3.5 ${cls}`} />;
+  if (kind === 'planned_signal_gap') return <WifiOff className={`h-3.5 w-3.5 ${cls}`} />;
+  if (kind === 'planned_start') return <Clock className={`h-3.5 w-3.5 ${cls}`} />;
   if (kind === 'anomaly') return <AlertTriangle className={`h-3.5 w-3.5 ${cls}`} />;
   return <Activity className={`h-3.5 w-3.5 ${cls}`} />;
 };
@@ -176,6 +180,9 @@ const sourceTagFor = (ev: ActualEvent): string => {
       return 'GPS';
     case 'anomaly':
       return 'flag';
+    case 'planned_start':
+    case 'planned_signal_gap':
+      return 'planering';
     default:
       return '—';
   }
@@ -205,6 +212,8 @@ const statusTagFor = (ev: ActualEvent): string => {
     if (!isStopConfident(cls)) return 'osäker · källa okänd';
     return 'bekräftad';
   }
+  if (kind === 'planned_signal_gap') return 'osäker · kräver granskning';
+  if (kind === 'planned_start') return 'förväntan';
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
   if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
     if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'adressuppslag';

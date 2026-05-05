@@ -1316,6 +1316,14 @@ const StaffTimeReports: React.FC = () => {
             pings: staffPings,
             knownSites,
             privateZones: privateZonesByStaff.get(s.id) ?? [],
+            plannedAssignments: derivedPlannedEvents
+              .filter(ev => ev.staffId === s.id && ev.start && ev.end)
+              .map(ev => ({
+                id: ev.id,
+                label: ev.largeProjectName || ev.client || ev.title || 'Planerad',
+                plannedStart: ev.start,
+                plannedEnd: ev.end,
+              })),
             // latestPing för actual day model MÅSTE vara dagens sista ping
             // (recorded_at ≤ dagens slut), inte staff_locations.updated_at —
             // den senare är "live" och blir fel för historiska dagar.
