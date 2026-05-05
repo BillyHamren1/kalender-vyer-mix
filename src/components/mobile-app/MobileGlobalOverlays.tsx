@@ -102,6 +102,7 @@ const MobileGlobalOverlays: React.FC = () => {
   const {
     requestStart,
     tryStartFromArrival,
+    tryAutoSwitchFromArrival,
     cancelConflict,
     confirmSwitch,
     conflictEval,
