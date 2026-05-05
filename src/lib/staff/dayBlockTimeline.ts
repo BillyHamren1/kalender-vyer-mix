@@ -277,6 +277,8 @@ const resolvePresencePlace = (
       lookupStatus: 'pending_geocode',
       nearestKnownSite: visit?.nearestKnownSite ?? null,
       unmatchReason: visit?.unmatchReason ?? null,
+      pingCount: visit?.pingCount ?? null,
+      avgAccuracy: visit?.avgAccuracy ?? null,
     };
   }
   return {
@@ -285,6 +287,8 @@ const resolvePresencePlace = (
     lookupStatus: 'unknown_no_coords',
     nearestKnownSite: visit?.nearestKnownSite ?? null,
     unmatchReason: visit?.unmatchReason ?? null,
+    pingCount: visit?.pingCount ?? null,
+    avgAccuracy: visit?.avgAccuracy ?? null,
   };
 };
 
