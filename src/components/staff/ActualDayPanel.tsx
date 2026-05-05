@@ -742,9 +742,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         ? 'text-amber-600'
                         : 'text-muted-foreground';
 
-              // "Från / Till" för förflyttningar
+              // "Från / Till" för förflyttningar (gps_travel eller syntetiskt journey_block)
               let displayLabel: React.ReactNode = ev.label;
-              if (ev.kind === 'gps_travel' && typeof ev.label === 'string' && ev.label.includes('→')) {
+              const isJourneyBlock = (ev.meta as any)?.journey_block === true;
+              if ((ev.kind === 'gps_travel' || isJourneyBlock) && typeof ev.label === 'string' && ev.label.includes('→')) {
                 const stripped = ev.label.replace(/^Förflyttning:\s*/, '');
                 const [a, b] = stripped.split(' → ');
                 displayLabel = (
