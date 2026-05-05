@@ -393,6 +393,9 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sourceEventIds: [],
         innerEvents: rawInWindow,
         timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+        sources: { timeReport: false, timer: false, gpsVisit: false, assistant: false },
+        evidenceLabel: null,
+        confidence: 'low',
       });
       continue;
     }
