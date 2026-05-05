@@ -225,7 +225,30 @@ export function nextAssistantDecision(state: WorkDayState): AssistantDecision | 
     }
   }
 
-  // ── 4) Sista arbetsplatsen för dagen ──
+  // ── Sen ankomst efter planerad start (telefon avstängd / ingen signal) ──
+  // Trigger: planerad start finns idag, ingen öppen workday, första signal
+  // dyker upp >LATE_AFTER_PLANNED_MIN efter planerad start.
+  if (
+    !state.hasOpenWorkday &&
+    state.earliestPlannedStartToday &&
+    state.firstSignalToday &&
+    cooldownExpired('late_after_planned_start', now, state.lastShownByKind)
+  ) {
+    const plannedMs = new Date(state.earliestPlannedStartToday.iso).getTime();
+    const firstMs = new Date(state.firstSignalToday.iso).getTime();
+    const sameDay = new Date(plannedMs).toDateString() === new Date(firstMs).toDateString();
+    const lateMin = (firstMs - plannedMs) / 60_000;
+    if (sameDay && lateMin >= LATE_AFTER_PLANNED_MIN) {
+      return {
+        kind: 'late_after_planned_start',
+        plannedStartIso: state.earliestPlannedStartToday.iso,
+        plannedLabel: state.earliestPlannedStartToday.label,
+        firstSignalIso: state.firstSignalToday.iso,
+        lateMinutes: Math.round(lateMin),
+      };
+    }
+  }
+
   if (
     state.timers.length === 0 &&
     state.lastExit &&
