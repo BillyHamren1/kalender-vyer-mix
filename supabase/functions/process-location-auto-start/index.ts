@@ -283,17 +283,22 @@ async function ensureWorkdayOpen(
     report.skipped_existing++
     return existing.id
   }
+  if (report.dry_run) {
+    planPush(report, { action: 'workday_open', staff_id: staffId, started_at: arrivalIso, target: hit.target.label })
+    report.workdays_opened++
+    return 'dry-run-workday'
+  }
   const { data: wd, error: wdErr } = await supabase
     .from('workdays')
     .insert({
       staff_id: staffId,
       organization_id: orgId,
       started_at: arrivalIso,
-      started_by: 'server_auto_start',
+      started_by: report.mode === 'backfill_day' ? 'server_auto_start_backfill' : 'server_auto_start',
       notes: `Auto-started from GPS arrival at ${hit.target.label}`,
       metadata: {
         auto_started: true,
-        auto_start_source: 'server_background_gps',
+        auto_start_source: report.source_tag,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
         confidence: hit.confidence,
         arrival_pings_count: hit.pings.length,
