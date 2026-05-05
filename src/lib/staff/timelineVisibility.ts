@@ -390,8 +390,9 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
       }
       if (oev.kind === 'gps_arrival' && tp.to && oKey === tp.to
         && Math.abs(oMs - travelEnd) <= JOURNEY_WINDOW_MS) {
-        other.visibility = 'raw_only';
-        other.reason_hidden = 'within_journey';
+        // VIKTIGT: göm INTE arrival-raden — destinationens vistelse måste
+        // alltid synas som egen huvudrad så att travel inte "sväljer"
+        // målplatsen. Vi använder bara dess data till journey_block-meta.
         arrEv = oev;
         continue;
       }
@@ -466,8 +467,8 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
 
     const arrC = classified[arrIdx];
     const arrEv = arrC.event;
-    arrC.visibility = 'raw_only';
-    arrC.reason_hidden = 'within_journey';
+    // Behåll arrival som egen main-rad — destinationens vistelse får
+    // aldrig sväljas av en syntetisk förflyttningsrad.
 
     const journeyMeta: JourneyMeta = {
       journey_block: true,
