@@ -541,6 +541,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleGetOverviewAssignments(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'get_overview_threads':
         return await handleGetOverviewThreads(supabase, staffOrg?.user_id || null, organizationId)
+      case 'get_ops_overview':
+        return await handleGetOpsOverview(supabase, staffOrg?.user_id || null, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
