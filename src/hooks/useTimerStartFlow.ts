@@ -616,7 +616,7 @@ export function useTimerStartFlow(
         // Audit event so admin can see exactly why a switch occurred.
         void mobileApi.assistantEvents
           .create({
-            event_type: 'auto_switch',
+            event_type: 'arrival',
             target_type: target.kind,
             target_id: nextTargetId,
             target_label: label,
