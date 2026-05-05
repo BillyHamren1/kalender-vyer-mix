@@ -666,6 +666,138 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         {ev.detail && <span className="text-[10px]">· {ev.detail}</span>}
                       </div>
 
+                      {/* Källor (bevis) — sammanställning av alla källor som bidragit till händelsen */}
+                      {(() => {
+                        const mm = (ev.meta ?? {}) as any;
+                        const lteMeta: any = mm.lteMetadata ?? {};
+                        const stopMeta: any =
+                          (lteMeta.stop_metadata && typeof lteMeta.stop_metadata === 'object')
+                            ? lteMeta.stop_metadata
+                            : lteMeta;
+                        const sw: any = stopMeta?.switch ?? lteMeta?.switch ?? null;
+
+                        type SourceLine = { source: string; tone?: string; lines: Array<[string, React.ReactNode]> };
+                        const sources: SourceLine[] = [];
+
+                        // GPS-källan: arrival/visit/departure/travel + ping-data
+                        if (ev.kind === 'gps_arrival' || ev.kind === 'gps_visit' || ev.kind === 'gps_departure') {
+                          const lines: Array<[string, React.ReactNode]> = [];
+                          if (ev.kind === 'gps_arrival') lines.push(['Anlände', `${ev.place ?? '—'} kl ${fmtHm(ev.at)}`]);
+                          if (ev.kind === 'gps_departure') lines.push(['Lämnade', `${ev.place ?? '—'} kl ${fmtHm(ev.at)}`]);
+                          if (ev.kind === 'gps_visit') {
+                            lines.push(['Vistelse', `${ev.place ?? '—'}${ev.until ? ` (${fmtHm(ev.at)}–${fmtHm(ev.until)})` : ` från ${fmtHm(ev.at)}`}`]);
+                          }
+                          if (visit?.pingCount != null) lines.push(['Pings', `${visit.pingCount}`]);
+                          if (visit?.avgAccuracy != null) lines.push(['Accuracy', `±${visit.avgAccuracy} m`]);
+                          if (visit?.nearestKnownSite) {
+                            lines.push(['Närmaste plats', `${visit.nearestKnownSite.name} · ${visit.nearestKnownSite.distanceMeters} m (radie ${visit.nearestKnownSite.radiusMeters} m)`]);
+                          }
+                          sources.push({ source: 'GPS', lines });
+                        } else if (ev.kind === 'gps_travel') {
+                          const lines: Array<[string, React.ReactNode]> = [];
+                          lines.push(['Förflyttning', `${fmtHm(ev.at)}${ev.until ? `–${fmtHm(ev.until)}` : ''}`]);
+                          if (mm.distance_m != null) lines.push(['Distans', `${mm.distance_m} m`]);
+                          if (mm.confidence != null) lines.push(['Confidence', String(mm.confidence)]);
+                          sources.push({ source: 'GPS-rörelse', lines });
+                        }
+
+                        // Servermotor / backfill (auto-start eller auto-switch)
+                        const cls: string | undefined = mm.sourceClass;
+                        const isServerEngine =
+                          mm.autoStarted ||
+                          cls === 'server_background' ||
+                          cls === 'backfill' ||
+                          mm.autoStartSource === 'server_background_gps' ||
+                          mm.autoStartSource === 'server_background_gps_backfill' ||
+                          stopMeta?.engine_version != null ||
+                          stopMeta?.run_id != null;
+                        if (isServerEngine) {
+                          const lines: Array<[string, React.ReactNode]> = [];
+                          if (stopMeta?.run_id ?? mm.run_id) lines.push(['run_id', String(stopMeta?.run_id ?? mm.run_id)]);
+                          if (stopMeta?.engine_version) lines.push(['engine', String(stopMeta.engine_version)]);
+                          if (mm.confidence ?? sw?.confidence) lines.push(['confidence', String(mm.confidence ?? sw?.confidence)]);
+                          if (mm.pingCount != null) lines.push(['pings', `${mm.pingCount}`]);
+                          if (mm.avgAccuracyM != null) lines.push(['accuracy', `±${Math.round(mm.avgAccuracyM)} m`]);
+                          if (cls === 'backfill' || mm.isBackfill) lines.push(['variant', 'backfill']);
+                          if (lines.length) sources.push({ source: 'Servermotor', lines });
+                        }
+
+                        // Timer (start/stopp)
+                        if (ev.kind === 'timer_started' || ev.kind === 'timer_stopped' || ev.kind === 'timer_end_estimated') {
+                          const lines: Array<[string, React.ReactNode]> = [];
+                          lines.push([ev.kind === 'timer_started' ? 'Startad' : 'Stoppad', fmtHm(ev.at)]);
+                          if (mm.lteId) lines.push(['lte_id', String(mm.lteId)]);
+                          if (cls) lines.push(['source_class', cls]);
+                          if (sw?.next_target) lines.push(['next_target', sw.next_target?.label ?? '—']);
+                          if (stopMeta?.stop_reason) lines.push(['stop_reason', String(stopMeta.stop_reason)]);
+                          sources.push({ source: 'Timer', lines });
+                        }
+
+                        // Time report
+                        if (ev.kind === 'time_report_created' || ev.kind === 'time_report_closed' || stopMeta?.time_report_id) {
+                          const lines: Array<[string, React.ReactNode]> = [];
+                          if (stopMeta?.time_report_id ?? mm.time_report_id) lines.push(['time_report_id', String(stopMeta?.time_report_id ?? mm.time_report_id)]);
+                          if (stopMeta?.report_start) lines.push(['start', String(stopMeta.report_start)]);
+                          if (stopMeta?.report_end) lines.push(['slut', String(stopMeta.report_end)]);
+                          if (stopMeta?.save_then_stop || stopMeta?.closed_via === 'save_then_stop') lines.push(['flöde', 'save → stop']);
+                          if (lines.length) sources.push({ source: 'Time report', lines });
+                        }
+
+                        // Assistant (assistant_arrival/departure/other)
+                        if (ev.kind === 'assistant_arrival' || ev.kind === 'assistant_departure' || ev.kind === 'assistant_other') {
+                          const lines: Array<[string, React.ReactNode]> = [];
+                          lines.push([ev.kind === 'assistant_arrival' ? 'Ankomst' : ev.kind === 'assistant_departure' ? 'Avgång' : 'Händelse', fmtHm(ev.at)]);
+                          if ((ev as any).id) lines.push(['event_id', String(ev.id)]);
+                          if (mm.confidence) lines.push(['confidence', String(mm.confidence)]);
+                          sources.push({ source: 'Assistant', lines });
+                        }
+
+                        // Admin / manuell
+                        const k = (() => {
+                          if (ev.kind !== 'timer_stopped') return null;
+                          return classifyStopSource({
+                            source: (mm.lteSource ?? mm.source) ?? null,
+                            metadata: lteMeta as Record<string, any> | null,
+                            exitedAt: mm.stoppedAt ?? ev.at ?? null,
+                            lteId: mm.lteId ?? '',
+                          }).key;
+                        })();
+                        if (k === 'user_manual' || k === 'admin') {
+                          const lines: Array<[string, React.ReactNode]> = [];
+                          if (stopMeta?.actor ?? mm.stoppedBy) lines.push(['actor', String(stopMeta?.actor ?? mm.stoppedBy)]);
+                          if (stopMeta?.app_platform) lines.push(['platform', String(stopMeta.app_platform)]);
+                          if (stopMeta?.app_version) lines.push(['version', String(stopMeta.app_version)]);
+                          if (stopMeta?.closed_via) lines.push(['closed_via', String(stopMeta.closed_via)]);
+                          sources.push({ source: k === 'admin' ? 'Admin' : 'Manuell (användare)', lines });
+                        }
+
+                        if (sources.length === 0) return null;
+                        return (
+                          <div className="rounded border border-dashed bg-background/40 px-2 py-1.5">
+                            <div className="text-[10px] uppercase tracking-wide mb-1">Källor (bevis)</div>
+                            <ul className="space-y-1">
+                              {sources.map((s, i) => (
+                                <li key={`${s.source}-${i}`} className="text-[11px]">
+                                  <span className="font-medium text-foreground">{s.source}</span>
+                                  {s.lines.length > 0 && (
+                                    <span className="text-muted-foreground">
+                                      {' · '}
+                                      {s.lines.map(([k, v], j) => (
+                                        <span key={`${k}-${j}`}>
+                                          {j > 0 && ' · '}
+                                          <span className="opacity-70">{k}:</span>{' '}
+                                          <span className="text-foreground">{v}</span>
+                                        </span>
+                                      ))}
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })()}
+
                       {/* Auto-start från GPS */}
                       {(() => {
                         const mm = (ev.meta ?? {}) as any;
