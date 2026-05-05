@@ -43,10 +43,12 @@ interface RawTask {
   large_project_id: string | null;
   assigned_to_ids: string[] | null;
   calendar_event_id: string | null;
+  visible_in_time_app?: boolean | null;
+  visible_in_project_calendar?: boolean | null;
 }
 
 const SELECT =
-  'id, title, category, status, readiness, task_type, start_date, end_date, start_time, end_time, due_date, booking_id, large_project_id, assigned_to_ids, calendar_event_id';
+  'id, title, category, status, readiness, task_type, start_date, end_date, start_time, end_time, due_date, booking_id, large_project_id, assigned_to_ids, calendar_event_id, visible_in_time_app, visible_in_project_calendar';
 
 export function useProjectTaskCalendarEvents({
   bookingId,
@@ -83,6 +85,7 @@ export function useProjectTaskCalendarEvents({
 
   const events: CalendarEvent[] = useMemo(() => {
     return tasks
+      .filter((t) => t.visible_in_project_calendar !== false)
       .map((t) => {
         const startDate = t.start_date || t.due_date;
         const endDate = t.end_date || t.start_date || t.due_date;
@@ -92,6 +95,7 @@ export function useProjectTaskCalendarEvents({
         const start = `${startDate}T${startTime}`;
         const end = `${endDate}T${endTime}`;
         const published = !!t.calendar_event_id;
+        const inTimeApp = t.visible_in_time_app === true;
         const missingInfo =
           !t.start_time || !t.end_time || (t.assigned_to_ids?.length ?? 0) === 0;
 
@@ -114,6 +118,7 @@ export function useProjectTaskCalendarEvents({
             assignedIds: t.assigned_to_ids ?? [],
             published,
             publishedTo: published ? 'staff_calendar' : 'project_only',
+            inTimeApp,
             missingInfo,
             usesFallbackTime: !t.start_time || !t.end_time,
           },

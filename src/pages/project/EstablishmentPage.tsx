@@ -1,11 +1,9 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { List, Users } from "lucide-react";
-import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
@@ -68,8 +66,8 @@ const EstablishmentPage = () => {
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
-  const tabTriggerClass =
-    "relative px-4 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
+  // (Tabs removed — Etablering/Avetablering är nu samma vy: projektkalendern + lista över establishment_tasks)
+
 
   // Fetch staff pool: unique staff assigned to this booking
   const { data: staffPool = [] } = useQuery({
@@ -166,74 +164,54 @@ const EstablishmentPage = () => {
       {/* LEVEL 1.5: Projektkalender — speglar personalkalendern */}
       <ProjectCalendarView projectId={project.id} bookingId={bookingId} isLargeProject={false} />
 
-      {/* LEVEL 2: Workspace */}
+      {/* LEVEL 2: Workspace — lista/personal över samma establishment_tasks som projektkalendern */}
       <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
-        <Tabs defaultValue="establishment">
-          <div className="border-b border-border/40 px-3 flex items-center justify-between">
-            <TabsList className="h-auto p-0 bg-transparent gap-0">
-              <TabsTrigger value="establishment" className={tabTriggerClass}>
-                Etablering
-              </TabsTrigger>
-              <TabsTrigger value="deestablishment" className={tabTriggerClass}>
-                Avetablering
-              </TabsTrigger>
-            </TabsList>
-
-            <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-              <Button
-                variant={viewMode === "list" ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5 text-xs gap-1"
-                onClick={() => setViewMode("list")}
-              >
-                <List className="h-3.5 w-3.5" />
-                Lista
-              </Button>
-              <Button
-                variant={viewMode === "people" ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5 text-xs gap-1"
-                onClick={() => setViewMode("people")}
-              >
-                <Users className="h-3.5 w-3.5" />
-                Personal
-              </Button>
-            </div>
+        <div className="border-b border-border/40 px-3 py-2 flex items-center justify-end">
+          <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2.5 text-xs gap-1"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="h-3.5 w-3.5" />
+              Lista
+            </Button>
+            <Button
+              variant={viewMode === "people" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2.5 text-xs gap-1"
+              onClick={() => setViewMode("people")}
+            >
+              <Users className="h-3.5 w-3.5" />
+              Personal
+            </Button>
           </div>
+        </div>
 
-          <TabsContent value="establishment" className="mt-0 p-3 space-y-2">
-            <PlanningFilterBar
-              tasks={analytics.tasks}
-              filters={filters}
-              onFiltersChange={setFilters}
+        <div className="mt-0 p-3 space-y-2">
+          <PlanningFilterBar
+            tasks={analytics.tasks}
+            filters={filters}
+            onFiltersChange={setFilters}
+            staffPool={staffPool}
+            filteredCount={filteredTasks.length}
+          />
+          {viewMode === "list" ? (
+            <PlanningTaskList
+              tasks={filteredTasks}
               staffPool={staffPool}
-              filteredCount={filteredTasks.length}
-            />
-            {viewMode === "list" ? (
-              <PlanningTaskList
-                tasks={filteredTasks}
-                staffPool={staffPool}
-                onTaskClick={handleTaskClick}
-                bookingId={bookingId}
-              />
-            ) : (
-              <PeopleOverview
-                analytics={analytics}
-                staffPool={staffPool}
-                onTaskClick={handleControlPanelTaskClick}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="deestablishment" className="mt-0 p-3">
-            <DeestablishmentGanttChart
-              eventDate={booking?.eventdate}
-              rigdownDate={booking?.rigdowndate}
-              bookingId={bookingId}
               onTaskClick={handleTaskClick}
+              bookingId={bookingId}
             />
-          </TabsContent>
-        </Tabs>
+          ) : (
+            <PeopleOverview
+              analytics={analytics}
+              staffPool={staffPool}
+              onTaskClick={handleControlPanelTaskClick}
+            />
+          )}
+        </div>
       </Card>
 
       <EstablishmentTaskDetailSheet

@@ -264,6 +264,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const ext = event.extendedProps as any;
   if (ext?.isProjectActivity) {
     const published = !!ext.published;
+    const inTimeApp = !!ext.inTimeApp;
     const missing = !!ext.missingInfo;
     const status = String(ext.status ?? 'todo');
     const category = ext.category ? String(ext.category) : null;
@@ -296,7 +297,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
               </>
             )}
           </div>
-          <div className="mt-0.5">
+          <div className="mt-0.5 flex flex-wrap gap-1">
             <span
               className={`inline-block text-[9px] uppercase tracking-wide rounded px-1 ${
                 published
@@ -306,6 +307,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             >
               {published ? 'I personalkalender' : 'Endast projekt'}
             </span>
+            {inTimeApp && (
+              <span className="inline-block text-[9px] uppercase tracking-wide rounded px-1 bg-emerald-100 text-emerald-800 border border-emerald-200">
+                I Time-app
+              </span>
+            )}
           </div>
         </div>
       </EventHoverCard>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { format } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,6 +169,7 @@ const ActivityPlannerSheet = ({
   staffPool = [],
   existingTasks = [],
 }: ActivityPlannerSheetProps) => {
+  const queryClient = useQueryClient();
   const [selectedBookingId, setSelectedBookingId] = useState<string>("none");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [plannedProductIds, setPlannedProductIds] = useState<Set<string>>(new Set());
@@ -407,10 +408,16 @@ const ActivityPlannerSheet = ({
     if (fail === 0) toast.success(`${ok} aktivitet(er) skapade`);
     else toast.warning(`${ok} skapade, ${fail} misslyckades`);
 
+    // Säkerställ att projektkalendern och alla task-listor uppdateras direkt
+    queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
+    queryClient.invalidateQueries({ queryKey: ["establishment-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+
     onTaskCreated();
     onOpenChange(false);
     setIsSubmitting(false);
-  }, [validRows, isProjectMode, selectedBookingId, bookingId, largeProjectId, onTaskCreated, onOpenChange]);
+  }, [validRows, isProjectMode, selectedBookingId, bookingId, largeProjectId, onTaskCreated, onOpenChange, queryClient]);
 
   // --- Render ---
   const toggleExpandProduct = useCallback((productId: string) => {

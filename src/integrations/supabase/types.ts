@@ -1533,6 +1533,8 @@ export type Database = {
           task_type: string
           title: string
           updated_at: string | null
+          visible_in_project_calendar: boolean
+          visible_in_time_app: boolean
         }
         Insert: {
           assigned_to?: string | null
@@ -1569,6 +1571,8 @@ export type Database = {
           task_type?: string
           title: string
           updated_at?: string | null
+          visible_in_project_calendar?: boolean
+          visible_in_time_app?: boolean
         }
         Update: {
           assigned_to?: string | null
@@ -1605,6 +1609,8 @@ export type Database = {
           task_type?: string
           title?: string
           updated_at?: string | null
+          visible_in_project_calendar?: boolean
+          visible_in_time_app?: boolean
         }
         Relationships: [
           {
