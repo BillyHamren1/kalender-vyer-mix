@@ -19,12 +19,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { CheckCircle2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
 import type { WorkTarget } from '@/hooks/useWorkSession';
-import { useWorkSession } from '@/hooks/useWorkSession';
-import { useMobileBookings } from '@/hooks/useMobileData';
-import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { AutoStartCorrectionDialog, type AutoStartCorrectionContext } from './AutoStartCorrectionDialog';
 
 interface NoticeState {
   kind: 'location' | 'project' | 'booking';
