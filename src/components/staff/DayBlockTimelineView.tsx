@@ -167,20 +167,34 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
     : 'border-slate-200 bg-card/60';
   return (
     <div className={`rounded-lg border ${tone} px-3 py-2`}>
-      <div className="flex items-center gap-2 mb-0.5">
-        <span className="tabular-nums text-xs text-muted-foreground font-medium shrink-0">
-          {range}
-        </span>
-        <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-          <Move className="h-3 w-3 mr-1" />
-          {block.uncertain ? 'Möjlig förflyttning' : 'Förflyttning'}
-        </Badge>
-        <span className="text-[11px] text-muted-foreground tabular-nums">
-          {fmtDur(block.durationMin)}
-        </span>
-      </div>
-      <div className="text-sm font-medium text-foreground truncate">
-        {block.fromLabel ?? 'okänd plats'} <span className="opacity-60">→</span> {block.toLabel ?? 'okänd plats'}
+      <div className="grid grid-cols-12 gap-3 items-center">
+        {/* Tid */}
+        <div className="col-span-12 md:col-span-2 flex flex-col gap-0.5">
+          <span className="tabular-nums text-xs text-foreground font-semibold">{range}</span>
+          <span className="text-[11px] text-muted-foreground tabular-nums">{fmtDur(block.durationMin)}</span>
+        </div>
+
+        {/* Från → Till */}
+        <div className="col-span-12 md:col-span-7 grid grid-cols-[1fr_auto_1fr] gap-2 items-center min-w-0">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Från</div>
+            <div className="text-sm font-medium text-foreground truncate">{block.fromLabel ?? 'okänd plats'}</div>
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Till</div>
+            <div className="text-sm font-medium text-foreground truncate">{block.toLabel ?? 'okänd plats'}</div>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="col-span-12 md:col-span-3 flex flex-col items-start md:items-end gap-1">
+          <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+            <Move className="h-3 w-3 mr-1" />
+            {block.uncertain ? 'Möjlig förflyttning' : 'Förflyttning'}
+          </Badge>
+          <span className="text-[10px] text-muted-foreground">föreslagen</span>
+        </div>
       </div>
       <Inner block={block} />
     </div>
