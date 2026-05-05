@@ -306,7 +306,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
     : 0;
 
-  const rawEvents = showAllEvents ? model.actualEvents : compactEvents(model.actualEvents);
+  const rawEvents = showAllEvents ? buildRawTimeline(model.actualEvents) : buildMainTimeline(model.actualEvents);
+  const hiddenReasons = useMemo(() => buildHiddenReasonMap(model.actualEvents), [model.actualEvents]);
 
   // Samla unika okända kluster-coords (centre på gps_arrival/visit/departure/travel)
   // för reverse-geocode. Per-cluster, INTE per ping. useReverseGeocode cachear
