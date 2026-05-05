@@ -233,16 +233,17 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
   for (const ev of allSorted) {
     if (!isInnerTechnical(ev)) continue;
     // Skip om eventet redan är källa till ett block
-    if (blocks.some(b => b.sourceEventIds.includes(ev.id))) continue;
+    if (blocks.some(b => b.kind !== 'gap' && b.sourceEventIds.includes(ev.id))) continue;
 
     const evMs = new Date(ev.at).getTime();
     const evPk = placeKeyOf(ev);
 
     // Hitta bästa block: presence med samma placeKey som täcker tiden, annars
     // närmaste journey som täcker tiden, annars närmaste block i tiden.
-    let target: DayBlock | null = null;
+    let target: PresenceBlock | JourneyBlock | null = null;
     let bestScore = Infinity;
     for (const b of blocks) {
+      if (b.kind === 'gap') continue;
       const startMs = new Date(b.startIso).getTime();
       const endMs = b.kind === 'presence'
         ? (b.endIso ? new Date(b.endIso).getTime() : Number.POSITIVE_INFINITY)
