@@ -62,6 +62,8 @@ const MobileBottomNav = () => {
             <button
               key={tab.path}
               onClick={() => navigate(tab.path)}
+              onPointerEnter={tab.path === '/m/overview' ? prefetchOverview : undefined}
+              onTouchStart={tab.path === '/m/overview' ? prefetchOverview : undefined}
               className={cn(
                 "relative flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200",
                 active
