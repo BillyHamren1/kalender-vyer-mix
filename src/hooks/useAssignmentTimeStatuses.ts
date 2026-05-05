@@ -96,10 +96,10 @@ export function useAssignmentTimeStatuses(assignments: AssignmentKey[]) {
           .lte('entered_at', endIso),
         supabase
           .from('time_reports')
-          .select('id, staff_id, booking_id, large_project_id, hours_worked, approved, is_subdivision, start_time, end_time, work_date')
+          .select('id, staff_id, booking_id, large_project_id, hours_worked, approved, is_subdivision, start_time, end_time, report_date')
           .in('staff_id', staffIds)
-          .gte('work_date', dateRange.from)
-          .lte('work_date', dateRange.to),
+          .gte('report_date', dateRange.from)
+          .lte('report_date', dateRange.to),
         supabase
           .from('workdays')
           .select('id, staff_id, started_at, ended_at, review_status')
