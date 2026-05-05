@@ -598,12 +598,6 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     ? (body.dry_run !== false && body.dry_run !== 'false')
     : !!body?.dry_run
 
-export async function runEngine(supabase: any, body: any): Promise<ProcessReport> {
-  const action: 'cron' | 'backfill_day' = body?.action === 'backfill_day' ? 'backfill_day' : 'cron'
-  const dryRun: boolean = action === 'backfill_day'
-    ? (body.dry_run !== false && body.dry_run !== 'false')
-    : !!body?.dry_run
-
   const runId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`)
 
   const report: ProcessReport = {
