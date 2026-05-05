@@ -639,7 +639,11 @@ const MobileOverview: React.FC = () => {
                           className="rounded-xl bg-card border border-border/60 overflow-hidden"
                         >
                           {job?.jobActivity?.has_started && (
-                            <JobActivityStrip jobActivity={job.jobActivity} />
+                            <OpsMiniTimeline
+                              events={buildJobMiniTimeline(job.jobActivity)}
+                              ongoing={(job.jobActivity.active_staff_count ?? 0) > 0}
+                              maxRows={4}
+                            />
                           )}
                           <button
                             onClick={() => {
