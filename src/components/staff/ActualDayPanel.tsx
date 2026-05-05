@@ -490,6 +490,20 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <span className="text-muted-foreground">Lönegrundande </span>
           <span className="tabular-nums font-medium text-foreground">{fmtMin(wdMin)}</span>
         </div>
+        {(() => {
+          const wmeta = (wd as any)?.metadata as any;
+          const wstart = (wd as any)?.started_by as string | null;
+          const isServerAuto = wmeta?.auto_start_source === 'server_background_gps'
+            || wmeta?.auto_start_source === 'server_background_gps_backfill'
+            || wstart === 'server_auto_start' || wstart === 'server_auto_start_backfill';
+          if (!isServerAuto) return null;
+          return (
+            <Badge className="bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 font-medium">
+              {wstart === 'server_auto_start_backfill' ? 'Server auto-start (backfill)' : 'Auto-startad från GPS'}
+              {wmeta?.confidence ? ` · ${wmeta.confidence}` : ''}
+            </Badge>
+          );
+        })()}
         <div className="ml-auto">
           <Badge className={`${statusBadgeClass(status.kind)} font-medium`}>{status.label}</Badge>
         </div>
