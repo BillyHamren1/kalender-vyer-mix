@@ -20,11 +20,13 @@ import {
   fetchPackingListItems,
   returnScanSku,
   physicalReturnScan,
+  parseScanResult,
   returnToggleItem,
   returnDecrementItem,
   returnResetItem,
 } from '@/services/scannerService';
 import type { PackingWithBooking } from '@/types/packing';
+import type { ScanEvent } from '@/services/scanner/types';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 
 interface Item {
@@ -45,7 +47,7 @@ interface Item {
 interface Props {
   packingId: string;
   onBack: () => void;
-  registerScanHandler?: (handler: (value: string) => void) => void;
+  registerScanHandler?: (handler: (scan: ScanEvent) => void) => void;
   returnedBy?: string;
 }
 
