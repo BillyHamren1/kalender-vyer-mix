@@ -756,7 +756,7 @@ const MobileOverview: React.FC = () => {
           )}
 
           {/* === Section 4: Meddelanden === */}
-          {phase !== 'anomalies' && (
+          {mainTab === 'projects' && phase !== 'anomalies' && (
             <Section title={t('overview.section.messages')} icon={MessageSquare}>
               {(useFallback && threadsQ.isLoading) ? (
                 <ListSkeleton />
