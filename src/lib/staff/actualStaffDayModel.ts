@@ -719,23 +719,37 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
     });
     const dep = hasDepartureEvidence(v);
     const ongoing = isVisitOngoing(v) && !dep.evidence;
+    const workdayActiveNow = !!input.workday && !input.workday.ended_at;
+    const anyTimerOpenNow = input.timeReports.some(r => !r.end_iso)
+      || input.locationEntries.some(e => !e.exited_at);
+    // "Senast bekräftad" — visit utan departure-evidens men aktiv timer/workday.
+    const lastSeenOnly = !dep.evidence && !ongoing && (workdayActiveNow || anyTimerOpenNow);
     const visitMeta = {
       ...baseMeta,
       ongoing,
+      visit_last_seen_at: v.end,
+      departed_at: dep.evidence ? v.end : null,
       departureEvidence: dep.evidence ? dep.reason : null,
       lastPingAt: v.end,
     };
-    const visitDisplayLabel = pz
-      ? visitLabel
-      : (ongoing
-        ? (placeLabel
-          ? `Vistelse pågår: ${placeLabel} · senaste GPS ${fmtLocalHM(v.end)}`
-          : `Vistelse pågår · senaste GPS ${fmtLocalHM(v.end)}`)
-        : visitLabel);
+    let visitDisplayLabel: string;
+    if (pz) {
+      visitDisplayLabel = visitLabel;
+    } else if (ongoing) {
+      visitDisplayLabel = placeLabel
+        ? `Vistelse: ${placeLabel} · pågår`
+        : 'Vistelse pågår';
+    } else if (lastSeenOnly) {
+      visitDisplayLabel = placeLabel
+        ? `Senast bekräftad på ${placeLabel} ${fmtLocalHM(v.end)}`
+        : `Senast bekräftad ${fmtLocalHM(v.end)}`;
+    } else {
+      visitDisplayLabel = visitLabel;
+    }
     events.push({
       id: `gps-visit:${v.placeKey}:${v.start}`,
       at: v.start,
-      until: ongoing ? null : v.end,
+      until: ongoing || lastSeenOnly ? null : v.end,
       kind: 'gps_visit',
       severity: 'info',
       label: visitDisplayLabel,
@@ -744,7 +758,9 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       meta: visitMeta,
       ...baseEnrichment,
     });
-    if (!ongoing) {
+    // gps_departure SKAPAS ENDAST om det finns faktisk departure-evidens.
+    // Sista ping i klustret räcker INTE — det är bara "visit_last_seen_at".
+    if (dep.evidence) {
       events.push({
         id: `gps-dep:${v.placeKey}:${v.end}`,
         at: v.end,
@@ -752,7 +768,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         severity: 'info',
         label: departureLabel,
         place: placeLabel,
-        meta: { ...baseMeta, departureEvidence: dep.reason ?? 'visit_ended_no_active_timer' },
+        meta: { ...baseMeta, departureEvidence: dep.reason, departed_at: v.end },
         ...baseEnrichment,
       });
     }
