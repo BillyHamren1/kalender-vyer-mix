@@ -66,8 +66,8 @@ const EstablishmentPage = () => {
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
-  const tabTriggerClass =
-    "relative px-4 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground text-sm";
+  // (Tabs removed — Etablering/Avetablering är nu samma vy: projektkalendern + lista över establishment_tasks)
+
 
   // Fetch staff pool: unique staff assigned to this booking
   const { data: staffPool = [] } = useQuery({
