@@ -15,6 +15,10 @@ import {
   UserX,
   Activity,
   Filter,
+  Wifi,
+  WifiOff,
+  PlayCircle,
+  CircleDot,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -240,6 +244,43 @@ const MobileOverview: React.FC = () => {
     return { label: role.toUpperCase().slice(0, 4), cls: 'bg-muted text-muted-foreground border-border' };
   };
 
+  // Compact status badge component
+  type BadgeTone = 'planned' | 'onsite' | 'missing_workday' | 'active' | 'unstaffed' | 'signal_lost' | 'unplanned';
+  const statusBadge = (tone: BadgeTone): { label: string; cls: string; icon?: React.ElementType } => {
+    switch (tone) {
+      case 'planned': return { label: 'Planerad', cls: 'bg-muted text-foreground border-border', icon: CircleDot };
+      case 'onsite': return { label: 'På plats', cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30', icon: MapPin };
+      case 'missing_workday': return { label: 'Saknar arbetsdag', cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30', icon: AlertTriangle };
+      case 'active': return { label: 'Pågående', cls: 'bg-primary/15 text-primary border-primary/30', icon: PlayCircle };
+      case 'unstaffed': return { label: 'Obemannad', cls: 'bg-destructive/15 text-destructive border-destructive/40', icon: UserX };
+      case 'signal_lost': return { label: 'Signal tappad', cls: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30', icon: WifiOff };
+      case 'unplanned': return { label: 'Oplanerad aktivitet', cls: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30', icon: Activity };
+    }
+  };
+
+  // Derive per-staff tone from OpsStaffStatus
+  const deriveStaffTone = (s?: OpsStaffStatus): BadgeTone => {
+    if (!s) return 'planned';
+    if (s.gps_status === 'stale' && s.active_timer) return 'signal_lost';
+    if (s.active_timer) return 'active';
+    if (s.has_open_workday) return 'onsite';
+    if (s.planned_targets.length > 0 && !s.has_open_workday) return 'missing_workday';
+    return 'planned';
+  };
+
+  // Job tone from staff list
+  const deriveJobTone = (staff: OverviewAssignment[], unstaffed: boolean): BadgeTone => {
+    if (unstaffed) return 'unstaffed';
+    const anyActive = staff.some(s => {
+      const st = staffStatusById.get(s.staff_id);
+      return st?.active_timer != null;
+    });
+    if (anyActive) return 'active';
+    const allMissing = staff.every(s => !staffStatusById.get(s.staff_id)?.has_open_workday);
+    if (allMissing) return 'planned';
+    return 'onsite';
+  };
+
   const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
   const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
 
@@ -323,48 +364,48 @@ const MobileOverview: React.FC = () => {
         <h1 className="text-2xl font-bold mt-1">{t('overview.title')}</h1>
       </header>
 
-      {/* Date selector */}
-      <div className="px-4 flex gap-2 mb-3">
-        {dateModes.map(m => (
-          <button
-            key={m.key}
-            onClick={() => setDateMode(m.key)}
-            className={cn(
-              'flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors',
-              dateMode === m.key
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-card text-muted-foreground border-border/60 active:bg-muted',
-            )}
-          >
-            {m.label}
-          </button>
-        ))}
+      {/* Sticky filter bar */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border/40 pb-2 pt-1">
+        <div className="px-4 flex gap-2 mb-2">
+          {dateModes.map(m => (
+            <button
+              key={m.key}
+              onClick={() => setDateMode(m.key)}
+              className={cn(
+                'flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors',
+                dateMode === m.key
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card text-muted-foreground border-border/60 active:bg-muted',
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="px-4 flex gap-1.5 overflow-x-auto pb-1">
+          <Filter className="w-4 h-4 text-muted-foreground self-center shrink-0" />
+          {phaseFilters.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setPhase(f.key)}
+              className={cn(
+                'px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition-colors',
+                phase === f.key
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'bg-card text-muted-foreground border-border/60',
+              )}
+            >
+              {f.label}
+              {f.key === 'anomalies' && kpi.anomaliesTotal > 0 && (
+                <span className="ml-1 text-destructive">({kpi.anomaliesTotal})</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Phase filter */}
-      <div className="px-4 flex gap-1.5 overflow-x-auto pb-1 mb-3">
-        <Filter className="w-4 h-4 text-muted-foreground self-center shrink-0" />
-        {phaseFilters.map(f => (
-          <button
-            key={f.key}
-            onClick={() => setPhase(f.key)}
-            className={cn(
-              'px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition-colors',
-              phase === f.key
-                ? 'bg-foreground text-background border-foreground'
-                : 'bg-card text-muted-foreground border-border/60',
-            )}
-          >
-            {f.label}
-            {f.key === 'anomalies' && kpi.anomaliesTotal > 0 && (
-              <span className="ml-1 text-destructive">({kpi.anomaliesTotal})</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* KPI row */}
-      <div className="px-4 grid grid-cols-2 gap-2 mb-4">
+      <div className="px-4 grid grid-cols-2 gap-2 mb-3 mt-3">
         <KpiCard icon={Briefcase} label={t('overview.kpi.jobs')} value={kpi.jobs} />
         <KpiCard icon={Users} label={t('overview.kpi.staff')} value={kpi.distinctStaff} />
         <KpiCard
@@ -381,7 +422,6 @@ const MobileOverview: React.FC = () => {
         />
       </div>
 
-      {/* Phase counters */}
       <div className="px-4 flex gap-2 mb-4 text-[11px]">
         <PhaseChip label="Rig" count={kpi.rig} cls="bg-amber-500/10 text-amber-700 dark:text-amber-300" />
         <PhaseChip label="Event" count={kpi.event} cls="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" />
@@ -393,104 +433,7 @@ const MobileOverview: React.FC = () => {
 
       {!isLoading && !isError && (
         <div className="px-4 space-y-6">
-          {/* === Section 1: Dagens jobb === */}
-          {phase !== 'anomalies' && (
-            <Section title={t('overview.section.jobs')} icon={Briefcase}>
-              {eventsByDay.length === 0 ? (
-                <EmptyState text={t('overview.empty.calendar')} />
-              ) : (
-                eventsByDay.map(([day, events]) => (
-                  <div key={day} className="space-y-2">
-                    <DayHeader label={formatDay(day)} sub={format(parseISO(day), 'd MMM yyyy', { locale: dateLocale })} />
-                    {events.map(ev => {
-                      const staff = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${ev.source_date}`) ?? [] : [];
-                      const unstaffed = ev.booking_id && staff.length === 0;
-                      const job = jobsById.get(ev.id);
-                      const isLp = job?.target_type === 'large_project';
-                      return (
-                        <button
-                          key={ev.id}
-                          onClick={() => {
-                            if (ev.booking_id) navigate(`/m/job/${ev.booking_id}`);
-                            else if (job && isLp && job.target_id) navigate(`/m/project/${job.target_id}`);
-                            else setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
-                          }}
-                          className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
-                        >
-                          <div className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border', eventTypeColor(ev.event_type))}>
-                            {(ev.event_type ?? '—').toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm truncate">{ev.title}</div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                              <Clock className="w-3 h-3 shrink-0" />
-                              <span>{formatTimeRange(ev.start_time, ev.end_time)}</span>
-                              {ev.delivery_address && (
-                                <>
-                                  <span>·</span>
-                                  <MapPin className="w-3 h-3 shrink-0" />
-                                  <span className="truncate max-w-[140px]">{ev.delivery_address}</span>
-                                </>
-                              )}
-                            </div>
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              {unstaffed ? (
-                                <Badge variant="destructive" className="h-5 text-[10px]">
-                                  {t('overview.staffStatus.unstaffed')}
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="h-5 text-[10px]">
-                                  {staff.length} {t('overview.staffStatus.planned')}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))
-              )}
-            </Section>
-          )}
-
-          {/* === Section 2: Personalöversikt === */}
-          {phase !== 'anomalies' && (
-            <Section title={t('overview.section.staff')} icon={Users}>
-              {staffByDay.length === 0 ? (
-                <EmptyState text={t('overview.empty.staffing')} />
-              ) : (
-                staffByDay.map(([date, staff]) => (
-                  <div key={date} className="space-y-2">
-                    <DayHeader label={formatDay(date)} sub={format(parseISO(date), 'd MMM yyyy', { locale: dateLocale })} />
-                    <div className="flex flex-wrap gap-1.5">
-                      {staff.map(s => {
-                        const b = roleBadge(s.role);
-                        return (
-                          <button
-                            key={s.id}
-                            onClick={() => openStaff(s.staff_id, s.staff_name)}
-                            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-card border border-border/60 active:scale-[0.97]"
-                          >
-                            <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold border', b.cls)}>
-                              {b.label}
-                            </span>
-                            <span className="text-xs font-medium">{s.staff_name}</span>
-                            <span className="text-[10px] text-muted-foreground">
-                              · {s.client ?? s.booking_number ?? '—'}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
-              )}
-            </Section>
-          )}
-
-          {/* === Section 3: Avvikelser === */}
+          {/* === Section 1: Avvikelser (alltid överst) === */}
           <Section title={t('overview.section.anomalies')} icon={AlertTriangle}>
             {(() => {
               const opsAnomalies = opsData?.anomalies ?? [];
@@ -543,6 +486,148 @@ const MobileOverview: React.FC = () => {
               );
             })()}
           </Section>
+
+          {/* === Section 2: Dagens jobb === */}
+          {phase !== 'anomalies' && (
+            <Section title={t('overview.section.jobs')} icon={Briefcase}>
+              {eventsByDay.length === 0 ? (
+                <EmptyState text={t('overview.empty.calendar')} />
+              ) : (
+                eventsByDay.map(([day, events]) => (
+                  <div key={day} className="space-y-2">
+                    <DayHeader label={formatDay(day)} sub={format(parseISO(day), 'd MMM yyyy', { locale: dateLocale })} />
+                    {events.map(ev => {
+                      const staff = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${ev.source_date}`) ?? [] : [];
+                      const unstaffed = !!ev.booking_id && staff.length === 0;
+                      const job = jobsById.get(ev.id);
+                      const isLp = job?.target_type === 'large_project';
+                      const tone = deriveJobTone(staff, unstaffed);
+                      const sb = statusBadge(tone);
+                      const SbIcon = sb.icon;
+                      return (
+                        <div
+                          key={ev.id}
+                          className="rounded-xl bg-card border border-border/60 overflow-hidden"
+                        >
+                          <button
+                            onClick={() => {
+                              if (ev.booking_id) navigate(`/m/job/${ev.booking_id}`);
+                              else if (job && isLp && job.target_id) navigate(`/m/project/${job.target_id}`);
+                              else setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
+                            }}
+                            className="w-full flex items-start gap-3 p-3 active:scale-[0.99] transition-transform text-left"
+                          >
+                            <div className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0', eventTypeColor(ev.event_type))}>
+                              {(ev.event_type ?? '—').toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-sm truncate">{ev.title}</div>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                                <Clock className="w-3 h-3 shrink-0" />
+                                <span>{formatTimeRange(ev.start_time, ev.end_time)}</span>
+                                {ev.delivery_address && (
+                                  <>
+                                    <span>·</span>
+                                    <MapPin className="w-3 h-3 shrink-0" />
+                                    <span className="truncate max-w-[160px]">{ev.delivery_address}</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border', sb.cls)}>
+                                  {SbIcon && <SbIcon className="w-3 h-3" />}
+                                  {sb.label}
+                                </span>
+                                {!unstaffed && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {staff.length} {t('overview.staffStatus.planned')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </Section>
+          )}
+
+          {/* === Section 3: Personalöversikt (kort, inte chips) === */}
+          {phase !== 'anomalies' && (
+            <Section title={t('overview.section.staff')} icon={Users}>
+              {staffByDay.length === 0 ? (
+                <EmptyState text={t('overview.empty.staffing')} />
+              ) : (
+                staffByDay.map(([date, staff]) => {
+                  // Dedupe per staff_id för dagen — visa varje person en gång
+                  const seen = new Set<string>();
+                  const uniq = staff.filter(s => {
+                    if (seen.has(s.staff_id)) return false;
+                    seen.add(s.staff_id);
+                    return true;
+                  });
+                  return (
+                    <div key={date} className="space-y-2">
+                      <DayHeader label={formatDay(date)} sub={format(parseISO(date), 'd MMM yyyy', { locale: dateLocale })} />
+                      <div className="space-y-2">
+                        {uniq.map(s => {
+                          const rb = roleBadge(s.role);
+                          const status = staffStatusById.get(s.staff_id);
+                          const tone = deriveStaffTone(status);
+                          const sb = statusBadge(tone);
+                          const SbIcon = sb.icon;
+                          // Count planned targets för denna person (bland alla assignments idag)
+                          const plannedCount = staff.filter(x => x.staff_id === s.staff_id).length;
+                          const lastSignal = status?.latest_known_location?.updated_at;
+                          return (
+                            <button
+                              key={s.staff_id}
+                              onClick={() => openStaff(s.staff_id, s.staff_name)}
+                              className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
+                            >
+                              <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0', rb.cls)}>
+                                {rb.label}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-sm truncate">{s.staff_name}</div>
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                                  <Briefcase className="w-3 h-3 shrink-0" />
+                                  <span className="truncate max-w-[180px]">
+                                    {plannedCount > 1 ? `${plannedCount} jobb` : (s.client ?? s.booking_title ?? s.booking_number ?? '—')}
+                                  </span>
+                                  {lastSignal && (
+                                    <>
+                                      <span>·</span>
+                                      {(status?.gps_status === 'live' || status?.gps_status === 'recent') ? <Wifi className="w-3 h-3 shrink-0 text-emerald-600" /> : <WifiOff className="w-3 h-3 shrink-0 text-muted-foreground" />}
+                                      <span>{format(parseISO(lastSignal), 'HH:mm')}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="mt-1.5 flex items-center gap-1.5">
+                                  <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border', sb.cls)}>
+                                    {SbIcon && <SbIcon className="w-3 h-3" />}
+                                    {sb.label}
+                                  </span>
+                                  {(status?.anomaly_count ?? 0) > 0 && (
+                                    <span className="text-[10px] text-destructive font-bold">⚠ {status?.anomaly_count}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </Section>
+          )}
 
           {/* === Section 4: Meddelanden === */}
           {phase !== 'anomalies' && (
