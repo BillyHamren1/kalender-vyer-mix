@@ -6469,7 +6469,13 @@ async function handleStartTravelLog(supabase: any, staffId: string, data: any, o
       const ids = openEntries.map((r: any) => r.id)
       const { error: updErr } = await supabase
         .from('location_time_entries')
-        .update({ exited_at: startIso })
+        .update({
+          exited_at: startIso,
+          stop_source: 'foreground_geofence_exit',
+          stop_reason: 'switched_to_new_work_site',
+          stopped_by: staffId,
+          stop_metadata: { closed_via: 'start_travel_log', start_iso: startIso },
+        })
         .in('id', ids)
         .is('exited_at', null)
       if (updErr) {
