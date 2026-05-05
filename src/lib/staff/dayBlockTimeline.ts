@@ -507,20 +507,26 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const stripped = labelStr.replace(/^(Förflyttning|Möjlig förflyttning[^:]*|Bakgrunds-GPS[^:]*):\s*/, '');
     const [from, to] = stripped.includes(' → ') ? stripped.split(' → ').map(s => s.trim()) : [null, null];
     const bothKnown = !!m.bothKnown;
+    const fromKeyResolved = fromKey ?? fromBlock.placeKey;
+    const toKeyResolved = toKey ?? toBlock.placeKey;
+    const fromLabelResolved = (m.from_label as string | undefined) ?? from ?? fromBlock.title ?? null;
+    const toLabelResolved = (m.to_label as string | undefined) ?? to ?? toBlock.title ?? null;
     blocks.push({
       kind: 'journey',
       id: `jb:${ev.id}`,
       startIso: ev.at,
       endIso: ev.until ?? ev.at,
       durationMin: durMin,
-      fromLabel: (m.from_label as string | undefined) ?? from ?? fromBlock.title ?? null,
-      toLabel: (m.to_label as string | undefined) ?? to ?? toBlock.title ?? null,
-      fromPlaceKey: fromKey ?? fromBlock.placeKey,
-      toPlaceKey: toKey ?? toBlock.placeKey,
+      fromLabel: fromLabelResolved,
+      toLabel: toLabelResolved,
+      fromPlaceKey: fromKeyResolved,
+      toPlaceKey: toKeyResolved,
       bothKnown,
       uncertain: !bothKnown,
       sourceEventIds: [ev.id],
       innerEvents: [],
+      fromPlace: resolveJourneyEndpoint(fromKeyResolved, fromLabelResolved, visitByKey),
+      toPlace: resolveJourneyEndpoint(toKeyResolved, toLabelResolved, visitByKey),
     });
     consumedEventIds.add(ev.id);
   }
