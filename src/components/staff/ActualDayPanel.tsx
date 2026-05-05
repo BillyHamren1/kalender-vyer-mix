@@ -598,21 +598,6 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       return ev;
     });
   }, [rawEvents, geoByKey, visitByKey, knownNeighbours]);
-      if (ev.kind === 'gps_travel' && ev.label.includes('Förflyttning')) {
-        const fromKnown = !m?.fromCentre;
-        const toKnown = !m?.toCentre;
-        if (fromKnown && toKnown) return ev;
-        const fromLbl = fromKnown
-          ? ev.label.replace(/^Förflyttning:\s*/, '').split(' → ')[0]
-          : (lookupCoord(m?.fromCentre)?.label ?? 'okänd plats');
-        const toLbl = toKnown
-          ? (ev.label.split(' → ')[1] ?? '')
-          : (lookupCoord(m?.toCentre)?.label ?? 'okänd plats');
-        return { ...ev, label: `Förflyttning: ${fromLbl} → ${toLbl}` };
-      }
-      return ev;
-    });
-  }, [rawEvents, geoByKey, visitByKey, knownNeighbours]);
 
   // Bakgrunds-GPS: GPS-händelser utan arbetskoppling (ingen workday/timer/
   // rapport/känd plats/assistant). Dessa visas inte i huvudjournalen utan
