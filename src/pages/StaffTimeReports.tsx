@@ -1283,6 +1283,25 @@ const StaffTimeReports: React.FC = () => {
             actualModel,
             pingsTruncated: pingsTruncatedByStaff.get(s.id) === true,
             pingsFetchError: pingsErrorByStaff.get(s.id) || null,
+            planningStatus: ((): PlanningStatus => {
+              const isPlanned = plannedStaffIds.has(s.id);
+              const hasWorkday = staffWorkdays.length > 0;
+              const workdayActive = staffWorkdays.some(w => !w.ended_at);
+              const hasActivity =
+                staffReports.length > 0 ||
+                staffLTEs.length > 0 ||
+                staffTravel.length > 0 ||
+                hasWorkday ||
+                staffPings.length > 0 ||
+                staffAssistantEvents.length > 0;
+              if (workdayActive) return 'workday_active';
+              if (isPlanned && !hasActivity) return 'planned_not_started';
+              if (!isPlanned && hasActivity) return 'unplanned_activity';
+              if (hasActivity && !hasWorkday) return 'missing_workday';
+              if (hasWorkday && !workdayActive) return 'completed';
+              return 'planned';
+            })(),
+            plannedLabels: [...(plannedLabelsByStaff.get(s.id) ?? [])],
           };
         })
         .sort((a, b) => {
