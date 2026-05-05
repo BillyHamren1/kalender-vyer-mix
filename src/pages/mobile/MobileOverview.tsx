@@ -449,13 +449,13 @@ const MobileOverview: React.FC = () => {
           {/* === Section 4: Meddelanden === */}
           {phase !== 'anomalies' && (
             <Section title={t('overview.section.messages')} icon={MessageSquare}>
-              {threadsQ.isLoading ? (
+              {(useFallback && threadsQ.isLoading) ? (
                 <ListSkeleton />
-              ) : (threadsQ.data?.threads.length ?? 0) === 0 ? (
+              ) : (allThreads.length === 0) ? (
                 <EmptyState text={t('overview.empty.messages')} />
               ) : (
                 <div className="space-y-2">
-                  {threadsQ.data!.threads.map(thread => (
+                  {allThreads.map(thread => (
                     <button
                       key={thread.booking_id}
                       onClick={() => navigate(`/m/job/${thread.booking_id}?tab=chat`)}
