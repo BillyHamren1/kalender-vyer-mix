@@ -799,9 +799,12 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       return decideExitAction(signals);
     })();
 
-    // Today (local YYYY-MM-DD) — bookings/projects only auto-prompt if user is
-    // assigned TODAY. Geofence is for warehouses + jobs you're scheduled on,
-    // never for jobs planned weeks ahead.
+    // AUTO-START POLICY (2026-05): Personal som befinner sig på en KÄND
+    // arbetsplats (org_location, någon projekt-/booking-adress vi har i
+    // EventFlow) ska få workday + activity-timer auto-startat — även om
+    // de inte är assignade just idag. 9/10 är detta korrekt; det fåtal
+    // gånger det är fel hanteras av "Detta var inte arbete"-knappen i
+    // banner-notisen som visas direkt efter auto-start.
     const todayLocal = getLocalIsoDate();
     const isAssignedToday = (b: MobileBooking) =>
       isBookingPlannedOnDate(b, todayLocal);
@@ -872,12 +875,11 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
 
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
-          // CONFIDENCE-GATE: assigned-today required (se ENTER-contract högst upp).
-          // Bara att passera adressen räcker inte för autostart.
+          // AUTO-START på alla kända arbetsplatser. assigned-today-gaten
+          // togs bort 2026-05 (se kommentaren ovan vid isAssignedToday).
           const assignedToday = bookings.some(
             (b) => b.large_project_id === lpId && isAssignedToday(b),
           );
-          if (!assignedToday) continue;
 
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
@@ -997,8 +999,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const hasTimer = activeTimers.has(booking.id);
 
         if (dist <= enterRadius && !hasTimer && !triggeredEnterRef.current.has(booking.id)) {
-          // CONFIDENCE-GATE: assigned-today required (se ENTER-contract).
-          if (!isAssignedToday(booking)) continue;
+          // AUTO-START på kända arbetsplatser — assigned-today-gaten borttagen 2026-05.
+          const assignedToday = isAssignedToday(booking);
 
           triggeredEnterRef.current.add(booking.id);
           triggeredExitRef.current.delete(booking.id);
