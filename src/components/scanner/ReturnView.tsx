@@ -331,12 +331,12 @@ const ReturnView: React.FC<Props> = ({
         <form
           onSubmit={e => {
             e.preventDefault();
-            handleScan(scanInput);
+            handleManualSubmit(scanInput);
           }}
           className="flex gap-2"
         >
           <Input
-            placeholder="Scanna eller skriv SKU / produktnamn"
+            placeholder="Skriv SKU eller produktnamn manuellt — fysiska scans hanteras av läsaren"
             value={scanInput}
             onChange={e => setScanInput(e.target.value)}
             autoFocus
@@ -354,12 +354,14 @@ const ReturnView: React.FC<Props> = ({
         {lastResult && (
           <div
             className={`mt-2 px-2.5 py-1.5 rounded-md text-xs flex items-start gap-2 ${
-              lastResult.success
+              lastResult.level === 'success'
                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
+                : lastResult.level === 'warning'
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                  : 'bg-red-50 text-red-800 border border-red-200'
             }`}
           >
-            {lastResult.success ? (
+            {lastResult.level === 'success' ? (
               <Check className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
             ) : (
               <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
