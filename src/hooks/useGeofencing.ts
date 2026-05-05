@@ -130,6 +130,10 @@ export interface AutoStartActivityArgs {
    * Drives confidence + "oplanerad aktivitet" tagging on the auto-start.
    */
   isPlannedToday: boolean;
+  /** Stable-entry audit fields. Persisted in assistant_events metadata. */
+  arrivalPingsCount?: number;
+  firstArrivalPingAtIso?: string;
+  arrivalDwellMs?: number;
 }
 export interface AutoStartActivityOutcome {
   /**
