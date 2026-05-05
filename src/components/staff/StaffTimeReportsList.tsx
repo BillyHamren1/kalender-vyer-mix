@@ -133,6 +133,25 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
     await queryClient.invalidateQueries({ queryKey: ['workday-flags'] });
   };
 
+  const handleRepairFromEvidence = async (
+    staffId: string,
+    input: { proposedStartIso: string; proposedEndIso: string | null; reasonCodes: string[] },
+  ) => {
+    const { data, error } = await supabase.functions.invoke('mobile-app-api', {
+      body: {
+        action: 'admin_repair_workday_from_evidence',
+        target_staff_id: staffId,
+        flag_date: dateStr,
+        proposed_start_iso: input.proposedStartIso,
+        proposed_end_iso: input.proposedEndIso,
+        reason_codes: input.reasonCodes,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if ((data as any)?.error) throw new Error((data as any).error);
+    await queryClient.invalidateQueries({ queryKey: ['staff-time-reports'] });
+    await queryClient.invalidateQueries({ queryKey: ['workdays'] });
+
 
   const filtered = useMemo(() => {
     if (!search.trim()) return staffList;
