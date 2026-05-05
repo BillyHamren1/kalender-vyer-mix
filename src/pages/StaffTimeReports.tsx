@@ -207,7 +207,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsStaffRes, lpsByDateForPlanRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -239,6 +239,24 @@ const StaffTimeReports: React.FC = () => {
           .from('workday_flags')
           .select('id, staff_id, flag_type, severity, title, description, created_at, resolved')
           .eq('flag_date', dateStr),
+        // ── Planerad personal (samma källor som personalkalendern använder) ──
+        supabase
+          .from('booking_staff_assignments')
+          .select('staff_id, booking_id, team_id, assignment_date')
+          .eq('assignment_date', dateStr),
+        supabase
+          .from('staff_assignments')
+          .select('staff_id, team_id, assignment_date')
+          .eq('assignment_date', dateStr),
+        supabase
+          .from('large_project_staff')
+          .select('staff_id, large_project_id'),
+        // Stora projekt vars datum-array innehåller selectedDate (start/event/end).
+        // Filtrering klientsidan eftersom kolumnerna är text[].
+        supabase
+          .from('large_projects')
+          .select('id, name, start_date, event_date, end_date, deleted_at')
+          .is('deleted_at', null),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
