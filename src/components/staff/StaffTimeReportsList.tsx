@@ -252,7 +252,39 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((staff) => {
+          {(() => {
+            const plannedOnly = filtered.filter(s => s.planningStatus === 'planned_not_started');
+            const rest = filtered.filter(s => s.planningStatus !== 'planned_not_started');
+            return (
+              <>
+                {plannedOnly.length > 0 && (
+                  <div className="rounded-lg border border-dashed border-amber-300/50 bg-amber-50/50 dark:bg-amber-950/20 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-900 dark:text-amber-200">
+                      <span className="inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                      Planerade – har inte rapporterat tid ({plannedOnly.length})
+                    </div>
+                    <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {plannedOnly.map(staff => (
+                        <li key={staff.id}>
+                          <button
+                            type="button"
+                            onClick={() => onSelectStaff(staff.id, staff.name)}
+                            className="inline-flex items-center gap-2 text-sm text-foreground hover:text-primary hover:underline underline-offset-2"
+                            title={staff.plannedLabels.join(' · ') || 'Planerad'}
+                          >
+                            <span className="font-medium">{staff.name}</span>
+                            {staff.plannedLabels.length > 0 && (
+                              <span className="text-[11px] text-muted-foreground truncate max-w-[200px]">
+                                {staff.plannedLabels.slice(0, 2).join(' · ')}{staff.plannedLabels.length > 2 ? ' …' : ''}
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {rest.map((staff) => {
             const work: ReviewWorkInput[] = [];
             const travel: ReviewTravelInput[] = [];
             for (const s of staff.journal.sessions as ProjectSession[]) {
@@ -382,7 +414,10 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 />
               </div>
             );
-          })}
+                })}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
