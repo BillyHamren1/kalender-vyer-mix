@@ -1318,25 +1318,79 @@ const StaffTimeReports: React.FC = () => {
             actualModel,
             pingsTruncated: pingsTruncatedByStaff.get(s.id) === true,
             pingsFetchError: pingsErrorByStaff.get(s.id) || null,
-            planningStatus: ((): PlanningStatus => {
-              const isPlanned = plannedStaffIds.has(s.id);
-              const hasWorkday = staffWorkdays.length > 0;
-              const workdayActive = staffWorkdays.some(w => !w.ended_at);
+            ...(() => {
+              const presenceFlags = {
+                plannedFromBookingStaffAssignments: plannedFromBSA.has(s.id),
+                plannedFromStaffAssignments: plannedFromSA.has(s.id),
+                plannedFromLargeProjectStaff: plannedFromLPS.has(s.id),
+                hasWorkday: staffWorkdays.length > 0,
+                hasOpenWorkday: staffWorkdays.some(w => !w.ended_at),
+                hasTimeReports: staffReports.length > 0,
+                hasLocationTimeEntries: staffLTEs.length > 0,
+                hasTravelLogs: staffTravel.length > 0,
+                hasGpsPings: staffPings.length > 0,
+                hasAssistantEvents: staffAssistantEvents.length > 0,
+                hasWorkdayFlags: staffFlags.length > 0,
+              };
+              const isPlanned =
+                presenceFlags.plannedFromBookingStaffAssignments ||
+                presenceFlags.plannedFromStaffAssignments ||
+                presenceFlags.plannedFromLargeProjectStaff;
               const hasActivity =
-                staffReports.length > 0 ||
-                staffLTEs.length > 0 ||
-                staffTravel.length > 0 ||
-                hasWorkday ||
-                staffPings.length > 0 ||
-                staffAssistantEvents.length > 0;
-              if (workdayActive) return 'workday_active';
-              if (isPlanned && !hasActivity) return 'planned_not_started';
-              if (!isPlanned && hasActivity) return 'unplanned_activity';
-              if (hasActivity && !hasWorkday) return 'missing_workday';
-              if (hasWorkday && !workdayActive) return 'completed';
-              return 'planned';
+                presenceFlags.hasTimeReports ||
+                presenceFlags.hasLocationTimeEntries ||
+                presenceFlags.hasTravelLogs ||
+                presenceFlags.hasWorkday ||
+                presenceFlags.hasGpsPings ||
+                presenceFlags.hasAssistantEvents ||
+                presenceFlags.hasWorkdayFlags;
+
+              const status: PlanningStatus = presenceFlags.hasOpenWorkday
+                ? 'workday_active'
+                : isPlanned && !hasActivity
+                  ? 'planned_not_started'
+                  : !isPlanned && hasActivity
+                    ? 'unplanned_activity'
+                    : hasActivity && !presenceFlags.hasWorkday
+                      ? 'missing_workday'
+                      : presenceFlags.hasWorkday
+                        ? 'completed'
+                        : 'planned';
+
+              const visibilityParts: string[] = [];
+              if (presenceFlags.plannedFromBookingStaffAssignments) visibilityParts.push('planerad i booking_staff_assignments');
+              if (presenceFlags.plannedFromStaffAssignments) visibilityParts.push('planerad i staff_assignments');
+              if (presenceFlags.plannedFromLargeProjectStaff) visibilityParts.push('medlem i aktivt large_project');
+              if (presenceFlags.hasWorkday) visibilityParts.push(presenceFlags.hasOpenWorkday ? 'pågående workday finns' : 'workday finns');
+              if (presenceFlags.hasTimeReports) visibilityParts.push('time_reports finns');
+              if (presenceFlags.hasLocationTimeEntries) visibilityParts.push('location_time_entries finns');
+              if (presenceFlags.hasTravelLogs) visibilityParts.push('travel_time_logs finns');
+              if (presenceFlags.hasGpsPings) visibilityParts.push(`${staffPings.length} GPS-pings`);
+              if (presenceFlags.hasAssistantEvents) visibilityParts.push('assistant_events finns');
+              if (presenceFlags.hasWorkdayFlags) visibilityParts.push('workday_flags finns');
+              const visibilityReason = visibilityParts.length
+                ? `Visas eftersom: ${visibilityParts.join(', ')}.`
+                : 'Visas (ingen tydlig signal — fallback).';
+
+              const statusReasonMap: Record<PlanningStatus, string> = {
+                workday_active: 'Pågående arbetsdag — workdays.ended_at är null.',
+                planned_not_started: 'Planerad men ingen workday/timer/rapport/GPS finns ännu.',
+                unplanned_activity: 'Aktivitet finns men personen är inte planerad i någon assignment-källa.',
+                missing_workday: 'Aktivitet finns (rapport/timer/GPS) men ingen workday-rad har skapats.',
+                completed: 'Workday avslutad (ended_at satt).',
+                planned: 'Planerad och normal dag.',
+              };
+
+              return {
+                planningStatus: status,
+                plannedLabels: [...(plannedLabelsByStaff.get(s.id) ?? [])],
+                presence: {
+                  ...presenceFlags,
+                  visibilityReason,
+                  statusReason: statusReasonMap[status],
+                },
+              };
             })(),
-            plannedLabels: [...(plannedLabelsByStaff.get(s.id) ?? [])],
           };
         })
         .sort((a, b) => {
