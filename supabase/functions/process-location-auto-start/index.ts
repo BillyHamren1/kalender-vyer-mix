@@ -445,6 +445,11 @@ async function ensureLteOpenForTarget(
   else if (hit.target.kind === 'booking') payload.booking_id = hit.target.id
   else payload.large_project_id = hit.target.id
 
+  if (report.dry_run) {
+    planPush(report, { action: 'lte_open', staff_id: staffId, target: hit.target.label, kind: hit.target.kind, target_id: hit.target.id, entered_at: arrivalIso })
+    report.ltes_opened++
+    return 'dry-run-lte'
+  }
   const { data: lte, error } = await supabase
     .from('location_time_entries').insert(payload).select('id').maybeSingle()
   if (error) {
