@@ -308,9 +308,25 @@ const resolveJourneyEndpoint = (
     return { label: visit?.label || fallbackLabel || 'Plats', lat, lng, mapUrl, lookupStatus: 'matched_internal' };
   }
   if (lat != null && lng != null) {
-    return { label: PENDING_GEOCODE_LABEL, lat, lng, mapUrl, lookupStatus: 'pending_geocode' };
+    return {
+      label: PENDING_GEOCODE_LABEL,
+      lat, lng, mapUrl,
+      lookupStatus: 'pending_geocode',
+      nearestKnownSite: visit?.nearestKnownSite ?? null,
+      unmatchReason: visit?.unmatchReason ?? null,
+      pingCount: visit?.pingCount ?? null,
+      avgAccuracy: visit?.avgAccuracy ?? null,
+    };
   }
-  return { label: fallbackLabel || 'Okänd plats', lat: null, lng: null, mapUrl: null, lookupStatus: 'unknown_no_coords' };
+  return {
+    label: fallbackLabel || 'Okänd plats',
+    lat: null, lng: null, mapUrl: null,
+    lookupStatus: 'unknown_no_coords',
+    nearestKnownSite: visit?.nearestKnownSite ?? null,
+    unmatchReason: visit?.unmatchReason ?? null,
+    pingCount: visit?.pingCount ?? null,
+    avgAccuracy: visit?.avgAccuracy ?? null,
+  };
 };
 
 
