@@ -21,6 +21,7 @@ import { useKolliManager } from '@/hooks/scanner/useKolliManager';
 import { useScanProcessor } from '@/hooks/scanner/useScanProcessor';
 import { useScanTimeline } from '@/hooks/scanner/useScanTimeline';
 import { clearScanTimeline } from '@/hooks/scanner/scanTimeline';
+import { LiveScanStatusBar } from './LiveScanStatusBar';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
