@@ -11084,13 +11084,17 @@ async function handleGetOpsOverview(
     if (!staffByLpDate.has(k)) staffByLpDate.set(k, new Set())
     staffByLpDate.get(k)!.add(a.staff_id)
   }
-  const jobs: Job[] = events.map((ev: any) => {
+  const jobs: (Job & { booking_id: string | null; target_type: 'booking' | 'large_project'; target_id: string | null })[] = events.map((ev: any) => {
     const date = ev.source_date || (ev.start_time || '').slice(0, 10)
     const bk = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${date}`) : undefined
     const count = bk?.size ?? 0
+    const isLp = !ev.booking_id && typeof ev.id === 'string' && ev.id.startsWith('synthetic-lp-')
     return {
       id: ev.id,
-      type: 'booking',
+      type: isLp ? 'large_project' : 'booking',
+      target_type: isLp ? 'large_project' : 'booking',
+      target_id: ev.booking_id ?? null, // best-effort; LP synthetic carries no id today
+      booking_id: ev.booking_id ?? null,
       title: ev.title,
       booking_number: ev.booking_number ?? null,
       client: ev.title ?? null,
