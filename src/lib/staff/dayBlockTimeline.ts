@@ -206,6 +206,9 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sourceEventIds: [ev.id],
         innerEvents: [],
         timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+        sources: { timeReport: false, timer: false, gpsVisit: ev.kind === 'gps_visit' || ev.kind === 'gps_arrival', assistant: false },
+        evidenceLabel: null,
+        confidence: 'low',
       };
       blocks.push(block);
       continue;
