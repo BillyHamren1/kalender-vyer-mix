@@ -444,6 +444,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                 )}
                 <ActualDayPanel
                   staffName={staff.name}
+                  staffId={staff.id}
                   date={dateStr}
                   model={staff.actualModel}
                   lastPingIso={staff.latestPing?.updated_at ?? null}
