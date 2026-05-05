@@ -99,21 +99,49 @@ function targetMatchesLte(target: Target, lte: any): boolean {
   return lte.large_project_id === target.id
 }
 
-async function loadCursor(supabase: any): Promise<string> {
-  const { data } = await supabase
+/**
+ * Cursor model — per organization (org_id NULL = legacy 'global' fallback).
+ *
+ * Cron uses cursor + small overlap (PROCESS_OVERLAP_MS) to avoid missing late
+ * pings; idempotency on workdays/LTEs/travel/events handles the duplicates the
+ * overlap inevitably re-feeds. If a run fails BEFORE finishing successfully,
+ * the cursor is NOT advanced — the next run picks up from the same point.
+ */
+async function loadCursor(supabase: any, orgId: string | null): Promise<string> {
+  const fallback = new Date(Date.now() - PROCESS_LOOKBACK_MS).toISOString()
+  if (orgId) {
+    const { data } = await supabase
+      .from('location_auto_start_cursor')
+      .select('last_processed_recorded_at')
+      .eq('organization_id', orgId)
+      .maybeSingle()
+    if (data?.last_processed_recorded_at) return data.last_processed_recorded_at
+  }
+  const { data: g } = await supabase
     .from('location_auto_start_cursor')
     .select('last_processed_recorded_at')
     .eq('id', 'global')
     .maybeSingle()
-  const fallback = new Date(Date.now() - PROCESS_LOOKBACK_MS).toISOString()
-  return data?.last_processed_recorded_at ?? fallback
+  return g?.last_processed_recorded_at ?? fallback
 }
 
-async function saveCursor(supabase: any, iso: string) {
+async function saveCursor(supabase: any, iso: string, orgId: string | null) {
+  if (orgId) {
+    await supabase
+      .from('location_auto_start_cursor')
+      .upsert({
+        id: `org:${orgId}`,
+        organization_id: orgId,
+        last_processed_recorded_at: iso,
+        updated_at: new Date().toISOString(),
+      })
+    return
+  }
   await supabase
     .from('location_auto_start_cursor')
     .upsert({ id: 'global', last_processed_recorded_at: iso, updated_at: new Date().toISOString() })
 }
+
 
 export async function loadTargets(supabase: any): Promise<Target[]> {
   const yesterdayIso = new Date(Date.now() - TARGET_DAY_TOLERANCE_MS).toISOString().slice(0, 10)
