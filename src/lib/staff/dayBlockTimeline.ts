@@ -39,8 +39,13 @@ export type GapReason =
   | 'raw_only_only'             // Endast raw-events (timer/assistant/server) — inget block
   | 'no_signal';                // Tomt fönster — varken GPS eller timer
 
+/** Diskriminator för huvudradtyp i UI: ProjectBlock vs LocationBlock. */
+export type PresenceKind = 'project' | 'location';
+
 export interface PresenceBlock {
   kind: 'presence';
+  /** Huvudradtyp för UI-rendering. ProjectBlock har högre visuell vikt. */
+  presenceKind: PresenceKind;
   id: string;
   /** ISO start och slut. endIso=null om vistelsen pågår. */
   startIso: string;
@@ -52,7 +57,7 @@ export interface PresenceBlock {
   title: string;
   /** Sekundär rad — adress eller bookingnamn. */
   subtitle: string | null;
-  /** Är det ett projekt/booking/large_project? */
+  /** Är det ett projekt/booking/large_project? (alias för presenceKind === 'project'). */
   isProject: boolean;
   /** Stark/möjlig/kort/projekt — styr visuell vikt. */
   strength: PresenceStrength;
@@ -191,6 +196,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         : strengthFromMeta(ev, durationMin);
       const block: PresenceBlock = {
         kind: 'presence',
+        presenceKind: isProject ? 'project' : 'location',
         id: `pb:${ev.id}`,
         startIso,
         endIso,
@@ -318,6 +324,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const dur = Number.isFinite(endMs) ? Math.max(0, Math.round((endMs - startMs) / 60_000)) : 0;
     const synthetic: PresenceBlock = {
       kind: 'presence',
+      presenceKind: 'location',
       id: `pb:tr:${trIdMatch}`,
       startIso,
       endIso,
@@ -378,6 +385,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
       withGaps.push({
         kind: 'presence',
+        presenceKind: isProject ? 'project' : 'location',
         id: `pb:inferred:${cur.id}:${next.id}`,
         startIso: cur.endIso,
         endIso: next.startIso,

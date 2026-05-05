@@ -59,40 +59,43 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
     ? `${fmtHm(block.startIso)}–${fmtHm(block.endIso)}`
     : `${fmtHm(block.startIso)} → pågår`;
 
-  const tone =
-    block.strength === 'project'
-      ? (block.ongoing
-          ? 'border-emerald-500/60 bg-emerald-50/60 dark:bg-emerald-950/20'
-          : 'border-primary/40 bg-primary/5')
-      : block.strength === 'strong_visit'
-        ? 'border-slate-300 bg-card'
-        : block.strength === 'possible_visit'
-          ? 'border-slate-200 bg-card'
-          : block.strength === 'time_report_window'
-            ? 'border-dashed border-blue-400/60 bg-blue-50/40 dark:bg-blue-950/20'
-            : block.strength === 'inferred_between_journeys'
-              ? 'border-dashed border-amber-400/60 bg-amber-50/30 dark:bg-amber-950/10'
-              : 'border-amber-400/50 bg-amber-50/40 dark:bg-amber-950/10';
+  const isProjectBlock = block.presenceKind === 'project';
 
-  const chipLabel =
-    block.strength === 'project' ? (block.ongoing ? 'PÅ PROJEKT NU' : 'PÅ PROJEKT')
-    : block.strength === 'strong_visit' ? 'Vistelse'
-    : block.strength === 'possible_visit' ? 'Möjlig vistelse'
-    : block.strength === 'time_report_window' ? 'Tidrapport-vistelse'
-    : block.strength === 'inferred_between_journeys' ? 'Härledd vistelse'
-    : 'Kort stopp';
+  const tone = isProjectBlock
+    ? (block.ongoing
+        ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/25 ring-1 ring-emerald-500/30'
+        : 'border-emerald-500/70 bg-emerald-50/50 dark:bg-emerald-950/15')
+    : block.strength === 'strong_visit'
+      ? 'border-slate-300 bg-card'
+      : block.strength === 'possible_visit'
+        ? 'border-slate-200 bg-card'
+        : block.strength === 'time_report_window'
+          ? 'border-dashed border-blue-400/60 bg-blue-50/40 dark:bg-blue-950/20'
+          : block.strength === 'inferred_between_journeys'
+            ? 'border-dashed border-slate-300 bg-card/70'
+            : 'border-amber-400/50 bg-amber-50/40 dark:bg-amber-950/10';
 
-  const chipClass =
-    block.strength === 'project'
-      ? 'bg-emerald-600 text-white hover:bg-emerald-600'
+  const chipLabel = isProjectBlock
+    ? (block.ongoing ? 'PÅ PROJEKT NU' : 'PÅ PROJEKT')
+    : block.strength === 'short_stop'
+      ? 'KORT STOPP'
       : block.strength === 'time_report_window'
-        ? 'border-blue-400 text-blue-900 dark:text-blue-100'
-        : block.strength === 'short_stop'
-          ? 'border-amber-400 text-amber-900 dark:text-amber-100'
-          : '';
+        ? 'TIDRAPPORT-VISTELSE'
+        : 'PÅ PLATS';
+
+  const chipClass = isProjectBlock
+    ? 'bg-emerald-600 text-white hover:bg-emerald-600 border-emerald-600'
+    : block.strength === 'time_report_window'
+      ? 'border-blue-400 text-blue-900 dark:text-blue-100'
+      : block.strength === 'short_stop'
+        ? 'border-amber-400 text-amber-900 dark:text-amber-100'
+        : 'border-slate-300 text-slate-700 dark:text-slate-200';
+
+  const padding = isProjectBlock ? 'px-3.5 py-3' : 'px-3 py-2';
+  const borderWidth = isProjectBlock ? 'border-2' : 'border';
 
   return (
-    <div className={`rounded-lg border-2 ${tone} px-3 py-2.5 shadow-sm`}>
+    <div className={`rounded-lg ${borderWidth} ${tone} ${padding} shadow-sm`}>
       <div className="grid grid-cols-12 gap-3 items-start">
         {/* Tid */}
         <div className="col-span-12 md:col-span-2 flex flex-col gap-0.5">
