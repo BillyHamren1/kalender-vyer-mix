@@ -151,7 +151,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
     if ((data as any)?.error) throw new Error((data as any).error);
     await queryClient.invalidateQueries({ queryKey: ['staff-time-reports'] });
     await queryClient.invalidateQueries({ queryKey: ['workdays'] });
-
+  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return staffList;
