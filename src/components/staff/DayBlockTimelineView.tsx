@@ -433,6 +433,7 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
         expandable={expandable}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
+        trashSlot={<RowExcludeButton blockId={block.id} label={`Resa ${block.fromLabel ?? ''} → ${block.toLabel ?? ''}`} />}
       >
         <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} />
 
