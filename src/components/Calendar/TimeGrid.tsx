@@ -220,9 +220,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   gridRow: 3,
                   width: fullWidth ? 'auto' : `${TEAM_COLUMN_WIDTH}px`,
                   minWidth: fullWidth ? 0 : `${TEAM_COLUMN_WIDTH}px`,
-                  height: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
                   minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
-                  maxHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
                 }}
               >
                 <div className="staff-header-assignment-area">

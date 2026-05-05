@@ -301,7 +301,7 @@
   justify-content: flex-start;
   min-height: 88px;
   height: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .staff-count-info {
@@ -313,19 +313,16 @@
   letter-spacing: 0.5px;
 }
 
-/* CSS multi-column: fyller en kolumn först, byter till 2 när det inte får plats.
-   Divider mellan kolumner. */
+/* Visa ALLA tilldelade — wrappa till flera kolumner istället för att klippa. */
 .assigned-staff-header-list {
-  columns: 2;
-  column-width: 56px;
-  column-gap: 8px;
-  column-fill: auto;
-  column-rule: 1px solid hsl(var(--calendar-primary) / 0.25);
-  max-height: 74px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 2px 8px;
   min-height: 74px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
+  max-height: none;
+  overflow: visible;
 }
 
 .assigned-staff-header-list > * {
