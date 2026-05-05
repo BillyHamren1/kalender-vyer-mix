@@ -31,18 +31,31 @@ export interface RichGeocode {
   poiCategory: string | null;
 }
 
-async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode | null> {
+const coordLabel = (lat: number, lng: number) =>
+  `Plats vid ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode> {
   const token = await getMapboxToken();
-  if (!token) return null;
+  // Sista utväg: alltid ge tillbaka något användbart, aldrig null. Om token saknas
+  // eller Mapbox svarar tomt så skriver vi ut koordinaterna så admin ser VAR pingen
+  // föll, istället för bara "adress kunde inte hämtas".
+  const fallback: RichGeocode = {
+    label: coordLabel(lat, lng),
+    address: null,
+    poiName: null,
+    poiCategory: null,
+  };
+  if (!token) return fallback;
+
   // Hämta både POI och address i samma anrop. POI prioriteras för "vad är detta",
   // address används som fallback-label.
   const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=sv&limit=5&types=poi,address,neighborhood,locality,place`;
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) return fallback;
     const data = await res.json();
     const features = (data?.features || []) as any[];
-    if (!features.length) return null;
+    if (!features.length) return fallback;
 
     const poi = features.find(f => typeof f.id === 'string' && f.id.startsWith('poi.'));
     const addr = features.find(f => typeof f.id === 'string' && f.id.startsWith('address.'));
@@ -56,8 +69,7 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
       ? (addr.place_name?.split(',').slice(0, 2).join(',').trim() ?? null)
       : null;
 
-    // Label-prioritet: POI+ort → adress → område/ort → första feature-namn.
-    // Koordinater används ALDRIG som label — det hör hemma i debug, inte huvudjournal.
+    // Label-prioritet: POI+ort → adress → område/ort → första feature-namn → koord.
     let label: string;
     if (poiName && place && poiName !== place) label = `${poiName}, ${place}`;
     else if (poiName) label = poiName;
@@ -67,7 +79,7 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
       const firstName = features[0]?.place_name?.split(',').slice(0, 2).join(',').trim()
         ?? features[0]?.text
         ?? null;
-      label = firstName || 'Okänd plats – adress saknas';
+      label = firstName || coordLabel(lat, lng);
     }
 
     return {
@@ -77,7 +89,7 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
       poiCategory,
     };
   } catch {
-    return null;
+    return fallback;
   }
 }
 
