@@ -446,26 +446,54 @@ const MobileOverview: React.FC = () => {
           ))}
         </div>
 
-        <div className="px-4 flex gap-1.5 overflow-x-auto pb-1">
-          <Filter className="w-4 h-4 text-muted-foreground self-center shrink-0" />
-          {phaseFilters.map(f => (
-            <button
-              key={f.key}
-              onClick={() => setPhase(f.key)}
-              className={cn(
-                'px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition-colors',
-                phase === f.key
-                  ? 'bg-foreground text-background border-foreground'
-                  : 'bg-card text-muted-foreground border-border/60',
-              )}
-            >
-              {f.label}
-              {f.key === 'anomalies' && kpi.anomaliesTotal > 0 && (
-                <span className="ml-1 text-destructive">({kpi.anomaliesTotal})</span>
-              )}
-            </button>
-          ))}
+        {/* Main tabs: Projekt / Personal */}
+        <div className="px-4 flex gap-2 mb-2">
+          {([
+            { key: 'projects' as MainTab, label: 'Projekt', icon: Briefcase },
+            { key: 'staff' as MainTab, label: 'Personal', icon: Users },
+          ]).map(tab => {
+            const Icon = tab.icon;
+            const active = mainTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setMainTab(tab.key)}
+                className={cn(
+                  'flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border transition-colors',
+                  active
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-card text-muted-foreground border-border/60 active:bg-muted',
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
+
+        {mainTab === 'projects' && (
+          <div className="px-4 flex gap-1.5 overflow-x-auto pb-1">
+            <Filter className="w-4 h-4 text-muted-foreground self-center shrink-0" />
+            {phaseFilters.map(f => (
+              <button
+                key={f.key}
+                onClick={() => setPhase(f.key)}
+                className={cn(
+                  'px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition-colors',
+                  phase === f.key
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-card text-muted-foreground border-border/60',
+                )}
+              >
+                {f.label}
+                {f.key === 'anomalies' && kpi.anomaliesTotal > 0 && (
+                  <span className="ml-1 text-destructive">({kpi.anomaliesTotal})</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="px-4 grid grid-cols-2 gap-2 mb-3 mt-3">
