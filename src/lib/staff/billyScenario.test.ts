@@ -152,7 +152,7 @@ describe('Billy-scenariot — med assignment 08:00 utan signal förrän 13:10', 
     const gap = m.actualEvents.find(e => e.kind === 'planned_signal_gap');
     expect(gap).toBeDefined();
     expect(gap!.at).toBe(`${date}T08:00:00Z`);
-    expect(gap!.until).toBe(`${date}T13:10:00Z`);
+    expect(new Date(gap!.until!).toISOString()).toBe(new Date(`${date}T13:10:00Z`).toISOString());
     expect(gap!.durationMin).toBe(310);
   });
 
@@ -160,7 +160,7 @@ describe('Billy-scenariot — med assignment 08:00 utan signal förrän 13:10', 
     const a = m.proposedReport.anomalies.find(x => x.action?.kind === 'planned_time_without_signal');
     expect(a).toBeDefined();
     expect(a!.action!.plannedStartIso).toBe(`${date}T08:00:00Z`);
-    expect(a!.action!.firstSignalIso).toBe(`${date}T13:10:00Z`);
+    expect(new Date(a!.action!.firstSignalIso!).toISOString()).toBe(new Date(`${date}T13:10:00Z`).toISOString());
     expect(a!.action!.noSignalGapMinutes).toBe(310);
 
     const gap = m.actualEvents.find(e => e.kind === 'planned_signal_gap');
