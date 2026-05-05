@@ -771,11 +771,19 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     }
 
     if (action === 'cron' && !dryRun) {
-      try {
-        const maxIso = pings[pings.length - 1].recorded_at
-        await saveCursor(supabase, maxIso)
-      } catch (e: any) {
-        report.errors.push(`cursor save: ${e?.message ?? e}`)
+      // Fail-safe: only advance the cursor when the whole run succeeded
+      // (no per-staff errors). Otherwise the next cron picks up the same
+      // window again — duplicates are blocked by per-row idempotency.
+      if (report.errors.length === 0) {
+        try {
+          const maxIso = pings[pings.length - 1].recorded_at
+          await saveCursor(supabase, maxIso, orgFilter)
+          console.log(`[auto-start] cron cursor AFTER  org=${orgFilter ?? 'global'}: ${maxIso}`)
+        } catch (e: any) {
+          report.errors.push(`cursor save: ${e?.message ?? e}`)
+        }
+      } else {
+        console.warn(`[auto-start] cron cursor NOT advanced — ${report.errors.length} error(s); will retry next run`)
       }
     }
 
