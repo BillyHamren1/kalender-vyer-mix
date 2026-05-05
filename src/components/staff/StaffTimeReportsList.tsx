@@ -16,6 +16,8 @@ import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ProjectInfo {
   booking_id: string;
