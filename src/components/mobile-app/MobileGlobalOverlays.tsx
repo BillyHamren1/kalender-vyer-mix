@@ -275,7 +275,7 @@ const MobileGlobalOverlays: React.FC = () => {
       },
     });
     return dispose;
-  }, [staff, tryStartFromArrival, stopSession]);
+  }, [staff, tryStartFromArrival, stopSession, ensureWorkDayActive]);
 
   // Smart-karta — öppet "tid på plats" besök efter accept av Scenario A
   const { visit: unplannedVisit, end: endUnplannedVisit, start: startUnplannedVisit } =
