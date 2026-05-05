@@ -1,18 +1,16 @@
 /**
- * Day Block Timeline
- * ──────────────────
- * Bygger huvudjournalen som en sekvens av BLOCK istället för en lista av råa
- * tekniska events. Detta ersätter "lista av kinds"-renderingen i
- * ActualDayPanel så att admin ser dagen som:
+ * Day Block Timeline — ENSAM KÄLLA för huvudjournalens block
+ * ──────────────────────────────────────────────────────────
+ * ANSVAR:
+ *   - dayBlockTimeline.ts → kompakt huvudjournal (presence/journey/gap-block)
+ *   - timelineVisibility.ts → ENBART råvy / "Visa alla händelser" / hidden_reason
  *
- *   PresenceBlock  →  JourneyBlock  →  PresenceBlock  →  JourneyBlock …
+ * Block-vyn får ALDRIG bero på:
+ *   - mainTimeline() / classifyTimelineCoalesced()
+ *   - short_stop_promotion eller journey-merge i timelineVisibility
  *
- * Tekniska events (timer_started/stopped, time_report_*, gps_arrival/departure,
- * assistant_*, server_*) dras IN i blocket de logiskt tillhör och visas bara i
- * blockets expand-vy. Inget raderas — blocken refererar till sina källrader.
- *
- * Input: mainTimeline-events (efter classifyTimelineCoalesced) + actualVisits.
- * Output: BlockTimeline[].
+ * Input för huvudjournalen: model.actualVisits + model.actualEvents (rå).
+ * Output: BlockTimeline[] (presence | journey | gap).
  */
 
 import type { ActualEvent, ActualVisit } from '@/lib/staff/actualStaffDayModel';
