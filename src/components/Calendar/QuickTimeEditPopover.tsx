@@ -142,7 +142,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           const sourceDate = event.extendedProps?.sourceDate || eventDate;
           const newStartISO = `${sourceDate}T${startTime}:00Z`;
           const newEndISO = `${sourceDate}T${endTime}:00Z`;
-          await moveLargeProjectDay({
+          const result = await moveLargeProjectDay({
             largeProjectId,
             phase: phaseRaw as LargeProjectPhase,
             fromDate: sourceDate,
@@ -150,7 +150,17 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             newStartISO,
             newEndISO,
           });
-          toast.success('Tid uppdaterad för hela projektdagen');
+
+          if (result.bookingsUpdated === 0 || result.calendarEventsUpdated === 0) {
+            console.warn('Large project time update did not touch any rows', result);
+            toast.warning(
+              `Tid sparades men 0 ${result.bookingsUpdated === 0 ? 'bokningar' : 'kalenderhändelser'} uppdaterades – kontrollera projektet`
+            );
+          } else {
+            toast.success(
+              `Tid uppdaterad (${result.bookingsUpdated} bokningar, ${result.calendarEventsUpdated} kalenderhändelser)`
+            );
+          }
           setOpen(false);
           if (onUpdate) onUpdate();
           return;
