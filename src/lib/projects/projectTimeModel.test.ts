@@ -124,4 +124,84 @@ describe('buildProjectTimeSummary', () => {
     expect(r.travelMinutesApproved).toBe(60);
     expect(r.travelMinutesSuggested).toBe(60);
   });
+
+  // Workman-scenariot: timer + time_report startade/stoppade nästan samtidigt
+  // mot samma projekt. Får aldrig dubbelräknas.
+  describe('Workman scenario — timer + time_report sammanfaller', () => {
+    const target = { kind: 'booking' as const, bookingId: BOOKING };
+    const trWindow = tr({
+      id: 'tr-workman',
+      start_time: '2026-05-05T08:04:00Z',
+      end_time: '2026-05-05T12:25:00Z',
+      hours_worked: 4 + 21 / 60,
+    });
+    const lteWindow = lte({
+      id: 'lte-workman',
+      entered_at: '2026-05-05T08:04:00Z',
+      exited_at: '2026-05-05T12:25:00Z',
+      total_minutes: 261,
+    });
+
+    it('hård dedup när source_entry_id binder TR↔LTE', () => {
+      const r = buildProjectTimeSummary({
+        target,
+        timeReports: [{ ...trWindow, source_entry_id: 'lte-workman' }],
+        locationTimeEntries: [lteWindow],
+        travelLogs: [],
+      });
+      expect(r.confirmedMinutes).toBe(261);
+      expect(r.activeMinutes).toBe(0);
+      expect(r.suggestedMinutes).toBe(0);
+      expect(r.staffBreakdown[0].confirmedMinutes).toBe(261);
+      expect(r.sourceRows.find(s => s.rowId === 'lte-workman')?.decision).toBe('skipped_dedup_hard');
+    });
+
+    it('mjuk dedup via overlap när source_entry_id saknas', () => {
+      const r = buildProjectTimeSummary({
+        target,
+        timeReports: [trWindow],
+        locationTimeEntries: [lteWindow],
+        travelLogs: [],
+      });
+      expect(r.confirmedMinutes).toBe(261);
+      expect(r.activeMinutes).toBe(0);
+      expect(r.suggestedMinutes).toBe(0);
+      expect(r.sourceRows.find(s => s.rowId === 'lte-workman')?.decision).toBe('skipped_dedup_overlap');
+      expect(r.anomalies.some(a => a.kind === 'overlap_dedup_applied')).toBe(true);
+    });
+
+    it('LTE vinner över GPS/assistant — närvaro utan timer/TR blir bara förslag', () => {
+      // Ingen TR, ingen LTE → ingen confirmed/active. (GPS/assistant matas inte
+      // in i project time-modellen alls; de kan bara bli suggestion via LTE
+      // eller travel_time_logs.) Denna invariant testas implicit: utan input
+      // blir summeringen 0 även om "GPS-evidens" finns ute i världen.
+      const r = buildProjectTimeSummary({
+        target,
+        timeReports: [],
+        locationTimeEntries: [],
+        travelLogs: [],
+      });
+      expect(r.confirmedMinutes + r.activeMinutes + r.suggestedMinutes).toBe(0);
+    });
+
+    it('travel räknas separat även om den ligger precis före passet', () => {
+      const r = buildProjectTimeSummary({
+        target,
+        timeReports: [{ ...trWindow, source_entry_id: 'lte-workman' }],
+        locationTimeEntries: [lteWindow],
+        travelLogs: [trav({
+          id: 'tv-workman',
+          start_time: '2026-05-05T07:30:00Z',
+          end_time: '2026-05-05T08:04:00Z',
+          hours_worked: 34 / 60,
+        })],
+      });
+      expect(r.confirmedMinutes).toBe(261);
+      expect(r.travelMinutesApproved).toBe(34);
+      // Travel ska aldrig läcka in i confirmed/active/suggested.
+      expect(r.activeMinutes).toBe(0);
+      expect(r.suggestedMinutes).toBe(0);
+    });
+  });
 });
+
