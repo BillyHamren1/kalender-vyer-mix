@@ -26,7 +26,7 @@ vi.mock('@/integrations/supabase/client', () => ({
     auth: {
       getSession: () => Promise.resolve({ data: { session: { user: { id: 'test-user-1234' } } }, error: null }),
     },
-    from: (...args: any[]) => fromMock(...args),
+    from: (table: string) => fromMock(table),
   },
 }));
 
