@@ -1071,6 +1071,7 @@ const StaffTimeReports: React.FC = () => {
                 isPresenceOnly,
                 source: e.source ?? null,
                 entry_date: e.entry_date ?? null,
+                metadata: e.metadata ?? null,
               };
             });
 
