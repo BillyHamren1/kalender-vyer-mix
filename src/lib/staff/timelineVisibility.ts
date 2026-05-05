@@ -26,6 +26,7 @@ export type TimelineHiddenReason =
   | 'low_confidence'        // workRelevance = unknown_requires_lookup / raw_debug_only
   | 'private_background'    // workRelevance = private_or_background (privatzon/natt)
   | 'within_transition'     // mikrohändelse som tillhör ett annat block
+  | 'assistant_merged'      // assistant_event som beskriver samma sak som en annan main-rad
   | 'raw_detail';           // tekniskt event (gps_gap) — alltid raw_only
 
 export interface ClassifiedEvent {
@@ -261,6 +262,69 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
     }
   }
 
+  // Steg 3: assistant-merge.
+  //   Assistant-events (assistant_arrival/departure/other) som beskriver samma
+  //   fysiska händelse som en närliggande main-rad (gps_arrival, gps_departure,
+  //   gps_travel, timer_started, timer_stopped) ska INTE vara egen huvudrad.
+  //   De flyttas till raw_only med reason_hidden='assistant_merged' så att
+  //   ActualDayPanel kan visa dem i expand-vyn under den faktiska händelsen.
+  //
+  //   En assistant-rad får BARA stå kvar som main om:
+  //     • den inte matchar någon main-rad inom ±20 min (orphan / recovery / prompt)
+  //     • eller den kräver action (severity warning/critical eller meta.requires_action)
+  const ASSISTANT_MATCH_WINDOW_MS = 20 * 60_000;
+  const isAssistantKind = (k: ActualEventKind) =>
+    k === 'assistant_arrival' || k === 'assistant_departure' || k === 'assistant_other';
+  const counterpartKindsFor = (k: ActualEventKind): ReadonlySet<ActualEventKind> => {
+    if (k === 'assistant_arrival') return new Set<ActualEventKind>(['gps_arrival', 'gps_visit', 'timer_started']);
+    if (k === 'assistant_departure') return new Set<ActualEventKind>(['gps_departure', 'gps_travel', 'timer_stopped']);
+    return new Set<ActualEventKind>(['gps_arrival', 'gps_departure', 'gps_visit', 'gps_travel', 'timer_started', 'timer_stopped']);
+  };
+  for (let i = 0; i < N; i++) {
+    const c = classified[i];
+    if (c.visibility !== 'main') continue;
+    const ev = c.event;
+    if (!isAssistantKind(ev.kind)) continue;
+
+    const meta = (ev.meta ?? {}) as Record<string, unknown>;
+    const requiresAction = meta.requires_action === true
+      || ev.severity === 'critical'
+      || ev.severity === 'warning';
+    if (requiresAction) continue;
+
+    const targetKey = (meta.placeKey as string | undefined)
+      ?? (meta.target_id as string | undefined)
+      ?? null;
+    const evMs = new Date(ev.at).getTime();
+    if (!Number.isFinite(evMs)) continue;
+
+    const counterparts = counterpartKindsFor(ev.kind);
+    let matched = false;
+    for (let j = 0; j < N; j++) {
+      if (j === i) continue;
+      const other = classified[j];
+      if (other.visibility !== 'main') continue;
+      const oev = other.event;
+      if (!counterparts.has(oev.kind)) continue;
+      const oMs = new Date(oev.at).getTime();
+      if (!Number.isFinite(oMs)) continue;
+      if (Math.abs(oMs - evMs) > ASSISTANT_MATCH_WINDOW_MS) continue;
+
+      // Om vi har targetKey, kräv samma placeKey när motparten har en.
+      const oMeta = (oev.meta ?? {}) as Record<string, unknown>;
+      const oKey = (oMeta.placeKey as string | undefined) ?? null;
+      if (targetKey && oKey && targetKey !== oKey) continue;
+
+      matched = true;
+      break;
+    }
+
+    if (matched) {
+      c.visibility = 'raw_only';
+      c.reason_hidden = 'assistant_merged';
+    }
+  }
+
   return classified;
 }
 
@@ -301,6 +365,7 @@ export function hiddenReasonLabel(reason: TimelineHiddenReason): string {
     case 'low_confidence': return 'Låg tilltro';
     case 'private_background': return 'Privat/bakgrund';
     case 'within_transition': return 'Del av transition';
+    case 'assistant_merged': return 'Assistent-händelse (matchad)';
     case 'raw_detail': return 'Tekniskt rådata';
   }
 }
