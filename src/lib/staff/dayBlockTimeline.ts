@@ -193,14 +193,59 @@ const strengthFromMeta = (ev: ActualEvent, fallbackMin: number): PresenceStrengt
 };
 
 export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[] {
-  const { mainEvents, allEvents, visitByKey } = input;
+  const { mainEvents = [], allEvents, visitByKey, actualVisits = [] } = input;
 
-  // 1) Bygg presence/journey kärnor (chronologiskt)
-  const sortedMain = [...mainEvents].sort((a, b) => a.at.localeCompare(b.at));
   const blocks: DayBlock[] = [];
+  const consumedEventIds = new Set<string>();
 
-  for (const ev of sortedMain) {
-    if (isPresenceEvent(ev)) {
+  // 1a) PRIMÄR KÄLLA: actualVisits → presence-block. timelineVisibility får
+  //     ALDRIG vara gatekeeper här. Varje vistelse blir ett block oavsett om
+  //     dess gps_visit-event råkade hamna i main eller raw.
+  for (const v of actualVisits) {
+    const knownSiteId = v.knownSiteId;
+    const isProject = !!knownSiteId
+      && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
+    const durationMin = v.durationMin ?? 0;
+    const strength: PresenceStrength = isProject
+      ? 'project'
+      : durationMin >= 30 ? 'strong_visit'
+      : durationMin >= 15 ? 'possible_visit'
+      : 'short_stop';
+    blocks.push({
+      kind: 'presence',
+      presenceKind: isProject ? 'project' : 'location',
+      id: `pb:visit:${v.key}:${v.start}`,
+      startIso: v.start,
+      endIso: v.end,
+      durationMin,
+      placeKey: v.key,
+      title: v.label,
+      subtitle: null,
+      isProject,
+      strength,
+      requiresReview: false,
+      ongoing: false,
+      lastPingIso: v.end,
+      sourceEventIds: [],
+      innerEvents: [],
+      timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+      timeReport: { startedIso: null, closedIso: null, present: false },
+      arrivalIso: v.start,
+      departureIso: v.end,
+      plannedStartIso: null,
+      sources: { timeReport: false, timer: false, gpsVisit: true, assistant: false },
+      evidenceLabel: null,
+      confidence: 'low',
+    });
+  }
+
+  // 1b) FALLBACK: om inga actualVisits, använd presence-events från mainEvents
+  //     (legacy-väg, kvar för bakåtkompatibilitet med tester/anrop som inte
+  //     skickar actualVisits).
+  if (actualVisits.length === 0) {
+    const sortedMain = [...mainEvents].sort((a, b) => a.at.localeCompare(b.at));
+    for (const ev of sortedMain) {
+      if (!isPresenceEvent(ev)) continue;
       const m = META(ev);
       const pk = placeKeyOf(ev);
       const visit = pk ? visitByKey.get(pk) : undefined;
@@ -215,7 +260,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       const strength: PresenceStrength = isProject
         ? 'project'
         : strengthFromMeta(ev, durationMin);
-      const block: PresenceBlock = {
+      blocks.push({
         kind: 'presence',
         presenceKind: isProject ? 'project' : 'location',
         id: `pb:${ev.id}`,
@@ -240,35 +285,40 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sources: { timeReport: false, timer: false, gpsVisit: ev.kind === 'gps_visit' || ev.kind === 'gps_arrival', assistant: false },
         evidenceLabel: null,
         confidence: 'low',
-      };
-      blocks.push(block);
-      continue;
+      });
+      consumedEventIds.add(ev.id);
     }
-    if (isJourneyEvent(ev)) {
-      const m = META(ev);
-      const labelStr = typeof ev.label === 'string' ? ev.label : '';
-      const stripped = labelStr.replace(/^(Förflyttning|Möjlig förflyttning[^:]*|Bakgrunds-GPS[^:]*):\s*/, '');
-      const [from, to] = stripped.includes(' → ') ? stripped.split(' → ').map(s => s.trim()) : [null, null];
-      const fromKey = (m.fromPlaceKey as string | undefined) ?? null;
-      const toKey = (m.toPlaceKey as string | undefined) ?? null;
-      const bothKnown = !!m.bothKnown;
-      const journey: JourneyBlock = {
-        kind: 'journey',
-        id: `jb:${ev.id}`,
-        startIso: ev.at,
-        endIso: ev.until ?? ev.at,
-        durationMin: ev.durationMin ?? 0,
-        fromLabel: (m.from_label as string | undefined) ?? from ?? null,
-        toLabel: (m.to_label as string | undefined) ?? to ?? null,
-        fromPlaceKey: fromKey,
-        toPlaceKey: toKey,
-        bothKnown,
-        uncertain: !bothKnown,
-        sourceEventIds: [ev.id],
-        innerEvents: [],
-      };
-      blocks.push(journey);
-    }
+  }
+
+  // 2) JOURNEYS från ALLA events (inte filtrerade) — gps_travel är alltid main
+  //    men vi går via allEvents så vi inte är beroende av buildMainTimeline.
+  const sortedAll = [...allEvents].sort((a, b) => a.at.localeCompare(b.at));
+  for (const ev of sortedAll) {
+    if (!isJourneyEvent(ev)) continue;
+    if (consumedEventIds.has(ev.id)) continue;
+    const m = META(ev);
+    const labelStr = typeof ev.label === 'string' ? ev.label : '';
+    const stripped = labelStr.replace(/^(Förflyttning|Möjlig förflyttning[^:]*|Bakgrunds-GPS[^:]*):\s*/, '');
+    const [from, to] = stripped.includes(' → ') ? stripped.split(' → ').map(s => s.trim()) : [null, null];
+    const fromKey = (m.fromPlaceKey as string | undefined) ?? null;
+    const toKey = (m.toPlaceKey as string | undefined) ?? null;
+    const bothKnown = !!m.bothKnown;
+    blocks.push({
+      kind: 'journey',
+      id: `jb:${ev.id}`,
+      startIso: ev.at,
+      endIso: ev.until ?? ev.at,
+      durationMin: ev.durationMin ?? 0,
+      fromLabel: (m.from_label as string | undefined) ?? from ?? null,
+      toLabel: (m.to_label as string | undefined) ?? to ?? null,
+      fromPlaceKey: fromKey,
+      toPlaceKey: toKey,
+      bothKnown,
+      uncertain: !bothKnown,
+      sourceEventIds: [ev.id],
+      innerEvents: [],
+    });
+    consumedEventIds.add(ev.id);
   }
 
   // 2) Slå samman tekniska events (gps_arrival/departure, timer, assistant,
