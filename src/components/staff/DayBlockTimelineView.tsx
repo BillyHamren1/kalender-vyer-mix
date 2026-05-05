@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle, ExternalLink } from 'lucide-react';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
 
 const fmtHm = (iso?: string | null) => {
