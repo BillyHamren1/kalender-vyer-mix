@@ -544,8 +544,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       add(m.fromCentre);
       add(m.toCentre);
     }
+    // Block-vyn renderar PresenceBlock/JourneyBlock från actualVisits.
+    // Säkerställ att även unknown-visits' centre slås upp så blocklabels
+    // aldrig fastnar på "okänd plats" när vi har lat/lng.
+    for (const v of model.actualVisits) {
+      if (!v.knownSiteId) add(v.centre as any);
+    }
     return Array.from(seen.entries()).map(([key, c]) => ({ key, ...c }));
-  }, [rawEvents]);
+  }, [rawEvents, model.actualVisits]);
 
   const richGeo = useReverseGeocodeRichStatus(unknownCoords.map(c => ({ lat: c.lat, lng: c.lng })));
   const geoByKey = useMemo(() => {
