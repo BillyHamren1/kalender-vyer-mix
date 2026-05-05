@@ -576,7 +576,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
               </span>
             )}
           </Button>
-        </div>
+          <Button
+            onClick={() => setShowScanDebug(prev => !prev)}
+            size="sm"
+            variant={showScanDebug ? 'secondary' : 'outline'}
+            className="h-7 px-2 text-[10px] font-mono"
+            title="Scan debug — visa tider"
+          >
+            ⏱
+          </Button>
 
         {isMinusMode && (
           <div className="bg-destructive text-destructive-foreground rounded px-2 py-1 flex items-center justify-between text-[11px]">
