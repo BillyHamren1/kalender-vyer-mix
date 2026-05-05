@@ -43,10 +43,12 @@ interface RawTask {
   large_project_id: string | null;
   assigned_to_ids: string[] | null;
   calendar_event_id: string | null;
+  visible_in_time_app?: boolean | null;
+  visible_in_project_calendar?: boolean | null;
 }
 
 const SELECT =
-  'id, title, category, status, readiness, task_type, start_date, end_date, start_time, end_time, due_date, booking_id, large_project_id, assigned_to_ids, calendar_event_id';
+  'id, title, category, status, readiness, task_type, start_date, end_date, start_time, end_time, due_date, booking_id, large_project_id, assigned_to_ids, calendar_event_id, visible_in_time_app, visible_in_project_calendar';
 
 export function useProjectTaskCalendarEvents({
   bookingId,
