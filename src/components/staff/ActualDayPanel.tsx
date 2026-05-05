@@ -603,6 +603,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     <EventIcon kind={ev.kind} severity={ev.severity} />
                     <span className="text-foreground truncate">
                       {ev.label}
+                      {showAllEvents && hiddenReasons.has(ev.id) && (
+                        <Badge variant="outline" className="ml-1.5 text-[9px] py-0 px-1 border-muted-foreground/40 text-muted-foreground">
+                          {hiddenReasonLabel(hiddenReasons.get(ev.id) as TimelineHiddenReason)}
+                        </Badge>
+                      )}
                       {ev.kind === 'timer_stopped' && (() => {
                         const mm = (ev.meta ?? {}) as any;
                         if (mm.stop_origin === 'system_review') return null;
