@@ -32,13 +32,28 @@ export const ENGINE_VERSION = 'auto-start@1.0.0'
 export const ENTRY_PING_MIN_COUNT = 3
 export const ENTRY_PING_MIN_DWELL_MS = 2 * 60 * 1000
 export const ENTRY_PING_MAX_ACCURACY_M = 75
-// Kort vistelse-policy: 0–15 min på projekt/location ska INTE bli eget
-// arbetspass automatiskt. Detta är dwell-tröskeln innan auto-start engine
-// öppnar workday/LTE/skapar arrival-event. Kort GPS-närvaro tillhör
-// resa eller föregående/nästa arbetsblock, inte ett separat pass.
-// Undantag (manuell timer, scanner, admin-godkänd) går aldrig genom denna
-// kodväg — de skapar LTE direkt via mobile-app-api.
+// Kort vistelse-policy (per target-typ). Auto-start får ALDRIG materialisera
+// workday/LTE/arrival på en dwell under dessa trösklar — då skapas istället
+// ett suggestion/review-event (assistant_events) som admin/användare kan
+// bekräfta manuellt. Manuell timer, scanner, admin-godkänd går aldrig genom
+// denna kodväg — de skapar LTE direkt via mobile-app-api.
+//
+//   - location (känt arbetsställe, t.ex. Lager): 5 min
+//   - booking/project: 15 min, eller 5 min om personen är assigned till det
+//   - absolut golv (även för suggestion): 2 min
+//
+// AUTO_START_MIN_DWELL_MS behålls bara som default/legacy fallback för tester.
 export const AUTO_START_MIN_DWELL_MS = 15 * 60 * 1000
+export const AUTO_START_MIN_DWELL_LOCATION_MS = 5 * 60 * 1000
+export const AUTO_START_MIN_DWELL_PROJECT_MS = 15 * 60 * 1000
+export const AUTO_START_MIN_DWELL_ASSIGNED_MS = 5 * 60 * 1000
+export const AUTO_START_ABSOLUTE_FLOOR_MS = 2 * 60 * 1000
+
+export function requiredDwellMs(kind: 'location' | 'booking' | 'project', isAssigned: boolean): number {
+  if (kind === 'location') return AUTO_START_MIN_DWELL_LOCATION_MS
+  if (isAssigned) return AUTO_START_MIN_DWELL_ASSIGNED_MS
+  return AUTO_START_MIN_DWELL_PROJECT_MS
+}
 const PROCESS_LOOKBACK_MS = 60 * 60 * 1000
 const PROCESS_OVERLAP_MS = 5 * 60 * 1000
 const TARGET_DAY_TOLERANCE_MS = 24 * 60 * 60 * 1000
