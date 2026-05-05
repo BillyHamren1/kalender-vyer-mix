@@ -887,6 +887,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             </div>
           );
         })()}
+        {planningItems.length > 0 && (
+          <PlanningHeaderPill items={planningItems} />
+        )}
         <div className="ml-auto">
           <Badge className={`${statusBadgeClass(status.kind)} font-medium`}>{status.label}</Badge>
         </div>
