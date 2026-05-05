@@ -326,8 +326,11 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
   // 4) Sortera om kronologiskt
   blocks.sort((a, b) => a.startIso.localeCompare(b.startIso));
 
-  // 5) Infoga GAP-markörer mellan två journeys där en presence borde funnits
-  //    men saknas — så admin ser VARFÖR.
+  // 5) Mellan två journeys: om destinationen är en KÄND plats (FA Warehouse,
+  //    booking, lager, location) — syntetisera en INFERRED presence där
+  //    personen rimligen vistades. Annars infoga GAP-markör som förklarar
+  //    varför ingen presence gick att skapa.
+  const MIN_INFERRED_PRESENCE_MIN = 5;
   const withGaps: DayBlock[] = [];
   for (let i = 0; i < blocks.length; i++) {
     const cur = blocks[i];
@@ -340,13 +343,44 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const gapMin = Math.round((nextStartMs - curEndMs) / 60_000);
     if (gapMin < 2) continue;
 
-    const expectedKey = cur.toPlaceKey;
+    // Föredra cur.toPlaceKey, fall tillbaka till next.fromPlaceKey
+    const expectedKey = cur.toPlaceKey ?? next.fromPlaceKey ?? null;
     const expectedLabel = cur.toLabel ?? next.fromLabel ?? null;
     const visit = expectedKey ? visitByKey.get(expectedKey) : undefined;
+    const isKnownSite = !!visit?.knownSiteId
+      || !!(expectedKey && (expectedKey.startsWith('booking:') || expectedKey.startsWith('large:') || expectedKey.startsWith('site:') || expectedKey.startsWith('location:')));
     const rawInWindow = allSorted.filter(e => {
       const ms = new Date(e.at).getTime();
       return ms >= curEndMs - 30_000 && ms <= nextStartMs + 30_000;
     });
+
+    // INFERRED PRESENCE — destinationen är känd och fönstret är meningsfullt
+    if (gapMin >= MIN_INFERRED_PRESENCE_MIN && expectedLabel && (isKnownSite || expectedKey)) {
+      const knownSiteId = visit?.knownSiteId ?? null;
+      const isProject = !!knownSiteId
+        && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
+      withGaps.push({
+        kind: 'presence',
+        id: `pb:inferred:${cur.id}:${next.id}`,
+        startIso: cur.endIso,
+        endIso: next.startIso,
+        durationMin: gapMin,
+        placeKey: expectedKey,
+        title: expectedLabel,
+        subtitle: isKnownSite ? 'mellan resor (känd plats)' : 'mellan resor',
+        isProject,
+        strength: isProject ? 'project' : 'inferred_between_journeys',
+        requiresReview: !isKnownSite,
+        ongoing: false,
+        lastPingIso: null,
+        sourceEventIds: [],
+        innerEvents: rawInWindow,
+        timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+      });
+      continue;
+    }
+
+    // Inget vi kan härleda — diagnostisk GAP
     let reason: GapReason;
     let explanation: string;
     if (!expectedLabel) {
@@ -363,7 +397,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       explanation = `Endast tekniska/raw-events i fönstret — ingen GPS-vistelse genererades på ${expectedLabel}.`;
     } else {
       reason = 'no_signal';
-      explanation = `Ingen GPS-signal mellan resorna — vistelse på ${expectedLabel} kan inte bekräftas.`;
+      explanation = `Ingen GPS-signal mellan resorna — vistelse på ${expectedLabel ?? 'okänd plats'} kan inte bekräftas.`;
     }
 
     withGaps.push({
@@ -378,6 +412,11 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       innerEvents: rawInWindow,
     });
   }
+
+  // 6) Slå ihop INFERRED-presence med en omslutande TIDRAPPORT-presence:
+  //    om en TR-presence täcker hela tiden, låt inferred bli "innesluten"
+  //    detalj. Vi gör inget hårt här — TR-blocket finns redan och visas;
+  //    inferred-blocket ger mer granularitet mellan resor.
 
   return withGaps;
 }
