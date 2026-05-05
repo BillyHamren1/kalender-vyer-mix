@@ -321,9 +321,9 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg.journey}`}>
             <Car className="h-3.5 w-3.5" />
           </span>
-          <span className="font-medium text-foreground truncate">{safePlaceLabel(block.fromPlace, block.fromLabel)}</span>
+          <PlaceLabel place={block.fromPlace} fallback={block.fromLabel} className="font-medium text-foreground truncate" />
           <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-          <span className="font-medium text-foreground truncate">{safePlaceLabel(block.toPlace, block.toLabel)}</span>
+          <PlaceLabel place={block.toPlace} fallback={block.toLabel} className="font-medium text-foreground truncate" />
         </div>
 
         <div className="flex items-center justify-end overflow-hidden">
