@@ -684,6 +684,68 @@ export async function processStaff(
 
   for (const hit of ordered) {
     const arrivalIso = new Date(hit.firstReliableTs).toISOString()
+    const visitDay = arrivalIso.slice(0, 10)
+    const isAssigned =
+      hit.target.kind !== 'location' &&
+      assignedSet.has(assignedKey(hit.target.kind, hit.target.id, visitDay))
+    const requiredDwell = requiredDwellMs(hit.target.kind, isAssigned)
+    const meetsDwell = hit.dwellMs >= requiredDwell
+    const lowConfidence = hit.confidence === 'low'
+    const materialise = meetsDwell && !lowConfidence
+
+    if (!materialise) {
+      // Suggestion-only path: emit a review event, do NOT open workday/LTE,
+      // do NOT close prev LTE, do NOT create travel — preserves the visit
+      // for admin review without polluting time reports.
+      const sugDk = `${staffId}:suggestion:${hit.target.kind}:${hit.target.id}:${bucketTo5Min(arrivalIso)}`
+      const reason =
+        lowConfidence ? 'low_confidence'
+        : hit.target.kind === 'location' ? 'short_visit_below_location_threshold'
+        : isAssigned ? 'short_visit_below_assigned_threshold'
+        : 'short_visit_below_project_threshold'
+      console.log('[auto-start] suggestion_only', {
+        staff_id: staffId,
+        target: hit.target.label,
+        target_kind: hit.target.kind,
+        is_assigned: isAssigned,
+        dwell_minutes: Math.round(hit.dwellMs / 60_000),
+        required_minutes: Math.round(requiredDwell / 60_000),
+        confidence: hit.confidence,
+        reason,
+      })
+      await emitAssistantEvent(supabase, {
+        organization_id: orgId,
+        staff_id: staffId,
+        event_type: 'arrival_suggestion',
+        target_type: hit.target.kind,
+        target_id: hit.target.id,
+        target_label: hit.target.label,
+        happened_at: arrivalIso,
+        source: 'geofence_background',
+        suggested_action: 'review_short_visit',
+        resolution_status: 'pending',
+        stale_for_prompt: false,
+        still_relevant_for_review: true,
+        linked_workday_id: null,
+        metadata: {
+          auto_started: false,
+          suggestion_only: true,
+          reason,
+          dwell_ms: hit.dwellMs,
+          required_dwell_ms: requiredDwell,
+          is_assigned: isAssigned,
+          confidence: hit.confidence,
+          engine_version: report.engine_version,
+          run_id: report.run_id,
+          matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+          arrival_pings_count: hit.pings.length,
+          first_arrival_ping_at: arrivalIso,
+        },
+      }, sugDk, report, 'arrival_suggestion')
+      // Do NOT update prevHit — the next real materialised hit should
+      // continue any switch logic from the previous real hit.
+      continue
+    }
 
     if (!workdayId) {
       workdayId = await ensureWorkdayOpen(supabase, staffId, orgId, arrivalIso, hit, report)
@@ -760,6 +822,9 @@ export async function processStaff(
         run_id: report.run_id,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
         confidence: hit.confidence,
+        is_assigned: isAssigned,
+        dwell_ms: hit.dwellMs,
+        required_dwell_ms: requiredDwell,
         arrival_pings_count: hit.pings.length,
         first_arrival_ping_at: arrivalIso,
         linked_lte_id: lteId,
