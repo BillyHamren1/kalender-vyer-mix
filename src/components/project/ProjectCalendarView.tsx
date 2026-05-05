@@ -126,6 +126,14 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
     return set;
   }, [taskEvents]);
 
+  // Slå ihop projektets calendar_event-dagar med aktivitetsdagar (för fall
+  // där en aktivitet ligger på en dag utan rig/event/rigDown).
+  const effectiveDays = useMemo(() => {
+    const phaseKeys = new Set(projectDays.map((d) => format(d, 'yyyy-MM-dd')));
+    const merged = new Set<string>([...phaseKeys, ...taskDayKeys]);
+    return Array.from(merged).sort().map((s) => parseISO(s));
+  }, [projectDays, taskDayKeys]);
+
   // 5. Synliga team per dag — samma default som personalkalendern.
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>({});
   const getVisibleTeamsForDay = (date: Date): string[] => {
