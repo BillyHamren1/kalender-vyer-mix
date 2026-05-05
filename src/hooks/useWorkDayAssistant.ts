@@ -174,7 +174,10 @@ export function useWorkDayAssistant(input: WorkDayAssistantInput): {
   /** Tell the assistant the user has handled this decision (clears it + cooldown). */
   acknowledge: () => void;
 } {
-  const { enabled, latestPosition, activeTimers, isTravelling = false, isQuiet = false } = input;
+  const {
+    enabled, latestPosition, activeTimers, isTravelling = false, isQuiet = false,
+    hasOpenWorkday = false, earliestPlannedStartToday = null,
+  } = input;
 
   // Outside-geofence trackers per timer key — when the user crossed out,
   // measured against the last cached target list.
