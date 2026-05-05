@@ -99,3 +99,63 @@ describe('pre-workday lead-in travel', () => {
     expect(meta.preWorkdayLeadIn).toBe(false);
   });
 });
+
+describe('travel classification (work_travel / commute_or_background / uncertain_travel)', () => {
+  const PROJ = { id: 'site-proj', name: 'Projekt A', lat: 59.4, lng: 18.1, radiusMeters: 100 };
+
+  it('A. work_travel: båda ändarna kända arbetsplatser', () => {
+    const v1: PlaceVisit = {
+      ...faVisit,
+      start: `${date}T08:00:00Z`,
+      end: `${date}T08:30:00Z`,
+      placeKey: `site:${PROJ.id}`,
+      knownSite: { id: PROJ.id, name: PROJ.name },
+      centre: { lat: PROJ.lat, lng: PROJ.lng },
+    };
+    const v2: PlaceVisit = { ...faVisit, start: `${date}T13:10:00Z`, end: `${date}T15:00:00Z` };
+    const t: TravelGap = { ...travel, key: 'travel:work', start: v1.end, end: v2.start, from: v1, to: v2 };
+    const model = buildActualStaffDayModel({
+      ...baseInput,
+      visits: [v1, v2],
+      travels: [t],
+      knownSites: [FA, PROJ],
+    });
+    const trv = model.actualEvents.find(e => e.kind === 'gps_travel')!;
+    const meta = (trv.meta ?? {}) as any;
+    expect(meta.travelClass).toBe('work_travel');
+    expect(trv.label).toMatch(/^Förflyttning: /);
+  });
+
+  it('B. commute_or_background: nattlig okänd → första arbetsplats', () => {
+    const model = buildActualStaffDayModel(baseInput);
+    const trv = model.actualEvents.find(e => e.kind === 'gps_travel')!;
+    const meta = (trv.meta ?? {}) as any;
+    expect(meta.travelClass).toBe('commute_or_background');
+    expect(meta.travelClassReason).toBe('pre_workday_lead_in');
+  });
+
+  it('C. uncertain_travel: en känd arbetsplats, en okänd dagtidsplats utan workday-overlap', () => {
+    const unknownDay: PlaceVisit = {
+      placeKey: 'unknown:mid',
+      knownSite: null,
+      centre: { lat: 59.5, lng: 18.5 },
+      start: `${date}T14:30:00Z`,
+      end: `${date}T14:40:00Z`,
+      durationMin: 10,
+      pingCount: 4,
+      pings: [],
+    };
+    const t: TravelGap = {
+      ...travel, key: 'travel:unc', start: faVisit.end, end: unknownDay.start, from: faVisit, to: unknownDay,
+    };
+    const model = buildActualStaffDayModel({
+      ...baseInput,
+      visits: [faVisit, unknownDay],
+      travels: [t],
+    });
+    const trv = model.actualEvents.find(e => e.kind === 'gps_travel')!;
+    const meta = (trv.meta ?? {}) as any;
+    expect(meta.travelClass).toBe('uncertain_travel');
+    expect(trv.label).toMatch(/^Möjlig förflyttning/);
+  });
+});
