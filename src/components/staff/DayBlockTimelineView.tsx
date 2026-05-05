@@ -160,6 +160,44 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
   );
 };
 
+const GAP_REASON_LABEL: Record<GapReason, string> = {
+  no_visit_generated: 'Ingen vistelse genererades',
+  filtered_as_too_short: 'För kort — filtrerades bort',
+  swallowed_by_travel: 'Slukat av förflyttning',
+  target_unknown: 'Okänd destination',
+  merged_into_previous: 'Slogs ihop med föregående',
+  raw_only_only: 'Endast tekniska events',
+  no_signal: 'Ingen GPS-signal',
+};
+
+const GapRow: React.FC<{ block: GapBlock }> = ({ block }) => {
+  const range = `${fmtHm(block.startIso)}–${fmtHm(block.endIso)}`;
+  return (
+    <div className="rounded-lg border border-dashed border-amber-400/60 bg-amber-50/30 dark:bg-amber-950/10 px-3 py-2">
+      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+        <span className="tabular-nums text-xs text-muted-foreground font-medium shrink-0">{range}</span>
+        <Badge variant="outline" className="text-[10px] uppercase tracking-wider border-amber-400 text-amber-800 dark:text-amber-200">
+          <HelpCircle className="h-3 w-3 mr-1" />
+          Vistelse saknas
+        </Badge>
+        <span className="text-[11px] text-muted-foreground tabular-nums">{fmtDur(block.durationMin)}</span>
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-300 text-amber-700 dark:text-amber-300">
+          {GAP_REASON_LABEL[block.reason]}
+        </Badge>
+      </div>
+      <div className="text-sm text-foreground">
+        {block.expectedLabel ? <>Förväntad: <span className="font-medium">{block.expectedLabel}</span></> : 'Plats okänd'}
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-0.5">{block.explanation}</div>
+      {block.innerEvents.length > 0 && (
+        <div className="mt-1.5 border-t pt-1.5">
+          <Inner block={block as unknown as DayBlock} />
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const DayBlockTimeline: React.FC<{ blocks: DayBlock[] }> = ({ blocks }) => {
   if (blocks.length === 0) {
     return (
@@ -171,9 +209,9 @@ export const DayBlockTimeline: React.FC<{ blocks: DayBlock[] }> = ({ blocks }) =
   return (
     <div className="space-y-2">
       {blocks.map(b =>
-        b.kind === 'presence'
-          ? <PresenceRow key={b.id} block={b} />
-          : <JourneyRow key={b.id} block={b} />
+        b.kind === 'presence' ? <PresenceRow key={b.id} block={b} />
+        : b.kind === 'journey' ? <JourneyRow key={b.id} block={b} />
+        : <GapRow key={b.id} block={b} />
       )}
     </div>
   );
