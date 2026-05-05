@@ -170,11 +170,36 @@ export const ProjectAutoTimeSection = ({ target, includeBookingIds = [], planned
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Bekräftad tid" minutes={summary.confirmedMinutes} tone="confirmed" />
-          <Stat label="Pågående" minutes={summary.activeMinutes} tone="active" />
-          <Stat label="Föreslagen restid" minutes={summary.travelMinutesSuggested} tone="travel" />
-          <Stat label="Ofördelad/oklar" minutes={summary.suggestedMinutes} tone="suggested" />
+          <Stat
+            label="Bekräftad tid"
+            sublabel="Stängda timrar & godkänd restid"
+            minutes={summary.confirmedMinutes + summary.travelMinutesApproved}
+            tone="confirmed"
+          />
+          <Stat
+            label="Pågående nu"
+            sublabel="Aktiv timer på projektet"
+            minutes={summary.activeMinutes}
+            tone="active"
+          />
+          <Stat
+            label="Föreslagen tid"
+            sublabel="GPS/auto-detect, ej godkänd"
+            minutes={summary.suggestedMinutes + summary.travelMinutesSuggested}
+            tone="suggested"
+          />
+          <Stat
+            label="Kräver granskning"
+            sublabel="Avvikelser & oklara rader"
+            minutes={null}
+            count={summary.anomalies.length + rows.filter(r => computeStatus(r) === 'needs_review').length}
+            tone="review"
+          />
         </div>
+        <p className="text-[11px] text-muted-foreground -mt-2">
+          OBS: Bekräftad, Pågående och Föreslagen är separata kategorier — summeras
+          aldrig till en gemensam total. Endast bekräftad tid är slutlig.
+        </p>
 
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">Ingen personal eller tid ännu.</p>
@@ -273,16 +298,29 @@ export const ProjectAutoTimeSection = ({ target, includeBookingIds = [], planned
   );
 };
 
-const Stat = ({ label, minutes, tone }: { label: string; minutes: number; tone: 'confirmed' | 'active' | 'suggested' | 'travel' }) => {
+const Stat = ({
+  label, sublabel, minutes, count, tone,
+}: {
+  label: string;
+  sublabel?: string;
+  minutes?: number | null;
+  count?: number;
+  tone: 'confirmed' | 'active' | 'suggested' | 'travel' | 'review';
+}) => {
   const color =
     tone === 'confirmed' ? 'text-foreground'
     : tone === 'active' ? 'text-emerald-600 dark:text-emerald-400'
     : tone === 'travel' ? 'text-blue-600 dark:text-blue-400'
+    : tone === 'review' ? 'text-rose-600 dark:text-rose-400'
     : 'text-amber-600 dark:text-amber-400';
+  const display = minutes != null
+    ? (minutes > 0 ? fmt(minutes) : '—')
+    : (count && count > 0 ? `${count}` : '—');
   return (
     <div className="rounded-lg bg-muted/40 p-3 text-center">
-      <p className={`text-xl font-bold ${color}`}>{minutes > 0 ? fmt(minutes) : '—'}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`text-xl font-bold ${color}`}>{display}</p>
+      <p className="text-xs font-medium text-foreground">{label}</p>
+      {sublabel && <p className="text-[10px] text-muted-foreground mt-0.5">{sublabel}</p>}
     </div>
   );
 };
