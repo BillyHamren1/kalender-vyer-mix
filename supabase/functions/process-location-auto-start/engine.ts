@@ -287,9 +287,79 @@ async function ensureWorkdayOpen(
   hit: StableHit, report: ProcessReport,
 ): Promise<string | null> {
   const { data: existing } = await supabase
-    .from('workdays').select('id').eq('staff_id', staffId).is('ended_at', null).maybeSingle()
+    .from('workdays')
+    .select('id, started_at, started_by, metadata')
+    .eq('staff_id', staffId)
+    .is('ended_at', null)
+    .maybeSingle()
   if (existing?.id) {
-    report.skipped_existing++
+    // ── Rewind-policy ────────────────────────────────────────────────
+    // Om GPS bekräftar arbete TIDIGARE än den nuvarande workday-starten
+    // (t.ex. assigned-projekt 08:00, men workday öppnades vid 13:10 av
+    // watchdog/senare auto-start), backdatera till första stabila ankomst.
+    // Säkert ENDAST när:
+    //   - existing.started_by är server-källa (aldrig manuell/admin),
+    //   - skillnaden är ≥ 5 min (undviker brus),
+    //   - och den nya tiden är samma kalenderdag (UTC) som existing.
+    try {
+      const arrivalMs = new Date(arrivalIso).getTime()
+      const existingMs = existing.started_at ? new Date(existing.started_at).getTime() : null
+      const startedBy = String(existing.started_by ?? '')
+      const isServerStarted =
+        startedBy === 'server_auto_start'
+        || startedBy === 'server_auto_start_backfill'
+        || startedBy === 'system'
+        || startedBy === 'watchdog'
+        || startedBy === ''
+      const sameDay = existingMs != null
+        && new Date(arrivalMs).toISOString().slice(0, 10) === new Date(existingMs).toISOString().slice(0, 10)
+      if (
+        existingMs != null
+        && isServerStarted
+        && sameDay
+        && arrivalMs <= existingMs - 5 * 60_000
+      ) {
+        if (report.dry_run) {
+          planPush(report, {
+            action: 'workday_rewind',
+            workday_id: existing.id,
+            from: existing.started_at,
+            to: arrivalIso,
+            target: hit.target.label,
+          })
+        } else {
+          const prevMeta = (existing.metadata && typeof existing.metadata === 'object') ? existing.metadata : {}
+          await supabase
+            .from('workdays')
+            .update({
+              started_at: arrivalIso,
+              started_by: report.mode === 'backfill_day' ? 'server_auto_start_backfill' : 'server_auto_start',
+              metadata: {
+                ...prevMeta,
+                auto_started: true,
+                rewound_from: existing.started_at,
+                rewound_at: new Date().toISOString(),
+                rewound_reason: 'earlier_stable_gps_on_assigned_or_known_site',
+                auto_start_source: report.source_tag,
+                engine_version: report.engine_version,
+                run_id: report.run_id,
+                matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+                confidence: hit.confidence,
+                arrival_pings_count: hit.pings.length,
+                first_arrival_ping_at: arrivalIso,
+                dwell_ms: hit.dwellMs,
+                avg_accuracy_m: hit.avgAccuracy,
+              },
+            })
+            .eq('id', existing.id)
+          report.workdays_opened++
+        }
+      } else {
+        report.skipped_existing++
+      }
+    } catch (_e) {
+      report.skipped_existing++
+    }
     return existing.id
   }
   if (report.dry_run) {
