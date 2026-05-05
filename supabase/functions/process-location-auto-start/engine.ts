@@ -612,6 +612,9 @@ async function ensureTravelLog(
     previous_target_id: prevHit.target.id,
     next_target_type: nextHit.target.kind,
     next_target_id: nextHit.target.id,
+    // Tag destination booking so projektvyn kan visa restiden som suggested
+    // travel mot rätt projekt utan att admin behöver pussla manuellt.
+    destination_booking_id: nextHit.target.kind === 'booking' ? nextHit.target.id : null,
     description: `Auto-switch ${prevHit.target.label} → ${nextHit.target.label}`,
   })
   if (error) report.errors.push(`travel insert: ${error.message}`)
