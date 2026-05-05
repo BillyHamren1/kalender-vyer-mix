@@ -85,13 +85,25 @@ export interface UnclassifiedAnomalyDecision {
   count: number;
   oldestStartedAtIso: string;
 }
+export interface LateAfterPlannedStartDecision {
+  kind: 'late_after_planned_start';
+  /** ISO för planerad start idag. */
+  plannedStartIso: string;
+  /** Mänsklig label på planerad arbetsplats/projekt. */
+  plannedLabel: string;
+  /** ISO för första GPS/app-signal idag. */
+  firstSignalIso: string;
+  /** Minuter mellan planerad start och första signal. */
+  lateMinutes: number;
+}
 
 export type AssistantDecision =
   | DaystartDecision
   | ActivityLeaveDecision
   | LastWorkplaceForDayDecision
   | LongPassNoBreakDecision
-  | UnclassifiedAnomalyDecision;
+  | UnclassifiedAnomalyDecision
+  | LateAfterPlannedStartDecision;
 
 // ── State som regelmotorn behöver ──
 export interface CachedTarget {
