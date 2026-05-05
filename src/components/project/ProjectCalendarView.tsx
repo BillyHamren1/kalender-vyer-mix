@@ -169,8 +169,8 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
           <CalIcon className="h-4 w-4 text-primary" />
           <CardTitle className="text-base">Projektkalender</CardTitle>
           <Badge variant="outline" className="text-[10px]">
-            {projectDays.length > 0
-              ? `${projectDays.length} ${projectDays.length === 1 ? 'dag' : 'dagar'}`
+            {effectiveDays.length > 0
+              ? `${effectiveDays.length} ${effectiveDays.length === 1 ? 'dag' : 'dagar'}`
               : 'Inga planerade dagar'}
           </Badge>
         </div>
@@ -182,7 +182,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
       <CardContent className="p-0">
         <div className="project-calendar-shell">
           <div style={{ minHeight: '1020px', height: 'calc(100vh - 260px)' }}>
-            {projectDays.length === 0 ? (
+            {effectiveDays.length === 0 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted-foreground italic">
                 Projektet saknar planerade dagar
               </div>
@@ -190,7 +190,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
               <CustomCalendar
                 events={filteredEvents}
                 setEvents={setEvents}
-                resources={teamResources}
+                resources={teamResourcesWithTasks}
                 isLoading={isLoading}
                 isMounted={isMounted}
                 currentDate={anchorDate}
@@ -202,9 +202,9 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                 weeklyStaffOperations={staffOps}
                 getVisibleTeamsForDay={getVisibleTeamsForDay}
                 onToggleTeamForDay={handleToggleTeamForDay}
-                allTeams={teamResources}
+                allTeams={teamResourcesWithTasks}
                 isEventReadOnly={() => false}
-                daysOverride={projectDays}
+                daysOverride={effectiveDays}
                 getDayCardClassName={getDayCardClassName}
                 timeGridFullWidth
               />
