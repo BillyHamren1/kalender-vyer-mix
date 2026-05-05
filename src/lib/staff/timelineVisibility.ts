@@ -467,8 +467,8 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
 
     const arrC = classified[arrIdx];
     const arrEv = arrC.event;
-    arrC.visibility = 'raw_only';
-    arrC.reason_hidden = 'within_journey';
+    // Behåll arrival som egen main-rad — destinationens vistelse får
+    // aldrig sväljas av en syntetisk förflyttningsrad.
 
     const journeyMeta: JourneyMeta = {
       journey_block: true,
