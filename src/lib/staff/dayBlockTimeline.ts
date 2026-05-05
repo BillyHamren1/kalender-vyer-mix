@@ -78,6 +78,17 @@ export interface PresenceBlock {
     active: boolean;
     present: boolean;
   };
+  /** Tidrapport-fönster (om tidrapport finns). */
+  timeReport: {
+    startedIso: string | null;
+    closedIso: string | null;
+    present: boolean;
+  };
+  /** GPS arrival/departure-tider (för subtitle). */
+  arrivalIso: string | null;
+  departureIso: string | null;
+  /** Planerad starttid (om känd via planning). */
+  plannedStartIso: string | null;
   /** Bevisflaggor — vilka källor stödjer detta arbetsblock. */
   sources: {
     timeReport: boolean;
@@ -212,6 +223,10 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sourceEventIds: [ev.id],
         innerEvents: [],
         timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+        timeReport: { startedIso: null, closedIso: null, present: false },
+        arrivalIso: ev.kind === 'gps_arrival' ? ev.at : null,
+        departureIso: null,
+        plannedStartIso: (m.plannedStartIso as string | undefined) ?? (m.planned_start as string | undefined) ?? null,
         sources: { timeReport: false, timer: false, gpsVisit: ev.kind === 'gps_visit' || ev.kind === 'gps_arrival', assistant: false },
         evidenceLabel: null,
         confidence: 'low',
@@ -283,7 +298,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     if (!target || bestScore > 1_800_000) continue;
     target.innerEvents.push(ev);
 
-    // Uppdatera timer-info på presence-block
+    // Uppdatera timer/time_report/arrival-info på presence-block
     if (target.kind === 'presence') {
       if (ev.kind === 'timer_started') {
         if (!target.timer.startedIso) target.timer.startedIso = ev.at;
@@ -293,6 +308,16 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         target.timer.stoppedIso = ev.at;
         target.timer.present = true;
         target.timer.active = false;
+      } else if (ev.kind === 'time_report_created') {
+        target.timeReport.startedIso = ev.at;
+        target.timeReport.present = true;
+      } else if (ev.kind === 'time_report_closed') {
+        target.timeReport.closedIso = ev.at;
+        target.timeReport.present = true;
+      } else if (ev.kind === 'gps_arrival' || ev.kind === 'assistant_arrival') {
+        if (!target.arrivalIso || ev.at < target.arrivalIso) target.arrivalIso = ev.at;
+      } else if (ev.kind === 'gps_departure' || ev.kind === 'assistant_departure') {
+        if (!target.departureIso || ev.at > target.departureIso) target.departureIso = ev.at;
       }
     }
   }
@@ -340,6 +365,10 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       sourceEventIds: [cr.id, ...(cl ? [cl.id] : [])],
       innerEvents: [],
       timer: { startedIso: null, stoppedIso: null, active: !endIso, present: true },
+      timeReport: { startedIso: startIso, closedIso: endIso, present: true },
+      arrivalIso: null,
+      departureIso: null,
+      plannedStartIso: null,
       sources: { timeReport: true, timer: false, gpsVisit: false, assistant: false },
       evidenceLabel: null,
       confidence: 'medium',
@@ -401,6 +430,10 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         sourceEventIds: [],
         innerEvents: rawInWindow,
         timer: { startedIso: null, stoppedIso: null, active: false, present: false },
+        timeReport: { startedIso: null, closedIso: null, present: false },
+        arrivalIso: null,
+        departureIso: null,
+        plannedStartIso: null,
         sources: { timeReport: false, timer: false, gpsVisit: false, assistant: false },
         evidenceLabel: null,
         confidence: 'low',
