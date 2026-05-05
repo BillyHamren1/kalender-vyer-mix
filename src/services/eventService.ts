@@ -62,38 +62,63 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     console.log('🔑 [fetchCalendarEvents] Session OK, user:', sessionData.session.user.id.slice(0, 8) + '...');
   }
 
-  const { data, error, status, statusText } = await supabase
-    .from('calendar_events')
-    .select(`
-      id,
-      title,
-      start_time,
-      end_time,
-      resource_id,
-      booking_id,
-      event_type,
-      delivery_address,
-      booking_number,
-      source_date
-    `)
-    .neq('event_type', 'event')
-    .order('start_time', { ascending: true });
+  // Paginated fetch — PostgREST hard caps single requests at 1000 rows.
+  // Loop with .range() until a partial page is returned.
+  const PAGE_SIZE = 1000;
+  const CALENDAR_WINDOW_DAYS_BACK = 60;
+  const CALENDAR_WINDOW_DAYS_FORWARD = 365;
+  const windowFrom = format(subDays(new Date(), CALENDAR_WINDOW_DAYS_BACK), 'yyyy-MM-dd');
+  const windowTo = format(addDays(new Date(), CALENDAR_WINDOW_DAYS_FORWARD), 'yyyy-MM-dd');
 
-  const elapsed = Math.round(performance.now() - t0);
+  const realRows: any[] = [];
+  let pageIndex = 0;
+  // Hard safety cap to avoid runaway loops (10 pages = 10 000 rader).
+  const MAX_PAGES = 20;
+  while (pageIndex < MAX_PAGES) {
+    const fromIdx = pageIndex * PAGE_SIZE;
+    const toIdx = fromIdx + PAGE_SIZE - 1;
+    const { data, error, status, statusText } = await supabase
+      .from('calendar_events')
+      .select(`
+        id,
+        title,
+        start_time,
+        end_time,
+        resource_id,
+        booking_id,
+        event_type,
+        delivery_address,
+        booking_number,
+        source_date
+      `)
+      .neq('event_type', 'event')
+      .gte('start_time', windowFrom)
+      .lte('start_time', windowTo)
+      .order('start_time', { ascending: true })
+      .range(fromIdx, toIdx);
 
-  if (error) {
-    console.error(`❌ [fetchCalendarEvents] Failed in ${elapsed}ms — HTTP ${status} ${statusText}`, {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-    });
-    throw error;
+    if (error) {
+      const elapsed = Math.round(performance.now() - t0);
+      console.error(`❌ [fetchCalendarEvents] Failed page ${pageIndex} in ${elapsed}ms — HTTP ${status} ${statusText}`, {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      throw error;
+    }
+
+    const rows = data || [];
+    realRows.push(...rows);
+    pageIndex += 1;
+    if (rows.length < PAGE_SIZE) break;
+    if (pageIndex === MAX_PAGES) {
+      console.warn(`⚠️ [fetchCalendarEvents] Hit MAX_PAGES (${MAX_PAGES}) — there may be more rows beyond ${realRows.length}. Increase MAX_PAGES or shrink window.`);
+    }
   }
 
-  console.log(`✅ [fetchCalendarEvents] Fetched ${data?.length || 0} real calendar rows in ${elapsed}ms (HTTP ${status})`);
-
-  const realRows = data || [];
+  const elapsed = Math.round(performance.now() - t0);
+  console.log(`✅ [fetchCalendarEvents] Fetched ${realRows.length} real calendar rows across ${pageIndex} page(s) in ${elapsed}ms (window ${windowFrom} → ${windowTo})`);
   const fromDate = realRows.length > 0
     ? extractMinDate(realRows.map(event => event.source_date || event.start_time))
     : format(subDays(new Date(), 14), 'yyyy-MM-dd');

@@ -1,83 +1,66 @@
-## Mål
 
-Producera ett enda nedladdningsbart felsökningsdokument (`/mnt/documents/time-tracking-debug-2026-05-04.md`) med **rådata, loggar och kodreferenser** för dagens tidrapporteringsproblem — så att ChatGPT kan korsläsa GPS, geofence, timer, workday, time_reports och UI-state utan att gissa.
+## Problem (bekräftat)
 
-Inget produktivt skrivs — endast SELECT mot DB + läsning av edge-loggar + kodgrep.
+Jobb försvinner från `/calendar` för att `fetchCalendarEvents` i `src/services/eventService.ts` hämtar `calendar_events` **utan paginering och utan radgräns**. PostgREST har en hård default-gräns på **1000 rader**.
 
-## Vad som hamnar i bundeln
+Databasen innehåller just nu **1026 planeringsrader** (`event_type <> 'event'`). Konsolen bekräftar:
 
-### Sektion A — Rådata (rå SQL, ej sammanfattat)
-
-Alla queries filtreras på dagens datum i `Europe/Stockholm` och organisationen för aktuella staff. Resultaten klistras in som JSON-arrays.
-
-1. **GPS-pings** — `staff_location_history` (kolumner som finns: `staff_id, lat, lng, accuracy, speed, recorded_at, time_report_id, created_at`). Notering i bundeln: `battery_level`, `provider`, `source`, `synced_at` finns **inte** i tabellen — det är en lucka som ska redovisas, inte hittas på.
-2. **Assistant/geofence events** — `assistant_events` (alla kolumner: event_type, target_*, happened_at, detected_at, source, suggested_action, resolution_status, resolved_at, dedupe_key, metadata, linked_workday_id, linked_time_report_id).
-3. **Timer-rader** — `location_time_entries` (id, staff_id, location_id, booking_id, large_project_id, task_id, source, entered_at, exited_at, entry_date, total_minutes, client_dedupe_key, created_at). Både öppna och stängda idag. Notering: `start_source/stop_source/stop_reason/status/device_id/metadata` finns inte i schemat — redovisas som lucka.
-4. **Workdays** — `workdays` (id, staff_id, started_at, ended_at, started_by, ended_by, notes, organization_id, samt review-status-kolumner om de finns).
-5. **time_reports** — alla rader där `report_date = today` ELLER `created_at::date = today`. Inkluderar `source, source_entry_id, is_subdivision, parent_time_report_id, approved`.
-6. **workday_flags** för idag (full radutskrift).
-7. **Sync-/queue-tabeller** — listar alla `public`-tabeller vars namn matchar `%queue%|%sync%|%pending%` och dumpar dagens rader. Om inga finns: redovisas som "ingen serverside queue — kön ligger i klientens localStorage/IndexedDB".
-
-### Sektion B — Edge function-loggar (idag)
-
-Sista 200 rader från:
-- `mobile-app-api` (filtreras på `start_timer|stop_timer|stale|already_running|no_active_timer|sync_failed|discard|upload_location_batch`)
-- `workday` (start/end/current)
-- `close-stale-workday-entries` (auto-stop watchdog)
-- `day-timeline-engine`
-- `reverse-geocode-staff`
-- `process-sync-jobs`
-
-För varje träff: timestamp, staff-id, action, status.
-
-### Sektion C — Kodanalys: var fattas auto-stop-beslut?
-
-Kort genomgång (filer + radnummer + 5–10 rader citat) för var och en av användarens 8 frågor:
-
-1. **Var stoppas timer automatiskt?**
-   - `supabase/functions/close-stale-workday-entries/index.ts` (server-watchdog, planning-aware via `plannedDay.ts`)
-   - `src/hooks/useGeofencing.ts` — `decideExitAction` → `auto_stop_day` / `auto_start_travel` / `prompt_destination`
-   - `src/lib/workday/plannedDay.ts` — bestämmer `plannedEndOfDay`
-2. **Vilka villkor triggar auto-stop?** — exit-event + planerat slut passerat, stale-flagga, geofence-EXIT med decision.
-3. **"No recent ping" → lämnat platsen?** — kolla `useTimerReconciliation.ts` (24h stale), watchdog-funktionen, `pingPlaceSegments.ts`.
-4. **Stoppar timer på dålig accuracy?** — grep `accuracy` i `useGeofencing.ts` / `locationPingHandler`.
-5. **Stale-state stop?** — `useTimerReconciliation` flaggar (men raderar inte), watchdog stänger.
-6. **Lokal timer rensas utan server-stop?** — kolla `eventflow-mobile-timers` writes i `useGeofencing`, `useTimerStartFlow`, `useWorkSession`, `GlobalActiveTimerBanner`.
-7. **Server-timer aktiv men inte i UI?** — granska `GlobalActiveTimerBanner` synlighetsvillkor + `useTimerReconciliation` (server-open men ingen lokal nyckel = osynlig).
-8. **Flera "sources of truth"?** — kartlägg: `location_time_entries` (server) vs `localStorage["eventflow-mobile-timers"]` (klient) vs `workdays` vs `providerActiveTimers` (Geofencing context).
-
-### Sektion D — UI-state-instrumentation (one-shot, ej permanent)
-
-Eftersom "timer igång men inte i UI" bara går att se från klienten lägger jag in en **temporär debug-route** `/m/debug/timer-state` som dumpar:
-- `localStorage["eventflow-mobile-timers"]`
-- `localStorage["eventflow-workday-*"]`
-- `useGeofencing().activeTimers`
-- `useWorkDay()` server-state
-- Banner-villkor (samma uttryck som `GlobalActiveTimerBanner` använder, sida vid sida med utfall true/false)
-- `useTimerReconciliation().staleTimers`
-
-Personen med osynlig timer öppnar `/m/debug/timer-state`, screenshot eller copy-knapp → klistras in i bundeln. Routen tas bort efter felsökning.
-
-### Sektion E — Korsanalys-tabell
-
-Per staff_id som har aktivitet idag, en tabell:
-
-```text
-staff | first_ping | last_ping | open_lte | last_lte_close | workday_open | last_time_report | flags | inkonsistens
+```
+✅ [fetchCalendarEvents] Fetched 1000 real calendar rows in 295ms
 ```
 
-Med kort prosa per rad: "öppen `location_time_entries` finns men ingen lokal nyckel i klient-screenshot → banner-villkor falskt → osynlig".
+→ 26 verkliga kalenderhändelser tappas tyst varje load. Vilka 26 som försvinner beror på `order start_time asc` — dvs de **senaste** datumen klipps bort. När importen lägger till nya bokningar trillar äldre/nya rader ur listan beroende på sortering. Detta är källan till "jobb försvinner".
 
-## Leverans
+Detta är inte en bug i den nya GPS/workday-logiken — det är en gammal latent gräns som nu slagit i taket när bokningsvolymen passerade 1000 calendar_events.
 
-En fil: `/mnt/documents/time-tracking-debug-2026-05-04.md` + `<lov-artifact>`-tagg så användaren kan ladda ner direkt.
+## Lösning
 
-Plus den temporära debug-routen (sektion D) som en separat liten ändring — den måste byggas i default-läge.
+Två lager av skydd, båda behövs:
 
-## Tekniska noter / luckor som redovisas öppet
+### 1. Sidpaginering i `fetchCalendarEvents` (huvudfix)
 
-- `staff_location_history` saknar `battery_level`, `provider`, `source`, `synced_at` → kan inte särskilja background/foreground/manual-sync utan klientinstrumentering.
-- `location_time_entries` saknar `start_source`, `stop_source`, `stop_reason`, `device_id`, `metadata` → vi vet inte vem/vad som stängde en rad utan att korrelera mot edge-loggar + assistant_events.
-- Det finns **ingen serverside sync-queue-tabell** — pending sync ligger i klientens localStorage (`pending-location-time-entries`, `pending-time-reports`). Sektion D fångar detta.
+Byt det enskilda `.select(...)`-anropet mot en loop som hämtar i batchar om 1000 via `.range(from, to)` tills färre än 1000 returneras. Då försvinner gränsen för all framtid, oavsett hur många rader som finns.
 
-Ingen produktionsdata mutateras. Allt är SELECT + log read + en ny read-only debug-route.
+```text
+let all = []
+let from = 0
+const PAGE = 1000
+loop:
+  rows = select(...).range(from, from+PAGE-1)
+  all.push(...rows)
+  if rows.length < PAGE break
+  from += PAGE
+```
+
+Logga totalt antal sidor + totalt antal rader så vi ser i konsolen om vi någonsin närmar oss en ny gräns.
+
+### 2. Defensiv date-window-filtrering (sekundär)
+
+Lägg till `.gte('start_time', now - 60 dagar)` och `.lte('start_time', now + 365 dagar)` på själva queryn. Kalendern visar ändå inte rader äldre än ett par månader bakåt, och detta håller payload nere så att paginering nästan aldrig behövs i normalfallet (snabbare laddning + lägre PostgREST-tryck).
+
+Window-storleken görs konfigurerbar via konstanter överst i filen (`CALENDAR_WINDOW_DAYS_BACK = 60`, `CALENDAR_WINDOW_DAYS_FORWARD = 365`) så vi kan utöka utan kodändring i loopen.
+
+### 3. Säkerhetsnät (regression)
+
+Lägg till en `console.warn` om en sida returnerar exakt 1000 rader **men** loopen avbryts (defensivt: borde aldrig hända med korrekt loop, men loggar tydligt om någon framtida ändring råkar bryta paginering).
+
+Lägg till ett enkelt enhetstest `src/test/fetchCalendarEvents.pagination.test.ts` som mockar supabase-klienten och verifierar att 2500 rader fördelade på 3 sidor returneras kompletta (3 × range-anrop, total = 2500).
+
+## Filer som ändras
+
+- `src/services/eventService.ts` — paginerad loop + datumfönster + warn-loggar
+- `src/test/fetchCalendarEvents.pagination.test.ts` *(ny)* — paginering-kontrakttest
+
+## Vad fixen INTE rör
+
+- Ingen ändring av `buildPlannerCalendarEvents`, sync, eller import.
+- Ingen ändring i den pågående arbetsdag/GPS-logiken (req 1–9).
+- Inga DB-migrationer.
+
+## Verifiering efteråt
+
+1. Ladda `/calendar` och bekräfta att konsolen säger `Fetched 1026 real calendar rows` (eller högre) istället för 1000.
+2. Bekräfta att `Returning N planner events` ökar motsvarande.
+3. Slå upp en booking som tidigare "försvann" (de med senaste `start_time`) och bekräfta att den syns i kalendern igen.
+
+Vill du att jag kör fixen?
