@@ -637,6 +637,59 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
       )}
 
+      {/* Scan debug — timing for last 10 scans */}
+      {showScanDebug && (
+        <div className="shrink-0 border-b bg-card max-h-[40vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40 sticky top-0">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              Scan debug ({scanTimeline.length})
+            </span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => clearScanTimeline()} className="text-[10px] px-2 py-0.5 rounded hover:bg-muted text-muted-foreground">
+                Rensa
+              </button>
+              <button onClick={() => setShowScanDebug(false)} className="p-0.5 rounded hover:bg-muted">
+                <X className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+          <div className="px-3 py-1.5 text-[9px] font-mono text-muted-foreground border-b grid grid-cols-12 gap-1">
+            <span className="col-span-3">Kod</span>
+            <span className="col-span-2">Källa</span>
+            <span className="col-span-2">Status</span>
+            <span className="col-span-1 text-right">cam→proc</span>
+            <span className="col-span-2 text-right">api</span>
+            <span className="col-span-2 text-right">total</span>
+          </div>
+          <div className="divide-y divide-border/30">
+            {scanTimeline.slice(0, 10).map((e) => {
+              const tail = e.value.length > 12 ? `…${e.value.slice(-10)}` : e.value;
+              const fmt = (n?: number) => (typeof n === 'number' ? `${Math.round(n)}` : '–');
+              const statusColor =
+                e.status === 'success' ? 'text-emerald-600'
+                : e.status === 'duplicate' ? 'text-amber-600'
+                : e.status === 'detected' || e.status === 'queued' || e.status === 'sent_to_backend' ? 'text-sky-600'
+                : 'text-red-600';
+              return (
+                <div key={e.id} className="px-3 py-1 grid grid-cols-12 gap-1 text-[10px] font-mono items-center">
+                  <span className="col-span-3 truncate" title={e.value}>{tail}</span>
+                  <span className="col-span-2 truncate text-muted-foreground">{e.source}</span>
+                  <span className={`col-span-2 truncate ${statusColor}`}>{e.status}</span>
+                  <span className="col-span-1 text-right tabular-nums">{fmt(e.cameraToProcessorMs)}</span>
+                  <span className="col-span-2 text-right tabular-nums">{fmt(e.apiRoundtripMs)}</span>
+                  <span className="col-span-2 text-right tabular-nums font-semibold">{fmt(e.totalScanMs)}</span>
+                </div>
+              );
+            })}
+            {scanTimeline.length === 0 && (
+              <div className="px-3 py-3 text-[11px] text-muted-foreground text-center">
+                Inga scans ännu — gör en skanning för att se tider.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Recent scans (collapsible, doesn't push list) */}
       {showRecentScans && recentScans.length > 0 && (
         <div className="shrink-0 border-b bg-card max-h-[28vh] overflow-y-auto">
