@@ -625,6 +625,23 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         </span>
                         <span>unmatch_reason:</span>
                         <span className="text-foreground">{visit.unmatchReason ?? '—'}</span>
+                        {(() => {
+                          // Derive "why no auto-start" reason for this cluster.
+                          const v: any = visit;
+                          const reasons: string[] = [];
+                          if (!v.nearestKnownSite) reasons.push('no known site');
+                          else if (v.nearestKnownSite.outsideByMeters > 0) reasons.push(`outside radius (${v.nearestKnownSite.outsideByMeters} m)`);
+                          if (v.pingCount < 3 && (!v.dwellMs || v.dwellMs < 2 * 60_000)) reasons.push('unstable pings');
+                          if (v.avgAccuracy != null && v.avgAccuracy > 75) reasons.push('poor accuracy');
+                          if (v.nearestKnownSite && (v.nearestKnownSite.lat == null || v.nearestKnownSite.lng == null)) reasons.push('missing target coordinates');
+                          if (reasons.length === 0) reasons.push('no cron run / engine guard');
+                          return (
+                            <>
+                              <span>no_auto_start_reason:</span>
+                              <span className="text-amber-600">{reasons.join(', ')}</span>
+                            </>
+                          );
+                        })()}
                       </div>
                     </li>
                   )}
