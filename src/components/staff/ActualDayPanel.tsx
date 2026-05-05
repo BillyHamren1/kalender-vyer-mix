@@ -37,7 +37,7 @@ import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStop
 import { computeStrongWorkIndicators, type StrongWorkReasonCode } from '@/lib/staff/strongWorkIndicators';
 import { resolvePlaceLabel } from '@/lib/staff/resolvePlaceLabel';
 import ProjectVisitBlock, { buildProjectBlocks } from './ProjectVisitBlock';
-import { buildDayBlockTimeline } from '@/lib/staff/dayBlockTimeline';
+import { buildDayBlockTimeline, type VisitInfo } from '@/lib/staff/dayBlockTimeline';
 import DayBlockTimeline from './DayBlockTimelineView';
 
 /**
