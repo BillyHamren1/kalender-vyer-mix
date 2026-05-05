@@ -369,7 +369,7 @@ const PlanningSection: React.FC<{ events: ActualEvent[] }> = ({ events }) => {
             return (
               <li key={ev.id} className="text-xs text-foreground tabular-nums flex gap-2">
                 <span className="text-muted-foreground w-24">
-                  {fmtHm(ev.at)}{endIso ? `–${fmtHm(endIso)}` : ''}
+                  {extractUTCTime(ev.at)}{endIso ? `–${extractUTCTime(endIso)}` : ''}
                 </span>
                 <span>Start · {ev.place ?? ev.label?.replace(/^Planerad start:\s*/, '') ?? '—'}</span>
               </li>
