@@ -66,6 +66,8 @@ export interface StableHit {
 }
 
 export interface ProcessReport {
+  run_id: string
+  engine_version: string
   mode: 'cron' | 'backfill_day'
   dry_run: boolean
   source_tag: string
