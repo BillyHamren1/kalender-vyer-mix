@@ -2546,16 +2546,19 @@ export type Database = {
         Row: {
           id: string
           last_processed_recorded_at: string | null
+          organization_id: string | null
           updated_at: string
         }
         Insert: {
           id: string
           last_processed_recorded_at?: string | null
+          organization_id?: string | null
           updated_at?: string
         }
         Update: {
           id?: string
           last_processed_recorded_at?: string | null
+          organization_id?: string | null
           updated_at?: string
         }
         Relationships: []
