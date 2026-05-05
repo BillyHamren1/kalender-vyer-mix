@@ -565,14 +565,40 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                       {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
                       {(() => {
                         const mm = (ev.meta ?? {}) as any;
-                        if (!mm.autoStarted) return null;
-                        const isServer = mm.autoStartSource === 'server_background_gps'
+                        const cls: string | undefined = mm.sourceClass;
+                        if (!mm.autoStarted && cls !== 'foreground_geofence' && cls !== 'server_background' && cls !== 'backfill') return null;
+                        const isServer = cls === 'server_background' || cls === 'backfill'
+                          || mm.autoStartSource === 'server_background_gps'
                           || mm.autoStartSource === 'server_background_gps_backfill';
+                        const isBackfill = cls === 'backfill' || mm.isBackfill === true
+                          || mm.autoStartSource === 'server_background_gps_backfill';
+                        const detailBits: string[] = [];
+                        if (mm.confidence) detailBits.push(String(mm.confidence));
+                        if (mm.pingCount != null) detailBits.push(`${mm.pingCount} pings`);
+                        if (mm.avgAccuracyM != null) detailBits.push(`±${Math.round(mm.avgAccuracyM)}m`);
+                        const tooltip = detailBits.join(' · ') || undefined;
                         return (
-                          <Badge className="ml-2 align-middle bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 text-[10px] py-0 px-1.5">
-                            {isServer ? 'Server auto-start' : 'Auto-startad från GPS'}
-                            {mm.confidence ? ` · ${mm.confidence}` : ''}
-                          </Badge>
+                          <span className="inline-flex items-center gap-1 ml-2 align-middle" title={tooltip}>
+                            <Badge className="bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 text-[10px] py-0 px-1.5">
+                              Auto-startad från GPS
+                              {mm.confidence ? ` · ${mm.confidence}` : ''}
+                            </Badge>
+                            {isServer && (
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5">Servermotor</Badge>
+                            )}
+                            {isBackfill && (
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300">
+                                Backfill
+                              </Badge>
+                            )}
+                            {(mm.pingCount != null || mm.avgAccuracyM != null) && (
+                              <span className="text-[10px] text-muted-foreground tabular-nums">
+                                {mm.pingCount != null ? `${mm.pingCount}p` : ''}
+                                {mm.pingCount != null && mm.avgAccuracyM != null ? ' · ' : ''}
+                                {mm.avgAccuracyM != null ? `±${Math.round(mm.avgAccuracyM)}m` : ''}
+                              </span>
+                            )}
+                          </span>
                         );
                       })()}
                       {isUnknownCluster && (
