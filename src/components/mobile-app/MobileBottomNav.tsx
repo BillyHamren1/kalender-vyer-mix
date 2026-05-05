@@ -1,9 +1,12 @@
 import { Briefcase, Clock, Wrench, MessageCircle, LayoutDashboard } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { format, addDays, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useUnreadMessageCount } from '@/hooks/useUnreadMessageCount';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
+import { mobileApi, getToken } from '@/services/mobileApiService';
 import type { TranslationKey } from '@/i18n/translations';
 
 type Tab = { path: string; labelKey: TranslationKey; icon: typeof Briefcase; exact?: boolean; showBadge?: boolean };
