@@ -21,6 +21,7 @@ async function getMapboxToken(): Promise<string | null> {
   }
 }
 
+export type LookupSource = 'mapbox' | 'none';
 export interface RichGeocode {
   label: string;
   /** Närmaste adress, om sådan finns. */
@@ -37,6 +38,14 @@ export interface RichGeocode {
   coords: { lat: number; lng: number } | null;
   /** True om Mapbox inte returnerade någon användbar plats. */
   unresolved: boolean;
+  /** Vilken provider svaret kom från (eller 'none' om inget kördes). */
+  source: LookupSource;
+  /** Felbeskrivning om uppslaget misslyckades (HTTP/exception/empty). */
+  error: string | null;
+  /** Cachekey som queryn använder — samma round som useQueries-key. */
+  cacheKey: string | null;
+  /** True om Mapbox-token kunde hämtas. */
+  tokenAvailable: boolean;
 }
 
 const mapsLink = (lat: number, lng: number) =>
