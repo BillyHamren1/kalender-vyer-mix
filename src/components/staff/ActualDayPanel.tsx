@@ -808,6 +808,12 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         </div>
       )}
 
+      {/* A2. Planering — collapsed sektion ovanför huvudjournalen.
+          Visar enbart förväntan; aldrig blandat med faktiska händelser. */}
+      {plannedEvents.length > 0 && (
+        <PlanningSection events={plannedEvents} />
+      )}
+
       {/* B. Faktiska händelser — alltid synlig */}
       <section className="px-4 py-3 border-b">
         <div className="flex items-center justify-between mb-2">
