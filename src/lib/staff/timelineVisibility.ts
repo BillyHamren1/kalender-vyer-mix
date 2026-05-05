@@ -390,8 +390,9 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
       }
       if (oev.kind === 'gps_arrival' && tp.to && oKey === tp.to
         && Math.abs(oMs - travelEnd) <= JOURNEY_WINDOW_MS) {
-        other.visibility = 'raw_only';
-        other.reason_hidden = 'within_journey';
+        // VIKTIGT: göm INTE arrival-raden — destinationens vistelse måste
+        // alltid synas som egen huvudrad så att travel inte "sväljer"
+        // målplatsen. Vi använder bara dess data till journey_block-meta.
         arrEv = oev;
         continue;
       }
