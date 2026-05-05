@@ -405,10 +405,16 @@ const MobileOverview: React.FC = () => {
                     {events.map(ev => {
                       const staff = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${ev.source_date}`) ?? [] : [];
                       const unstaffed = ev.booking_id && staff.length === 0;
+                      const job = jobsById.get(ev.id);
+                      const isLp = job?.target_type === 'large_project';
                       return (
                         <button
                           key={ev.id}
-                          onClick={() => ev.booking_id && navigate(`/m/job/${ev.booking_id}`)}
+                          onClick={() => {
+                            if (ev.booking_id) navigate(`/m/job/${ev.booking_id}`);
+                            else if (job && isLp && job.target_id) navigate(`/m/project/${job.target_id}`);
+                            else setDetail({ kind: 'large_project', id: ev.id, name: ev.title, date: ev.source_date, address: ev.delivery_address });
+                          }}
                           className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-border/60 active:scale-[0.99] transition-transform text-left"
                         >
                           <div className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold border', eventTypeColor(ev.event_type))}>
@@ -439,7 +445,7 @@ const MobileOverview: React.FC = () => {
                               )}
                             </div>
                           </div>
-                          {ev.booking_id && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />}
+                          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
                         </button>
                       );
                     })}
