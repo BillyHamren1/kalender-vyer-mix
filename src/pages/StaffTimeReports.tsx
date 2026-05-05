@@ -1257,7 +1257,13 @@ const StaffTimeReports: React.FC = () => {
           const actualModel = buildActualStaffDayModel({
             date: dateStr,
             workday: staffWorkdays.length > 0
-              ? { id: staffWorkdays[0].id, started_at: staffWorkdays[0].started_at, ended_at: staffWorkdays[0].ended_at }
+              ? {
+                  id: staffWorkdays[0].id,
+                  started_at: staffWorkdays[0].started_at,
+                  ended_at: staffWorkdays[0].ended_at,
+                  started_by: (staffWorkdays[0] as any).started_by ?? null,
+                  metadata: (staffWorkdays[0] as any).metadata ?? null,
+                }
               : null,
             timeReports: staffReports.map(r => ({
               id: r.id,
@@ -1279,6 +1285,7 @@ const StaffTimeReports: React.FC = () => {
               hours: e.hours,
               source: (e as any).source ?? null,
               entry_date: (e as any).entry_date ?? null,
+              metadata: (e as any).metadata ?? null,
             })),
             travelLogs: staffTravel.map(t => {
               const rt = rawTravel.find(x => x.id === t.id);
