@@ -57,18 +57,25 @@ const MobileScannerApp: React.FC = () => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
 
-  // Active scan handler ref — points to the correct handler based on current state
-  const activeScanHandler = useRef<(value: string) => void>(() => {});
+  // Active scan handler ref — receives the FULL ScanEvent so the active view
+  // can distinguish source (RFID vs barcode), symbology, etc.
+  const activeScanHandler = useRef<(scan: ScanEvent) => void>(() => {});
 
   // Central scanner controller — ALWAYS active, single instance for entire app
   const scanner = useScannerController({
     onScan: useCallback((scan: ScanEvent) => {
       if (scan.isDuplicate) return;
-      
-      console.log('[MobileScannerApp] Scan received:', scan.source, scan.value);
-      
-      // Both barcode AND RFID tags go through the same handler pipeline
-      activeScanHandler.current(scan.value);
+
+      console.log('[SCAN] scanner_event_received', {
+        source: scan.source,
+        type: scan.type,
+        value: scan.value,
+        symbology: scan.symbology,
+      });
+
+      // Forward the full ScanEvent — preserves source/type/symbology/rawData
+      console.log('[SCAN] scanner_event_routed_to_view');
+      activeScanHandler.current(scan);
     }, []),
     initialMode: 'barcode',
     autoInit: true, // Always active — no race conditions
@@ -144,7 +151,7 @@ const MobileScannerApp: React.FC = () => {
   // Update active scan handler when state changes
   useEffect(() => {
     if (state === 'home') {
-      activeScanHandler.current = handleBarcodeScan;
+      activeScanHandler.current = (scan: ScanEvent) => { handleBarcodeScan(scan.value); };
     }
   }, [state, handleBarcodeScan]);
 
@@ -230,7 +237,10 @@ const MobileScannerApp: React.FC = () => {
         <VerificationView 
           packingId={selectedPackingId}
           onBack={goHome}
-          registerScanHandler={(handler) => { activeScanHandler.current = handler; }}
+          registerScanHandler={(handler) => {
+            // VerificationView still consumes scan.value internally — wrap to preserve full event downstream
+            activeScanHandler.current = (scan: ScanEvent) => handler(scan.value);
+          }}
           scannerState={{
             currentMode: scanner.currentMode,
             isBarcodeReady: scanner.isBarcodeReady,

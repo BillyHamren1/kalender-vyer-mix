@@ -20,11 +20,13 @@ import {
   fetchPackingListItems,
   returnScanSku,
   physicalReturnScan,
+  parseScanResult,
   returnToggleItem,
   returnDecrementItem,
   returnResetItem,
 } from '@/services/scannerService';
 import type { PackingWithBooking } from '@/types/packing';
+import type { ScanEvent } from '@/services/scanner/types';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 
 interface Item {
@@ -45,7 +47,7 @@ interface Item {
 interface Props {
   packingId: string;
   onBack: () => void;
-  registerScanHandler?: (handler: (value: string) => void) => void;
+  registerScanHandler?: (handler: (scan: ScanEvent) => void) => void;
   returnedBy?: string;
 }
 
@@ -182,12 +184,31 @@ const ReturnView: React.FC<Props> = ({
   );
 
   const handleHardwareScan = useCallback(
-    async (raw: string) => {
-      const value = raw.trim();
+    async (scan: ScanEvent) => {
+      const value = (scan.value || '').trim();
       if (!value) return;
-      setScanInput('');
-      const res = await physicalReturnScan(packingId, value, returnedBy);
-      applyScanResult(res, value);
+      console.log('[SCAN] return_scan_received', { source: scan.source, type: scan.type, value });
+
+      const parsed = parseScanResult(value);
+      const isPhysical = scan.source === 'zebra_rfid' || scan.type === 'rfid' || parsed.unique;
+
+      try {
+        if (isPhysical) {
+          console.log('[SCAN] return_scan_physical_detected', { source: scan.source, parsedType: parsed.type });
+          const res = await physicalReturnScan(packingId, value, returnedBy);
+          if (res.success) console.log('[SCAN] return_scan_success', { itemId: res.itemId });
+          else console.warn('[SCAN] return_scan_failed', { error: res.error, debugCode: res.debugCode });
+          applyScanResult(res, value);
+        } else {
+          console.log('[SCAN] return_scan_sku_fallback', { value });
+          const res = await returnScanSku(packingId, value, returnedBy);
+          if (res.success) console.log('[SCAN] return_scan_success', { itemId: res.itemId });
+          else console.warn('[SCAN] return_scan_failed', { error: res.error, debugCode: res.debugCode });
+          applyScanResult(res, value);
+        }
+      } catch (err: any) {
+        console.error('[SCAN] return_scan_failed', err);
+      }
     },
     [packingId, returnedBy, applyScanResult],
   );
@@ -197,6 +218,7 @@ const ReturnView: React.FC<Props> = ({
       const value = raw.trim();
       if (!value) return;
       setScanInput('');
+      console.log('[SCAN] return_scan_sku_fallback', { value, manual: true });
       const res = await returnScanSku(packingId, value, returnedBy);
       applyScanResult(res, value);
     },
