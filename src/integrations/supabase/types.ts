@@ -2542,6 +2542,24 @@ export type Database = {
           },
         ]
       }
+      location_auto_start_cursor: {
+        Row: {
+          id: string
+          last_processed_recorded_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          last_processed_recorded_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          last_processed_recorded_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       location_time_entries: {
         Row: {
           booking_id: string | null
@@ -2553,6 +2571,7 @@ export type Database = {
           id: string
           large_project_id: string | null
           location_id: string | null
+          metadata: Json
           organization_id: string
           source: string
           staff_id: string
@@ -2569,6 +2588,7 @@ export type Database = {
           id?: string
           large_project_id?: string | null
           location_id?: string | null
+          metadata?: Json
           organization_id: string
           source?: string
           staff_id: string
@@ -2585,6 +2605,7 @@ export type Database = {
           id?: string
           large_project_id?: string | null
           location_id?: string | null
+          metadata?: Json
           organization_id?: string
           source?: string
           staff_id?: string
@@ -6964,6 +6985,7 @@ export type Database = {
           ended_at: string | null
           ended_by: string | null
           id: string
+          metadata: Json
           notes: string | null
           organization_id: string
           review_computed_at: string | null
@@ -6984,6 +7006,7 @@ export type Database = {
           ended_at?: string | null
           ended_by?: string | null
           id?: string
+          metadata?: Json
           notes?: string | null
           organization_id: string
           review_computed_at?: string | null
@@ -7004,6 +7027,7 @@ export type Database = {
           ended_at?: string | null
           ended_by?: string | null
           id?: string
+          metadata?: Json
           notes?: string | null
           organization_id?: string
           review_computed_at?: string | null
