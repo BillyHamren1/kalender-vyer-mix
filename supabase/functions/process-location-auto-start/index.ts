@@ -661,26 +661,64 @@ Deno.serve(async (req) => {
     { auth: { persistSession: false } },
   )
 
+  let body: any = {}
+  if (req.method === 'POST') {
+    try { body = await req.json() } catch { body = {} }
+  } else {
+    const url = new URL(req.url)
+    body = Object.fromEntries(url.searchParams.entries())
+  }
+  const action: 'cron' | 'backfill_day' = body.action === 'backfill_day' ? 'backfill_day' : 'cron'
+  const dryRun: boolean = action === 'backfill_day'
+    ? (body.dry_run !== false && body.dry_run !== 'false')
+    : false
+
   const report: ProcessReport = {
+    mode: action,
+    dry_run: dryRun,
+    source_tag: action === 'backfill_day' ? 'server_background_gps_backfill' : 'server_background_gps',
     staff: 0, pings: 0, arrivals: 0, switches: 0,
     workdays_opened: 0, ltes_opened: 0, ltes_closed: 0,
     travels_created: 0, events_emitted: 0, skipped_existing: 0, errors: [],
+    plan: [],
   }
 
   try {
-    const cursorIso = await loadCursor(supabase)
-    const fromIso = new Date(Math.min(
-      Date.now() - PROCESS_OVERLAP_MS,
-      new Date(cursorIso).getTime() - PROCESS_OVERLAP_MS,
-    )).toISOString()
+    let fromIso: string
+    let toIso: string
+    let staffFilter: string | null = null
+    let orgFilter: string | null = null
 
-    const { data: rawPings, error: pingErr } = await supabase
+    if (action === 'backfill_day') {
+      const date: string = String(body.date || '')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return new Response(JSON.stringify({ ok: false, error: 'date (YYYY-MM-DD) required for backfill_day' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      fromIso = new Date(`${date}T00:00:00.000Z`).toISOString()
+      toIso = new Date(`${date}T23:59:59.999Z`).toISOString()
+      staffFilter = body.staff_id || null
+      orgFilter = body.organization_id || null
+    } else {
+      const cursorIso = await loadCursor(supabase)
+      fromIso = new Date(Math.min(
+        Date.now() - PROCESS_OVERLAP_MS,
+        new Date(cursorIso).getTime() - PROCESS_OVERLAP_MS,
+      )).toISOString()
+      toIso = new Date().toISOString()
+    }
+
+    let q = supabase
       .from('staff_location_history')
       .select('id, staff_id, organization_id, lat, lng, accuracy, recorded_at')
       .gte('recorded_at', fromIso)
+      .lte('recorded_at', toIso)
       .order('recorded_at', { ascending: true })
-      .limit(5000)
+      .limit(action === 'backfill_day' ? 20000 : 5000)
+    if (staffFilter) q = q.eq('staff_id', staffFilter)
+    if (orgFilter) q = q.eq('organization_id', orgFilter)
 
+    const { data: rawPings, error: pingErr } = await q
     if (pingErr) throw pingErr
 
     const pings: Ping[] = (rawPings ?? []).map((r: any) => ({
@@ -702,10 +740,10 @@ Deno.serve(async (req) => {
 
     const targets = await loadTargets(supabase)
 
-    // Group per staff.
     const byStaff = new Map<string, Ping[]>()
     for (const p of pings) {
       if (!p.staff_id) continue
+      if (orgFilter && p.organization_id !== orgFilter) continue
       const arr = byStaff.get(p.staff_id) ?? []
       arr.push(p)
       byStaff.set(p.staff_id, arr)
@@ -720,8 +758,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const maxIso = pings[pings.length - 1].recorded_at
-    await saveCursor(supabase, maxIso)
+    if (action === 'cron' && !dryRun) {
+      const maxIso = pings[pings.length - 1].recorded_at
+      await saveCursor(supabase, maxIso)
+    }
 
     return new Response(JSON.stringify({ ok: true, report }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
