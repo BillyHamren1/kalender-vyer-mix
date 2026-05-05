@@ -27,7 +27,7 @@ import type {
   ActualStaffDayModel,
   ProposedAnomaly,
 } from '@/lib/staff/actualStaffDayModel';
-import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES } from '@/lib/staff/stopSourceClassifier';
+import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStopConfident } from '@/lib/staff/stopSourceClassifier';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
