@@ -212,6 +212,8 @@ const statusTagFor = (ev: ActualEvent): string => {
     if (!isStopConfident(cls)) return 'osäker · källa okänd';
     return 'bekräftad';
   }
+  if (kind === 'planned_signal_gap') return 'osäker · kräver granskning';
+  if (kind === 'planned_start') return 'förväntan';
   if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
   if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
     if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'adressuppslag';
