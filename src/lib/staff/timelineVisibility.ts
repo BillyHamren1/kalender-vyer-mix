@@ -21,7 +21,8 @@ export type TimelineVisibility = 'main' | 'raw_only';
 
 export type TimelineHiddenReason =
   | 'short_movement'        // gps_travel < 10 min mellan okända/oklara platser
-  | 'micro_stop'            // gps_visit/arrival/departure < 15 min utan match
+  | 'micro_stop'            // gps_visit/arrival/departure < 2 min — GPS-brus
+  | 'short_stop'            // gps_visit 2–15 min — kort stopp, ej eget pass
   | 'same_site_noise'       // gps_travel där from-coord ≈ to-coord
   | 'low_confidence'        // workRelevance = unknown_requires_lookup / raw_debug_only
   | 'private_background'    // workRelevance = private_or_background (privatzon/natt)
@@ -52,6 +53,10 @@ export const MIN_TRAVEL_MIN = 10;
  * del av föregående/nästa block. Se short-visit-no-auto-workpass-v1.
  */
 export const MIN_VISIT_MIN = 15;
+/** Under denna gräns är ett stopp alltid GPS-brus / raw_only. */
+export const MIN_NOISE_MIN = 2;
+/** Stark arbetsvistelse — visa som "möjlig arbetsvistelse" i journalen. */
+export const STRONG_VISIT_MIN = 30;
 
 function isMatched(ev: ActualEvent): boolean {
   const meta = (ev.meta ?? {}) as Record<string, unknown>;
@@ -109,13 +114,26 @@ export function classifyEventVisibility(ev: ActualEvent): ClassifiedEvent {
     }
   }
 
-  // 5) Korta okända besök / mikrostopp
+  // 5) Korta stopp / vistelser
+  //   0–2 min  → micro_stop (GPS-brus, alltid raw_only)
+  //   2–15 min → short_stop (raw_only by default; coalesce-pass kan promota
+  //              till main om stoppet ligger MELLAN två arbetsblock)
+  //   15+ min  → main (möjlig arbetsvistelse)
+  //   30+ min  → main (stark arbetsvistelse — annoteras i meta)
   if (ev.kind === 'gps_visit' || ev.kind === 'gps_arrival' || ev.kind === 'gps_departure') {
-    if (!matched && !workConfirmed && dur > 0 && dur < MIN_VISIT_MIN) {
-      return { event: ev, visibility: 'raw_only', reason_hidden: 'micro_stop' };
+    if (!matched && !workConfirmed && dur > 0) {
+      if (dur < MIN_NOISE_MIN) {
+        return { event: ev, visibility: 'raw_only', reason_hidden: 'micro_stop' };
+      }
+      if (dur < MIN_VISIT_MIN) {
+        // Markera som short_stop. Steg "short_stop_promotion" nedan kan lyfta
+        // det till main om det ligger mellan två arbetsblock och då labelas
+        // det "Kort stopp / kräver granskning".
+        return { event: ev, visibility: 'raw_only', reason_hidden: 'short_stop' };
+      }
     }
     // Okänd plats utan tydlig arbetskoppling — visa endast i raw.
-    if (!matched && rel === 'unknown_requires_lookup' && dur < MIN_VISIT_MIN) {
+    if (!matched && rel === 'unknown_requires_lookup' && dur < MIN_NOISE_MIN) {
       return { event: ev, visibility: 'raw_only', reason_hidden: 'low_confidence' };
     }
   }
@@ -251,12 +269,14 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
     }
   }
 
-  // Steg 2: korta okända stopp mellan två kända arbetsplatser → within_transition.
-  // Hittar mönster [main known A] [main raw_only kort okänd] [main known B].
+  // Steg 2a: korta okända stopp mellan två KÄNDA arbetsplatser → within_transition
+  // (de tillhör övergången, inte ett eget stopp).
   for (let i = 1; i < N - 1; i++) {
     const c = classified[i];
     if (c.visibility !== 'raw_only') continue;
-    if (c.reason_hidden !== 'micro_stop' && c.reason_hidden !== 'low_confidence') continue;
+    if (c.reason_hidden !== 'micro_stop'
+      && c.reason_hidden !== 'short_stop'
+      && c.reason_hidden !== 'low_confidence') continue;
     const prev = [...classified.slice(0, i)].reverse().find(x => x.visibility === 'main');
     const next = classified.slice(i + 1).find(x => x.visibility === 'main');
     const prevKnown = !!prev && (prev.event.internal_match_status === 'matched');
@@ -264,6 +284,65 @@ export function classifyTimelineCoalesced(events: ActualEvent[]): ClassifiedEven
     if (prevKnown && nextKnown) {
       c.reason_hidden = 'within_transition';
     }
+  }
+
+  // Steg 2b: short_stop-promotion. Ett 2–15 min stopp som ligger mellan två
+  // arbetsblock (main place-/travel-events) och INTE redan klassats som
+  // within_transition lyfts till main med label
+  // "Kort stopp · <plats> – kräver granskning". Det blir aldrig bekräftad
+  // arbetstid (workRelevance ändras inte) men syns i journalen så admin
+  // kan förstå dagen.
+  for (let i = 1; i < N - 1; i++) {
+    const c = classified[i];
+    if (c.visibility !== 'raw_only' || c.reason_hidden !== 'short_stop') continue;
+    const ev = c.event;
+    if (ev.kind !== 'gps_visit' && ev.kind !== 'gps_arrival') continue;
+    const prev = [...classified.slice(0, i)].reverse().find(x =>
+      x.visibility === 'main'
+      && (x.event.kind === 'gps_visit' || x.event.kind === 'gps_arrival' || x.event.kind === 'gps_travel'),
+    );
+    const next = classified.slice(i + 1).find(x =>
+      x.visibility === 'main'
+      && (x.event.kind === 'gps_visit' || x.event.kind === 'gps_arrival' || x.event.kind === 'gps_travel'),
+    );
+    if (!prev || !next) continue;
+    const baseLabel = ev.place ?? ev.label ?? 'okänd plats';
+    classified[i] = {
+      ...c,
+      visibility: 'main',
+      reason_hidden: null,
+      event: {
+        ...ev,
+        label: `Kort stopp · ${baseLabel} – kräver granskning`,
+        severity: ev.severity === 'critical' ? 'critical' : 'warning',
+        meta: {
+          ...(ev.meta ?? {}),
+          stopStrength: 'short_stop',
+          shortStopPromoted: true,
+          requires_review: true,
+        },
+      },
+    };
+  }
+
+  // Steg 2c: annotera stopStrength på alla main-place-events så UI kan
+  // visa "möjlig"/"stark" arbetsvistelse utan extra logik.
+  for (let i = 0; i < N; i++) {
+    const c = classified[i];
+    if (c.visibility !== 'main') continue;
+    const ev = c.event;
+    if (ev.kind !== 'gps_visit' && ev.kind !== 'gps_arrival') continue;
+    const meta = (ev.meta ?? {}) as Record<string, unknown>;
+    if (meta.stopStrength) continue;
+    const dur = ev.durationMin ?? 0;
+    const strength: 'strong_visit' | 'possible_visit' | 'short_stop' =
+      dur >= STRONG_VISIT_MIN ? 'strong_visit'
+      : dur >= MIN_VISIT_MIN ? 'possible_visit'
+      : 'short_stop';
+    classified[i] = {
+      ...c,
+      event: { ...ev, meta: { ...(ev.meta ?? {}), stopStrength: strength } },
+    };
   }
 
   // Steg 3: assistant-merge.
@@ -530,7 +609,8 @@ export function buildHiddenReasonMap(events: ActualEvent[]): Map<string, Timelin
 export function hiddenReasonLabel(reason: TimelineHiddenReason): string {
   switch (reason) {
     case 'short_movement': return 'Kort förflyttning';
-    case 'micro_stop': return 'Mikrostopp';
+    case 'micro_stop': return 'Mikrostopp (<2 min)';
+    case 'short_stop': return 'Kort stopp (2–15 min)';
     case 'same_site_noise': return 'GPS-brus runt samma plats';
     case 'low_confidence': return 'Låg tilltro';
     case 'private_background': return 'Privat/bakgrund';
