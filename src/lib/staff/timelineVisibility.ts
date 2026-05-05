@@ -36,9 +36,12 @@ export interface ClassifiedEvent {
   reason_hidden: TimelineHiddenReason | null;
 }
 
-/** Tekniska events som aldrig hör hemma i huvudjournalen. */
+/** Tekniska / planerings-events som aldrig hör hemma i huvudjournalen. */
 const RAW_DETAIL_KINDS: ReadonlySet<ActualEventKind> = new Set<ActualEventKind>([
   'gps_gap',
+  // planned_start är planeringsförväntan, inte en faktisk händelse — visas
+  // i header-/Planering-sektionen, aldrig i "Dagens faktiska händelser".
+  'planned_start',
 ]);
 
 /** Tröskel för korta GPS-förflyttningar (mikrostopp/jitter). */
