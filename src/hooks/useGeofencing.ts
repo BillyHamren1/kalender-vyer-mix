@@ -1195,16 +1195,20 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         !hasTimer &&
         !triggeredEnterRef.current.has(locKey)
       ) {
+        // STABLE-ENTRY GATE — kräv stabil ankomst.
+        const entryEv = evaluateEntry(locKey, dist);
+        if (entryEv.status !== 'stable') {
+          if (entryEv.status === 'insufficient' || entryEv.status === 'unstable') {
+            emitPossibleArrival({ kind: 'location', targetId: loc.id, label: loc.name, ev: entryEv });
+          }
+          continue;
+        }
         triggeredEnterRef.current.add(locKey);
         triggeredExitRef.current.delete(locKey);
         emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-        // (workday is ensured centrally by autoActionsRef.start →
-        // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
-        // Report arrival to the server as well — the pre-workday travel
-        // gate uses arrival signals to know that "the day has truly started".
-        // Without this call, arriving at the warehouse first wouldn't unlock
-        // legitimate auto-travel later in the day.
-        const arrivedAtIso = new Date().toISOString();
+        const firstTs = firstReliableArrivalTs(getEntryTracker(locKey));
+        const arrivedAtIso = new Date(firstTs ?? Date.now()).toISOString();
+        resetEntryTracker(getEntryTracker(locKey));
         mobileApi.reportArrival({ kind: 'location', target_id: loc.id, arrived_at: arrivedAtIso })
           .catch(err => console.warn('[Arrival] location register failed:', err?.message || err));
         noteEnterForDeparture(locKey, 'location', loc.id, loc.name);
