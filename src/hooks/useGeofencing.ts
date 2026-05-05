@@ -983,7 +983,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             const projectPlannedToday = bookings.some(
               (b) => b.large_project_id === lpId && isAssignedToday(b),
             );
-            void startFn({ kind: 'project', targetId: lpId, label: lpName, arrivedAtIso, isPlannedToday: projectPlannedToday })
+            const entryMeta = buildEntryMetadata(entryEv);
+            void startFn({
+              kind: 'project',
+              targetId: lpId,
+              label: lpName,
+              arrivedAtIso,
+              isPlannedToday: projectPlannedToday,
+              arrivalPingsCount: entryMeta.entry_ping_count,
+              firstArrivalPingAtIso: (entryMeta as any).entry_first_at,
+              arrivalDwellMs: (entryMeta as any).entry_dwell_ms,
+            })
               .then((res) => {
                 if (res.status === 'conflict' || res.status === 'workday_failed') {
                   setGeofenceEvent({
