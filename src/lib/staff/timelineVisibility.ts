@@ -413,6 +413,7 @@ export function hiddenReasonLabel(reason: TimelineHiddenReason): string {
     case 'private_background': return 'Privat/bakgrund';
     case 'within_transition': return 'Del av transition';
     case 'assistant_merged': return 'Assistent-händelse (matchad)';
+    case 'within_journey': return 'Del av förflyttning';
     case 'raw_detail': return 'Tekniskt rådata';
   }
 }
