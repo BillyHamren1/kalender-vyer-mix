@@ -82,6 +82,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
 
+    // Mark "received by processor" timestamp for instrumentation.
+    recordReceived(scannedValue);
+
     // No local session dedup — WMS (lagersystemet) is the single source of truth
     // for whether a code has already been scanned. This avoids blocking legitimate
     // minus scans / re-scans on the client.
