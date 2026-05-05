@@ -274,9 +274,9 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg.journey}`}>
             <Car className="h-3.5 w-3.5" />
           </span>
-          <span className="font-medium text-foreground truncate">{block.fromPlace?.label ?? block.fromLabel ?? 'okänd plats'}</span>
+          <span className="font-medium text-foreground truncate">{safePlaceLabel(block.fromPlace, block.fromLabel)}</span>
           <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-          <span className="font-medium text-foreground truncate">{block.toPlace?.label ?? block.toLabel ?? 'okänd plats'}</span>
+          <span className="font-medium text-foreground truncate">{safePlaceLabel(block.toPlace, block.toLabel)}</span>
         </div>
 
         <div className="flex items-center justify-end overflow-hidden">
