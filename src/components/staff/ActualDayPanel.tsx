@@ -490,6 +490,20 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <span className="text-muted-foreground">Lönegrundande </span>
           <span className="tabular-nums font-medium text-foreground">{fmtMin(wdMin)}</span>
         </div>
+        {(() => {
+          const wmeta = (wd as any)?.metadata as any;
+          const wstart = (wd as any)?.started_by as string | null;
+          const isServerAuto = wmeta?.auto_start_source === 'server_background_gps'
+            || wmeta?.auto_start_source === 'server_background_gps_backfill'
+            || wstart === 'server_auto_start' || wstart === 'server_auto_start_backfill';
+          if (!isServerAuto) return null;
+          return (
+            <Badge className="bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 font-medium">
+              {wstart === 'server_auto_start_backfill' ? 'Server auto-start (backfill)' : 'Auto-startad från GPS'}
+              {wmeta?.confidence ? ` · ${wmeta.confidence}` : ''}
+            </Badge>
+          );
+        })()}
         <div className="ml-auto">
           <Badge className={`${statusBadgeClass(status.kind)} font-medium`}>{status.label}</Badge>
         </div>
@@ -539,6 +553,18 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     <span className="text-foreground truncate">
                       {ev.label}
                       {ev.detail ? <span className="text-muted-foreground"> · {ev.detail}</span> : null}
+                      {(() => {
+                        const mm = (ev.meta ?? {}) as any;
+                        if (!mm.autoStarted) return null;
+                        const isServer = mm.autoStartSource === 'server_background_gps'
+                          || mm.autoStartSource === 'server_background_gps_backfill';
+                        return (
+                          <Badge className="ml-2 align-middle bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100 text-[10px] py-0 px-1.5">
+                            {isServer ? 'Server auto-start' : 'Auto-startad från GPS'}
+                            {mm.confidence ? ` · ${mm.confidence}` : ''}
+                          </Badge>
+                        );
+                      })()}
                       {isUnknownCluster && (
                         <button
                           type="button"
@@ -599,6 +625,23 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         </span>
                         <span>unmatch_reason:</span>
                         <span className="text-foreground">{visit.unmatchReason ?? '—'}</span>
+                        {(() => {
+                          // Derive "why no auto-start" reason for this cluster.
+                          const v: any = visit;
+                          const reasons: string[] = [];
+                          if (!v.nearestKnownSite) reasons.push('no known site');
+                          else if (v.nearestKnownSite.outsideByMeters > 0) reasons.push(`outside radius (${v.nearestKnownSite.outsideByMeters} m)`);
+                          if (v.pingCount < 3 && (!v.dwellMs || v.dwellMs < 2 * 60_000)) reasons.push('unstable pings');
+                          if (v.avgAccuracy != null && v.avgAccuracy > 75) reasons.push('poor accuracy');
+                          if (v.nearestKnownSite && (v.nearestKnownSite.lat == null || v.nearestKnownSite.lng == null)) reasons.push('missing target coordinates');
+                          if (reasons.length === 0) reasons.push('no cron run / engine guard');
+                          return (
+                            <>
+                              <span>no_auto_start_reason:</span>
+                              <span className="text-amber-600">{reasons.join(', ')}</span>
+                            </>
+                          );
+                        })()}
                       </div>
                     </li>
                   )}

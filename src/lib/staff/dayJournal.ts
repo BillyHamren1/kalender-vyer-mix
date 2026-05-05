@@ -123,6 +123,8 @@ export interface RawLocationEntry {
   source?: string | null;
   /** Lokal entry_date (YYYY-MM-DD). */
   entry_date?: string | null;
+  /** location_time_entries.metadata — innehåller bl.a. auto_start info. */
+  metadata?: Record<string, any> | null;
 }
 
 export interface RawTravelLog {

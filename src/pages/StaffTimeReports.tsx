@@ -245,11 +245,11 @@ const StaffTimeReports: React.FC = () => {
           .eq('report_date', dateStr),
         supabase
           .from('location_time_entries')
-          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source, entry_date')
+          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source, entry_date, metadata')
           .eq('entry_date', dateStr),
         supabase
           .from('workdays')
-          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note')
+          .select('id, staff_id, started_at, ended_at, review_status, review_reasons, notes, admin_note, started_by, metadata')
           .gte('started_at', dayStartIso)
           .lt('started_at', nextDayIso),
         supabase
@@ -1071,6 +1071,7 @@ const StaffTimeReports: React.FC = () => {
                 isPresenceOnly,
                 source: e.source ?? null,
                 entry_date: e.entry_date ?? null,
+                metadata: e.metadata ?? null,
               };
             });
 
@@ -1256,7 +1257,13 @@ const StaffTimeReports: React.FC = () => {
           const actualModel = buildActualStaffDayModel({
             date: dateStr,
             workday: staffWorkdays.length > 0
-              ? { id: staffWorkdays[0].id, started_at: staffWorkdays[0].started_at, ended_at: staffWorkdays[0].ended_at }
+              ? {
+                  id: staffWorkdays[0].id,
+                  started_at: staffWorkdays[0].started_at,
+                  ended_at: staffWorkdays[0].ended_at,
+                  started_by: (staffWorkdays[0] as any).started_by ?? null,
+                  metadata: (staffWorkdays[0] as any).metadata ?? null,
+                }
               : null,
             timeReports: staffReports.map(r => ({
               id: r.id,
@@ -1278,6 +1285,7 @@ const StaffTimeReports: React.FC = () => {
               hours: e.hours,
               source: (e as any).source ?? null,
               entry_date: (e as any).entry_date ?? null,
+              metadata: (e as any).metadata ?? null,
             })),
             travelLogs: staffTravel.map(t => {
               const rt = rawTravel.find(x => x.id === t.id);
