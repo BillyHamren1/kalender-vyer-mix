@@ -31,14 +31,12 @@ import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 import { cn } from '@/lib/utils';
 import { extractUTCTime, parsePlannerDate } from '@/utils/dateUtils';
 
-const RANGE_DAYS_BACK = 1;
-const RANGE_DAYS_FWD = 14;
-
 type DateMode = 'today' | 'tomorrow' | 'week';
 type PhaseFilter = 'all' | 'rig' | 'event' | 'rigdown' | 'anomalies';
 
 const MobileOverview: React.FC = () => {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { t, locale } = useLanguage();
   const { isAuthenticated, isLoading: authLoading } = useMobileAuth();
   const { isPlanner, isLoading: rolesLoading } = useMobileRoles();
@@ -48,12 +46,25 @@ const MobileOverview: React.FC = () => {
 
   const hasToken = isAuthenticated && !!getToken();
 
+  // === Range driven by date mode ===
+  // 'today'/'tomorrow' fetch only that single day. 'week' fetches 7 days.
+  // This is much cheaper than the legacy fixed -1..+14 range.
   const range = useMemo(() => {
     const today = startOfDay(new Date());
-    const from = format(addDays(today, -RANGE_DAYS_BACK), 'yyyy-MM-dd');
-    const to = format(addDays(today, RANGE_DAYS_FWD), 'yyyy-MM-dd');
-    return { from, to };
-  }, []);
+    if (dateMode === 'today') {
+      const d = format(today, 'yyyy-MM-dd');
+      return { from: d, to: d, mode: 'day' as const };
+    }
+    if (dateMode === 'tomorrow') {
+      const d = format(addDays(today, 1), 'yyyy-MM-dd');
+      return { from: d, to: d, mode: 'day' as const };
+    }
+    return {
+      from: format(today, 'yyyy-MM-dd'),
+      to: format(addDays(today, 6), 'yyyy-MM-dd'),
+      mode: 'week' as const,
+    };
+  }, [dateMode]);
 
   // === Active date set based on mode ===
   const activeDates = useMemo(() => {
@@ -63,33 +74,64 @@ const MobileOverview: React.FC = () => {
     return Array.from({ length: 7 }, (_, i) => format(addDays(today, i), 'yyyy-MM-dd'));
   }, [dateMode]);
 
-  // Primary: unified ops overview
+  // Primary: unified ops overview.
+  // Cache strategy: gammal data ligger kvar (placeholderData), refetcha bara om
+  // den är äldre än staleTime. Viktigt för "tillbaka från detalj"-känslan.
   const opsQ = useQuery({
-    queryKey: ['mobile-ops-overview', range.from, range.to],
-    queryFn: () => mobileApi.getOpsOverview({ from: range.from, to: range.to, mode: 'week', include_anomalies: true }),
+    queryKey: ['mobile-ops-overview', range.from, range.to, range.mode],
+    queryFn: () => mobileApi.getOpsOverview({ from: range.from, to: range.to, mode: range.mode, include_anomalies: true }),
     enabled: hasToken,
-    staleTime: 30_000,
+    staleTime: 3 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
+
+  // Prefetch övriga date-modes diskret efter första render så tab-byten är instant.
+  useEffect(() => {
+    if (!hasToken) return;
+    const today = startOfDay(new Date());
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const tmrStr = format(addDays(today, 1), 'yyyy-MM-dd');
+    const weekTo = format(addDays(today, 6), 'yyyy-MM-dd');
+    const variants: Array<{ from: string; to: string; mode: 'day' | 'week' }> = [
+      { from: todayStr, to: todayStr, mode: 'day' },
+      { from: tmrStr, to: tmrStr, mode: 'day' },
+      { from: todayStr, to: weekTo, mode: 'week' },
+    ];
+    for (const v of variants) {
+      qc.prefetchQuery({
+        queryKey: ['mobile-ops-overview', v.from, v.to, v.mode],
+        queryFn: () => mobileApi.getOpsOverview({ from: v.from, to: v.to, mode: v.mode, include_anomalies: true }),
+        staleTime: 3 * 60_000,
+      });
+    }
+  }, [hasToken, qc]);
 
   // Legacy fallbacks (only fire if unified call fails)
   const useFallback = opsQ.isError;
   const calendarQ = useQuery({
     queryKey: ['mobile-overview-calendar', range.from, range.to],
-    queryFn: () => mobileApi.getOverviewCalendar(range),
+    queryFn: () => mobileApi.getOverviewCalendar({ from: range.from, to: range.to }),
     enabled: hasToken && useFallback,
-    staleTime: 60_000,
+    staleTime: 3 * 60_000,
+    gcTime: 30 * 60_000,
+    placeholderData: keepPreviousData,
   });
   const assignmentsQ = useQuery({
     queryKey: ['mobile-overview-assignments', range.from, range.to],
-    queryFn: () => mobileApi.getOverviewAssignments(range),
+    queryFn: () => mobileApi.getOverviewAssignments({ from: range.from, to: range.to }),
     enabled: hasToken && useFallback,
-    staleTime: 60_000,
+    staleTime: 3 * 60_000,
+    gcTime: 30 * 60_000,
+    placeholderData: keepPreviousData,
   });
   const threadsQ = useQuery({
     queryKey: ['mobile-overview-threads'],
     queryFn: () => mobileApi.getOverviewThreads(),
     enabled: hasToken && useFallback,
-    staleTime: 30_000,
+    staleTime: 60_000,
   });
 
   // Unified data sources (prefer ops payload, fall back to legacy)
