@@ -605,6 +605,23 @@ export const mobileApi = {
   getLagerTasks: () =>
     callApi<{ project: { id: string; name: string } | null; my_tasks: any[]; open_tasks: any[] }>('get_lager_tasks'),
 
+  getLagerAssignments: (data?: { date_from?: string; date_to?: string }) =>
+    callApi<{
+      assignments: Array<{
+        id: string;
+        title: string;
+        description: string | null;
+        start_time: string | null;
+        end_time: string | null;
+        event_type: string;
+        booking_id: string | null;
+        booking_number: string | null;
+        delivery_address: string | null;
+        completed?: boolean;
+        status?: string;
+      }>;
+    }>('get_lager_assignments', data),
+
   createLagerTask: (data: { title: string; description?: string; deadline?: string; assign_to_me?: boolean }) =>
     callApi<{ success: boolean; task: any }>('create_lager_task', data),
 
