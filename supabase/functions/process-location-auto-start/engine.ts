@@ -359,6 +359,20 @@ async function closeOpenLteForSwitch(
     .update({
       exited_at: departureIso,
       total_minutes: totalMinutes,
+      stop_source: 'server_background_gps_switch',
+      stop_reason: 'switched_to_new_work_site',
+      stopped_by: 'system:process-location-auto-start',
+      stop_metadata: {
+        engine_version: report.engine_version,
+        run_id: report.run_id,
+        switch: {
+          previous_target: { kind: prevHit.target.kind, id: prevHit.target.id, label: prevHit.target.label },
+          next_target: { kind: nextHit.target.kind, id: nextHit.target.id, label: nextHit.target.label },
+          departure_at: departureIso,
+          arrival_at: new Date(nextHit.firstReliableTs).toISOString(),
+          confidence: nextHit.confidence,
+        },
+      },
       metadata: {
         ...meta,
         closed_by: 'server_auto_switch',
