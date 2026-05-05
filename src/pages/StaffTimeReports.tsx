@@ -300,6 +300,43 @@ const StaffTimeReports: React.FC = () => {
       const assistantEvents = (assistantRes as any).error ? [] : ((assistantRes as any).data || []);
       const workdayFlags = (flagsRes as any).error ? [] : ((flagsRes as any).data || []);
 
+      // ── Planerad personal: union av alla källor som personalkalendern
+      // använder. plannedStaffIds får INTE komma från calendar_events ensamt.
+      const bsaRows = ((bsaRes as any).error ? [] : (bsaRes as any).data || []) as any[];
+      const saRows = ((saRes as any).error ? [] : (saRes as any).data || []) as any[];
+      const lpsStaffRows = ((lpsStaffRes as any).error ? [] : (lpsStaffRes as any).data || []) as any[];
+      const lpsAllRows = ((lpsByDateForPlanRes as any).error ? [] : (lpsByDateForPlanRes as any).data || []) as any[];
+      // Stora projekt vars rig/event/rigDown täcker dateStr (text[]-kolumner).
+      const lpsActiveIds = new Set<string>(
+        lpsAllRows
+          .filter(p => {
+            const dates = [
+              ...((p.start_date as string[] | null) ?? []),
+              ...((p.event_date as string[] | null) ?? []),
+              ...((p.end_date as string[] | null) ?? []),
+            ];
+            return dates.includes(dateStr);
+          })
+          .map(p => p.id),
+      );
+      const plannedStaffIds = new Set<string>();
+      const plannedLabelsByStaff = new Map<string, Set<string>>();
+      const addPlanned = (sid: string, label: string) => {
+        if (!sid) return;
+        plannedStaffIds.add(sid);
+        const set = plannedLabelsByStaff.get(sid) ?? new Set<string>();
+        if (label) set.add(label);
+        plannedLabelsByStaff.set(sid, set);
+      };
+      for (const r of bsaRows) addPlanned(r.staff_id, r.team_id ? `Bokning · ${r.team_id}` : 'Bokning');
+      for (const r of saRows) addPlanned(r.staff_id, r.team_id ? `Team ${r.team_id}` : 'Team');
+      for (const r of lpsStaffRows) {
+        if (lpsActiveIds.has(r.large_project_id)) {
+          const lp = lpsAllRows.find(p => p.id === r.large_project_id);
+          addPlanned(r.staff_id, lp?.name ?? 'Stort projekt');
+        }
+      }
+
       // Resolve location -> internal booking (e.g. Lager) for project label.
       // Include location_id from BOTH location_time_entries AND time_reports so
       // a manually-created Lager-tidrapport (without LTE) still resolves to the
