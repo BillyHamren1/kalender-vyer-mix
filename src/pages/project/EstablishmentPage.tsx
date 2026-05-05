@@ -17,7 +17,7 @@ import { useBookingTaskAnalytics } from "@/hooks/useBookingTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
-type ViewMode = "gantt" | "list" | "people";
+type ViewMode = "list" | "people";
 
 interface SelectedTask {
   id: string;
@@ -64,7 +64,7 @@ const EstablishmentPage = () => {
     }
   }, [location.state]);
 
-  const [viewMode, setViewMode] = useState<ViewMode>("gantt");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
@@ -181,15 +181,6 @@ const EstablishmentPage = () => {
 
             <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
               <Button
-                variant={viewMode === "gantt" ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5 text-xs gap-1"
-                onClick={() => setViewMode("gantt")}
-              >
-                <GanttChart className="h-3.5 w-3.5" />
-                Gantt
-              </Button>
-              <Button
                 variant={viewMode === "list" ? "default" : "ghost"}
                 size="sm"
                 className="h-7 px-2.5 text-xs gap-1"
@@ -218,18 +209,7 @@ const EstablishmentPage = () => {
               staffPool={staffPool}
               filteredCount={filteredTasks.length}
             />
-            {viewMode === "gantt" ? (
-              <EstablishmentGanttChart
-                rigDate={booking?.rigdaydate}
-                eventDate={booking?.eventdate}
-                bookingId={bookingId}
-                client={booking?.client}
-                address={booking?.deliveryaddress}
-                staffPool={staffPool}
-                onTaskClick={handleTaskClick}
-                visibleTaskIds={visibleTaskIds}
-              />
-            ) : viewMode === "list" ? (
+            {viewMode === "list" ? (
               <PlanningTaskList
                 tasks={filteredTasks}
                 staffPool={staffPool}
