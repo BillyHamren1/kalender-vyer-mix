@@ -945,18 +945,22 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
 
         if (dist <= enterRadius && !hasTimer && !alreadyTriggered) {
-          // AUTO-START på alla kända arbetsplatser. assigned-today-gaten
-          // togs bort 2026-05 (se kommentaren ovan vid isAssignedToday).
-          const assignedToday = bookings.some(
-            (b) => b.large_project_id === lpId && isAssignedToday(b),
-          );
-
+          // STABLE-ENTRY GATE — en GPS-spike får inte starta workday/timer.
+          const entryEv = evaluateEntry(projectKey, dist);
+          if (entryEv.status !== 'stable') {
+            if (entryEv.status === 'insufficient' || entryEv.status === 'unstable') {
+              emitPossibleArrival({ kind: 'project', targetId: lpId, label: lpName, ev: entryEv });
+            }
+            continue;
+          }
+          // Stabil ankomst — fortsätt med auto-start.
           triggeredEnterRef.current.add(projectKey);
           triggeredExitRef.current.delete(projectKey);
           emitStopTravelOnArrival(userPosition.lat, userPosition.lng);
-          // (workday is ensured centrally by autoActionsRef.start →
-          // tryStartFromArrival → ensureWorkDayActive — no parallel write here)
-          const arrivedAtIso = new Date().toISOString();
+          // Använd FÖRSTA pålitliga ping-tiden som arrival-tid, inte "nu".
+          const firstTs = firstReliableArrivalTs(getEntryTracker(projectKey));
+          const arrivedAtIso = new Date(firstTs ?? Date.now()).toISOString();
+          resetEntryTracker(getEntryTracker(projectKey));
           mobileApi.reportArrival({ kind: 'project', target_id: lpId, arrived_at: arrivedAtIso })
             .catch(err => console.warn('[Arrival] project register failed:', err?.message || err));
           noteEnterForDeparture(projectKey, 'project', lpId, lpName);
