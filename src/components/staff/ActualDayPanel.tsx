@@ -782,6 +782,27 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               // Default-label för icke-journey-rader
               const displayLabel: React.ReactNode = ev.label;
 
+              // Klickbar kartlänk för externa/okända platser (lat/lng utan internt mål)
+              const evAny = ev as any;
+              const ownMapsUrl: string | null = evAny.maps_url ?? null;
+              const fromMapsUrl: string | null = evAny.from_maps_url ?? jbMeta?.from_maps_url ?? null;
+              const toMapsUrl: string | null = evAny.to_maps_url ?? jbMeta?.to_maps_url ?? null;
+              const ownCoords = (evAny.coords as { lat: number; lng: number } | null) ?? null;
+              const coordsTooltip = ownCoords ? `${ownCoords.lat.toFixed(5)}, ${ownCoords.lng.toFixed(5)}` : undefined;
+
+              const MapsLink = ({ url, label, title }: { url: string; label: React.ReactNode; title?: string }) => (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={title ?? 'Öppna i Google Maps'}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  {label}
+                </a>
+              );
+
               return (
                 <React.Fragment key={ev.id}>
                   <li
@@ -798,15 +819,23 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         <div className="font-medium text-foreground">Förflyttning</div>
                         <div className="text-[11px] truncate">
                           <span className="text-muted-foreground">Från: </span>
-                          <span className="text-foreground">{journeyFrom ?? '—'}</span>
+                          {fromMapsUrl
+                            ? <MapsLink url={fromMapsUrl} label={journeyFrom ?? '—'} />
+                            : <span className="text-foreground">{journeyFrom ?? '—'}</span>}
                         </div>
                         <div className="text-[11px] truncate">
                           <span className="text-muted-foreground">Till: </span>
-                          <span className="text-foreground">{journeyTo ?? '—'}</span>
+                          {toMapsUrl
+                            ? <MapsLink url={toMapsUrl} label={journeyTo ?? '—'} />
+                            : <span className="text-foreground">{journeyTo ?? '—'}</span>}
                         </div>
                       </div>
+                    ) : ownMapsUrl ? (
+                      <span className="truncate pt-0.5" title={coordsTooltip}>
+                        <MapsLink url={ownMapsUrl} label={displayLabel} title={coordsTooltip ?? 'Öppna i Google Maps'} />
+                      </span>
                     ) : (
-                      <span className="text-foreground truncate pt-0.5">{displayLabel}</span>
+                      <span className="text-foreground truncate pt-0.5" title={coordsTooltip}>{displayLabel}</span>
                     )}
                     {statusIsAction ? (
                       <Badge variant="outline" className={`text-[10px] py-0 px-1.5 mt-0.5 ${statusTone}`}>
