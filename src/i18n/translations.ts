@@ -251,6 +251,20 @@ const translations = {
   'assistant.notYet': { sv: 'Inte än', en: 'Not yet' },
   'assistant.endDay': { sv: 'Avsluta dagen', en: 'End the day' },
 
+  // Late after planned start
+  'assistant.lateTitle': { sv: 'När började du jobba?', en: 'When did you start working?' },
+  'assistant.lateBody': { sv: 'Du var planerad från {planned} men appen fick första signal {first}. När började du jobba?', en: 'You were scheduled from {planned} but the app got its first signal at {first}. When did you start?' },
+  'assistant.lateChoosePlanned': { sv: '{planned} enligt planering', en: '{planned} as planned' },
+  'assistant.lateChooseFirstGps': { sv: '{first} från första GPS', en: '{first} from first GPS' },
+  'assistant.lateChooseCustom': { sv: 'Annan tid', en: 'Other time' },
+  'assistant.lateChooseDidNotWork': { sv: 'Jag jobbade inte', en: 'I didn’t work' },
+  'assistant.lateCustomHint': { sv: 'Ange tid (HH:MM)', en: 'Enter time (HH:MM)' },
+  'assistant.lateMarkedAbsent': { sv: 'Markerad — admin följer upp', en: 'Marked — admin will follow up' },
+  'assistant.couldNotSave': { sv: 'Kunde inte spara', en: 'Could not save' },
+  'assistant.couldNotStart': { sv: 'Kunde inte starta arbetsdagen', en: 'Could not start the workday' },
+  'assistant.workdayStartedAt': { sv: 'Arbetsdag startad från {time}', en: 'Workday started from {time}' },
+
+
   // ActivityLeaveDialog
   'leave.title': { sv: 'Verkar du lämnat aktiviteten?', en: 'Looks like you left the activity?' },
   'leave.body': { sv: 'Vi ser att du varit ungefär {dist} m utanför {label} sedan {since} ({mins} min). Timern är fortfarande igång.', en: "We see that you've been about {dist} m outside {label} since {since} ({mins} min). The timer is still running." },
