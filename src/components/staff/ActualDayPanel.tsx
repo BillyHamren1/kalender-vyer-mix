@@ -28,6 +28,7 @@ import type {
   ProposedAnomaly,
 } from '@/lib/staff/actualStaffDayModel';
 import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStopConfident } from '@/lib/staff/stopSourceClassifier';
+import { computeStrongWorkIndicators, type StrongWorkReasonCode } from '@/lib/staff/strongWorkIndicators';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
