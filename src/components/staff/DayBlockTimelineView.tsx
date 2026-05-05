@@ -358,11 +358,14 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
 
 const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
   const [open, setOpen] = useState(false);
+  const debugFrom = isDebugRelevant(block.fromPlace);
+  const debugTo = isDebugRelevant(block.toPlace);
+  const expandable = block.innerEvents.length > 0 || debugFrom || debugTo;
   return (
     <>
       <RowShell
         accent="journey"
-        expandable={block.innerEvents.length > 0}
+        expandable={expandable}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
       >
@@ -386,7 +389,13 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
           </span>
         </div>
       </RowShell>
-      {open && <InnerEvents block={block} />}
+      {open && (
+        <>
+          <PlaceDebugPanel title="från" place={block.fromPlace as any} />
+          <PlaceDebugPanel title="till" place={block.toPlace as any} />
+          <InnerEvents block={block} />
+        </>
+      )}
     </>
   );
 };
