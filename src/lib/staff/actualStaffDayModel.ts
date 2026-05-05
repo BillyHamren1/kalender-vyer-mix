@@ -481,6 +481,10 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
           },
         });
       } else {
+        // Lyft stop-meta så UI kan visa stop_source/stop_reason/stopped_by
+        // och servermotor-spår. classifyStopSource konsumerar dessa fält i
+        // ActualDayPanel.
+        const stopMetaRaw = (e.metadata && typeof e.metadata === 'object') ? e.metadata : {};
         events.push({
           id: `lte-stop:${e.id}`,
           at: e.exited_at,
@@ -491,7 +495,23 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
             : `Timer stoppad: ${e.label}`,
           place: e.label,
           durationMin: minutesBetween(e.entered_at, e.exited_at),
-          meta: { source: e.source ?? null, stop_origin: 'user_or_admin' },
+          meta: {
+            source: e.source ?? null,
+            stop_origin: 'user_or_admin',
+            // Raw fields for stop-source classification (consumed in ActualDayPanel)
+            lteId: e.id,
+            lteSource: e.source ?? null,
+            lteMetadata: stopMetaRaw,
+            stoppedAt: e.exited_at,
+            stop_source: stopMetaRaw.stop_source ?? stopMetaRaw.closed_at_source ?? null,
+            stop_reason: stopMetaRaw.stop_reason ?? null,
+            stopped_by: stopMetaRaw.stopped_by ?? stopMetaRaw.closed_by ?? null,
+            run_id: stopMetaRaw.run_id ?? null,
+            auto_switch: !!stopMetaRaw.switch,
+            departure_at: stopMetaRaw.departure_at ?? stopMetaRaw?.switch?.departure_at ?? null,
+            confidence: stopMetaRaw.confidence ?? stopMetaRaw?.switch?.confidence ?? null,
+            linked_time_report_id: stopMetaRaw.linked_time_report_id ?? stopMetaRaw.time_report_id ?? null,
+          },
         });
       }
     }
