@@ -202,6 +202,21 @@ const StaffTimeReports: React.FC = () => {
   const [selectedStaffName, setSelectedStaffName] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState(parsedInitialDate);
 
+  // Hämta staff-namn när deep-link används utan att ha klickat i listan.
+  useEffect(() => {
+    if (!selectedStaffId || selectedStaffName) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('staff_members')
+        .select('name')
+        .eq('id', selectedStaffId)
+        .maybeSingle();
+      if (!cancelled && data?.name) setSelectedStaffName(data.name);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedStaffId, selectedStaffName]);
+
 
   // Tolka selectedDate som Europe/Stockholm-dag oavsett webbläsarens TZ.
   // Vi formaterar YYYY-MM-DD i Stockholm-zonen och bygger UTC-instans-gränser
