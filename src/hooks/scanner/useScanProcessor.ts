@@ -130,7 +130,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // For unique codes (RFID / serials) we don't know the SKU locally.
         // Ask the backend to look it up via the WMS, then decrement.
         if (parsed.unique) {
+          recordApiStart(scannedValue);
           const result = await decrementBySerial(packingId, scannedValue);
+          recordApiEnd(scannedValue, result.success ? 'success' : 'failed', result.productName);
           if (!result.success || !result.itemId) {
             scanLog('minus_serial_failed', { value: scannedValue, error: result.error });
             onScanResult({ value: scannedValue, result: result.error || 'Kunde inte ta bort koden', success: false });
