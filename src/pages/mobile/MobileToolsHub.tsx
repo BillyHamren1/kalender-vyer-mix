@@ -1,17 +1,26 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, ScanLine, ChevronRight } from 'lucide-react';
+import { Camera, ScanLine, ChevronRight, LayoutDashboard } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useMobileRoles } from '@/hooks/mobile/useMobileRoles';
 
 const MobileToolsHub: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { isPlanner } = useMobileRoles();
 
   // NOTE: "Measure" är tillfälligt dolt i UI inför iOS-release — verktyget
   // är inte stabilt ännu. Rutten /m/tools/measure finns kvar så att
   // djuplänkar och admin-vyer fortsätter fungera; bara ingången från
   // verktygsmenyn är borttagen. Återinför kortet när Measure är redo.
   const tools = [
+    ...(isPlanner ? [{
+      key: 'overview',
+      icon: LayoutDashboard,
+      label: t('nav.overview'),
+      desc: t('overview.subtitle'),
+      path: '/m/overview',
+    }] : []),
     {
       key: 'camera',
       icon: Camera,
