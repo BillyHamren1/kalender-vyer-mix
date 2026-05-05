@@ -327,48 +327,48 @@ const MobileOverview: React.FC = () => {
         <h1 className="text-2xl font-bold mt-1">{t('overview.title')}</h1>
       </header>
 
-      {/* Date selector */}
-      <div className="px-4 flex gap-2 mb-3">
-        {dateModes.map(m => (
-          <button
-            key={m.key}
-            onClick={() => setDateMode(m.key)}
-            className={cn(
-              'flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors',
-              dateMode === m.key
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-card text-muted-foreground border-border/60 active:bg-muted',
-            )}
-          >
-            {m.label}
-          </button>
-        ))}
+      {/* Sticky filter bar */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border/40 pb-2 pt-1">
+        <div className="px-4 flex gap-2 mb-2">
+          {dateModes.map(m => (
+            <button
+              key={m.key}
+              onClick={() => setDateMode(m.key)}
+              className={cn(
+                'flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors',
+                dateMode === m.key
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card text-muted-foreground border-border/60 active:bg-muted',
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="px-4 flex gap-1.5 overflow-x-auto pb-1">
+          <Filter className="w-4 h-4 text-muted-foreground self-center shrink-0" />
+          {phaseFilters.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setPhase(f.key)}
+              className={cn(
+                'px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition-colors',
+                phase === f.key
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'bg-card text-muted-foreground border-border/60',
+              )}
+            >
+              {f.label}
+              {f.key === 'anomalies' && kpi.anomaliesTotal > 0 && (
+                <span className="ml-1 text-destructive">({kpi.anomaliesTotal})</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Phase filter */}
-      <div className="px-4 flex gap-1.5 overflow-x-auto pb-1 mb-3">
-        <Filter className="w-4 h-4 text-muted-foreground self-center shrink-0" />
-        {phaseFilters.map(f => (
-          <button
-            key={f.key}
-            onClick={() => setPhase(f.key)}
-            className={cn(
-              'px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap transition-colors',
-              phase === f.key
-                ? 'bg-foreground text-background border-foreground'
-                : 'bg-card text-muted-foreground border-border/60',
-            )}
-          >
-            {f.label}
-            {f.key === 'anomalies' && kpi.anomaliesTotal > 0 && (
-              <span className="ml-1 text-destructive">({kpi.anomaliesTotal})</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* KPI row */}
-      <div className="px-4 grid grid-cols-2 gap-2 mb-4">
+      <div className="px-4 grid grid-cols-2 gap-2 mb-3 mt-3">
         <KpiCard icon={Briefcase} label={t('overview.kpi.jobs')} value={kpi.jobs} />
         <KpiCard icon={Users} label={t('overview.kpi.staff')} value={kpi.distinctStaff} />
         <KpiCard
@@ -385,7 +385,6 @@ const MobileOverview: React.FC = () => {
         />
       </div>
 
-      {/* Phase counters */}
       <div className="px-4 flex gap-2 mb-4 text-[11px]">
         <PhaseChip label="Rig" count={kpi.rig} cls="bg-amber-500/10 text-amber-700 dark:text-amber-300" />
         <PhaseChip label="Event" count={kpi.event} cls="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" />
