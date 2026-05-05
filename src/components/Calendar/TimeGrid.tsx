@@ -208,7 +208,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           </div>
 
           {/* Row 3: assigned staff per team */}
-          <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, height: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
+          <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
           {resources.map((resource, index) => {
             const assignedStaff = getAssignedStaffForTeam(resource.id);
             return (
