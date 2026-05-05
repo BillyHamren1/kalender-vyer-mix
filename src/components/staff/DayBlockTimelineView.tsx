@@ -377,6 +377,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
         expandable={expandable}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
+        trashSlot={<RowExcludeButton blockId={block.id} label={block.title ?? 'Händelse'} />}
       >
         <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} ongoing={block.ongoing} />
 
