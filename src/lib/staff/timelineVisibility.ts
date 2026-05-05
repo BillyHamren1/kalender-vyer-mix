@@ -26,6 +26,7 @@ export type TimelineHiddenReason =
   | 'low_confidence'        // workRelevance = unknown_requires_lookup / raw_debug_only
   | 'private_background'    // workRelevance = private_or_background (privatzon/natt)
   | 'within_transition'     // mikrohändelse som tillhör ett annat block
+  | 'assistant_merged'      // assistant_event som beskriver samma sak som en annan main-rad
   | 'raw_detail';           // tekniskt event (gps_gap) — alltid raw_only
 
 export interface ClassifiedEvent {
