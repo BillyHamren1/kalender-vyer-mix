@@ -473,6 +473,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleGetActiveDayState(supabase, staffId, organizationId)
       case 'get_lager_tasks':
         return await handleGetLagerTasks(supabase, staffId, organizationId)
+      case 'get_lager_assignments':
+        return await handleGetLagerAssignments(supabase, staffId, data, organizationId)
       case 'create_lager_task':
         return await handleCreateLagerTask(supabase, staffId, data, organizationId)
       case 'complete_lager_task':
