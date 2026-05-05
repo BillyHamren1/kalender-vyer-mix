@@ -132,13 +132,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             onScanResult({ value: scannedValue, result: result.error || 'Kunde inte ta bort koden', success: false });
             toast.error(result.error || 'Kunde inte ta bort koden');
             // Allow user to retry / re-scan
-            scannedThisSessionRef.current.delete(normalised);
             addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
             return;
           }
           const matchingItem = items.find(i => i.id === result.itemId);
           const productName = result.productName || matchingItem?.booking_products?.name || scannedValue;
-          scannedThisSessionRef.current.delete(normalised);
           scanLog('item_matched', { itemId: result.itemId, productName, mode: 'minus_serial' });
           onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
           onHighlight(result.itemId);
@@ -161,7 +159,6 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         await decrementPackingItem(matchingItem.id, verifierName);
-        scannedThisSessionRef.current.delete(normalised);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
         onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
@@ -196,7 +193,6 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             success: false,
           });
           // Allow user to re-scan same code after responding
-          scannedThisSessionRef.current.delete(normalised);
           notifyRfid(scannedValue, false, undefined, undefined);
           return;
         }
@@ -338,7 +334,6 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
   }, []); // No deps — reads from optRef
 
   const clearSessionDedup = useCallback(() => {
-    scannedThisSessionRef.current.clear();
     scanLog('session_dedup_cleared');
   }, []);
 
