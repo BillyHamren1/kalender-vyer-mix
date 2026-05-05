@@ -683,7 +683,7 @@ const MobileOverview: React.FC = () => {
           )}
 
           {/* === Section 3: Personalöversikt (kort, inte chips) === */}
-          {phase !== 'anomalies' && (
+          {mainTab === 'staff' && phase !== 'anomalies' && (
             <Section title={t('overview.section.staff')} icon={Users}>
               {staffByDay.length === 0 ? (
                 <EmptyState text={t('overview.empty.staffing')} />
