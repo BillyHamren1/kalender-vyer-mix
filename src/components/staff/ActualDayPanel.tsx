@@ -661,9 +661,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                     </span>
                     <EventIcon kind={ev.kind} severity={ev.severity} />
                     <span className="text-foreground truncate">{displayLabel}</span>
-                    <span className={`text-[10px] uppercase tracking-wide ${statusTone}`}>
-                      {statusLabel}
-                    </span>
+                    {statusIsAction ? (
+                      <Badge variant="outline" className={`text-[10px] py-0 px-1.5 ${statusTone}`}>
+                        {statusLabel}
+                      </Badge>
+                    ) : (
+                      <span className={`text-[10px] uppercase tracking-wide ${statusTone}`}>
+                        {statusLabel}
+                      </span>
+                    )}
                     {isRowOpen ? (
                       <ChevronDown className="h-3 w-3 text-muted-foreground" />
                     ) : (
