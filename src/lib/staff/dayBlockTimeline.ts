@@ -324,6 +324,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const dur = Number.isFinite(endMs) ? Math.max(0, Math.round((endMs - startMs) / 60_000)) : 0;
     const synthetic: PresenceBlock = {
       kind: 'presence',
+      presenceKind: 'location',
       id: `pb:tr:${trIdMatch}`,
       startIso,
       endIso,
