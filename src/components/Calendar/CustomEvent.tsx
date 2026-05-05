@@ -264,6 +264,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const ext = event.extendedProps as any;
   if (ext?.isProjectActivity) {
     const published = !!ext.published;
+    const inTimeApp = !!ext.inTimeApp;
     const missing = !!ext.missingInfo;
     const status = String(ext.status ?? 'todo');
     const category = ext.category ? String(ext.category) : null;
