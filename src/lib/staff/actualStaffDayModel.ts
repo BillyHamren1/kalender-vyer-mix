@@ -423,12 +423,16 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
 
   for (const e of input.locationEntries) {
     const meta = (e.metadata && typeof e.metadata === 'object') ? e.metadata : null;
-    const autoStartedSrv = !!meta?.auto_started && (
-      meta?.auto_start_source === 'server_background_gps' ||
-      meta?.auto_start_source === 'server_background_gps_backfill' ||
-      e.source === 'auto_geofence_server' ||
-      e.source === 'auto_geofence_server_backfill'
-    );
+    const isServerBg = meta?.auto_start_source === 'server_background_gps' ||
+      e.source === 'auto_geofence_server';
+    const isBackfill = meta?.auto_start_source === 'server_background_gps_backfill' ||
+      e.source === 'auto_geofence_server_backfill';
+    const autoStartedSrv = !!meta?.auto_started && (isServerBg || isBackfill);
+    const sourceClass: 'manual' | 'foreground_geofence' | 'server_background' | 'backfill' =
+      isBackfill ? 'backfill'
+      : isServerBg ? 'server_background'
+      : (meta?.auto_started === true || e.source === 'auto_geofence') ? 'foreground_geofence'
+      : 'manual';
     events.push({
       id: `lte-start:${e.id}`,
       at: e.entered_at,
@@ -441,8 +445,12 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       meta: {
         presence: e.isPresenceOnly,
         source: e.source ?? null,
+        sourceClass,
         autoStarted: autoStartedSrv || meta?.auto_started === true,
         autoStartSource: meta?.auto_start_source ?? null,
+        isBackfill,
+        engineVersion: meta?.engine_version ?? null,
+        runId: meta?.run_id ?? null,
         confidence: meta?.confidence ?? null,
         pingCount: meta?.arrival_pings_count ?? null,
         firstPingAt: meta?.ping_range?.first ?? meta?.first_arrival_ping_at ?? null,
