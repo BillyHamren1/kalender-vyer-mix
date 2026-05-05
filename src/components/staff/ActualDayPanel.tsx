@@ -342,7 +342,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         const lookup = ev.place ? null : lookupCoord(m?.centre);
         const placeLabel = ev.place ?? lookup?.label ?? null;
         const ongoing = m?.ongoing === true;
-        const lastPingAt = (m?.lastPingAt as string | undefined) ?? null;
+        const lastSeenAt = (m?.visit_last_seen_at as string | undefined)
+          ?? (m?.lastPingAt as string | undefined) ?? null;
+        const departedAt = (m?.departed_at as string | undefined) ?? null;
+        const lastSeenOnly = !ongoing && !departedAt && ev.kind === 'gps_visit';
         const fmtHM = (iso: string | null) => {
           if (!iso) return '';
           try {
@@ -351,12 +354,6 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             });
           } catch { return iso.slice(11, 16); }
         };
-        const verb =
-          ev.kind === 'gps_arrival'
-            ? 'Anlände'
-            : ev.kind === 'gps_departure'
-              ? 'Lämnade'
-              : (ongoing ? 'Vistelse pågår' : 'Vistelse');
 
         const inference = inferActivityFromPlace({
           knownSiteId: visit?.knownSiteId ?? null,
@@ -366,12 +363,29 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           betweenWorkplaces: placeKey ? knownNeighbours.has(placeKey) : false,
         });
 
-        const baseLabel = placeLabel ? `${verb}: ${placeLabel}` : ev.label;
-        const ongoingSuffix = ongoing && lastPingAt ? ` · senaste GPS ${fmtHM(lastPingAt)}` : '';
-        const label =
-          ev.kind === 'gps_visit'
-            ? `${baseLabel}${ongoingSuffix}${ongoing ? '' : ` · ${inference.label}`}`
-            : baseLabel;
+        // Tre tillstånd för gps_visit:
+        //   1) ongoing                → "Vistelse: X · pågår"
+        //   2) lastSeenOnly (timer aktiv men ingen departure-evidens)
+        //                             → "Senast bekräftad på X HH:mm"
+        //   3) departed (eller stängt) → "Vistelse: X · <inferens>"
+        let label: string;
+        if (ev.kind === 'gps_visit') {
+          if (ongoing) {
+            label = placeLabel ? `Vistelse: ${placeLabel} · pågår` : 'Vistelse pågår';
+          } else if (lastSeenOnly) {
+            label = placeLabel
+              ? `Senast bekräftad på ${placeLabel} ${fmtHM(lastSeenAt)}`
+              : `Senast bekräftad ${fmtHM(lastSeenAt)}`;
+          } else {
+            const base = placeLabel ? `Vistelse: ${placeLabel}` : ev.label;
+            label = `${base} · ${inference.label}`;
+          }
+        } else if (ev.kind === 'gps_arrival') {
+          label = placeLabel ? `Anlände: ${placeLabel}` : ev.label;
+        } else {
+          // gps_departure — emitteras endast med faktisk evidens från modellen.
+          label = placeLabel ? `Lämnade: ${placeLabel}` : ev.label;
+        }
 
         const isMatched = !!visit?.knownSiteId;
         const hasMapbox = !!lookup?.geo;
