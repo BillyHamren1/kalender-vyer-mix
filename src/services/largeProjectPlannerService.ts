@@ -2,6 +2,14 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type LargeProjectPhase = 'rig' | 'event' | 'rigDown';
 
+type LargeProjectPlanningPhase = LargeProjectPhase;
+
+interface LargeProjectPlanningAssignmentInput {
+  date: string;
+  kind: LargeProjectPlanningPhase;
+  teamId: string;
+}
+
 const PHASE_TO_DATE_COLUMN: Record<LargeProjectPhase, 'start_date' | 'event_date' | 'end_date'> = {
   rig: 'start_date',
   event: 'event_date',
@@ -19,6 +27,39 @@ const PHASE_TO_BOOKING_TIMES: Record<LargeProjectPhase, { start: string; end: st
   event: { start: 'event_start_time', end: 'event_end_time' },
   rigDown: { start: 'rigdown_start_time', end: 'rigdown_end_time' },
 };
+
+const isCalendarVisibleLargeProjectPhase = (
+  phase: LargeProjectPlanningPhase,
+): phase is Exclude<LargeProjectPhase, 'event'> => phase === 'rig' || phase === 'rigDown';
+
+export async function syncLargeProjectPlanningAssignments(
+  largeProjectId: string,
+  days: LargeProjectPlanningAssignmentInput[],
+): Promise<void> {
+  const rows = Array.from(
+    new Map(
+      days
+        .filter((day) => isCalendarVisibleLargeProjectPhase(day.kind) && Boolean(day.teamId))
+        .map((day) => [
+          `${day.kind}|${day.date}`,
+          {
+            large_project_id: largeProjectId,
+            phase: day.kind,
+            assignment_date: day.date,
+            team_id: day.teamId,
+          },
+        ]),
+    ).values(),
+  );
+
+  if (rows.length === 0) return;
+
+  const { error } = await supabase
+    .from('large_project_team_assignments')
+    .upsert(rows, { onConflict: 'large_project_id,phase,assignment_date' });
+
+  if (error) throw error;
+}
 
 interface MoveLargeProjectDayInput {
   largeProjectId: string;
