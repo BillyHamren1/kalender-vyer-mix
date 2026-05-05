@@ -245,7 +245,7 @@ const StaffTimeReports: React.FC = () => {
           .eq('report_date', dateStr),
         supabase
           .from('location_time_entries')
-          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source, entry_date, metadata')
+          .select('id, staff_id, location_id, booking_id, large_project_id, entered_at, exited_at, total_minutes, source, entry_date, metadata, stop_source, stop_reason, stopped_by, stop_metadata')
           .eq('entry_date', dateStr),
         supabase
           .from('workdays')
@@ -1071,7 +1071,15 @@ const StaffTimeReports: React.FC = () => {
                 isPresenceOnly,
                 source: e.source ?? null,
                 entry_date: e.entry_date ?? null,
-                metadata: e.metadata ?? null,
+                metadata: {
+                  ...(e.metadata && typeof e.metadata === 'object' ? e.metadata : {}),
+                  // Lyft de nya stop-kolumnerna in i metadata så
+                  // actualStaffDayModel + classifyStopSource hittar dem.
+                  stop_source: (e as any).stop_source ?? null,
+                  stop_reason: (e as any).stop_reason ?? null,
+                  stopped_by: (e as any).stopped_by ?? null,
+                  stop_metadata: (e as any).stop_metadata ?? null,
+                },
               };
             });
 

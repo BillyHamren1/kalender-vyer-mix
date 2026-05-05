@@ -630,6 +630,20 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                             {cls.key === 'unknown' && (
                               <span className="text-[10px] text-amber-600 uppercase tracking-wide">okänd källa</span>
                             )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedDebugKeys(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(ev.id)) next.delete(ev.id);
+                                  else next.add(ev.id);
+                                  return next;
+                                })
+                              }
+                              className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground underline"
+                            >
+                              {expandedDebugKeys.has(ev.id) ? 'dölj bevis' : 'bevis'}
+                            </button>
                           </span>
                         );
                       })()}
@@ -713,6 +727,101 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                       </div>
                     </li>
                   )}
+                  {ev.kind === 'timer_stopped' && expandedDebugKeys.has(ev.id) && (() => {
+                    const mm = (ev.meta ?? {}) as any;
+                    const lteMeta: any = mm.lteMetadata ?? {};
+                    const stopMeta: any =
+                      (lteMeta.stop_metadata && typeof lteMeta.stop_metadata === 'object')
+                        ? lteMeta.stop_metadata
+                        : lteMeta;
+                    const sw: any = stopMeta?.switch ?? lteMeta?.switch ?? null;
+                    const cls = classifyStopSource({
+                      source: (mm.lteSource ?? mm.source) ?? null,
+                      metadata: lteMeta as Record<string, any> | null,
+                      exitedAt: mm.stoppedAt ?? ev.at ?? null,
+                      lteId: mm.lteId ?? '',
+                    });
+                    const k = cls.key;
+                    const isAuto = k === 'server_auto_switch' || k === 'server_background_gps' || k === 'geofence_foreground' || k === 'watchdog';
+                    const isManual = k === 'user_manual' || k === 'admin';
+                    const isReport = k === 'time_report_save';
+                    return (
+                      <li className="col-span-5 ml-14 mr-2 mb-1 rounded border border-dashed bg-muted/20 px-2 py-1.5 text-[10px] font-mono leading-relaxed text-muted-foreground">
+                        <div className="grid grid-cols-[auto_1fr] gap-x-2">
+                          <span>stop_source:</span><span className="text-foreground">{cls.details.stopSource ?? '—'}</span>
+                          <span>stop_reason:</span><span className="text-foreground">{cls.details.stopReason ?? '—'}</span>
+                          <span>stopped_at:</span><span className="text-foreground">{cls.details.stoppedAt ?? '—'}</span>
+                          <span>lte_id:</span><span className="text-foreground">{cls.details.sourceEntryId || '—'}</span>
+
+                          {isAuto && (
+                            <>
+                              <span>departure_at:</span><span className="text-foreground">{cls.details.departureAt ?? stopMeta?.departure_at ?? '—'}</span>
+                              <span>target:</span>
+                              <span className="text-foreground">
+                                {sw?.previous_target?.label ?? stopMeta?.location_name ?? stopMeta?.target ?? '—'}
+                              </span>
+                              {sw?.next_target && (
+                                <>
+                                  <span>next_target:</span>
+                                  <span className="text-foreground">
+                                    {sw.next_target?.label ?? '—'} ({sw.next_target?.kind ?? '—'})
+                                  </span>
+                                  <span>arrival_at:</span>
+                                  <span className="text-foreground">{sw.arrival_at ?? '—'}</span>
+                                </>
+                              )}
+                              <span>confidence:</span><span className="text-foreground">{String(cls.details.confidence ?? sw?.confidence ?? '—')}</span>
+                              <span>exit_pings:</span><span className="text-foreground">{stopMeta?.exit_ping_count ?? stopMeta?.ping_count ?? '—'}</span>
+                              <span>first_outside_ping:</span><span className="text-foreground">{stopMeta?.first_outside_ping_at ?? '—'}</span>
+                              <span>last_inside_ping:</span><span className="text-foreground">{stopMeta?.last_inside_ping_at ?? '—'}</span>
+                              <span>distance_from_target:</span><span className="text-foreground">{stopMeta?.distance_m != null ? `${stopMeta.distance_m} m` : '—'}</span>
+                              <span>accuracy:</span><span className="text-foreground">{stopMeta?.accuracy_m != null ? `±${stopMeta.accuracy_m} m` : '—'}</span>
+                              <span>run_id:</span><span className="text-foreground">{cls.details.runId ?? '—'}</span>
+                              <span>engine_version:</span><span className="text-foreground">{stopMeta?.engine_version ?? '—'}</span>
+                              {stopMeta?.travel_suggestion_id && (
+                                <>
+                                  <span>travel_suggestion:</span>
+                                  <span className="text-foreground">{stopMeta.travel_suggestion_id}</span>
+                                </>
+                              )}
+                            </>
+                          )}
+
+                          {isManual && (
+                            <>
+                              <span>actor:</span><span className="text-foreground">{cls.details.stoppedBy ?? '—'}</span>
+                              <span>action_time:</span><span className="text-foreground">{cls.details.stoppedAt ?? '—'}</span>
+                              <span>app_platform:</span><span className="text-foreground">{stopMeta?.app_platform ?? stopMeta?.client ?? '—'}</span>
+                              <span>app_version:</span><span className="text-foreground">{stopMeta?.app_version ?? '—'}</span>
+                              <span>closed_via:</span><span className="text-foreground">{stopMeta?.closed_via ?? '—'}</span>
+                            </>
+                          )}
+
+                          {isReport && (
+                            <>
+                              <span>time_report_id:</span><span className="text-foreground">{cls.details.linkedTimeReportId ?? stopMeta?.time_report_id ?? '—'}</span>
+                              <span>report_start:</span><span className="text-foreground">{stopMeta?.report_start ?? '—'}</span>
+                              <span>report_end:</span><span className="text-foreground">{stopMeta?.report_end ?? '—'}</span>
+                              <span>save_first_stop_second:</span>
+                              <span className="text-foreground">
+                                {stopMeta?.save_then_stop === true || stopMeta?.closed_via === 'save_then_stop' ? 'ja' : '—'}
+                              </span>
+                              <span>actor:</span><span className="text-foreground">{cls.details.stoppedBy ?? '—'}</span>
+                            </>
+                          )}
+
+                          {k === 'unknown' && (
+                            <>
+                              <span>raw_metadata:</span>
+                              <span className="text-foreground break-all">
+                                {JSON.stringify(lteMeta).slice(0, 200) || '—'}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })()}
                 </React.Fragment>
               );
             })}

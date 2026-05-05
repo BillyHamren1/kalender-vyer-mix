@@ -63,14 +63,20 @@ export function classifyStopSource(args: {
   lteId: string;
 }): StopSourceClass {
   const m = (args.metadata && typeof args.metadata === 'object') ? args.metadata : {};
+  // The DB now exposes stop_* as first-class columns + stop_metadata jsonb.
+  // We may receive either the lifted shape (stop_source/...) or a nested
+  // metadata bag. Merge them so old + new readers both work.
+  const stopMeta = (m as any).stop_metadata && typeof (m as any).stop_metadata === 'object'
+    ? (m as any).stop_metadata : {};
+  const merged: any = { ...stopMeta, ...m };
   const src = (args.source ?? '').toLowerCase();
-  const metaStopSrc = String(pick(m, 'stop_source', 'closed_at_source', 'closed_by') ?? '').toLowerCase();
-  const metaStopReason = pick<string>(m, 'stop_reason', 'reason', 'close_reason');
-  const stoppedBy = pick<string>(m, 'stopped_by', 'closed_by', 'actor', 'admin_user_id');
-  const runId = pick<string>(m, 'run_id');
-  const departureAt = pick<string>(m, 'departure_at') ?? pick<string>(m?.switch, 'departure_at');
-  const confidence = pick<string | number>(m, 'confidence') ?? pick<string | number>(m?.switch, 'confidence');
-  const linkedTr = pick<string>(m, 'linked_time_report_id', 'time_report_id');
+  const metaStopSrc = String(pick(merged, 'stop_source', 'closed_at_source', 'closed_by') ?? '').toLowerCase();
+  const metaStopReason = pick<string>(merged, 'stop_reason', 'reason', 'close_reason');
+  const stoppedBy = pick<string>(merged, 'stopped_by', 'closed_by', 'actor', 'admin_user_id');
+  const runId = pick<string>(merged, 'run_id');
+  const departureAt = pick<string>(merged, 'departure_at') ?? pick<string>(merged?.switch, 'departure_at');
+  const confidence = pick<string | number>(merged, 'confidence') ?? pick<string | number>(merged?.switch, 'confidence');
+  const linkedTr = pick<string>(merged, 'linked_time_report_id', 'time_report_id');
 
   const details: StopSourceClass['details'] = {
     stopSource: metaStopSrc || src || null,
@@ -80,7 +86,7 @@ export function classifyStopSource(args: {
     sourceEntryId: args.lteId,
     linkedTimeReportId: linkedTr ?? null,
     runId: runId ?? null,
-    autoSwitch: !!m?.switch || metaStopSrc.includes('switch'),
+    autoSwitch: !!merged?.switch || metaStopSrc.includes('switch'),
     departureAt: departureAt ?? null,
     confidence: confidence ?? null,
   };
