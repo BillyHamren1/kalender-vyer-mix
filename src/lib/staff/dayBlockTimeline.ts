@@ -59,6 +59,10 @@ export interface ResolvedPlace {
   /** Endast satt för okända platser. */
   nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
   unmatchReason?: string | null;
+  /** Diagnostik (sätts av enrichment i ActualDayPanel). */
+  lookupError?: string | null;
+  pingCount?: number | null;
+  avgAccuracy?: number | null;
 }
 
 export interface JourneyEndpointPlace {
@@ -67,6 +71,12 @@ export interface JourneyEndpointPlace {
   lng: number | null;
   mapUrl: string | null;
   lookupStatus: PlaceLookupStatus;
+  /** Diagnostik (sätts av enrichment i ActualDayPanel). */
+  lookupError?: string | null;
+  nearestKnownSite?: ActualVisit['nearestKnownSite'] | null;
+  unmatchReason?: string | null;
+  pingCount?: number | null;
+  avgAccuracy?: number | null;
 }
 
 export interface PresenceBlock {
