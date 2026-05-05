@@ -853,8 +853,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
 
       {/* A2. Planering — collapsed sektion ovanför huvudjournalen.
           Visar enbart förväntan; aldrig blandat med faktiska händelser. */}
-      {plannedEvents.length > 0 && (
-        <PlanningSection events={plannedEvents} />
+      {planningItems.length > 0 && (
+        <PlanningSection items={planningItems} />
       )}
 
       {/* B. Faktiska händelser — alltid synlig */}
