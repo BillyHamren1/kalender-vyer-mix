@@ -765,5 +765,50 @@ export const createInternalWarehouseTask = async (
     throw new Error(`Uppgiften skapades men kunde inte placeras i kalendern: ${calErr.message}`);
   }
 
+  // ── Bridge: mirror assignees into Planning calendar's "Lager" column ──
+  // The Lager column in the staff planning calendar uses team_id='transport'.
+  // Lager-N (lager-1, lager-2…) stays for warehouse calendar detail planning,
+  // but the Planning view ALWAYS sees the person on 'transport' for this date.
+  if (assigneeIds.length > 0) {
+    // Build one row per (staff, date) for every day the task covers.
+    const startDay = new Date(startISO);
+    const endDay = new Date(endISO);
+    const dates: string[] = [];
+    const cursor = new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate());
+    const endKey = `${endDay.getFullYear()}-${String(endDay.getMonth() + 1).padStart(2, '0')}-${String(endDay.getDate()).padStart(2, '0')}`;
+    while (true) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+      dates.push(key);
+      if (key >= endKey) break;
+      cursor.setDate(cursor.getDate() + 1);
+      if (dates.length > 60) break; // safety cap
+    }
+
+    const rows = assigneeIds.flatMap(staffId =>
+      dates.map(d => ({
+        staff_id: staffId,
+        team_id: 'transport',
+        assignment_date: d,
+      })),
+    );
+
+    console.log('[lager-bridge] Mirroring assignees to Lager column (team_id=transport)', {
+      staffIds: assigneeIds,
+      dates,
+      rowCount: rows.length,
+    });
+
+    const { error: bridgeErr } = await supabase
+      .from('staff_assignments')
+      .upsert(rows, { onConflict: 'staff_id,team_id,assignment_date' });
+
+    if (bridgeErr) {
+      console.error('[lager-bridge] upsert failed', bridgeErr);
+    } else {
+      console.log('[lager-bridge] upsert OK');
+    }
+  }
+
   return task as { id: string };
 };
+
