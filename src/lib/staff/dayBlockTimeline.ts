@@ -277,5 +277,107 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     }
   }
 
-  return blocks;
+  // 3) Syntetisera presence-block från TIME_REPORT-fönster när ingen vistelse
+  //    täcker den tiden. Detta säkerställer att huvudjournalen visar
+  //    "FA Warehouse 13:43–22:48" även när GPS-vistelse saknas.
+  const trCreated = allSorted.filter(e => e.kind === 'time_report_created');
+  const trClosed = allSorted.filter(e => e.kind === 'time_report_closed');
+  for (const cr of trCreated) {
+    const trIdMatch = cr.id.replace(/^tr-create:/, '');
+    const cl = trClosed.find(c => c.id === `tr-close:${trIdMatch}`);
+    const startIso = cr.at;
+    const endIso = cl?.at ?? null;
+    const startMs = new Date(startIso).getTime();
+    const endMs = endIso ? new Date(endIso).getTime() : Number.POSITIVE_INFINITY;
+    // Hoppa om presence redan täcker (>=50%) detta fönster
+    const covered = blocks.some(b => {
+      if (b.kind !== 'presence') return false;
+      const bs = new Date(b.startIso).getTime();
+      const be = b.endIso ? new Date(b.endIso).getTime() : Number.POSITIVE_INFINITY;
+      const overlap = Math.min(be, endMs) - Math.max(bs, startMs);
+      const len = (Number.isFinite(endMs) ? endMs : bs + 60_000) - startMs;
+      return overlap > 0 && (len <= 0 || overlap / Math.max(len, 1) >= 0.5);
+    });
+    if (covered) continue;
+    const labelRaw = (typeof cr.label === 'string' ? cr.label.replace(/^Tidrapport startad:\s*/, '') : '');
+    const label = cr.place ?? labelRaw ?? 'Tidrapport';
+    const dur = Number.isFinite(endMs) ? Math.max(0, Math.round((endMs - startMs) / 60_000)) : 0;
+    const synthetic: PresenceBlock = {
+      kind: 'presence',
+      id: `pb:tr:${trIdMatch}`,
+      startIso,
+      endIso,
+      durationMin: dur,
+      placeKey: null,
+      title: label,
+      subtitle: 'från tidrapport (ingen GPS-vistelse)',
+      isProject: false,
+      strength: 'time_report_window',
+      requiresReview: true,
+      ongoing: !endIso,
+      lastPingIso: null,
+      sourceEventIds: [cr.id, ...(cl ? [cl.id] : [])],
+      innerEvents: [],
+      timer: { startedIso: null, stoppedIso: null, active: !endIso, present: true },
+    };
+    blocks.push(synthetic);
+  }
+
+  // 4) Sortera om kronologiskt
+  blocks.sort((a, b) => a.startIso.localeCompare(b.startIso));
+
+  // 5) Infoga GAP-markörer mellan två journeys där en presence borde funnits
+  //    men saknas — så admin ser VARFÖR.
+  const withGaps: DayBlock[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const cur = blocks[i];
+    withGaps.push(cur);
+    const next = blocks[i + 1];
+    if (!next) continue;
+    if (cur.kind !== 'journey' || next.kind !== 'journey') continue;
+    const curEndMs = new Date(cur.endIso).getTime();
+    const nextStartMs = new Date(next.startIso).getTime();
+    const gapMin = Math.round((nextStartMs - curEndMs) / 60_000);
+    if (gapMin < 2) continue;
+
+    const expectedKey = cur.toPlaceKey;
+    const expectedLabel = cur.toLabel ?? next.fromLabel ?? null;
+    const visit = expectedKey ? visitByKey.get(expectedKey) : undefined;
+    const rawInWindow = allSorted.filter(e => {
+      const ms = new Date(e.at).getTime();
+      return ms >= curEndMs - 30_000 && ms <= nextStartMs + 30_000;
+    });
+    let reason: GapReason;
+    let explanation: string;
+    if (!expectedLabel) {
+      reason = 'target_unknown';
+      explanation = 'Förflyttningens destination saknar plats — vistelsen kunde inte härledas.';
+    } else if (visit) {
+      reason = 'merged_into_previous';
+      explanation = `Vistelse på ${expectedLabel} fanns men slogs ihop med annat block.`;
+    } else if (rawInWindow.some(e => e.kind === 'gps_visit' || e.kind === 'gps_arrival')) {
+      reason = 'filtered_as_too_short';
+      explanation = `GPS-stopp på ${expectedLabel} fanns men var för kort (<15 min) för eget block.`;
+    } else if (rawInWindow.length > 0) {
+      reason = 'raw_only_only';
+      explanation = `Endast tekniska/raw-events i fönstret — ingen GPS-vistelse genererades på ${expectedLabel}.`;
+    } else {
+      reason = 'no_signal';
+      explanation = `Ingen GPS-signal mellan resorna — vistelse på ${expectedLabel} kan inte bekräftas.`;
+    }
+
+    withGaps.push({
+      kind: 'gap',
+      id: `gap:${cur.id}:${next.id}`,
+      startIso: cur.endIso,
+      endIso: next.startIso,
+      durationMin: gapMin,
+      expectedLabel,
+      reason,
+      explanation,
+      innerEvents: rawInWindow,
+    });
+  }
+
+  return withGaps;
 }
