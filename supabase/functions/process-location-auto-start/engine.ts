@@ -32,6 +32,13 @@ export const ENGINE_VERSION = 'auto-start@1.0.0'
 export const ENTRY_PING_MIN_COUNT = 3
 export const ENTRY_PING_MIN_DWELL_MS = 2 * 60 * 1000
 export const ENTRY_PING_MAX_ACCURACY_M = 75
+// Kort vistelse-policy: 0–15 min på projekt/location ska INTE bli eget
+// arbetspass automatiskt. Detta är dwell-tröskeln innan auto-start engine
+// öppnar workday/LTE/skapar arrival-event. Kort GPS-närvaro tillhör
+// resa eller föregående/nästa arbetsblock, inte ett separat pass.
+// Undantag (manuell timer, scanner, admin-godkänd) går aldrig genom denna
+// kodväg — de skapar LTE direkt via mobile-app-api.
+export const AUTO_START_MIN_DWELL_MS = 15 * 60 * 1000
 const PROCESS_LOOKBACK_MS = 60 * 60 * 1000
 const PROCESS_OVERLAP_MS = 5 * 60 * 1000
 const TARGET_DAY_TOLERANCE_MS = 24 * 60 * 60 * 1000
