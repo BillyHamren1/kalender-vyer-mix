@@ -157,7 +157,13 @@ export const GpsStopsRows: React.FC<Props> = ({
       };
     });
 
-    const labelFor = (v: PlaceVisit, i: number) => v.knownSite?.name ?? geoLabels[i] ?? 'okänd plats';
+    const labelFor = (v: PlaceVisit, i: number) => {
+      if (v.knownSite?.name) return v.knownSite.name;
+      if (geoLabels[i]) return geoLabels[i];
+      // Har koordinater men ingen uppslagen adress ännu — visa loading-text
+      // istället för rå "okänd plats". Lookup pågår eller misslyckades.
+      return v.centre ? 'Slår upp adress…' : 'Okänd plats – adress kunde inte hämtas';
+    };
     const interleaved: Row[] = [];
     for (let i = 0; i < visitRows.length; i++) {
       interleaved.push(visitRows[i]);
