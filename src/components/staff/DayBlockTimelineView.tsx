@@ -68,20 +68,28 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
         ? 'border-slate-300 bg-card'
         : block.strength === 'possible_visit'
           ? 'border-slate-200 bg-card'
-          : 'border-amber-400/50 bg-amber-50/40 dark:bg-amber-950/10';
+          : block.strength === 'time_report_window'
+            ? 'border-dashed border-blue-400/60 bg-blue-50/40 dark:bg-blue-950/20'
+            : block.strength === 'inferred_between_journeys'
+              ? 'border-dashed border-amber-400/60 bg-amber-50/30 dark:bg-amber-950/10'
+              : 'border-amber-400/50 bg-amber-50/40 dark:bg-amber-950/10';
 
   const chipLabel =
     block.strength === 'project' ? (block.ongoing ? 'PÅ PROJEKT NU' : 'PÅ PROJEKT')
     : block.strength === 'strong_visit' ? 'Vistelse'
     : block.strength === 'possible_visit' ? 'Möjlig vistelse'
+    : block.strength === 'time_report_window' ? 'Tidrapport-vistelse'
+    : block.strength === 'inferred_between_journeys' ? 'Härledd vistelse'
     : 'Kort stopp';
 
   const chipClass =
     block.strength === 'project'
       ? 'bg-emerald-600 text-white hover:bg-emerald-600'
-      : block.strength === 'short_stop'
-        ? 'border-amber-400 text-amber-900 dark:text-amber-100'
-        : '';
+      : block.strength === 'time_report_window'
+        ? 'border-blue-400 text-blue-900 dark:text-blue-100'
+        : block.strength === 'short_stop'
+          ? 'border-amber-400 text-amber-900 dark:text-amber-100'
+          : '';
 
   return (
     <div className={`rounded-lg border-2 ${tone} px-3 py-2.5 shadow-sm`}>
