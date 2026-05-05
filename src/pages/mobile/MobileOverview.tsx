@@ -237,7 +237,64 @@ const MobileOverview: React.FC = () => {
   const isLoading = authLoading || !hasToken || (opsQ.isLoading && !useFallback) || (useFallback && (calendarQ.isLoading || assignmentsQ.isLoading));
   const isError = opsQ.isError && useFallback && (calendarQ.isError || assignmentsQ.isError);
 
-  const dateModes: { key: DateMode; label: string }[] = [
+  // === Detail dialog (fallback when no dedicated route exists) ===
+  type DetailContent =
+    | { kind: 'large_project'; id: string; name: string; date?: string; address?: string | null }
+    | { kind: 'staff'; staff: OpsStaffStatus }
+    | { kind: 'anomaly'; anomaly: OpsAnomaly };
+  const [detail, setDetail] = useState<DetailContent | null>(null);
+
+  const staffStatusById = useMemo(() => {
+    const m = new Map<string, OpsStaffStatus>();
+    for (const s of opsData?.staffStatus ?? []) m.set(s.staff_id, s);
+    return m;
+  }, [opsData]);
+
+  const openJob = (a: OverviewAssignment | { booking_id?: string | null; target_type?: string; target_id?: string | null; target_name?: string | null; assignment_date?: string; address?: string | null }) => {
+    if (a.booking_id) { navigate(`/m/job/${a.booking_id}`); return; }
+    if (a.target_type === 'large_project' && a.target_id) {
+      navigate(`/m/project/${a.target_id}`);
+      return;
+    }
+    setDetail({
+      kind: 'large_project',
+      id: (a.target_id as string) || '',
+      name: (a.target_name as string) || '—',
+      date: (a as any).assignment_date,
+      address: (a as any).address ?? null,
+    });
+  };
+
+  const openStaff = (staffId: string, name?: string) => {
+    const s = staffStatusById.get(staffId);
+    if (s) { setDetail({ kind: 'staff', staff: s }); return; }
+    // Synthetic minimal status if missing from payload
+    setDetail({
+      kind: 'staff',
+      staff: {
+        staff_id: staffId, name: name || '—',
+        planned_targets: [],
+        has_open_workday: false, active_timer: null,
+        latest_known_location: null, gps_status: 'unknown', anomaly_count: 0,
+      },
+    });
+  };
+
+  const openAnomaly = (a: OpsAnomaly) => {
+    switch (a.action) {
+      case 'staff_job':
+        if (a.target_id) { navigate(`/m/job/${a.target_id}`); return; }
+        break;
+      case 'contact_staff':
+      case 'review_workday':
+      case 'review_timer':
+        if (a.staff_id) { openStaff(a.staff_id); return; }
+        break;
+    }
+    setDetail({ kind: 'anomaly', anomaly: a });
+  };
+
+
     { key: 'today', label: t('jobs.today') },
     { key: 'tomorrow', label: t('jobs.tomorrow') },
     { key: 'week', label: t('overview.range.week') },
