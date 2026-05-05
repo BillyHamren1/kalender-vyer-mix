@@ -492,29 +492,56 @@ const MobileOverview: React.FC = () => {
 
           {/* === Section 3: Avvikelser === */}
           <Section title={t('overview.section.anomalies')} icon={AlertTriangle}>
-            {anomalies.length === 0 ? (
-              <EmptyState text={t('overview.empty.anomalies')} />
-            ) : (
-              <div className="space-y-2">
-                {anomalies.map((a, i) => (
-                  <button
-                    key={`${a.kind}-${i}`}
-                    onClick={() => a.bookingId && navigate(`/m/job/${a.bookingId}`)}
-                    className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-destructive/30 active:scale-[0.99] transition-transform text-left"
-                  >
-                    <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-bold text-destructive">{a.label}</div>
-                      <div className="text-sm font-medium truncate">{a.detail}</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        {format(parseISO(a.date), 'd MMM', { locale: dateLocale })}
+            {(() => {
+              const opsAnomalies = opsData?.anomalies ?? [];
+              if (opsAnomalies.length > 0) {
+                return (
+                  <div className="space-y-2">
+                    {opsAnomalies.map((a, i) => (
+                      <button
+                        key={`${a.type}-${i}`}
+                        onClick={() => openAnomaly(a)}
+                        className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-destructive/30 active:scale-[0.99] transition-transform text-left"
+                      >
+                        <AlertTriangle className={cn('w-5 h-5 shrink-0 mt-0.5', a.severity === 'high' ? 'text-destructive' : a.severity === 'medium' ? 'text-amber-500' : 'text-muted-foreground')} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-destructive">{a.type.replace(/_/g, ' ').toUpperCase()}</div>
+                          <div className="text-sm font-medium truncate">{a.label}</div>
+                          {a.date && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {format(parseISO(a.date), 'd MMM', { locale: dateLocale })}
+                            </div>
+                          )}
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+                      </button>
+                    ))}
+                  </div>
+                );
+              }
+              if (anomalies.length === 0) return <EmptyState text={t('overview.empty.anomalies')} />;
+              return (
+                <div className="space-y-2">
+                  {anomalies.map((a, i) => (
+                    <button
+                      key={`${a.kind}-${i}`}
+                      onClick={() => a.bookingId ? navigate(`/m/job/${a.bookingId}`) : setDetail({ kind: 'anomaly', anomaly: { type: a.kind, severity: 'medium', staff_id: null, target_id: a.bookingId ?? null, label: a.label, action: null, date: a.date } })}
+                      className="w-full flex items-start gap-3 p-3 rounded-xl bg-card border border-destructive/30 active:scale-[0.99] transition-transform text-left"
+                    >
+                      <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold text-destructive">{a.label}</div>
+                        <div className="text-sm font-medium truncate">{a.detail}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {format(parseISO(a.date), 'd MMM', { locale: dateLocale })}
+                        </div>
                       </div>
-                    </div>
-                    {a.bookingId && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />}
-                  </button>
-                ))}
-              </div>
-            )}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </Section>
 
           {/* === Section 4: Meddelanden === */}
