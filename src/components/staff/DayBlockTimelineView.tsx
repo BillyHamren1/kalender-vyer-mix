@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Briefcase, ChevronDown, ChevronRight, Clock, MapPin, Move, AlertTriangle, Activity, HelpCircle, FileText } from 'lucide-react';
+import { Briefcase, ChevronDown, ChevronRight, Clock, MapPin, Move, AlertTriangle, Activity, HelpCircle, FileText, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
 
@@ -93,58 +93,67 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
 
   return (
     <div className={`rounded-lg border-2 ${tone} px-3 py-2.5 shadow-sm`}>
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="tabular-nums text-xs text-muted-foreground font-medium shrink-0">
-            {range}
+      <div className="grid grid-cols-12 gap-3 items-start">
+        {/* Tid */}
+        <div className="col-span-12 md:col-span-2 flex flex-col gap-0.5">
+          <span className="tabular-nums text-xs text-foreground font-semibold">{range}</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
+            <Clock className="h-3 w-3" />
+            {fmtDur(block.durationMin)}
           </span>
+        </div>
+
+        {/* På plats / Projekt */}
+        <div className="col-span-12 md:col-span-7 min-w-0">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
+            {block.isProject ? 'På projekt' : 'På plats'}
+          </div>
+          <div className="text-sm font-semibold text-foreground leading-tight truncate flex items-center gap-1.5">
+            {block.isProject ? <Briefcase className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> : <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+            <span className="truncate">{block.title}</span>
+          </div>
+          {block.subtitle && (
+            <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+              {block.subtitle}
+            </div>
+          )}
+        </div>
+
+        {/* Status */}
+        <div className="col-span-12 md:col-span-3 flex flex-col items-start md:items-end gap-1">
           <Badge variant={block.strength === 'project' ? 'default' : 'outline'} className={`text-[10px] uppercase tracking-wider font-bold ${chipClass}`}>
-            {block.isProject && <Briefcase className="h-3 w-3 mr-1" />}
             {chipLabel}
           </Badge>
-          {block.evidenceLabel && (
-            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-blue-300 text-blue-800 dark:text-blue-200">
-              {block.evidenceLabel}
-            </Badge>
-          )}
-          {block.confidence === 'high' && (
-            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-emerald-300 text-emerald-800 dark:text-emerald-200">
-              Hög tillit
-            </Badge>
-          )}
-          {block.requiresReview && (
-            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300">
-              Kräver granskning
-            </Badge>
+          <div className="flex flex-wrap gap-1 justify-start md:justify-end">
+            {block.evidenceLabel && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-blue-300 text-blue-800 dark:text-blue-200">
+                {block.evidenceLabel}
+              </Badge>
+            )}
+            {block.confidence === 'high' && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-emerald-300 text-emerald-800 dark:text-emerald-200">
+                Hög tillit
+              </Badge>
+            )}
+            {block.timer.present && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 inline-flex items-center gap-1">
+                <Activity className="h-3 w-3" />
+                {block.timer.active ? 'timer aktiv' : 'timer'}
+              </Badge>
+            )}
+            {block.requiresReview && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300 inline-flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Kräver granskning
+              </Badge>
+            )}
+          </div>
+          {block.ongoing && block.lastPingIso && (
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              senaste GPS {fmtHm(block.lastPingIso)}
+            </span>
           )}
         </div>
-        {block.requiresReview && <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />}
-      </div>
-      <div className="text-sm font-semibold text-foreground leading-tight truncate">
-        {block.title}
-      </div>
-      {block.subtitle && (
-        <div className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
-          <MapPin className="h-3 w-3 shrink-0" />
-          {block.subtitle}
-        </div>
-      )}
-      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
-        <span className="inline-flex items-center gap-1 tabular-nums">
-          <Clock className="h-3 w-3" />
-          {fmtDur(block.durationMin)}
-        </span>
-        {block.timer.present && (
-          <span className="inline-flex items-center gap-1">
-            <Activity className="h-3 w-3" />
-            {block.timer.active ? 'timer aktiv' : `timer ${fmtHm(block.timer.startedIso)}–${fmtHm(block.timer.stoppedIso)}`}
-          </span>
-        )}
-        {block.ongoing && block.lastPingIso && (
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            senaste GPS {fmtHm(block.lastPingIso)}
-          </span>
-        )}
       </div>
       <Inner block={block} />
     </div>
@@ -158,20 +167,34 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
     : 'border-slate-200 bg-card/60';
   return (
     <div className={`rounded-lg border ${tone} px-3 py-2`}>
-      <div className="flex items-center gap-2 mb-0.5">
-        <span className="tabular-nums text-xs text-muted-foreground font-medium shrink-0">
-          {range}
-        </span>
-        <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-          <Move className="h-3 w-3 mr-1" />
-          {block.uncertain ? 'Möjlig förflyttning' : 'Förflyttning'}
-        </Badge>
-        <span className="text-[11px] text-muted-foreground tabular-nums">
-          {fmtDur(block.durationMin)}
-        </span>
-      </div>
-      <div className="text-sm font-medium text-foreground truncate">
-        {block.fromLabel ?? 'okänd plats'} <span className="opacity-60">→</span> {block.toLabel ?? 'okänd plats'}
+      <div className="grid grid-cols-12 gap-3 items-center">
+        {/* Tid */}
+        <div className="col-span-12 md:col-span-2 flex flex-col gap-0.5">
+          <span className="tabular-nums text-xs text-foreground font-semibold">{range}</span>
+          <span className="text-[11px] text-muted-foreground tabular-nums">{fmtDur(block.durationMin)}</span>
+        </div>
+
+        {/* Från → Till */}
+        <div className="col-span-12 md:col-span-7 grid grid-cols-[1fr_auto_1fr] gap-2 items-center min-w-0">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Från</div>
+            <div className="text-sm font-medium text-foreground truncate">{block.fromLabel ?? 'okänd plats'}</div>
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Till</div>
+            <div className="text-sm font-medium text-foreground truncate">{block.toLabel ?? 'okänd plats'}</div>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="col-span-12 md:col-span-3 flex flex-col items-start md:items-end gap-1">
+          <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+            <Move className="h-3 w-3 mr-1" />
+            {block.uncertain ? 'Möjlig förflyttning' : 'Förflyttning'}
+          </Badge>
+          <span className="text-[10px] text-muted-foreground">föreslagen</span>
+        </div>
       </div>
       <Inner block={block} />
     </div>
