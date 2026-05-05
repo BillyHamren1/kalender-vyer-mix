@@ -267,6 +267,87 @@ export const WorkDayAssistant: React.FC<Props> = ({ decision, onAcknowledge }) =
     );
   }
 
+  if (decision.kind === 'late_after_planned_start') {
+    const d = decision as LateAfterPlannedStartDecision;
+    const handleChoose = async (
+      choice: 'planned' | 'first_signal' | 'custom' | 'did_not_work',
+      customIso?: string,
+    ) => {
+      if (choice === 'did_not_work') {
+        try {
+          await mobileApi.createWorkdayFlag({
+            flag_type: 'planned_time_without_signal',
+            flag_date: d.plannedStartIso.slice(0, 10),
+            title: 'Markerad: jobbade inte planerad tid',
+            description: `Planerad start ${d.plannedStartIso}, första signal ${d.firstSignalIso}. Användaren angav att hen inte jobbade.`,
+            severity: 'info',
+            needs_user_input: false,
+            context: {
+              source: 'assistant_late_after_planned_start',
+              user_choice: 'did_not_work',
+              planned_start_iso: d.plannedStartIso,
+              first_gps_at: d.firstSignalIso,
+            },
+          });
+          toast.success(t('assistant.lateMarkedAbsent'));
+        } catch (err: any) {
+          toast.error(err?.message || t('assistant.couldNotSave'));
+        } finally {
+          onAcknowledge();
+        }
+        return;
+      }
+
+      const startedAtIso =
+        choice === 'planned' ? d.plannedStartIso
+        : choice === 'first_signal' ? d.firstSignalIso
+        : customIso || d.firstSignalIso;
+
+      const sourceTag =
+        choice === 'planned' ? 'user_confirmed_assignment_start'
+        : choice === 'first_signal' ? 'user_confirmed_first_gps'
+        : 'user_confirmed_custom_start';
+
+      const notes = JSON.stringify({
+        source: sourceTag,
+        no_signal_until: d.firstSignalIso,
+        first_gps_at: d.firstSignalIso,
+        planned_start_iso: d.plannedStartIso,
+        late_minutes: d.lateMinutes,
+        assistant_origin: 'late_after_planned_start',
+      });
+
+      setSubmitting(true);
+      try {
+        await workdayApi.start({ startedAtIso, notes });
+        window.dispatchEvent(new CustomEvent('workday-started', {
+          detail: { source: sourceTag, startedAtIso },
+        }));
+        toast.success(t('assistant.workdayStartedAt', {
+          time: new Date(startedAtIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+      } catch (err: any) {
+        toast.error(err?.message || t('assistant.couldNotStart'));
+      } finally {
+        setSubmitting(false);
+        onAcknowledge();
+      }
+    };
+
+    return (
+      <>
+        <LateAfterPlannedStartDialog
+          open
+          onOpenChange={(o) => !o && onAcknowledge()}
+          decision={d}
+          submitting={submitting}
+          onChoose={handleChoose}
+        />
+        {workSessionDialogs}
+      </>
+    );
+  }
+
   return <>{workSessionDialogs}</>;
 };
 
