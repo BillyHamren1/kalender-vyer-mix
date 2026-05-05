@@ -138,10 +138,20 @@ export interface GapBlock {
 export type DayBlock = PresenceBlock | JourneyBlock | GapBlock;
 
 export interface BuildBlockTimelineInput {
-  /** mainTimeline-events från classifyTimelineCoalesced (visibility=main). */
-  mainEvents: ActualEvent[];
-  /** Alla råa events (inkl raw_only) — används för att hitta mergeable detaljer. */
+  /**
+   * mainTimeline-events från classifyTimelineCoalesced (visibility=main).
+   * @deprecated Behålls för bakåtkompatibilitet — block byggs primärt från
+   * `actualVisits` + `allEvents`. Om `actualVisits` är tom faller vi tillbaka
+   * på presence-events i mainEvents (legacy).
+   */
+  mainEvents?: ActualEvent[];
+  /** Alla råa events (inkl raw_only) — används för journeys + tekniska detaljer. */
   allEvents: ActualEvent[];
+  /**
+   * Faktiska GPS-vistelser (från pingPlaceSegments). Förstahandskälla för
+   * presence-block — får INTE filtreras via timelineVisibility innan.
+   */
+  actualVisits?: ActualVisit[];
   /** Indexerad på placeKey för label/duration-konsistens. */
   visitByKey: Map<string, { knownSiteId: string | null; label: string; durationMin: number; end: string }>;
 }
