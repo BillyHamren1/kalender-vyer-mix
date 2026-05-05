@@ -285,10 +285,15 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         : new Date(b.endIso).getTime();
       const inside = evMs >= startMs - 60_000 && evMs <= endMs + 60_000;
       const samePlace = b.kind === 'presence' && evPk && evPk === b.placeKey;
+      const distToEdge = Math.min(Math.abs(evMs - startMs), Math.abs(evMs - endMs));
       let score: number;
       if (inside && samePlace) score = 0;
+      // placeKey-match: hör hemma här även om tidrapport/timer stängs/öppnas
+      // strax efter att GPS-vistelsen slutat (typ time_report_closed 21 min
+      // efter departure). Vi tillåter upp till 60 min utanför kanten.
+      else if (samePlace && distToEdge <= 60 * 60_000) score = 100 + distToEdge / 60_000;
       else if (inside) score = 1_000;
-      else score = Math.min(Math.abs(evMs - startMs), Math.abs(evMs - endMs)) + 10_000;
+      else score = distToEdge + 10_000;
       if (score < bestScore) {
         bestScore = score;
         target = b;
