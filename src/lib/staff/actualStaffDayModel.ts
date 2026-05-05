@@ -288,6 +288,19 @@ export interface ProposedAnomaly {
   severity: ActualEventSeverity;
   /** Fritextförslag på korrigering, t.ex. "Justera arbetsdag-start till 06:00?". */
   suggestion?: string | null;
+  /**
+   * Strukturell payload för anomalies som har ett interaktivt åtgärdsflöde
+   * (t.ex. "planned_time_without_signal" → admin kan skapa arbetsdag direkt
+   * från Föreslagna korrigeringar). Optional och bakåtkompatibel.
+   */
+  action?: {
+    kind: 'planned_time_without_signal';
+    assignmentId: string | null;
+    plannedStartIso: string;
+    firstSignalIso: string | null;
+    noSignalGapMinutes: number;
+    label: string;
+  } | null;
 }
 
 export interface ProposedReport {
