@@ -28,6 +28,7 @@ import type {
   ProposedAnomaly,
 } from '@/lib/staff/actualStaffDayModel';
 import { classifyStopSource, STOP_SOURCE_BADGE_CLASSES, inlineStopSuffix, isStopConfident } from '@/lib/staff/stopSourceClassifier';
+import { computeStrongWorkIndicators, type StrongWorkReasonCode } from '@/lib/staff/strongWorkIndicators';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
@@ -76,6 +77,16 @@ interface ActualDayPanelProps {
   extraActions?: React.ReactNode;
   /** Renderas inuti collapse-sektionen "Rå GPS / debug". */
   rawGpsSlot?: React.ReactNode;
+  /**
+   * Repair-action när workday saknas men det finns starka arbetsbevis
+   * (assignment + GPS, timer existerar, två arbetsplatser, etc.).
+   * Caller bör trigga `admin_repair_workday_from_evidence` edge-action.
+   */
+  onRepairWorkdayFromEvidence?: (input: {
+    proposedStartIso: string;
+    proposedEndIso: string | null;
+    reasonCodes: StrongWorkReasonCode[];
+  }) => Promise<void> | void;
 }
 
 const fmtHm = (iso: string) => {
@@ -102,6 +113,7 @@ type HeaderStatus =
   | 'signal_lost'
   | 'pre_workday'
   | 'missing_report'
+  | 'evidence_repair_proposed'
   | 'ongoing';
 
 function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: string } {
@@ -117,6 +129,11 @@ function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: 
   }
   if (model.proposedReport.anomalies.length > 0) return { kind: 'review', label: 'Kräver granskning' };
   if (!wd && (model.actualVisits.length > 0 || model.actualEvents.length > 0)) {
+    // Stark arbetsindikator → erbjud reparation istället för passivt "Saknar arbetsdag"
+    const ind = computeStrongWorkIndicators(model);
+    if (ind.hasStrong && ind.proposedStartIso) {
+      return { kind: 'evidence_repair_proposed', label: 'Reparation föreslagen' };
+    }
     return { kind: 'missing_report', label: 'Saknar arbetsdag' };
   }
   return { kind: 'ok', label: 'OK' };
@@ -130,6 +147,8 @@ const statusBadgeClass = (kind: HeaderStatus): string => {
       return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200';
     case 'signal_lost':
       return 'bg-destructive/15 text-destructive';
+    case 'evidence_repair_proposed':
+      return 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100';
     case 'review':
     case 'pre_workday':
     case 'missing_report':
@@ -284,6 +303,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   reportSlot,
   extraActions,
   rawGpsSlot,
+  onRepairWorkdayFromEvidence,
 }) => {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -322,6 +342,25 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   const wdMin = wd
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
     : 0;
+  const repairIndicators = useMemo(() => computeStrongWorkIndicators(model), [model]);
+  const showRepairBanner = !wd && repairIndicators.hasStrong && !!repairIndicators.proposedStartIso;
+  const [repairBusy, setRepairBusy] = useState(false);
+  const handleRepair = async () => {
+    if (!onRepairWorkdayFromEvidence || !repairIndicators.proposedStartIso) return;
+    try {
+      setRepairBusy(true);
+      await onRepairWorkdayFromEvidence({
+        proposedStartIso: repairIndicators.proposedStartIso,
+        proposedEndIso: repairIndicators.proposedEndIso,
+        reasonCodes: repairIndicators.reasonCodes,
+      });
+      toast.success('Arbetsdag skapad från arbetsbevis');
+    } catch (e: any) {
+      toast.error(`Kunde inte skapa arbetsdag: ${e?.message ?? e}`);
+    } finally {
+      setRepairBusy(false);
+    }
+  };
 
   const rawEvents = showAllEvents ? buildRawTimeline(model.actualEvents) : buildMainTimeline(model.actualEvents);
   const hiddenReasons = useMemo(() => buildHiddenReasonMap(model.actualEvents), [model.actualEvents]);
@@ -576,6 +615,31 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <Badge className={`${statusBadgeClass(status.kind)} font-medium`}>{status.label}</Badge>
         </div>
       </div>
+
+      {showRepairBanner && (
+        <div className="px-4 py-3 border-b bg-blue-50/60 dark:bg-blue-950/20 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Sparkles className="h-4 w-4 text-blue-700 dark:text-blue-300 shrink-0" />
+          <div className="text-xs flex-1 min-w-[16rem]">
+            <div className="font-medium text-blue-900 dark:text-blue-100">
+              Stark arbetsindikator – skapa arbetsdag automatiskt
+            </div>
+            <div className="text-blue-900/80 dark:text-blue-100/80">
+              Föreslagen start <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedStartIso!)}</span>
+              {repairIndicators.proposedEndIso && (
+                <> · slut <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedEndIso)}</span></>
+              )}
+              {' · '}{repairIndicators.reasonCodes.join(', ')}
+            </div>
+          </div>
+          {onRepairWorkdayFromEvidence ? (
+            <Button size="sm" disabled={repairBusy} onClick={handleRepair}>
+              {repairBusy ? 'Skapar…' : 'Skapa arbetsdag'}
+            </Button>
+          ) : (
+            <Badge variant="outline" className="text-[10px]">Reparation föreslagen</Badge>
+          )}
+        </div>
+      )}
 
       {/* B. Faktiska händelser — alltid synlig */}
       <section className="px-4 py-3 border-b">
