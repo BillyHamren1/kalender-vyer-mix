@@ -895,40 +895,12 @@ const StaffTimeReports: React.FC = () => {
         byStaff.set(wd.staff_id, a);
       }
 
-      // Union av staff från ALLA källor — inte bara reports/workdays/LTE.
-      // En person med bara GPS-pings, bara assistant_event eller bara
-      // workday_flag ska också synas i listan så admin ser dagen.
-      // (reports/travel/LTE/workdays är redan adderade via byStaff ovan.)
-      const extraStaffIds = new Set<string>();
-      for (const a of (assistantEvents as any[])) if (a.staff_id) extraStaffIds.add(a.staff_id);
-      for (const f of (workdayFlags as any[])) if (f.staff_id) extraStaffIds.add(f.staff_id);
-      // Planerade personer ska alltid synas — även utan workday/GPS/rapport.
-      for (const id of plannedStaffIds) extraStaffIds.add(id);
-      // Pings: hämta ALLA distinkta staff_id från staff_location_history
-      // för dagen. .select('staff_id').limit(1000) returnerar 1000 RADER
-      // (inte distinct), så en aktiv person kan fylla hela kvoten och
-      // dölja andra. Vi paginerar tills vi sett alla rader och bygger ett
-      // Set lokalt — billigt eftersom vi bara läser en kolumn.
-      const PING_PAGE = 1000;
-      let pingFrom = 0;
-      // Safety cap så vi inte snurrar oändligt vid katastrofdata.
-      const PING_MAX_PAGES = 200; // 200k rader/dag räcker långt
-      for (let page = 0; page < PING_MAX_PAGES; page++) {
-        const { data: pingStaffRows, error: pingErr } = await supabase
-          .from('staff_location_history')
-          .select('staff_id')
-          .gte('recorded_at', dayStartIso)
-          .lt('recorded_at', nextDayIso)
-          .range(pingFrom, pingFrom + PING_PAGE - 1);
-        if (pingErr) break;
-        const rows = (pingStaffRows || []) as any[];
-        for (const r of rows) {
-          if (r.staff_id) extraStaffIds.add(r.staff_id);
-        }
-        if (rows.length < PING_PAGE) break;
-        pingFrom += PING_PAGE;
-      }
-      for (const id of extraStaffIds) {
+      // Listan = planerad personal för dagen + personer med FAKTISK arbets-
+      // aktivitet (time_reports/workdays/LTE/travel — redan i byStaff).
+      // Vi tar INTE in folk bara för att de har GPS-pings, assistant_events
+      // eller workday_flags — det skulle visa "alla med telefon på" oavsett
+      // om de jobbar idag eller inte.
+      for (const id of plannedStaffIds) {
         if (!byStaff.has(id)) byStaff.set(id, newAgg());
       }
 
