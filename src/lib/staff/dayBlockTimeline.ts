@@ -17,9 +17,27 @@
 
 import type { ActualEvent } from '@/lib/staff/actualStaffDayModel';
 
-export type BlockKind = 'presence' | 'journey';
+export type BlockKind = 'presence' | 'journey' | 'gap';
 
-export type PresenceStrength = 'strong_visit' | 'possible_visit' | 'short_stop' | 'project';
+export type PresenceStrength =
+  | 'strong_visit'
+  | 'possible_visit'
+  | 'short_stop'
+  | 'project'
+  /** Härledd från time_report-fönster utan GPS-stöd. */
+  | 'time_report_window'
+  /** Härledd från sammanhängande journey-endpoints (var här mellan resor). */
+  | 'inferred_between_journeys';
+
+/** Diagnostisk markör för ett glapp i journalen där presence saknas. */
+export type GapReason =
+  | 'no_visit_generated'        // GPS-data finns men inget kluster bildades
+  | 'filtered_as_too_short'     // Vistelsen klassades som micro/short_stop
+  | 'swallowed_by_travel'       // Annan resa täcker tidsfönstret
+  | 'target_unknown'            // Plats okänd (ingen knownSiteId, ingen geocode)
+  | 'merged_into_previous'      // Slogs ihop med föregående block
+  | 'raw_only_only'             // Endast raw-events (timer/assistant/server) — inget block
+  | 'no_signal';                // Tomt fönster — varken GPS eller timer
 
 export interface PresenceBlock {
   kind: 'presence';
