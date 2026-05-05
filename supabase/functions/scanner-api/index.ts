@@ -807,15 +807,27 @@ Deno.serve(async (req) => {
         const { itemId, currentlyPacked, quantityToPack, verifiedBy, verifiedByStaffId } = params
         const now = new Date().toISOString()
 
-        // Get the packing_id for status flow
+        // Get the packing_id + product info for status flow + Bundle sync
         const { data: itemData } = await supabase
           .from('packing_list_items')
-          .select('packing_id')
+          .select(`
+            packing_id,
+            quantity_packed,
+            booking_products ( id, name, sku, inventory_item_type_id, parent_product_id )
+          `)
           .eq('id', itemId)
           .eq('organization_id', ORG_ID)
           .single()
 
-        const packingId = itemData?.packing_id
+        const packingId = (itemData as any)?.packing_id
+        const product = (itemData as any)?.booking_products || null
+        const isParentRow = !!product?.parent_product_id ? false : false
+        // booking_products.parent_product_id !== null means THIS row IS a child;
+        // a "parent row" in our UI is one that HAS children. We only block sync
+        // when the row has no WMS coupling at all (sku + item_type both null).
+
+        let newQty = (itemData as any)?.quantity_packed || 0
+        let didIncrement = false
 
         if (currentlyPacked) {
           await supabase.from('packing_list_items').update({
@@ -823,15 +835,16 @@ Deno.serve(async (req) => {
           }).eq('id', itemId).eq('organization_id', ORG_ID)
           // Clear all parcel allocations on full reset
           await supabase.from('packing_list_item_allocations').delete().eq('packing_list_item_id', itemId).eq('organization_id', ORG_ID)
+          newQty = 0
         } else {
           // STATUS FLOW: First manual toggle → set to in_progress
           if (packingId) await transitionToInProgress(supabase, packingId, ORG_ID)
 
-          const { data: currentItem } = await supabase.from('packing_list_items').select('quantity_packed').eq('id', itemId).eq('organization_id', ORG_ID).single()
-          const currentQty = currentItem?.quantity_packed || 0
-          const newQty = Math.min(currentQty + 1, quantityToPack)
+          const currentQty = (itemData as any)?.quantity_packed || 0
+          newQty = Math.min(currentQty + 1, quantityToPack)
           const isFull = newQty >= quantityToPack
           const activeParcelId = (params as any).activeParcelId
+          didIncrement = newQty > currentQty
 
           await supabase.from('packing_list_items').update({
             quantity_packed: newQty,
@@ -857,7 +870,107 @@ Deno.serve(async (req) => {
         // STATUS FLOW: Check if all items are now packed (or reverted)
         if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
 
-        return json({ success: true })
+        // === Bundle Builder sync — only on actual increments ===
+        const productName: string | undefined = product?.name
+        if (!didIncrement) {
+          return json({ success: true, manualScan: false, bundleSynced: false, productName, newQuantity: newQty })
+        }
+
+        // Defensive: parent (composite) rows should not be toggled and never
+        // pushed to Bundle. UI already blocks this; mirror the rule here.
+        const sku = product?.sku || null
+        const itemTypeId = product?.inventory_item_type_id || null
+        if (!sku && !itemTypeId) {
+          console.warn('[toggle_item] manual scan blocked — no WMS coupling', { itemId })
+          return json({
+            success: true,
+            manualScan: true,
+            bundleSynced: false,
+            productName,
+            newQuantity: newQty,
+            warning: 'Kan inte skicka manuell scan till Bundle eftersom artikeln saknar WMS-koppling.',
+          })
+        }
+
+        // Lookup booking_number for the WMS reservation_id
+        const { data: packingMeta } = await supabase
+          .from('packing_projects')
+          .select('booking_id')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .maybeSingle()
+
+        let bookingNumber: string | null = null
+        if ((packingMeta as any)?.booking_id) {
+          const { data: bk } = await supabase
+            .from('bookings')
+            .select('booking_number')
+            .eq('id', (packingMeta as any).booking_id)
+            .eq('organization_id', ORG_ID)
+            .maybeSingle()
+          bookingNumber = (bk as any)?.booking_number || null
+        }
+
+        const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
+        if (!PRICELIST_API_KEY || !bookingNumber) {
+          return json({
+            success: true,
+            manualScan: true,
+            bundleSynced: false,
+            productName,
+            newQuantity: newQty,
+            warning: 'Packad lokalt men kunde inte synka till Bundle (saknar reservation/nyckel).',
+          })
+        }
+
+        let bundleSynced = false
+        let bundleError: string | null = null
+        try {
+          const resp = await fetch(
+            'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/manual-pack-scan',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+                'x-organization-id': ORG_ID,
+              },
+              body: JSON.stringify({
+                reservation_id: bookingNumber,
+                booking_number: bookingNumber,
+                sku,
+                item_type_id: itemTypeId,
+                product_name: productName || null,
+                quantity: 1,
+                source: 'planning_scanner_manual_checkoff',
+                packing_list_item_id: itemId,
+                verified_by: verifiedBy || null,
+              }),
+            }
+          )
+          const text = await resp.text()
+          let body: any = {}
+          try { body = JSON.parse(text) } catch { /* ignore */ }
+          if (resp.ok && body?.success !== false) {
+            bundleSynced = true
+            console.log('[manual-pack-scan] OK', { itemId, sku, bookingNumber })
+          } else {
+            bundleError = body?.error || `HTTP ${resp.status}`
+            console.warn('[manual-pack-scan] failed', { itemId, status: resp.status, body: text })
+          }
+        } catch (err) {
+          bundleError = (err as any)?.message || 'network_error'
+          console.warn('[manual-pack-scan] network error', { itemId, err })
+        }
+
+        return json({
+          success: true,
+          manualScan: true,
+          bundleSynced,
+          productName,
+          newQuantity: newQty,
+          ...(bundleSynced ? {} : { warning: 'Packad lokalt men kunde inte synka till Bundle', bundleError }),
+        })
       }
 
       case 'decrement_item': {
