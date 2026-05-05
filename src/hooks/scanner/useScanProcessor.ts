@@ -80,36 +80,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
 
-    // Classify FIRST so dedup applies only to unique codes (RFID / serials).
-    // Repeatable codes (SKU, article barcodes) may be scanned many times.
+    // No local session dedup — WMS (lagersystemet) is the single source of truth
+    // for whether a code has already been scanned. This avoids blocking legitimate
+    // minus scans / re-scans on the client.
     const parsed = parseScanResult(scannedValue);
     const normalised = scannedValue.trim().toLowerCase();
-
-    // Skip session dedup entirely in minus mode — the user is intentionally
-    // re-scanning a unique code to remove it.
-    const isMinus = optRef.current.getIsMinusMode();
-
-    if (!isMinus && parsed.unique && scannedThisSessionRef.current.has(normalised)) {
-      scanLog('scan_ignored_duplicate_session', { value: scannedValue, type: parsed.type });
-      optRef.current.onScanResult({
-        value: scannedValue,
-        result: `Already scanned this session`,
-        success: false,
-      });
-      addRecentScan({
-        value: scannedValue,
-        productName: scannedValue,
-        success: false,
-        timestamp: Date.now(),
-        reason: 'duplicate',
-      });
-      isProcessingRef.current = false;
-      if (queueRef.current.length > 0) processNext();
-      return;
-    }
-    if (!isMinus && parsed.unique) {
-      scannedThisSessionRef.current.add(normalised);
-    }
 
     scanLog('scan_received', { value: scannedValue, type: parsed.type, unique: parsed.unique });
 
