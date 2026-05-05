@@ -9267,7 +9267,14 @@ async function handleCorrectStaleDayEnd(
         )
         await supabase
           .from('location_time_entries')
-          .update({ exited_at: chosen.toISOString(), total_minutes: minutes })
+          .update({
+            exited_at: chosen.toISOString(),
+            total_minutes: minutes,
+            stop_source: 'user_manual',
+            stop_reason: 'user_saved_time_report',
+            stopped_by: staffId,
+            stop_metadata: { closed_via: 'resolve_workday_flag', flag_id: (flag as any)?.id },
+          })
           .eq('id', entry.id)
       }
     } else if (entry.table === 'travel_time_logs') {
