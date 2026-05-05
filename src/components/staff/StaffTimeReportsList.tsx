@@ -343,6 +343,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                     </ul>
                   </div>
                 </details>
+                )}
                 {staff.pingsFetchError && (
                   <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     ⚠️ GPS-historik kunde inte hämtas för {staff.name}. Dagens händelser kan vara ofullständiga. ({staff.pingsFetchError})
