@@ -757,19 +757,21 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     if (r == null) return true;
     return r === 'work_confirmed' || r === 'work_possible';
   };
-  const [mainEvents, backgroundEvents, plannedEvents] = useMemo(() => {
+  const [mainEvents, backgroundEvents] = useMemo(() => {
     const main: ActualEvent[] = [];
     const bg: ActualEvent[] = [];
-    const planned: ActualEvent[] = [];
     for (const ev of events) {
-      // planned_start är planeringsförväntan, inte en faktisk händelse —
-      // visas i separata "Planering"-sektionen, aldrig i huvudjournalen.
-      if (ev.kind === 'planned_start') { planned.push(ev); continue; }
+      // Säkerhetsbälte: ev. legacy planned_start hör inte hemma i journalen.
+      if (ev.kind === 'planned_start') continue;
       (isMainJournalEvent(ev) ? main : bg).push(ev);
     }
-    planned.sort((a, b) => a.at.localeCompare(b.at));
-    return [main, bg, planned] as const;
+    return [main, bg] as const;
   }, [events]);
+  // Planering kommer från model.planningItems — ren förväntan, inga events.
+  const planningItems = useMemo(
+    () => [...(model.planningItems ?? [])].sort((a, b) => a.plannedStart.localeCompare(b.plannedStart)),
+    [model.planningItems],
+  );
   const [showBackground, setShowBackground] = useState(false);
 
   // Föreslagna restider för "Godkänn"-knappar
