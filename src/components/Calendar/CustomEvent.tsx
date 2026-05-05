@@ -12,6 +12,7 @@ import EventHoverCard from './EventHoverCard';
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { MoveDayPopover } from './MoveDayPopover';
 import { AddDayButton } from './AddDayButton';
+import { DeleteDayButton } from './DeleteDayButton';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import './CustomEvent.css';
 
