@@ -11007,3 +11007,289 @@ async function handleGetActiveDayState(supabase: any, staffId: string, organizat
     server_time: new Date().toISOString(),
   }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
+
+// ============================================================================
+// get_ops_overview — Unified planner dashboard endpoint
+// ----------------------------------------------------------------------------
+// Combines calendar + assignments + threads + live staff status + anomalies
+// into one payload so MobileOverview only needs a single round-trip.
+//
+// Input:  { from?: 'YYYY-MM-DD', to?: 'YYYY-MM-DD', mode?: 'day'|'week',
+//           include_anomalies?: boolean }
+// Output: { jobs[], assignments[], staffStatus[], anomalies[],
+//           messageThreads[], summary, from, to }
+// ============================================================================
+async function handleGetOpsOverview(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  if (!(await callerIsPlanner(supabase, callerUserId))) return plannerForbidden()
+
+  const today = new Date()
+  const todayKey = today.toISOString().slice(0, 10)
+  const mode: 'day' | 'week' = data?.mode === 'week' ? 'week' : 'day'
+  const defaultFrom = todayKey
+  const defaultTo = mode === 'week'
+    ? new Date(today.getTime() + 6 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    : todayKey
+  const fromDate: string = (typeof data?.from === 'string' && data.from) || defaultFrom
+  const toDate: string = (typeof data?.to === 'string' && data.to) || defaultTo
+  const fromIso = `${fromDate}T00:00:00.000Z`
+  const toIso = `${toDate}T23:59:59.999Z`
+  const includeAnomalies = data?.include_anomalies !== false
+
+  // Reuse existing handlers (they already enforce planner check + org scope).
+  const innerInput = { from: fromIso, to: toIso }
+  const [calRes, asgRes, thrRes] = await Promise.all([
+    handleGetOverviewCalendar(supabase, callerUserId, innerInput, organizationId),
+    handleGetOverviewAssignments(supabase, callerUserId, { from: fromDate, to: toDate }, organizationId),
+    handleGetOverviewThreads(supabase, callerUserId, organizationId),
+  ])
+  const calBody = await calRes.json().catch(() => ({}))
+  const asgBody = await asgRes.json().catch(() => ({}))
+  const thrBody = await thrRes.json().catch(() => ({}))
+  const events = Array.isArray(calBody?.events) ? calBody.events : []
+  const assignments = Array.isArray(asgBody?.assignments) ? asgBody.assignments : []
+  const threads = Array.isArray(thrBody?.threads) ? thrBody.threads : []
+
+  // ── jobs[] (one row per booking|date|phase, deduped from events) ─────
+  type Job = {
+    id: string
+    type: 'booking' | 'large_project'
+    title: string
+    booking_number: string | null
+    client: string | null
+    phase: string | null
+    date: string
+    start_time: string
+    end_time: string
+    address: string | null
+    assigned_staff_count: number
+    required_staff_count: number | null
+    staffing_status: 'unstaffed' | 'partial' | 'staffed' | 'unknown'
+  }
+  const staffByBookingDate = new Map<string, Set<string>>()
+  for (const a of assignments) {
+    if (!a.booking_id) continue
+    const k = `${a.booking_id}|${a.assignment_date}`
+    if (!staffByBookingDate.has(k)) staffByBookingDate.set(k, new Set())
+    staffByBookingDate.get(k)!.add(a.staff_id)
+  }
+  const staffByLpDate = new Map<string, Set<string>>()
+  for (const a of assignments) {
+    if (a.target_type !== 'large_project' || !a.target_id) continue
+    const k = `${a.target_id}|${a.assignment_date}`
+    if (!staffByLpDate.has(k)) staffByLpDate.set(k, new Set())
+    staffByLpDate.get(k)!.add(a.staff_id)
+  }
+  const jobs: Job[] = events.map((ev: any) => {
+    const date = ev.source_date || (ev.start_time || '').slice(0, 10)
+    const bk = ev.booking_id ? staffByBookingDate.get(`${ev.booking_id}|${date}`) : undefined
+    const count = bk?.size ?? 0
+    return {
+      id: ev.id,
+      type: 'booking',
+      title: ev.title,
+      booking_number: ev.booking_number ?? null,
+      client: ev.title ?? null,
+      phase: ev.event_type ?? null,
+      date,
+      start_time: ev.start_time,
+      end_time: ev.end_time,
+      address: ev.delivery_address ?? null,
+      assigned_staff_count: count,
+      required_staff_count: null,
+      staffing_status: ev.booking_id ? (count === 0 ? 'unstaffed' : 'staffed') : 'unknown',
+    }
+  })
+
+  // ── staffStatus[] ────────────────────────────────────────────────────
+  const staffIds = [...new Set(assignments.map((a: any) => a.staff_id).filter(Boolean))]
+  const plannedTargetsByStaff = new Map<string, any[]>()
+  for (const a of assignments) {
+    const arr = plannedTargetsByStaff.get(a.staff_id) || []
+    arr.push({
+      target_type: a.target_type,
+      target_id: a.target_id,
+      target_name: a.target_name,
+      date: a.assignment_date,
+      phase: a.phase,
+      planned_start: a.planned_start,
+      planned_end: a.planned_end,
+      address: a.address ?? null,
+    })
+    plannedTargetsByStaff.set(a.staff_id, arr)
+  }
+
+  let workdaysByStaff = new Map<string, any>()
+  let openLteByStaff = new Map<string, any>()
+  let locationsByStaff = new Map<string, any>()
+  let anomalyCountByStaff = new Map<string, number>()
+
+  if (staffIds.length > 0) {
+    const [wdRes, lteRes, locRes, anomRes] = await Promise.all([
+      supabase.from('workdays')
+        .select('id, staff_id, started_at, ended_at')
+        .eq('organization_id', organizationId)
+        .in('staff_id', staffIds)
+        .gte('started_at', `${fromDate}T00:00:00.000Z`)
+        .lte('started_at', `${toDate}T23:59:59.999Z`),
+      supabase.from('location_time_entries')
+        .select('id, staff_id, booking_id, large_project_id, location_id, entered_at, exited_at')
+        .eq('organization_id', organizationId)
+        .in('staff_id', staffIds)
+        .is('exited_at', null),
+      supabase.from('staff_locations')
+        .select('staff_id, latitude, longitude, accuracy, updated_at')
+        .eq('organization_id', organizationId)
+        .in('staff_id', staffIds),
+      includeAnomalies
+        ? supabase.from('time_report_anomalies')
+            .select('staff_id, status')
+            .eq('organization_id', organizationId)
+            .in('staff_id', staffIds)
+            .neq('status', 'resolved')
+            .neq('status', 'dismissed')
+        : Promise.resolve({ data: [] }),
+    ])
+    for (const wd of wdRes.data || []) {
+      const cur = workdaysByStaff.get(wd.staff_id)
+      // prefer open workday for today
+      const isToday = (wd.started_at || '').slice(0, 10) === todayKey
+      if (!cur || (isToday && !wd.ended_at)) workdaysByStaff.set(wd.staff_id, wd)
+    }
+    for (const lte of lteRes.data || []) {
+      if (!openLteByStaff.has(lte.staff_id)) openLteByStaff.set(lte.staff_id, lte)
+    }
+    for (const loc of locRes.data || []) locationsByStaff.set(loc.staff_id, loc)
+    for (const a of anomRes.data || []) {
+      anomalyCountByStaff.set(a.staff_id, (anomalyCountByStaff.get(a.staff_id) || 0) + 1)
+    }
+  }
+
+  const staffNameMap = new Map<string, string>()
+  for (const a of assignments) if (a.staff_id) staffNameMap.set(a.staff_id, a.staff_name)
+
+  const now = Date.now()
+  const staffStatus = staffIds.map((sid: string) => {
+    const wd = workdaysByStaff.get(sid)
+    const openLte = openLteByStaff.get(sid)
+    const loc = locationsByStaff.get(sid)
+    const ageMs = loc?.updated_at ? now - new Date(loc.updated_at).getTime() : null
+    const gpsStatus = ageMs == null ? 'unknown' : ageMs < 5 * 60_000 ? 'live' : ageMs < 30 * 60_000 ? 'recent' : 'stale'
+    return {
+      staff_id: sid,
+      name: staffNameMap.get(sid) || '',
+      planned_targets: plannedTargetsByStaff.get(sid) || [],
+      has_open_workday: !!(wd && !wd.ended_at),
+      active_timer: openLte ? {
+        id: openLte.id,
+        target_type: openLte.location_id ? 'location' : openLte.large_project_id ? 'large_project' : 'booking',
+        target_id: openLte.location_id || openLte.large_project_id || openLte.booking_id || null,
+        started_at: openLte.entered_at,
+      } : null,
+      latest_known_location: loc ? {
+        latitude: loc.latitude, longitude: loc.longitude,
+        accuracy: loc.accuracy, updated_at: loc.updated_at,
+      } : null,
+      gps_status: gpsStatus,
+      anomaly_count: anomalyCountByStaff.get(sid) || 0,
+    }
+  })
+
+  // ── anomalies[] (operative, derived) ─────────────────────────────────
+  type Anom = {
+    type: string
+    severity: 'low' | 'medium' | 'high'
+    staff_id: string | null
+    target_id: string | null
+    label: string
+    action: string | null
+    date?: string
+  }
+  const anomalies: Anom[] = []
+  // 1) unstaffed jobs
+  for (const j of jobs) {
+    if (j.staffing_status === 'unstaffed') {
+      anomalies.push({
+        type: 'unstaffed_job', severity: 'high',
+        staff_id: null, target_id: j.id,
+        label: `${j.title} saknar bemanning`, action: 'staff_job', date: j.date,
+      })
+    }
+  }
+  // 2) planned-but-not-started (today only)
+  if (fromDate <= todayKey && todayKey <= toDate) {
+    for (const s of staffStatus) {
+      const hasToday = s.planned_targets.some((p: any) => p.date === todayKey)
+      if (hasToday && !s.has_open_workday && !s.active_timer) {
+        anomalies.push({
+          type: 'missing_workday', severity: 'medium',
+          staff_id: s.staff_id, target_id: null,
+          label: `${s.name} planerad men ej startad`, action: 'contact_staff', date: todayKey,
+        })
+      }
+    }
+    // 3) workday/timer without assignment
+    for (const s of staffStatus) {
+      if ((s.has_open_workday || s.active_timer) && s.planned_targets.length === 0) {
+        anomalies.push({
+          type: 'workday_without_assignment', severity: 'low',
+          staff_id: s.staff_id, target_id: null,
+          label: `${s.name} har arbetsdag utan tilldelning`, action: 'review_workday', date: todayKey,
+        })
+      }
+    }
+    // 4) signal lost while timer active
+    for (const s of staffStatus) {
+      if (s.active_timer && s.gps_status === 'stale') {
+        anomalies.push({
+          type: 'signal_lost', severity: 'medium',
+          staff_id: s.staff_id, target_id: s.active_timer.target_id,
+          label: `${s.name} timer aktiv – GPS-signal förlorad`, action: 'review_timer', date: todayKey,
+        })
+      }
+    }
+  }
+
+  // ── messageThreads[] (normalize legacy field names) ──────────────────
+  const messageThreads = threads.map((t: any) => ({
+    booking_id: t.booking_id,
+    client: t.client,
+    booking_number: t.booking_number ?? null,
+    last_message_at: t.last_message_at,
+    last_message_preview: t.last_message_preview ?? t.last_message ?? '',
+    last_sender_name: t.last_sender_name ?? t.last_sender ?? '',
+    unread_count: t.unread_count ?? 0,
+    total_messages: t.total_messages ?? 0,
+  }))
+
+  // ── summary ──────────────────────────────────────────────────────────
+  const todayJobs = jobs.filter(j => j.date === todayKey)
+  const summary = {
+    jobs_today: todayJobs.length,
+    planned_staff: new Set(assignments.filter((a: any) => a.assignment_date === todayKey).map((a: any) => a.staff_id)).size,
+    active_workdays: staffStatus.filter(s => s.has_open_workday).length,
+    missing_workdays: anomalies.filter(a => a.type === 'missing_workday').length,
+    unstaffed_jobs: anomalies.filter(a => a.type === 'unstaffed_job').length,
+    unread_threads: messageThreads.reduce((n: number, t: any) => n + (t.unread_count > 0 ? 1 : 0), 0),
+  }
+
+  return new Response(
+    JSON.stringify({
+      jobs,
+      assignments,
+      staffStatus,
+      anomalies,
+      messageThreads,
+      summary,
+      from: fromDate,
+      to: toDate,
+      mode,
+      server_time: new Date().toISOString(),
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
