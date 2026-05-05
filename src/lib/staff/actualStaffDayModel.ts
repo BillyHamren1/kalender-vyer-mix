@@ -499,6 +499,15 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
 
   // 4) travel_logs
   for (const t of input.travelLogs) {
+    const tsrc = String(t.source ?? '').toLowerCase();
+    const isServerSwitch = tsrc === 'geofence_auto_switch_server';
+    const isServerBackfill = tsrc === 'geofence_auto_switch_server_backfill';
+    const sourceClass: 'manual' | 'foreground_geofence' | 'server_background' | 'backfill' | 'gap_derived' | null =
+      isServerBackfill ? 'backfill'
+      : isServerSwitch ? 'server_background'
+      : tsrc === 'gap_derived' ? 'gap_derived'
+      : t.autoDetected ? 'foreground_geofence'
+      : null;
     const isSuggestion = !t.approved && (t.autoDetected || t.source === 'gap_derived');
     if (isSuggestion) {
       events.push({
@@ -510,6 +519,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         label: `Föreslagen restid: ${t.fromAddress ?? '?'} → ${t.toAddress ?? '?'}`,
         detail: t.source === 'gap_derived' ? 'Härledd från lucka' : 'Auto-detekterad via GPS',
         durationMin: t.end_iso ? minutesBetween(t.start_iso, t.end_iso) : undefined,
+        meta: { source: t.source ?? null, sourceClass, autoStarted: isServerSwitch || isServerBackfill, isBackfill: isServerBackfill },
       });
     } else {
       events.push({
@@ -520,7 +530,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         severity: 'info',
         label: `Resa: ${t.fromAddress ?? '?'} → ${t.toAddress ?? '?'}`,
         durationMin: t.end_iso ? minutesBetween(t.start_iso, t.end_iso) : undefined,
-        meta: { travelOrigin: 'travel_log_approved', approved: true },
+        meta: { travelOrigin: 'travel_log_approved', approved: true, source: t.source ?? null, sourceClass, autoStarted: isServerSwitch || isServerBackfill, isBackfill: isServerBackfill },
       });
     }
   }
