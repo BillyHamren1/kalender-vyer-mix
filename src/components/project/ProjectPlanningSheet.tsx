@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { addCalendarEvent } from '@/services/eventService';
+import { syncLargeProjectPlanningAssignments } from '@/services/largeProjectPlannerService';
 import { useTeamResources } from '@/hooks/useTeamResources';
 
 type Phase = 'rig' | 'rigDown';
@@ -221,6 +222,10 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
             } as any);
           }
         }
+      }
+
+      if (projectKind === 'large') {
+        await syncLargeProjectPlanningAssignments(projectId, days);
       }
 
       const sortedRig = days.filter(d => d.kind === 'rig').sort((a, z) => a.date.localeCompare(z.date));
