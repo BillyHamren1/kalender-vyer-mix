@@ -21,6 +21,7 @@ async function getMapboxToken(): Promise<string | null> {
   }
 }
 
+export type LookupSource = 'mapbox' | 'none';
 export interface RichGeocode {
   label: string;
   /** Närmaste adress, om sådan finns. */
@@ -37,6 +38,14 @@ export interface RichGeocode {
   coords: { lat: number; lng: number } | null;
   /** True om Mapbox inte returnerade någon användbar plats. */
   unresolved: boolean;
+  /** Vilken provider svaret kom från (eller 'none' om inget kördes). */
+  source: LookupSource;
+  /** Felbeskrivning om uppslaget misslyckades (HTTP/exception/empty). */
+  error: string | null;
+  /** Cachekey som queryn använder — samma round som useQueries-key. */
+  cacheKey: string | null;
+  /** True om Mapbox-token kunde hämtas. */
+  tokenAvailable: boolean;
 }
 
 const mapsLink = (lat: number, lng: number) =>
@@ -45,10 +54,9 @@ const mapsLink = (lat: number, lng: number) =>
 const UNRESOLVED_LABEL = 'Okänd plats – adress saknas';
 
 async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode> {
+  const cacheKey = `${round(lat)},${round(lng)}`;
   const token = await getMapboxToken();
-  // Sista utväg: använd "Okänd plats – adress saknas" som label (aldrig råkoordinater
-  // i huvudraden). Koordinater finns kvar i `coords` för expand/debug och som maps-länk.
-  const fallback: RichGeocode = {
+  const baseFallback = (error: string | null, source: LookupSource = 'none', tokenOk = !!token): RichGeocode => ({
     label: UNRESOLVED_LABEL,
     address: null,
     city: null,
@@ -57,18 +65,20 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
     mapsUrl: mapsLink(lat, lng),
     coords: { lat, lng },
     unresolved: true,
-  };
-  if (!token) return fallback;
+    source,
+    error,
+    cacheKey,
+    tokenAvailable: tokenOk,
+  });
+  if (!token) return baseFallback('mapbox_token_unavailable', 'none', false);
 
-  // Hämta både POI och address i samma anrop. POI prioriteras för "vad är detta",
-  // address används som fallback-label.
   const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=sv&limit=5&types=poi,address,neighborhood,locality,place`;
   try {
     const res = await fetch(url);
-    if (!res.ok) return fallback;
+    if (!res.ok) return baseFallback(`mapbox_http_${res.status}`, 'mapbox');
     const data = await res.json();
     const features = (data?.features || []) as any[];
-    if (!features.length) return fallback;
+    if (!features.length) return baseFallback('no_features', 'mapbox');
 
     const poi = features.find(f => typeof f.id === 'string' && f.id.startsWith('poi.'));
     const addr = features.find(f => typeof f.id === 'string' && f.id.startsWith('address.'));
@@ -83,7 +93,6 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
       ? (addr.place_name?.split(',').slice(0, 2).join(',').trim() ?? null)
       : null;
 
-    // Label-prioritet: POI+ort → adress + ort → område → ort → "nära <första feature>" → unresolved.
     let label: string | null = null;
     if (poiName && place && poiName !== place) label = `${poiName}, ${place}`;
     else if (poiName) label = poiName;
@@ -95,7 +104,7 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
       label = firstName ? `nära ${firstName}` : null;
     }
 
-    if (!label) return fallback;
+    if (!label) return baseFallback('no_label_resolvable', 'mapbox');
     return {
       label,
       address: addressLine,
@@ -105,9 +114,13 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
       mapsUrl: mapsLink(lat, lng),
       coords: { lat, lng },
       unresolved: false,
+      source: 'mapbox',
+      error: null,
+      cacheKey,
+      tokenAvailable: true,
     };
-  } catch {
-    return fallback;
+  } catch (err: any) {
+    return baseFallback(`exception:${err?.message ?? String(err)}`, 'mapbox');
   }
 }
 

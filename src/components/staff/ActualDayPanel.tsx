@@ -593,6 +593,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     opts: {
       isMatched: boolean;
       knownLabel?: string | null;
+      nearestKnownSite?: { id: string; name: string; distanceMeters: number; radiusMeters: number } | null;
     },
   ): ResolvedPlace | null => {
     if (!coord && !opts.isMatched) return null;
@@ -603,22 +604,26 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       ?? (lat != null && lng != null
         ? `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`
         : null);
+    const cacheKey = lat != null && lng != null
+      ? `${(Math.round(lat * 1000) / 1000).toFixed(3)},${(Math.round(lng * 1000) / 1000).toFixed(3)}`
+      : null;
+    const nearest = opts.nearestKnownSite ?? null;
 
     if (opts.isMatched) {
       return {
         label: opts.knownLabel ?? 'Känd plats',
-        address: null,
-        city: null,
-        poiName: null,
-        poiCategory: null,
+        address: null, city: null, poiName: null, poiCategory: null,
         lat, lng, mapUrl,
         lookupStatus: 'matched_internal',
         confidence: 'high',
+        lookupSource: 'internal',
+        lookupError: null,
+        cacheKey,
+        tokenAvailable: null,
+        nearestKnownSite: nearest,
       };
     }
     if (!lookup) {
-      // Coord finns men ingen lookup-queue än → behandla som pending så att
-      // huvudraden visar "Slår upp adress…" istället för rått "okänd plats".
       return {
         label: lat == null || lng == null
           ? 'Okänd plats – saknar koordinat'
@@ -627,6 +632,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         lat, lng, mapUrl,
         lookupStatus: lat == null || lng == null ? 'failed' : 'pending',
         confidence: 'low',
+        lookupSource: 'none',
+        lookupError: lat == null || lng == null ? 'missing_coords' : 'lookup_not_started',
+        cacheKey,
+        tokenAvailable: null,
+        nearestKnownSite: nearest,
       };
     }
     if (lookup.status === 'loading') {
@@ -636,6 +646,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         lat, lng, mapUrl,
         lookupStatus: 'pending',
         confidence: 'low',
+        lookupSource: 'mapbox',
+        lookupError: null,
+        cacheKey,
+        tokenAvailable: lookup.geo?.tokenAvailable ?? null,
+        nearestKnownSite: nearest,
       };
     }
     if (lookup.status === 'error' || !lookup.geo) {
@@ -645,6 +660,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         lat, lng, mapUrl,
         lookupStatus: 'failed',
         confidence: 'low',
+        lookupSource: lookup.geo?.source ?? 'mapbox',
+        lookupError: lookup.geo?.error ?? 'lookup_failed',
+        cacheKey,
+        tokenAvailable: lookup.geo?.tokenAvailable ?? null,
+        nearestKnownSite: nearest,
       };
     }
     const g = lookup.geo;
@@ -658,6 +678,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       lat, lng, mapUrl,
       lookupStatus: status,
       confidence: 'medium',
+      lookupSource: g.source ?? 'mapbox',
+      lookupError: g.error ?? null,
+      cacheKey: g.cacheKey ?? cacheKey,
+      tokenAvailable: g.tokenAvailable ?? true,
+      nearestKnownSite: nearest,
     };
   };
 
@@ -743,6 +768,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         const resolvedPlace = buildResolvedPlace(coordCentre ?? null, {
           isMatched,
           knownLabel: isMatched ? (visit?.label ?? placeLabel) : placeLabel,
+          nearestKnownSite: visit?.nearestKnownSite ?? null,
         });
 
         return {
@@ -1154,9 +1180,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                             lines.push(['Vistelse', `${ev.place ?? '—'}${ev.until ? ` (${fmtHm(ev.at)}–${fmtHm(ev.until)})` : ` från ${fmtHm(ev.at)}`}`]);
                           }
                           const rp: ResolvedPlace | null = evAny.resolvedPlace ?? null;
-                          if (rp?.lat != null && rp?.lng != null) {
-                            lines.push(['Koordinater', `${rp.lat.toFixed(5)}, ${rp.lng.toFixed(5)}`]);
-                          }
+                          const hasCoords = rp?.lat != null && rp?.lng != null;
+                          lines.push(['Koordinater', hasCoords ? `${rp!.lat!.toFixed(5)}, ${rp!.lng!.toFixed(5)}` : 'saknas']);
                           if (rp?.mapUrl) {
                             lines.push(['Karta', (
                               <a href={rp.mapUrl} target="_blank" rel="noreferrer"
@@ -1166,10 +1191,24 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                               </a>
                             )]);
                           }
-                          if (rp?.lookupStatus === 'failed') {
-                            lines.push(['Adressuppslag', 'Misslyckades']);
-                          } else if (rp?.lookupStatus === 'pending') {
-                            lines.push(['Adressuppslag', 'Pågår']);
+                          if (rp) {
+                            const statusLbl = rp.lookupStatus === 'matched_internal' ? 'matchad intern plats'
+                              : rp.lookupStatus === 'poi_lookup' ? 'success (POI)'
+                              : rp.lookupStatus === 'reverse_geocoded' ? 'success (adress)'
+                              : rp.lookupStatus === 'pending' ? 'pending'
+                              : rp.lookupStatus === 'failed' ? 'failed'
+                              : String(rp.lookupStatus);
+                            lines.push(['lookupStatus', statusLbl]);
+                            lines.push(['lookupSource', rp.lookupSource ?? 'none']);
+                            if (rp.tokenAvailable === false) lines.push(['tokenAvailable', 'nej']);
+                            else if (rp.tokenAvailable === true) lines.push(['tokenAvailable', 'ja']);
+                            if (rp.lookupError) lines.push(['lookupError', rp.lookupError]);
+                            if (rp.cacheKey) lines.push(['cacheKey', rp.cacheKey]);
+                            if (rp.nearestKnownSite) {
+                              lines.push(['nearestKnownSite', `${rp.nearestKnownSite.name} · ${rp.nearestKnownSite.distanceMeters} m (radie ${rp.nearestKnownSite.radiusMeters} m)`]);
+                            } else if (rp.lookupStatus !== 'matched_internal') {
+                              lines.push(['nearestKnownSite', 'ingen inom rim']);
+                            }
                           }
                           if (visit?.pingCount != null) lines.push(['Pings', `${visit.pingCount}`]);
                           if (visit?.avgAccuracy != null) lines.push(['Accuracy', `±${visit.avgAccuracy} m`]);
