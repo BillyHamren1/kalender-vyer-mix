@@ -1,6 +1,67 @@
-import React, { useState } from 'react';
-import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import React, { createContext, useContext, useState } from 'react';
+import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle, ExternalLink, Trash2 } from 'lucide-react';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
+interface ExcludeCtx {
+  canExclude: boolean;
+  onExclude?: (blockId: string) => void | Promise<void>;
+}
+const ExcludeContext = createContext<ExcludeCtx>({ canExclude: false });
+
+const RowExcludeButton: React.FC<{ blockId: string; label: string }> = ({ blockId, label }) => {
+  const { canExclude, onExclude } = useContext(ExcludeContext);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!canExclude || !onExclude) return null;
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+          aria-label="Ta bort händelse från dagens rapport"
+          title="Ta bort från dagens rapport"
+          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Ta bort denna händelse från dagens rapport?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {label} markeras som exkluderad och försvinner från huvudjournalen.
+            Originaldata påverkas inte och borttagningen kan återställas via overlay-tabellen.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Avbryt</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy}
+            onClick={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              try { await onExclude(blockId); } finally { setBusy(false); setOpen(false); }
+            }}
+          >
+            Ta bort
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
 
 const fmtHm = (iso?: string | null) => {
   if (!iso) return '';
