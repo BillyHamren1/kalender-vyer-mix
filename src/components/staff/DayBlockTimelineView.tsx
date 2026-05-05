@@ -148,10 +148,27 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
       ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800'
       : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800';
 
+  // Sammanslagen undertext: GPS · timer · TR · planerad
+  const gpsLabel = block.arrivalIso || block.departureIso
+    ? `GPS ${fmtHm(block.arrivalIso ?? block.startIso)}–${block.departureIso ? fmtHm(block.departureIso) : (block.ongoing ? 'pågår' : fmtHm(block.endIso))}`
+    : null;
+  const timerLabel = block.timer.present
+    ? (block.timer.active
+        ? `timer aktiv sedan ${fmtHm(block.timer.startedIso)}`
+        : `timer ${fmtHm(block.timer.startedIso)}–${fmtHm(block.timer.stoppedIso)}`)
+    : null;
+  const trLabel = block.timeReport.present
+    ? `tidrapport ${fmtHm(block.timeReport.startedIso)}${block.timeReport.closedIso ? `–${fmtHm(block.timeReport.closedIso)}` : '–pågår'}`
+    : null;
+  const plannedLabel = block.plannedStartIso ? `planerad ${fmtHm(block.plannedStartIso)}` : null;
+
   const contextBits = [
     fmtDur(block.durationMin),
     isProject ? 'projekt' : 'arbete / vistelse',
-    block.timer.present ? (block.timer.active ? `timer aktiv sedan ${fmtHm(block.timer.startedIso)}` : `timer ${fmtHm(block.timer.startedIso)}–${fmtHm(block.timer.stoppedIso)}`) : null,
+    gpsLabel,
+    timerLabel,
+    trLabel,
+    plannedLabel,
   ].filter(Boolean) as string[];
 
   return (
