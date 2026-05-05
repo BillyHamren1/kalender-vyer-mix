@@ -19,6 +19,7 @@ import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import LagerTeamSection from '@/components/mobile-app/lager/LagerTeamSection';
 import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSection';
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
+import LagerMyAssignmentsSection from '@/components/mobile-app/lager/LagerMyAssignmentsSection';
 import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 
