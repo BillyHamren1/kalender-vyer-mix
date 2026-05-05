@@ -203,39 +203,56 @@ const sourceTagFor = (ev: ActualEvent): string => {
   }
 };
 
-const statusTagFor = (ev: ActualEvent): string => {
+type SimpleStatus = 'Bekräftad' | 'Föreslagen' | 'Osäker' | 'Kräver granskning' | 'Signal tappad' | 'Saknar stopp';
+
+const statusTagFor = (ev: ActualEvent): SimpleStatus => {
   const { kind, severity } = ev;
   const lookupSource = (ev as any).lookup_source as string | undefined;
-  if (kind === 'travel_suggestion') return 'föreslagen';
+
+  // Action-statusar — kräver åtgärd, visas tydligt
+  if (kind === 'stale_signal') return 'Signal tappad';
+  if (kind === 'anomaly') return 'Kräver granskning';
+  if (kind === 'planned_signal_gap') return 'Kräver granskning';
+
+  // Förslag (ej beslutade)
+  if (kind === 'travel_suggestion') return 'Föreslagen';
+  if (kind === 'planned_start') return 'Föreslagen';
+
+  // Förflyttning från GPS
   if (kind === 'gps_travel') {
     const m = (ev.meta ?? {}) as any;
-    if (m.travelOrigin === 'travel_log_approved' || m.approved === true) return 'bekräftad';
-    if (m.bothKnown) return 'föreslagen';
-    return 'osäker';
+    if (m.travelOrigin === 'travel_log_approved' || m.approved === true) return 'Bekräftad';
+    if (m.bothKnown) return 'Föreslagen';
+    return 'Osäker';
   }
+
+  // Timer-stopp
   if (kind === 'timer_stopped') {
     const mm = (ev.meta ?? {}) as any;
-    // Syntetiska/clamp-stopp betraktas som osäkra.
-    const stopOrigin = mm.stop_origin as string | undefined;
-    if (stopOrigin === 'system_review') return 'osäker · syntetiskt stopp';
+    if (mm.stop_origin === 'system_review') return 'Saknar stopp';
     const cls = classifyStopSource({
       source: (mm.lteSource ?? mm.source) ?? null,
       metadata: (mm.lteMetadata ?? null) as Record<string, any> | null,
       exitedAt: mm.stoppedAt ?? ev.at ?? null,
       lteId: mm.lteId ?? '',
     });
-    if (!isStopConfident(cls)) return 'osäker · källa okänd';
-    return 'bekräftad';
+    if (!isStopConfident(cls)) return 'Osäker';
+    return 'Bekräftad';
   }
-  if (kind === 'planned_signal_gap') return 'osäker · kräver granskning';
-  if (kind === 'planned_start') return 'förväntan';
-  if (kind === 'stale_signal' || kind === 'anomaly' || severity === 'critical' || severity === 'warning') return 'osäker';
-  if ((kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit')) {
-    if (lookupSource === 'mapbox' || lookupSource === 'mapbox_poi' || lookupSource === 'mapbox_address') return 'adressuppslag';
-    if (lookupSource === 'fallback' || lookupSource === 'pending_lookup') return 'osäker';
+
+  // GPS-platser
+  if (kind === 'gps_arrival' || kind === 'gps_departure' || kind === 'gps_visit') {
+    if (lookupSource === 'fallback' || lookupSource === 'pending_lookup') return 'Osäker';
+    return 'Bekräftad';
   }
-  return 'bekräftad';
+
+  if (severity === 'critical' || severity === 'warning') return 'Kräver granskning';
+  return 'Bekräftad';
 };
+
+const ACTION_STATUSES: SimpleStatus[] = ['Kräver granskning', 'Signal tappad', 'Saknar stopp'];
+const isActionStatus = (s: SimpleStatus) => ACTION_STATUSES.includes(s);
+
 
 // Kompaktläge = "Dagens faktiska händelser" (huvudjournalen).
 // All visibility-klassning bor i src/lib/staff/timelineVisibility.ts:
