@@ -185,6 +185,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             <MoveDayPopover event={event} setEvents={setEvents} onUpdate={onEventResize} />
           </>
         )}
+        {/* Radera enskild dag — tillgängligt för planning- och warehouse-events */}
+        {!isCancelled && !readOnly && (
+          <DeleteDayButton event={event} setEvents={setEvents} onUpdate={onEventResize} />
+        )}
         {/* Large project badge — inline, not overlapping */}
         {!isCancelled && event.extendedProps?.isLargeProject && (
           <div 
