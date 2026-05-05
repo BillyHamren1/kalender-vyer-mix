@@ -1,66 +1,48 @@
+# Plan: show all assigned staff in each team column
 
-## Problem (bekräftat)
+## What I found
+The problem is not in the data layer.
 
-Jobb försvinner från `/calendar` för att `fetchCalendarEvents` i `src/services/eventService.ts` hämtar `calendar_events` **utan paginering och utan radgräns**. PostgREST har en hård default-gräns på **1000 rader**.
+- `src/services/staffService.ts` fetches all assignments for the day.
+- `src/hooks/useUnifiedStaffOperations.tsx` returns all matching staff for a team/date.
+- `src/components/Calendar/TimeGrid.tsx` maps the full `assignedStaff` array.
 
-Databasen innehåller just nu **1026 planeringsrader** (`event_type <> 'event'`). Konsolen bekräftar:
+So the 5-person limit is a layout bug, not a missing-data bug.
 
-```
-✅ [fetchCalendarEvents] Fetched 1000 real calendar rows in 295ms
-```
+## Root cause
+The calendar header row for assigned staff is still hard-locked to a fixed height and clips overflow in several places:
 
-→ 26 verkliga kalenderhändelser tappas tyst varje load. Vilka 26 som försvinner beror på `order start_time asc` — dvs de **senaste** datumen klipps bort. När importen lägger till nya bokningar trillar äldre/nya rader ur listan beroende på sortering. Detta är källan till "jobb försvinner".
+- `src/components/Calendar/TimeGrid.tsx`
+  - `ASSIGNED_STAFF_ROW_HEIGHT = 88`
+  - row 3 left time cell uses fixed `height`
+  - each `.staff-assignment-header-row` gets a fixed minimum height from that constant
+- `src/components/Calendar/TimeGrid.css`
+  - `.staff-row-time-cell` is fixed to `88px`
+  - `.staff-assignment-header-row` is fixed to `88px` and `overflow: hidden`
+  - the inner list can wrap, but the parent row cannot grow, so extra names are still clipped
 
-Detta är inte en bug i den nya GPS/workday-logiken — det är en gammal latent gräns som nu slagit i taket när bokningsvolymen passerade 1000 calendar_events.
+That is why you still only see about 5 names even though more are being rendered.
 
-## Lösning
+## Implementation plan
+1. Remove the fixed 88px cap from the assigned-staff header row in both `TimeGrid.tsx` and `TimeGrid.css`.
+2. Let row 3 grow to the tallest team column for that day instead of clipping each column at a fixed height.
+3. Keep the header aligned by using a minimum height, not a forced height.
+4. Ensure the left-side spacer/time cell for row 3 stretches with the row, so the grid stays visually aligned.
+5. Keep weekly/day/fullscreen calendar behavior intact and avoid changing event rendering or staff assignment data logic.
+6. Verify there are no extra CSS overrides reintroducing clipping in this calendar path.
 
-Två lager av skydd, båda behövs:
+## Technical details
+Planned code changes are concentrated here:
 
-### 1. Sidpaginering i `fetchCalendarEvents` (huvudfix)
+- `src/components/Calendar/TimeGrid.tsx`
+  - replace fixed `height` usage on row 3 with `minHeight`
+  - stop forcing each team cell to a capped row height
+- `src/components/Calendar/TimeGrid.css`
+  - change `.staff-row-time-cell` from fixed height to minimum/stretch behavior
+  - change `.staff-assignment-header-row` from `height/max-height: 88px` + `overflow: hidden` to expandable sizing
+  - keep `.assigned-staff-header-list` wrapping, but let the parent actually expand
 
-Byt det enskilda `.select(...)`-anropet mot en loop som hämtar i batchar om 1000 via `.range(from, to)` tills färre än 1000 returneras. Då försvinner gränsen för all framtid, oavsett hur många rader som finns.
+## Expected result
+When a team has more than 5 assigned people, all names should be visible in the calendar header for that day, with the team column expanding vertically instead of clipping the extra names.
 
-```text
-let all = []
-let from = 0
-const PAGE = 1000
-loop:
-  rows = select(...).range(from, from+PAGE-1)
-  all.push(...rows)
-  if rows.length < PAGE break
-  from += PAGE
-```
-
-Logga totalt antal sidor + totalt antal rader så vi ser i konsolen om vi någonsin närmar oss en ny gräns.
-
-### 2. Defensiv date-window-filtrering (sekundär)
-
-Lägg till `.gte('start_time', now - 60 dagar)` och `.lte('start_time', now + 365 dagar)` på själva queryn. Kalendern visar ändå inte rader äldre än ett par månader bakåt, och detta håller payload nere så att paginering nästan aldrig behövs i normalfallet (snabbare laddning + lägre PostgREST-tryck).
-
-Window-storleken görs konfigurerbar via konstanter överst i filen (`CALENDAR_WINDOW_DAYS_BACK = 60`, `CALENDAR_WINDOW_DAYS_FORWARD = 365`) så vi kan utöka utan kodändring i loopen.
-
-### 3. Säkerhetsnät (regression)
-
-Lägg till en `console.warn` om en sida returnerar exakt 1000 rader **men** loopen avbryts (defensivt: borde aldrig hända med korrekt loop, men loggar tydligt om någon framtida ändring råkar bryta paginering).
-
-Lägg till ett enkelt enhetstest `src/test/fetchCalendarEvents.pagination.test.ts` som mockar supabase-klienten och verifierar att 2500 rader fördelade på 3 sidor returneras kompletta (3 × range-anrop, total = 2500).
-
-## Filer som ändras
-
-- `src/services/eventService.ts` — paginerad loop + datumfönster + warn-loggar
-- `src/test/fetchCalendarEvents.pagination.test.ts` *(ny)* — paginering-kontrakttest
-
-## Vad fixen INTE rör
-
-- Ingen ändring av `buildPlannerCalendarEvents`, sync, eller import.
-- Ingen ändring i den pågående arbetsdag/GPS-logiken (req 1–9).
-- Inga DB-migrationer.
-
-## Verifiering efteråt
-
-1. Ladda `/calendar` och bekräfta att konsolen säger `Fetched 1026 real calendar rows` (eller högre) istället för 1000.
-2. Bekräfta att `Returning N planner events` ökar motsvarande.
-3. Slå upp en booking som tidigare "försvann" (de med senaste `start_time`) och bekräfta att den syns i kalendern igen.
-
-Vill du att jag kör fixen?
+If you approve, I’ll implement the layout fix directly in the calendar components.
