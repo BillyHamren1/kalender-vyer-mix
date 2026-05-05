@@ -258,6 +258,20 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
       toast.success('Projektet är planerat och ligger nu i kalendern');
       qc.invalidateQueries({ queryKey: ['unplanned-projects'] });
       qc.invalidateQueries({ queryKey: ['calendar-events'] });
+      qc.invalidateQueries({ queryKey: ['planner-calendar'] });
+      qc.invalidateQueries({ queryKey: ['large-project-team-assignments'] });
+      qc.invalidateQueries({ queryKey: ['large-project', projectId] });
+      qc.invalidateQueries({ queryKey: ['large-projects'] });
+      // Push a synchronous signal to the (non-react-query) calendar hooks so
+      // they refetch calendar_events + large_project_team_assignments and
+      // re-derive the planner view without requiring a page refresh.
+      try {
+        window.dispatchEvent(new CustomEvent('planner-calendar-refresh', {
+          detail: { source: 'ProjectPlanningSheet', projectId, projectKind },
+        }));
+      } catch {
+        /* ignore (SSR/test envs) */
+      }
       onClose();
     } catch (err: any) {
       console.error('[ProjectPlanningSheet] save error:', err);
