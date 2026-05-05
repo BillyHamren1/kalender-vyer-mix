@@ -213,11 +213,15 @@ const MobileGlobalOverlays: React.FC = () => {
           : kind === 'project' ? { kind: 'project', largeProjectId: targetId, name: label }
           : { kind: 'booking', bookingId: targetId, client: label };
         if (!workTarget) return { status: 'workday_failed' };
+        // AUTO-SWITCH: om en annan timer är aktiv på en tidigare arbetsplats,
+        // stoppa den vid arrival-tid och starta den nya — ingen prompt.
         // Använd första stabila GPS-arrival som starttid — inte "nu" när
         // appen råkade synca. Skickas vidare som startedAtIso → workday
         // och time_report ärver den faktiska ankomsttiden.
-        const status = await tryStartFromArrival(workTarget, {
+        const status = await tryAutoSwitchFromArrival(workTarget, {
           startedAtIso: arrivedAtIso,
+          departureAtIso: arrivedAtIso,
+          confidence: 'high',
           label,
           suppressToast: true,
         });
