@@ -329,7 +329,8 @@ export const addUnknownProduct = async (
   return callScannerApi('add_unknown_product', { packingId, sku, name, quantityToPack, verifiedBy, verifiedByStaffId: verifiedByStaffId || null });
 };
 
-// Toggle a packing item manually (optionally allocate the increment to an active parcel)
+// Toggle a packing item manually (optionally allocate the increment to an active parcel).
+// On increment, scanner-api also pushes a manual-pack-scan to Bundle Builder.
 export const togglePackingItemManually = async (
   itemId: string,
   currentlyPacked: boolean,
@@ -337,7 +338,15 @@ export const togglePackingItemManually = async (
   verifiedBy: string,
   activeParcelId?: string | null,
   verifiedByStaffId?: string | null
-): Promise<{ success: boolean; error?: string }> => {
+): Promise<{
+  success: boolean;
+  error?: string;
+  manualScan?: boolean;
+  bundleSynced?: boolean;
+  warning?: string;
+  productName?: string;
+  newQuantity?: number;
+}> => {
   return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null });
 };
 
