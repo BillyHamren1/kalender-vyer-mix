@@ -1805,6 +1805,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             )}
           </div>
         )}
+        </>
+        )}
       </section>
 
       {/* C. Föreslagna korrigeringar — visas FÖRE rapport, eftersom det är den
