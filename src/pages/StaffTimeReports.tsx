@@ -1071,7 +1071,15 @@ const StaffTimeReports: React.FC = () => {
                 isPresenceOnly,
                 source: e.source ?? null,
                 entry_date: e.entry_date ?? null,
-                metadata: e.metadata ?? null,
+                metadata: {
+                  ...(e.metadata && typeof e.metadata === 'object' ? e.metadata : {}),
+                  // Lyft de nya stop-kolumnerna in i metadata så
+                  // actualStaffDayModel + classifyStopSource hittar dem.
+                  stop_source: (e as any).stop_source ?? null,
+                  stop_reason: (e as any).stop_reason ?? null,
+                  stopped_by: (e as any).stopped_by ?? null,
+                  stop_metadata: (e as any).stop_metadata ?? null,
+                },
               };
             });
 
