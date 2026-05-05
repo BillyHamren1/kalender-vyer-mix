@@ -134,20 +134,15 @@ const ReturnView: React.FC<Props> = ({
     highlightTimerRef.current = window.setTimeout(() => setHighlightItemId(null), 1200);
   };
 
-  const handleScan = useCallback(
-    async (raw: string) => {
-      const value = raw.trim();
-      if (!value) return;
-      setScanInput('');
-      const res = await returnScanSku(packingId, value, returnedBy);
-      if (res.success) {
+  const applyScanResult = useCallback(
+    (res: Awaited<ReturnType<typeof physicalReturnScan>>, fallbackName: string) => {
+      if (res.success && !res.alreadyReturned) {
         setLastResult({
-          success: true,
+          level: 'success',
           text: `+1 returnerad (${res.quantity_returned}/${res.quantity_packed})`,
-          productName: res.productName,
+          productName: res.productName || fallbackName,
         });
         if (res.itemId) flashHighlight(res.itemId);
-        // Optimistic local bump
         setItems(prev =>
           prev.map(it =>
             it.id === res.itemId
@@ -155,22 +150,63 @@ const ReturnView: React.FC<Props> = ({
               : it,
           ),
         );
+        loadData();
+      } else if (res.success && res.alreadyReturned) {
+        setLastResult({
+          level: 'warning',
+          text: `Redan returnerad (${res.quantity_returned ?? '–'}/${res.quantity_packed ?? '–'})`,
+          productName: res.productName || fallbackName,
+        });
+        if (res.itemId) flashHighlight(res.itemId);
+        loadData();
+      } else if (res.debugCode === 'LOCAL_RETURN_MATCH_MISSING') {
+        const wmsInfo = res.wms
+          ? ` (item_type=${res.wms.item_type_id ?? '–'}, sku=${res.wms.sku ?? '–'})`
+          : '';
+        setLastResult({
+          level: 'warning',
+          text: `WMS godkände scan men ingen rad matchar packlistan${wmsInfo}`,
+          productName: fallbackName,
+        });
+        toast.warning('Ingen matchande rad i packlistan');
       } else {
         setLastResult({
-          success: false,
-          text: res.error || 'Scan misslyckades',
-          productName: value,
+          level: 'error',
+          text: res.error ? `WMS-fel: ${res.error}` : 'Scan misslyckades',
+          productName: fallbackName,
         });
         toast.error(res.error || 'Scan misslyckades');
       }
     },
-    [packingId, returnedBy],
+    [loadData],
   );
 
-  // Wire scanner hardware
+  const handleHardwareScan = useCallback(
+    async (raw: string) => {
+      const value = raw.trim();
+      if (!value) return;
+      setScanInput('');
+      const res = await physicalReturnScan(packingId, value, returnedBy);
+      applyScanResult(res, value);
+    },
+    [packingId, returnedBy, applyScanResult],
+  );
+
+  const handleManualSubmit = useCallback(
+    async (raw: string) => {
+      const value = raw.trim();
+      if (!value) return;
+      setScanInput('');
+      const res = await returnScanSku(packingId, value, returnedBy);
+      applyScanResult(res, value);
+    },
+    [packingId, returnedBy, applyScanResult],
+  );
+
+  // Wire scanner hardware → physical (WMS-backed) flow
   useEffect(() => {
-    registerScanHandler?.(handleScan);
-  }, [handleScan, registerScanHandler]);
+    registerScanHandler?.(handleHardwareScan);
+  }, [handleHardwareScan, registerScanHandler]);
 
   const handleManualPlus = async (it: Item) => {
     const sent = it.quantity_packed ?? 0;
