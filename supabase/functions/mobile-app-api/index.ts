@@ -6137,11 +6137,17 @@ async function handleUploadLagerFile(supabase: any, staffId: string, data: any, 
 }
 
 async function handleStopLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { location_id, booking_id, large_project_id, entry_id } = data || {}
+  const { location_id, booking_id, large_project_id, entry_id, stop_source, stop_reason, stop_metadata } = data || {}
 
   let query = supabase
     .from('location_time_entries')
-    .update({ exited_at: new Date().toISOString() })
+    .update({
+      exited_at: new Date().toISOString(),
+      stop_source: stop_source || 'user_manual',
+      stop_reason: stop_reason || 'user_pressed_stop',
+      stopped_by: staffId,
+      stop_metadata: stop_metadata || {},
+    })
     .eq('staff_id', staffId)
     .eq('organization_id', organizationId)
     .is('exited_at', null)
