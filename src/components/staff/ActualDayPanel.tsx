@@ -1189,7 +1189,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             blocks={enrichedBlockTimeline}
             excludedKeys={excludedKeys}
             canExclude={canExclude && !!staffId}
-            onExcludeBlock={(blockId) => exclude(blockId, 'manual_remove')}
+            onExcludeBlock={async (blockId) => { await exclude(blockId, 'manual_remove'); }}
           />
         ) : mainEvents.length === 0 && projectBlocks.length === 0 ? (
           <div className="text-xs text-muted-foreground italic py-2">
