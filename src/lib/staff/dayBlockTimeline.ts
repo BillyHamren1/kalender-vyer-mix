@@ -73,6 +73,17 @@ export interface PresenceBlock {
     active: boolean;
     present: boolean;
   };
+  /** Bevisflaggor — vilka källor stödjer detta arbetsblock. */
+  sources: {
+    timeReport: boolean;
+    timer: boolean;
+    gpsVisit: boolean;
+    assistant: boolean;
+  };
+  /** Mänsklig sammanfattning av sources, t.ex. "Tidrapport + GPS". */
+  evidenceLabel: string | null;
+  /** 'high' om TR + (timer eller gps), 'medium' annars. */
+  confidence: 'high' | 'medium' | 'low';
 }
 
 export interface JourneyBlock {
