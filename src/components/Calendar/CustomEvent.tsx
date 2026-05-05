@@ -12,6 +12,7 @@ import EventHoverCard from './EventHoverCard';
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { MoveDayPopover } from './MoveDayPopover';
 import { AddDayButton } from './AddDayButton';
+import { DeleteDayButton } from './DeleteDayButton';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import './CustomEvent.css';
 
@@ -183,6 +184,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             <AddDayButton event={event} />
             <MoveDayPopover event={event} setEvents={setEvents} onUpdate={onEventResize} />
           </>
+        )}
+        {/* Radera enskild dag — tillgängligt för planning- och warehouse-events */}
+        {!isCancelled && !readOnly && (
+          <DeleteDayButton event={event} setEvents={setEvents} onUpdate={onEventResize} />
         )}
         {/* Large project badge — inline, not overlapping */}
         {!isCancelled && event.extendedProps?.isLargeProject && (
