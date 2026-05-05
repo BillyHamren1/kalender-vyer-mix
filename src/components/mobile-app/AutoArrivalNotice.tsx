@@ -38,10 +38,9 @@ const AUTO_HIDE_MS = 45_000;
 
 export const AutoArrivalNotice: React.FC = () => {
   const navigate = useNavigate();
-  const { staff } = useMobileAuth();
-  const { data: bookings = [] } = useMobileBookings();
-  const { stopSession } = useWorkSession(bookings, staff?.id);
   const [notice, setNotice] = useState<NoticeState | null>(null);
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionCtx, setCorrectionCtx] = useState<AutoStartCorrectionContext | null>(null);
 
   useEffect(() => {
     const onStarted = (e: Event) => {
@@ -72,32 +71,17 @@ export const AutoArrivalNotice: React.FC = () => {
 
   const dismiss = useCallback(() => setNotice(null), []);
 
-  const handleNotWork = useCallback(async () => {
+  const openCorrection = useCallback(() => {
     if (!notice) return;
-    try {
-      // Flagga som review och stoppa timern utan time_report.
-      await mobileApi.createWorkdayFlag({
-        flag_type: 'geofence_presence_mismatch',
-        flag_date: notice.arrivedAtIso.slice(0, 10),
-        title: `Felaktig auto-start: ${notice.label}`,
-        description: 'Användaren markerade auto-startad arrival som "inte arbete".',
-        severity: 'warning',
-        needs_user_input: false,
-        related_booking_id: notice.kind === 'booking' ? notice.targetId : undefined,
-        related_large_project_id: notice.kind === 'project' ? notice.targetId : undefined,
-        related_location_id: notice.kind === 'location' ? notice.targetId : undefined,
-        context: { source: 'auto_arrival_user_rejected', arrived_at: notice.arrivedAtIso },
-      });
-      if (notice.workTarget) {
-        await stopSession(notice.workTarget, { discard: true } as any).catch(() => {});
-      }
-      toast.message('Auto-start ångrad — markerad för granskning');
-    } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte ångra auto-start');
-    } finally {
-      setNotice(null);
-    }
-  }, [notice, stopSession]);
+    setCorrectionCtx({
+      kind: notice.kind,
+      targetId: notice.targetId,
+      label: notice.label,
+      arrivedAtIso: notice.arrivedAtIso,
+      workTarget: notice.workTarget,
+    });
+    setCorrectionOpen(true);
+  }, [notice]);
 
   const handleStop = useCallback(() => {
     window.dispatchEvent(new CustomEvent('request-end-day'));
@@ -109,50 +93,59 @@ export const AutoArrivalNotice: React.FC = () => {
     setNotice(null);
   }, [navigate]);
 
-  const handleEdit = useCallback(() => {
-    navigate('/m/time-report');
-    setNotice(null);
-  }, [navigate]);
-
-  if (!notice) return null;
+  if (!notice) {
+    return (
+      <AutoStartCorrectionDialog
+        open={correctionOpen}
+        onOpenChange={setCorrectionOpen}
+        context={correctionCtx}
+      />
+    );
+  }
 
   return (
-    <div className="sticky top-0 z-40 px-2 pt-2">
-      <Card className="border-primary/40 bg-primary/5 p-3 shadow-sm">
-        <div className="flex items-start gap-2">
-          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <div className="flex-1 text-sm">
-            <p className="font-medium">
-              {notice.workdayOnly
-                ? `Arbetsdag startad ${arrivalHHmm} från ${notice.label}`
-                : `Arbetsdag och timer startades ${arrivalHHmm} från ${notice.label}`}
-            </p>
-            {notice.isPlannedToday === false && (
-              <span className="mt-1 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-                Oplanerad aktivitet – auto-startad från GPS
-              </span>
-            )}
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Auto-startat från GPS. Ändra om något är fel.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={handleEdit}>Ändra</Button>
-              <Button size="sm" variant="outline" onClick={handleSwitch}>Byt projekt/plats</Button>
-              <Button size="sm" variant="ghost" onClick={handleNotWork}>Inte arbete</Button>
-              <Button size="sm" variant="ghost" onClick={handleStop}>Stoppa</Button>
+    <>
+      <div className="sticky top-0 z-40 px-2 pt-2">
+        <Card className="border-primary/40 bg-primary/5 p-3 shadow-sm">
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div className="flex-1 text-sm">
+              <p className="font-medium">
+                {notice.workdayOnly
+                  ? `Arbetsdag startad ${arrivalHHmm} från ${notice.label}`
+                  : `Arbetsdag och timer startades ${arrivalHHmm} från ${notice.label}`}
+              </p>
+              {notice.isPlannedToday === false && (
+                <span className="mt-1 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                  Oplanerad aktivitet – auto-startad från GPS
+                </span>
+              )}
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Auto-startat från GPS. Korrigera om något är fel.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={openCorrection}>Korrigera</Button>
+                <Button size="sm" variant="outline" onClick={handleSwitch}>Byt projekt/plats</Button>
+                <Button size="sm" variant="ghost" onClick={handleStop}>Avsluta dagen</Button>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={dismiss}
+              aria-label="Stäng notis"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={dismiss}
-            aria-label="Stäng notis"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </Card>
-    </div>
+        </Card>
+      </div>
+      <AutoStartCorrectionDialog
+        open={correctionOpen}
+        onOpenChange={setCorrectionOpen}
+        context={correctionCtx}
+      />
+    </>
   );
 };
 
