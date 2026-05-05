@@ -377,6 +377,23 @@ async function ensureLteOpenForTarget(
   const { data: open } = await q.maybeSingle()
   if (open?.id) { report.skipped_existing++; return open.id }
 
+  // Engine guard: don't recreate if a previously-closed LTE exists for the
+  // SAME target within ±10 min of this arrival window. Prevents the same
+  // arrival from producing two rows even if a foreground client closed one
+  // moments ago. Per-target unique partial index handles open-row racing.
+  const windowStart = new Date(new Date(arrivalIso).getTime() - 10 * 60_000).toISOString()
+  const windowEnd = new Date(new Date(arrivalIso).getTime() + 10 * 60_000).toISOString()
+  const closedQ = supabase.from('location_time_entries')
+    .select('id')
+    .eq('staff_id', staffId)
+    .gte('entered_at', windowStart)
+    .lte('entered_at', windowEnd)
+  const closedScoped = hit.target.kind === 'location' ? closedQ.eq('location_id', hit.target.id)
+    : hit.target.kind === 'booking' ? closedQ.eq('booking_id', hit.target.id)
+    : closedQ.eq('large_project_id', hit.target.id)
+  const { data: recentClosed } = await closedScoped.maybeSingle()
+  if (recentClosed?.id) { report.skipped_existing++; return recentClosed.id }
+
   const payload: Record<string, any> = {
     organization_id: orgId,
     staff_id: staffId,
