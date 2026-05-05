@@ -136,6 +136,10 @@ export interface WorkDayState {
   outsideSinceByTimer: Map<string, number>;
   /** Första signifikanta GPS-signalen idag, om vi sett den. */
   firstSignalToday: { iso: string; arrivedAtWorkplace: boolean } | null;
+  /** Finns aktiv (öppen) workday redan? Om ja → vi frågar inte om sen ankomst. */
+  hasOpenWorkday?: boolean;
+  /** Tidigaste planerade start idag (assignments-baserad). Null om inget planerat. */
+  earliestPlannedStartToday?: { iso: string; label: string } | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────
