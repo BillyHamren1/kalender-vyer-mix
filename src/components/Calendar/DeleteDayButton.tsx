@@ -86,7 +86,7 @@ export const DeleteDayButton: React.FC<Props> = ({ event, setEvents, onUpdate })
           e.preventDefault();
           setOpen(true);
         }}
-        className="event-hover-action absolute bottom-0.5 left-0.5 p-0.5 rounded bg-white/70 hover:bg-destructive/20 z-20"
+        className="event-hover-action absolute top-0.5 left-0.5 p-0.5 rounded bg-white/70 hover:bg-destructive/20 z-20"
         title="Ta bort dag"
       >
         <Trash2 className="h-3 w-3 text-destructive" />
