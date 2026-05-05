@@ -38,7 +38,7 @@ export interface OverviewCalendarEvent {
 
 export interface OverviewAssignment {
   id: string;
-  booking_id: string;
+  booking_id: string | null;
   booking_number: string | null;
   booking_title: string | null;
   client: string | null;
@@ -46,7 +46,16 @@ export interface OverviewAssignment {
   staff_name: string;
   role: string;
   assignment_date: string;
-  team_id: string;
+  team_id: string | null;
+  // Extended (deriveStaffEvents-parity) fields — may be absent on older payloads
+  target_type?: 'booking' | 'large_project' | 'location';
+  target_id?: string;
+  target_name?: string;
+  planned_start?: string;
+  planned_end?: string;
+  address?: string | null;
+  status?: string | null;
+  phase?: 'rig' | 'event' | 'rigDown';
 }
 
 export interface OverviewThread {
