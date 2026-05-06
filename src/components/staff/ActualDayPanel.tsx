@@ -530,7 +530,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     : 0;
   const repairIndicators = useMemo(() => computeStrongWorkIndicators(model), [model]);
   const showRepairBanner = !wd && repairIndicators.hasStrong && !!repairIndicators.proposedStartIso;
+  const isHighConfidence =
+    repairIndicators.reasonCodes.includes('timer_or_time_report_exists') &&
+    (repairIndicators.reasonCodes.includes('gps_on_known_work_site') ||
+      repairIndicators.reasonCodes.includes('server_engine_confident'));
   const [repairBusy, setRepairBusy] = useState(false);
+  const [autoRepairState, setAutoRepairState] = useState<'idle' | 'running' | 'created' | 'failed'>('idle');
+  const autoRepairTriedRef = React.useRef<string | null>(null);
+
   const handleRepair = async () => {
     if (!onRepairWorkdayFromEvidence || !repairIndicators.proposedStartIso) return;
     try {
@@ -547,6 +554,42 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       setRepairBusy(false);
     }
   };
+
+  // Primär väg: kör auto-repair direkt vid hög säkerhet — ingen admin-klick
+  // krävs när timer redan finns och evidensen är stark.
+  React.useEffect(() => {
+    if (!autoRepairEnabled) return;
+    if (!onAutoRepairWorkdayFromEvidence) return;
+    if (wd) return; // workday finns redan
+    if (!isHighConfidence) return;
+    const key = `${staffId ?? ''}|${date ?? ''}`;
+    if (autoRepairTriedRef.current === key) return;
+    autoRepairTriedRef.current = key;
+    setAutoRepairState('running');
+    onAutoRepairWorkdayFromEvidence({ reasonCodes: repairIndicators.reasonCodes })
+      .then((res) => {
+        if (res?.created) {
+          setAutoRepairState('created');
+          toast.success('Arbetsdag auto-skapad från arbetsbevis');
+        } else {
+          // Backend stoppade auto-repair — fall tillbaka till manuell knapp.
+          setAutoRepairState('failed');
+        }
+      })
+      .catch((e: any) => {
+        setAutoRepairState('failed');
+        console.warn('[ActualDayPanel] auto-repair failed:', e?.message ?? e);
+      });
+  }, [
+    autoRepairEnabled,
+    onAutoRepairWorkdayFromEvidence,
+    wd,
+    isHighConfidence,
+    staffId,
+    date,
+    repairIndicators.reasonCodes,
+  ]);
+
 
   const rawEvents = showAllEvents ? buildRawTimeline(model.actualEvents) : buildMainTimeline(model.actualEvents);
   const hiddenReasons = useMemo(() => buildHiddenReasonMap(model.actualEvents), [model.actualEvents]);
