@@ -316,7 +316,7 @@ const resolveJourneyEndpoint = (
   const mapUrl = mapUrlOf(lat, lng);
   const isInternal = !!visit?.knownSiteId
     || !!(placeKey && (placeKey.startsWith('booking:') || placeKey.startsWith('large:')
-      || placeKey.startsWith('site:') || placeKey.startsWith('location:') || placeKey.startsWith('warehouse:')));
+      || placeKey.startsWith('site:') || placeKey.startsWith('location:') || placeKey.startsWith('loc:') || placeKey.startsWith('warehouse:')));
   if (isInternal && (visit?.label || fallbackLabel)) {
     return { label: visit?.label || fallbackLabel || 'Plats', lat, lng, mapUrl, lookupStatus: 'matched_internal' };
   }
