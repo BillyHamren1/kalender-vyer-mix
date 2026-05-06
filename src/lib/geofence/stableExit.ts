@@ -89,6 +89,23 @@ export function evaluateStableExit(
 ): ExitEvaluation {
   const pings = state.pings;
 
+  // STALE-OUTSIDE AUTOSTOP — körs FÖRST. Även med dålig accuracy / få pings:
+  // om personen inte varit innanför radien på 30 min så har hen lämnat.
+  // Stopptid = första outside-pingen (faktisk lämning).
+  if (pings.length > 0) {
+    const first = pings[0];
+    const ageOfFirstOutside = nowTs - first.ts;
+    if (ageOfFirstOutside >= EXIT_STALE_AUTOSTOP_MS) {
+      return {
+        status: 'stale_autostop',
+        pings,
+        spanMs: pings[pings.length - 1].ts - first.ts,
+        reason: `first outside ping ${Math.round(ageOfFirstOutside / 60000)} min ago — forced stop`,
+        exitedAtIso: new Date(first.ts).toISOString(),
+      };
+    }
+  }
+
   // Signal tappad — vi vet inte var personen är. Stoppa ingenting.
   if (lastPingAgeMs == null || lastPingAgeMs > EXIT_PING_MAX_AGE_MS) {
     return { status: 'no_signal', pings, spanMs: 0, reason: 'last ping too old or missing' };
@@ -125,7 +142,13 @@ export function evaluateStableExit(
     };
   }
 
-  return { status: 'stable', pings, spanMs: span, reason: 'ok' };
+  return {
+    status: 'stable',
+    pings,
+    spanMs: span,
+    reason: 'ok',
+    exitedAtIso: new Date(pings[0].ts).toISOString(),
+  };
 }
 
 /**
