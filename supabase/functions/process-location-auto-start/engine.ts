@@ -933,18 +933,28 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
   }
 
   try {
-    let q = supabase
-      .from('staff_location_history')
-      .select('id, staff_id, organization_id, lat, lng, accuracy, recorded_at')
-      .gte('recorded_at', fromIso)
-      .lte('recorded_at', toIso)
-      .order('recorded_at', { ascending: true })
-      .limit(action === 'backfill_day' ? 20000 : 5000)
-    if (staffFilter) q = q.eq('staff_id', staffFilter)
-    if (orgFilter) q = q.eq('organization_id', orgFilter)
-
-    const { data: rawPings, error: pingErr } = await q
-    if (pingErr) throw pingErr
+    // Paginate to bypass PostgREST's hard 1000-row cap.
+    const PAGE = 1000
+    const HARD_CAP = action === 'backfill_day' ? 50000 : 10000
+    const rawPings: any[] = []
+    let from = 0
+    while (rawPings.length < HARD_CAP) {
+      let q = supabase
+        .from('staff_location_history')
+        .select('id, staff_id, organization_id, lat, lng, accuracy, recorded_at')
+        .gte('recorded_at', fromIso)
+        .lte('recorded_at', toIso)
+        .order('recorded_at', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (staffFilter) q = q.eq('staff_id', staffFilter)
+      if (orgFilter) q = q.eq('organization_id', orgFilter)
+      const { data: page, error: pingErr } = await q
+      if (pingErr) throw pingErr
+      const rows = page ?? []
+      rawPings.push(...rows)
+      if (rows.length < PAGE) break
+      from += PAGE
+    }
 
     const pings: Ping[] = (rawPings ?? []).map((r: any) => ({
       id: r.id,
