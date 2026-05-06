@@ -172,21 +172,27 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
             // Only insert into calendar_events if we have a resource (team) to
             // attach the row to — calendar_events.resource_id is NOT NULL.
             if (event.resourceId) {
+              // Upsert mot uq_calendar_event_identity (booking_id, event_type, source_date, organization_id)
+              // så att redan existerande dagar (t.ex. soft-deleted eller manuellt skapade) flyttas
+              // istället för att krascha med "duplicate key value violates unique constraint".
               const { error: insertError } = await supabase
                 .from('calendar_events')
-                .insert({
-                  title: event.title,
-                  start_time: startDateTime,
-                  end_time: endDateTime,
-                  resource_id: event.resourceId,
-                  booking_id: event.bookingId,
-                  event_type: eventType,
-                  organization_id: booking.organization_id,
-                  booking_number: booking.booking_number,
-                  delivery_address:
-                    [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
-                  source_date: sourceDate,
-                });
+                .upsert(
+                  {
+                    title: event.title,
+                    start_time: startDateTime,
+                    end_time: endDateTime,
+                    resource_id: event.resourceId,
+                    booking_id: event.bookingId,
+                    event_type: eventType,
+                    organization_id: booking.organization_id,
+                    booking_number: booking.booking_number,
+                    delivery_address:
+                      [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
+                    source_date: sourceDate,
+                  },
+                  { onConflict: 'booking_id,event_type,source_date,organization_id' }
+                );
               if (insertError) throw insertError;
             } else {
               console.log('[AddRiggDayDialog] no resourceId — skipping calendar_events insert, booking update will trigger reconciler');
