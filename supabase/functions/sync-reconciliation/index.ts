@@ -222,14 +222,13 @@ async function writeToBookingApi(
   data: Record<string, any>,
 ): Promise<void> {
   const qs = new URLSearchParams({
-    type: "update_booking",
-    method: "POST",
-    booking_id: bookingId,
+    type: "bookings",
+    id: bookingId,
   });
   const res = await fetch(
     `${efUrl}/functions/v1/planning-api?${qs.toString()}`,
     {
-      method: "POST",
+      method: "PUT",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": planningApiKey,
