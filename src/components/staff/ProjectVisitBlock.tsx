@@ -169,21 +169,35 @@ export const buildProjectBlocks = (input: BuildProjectBlocksInput): ProjectBlock
   const { events, visitByKey, plannedTargetIds, workdayStartedIso } = input;
   const blocks: ProjectBlock[] = [];
 
-  // Index timer events per placeKey för att korsreferera
-  const timerStartByPlaceKey = new Map<string, string>();
-  const timerStopByPlaceKey = new Map<string, string>();
-  const timerActiveByPlaceKey = new Map<string, boolean>();
-  for (const ev of events) {
-    const placeKey = (ev.meta as any)?.placeKey as string | undefined;
-    if (!placeKey) continue;
+  // Bygg lista över timer-intervall per placeKey: starts paras med första
+  // efterföljande stop (samma placeKey). En öppen start ger end=null = aktiv.
+  // Detta gör att två besök på samma plats kan få olika timer-status.
+  type TimerInterval = { placeKey: string; start: string; end: string | null };
+  const timerIntervals: TimerInterval[] = [];
+  const openStartsByKey = new Map<string, number[]>(); // index i timerIntervals
+  const sortedTimerEvents = events
+    .filter(e => e.kind === 'timer_started' || e.kind === 'timer_stopped')
+    .filter(e => !!(e.meta as any)?.placeKey)
+    .slice()
+    .sort((a, b) => a.at.localeCompare(b.at));
+  for (const ev of sortedTimerEvents) {
+    const placeKey = (ev.meta as any).placeKey as string;
     if (ev.kind === 'timer_started') {
-      if (!timerStartByPlaceKey.has(placeKey)) timerStartByPlaceKey.set(placeKey, ev.at);
-      // Om vi inte ser en stop, då är den aktiv
-      timerActiveByPlaceKey.set(placeKey, true);
-    }
-    if (ev.kind === 'timer_stopped') {
-      timerStopByPlaceKey.set(placeKey, ev.at);
-      timerActiveByPlaceKey.set(placeKey, false);
+      const idx = timerIntervals.length;
+      timerIntervals.push({ placeKey, start: ev.at, end: null });
+      const list = openStartsByKey.get(placeKey) ?? [];
+      list.push(idx);
+      openStartsByKey.set(placeKey, list);
+    } else {
+      const list = openStartsByKey.get(placeKey);
+      if (list && list.length > 0) {
+        const idx = list.shift()!;
+        timerIntervals[idx].end = ev.at;
+        openStartsByKey.set(placeKey, list);
+      } else {
+        // stop utan känd start — registrera som "punkt"-intervall så hasTimer fångar den
+        timerIntervals.push({ placeKey, start: ev.at, end: ev.at });
+      }
     }
   }
 
@@ -211,10 +225,24 @@ export const buildProjectBlocks = (input: BuildProjectBlocksInput): ProjectBlock
     const endIso = ongoing ? null : (departedAt || visit?.end || ev.until || null);
     const durationMin = visit?.durationMin ?? ev.durationMin ?? 0;
 
-    const timerStartedIso = timerStartByPlaceKey.get(placeKey) ?? null;
-    const timerStoppedIso = timerStopByPlaceKey.get(placeKey) ?? null;
-    const timerActive = !!timerActiveByPlaceKey.get(placeKey);
-    const hasTimer = !!timerStartedIso || !!timerStoppedIso;
+    // Match timer-intervall mot blockets fönster (overlap).
+    const blockStartMs = new Date(startIso).getTime();
+    const blockEndMs = endIso ? new Date(endIso).getTime() : Date.now();
+    const overlapping = timerIntervals.filter(t => {
+      if (t.placeKey !== placeKey) return false;
+      const ts = new Date(t.start).getTime();
+      const te = t.end ? new Date(t.end).getTime() : Date.now();
+      return te >= blockStartMs && ts <= blockEndMs;
+    });
+    const timerStartedIso = overlapping.length > 0
+      ? overlapping.reduce((min, t) => (!min || t.start < min ? t.start : min), '' as string) || null
+      : null;
+    const stops = overlapping.filter(t => t.end !== null);
+    const timerStoppedIso = stops.length > 0
+      ? stops.reduce((max, t) => (!max || (t.end as string) > max ? (t.end as string) : max), '' as string) || null
+      : null;
+    const timerActive = overlapping.some(t => t.end === null);
+    const hasTimer = overlapping.length > 0;
 
     blocks.push({
       id: `pblock:${ev.id}`,

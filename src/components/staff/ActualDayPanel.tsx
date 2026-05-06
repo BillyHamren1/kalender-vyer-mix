@@ -1242,8 +1242,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         const headline =
           wdMissing ? 'På projekt – arbetsdag saknas'
           : timerState === 'active' ? 'På projekt – timer aktiv'
-          : timerState === 'missing' ? 'På projekt – timer saknas'
-          : 'På projekt – timer osäker';
+          : timerState === 'uncertain' ? 'På projekt – timer stoppad tidigare'
+          : 'På projekt – ingen timer registrerad';
         const tone =
           wdMissing || timerState === 'missing'
             ? 'border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100'

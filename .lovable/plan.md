@@ -1,36 +1,49 @@
-## Problem
+# Fix: motsägande timer-status på "På projekt"-banner vs journal-block
 
-Auto-switch från lager-arrival (location) → stoppar projekt-timer fungerar bara **första gången** personen besöker en plats per session. Andra besöket samma dag triggar ingenting eftersom `triggeredEnterRef` aldrig städas när personen lämnar utan aktiv timer.
+## Vad användaren ser
 
-Konkret från Nanas dag: FA Warehouse besöktes 05:47 (timer startad+stoppad), och kl 12:28 igen — andra besöket gjorde ingenting eftersom `location-<FA>` låg kvar i `triggeredEnterRef`.
+Headern säger **"På projekt – timer saknas"** (eller "timer osäker") medan ett ProjectVisitBlock i huvudjournalen för samma projekt säger **"timer aktiv"** — eller tvärtom. Båda gäller samma projekt och samma dag, så det ser ut som en bugg.
 
-## Lösning
+## Rotorsak
 
-Gör städningen av `triggeredEnterRef` oberoende av om en timer är aktiv. Två kompletterande ändringar i `src/hooks/useGeofencing.ts`:
+I `src/components/staff/ProjectVisitBlock.tsx` (`buildProjectBlocks`) byggs ETT block per `gps_visit`-rad. Om personen besökt projektet två gånger samma dag (t.ex. lämnat, kom tillbaka) får vi **två block med samma `placeKey`**.
 
-**1. Stable-EXIT städar alltid `triggeredEnterRef`** — i alla tre EXIT-grenar (project / booking / location), kör en separat "presence-exit" som spårar utflyttning även när `hasTimer === false`. Använder samma `evaluateExit`-tracker; ingen ny logik behövs, bara att gate-villkoret `&& hasTimer` flyttas så att tracker-utvärderingen körs alltid och *bara stop-action* gate:as på `hasTimer`.
+Timer-eventen (`timer_started` / `timer_stopped`) indexeras däremot **en gång per placeKey** — och kopplas alltså till ett av besöken, men `hasTimer/timerActive` får samma värde för **båda blocken** trots att timern bara verkligen var igång under ett av dem.
 
-```ts
-// Före: hela blocket gate:at på hasTimer → ingen städning utan timer.
-// Efter: ev. evaluateras alltid; om stable/stale → cleara triggeredEnterRef.
-//        Stop-action körs bara om hasTimer.
-```
+Banner (`ActualDayPanel.tsx` rad 1237–1246) väljer `currentOngoingProject` = **senaste pågående block**. Det blocket kan ha `timerActive=false` (timer stoppades vid första besökets slut), så bannern skriver "timer saknas", samtidigt som journalen visar det tidigare blocket som "timer aktiv" via samma karta.
 
-**2. Hard reset vid mycket gammal enter** — `triggeredEnterRef` får också rensas om en timer för key:n stoppats (vi noterar `lastStopAtMs` per key). Failsafe ifall stable-EXIT aldrig hinner triggas (t.ex. snabbt ut-och-in på 10 sek).
+Dessutom är ordet "saknas" missvisande — det betyder bara "ingen timer-event ligger inom detta GPS-fönster", inte att något är trasigt.
 
-## Effekt på Nanas case
+## Plan
 
-- 05:47 ENTER FA Warehouse → location-timer startas, `triggeredEnterRef` får `location-<FA>`.
-- 07:00 timer stoppas (auto-switch till projektet).
-- 07:00–07:16 stable-EXIT från FA Warehouse → städar `location-<FA>` ur `triggeredEnterRef` (ny ändring).
-- 12:28 ENTER FA Warehouse igen → villkoret `!triggeredEnterRef.has(...)` är nu sant → `tryAutoSwitchFromArrival` körs → konflikt med aktiv project-timer (Westers) → switch enligt `timerConcurrency` → projekt-timern stoppas vid 12:28, location-presence-timer startas.
+1. **Tidsfönsterbaserad timer-koppling** i `buildProjectBlocks`
+   - Bygg lista över timer-intervall `(placeKey, startedIso, stoppedIso|null)` istället för en map per placeKey.
+   - För varje block, sätt:
+     - `timerStartedIso` = första timer_started inom `[block.startIso, block.endIso ?? now]`
+     - `timerStoppedIso` = motsvarande stop (om något)
+     - `timerActive` = sant endast om en timer öppnad i blockets fönster fortfarande är öppen
+     - `hasTimer` = sant om någon timer överlappar blockets fönster
+   - Resultat: två besök på samma plats får sin egen, korrekta timer-status.
 
-## Filer
+2. **Konsistent källa för bannern**
+   - Bannern använder redan `currentOngoingProject` från samma `projectBlocks`-array, så fix #1 räcker för att ban­ner och journal alltid visar samma värde för samma block.
 
-- `src/hooks/useGeofencing.ts` — flytta `&& hasTimer`-gaten i tre EXIT-grenar.
-- `src/test/` — lägg till regressionstest: andra besöket till samma location startar ny presence-timer / triggar switch.
+3. **Tydligare språk i bannern** (`ActualDayPanel.tsx` rad 1242–1246)
+   - `'På projekt – timer aktiv'` → behåll
+   - `'På projekt – timer saknas'` → **`'På projekt – ingen timer registrerad'`**
+   - `'På projekt – timer osäker'` → **`'På projekt – timer stoppad tidigare'`** (när vi ser timer_stopped men ingen pågående timer)
+   - `'På projekt – arbetsdag saknas'` → behåll
 
-## Out of scope
+4. **Test**
+   - Lägg till case i `src/lib/staff/__tests__/` (ny fil `projectBlocks.timerWindow.test.ts`):
+     - Två besök, en timer som öppnas+stängs i besök 1 → besök 1: `timerActive=false, hasTimer=true`; besök 2: `hasTimer=false`.
+     - Ett besök, timer fortfarande öppen → `timerActive=true`.
+     - Ett besök, ingen timer → `hasTimer=false`.
 
-- Backfill för Nanas befintliga dag (inget data ändras retroaktivt).
-- Ändring av `timerConcurrency`-matrisen (location+project = switch är redan rätt regel).
+## Filer som ändras
+
+- `src/components/staff/ProjectVisitBlock.tsx` — `buildProjectBlocks` byter index till tidsfönster.
+- `src/components/staff/ActualDayPanel.tsx` — nytt headline-språk (rad 1242–1246).
+- `src/lib/staff/__tests__/projectBlocks.timerWindow.test.ts` — ny testfil.
+
+Inga DB- eller edge-function-ändringar behövs.
