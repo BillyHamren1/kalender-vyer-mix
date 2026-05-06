@@ -143,6 +143,11 @@ export interface PresenceBlock {
   clippedFromIso?: string | null;
   /** Anledning till clipping. */
   clippedReason?: 'clipped_to_work_context_start' | null;
+  /**
+   * Canonical workday-policy status (see src/lib/staff/workdayPolicy.ts).
+   * UI ska föredra detta för label/färg över heuristik på presenceKind.
+   */
+  policyStatus?: import('./workdayPolicy').PolicyStatus;
 }
 
 export interface JourneyBlock {
