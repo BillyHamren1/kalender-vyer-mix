@@ -174,7 +174,8 @@ describe('2026-05-04 — Billy: workday/rapporter saknas eller är tomma', () =>
     expect(m.distributedMinutes).toBe(0);
     expect(m.undistributedMinutes).toBe(9 * 60);
     expect(m.status).toBe('requires_distribution');
-    expect(m.reviewRequired).toBe(true);
+    // Oallokerad tid blockerar inte attest längre.
+    expect(m.reviewRequired).toBe(false);
     // UI ska visa "Arbetsdag finns, men tid är ofördelad" — modellen
     // exponerar det via status + undistributedMinutes>0 + workdayStart.
     expect(m.workdayStart).not.toBeNull();
