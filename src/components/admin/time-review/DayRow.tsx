@@ -172,10 +172,10 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
           <Stat label="Rapport" value={fmtMinutes(m.reportedActivityMinutes)} tone="text-emerald-700" />
           <Stat icon={<Car className="w-3 h-3 text-amber-600" />} label="Resa" value={fmtMinutes(m.travelMinutes)} tone={m.travelMinutes ? 'text-amber-700' : 'text-muted-foreground'} />
           <Stat
-            icon={m.unallocatedMinutes ? <AlertTriangle className="w-3 h-3 text-destructive" /> : null}
-            label="Oallokerat"
+            icon={null}
+            label="Ej fördelat"
             value={fmtMinutes(m.unallocatedMinutes)}
-            tone={m.unallocatedMinutes ? 'text-destructive' : 'text-muted-foreground'}
+            tone="text-muted-foreground"
           />
         </div>
 
