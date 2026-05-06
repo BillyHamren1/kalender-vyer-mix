@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { applyGeocodeToPlace } from '@/lib/staff/applyGeocodeToPlace';
+import { applyGeocodeToPlace, type PlaceEndpoint } from '@/lib/staff/applyGeocodeToPlace';
 import type { RichGeocode } from '@/hooks/useReverseGeocodeRich';
 
-const basePlace = {
+const basePlace: PlaceEndpoint = {
   label: 'okänd',
   lat: 59.3293,
   lng: 18.0686,
