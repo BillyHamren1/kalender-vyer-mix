@@ -2301,12 +2301,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                 <div className="text-[10px] text-muted-foreground">time_reports + travel</div>
               </div>
               <div className="rounded border bg-muted/20 px-2 py-1.5">
-                <div className="text-[10px] uppercase text-muted-foreground">Ofördelad</div>
-                <div
-                  className={`tabular-nums font-medium ${
-                    model.proposedReport.undistributedMinutes > 0 ? 'text-amber-600' : ''
-                  }`}
-                >
+                <div className="text-[10px] uppercase text-muted-foreground">Ej fördelat</div>
+                <div className="tabular-nums font-medium text-muted-foreground">
                   {fmtMin(model.proposedReport.undistributedMinutes)}
                 </div>
                 <div className="text-[10px] text-muted-foreground">workday − fördelad</div>
