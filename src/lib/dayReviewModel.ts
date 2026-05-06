@@ -372,8 +372,9 @@ export function buildDayReviewModel(args: BuildArgs): DayReviewModel {
       });
       anomalies.push({
         kind: 'unallocated_time',
-        severity: gapMin > 60 ? 'warn' : 'info',
-        title: `Oallokerad tid efter sista aktivitet (${gapMin} min)`,
+        severity: 'info',
+        title: `Ej fördelat på projekt (${gapMin} min)`,
+        detail: 'Tid efter sista aktivitet som inte är fördelad. Blockerar inte godkännande.',
         startMs: cursor,
         endMs: wdStop,
       });
