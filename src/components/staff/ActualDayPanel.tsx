@@ -2067,9 +2067,17 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             )}
           </div>
         )}
-        </>
         )}
       </section>
+
+      {canExclude && overrides.length > 0 && (
+        <ExcludedEventsSection
+          overrides={overrides}
+          blocks={enrichedBlockTimeline}
+          onRestore={(id) => restore(id)}
+        />
+      )}
+
 
       {/* C. Föreslagna korrigeringar — visas FÖRE rapport, eftersom det är den
           handlingsbara översikten admin ska reagera på. */}
