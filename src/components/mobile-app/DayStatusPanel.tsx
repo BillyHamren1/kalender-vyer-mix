@@ -1,12 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { differenceInSeconds, parseISO } from 'date-fns';
 import {
   Sun, Clock, MapPin, Square, ArrowRightLeft, Pencil, X,
-  Loader2, WifiOff, Building2, Briefcase, Truck, AlertTriangle,
+  Loader2, Building2, Briefcase, Truck, AlertTriangle, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
-import { useActiveDayState, type ActiveDayOpenEntry } from '@/hooks/useActiveDayState';
+import { useStaffDaySnapshot, type StaffDayActive, type StaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
 import { useWorkSession } from '@/hooks/useWorkSession';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
@@ -17,7 +15,6 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 interface Props {
-  todayReports: MobileTimeReport[];
   onChanged?: () => void;
 }
 
@@ -29,81 +26,57 @@ function useTick(intervalMs = 1000) {
   }, [intervalMs]);
 }
 
-function statusCopy(entry: ActiveDayOpenEntry): { label: string; tone: 'ok' | 'warn' | 'muted'; Icon: any } {
-  switch (entry.status) {
-    case 'active_on_site':
-      return { label: 'På plats', tone: 'ok', Icon: MapPin };
-    case 'active_but_left_site':
-      return { label: 'Lämnat platsen', tone: 'warn', Icon: ArrowRightLeft };
-    case 'active_signal_lost':
-      return { label: 'Signal saknas', tone: 'warn', Icon: WifiOff };
-    default:
-      // Differentiate booking/project/location
-      if (entry.target_kind === 'large_project') return { label: 'På projekt', tone: 'ok', Icon: Briefcase };
-      if (entry.target_kind === 'booking') return { label: 'På uppdrag', tone: 'ok', Icon: Briefcase };
-      if (entry.target_kind === 'location') return { label: 'På plats', tone: 'ok', Icon: Building2 };
-      return { label: 'Aktiv', tone: 'muted', Icon: Clock };
-  }
+function activeIcon(active: StaffDayActive) {
+  if (active.kind === 'project') return Briefcase;
+  if (active.kind === 'location') return Building2;
+  return Briefcase;
 }
 
-const toneClass = (tone: 'ok' | 'warn' | 'muted') =>
-  tone === 'ok'
-    ? 'text-primary bg-primary/10 border-primary/20'
-    : tone === 'warn'
-      ? 'text-warning bg-warning/10 border-warning/30'
-      : 'text-muted-foreground bg-muted/40 border-border';
-
-export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => {
+/**
+ * DayStatusPanel — fully driven by `get-staff-day-status` snapshot.
+ *
+ * The server is authority on what's active, allocated and approved.
+ * We do NOT consult local activeTimers here; if the snapshot says
+ * `active` is null, no live timer is rendered.
+ */
+export const DayStatusPanel: React.FC<Props> = ({ onChanged }) => {
   useTick(1000);
-  const { state, refresh } = useActiveDayState();
+  const { snapshot, refresh } = useStaffDaySnapshot();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<null | 'stop' | 'not_work'>(null);
   const { staff } = useMobileAuth();
   const { data: bookings = [] } = useMobileBookings();
   const { stopAny, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
 
-  const wd = state?.workday;
-  const open = state?.open_entries ?? [];
-  const primary = open[0] || null;
+  const wd = snapshot?.workday ?? null;
+  const active = snapshot?.active ?? null;
+  const totals = snapshot?.totals;
 
-  // ── Lönegrundande hittills (today's confirmed time_reports + active elapsed) ─
-  const reportedMinutes = useMemo(() => {
-    return todayReports.reduce((sum, r) => sum + (Number(r.hours_worked || 0) * 60), 0);
-  }, [todayReports]);
-  const activeMinutes = primary
-    ? Math.max(0, Math.floor(differenceInSeconds(new Date(), parseISO(primary.entered_at)) / 60))
+  const workdayHHMM = wd?.startedAt ? extractUTCTime(wd.startedAt) : null;
+  const workdayElapsedSec = wd?.startedAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(wd.startedAt).getTime()) / 1000))
     : 0;
-  const totalMinutes = Math.round(reportedMinutes + activeMinutes);
 
-  const workdayElapsed = wd?.started_at
-    ? Math.max(0, Math.floor((Date.now() - new Date(wd.started_at).getTime()) / 1000))
-    : 0;
-  const workdayHHMM = wd?.started_at ? extractUTCTime(wd.started_at) : null;
-
-  const pingAgeMin = state?.latest_ping_age_ms != null
-    ? Math.floor(state.latest_ping_age_ms / 60000)
-    : null;
-
-  const buildTargetForEntry = (entry: ActiveDayOpenEntry) => {
-    if (entry.target_kind === 'large_project' && entry.target_id) {
-      return { kind: 'project' as const, largeProjectId: entry.target_id, name: entry.target_label };
+  const buildTargetForActive = (a: StaffDayActive) => {
+    if (a.kind === 'project' && a.largeProjectId) {
+      return { kind: 'project' as const, largeProjectId: a.largeProjectId, name: a.label };
     }
-    if (entry.target_kind === 'booking' && entry.target_id) {
-      return { kind: 'booking' as const, bookingId: entry.target_id, client: entry.target_label };
+    if (a.kind === 'booking' && a.bookingId) {
+      return { kind: 'booking' as const, bookingId: a.bookingId, client: a.label };
     }
-    if (entry.target_kind === 'location' && entry.target_id) {
-      return { kind: 'location' as const, locationId: entry.target_id, name: entry.target_label };
+    if (a.kind === 'location' && a.locationId) {
+      return { kind: 'location' as const, locationId: a.locationId, name: a.label };
     }
     return undefined;
   };
 
   const handleStop = async () => {
-    if (!primary || busy) return;
+    if (!active || busy) return;
     setBusy('stop');
     try {
       await stopAny({
-        target: buildTargetForEntry(primary),
-        serverEntryId: primary.id,
+        target: buildTargetForActive(active),
+        serverEntryId: active.locationEntryId,
         stopReason: 'day_status_stop',
       });
       toast.success('Timer stoppad');
@@ -117,13 +90,13 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
   };
 
   const handleNotWork = async () => {
-    if (!primary || busy) return;
+    if (!active || busy) return;
     if (!confirm('Markera som ej arbete? Ingen tidrapport sparas och den öppna posten stängs.')) return;
     setBusy('not_work');
     try {
       await stopAny({
-        target: buildTargetForEntry(primary),
-        serverEntryId: primary.id,
+        target: buildTargetForActive(active),
+        serverEntryId: active.locationEntryId,
         skipReport: true,
         stopReason: 'mark_not_work',
       });
@@ -137,8 +110,8 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
     }
   };
 
-  // ── Empty state — no workday at all ─────────────────────────────────
-  if (!wd && open.length === 0) {
+  // ── Empty state ────────────────────────────────────────────────────
+  if (!wd && !active) {
     return (
       <section className="rounded-2xl border border-border bg-muted/30 p-4 space-y-1">
         <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Idag</p>
@@ -151,83 +124,118 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
 
   return (
     <>
-    <section className="rounded-2xl border border-border bg-card shadow-sm p-4 space-y-4">
-      {/* Top row — workday + payable */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-primary">Arbetsdag</p>
-          <p className="font-extrabold text-base text-foreground">
-            {workdayHHMM ? `${workdayHHMM} → ` : ''}
-            {wd?.ended_at ? extractUTCTime(wd.ended_at) : <span className="text-primary">pågår</span>}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            {workdayElapsed > 0
-              ? `${Math.floor(workdayElapsed / 3600)}h ${Math.floor((workdayElapsed % 3600) / 60)}m sedan start`
-              : '—'}
-          </p>
+      <section className="rounded-2xl border border-border bg-card shadow-sm p-4 space-y-4">
+        {/* Top row — workday + payable */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-primary">Arbetsdag</p>
+            <p className="font-extrabold text-base text-foreground">
+              {workdayHHMM ? `${workdayHHMM} → ` : ''}
+              {wd?.endedAt
+                ? extractUTCTime(wd.endedAt)
+                : <span className="text-primary">pågår</span>}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {workdayElapsedSec > 0
+                ? `${Math.floor(workdayElapsedSec / 3600)}h ${Math.floor((workdayElapsedSec % 3600) / 60)}m sedan start`
+                : '—'}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Lönegrundande</p>
+            <p className="font-extrabold text-base text-foreground tabular-nums">
+              {formatHoursMinutes((totals?.workdayMinutes ?? 0) / 60)}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {wd?.approved ? 'godkänd' : 'hittills idag'}
+            </p>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Lönegrundande</p>
-          <p className="font-extrabold text-base text-foreground tabular-nums">
-            {formatHoursMinutes(totalMinutes / 60)}
-          </p>
-          <p className="text-[11px] text-muted-foreground">hittills idag</p>
-        </div>
-      </div>
 
-      {/* Current activity */}
-      {primary ? (
-        <CurrentActivityCard
-          entry={primary}
-          busy={busy}
-          onStop={handleStop}
-          onNotWork={handleNotWork}
-          onSwitch={() => navigate('/m/jobs')}
-          onCorrect={() => {
-            // Open edit on the most recent matching report if any, else scroll to form
-            const today = todayReports[0];
-            if (today?.id) navigate(`/m/report/${today.id}/edit`);
-            else {
+        {/* Allocation summary from snapshot */}
+        {totals && (
+          <div className="grid grid-cols-3 gap-2 text-[11px]">
+            <Stat label="Fördelat" value={formatHoursMinutes(totals.allocatedProjectMinutes / 60)} icon={<Briefcase className="w-3 h-3" />} />
+            <Stat label="Restid" value={formatHoursMinutes(totals.travelMinutes / 60)} icon={<Truck className="w-3 h-3" />} />
+            <Stat label="Ej fördelat" value={formatHoursMinutes(totals.unallocatedMinutes / 60)} icon={<Clock className="w-3 h-3" />} muted />
+          </div>
+        )}
+
+        {/* Current activity — server is authority */}
+        {active ? (
+          <CurrentActivityCard
+            active={active}
+            busy={busy}
+            onStop={handleStop}
+            onNotWork={handleNotWork}
+            onSwitch={() => navigate('/m/jobs')}
+            onCorrect={() => {
               const el = document.getElementById('time-report-form');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
               else navigate('/m/report');
-            }
-          }}
-        />
-      ) : (
-        <div className="rounded-xl border border-dashed border-border bg-muted/20 px-3 py-3 text-xs text-muted-foreground">
-          Arbetsdag pågår men ingen aktiv aktivitet just nu.
-        </div>
-      )}
+            }}
+          />
+        ) : wd && !wd.endedAt ? (
+          <div className="rounded-xl border border-dashed border-border bg-muted/20 px-3 py-3 text-xs text-muted-foreground">
+            Arbetsdag pågår men ingen aktiv aktivitet just nu.
+          </div>
+        ) : null}
 
-      {/* GPS row */}
-      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-        <MapPin className="w-3.5 h-3.5 shrink-0" />
-        {state?.latest_ping ? (
-          <span>
-            Senaste GPS för {pingAgeMin != null ? `${pingAgeMin} min` : 'okänt'} sedan
-            {state.stale_ping ? ' · signal saknas' : ''}
-          </span>
-        ) : (
-          <span>Ingen GPS-position registrerad ännu</span>
+        {/* Approved badge */}
+        {wd?.approved && (
+          <div className="flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-400">
+            <Check className="w-3.5 h-3.5" /> Dagen är godkänd av admin
+          </div>
         )}
-      </div>
-    </section>
-    {workSessionDialogs}
+
+        {/* Snapshot flags */}
+        <SnapshotFlags snapshot={snapshot} />
+      </section>
+      {workSessionDialogs}
     </>
   );
 };
 
+const Stat: React.FC<{ label: string; value: string; icon: React.ReactNode; muted?: boolean }> = ({ label, value, icon, muted }) => (
+  <div className={cn('rounded-xl border border-border px-2.5 py-1.5', muted ? 'bg-muted/20' : 'bg-background/60')}>
+    <div className="flex items-center gap-1 text-[10px] uppercase font-semibold text-muted-foreground tracking-wide">
+      {icon}{label}
+    </div>
+    <div className="font-extrabold text-sm text-foreground tabular-nums">{value}</div>
+  </div>
+);
+
+const SnapshotFlags: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapshot }) => {
+  const flags = useMemo(
+    () => (snapshot?.flags ?? []).filter((f) => !f.resolved && f.severity !== 'info'),
+    [snapshot],
+  );
+  if (flags.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 space-y-1">
+      {flags.map((f) => (
+        <div key={f.id} className="flex items-start gap-2 text-xs text-warning">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-semibold">{f.title}</p>
+            {f.description && <p className="text-[11px] text-warning/80">{f.description}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const CurrentActivityCard: React.FC<{
-  entry: ActiveDayOpenEntry;
+  active: StaffDayActive;
   busy: 'stop' | 'not_work' | null;
   onStop: () => void;
   onNotWork: () => void;
   onSwitch: () => void;
   onCorrect: () => void;
-}> = ({ entry, busy, onStop, onNotWork, onSwitch, onCorrect }) => {
-  const { label, tone, Icon } = statusCopy(entry);
-  const elapsed = Math.max(0, differenceInSeconds(new Date(), parseISO(entry.entered_at)));
+}> = ({ active, busy, onStop, onNotWork, onSwitch, onCorrect }) => {
+  const Icon = activeIcon(active);
+  const elapsed = Math.max(0, Math.floor((Date.now() - new Date(active.startedAt).getTime()) / 1000));
   const h = Math.floor(elapsed / 3600);
   const m = Math.floor((elapsed % 3600) / 60);
   const s = elapsed % 60;
@@ -236,17 +244,13 @@ const CurrentActivityCard: React.FC<{
     <div className="rounded-xl border border-border bg-background/60 p-3 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <span className={cn(
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-            toneClass(tone),
-          )}>
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
             <Icon className="w-3 h-3" />
-            {label}
+            Aktiv
           </span>
-          <p className="mt-1.5 font-bold text-sm text-foreground truncate">{entry.target_label}</p>
+          <p className="mt-1.5 font-bold text-sm text-foreground truncate">{active.label}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            sedan {extractUTCTime(entry.entered_at)} · {entry.source || 'manuell'}
-            {entry.auto_started ? ' · auto' : ''}
+            sedan {extractUTCTime(active.startedAt)}
           </p>
         </div>
         <div className="font-mono font-extrabold text-base tabular-nums text-primary shrink-0">
@@ -254,45 +258,20 @@ const CurrentActivityCard: React.FC<{
         </div>
       </div>
 
-      {/* Actions */}
       <div className="grid grid-cols-2 gap-2">
-        <Button
-          size="sm"
-          variant="default"
-          className="rounded-xl h-10 gap-1.5 text-xs font-semibold"
-          onClick={onStop}
-          disabled={!!busy}
-        >
+        <Button size="sm" variant="default" className="rounded-xl h-10 gap-1.5 text-xs font-semibold" onClick={onStop} disabled={!!busy}>
           {busy === 'stop' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
           Stoppa timer
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-xl h-10 gap-1.5 text-xs font-semibold"
-          onClick={onSwitch}
-          disabled={!!busy}
-        >
+        <Button size="sm" variant="outline" className="rounded-xl h-10 gap-1.5 text-xs font-semibold" onClick={onSwitch} disabled={!!busy}>
           <ArrowRightLeft className="w-3.5 h-3.5" />
           Byt plats/projekt
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-xl h-10 gap-1.5 text-xs font-semibold"
-          onClick={onCorrect}
-          disabled={!!busy}
-        >
+        <Button size="sm" variant="outline" className="rounded-xl h-10 gap-1.5 text-xs font-semibold" onClick={onCorrect} disabled={!!busy}>
           <Pencil className="w-3.5 h-3.5" />
           Korrigera starttid
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="rounded-xl h-10 gap-1.5 text-xs font-semibold text-muted-foreground"
-          onClick={onNotWork}
-          disabled={!!busy}
-        >
+        <Button size="sm" variant="ghost" className="rounded-xl h-10 gap-1.5 text-xs font-semibold text-muted-foreground" onClick={onNotWork} disabled={!!busy}>
           {busy === 'not_work' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
           Inte arbete
         </Button>
