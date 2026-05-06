@@ -115,14 +115,16 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
     const { data, error } = await supabase.functions.invoke('mobile-app-api', {
       body: {
         action: 'admin_create_workday_from_planned',
-        target_staff_id: staffId,
-        flag_date: dateStr,
-        mode: input.mode,
-        planned_start_iso: input.plannedStartIso,
-        first_signal_iso: input.firstSignalIso,
-        custom_start_iso: input.customStartIso,
-        assignment_id: input.assignmentId,
-        note: `Admin: ${input.label} (gap ${input.noSignalGapMinutes} min)`,
+        data: {
+          target_staff_id: staffId,
+          flag_date: dateStr,
+          mode: input.mode,
+          planned_start_iso: input.plannedStartIso,
+          first_signal_iso: input.firstSignalIso,
+          custom_start_iso: input.customStartIso,
+          assignment_id: input.assignmentId,
+          note: `Admin: ${input.label} (gap ${input.noSignalGapMinutes} min)`,
+        },
       },
     });
     if (error) throw new Error(error.message);
@@ -140,11 +142,13 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
     const { data, error } = await supabase.functions.invoke('mobile-app-api', {
       body: {
         action: 'admin_repair_workday_from_evidence',
-        target_staff_id: staffId,
-        flag_date: dateStr,
-        proposed_start_iso: input.proposedStartIso,
-        proposed_end_iso: input.proposedEndIso,
-        reason_codes: input.reasonCodes,
+        data: {
+          target_staff_id: staffId,
+          flag_date: dateStr,
+          proposed_start_iso: input.proposedStartIso,
+          proposed_end_iso: input.proposedEndIso,
+          reason_codes: input.reasonCodes,
+        },
       },
     });
     if (error) throw new Error(error.message);
