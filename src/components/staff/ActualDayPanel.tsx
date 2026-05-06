@@ -548,14 +548,26 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
     : 0;
   const repairIndicators = useMemo(() => computeStrongWorkIndicators(model), [model]);
-  const showRepairBanner = !wd && repairIndicators.hasStrong && !!repairIndicators.proposedStartIso;
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [autoRepairState, setAutoRepairState] = useState<'idle' | 'running' | 'created' | 'failed'>('idle');
+  const autoRepairTriedRef = React.useRef<string | null>(null);
+
+  // SINGLE SOURCE OF TRUTH för "finns arbetsdag":
+  // Antingen modellen säger ja, eller så har vi precis skapat en lokalt
+  // (auto/manual repair) men parentens refetch har inte landat ännu. Båda
+  // räknas som "workday finns" — annars kan headerstatus säga "Saknar
+  // arbetsdag" samtidigt som repair-bannern säger "Auto-skapad".
+  const hasWorkdayEffective =
+    !!wd || autoRepairState === 'created' || repairBusy;
+
+  const showRepairBanner =
+    !hasWorkdayEffective &&
+    repairIndicators.hasStrong &&
+    !!repairIndicators.proposedStartIso;
   const isHighConfidence =
     repairIndicators.reasonCodes.includes('timer_or_time_report_exists') &&
     (repairIndicators.reasonCodes.includes('gps_on_known_work_site') ||
       repairIndicators.reasonCodes.includes('server_engine_confident'));
-  const [repairBusy, setRepairBusy] = useState(false);
-  const [autoRepairState, setAutoRepairState] = useState<'idle' | 'running' | 'created' | 'failed'>('idle');
-  const autoRepairTriedRef = React.useRef<string | null>(null);
 
   const handleRepair = async () => {
     if (!onRepairWorkdayFromEvidence || !repairIndicators.proposedStartIso) return;
@@ -566,7 +578,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         proposedEndIso: repairIndicators.proposedEndIso,
         reasonCodes: repairIndicators.reasonCodes,
       });
+      setAutoRepairState('created');
       toast.success('Arbetsdag skapad från arbetsbevis');
+      // Begär refetch i parent så modellen speglar verkligheten direkt.
+      try { await onWorkdayChanged?.(); } catch { /* tyst */ }
     } catch (e: any) {
       toast.error(`Kunde inte skapa arbetsdag: ${e?.message ?? e}`);
     } finally {
@@ -586,10 +601,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     autoRepairTriedRef.current = key;
     setAutoRepairState('running');
     onAutoRepairWorkdayFromEvidence({ reasonCodes: repairIndicators.reasonCodes })
-      .then((res) => {
+      .then(async (res) => {
         if (res?.created) {
           setAutoRepairState('created');
           toast.success('Arbetsdag auto-skapad från arbetsbevis');
+          // Be parent refetcha så modellen får den nya workdayen direkt;
+          // annars riskerar header säga "Saknar arbetsdag" tills nästa
+          // refetch tickar.
+          try { await onWorkdayChanged?.(); } catch { /* tyst */ }
         } else {
           // Backend stoppade auto-repair — fall tillbaka till manuell knapp.
           setAutoRepairState('failed');
@@ -602,12 +621,22 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   }, [
     autoRepairEnabled,
     onAutoRepairWorkdayFromEvidence,
+    onWorkdayChanged,
     wd,
     isHighConfidence,
     staffId,
     date,
     repairIndicators.reasonCodes,
   ]);
+
+  // Reset av lokal "created"-flagga när workday landar i modellen (refetch
+  // har slagit igenom) — så vi inte hänger kvar i optimistiskt läge för en
+  // ny dag/person.
+  React.useEffect(() => {
+    if (wd && autoRepairState === 'created') {
+      setAutoRepairState('idle');
+    }
+  }, [wd, autoRepairState]);
 
 
   const rawEvents = showAllEvents ? buildRawTimeline(model.actualEvents) : buildMainTimeline(model.actualEvents);
