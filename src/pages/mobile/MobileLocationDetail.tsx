@@ -231,7 +231,7 @@ const MobileLocationDetail = () => {
               <button
                 onClick={handleStopTimer}
                 className="shrink-0 w-10 h-10 rounded-xl bg-destructive text-destructive-foreground flex items-center justify-center shadow-md active:scale-90"
-                aria-label="Stoppa timer"
+                aria-label="Sluta registrera tid här"
               >
                 <Square className="w-4 h-4" />
               </button>
@@ -239,7 +239,7 @@ const MobileLocationDetail = () => {
               <button
                 onClick={() => handleStartTaskTimer(task)}
                 className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:scale-90"
-                aria-label="Starta timer"
+                aria-label="Registrera tid här"
               >
                 <Clock className="w-4 h-4" />
               </button>
@@ -288,7 +288,7 @@ const MobileLocationDetail = () => {
                 ? "bg-destructive text-destructive-foreground animate-pulse"
                 : "bg-primary-foreground text-primary",
             )}
-            aria-label={hasLocationTimer ? "Stoppa timer" : "Starta timer"}
+            aria-label={hasLocationTimer ? "Sluta registrera tid här" : "Registrera tid här"}
           >
             {hasLocationTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
           </button>
