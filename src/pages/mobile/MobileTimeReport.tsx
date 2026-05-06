@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking, MobileTimeReport as MobileTimeReportType } from '@/services/mobileApiService';
 import { ActiveTimer } from '@/hooks/useGeofencing';
 import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
-import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
+import { useMobileBookings, useInvalidateMobileData, useMobileTravelLogs, useMobileWorkdays } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { Clock, Square, Loader2, Check, Send, Building2, Plus, ChevronRight, FileText, Info } from 'lucide-react';
@@ -18,6 +18,8 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
 import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
+import MobileDayCard from '@/components/mobile-app/MobileDayCard';
+import { buildMobileDayCardModel } from '@/lib/mobile/dayCardModel';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
