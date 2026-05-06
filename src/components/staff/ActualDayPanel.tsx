@@ -1348,6 +1348,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             blocks={enrichedBlockTimeline}
             excludedKeys={excludedKeys}
             canExclude={canExclude && !!staffId}
+            staffId={staffId ?? undefined}
+            date={date ?? undefined}
             onExcludeBlock={async (blockId) => {
               const prevStartIso = effectiveDay?.startIso ?? wd?.started_at ?? null;
               const ok = await exclude(blockId, 'manual_remove', { silent: true });
