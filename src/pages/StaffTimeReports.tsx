@@ -657,8 +657,35 @@ const StaffTimeReports: React.FC = () => {
         ...((bookingsWindowRes as any).data || []),
         ...((bookingCoordsRes as any).data || []),
       ];
+
+      // Sub-bookings i ett stort projekt får INTE bli självständiga
+      // "närmsta projekt"-kandidater — det stora projektet är
+      // planeringsenheten (se memory: large-project-team-source-of-truth-v1).
+      // Undantag: om en time_report/LTE faktiskt pekar på sub-bookingen
+      // (id finns i bookingIds) får den vara kvar som källa.
+      const reportedBookingIds = new Set<string>(bookingIds);
+
+      // Bygg fallback-koordinater per stort projekt från första
+      // tillgängliga sub-booking — så att vi kan visa "närmsta:
+      // <stora projektets namn>" även när large_projects.address_*
+      // saknas.
+      const lpFallbackCoords = new Map<string, { lat: number; lng: number }>();
+      for (const b of allBookingRows) {
+        if (!b.large_project_id) continue;
+        if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
+        if (!lpFallbackCoords.has(b.large_project_id)) {
+          lpFallbackCoords.set(b.large_project_id, {
+            lat: Number(b.delivery_latitude),
+            lng: Number(b.delivery_longitude),
+          });
+        }
+      }
+
       for (const b of allBookingRows) {
         if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
+        // Hoppa över sub-bookings vars stora projekt äger planeringen,
+        // om de inte också är en bekräftad rapportkälla.
+        if (b.large_project_id && !reportedBookingIds.has(b.id)) continue;
         const win = computeAutoWindow(b.rigdaydate ?? b.eventdate ?? null, b.rigdowndate ?? b.eventdate ?? null);
         pushSite({
           id: `booking:${b.id}`,
@@ -675,8 +702,9 @@ const StaffTimeReports: React.FC = () => {
         ...((lpsWindowRes as any).data || []),
         ...((lpCoordsRes as any).data || []),
       ];
+      const seenLpIds = new Set<string>();
       for (const lp of allLpRows) {
-        if (lp.address_latitude == null || lp.address_longitude == null) continue;
+        seenLpIds.add(lp.id);
         // Overlap-check för date[]-kolumner i JS.
         const startDates: string[] = Array.isArray(lp.start_date) ? lp.start_date : (lp.start_date ? [lp.start_date] : []);
         const endDates: string[] = Array.isArray(lp.end_date) ? lp.end_date : (lp.end_date ? [lp.end_date] : []);
@@ -685,16 +713,52 @@ const StaffTimeReports: React.FC = () => {
         // Filter: behåll bara projekt vars [minStart, maxEnd] överlappar [windowStart, windowEnd].
         if (minStart && maxEnd && (maxEnd < windowStart || minStart > windowEnd)) continue;
         const win = computeAutoWindow(minStart, maxEnd);
+        // Fallback till sub-booking-koordinater om stora projektets adress saknas.
+        const lat = lp.address_latitude ?? lpFallbackCoords.get(lp.id)?.lat ?? null;
+        const lng = lp.address_longitude ?? lpFallbackCoords.get(lp.id)?.lng ?? null;
+        if (lat == null || lng == null) continue;
         pushSite({
           id: `large:${lp.id}`,
           name: lp.name || 'Stort projekt',
-          lat: Number(lp.address_latitude),
-          lng: Number(lp.address_longitude),
+          lat: Number(lat),
+          lng: Number(lng),
           radiusMeters: Number(lp.address_radius_meters ?? 200) || 200,
           autoLoginEligible: win.eligible,
           daysFromActiveWindow: win.daysOutside,
           activeWindowLabel: win.label,
         });
+      }
+
+      // Säkerställ att stora projekt som har sub-bookings i fönstret
+      // men som vi inte hämtade i lpsWindowRes/lpCoordsRes ändå
+      // representeras i poolen (annars filtreras de bort och
+      // sub-bookingen försvinner — vi vill att GPS-träffen pekar på
+      // projektet med dess riktiga namn).
+      const missingLpIds = [...lpFallbackCoords.keys()].filter(id => !seenLpIds.has(id));
+      if (missingLpIds.length > 0) {
+        const { data: extraLps } = await supabase
+          .from('large_projects')
+          .select('id, name, address_radius_meters, start_date, end_date')
+          .in('id', missingLpIds);
+        for (const lp of (extraLps || [])) {
+          const coord = lpFallbackCoords.get(lp.id);
+          if (!coord) continue;
+          const startDates: string[] = Array.isArray(lp.start_date) ? lp.start_date : (lp.start_date ? [lp.start_date] : []);
+          const endDates: string[] = Array.isArray(lp.end_date) ? lp.end_date : (lp.end_date ? [lp.end_date] : []);
+          const minStart = startDates.sort()[0] ?? null;
+          const maxEnd = endDates.sort().slice(-1)[0] ?? minStart;
+          const win = computeAutoWindow(minStart, maxEnd);
+          pushSite({
+            id: `large:${lp.id}`,
+            name: lp.name || 'Stort projekt',
+            lat: coord.lat,
+            lng: coord.lng,
+            radiusMeters: Number(lp.address_radius_meters ?? 200) || 200,
+            autoLoginEligible: win.eligible,
+            daysFromActiveWindow: win.daysOutside,
+            activeWindowLabel: win.label,
+          });
+        }
       }
 
       // If the warehouse-booking lookup found new location IDs that weren't in
