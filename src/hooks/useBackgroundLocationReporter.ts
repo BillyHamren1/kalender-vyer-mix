@@ -88,7 +88,7 @@ function loadGeofenceTargets(): GeofenceTarget[] {
  * can consume GPS data without creating their own watcher.
  */
 const REPORT_THROTTLE_MS = 30_000;     // normal movement-driven report
-const HEARTBEAT_INTERVAL_MS = 60_000;  // forced ping even if phone is still
+const DEFAULT_HEARTBEAT_MS = 60_000;   // fallback if mode engine not ready
 
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
   const lastReportRef = useRef(0);
@@ -100,6 +100,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   const [latestPosition, setLatestPosition] = useState<GpsPosition | null>(null);
   // Track which targets we're currently inside (to avoid duplicate pending arrivals)
   const insideRef = useRef<Set<string>>(new Set());
+  // Adaptive mode state
+  const currentModeRef = useRef<LocationMode | null>(null);
+  const currentHeartbeatMsRef = useRef<number>(DEFAULT_HEARTBEAT_MS);
 
   // Keep ref in sync so heartbeat survives auth-token refreshes without restart
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
