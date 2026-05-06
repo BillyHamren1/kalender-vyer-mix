@@ -290,21 +290,20 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
   ) => {
     const staffName = staffNames.get(staffId) || `Staff ${staffId}`;
     const projectName = project.name || 'Stort projekt';
-    const key = `${staffId}|lp-${project.id}|${date}|${phase}`;
+    // Grouping key includes teamId so the same project on different teams
+    // produces separate tiles — but NEVER includes booking_id (project-neutral).
+    const teamKey = teamId || 'no-team';
+    const key = `${staffId}|lp-${project.id}|${date}|${phase}|${teamKey}`;
 
     let times: { start: string; end: string };
     let resourceId = teamId;
     let deliveryAddress = project.address || undefined;
-    let bookingNumber: string | undefined;
     let enriched = false;
-    let firstBookingId = bookingHint;
 
     if (enrichingCE) {
       times = { start: enrichingCE.start_time, end: enrichingCE.end_time };
       resourceId = enrichingCE.resource_id || resourceId;
       deliveryAddress = enrichingCE.delivery_address || deliveryAddress;
-      bookingNumber = enrichingCE.booking_number || bookingNumber;
-      firstBookingId = enrichingCE.booking_id || firstBookingId;
       enriched = true;
     } else {
       times = buildTimes(date, phase, null, null);
@@ -313,10 +312,11 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
     const existing = out.get(key);
     if (!existing) {
       out.set(key, {
-        id: `staff-${staffId}-large-${project.id}-${phase}-${date}`,
+        id: `staff-${staffId}-large-${project.id}-${phase}-${date}-${teamKey}`,
         staffId,
         staffName,
-        bookingId: firstBookingId,
+        // Project-neutral: no sub-booking identity on top-level fields.
+        bookingId: undefined,
         largeProjectId: project.id,
         largeProjectName: projectName,
         client: projectName,
@@ -327,30 +327,28 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
         end: times.end,
         teamId: resourceId,
         deliveryAddress,
-        bookingNumber,
-        consolidatedBookingIds: firstBookingId ? [firstBookingId] : [],
+        bookingNumber: undefined,
+        consolidatedBookingIds: bookingHint ? [bookingHint] : [],
         isLargeProject: true,
         enrichedFromCalendar: enriched,
       });
       return;
     }
 
-    // Merge: prefer enriched data if not already enriched, widen window,
-    // append booking ids.
     if (!existing.enrichedFromCalendar && enriched) {
       existing.start = times.start;
       existing.end = times.end;
       existing.teamId = resourceId || existing.teamId;
       existing.deliveryAddress = deliveryAddress || existing.deliveryAddress;
-      existing.bookingNumber = bookingNumber || existing.bookingNumber;
       existing.enrichedFromCalendar = true;
     } else {
       if (times.start < existing.start) existing.start = times.start;
       if (times.end > existing.end) existing.end = times.end;
     }
-    if (firstBookingId && !existing.consolidatedBookingIds.includes(firstBookingId)) {
-      existing.consolidatedBookingIds.push(firstBookingId);
-      if (!existing.bookingId) existing.bookingId = firstBookingId;
+    if (bookingHint && !existing.consolidatedBookingIds.includes(bookingHint)) {
+      existing.consolidatedBookingIds.push(bookingHint);
+      // Do NOT promote bookingId/bookingNumber to top-level — LP tiles stay
+      // booking-neutral. Sub-bookings are metadata only.
     }
   };
 
