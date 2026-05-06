@@ -534,6 +534,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
             <Building2 className="h-3.5 w-3.5" />
           </span>
           <PlaceLabel place={block.resolvedPlace} fallback={block.title} className="font-semibold text-foreground truncate" />
+          <PoiChip place={block.resolvedPlace as any} />
           {subtitle && (
             <>
               <span className="text-muted-foreground shrink-0">·</span>
