@@ -11,6 +11,51 @@ interface StaleEntry {
   timer: ActiveTimer;
 }
 
+export interface ServerOnlyEntry {
+  key: string;
+  entry: any;
+}
+
+export interface ReconcileSyncProblem {
+  key: string;
+  kind: 'local_only' | 'server_only' | 'stale';
+  reason: string;
+  timer?: ActiveTimer;
+  entry?: any;
+}
+
+/**
+ * Build canonical server-side timer keys from a `location_time_entries` row.
+ * Mirrors the local key scheme used by useWorkSession.resolveTargetKey:
+ *   - location-${location_id}
+ *   - project-${large_project_id}
+ *   - booking-${booking_id}    (NOTE: locally booking timers use the booking_id
+ *     as the raw key — we ALSO emit the prefixed form so reconciliation can
+ *     compare both representations safely.)
+ */
+function serverKeysForEntry(entry: any): string[] {
+  const keys: string[] = [];
+  if (entry?.location_id) keys.push(`location-${entry.location_id}`);
+  if (entry?.large_project_id) keys.push(`project-${entry.large_project_id}`);
+  if (entry?.booking_id) {
+    keys.push(`booking-${entry.booking_id}`);
+    keys.push(String(entry.booking_id)); // legacy raw-id key
+  }
+  return keys;
+}
+
+/** Mirror of resolveTargetKey for ActiveTimer (without importing the engine). */
+function localKeyVariants(key: string, timer: ActiveTimer): string[] {
+  const variants = new Set<string>([key]);
+  if (timer.largeProjectId) variants.add(`project-${timer.largeProjectId}`);
+  if (timer.locationId) variants.add(`location-${timer.locationId}`);
+  if (!timer.largeProjectId && !timer.locationId) {
+    // booking timer — local key historically equals the booking_id
+    variants.add(`booking-${key}`);
+  }
+  return Array.from(variants);
+}
+
 function loadTimers(): Map<string, ActiveTimer> {
   try {
     const raw = localStorage.getItem(TIMERS_KEY);
