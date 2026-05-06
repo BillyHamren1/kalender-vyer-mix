@@ -11419,6 +11419,16 @@ async function handleAutoRepairMissingWorkdaysFromEvidence(
           results.push({ staff_id: staffId, date, action: 'error', error: 'ensure_workday_returned_null' })
           continue
         }
+        if (!wd.created) {
+          results.push({
+            staff_id: staffId,
+            date,
+            action: 'skipped_existing_workday',
+            workday_id: wd.id,
+            started_at: wd.started_at,
+          })
+          continue
+        }
         // Enrich metadata with high-confidence evidence summary.
         await supabase
           .from('workdays')
