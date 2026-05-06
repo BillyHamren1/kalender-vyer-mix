@@ -1,54 +1,91 @@
 
 ## Mål
 
-Planning scanner UI ska använda nya WMS-backed `physical_return_scan` för fysiska scan/RFID/QR-input. `returnScanSku` får bara användas som manuell SKU/namn-fallback. 401 ska gå till `/scanner/login`.
+"Närmsta projekt"-förslaget i huvudjournalen (admin-vyn StaffTimeReports) ska faktiskt vara **geografiskt närmast**, inte "det enda projekt som råkade dyka upp för dagen". Och labeln ska tydligt skilja på "autologin-kandidat" (inom ±2 dagar runt rig/rigdown) och "bara närliggande adress" (utanför fönstret) — utan att binda timern.
 
-## Filer
+## Rotorsak
 
-- `src/services/scannerService.ts`
-- `src/components/scanner/ReturnView.tsx`
+`src/pages/StaffTimeReports.tsx` (rad 568–594) bygger `knownSites`-poolen och filtrerar bokningar på `eventdate/rigdaydate/rigdowndate = dateStr`. Bokningar vars rig är t.ex. 12 dagar bort hamnar aldrig i poolen, så `findNearestSite()` i `actualStaffDayModel.ts` får en falsk "närmast"-träff.
+
+Westmans (rigday 18/5) → utelämnad. Swedish Game Fair (large_project som matchade datumfönstret bredare) → blev "närmast" trots ~7 km avstånd.
 
 ## Ändringar
 
-### `src/services/scannerService.ts`
+### 1. Bredda `knownSites`-poolen i `src/pages/StaffTimeReports.tsx`
 
-1. **Auth redirect** (rad 46–48): byt `'/login'` → `'/scanner/login'`.
-2. **Ny export `physicalReturnScan`** bredvid `returnScanSku`:
-   ```ts
-   export const physicalReturnScan = async (
-     packingId: string,
-     scannedValue: string,
-     returnedBy?: string,
-   ): Promise<ReturnScanResult & { alreadyReturned?: boolean; debugCode?: string; wms?: any }> => {
-     try {
-       return await callScannerApi('physical_return_scan', { packingId, scannedValue, returnedBy });
-     } catch (err: any) {
-       return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode };
-     }
-   };
-   ```
-3. Utöka `ReturnScanResult` med valfria `alreadyReturned?: boolean` och `wms?: { item_type_id?: string; sku?: string; instance_id?: string }`.
+Ersätt bokningsfiltret med ett **±21-dagars fönster runt visit-datum** baserat på bokningens hela livscykel (rigday → rigdown):
 
-### `src/components/scanner/ReturnView.tsx`
+```ts
+// pseudo
+const windowStart = addDays(dateStr, -21);
+const windowEnd   = addDays(dateStr, +21);
 
-1. Importera `physicalReturnScan` från service.
-2. Splitta scan-flödet i två kanaler:
-   - **`handleHardwareScan(raw)`** — anropas via `registerScanHandler` (RFID/QR/serial/datawedge). Använder `physicalReturnScan`.
-   - **`handleManualSubmit(raw)`** — anropas av formuläret i Input-fältet. Använder kvarvarande `returnScanSku` (manuell SKU/namn).
-3. Behåll `setScanInput('')`, optimistic state-uppdatering och `flashHighlight` i båda paths.
-4. **Tydlig feedback** i `setLastResult` baserat på response:
-   - `res.success && !res.alreadyReturned` → grön "+1 returnerad (x/y)".
-   - `res.success && res.alreadyReturned` → amber/gul "Redan returnerad (x/y)" (info, ingen toast.error).
-   - `res.success === false && res.debugCode === 'LOCAL_RETURN_MATCH_MISSING'` → röd "WMS godkände scan men ingen rad matchar packlistan (item_type=…, sku=…)" + `toast.warning`.
-   - `res.success === false` övrigt → röd "WMS-fel: <error>" + `toast.error`.
-5. Lägg till `'amber'`/`'info'` variant i `lastResult` (utöka union till `{ success: boolean; level?: 'success'|'warning'|'error'; text; productName }`) och färglägg banner med befintliga klasser (emerald/amber/red).
-6. Efter lyckad scan (även `alreadyReturned`) → `loadData()` så progress refreshas. (Realtime sköter normalfall, men explicit refresh garanterar att en delvis fail-then-success ändå syncar.)
-7. Manuell `+`/`-`/reset på rader förblir oförändrade (de är manuella admin-knappar, inte fysisk scan).
-8. Uppdatera input placeholder/text till "Skriv SKU eller produktnamn manuellt — fysiska scans hanteras av läsaren" för att tydliggöra att Input-fältet är manuell fallback.
+supabase.from('bookings')
+  .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate, status')
+  .not('delivery_latitude', 'is', null)
+  .lte('rigdaydate', windowEnd)
+  .gte('rigdowndate', windowStart)
+  .neq('status', 'CANCELLED');
+```
 
-## Vad som INTE ändras
+För `large_projects` (där `start_date`/`end_date` är `date[]`) görs overlap-checken i JS efter fetch (min(start_date) ≤ windowEnd && max(end_date) ≥ windowStart).
 
-- `returnScanSku`, `returnToggleItem`, `returnDecrementItem`, `returnResetItem` finns kvar (manuell väg).
-- Visuell layout/färgsystem (bara nya states färgläggs konsekvent).
-- Realtime-prenumerationen.
-- Andra ScannerProtectedRoute-flöden eller VerificationView (UT-flödet).
+Resultat: alla projekt vars adress kan tänkas vara aktuell finns i poolen. Westmans kommer med.
+
+### 2. Markera "autologin-fönster" per knownSite
+
+Utöka `KnownSite`-typen i `src/lib/staff/pingPlaceSegments.ts` med:
+
+```ts
+autoLoginEligible?: boolean;     // visit-datum inom rigday-2d → rigdown+2d
+daysFromActiveWindow?: number;   // 0 om inom, annars antal dagar utanför
+activeWindowLabel?: string;      // ex. "Rig 18/5–Rigdown 31/5"
+```
+
+Beräknas i StaffTimeReports.tsx vid push till poolen.
+
+### 3. Returnera kandidatlista, inte bara `best`, från `findNearestSite()`
+
+I `src/lib/staff/actualStaffDayModel.ts` (rad 1222–1240):
+
+- Behåll `nearestKnownSite` (för bakåtkompatibilitet, =närmast geografiskt).
+- Lägg till `candidatesWithinRadius: NearestKnownSiteDebug[]` — alla sites inom **150 m** från klustercentret, sorterade på avstånd.
+- Propagera `autoLoginEligible` + `activeWindowLabel` på varje kandidat.
+
+### 4. Bättre label i `src/lib/staff/dayBlockTimeline.ts` (rad 411–425)
+
+Tre fall:
+
+- **Endast en kandidat inom 150 m, autoLoginEligible=true** → "Trolig: {name} ({m} m) — bekräfta".
+- **Endast en kandidat inom 150 m, men utanför ±2d-fönstret** → "Närmsta: {name} ({m} m) — ej aktivt {activeWindowLabel}".
+- **Flera kandidater inom 150 m** → "Flera projekt på adressen — välj projekt" + lista i tooltip/popover.
+- **Ingen kandidat inom 150 m** → "Okänt projekt — sparas som övrigt" (oförändrat).
+
+Inget av detta startar timer automatiskt.
+
+### 5. Spegla samma logik server-side
+
+`supabase/functions/_shared/dayReality.ts` och `supabase/functions/mobile-app-api/index.ts` (rad 11584–11600) har egen `knownSites`-byggning för wrong_reported_site-detektion. Bredda samma fönster där så mobilen får samma "närmsta + autologin"-info som admin-vyn. Inga schema-ändringar.
+
+### 6. Tester
+
+- **Regression**: visit på `(59.7032, 17.6212)` den 6/5 → `nearestKnownSite.id` = `booking:<westmans>`, **inte** Swedish Game Fair.
+- **±2d-regel**: visit 16/5 (rigday 18/5) → Westmans `autoLoginEligible = true`. Visit 6/5 → `false`.
+- **Flera kandidater**: två confirmed bookings på samma adress → `candidatesWithinRadius.length === 2` → label "Flera projekt på adressen".
+- **Tom pool**: ingen kandidat inom 150 m → label oförändrad ("Okänt projekt — sparas som övrigt").
+
+## Filer
+
+- `src/pages/StaffTimeReports.tsx` — bredda fetch, beräkna autoLoginEligible.
+- `src/lib/staff/pingPlaceSegments.ts` — utöka KnownSite-typen.
+- `src/lib/staff/actualStaffDayModel.ts` — returnera kandidatlista.
+- `src/lib/staff/dayBlockTimeline.ts` — ny label-logik.
+- `supabase/functions/_shared/dayReality.ts` — spegla typer.
+- `supabase/functions/mobile-app-api/index.ts` (rad 11540–11600) — bredda fetch.
+- Nya tester under `src/lib/staff/__tests__/`.
+
+## Vad ändras INTE
+
+- Själva `matchKnownSite`-träffen (radius-baserad faktisk site-tilldelning) rörs inte — den är ortogonal mot "närmsta-förslag".
+- Ingen autologin införs. Förslag är förslag.
+- Inga DB-migrations.
