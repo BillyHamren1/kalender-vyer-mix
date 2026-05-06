@@ -1263,19 +1263,27 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       {/* ExcludedEventsSection flyttad — renderas under journalen för
           enhetlig sektionsordning över alla rapporter. */}
 
-      {/* B. Faktiska händelser — alltid synlig */}
+      {/* B. Faktiska händelser — alltid synlig.
+          NIVÅ 1 = tolkad huvudjournal (default): bara presence/journey-block,
+                   projektsegment, resor, oallokerad arbetstid. Aktiv timer +
+                   workday-status visas via ActiveNowBanner / DayHeaderPanel ovan.
+          NIVÅ 2 = rådata bakom toggle: GPS-pings, assistant_events, signal
+                   tappad, timer_tail/bridge, background-GPS, tekniska rader. */}
       <section className="px-4 py-3 border-b">
         <div className="flex items-center justify-between mb-2">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Dagens faktiska händelser
+            {showAllEvents ? 'Rådata · GPS · Assistant' : 'Tolkad arbetsdag'}
           </h4>
           <button
             type="button"
             onClick={() => setShowAllEvents(v => !v)}
             className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            title={showAllEvents
+              ? 'Återgå till den tolkade huvudjournalen.'
+              : 'Visa GPS-pings, assistant-events och tekniska rader.'}
           >
             {showAllEvents ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            {showAllEvents ? 'Visa kompakt' : 'Visa alla händelser'}
+            {showAllEvents ? 'Dölj rådata' : 'Visa rådata'}
           </button>
         </div>
         {!showAllEvents ? (
