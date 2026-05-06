@@ -254,8 +254,9 @@ const MobileTimeReport = () => {
         {/* Day status — primary view: workday + current activity + actions (server snapshot) */}
         <DayStatusPanel onChanged={fetchReports} />
 
-        {/* Active timers (legacy multi-timer list — kept for parallel timers) */}
-        {activeTimers.size > 0 && (
+        {/* Active timers (legacy multi-timer list). Server snapshot is authority:
+            hide if backend says no activity is active. */}
+        {todaySnapshot?.active && activeTimers.size > 0 && (
           <div className="space-y-3">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">{t('time.activeTimers')}</h2>
             {Array.from(activeTimers.entries()).map(([key, timer]) => (
