@@ -408,6 +408,20 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       : blockDurationMin >= 30 ? 'strong_visit'
       : blockDurationMin >= 15 ? 'possible_visit'
       : 'short_stop';
+    // Adress är "känd" så snart vi har koordinater eller ett nearestKnownSite.
+    // I så fall är det INTE platsen som är okänd — det är vilket projekt
+    // platsen tillhör. Visa "Okänt projekt – sparas som övrigt" och ge
+    // hint om närmsta projekt (utan att binda timern till det).
+    const hasCoords = v.centre != null;
+    const nearest = (v as unknown as { nearestKnownSite?: { name: string; distanceMeters: number } | null }).nearestKnownSite ?? null;
+    const unknownSubtitle = presenceKind === 'unknown'
+      ? (hasCoords || nearest
+          ? (nearest
+              ? `Okänt projekt – sparas som övrigt · närmsta projekt: ${nearest.name} (${nearest.distanceMeters} m)`
+              : `Okänt projekt – sparas som övrigt`)
+          : 'Okänd plats — kräver granskning')
+      : null;
+
     blocks.push({
       kind: 'presence',
       presenceKind,
@@ -417,7 +431,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       durationMin: blockDurationMin,
       placeKey: v.key,
       title: v.label,
-      subtitle: presenceKind === 'unknown' ? 'Okänd plats — kräver granskning' : null,
+      subtitle: unknownSubtitle,
       isProject,
       strength,
       requiresReview: presenceKind === 'unknown',
@@ -437,6 +451,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       clippedFromIso,
       clippedReason,
     });
+
   }
 
   // 1b) FALLBACK: om inga actualVisits, använd presence-events från mainEvents
