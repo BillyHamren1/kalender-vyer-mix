@@ -100,6 +100,27 @@ const AdminTimeReview: React.FC = () => {
       <PageHeader title="Tidkontroll" subtitle="Granska och godkänn arbetsdagar i en samlad vy" icon={Clock} />
 
       <div className="space-y-4">
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => runBackfill(true)}
+            disabled={backfillBusy}
+          >
+            <Wrench className="h-4 w-4 mr-1" />
+            Förhandsgranska städning
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => runBackfill(false)}
+            disabled={backfillBusy}
+          >
+            {backfillBusy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Wrench className="h-4 w-4 mr-1" />}
+            Städa öppna timers
+          </Button>
+        </div>
+
         <SummaryCards counts={counts} activeFilter={topFilter} onFilterChange={setTopFilter} />
 
         <FilterBar value={filter} onChange={setFilter} staffOptions={staffOptions} onReset={resetFilter} />
