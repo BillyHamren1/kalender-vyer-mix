@@ -118,6 +118,13 @@ interface ActualDayPanelProps {
   }) => Promise<{ created: boolean }>;
   /** Stäng av auto-repair (default: på när handler finns). */
   autoRepairEnabled?: boolean;
+  /**
+   * Triggas när workday skapats/ändrats av panel-action (auto-repair eller
+   * manuell repair). Caller bör invalidera/refetcha så att modellen
+   * uppdateras direkt — annars kan headerstatus och repair-banner motsäga
+   * varandra under några sekunder.
+   */
+  onWorkdayChanged?: () => void | Promise<void>;
 }
 
 const fmtHm = (iso: string) => {
@@ -496,6 +503,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   onRepairWorkdayFromEvidence,
   onAutoRepairWorkdayFromEvidence,
   autoRepairEnabled = true,
+  onWorkdayChanged,
 }) => {
   const { isAdmin, hasAnyRole } = useUserRoles();
   const canExclude = isAdmin || hasAnyRole(['projekt', 'lager']);
@@ -540,14 +548,26 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
     : 0;
   const repairIndicators = useMemo(() => computeStrongWorkIndicators(model), [model]);
-  const showRepairBanner = !wd && repairIndicators.hasStrong && !!repairIndicators.proposedStartIso;
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [autoRepairState, setAutoRepairState] = useState<'idle' | 'running' | 'created' | 'failed'>('idle');
+  const autoRepairTriedRef = React.useRef<string | null>(null);
+
+  // SINGLE SOURCE OF TRUTH för "finns arbetsdag":
+  // Antingen modellen säger ja, eller så har vi precis skapat en lokalt
+  // (auto/manual repair) men parentens refetch har inte landat ännu. Båda
+  // räknas som "workday finns" — annars kan headerstatus säga "Saknar
+  // arbetsdag" samtidigt som repair-bannern säger "Auto-skapad".
+  const hasWorkdayEffective =
+    !!wd || autoRepairState === 'created' || repairBusy;
+
+  const showRepairBanner =
+    !hasWorkdayEffective &&
+    repairIndicators.hasStrong &&
+    !!repairIndicators.proposedStartIso;
   const isHighConfidence =
     repairIndicators.reasonCodes.includes('timer_or_time_report_exists') &&
     (repairIndicators.reasonCodes.includes('gps_on_known_work_site') ||
       repairIndicators.reasonCodes.includes('server_engine_confident'));
-  const [repairBusy, setRepairBusy] = useState(false);
-  const [autoRepairState, setAutoRepairState] = useState<'idle' | 'running' | 'created' | 'failed'>('idle');
-  const autoRepairTriedRef = React.useRef<string | null>(null);
 
   const handleRepair = async () => {
     if (!onRepairWorkdayFromEvidence || !repairIndicators.proposedStartIso) return;
@@ -558,7 +578,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         proposedEndIso: repairIndicators.proposedEndIso,
         reasonCodes: repairIndicators.reasonCodes,
       });
+      setAutoRepairState('created');
       toast.success('Arbetsdag skapad från arbetsbevis');
+      // Begär refetch i parent så modellen speglar verkligheten direkt.
+      try { await onWorkdayChanged?.(); } catch { /* tyst */ }
     } catch (e: any) {
       toast.error(`Kunde inte skapa arbetsdag: ${e?.message ?? e}`);
     } finally {
@@ -578,10 +601,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     autoRepairTriedRef.current = key;
     setAutoRepairState('running');
     onAutoRepairWorkdayFromEvidence({ reasonCodes: repairIndicators.reasonCodes })
-      .then((res) => {
+      .then(async (res) => {
         if (res?.created) {
           setAutoRepairState('created');
           toast.success('Arbetsdag auto-skapad från arbetsbevis');
+          // Be parent refetcha så modellen får den nya workdayen direkt;
+          // annars riskerar header säga "Saknar arbetsdag" tills nästa
+          // refetch tickar.
+          try { await onWorkdayChanged?.(); } catch { /* tyst */ }
         } else {
           // Backend stoppade auto-repair — fall tillbaka till manuell knapp.
           setAutoRepairState('failed');
@@ -594,12 +621,22 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   }, [
     autoRepairEnabled,
     onAutoRepairWorkdayFromEvidence,
+    onWorkdayChanged,
     wd,
     isHighConfidence,
     staffId,
     date,
     repairIndicators.reasonCodes,
   ]);
+
+  // Reset av lokal "created"-flagga när workday landar i modellen (refetch
+  // har slagit igenom) — så vi inte hänger kvar i optimistiskt läge för en
+  // ny dag/person.
+  React.useEffect(() => {
+    if (wd && autoRepairState === 'created') {
+      setAutoRepairState('idle');
+    }
+  }, [wd, autoRepairState]);
 
 
   const rawEvents = showAllEvents ? buildRawTimeline(model.actualEvents) : buildMainTimeline(model.actualEvents);
@@ -1224,9 +1261,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             <div className="font-medium text-blue-900 dark:text-blue-100">
               {autoRepairState === 'running'
                 ? `Arbetsdag auto-skapas från ${fmtHm(repairIndicators.proposedStartIso!)}…`
-                : autoRepairState === 'created'
-                  ? `Arbetsdag auto-skapad från ${fmtHm(repairIndicators.proposedStartIso!)}`
-                  : `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${fmtHm(repairIndicators.proposedStartIso!)}`}
+                : `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${fmtHm(repairIndicators.proposedStartIso!)}`}
             </div>
             <div className="text-blue-900/80 dark:text-blue-100/80">
               Föreslagen start <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedStartIso!)}</span>
@@ -1236,13 +1271,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               {' · '}{repairIndicators.reasonCodes.join(', ')}
             </div>
           </div>
-          {/* Auto-repair är primär väg vid hög säkerhet. Manuell knapp visas
-              bara som fallback när auto-repair är avstängd, inte högconf, eller
-              backend stoppade auto-repair. */}
+          {/* Auto-repair är primär väg vid hög säkerhet. När den lyckats
+              döljs hela bannern (hasWorkdayEffective). Manuell knapp visas
+              bara som fallback. */}
           {autoRepairState === 'running' ? (
             <Badge variant="outline" className="text-[10px]">Skapar…</Badge>
-          ) : autoRepairState === 'created' ? (
-            <Badge variant="outline" className="text-[10px]">Skapad</Badge>
           ) : onRepairWorkdayFromEvidence ? (
             <Button size="sm" disabled={repairBusy} onClick={handleRepair}>
               {repairBusy ? 'Skapar…' : 'Skapa arbetsdag'}
