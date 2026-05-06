@@ -89,6 +89,7 @@ import {
   type EntryEvaluation,
 } from '@/lib/geofence/stableEntry';
 import { recordDismissCooldown } from '@/lib/geofence/dismissCooldown';
+import { Capacitor } from '@capacitor/core';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
