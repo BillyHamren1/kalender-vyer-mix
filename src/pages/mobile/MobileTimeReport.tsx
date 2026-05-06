@@ -21,7 +21,10 @@ import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
 import MobileDayCard from '@/components/mobile-app/MobileDayCard';
 import MyDayTimeline from '@/components/mobile-app/MyDayTimeline';
 import { buildMobileDayCardModel, buildDayCardModelFromSnapshot } from '@/lib/mobile/dayCardModel';
-import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatus } from '@/hooks/useStaffDayStatus';
+import MobileTimeTabs, { type TimeTabId } from '@/components/mobile-app/time/MobileTimeTabs';
+import TimeCalendarTab from '@/components/mobile-app/time/TimeCalendarTab';
+import TimeReportTab from '@/components/mobile-app/time/TimeReportTab';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
