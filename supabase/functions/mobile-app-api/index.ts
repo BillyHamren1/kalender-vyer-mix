@@ -244,7 +244,7 @@ type EnsureWorkdayArgs = {
 async function ensureOpenWorkdayForTimer(
   supabase: any,
   args: EnsureWorkdayArgs,
-): Promise<{ id: string; started_at: string } | null> {
+): Promise<{ id: string; started_at: string; created: boolean } | null> {
   const { staff_id: staffId, organization_id: organizationId, start_at, source, target } = args
   if (!staffId || !organizationId) return null
 
@@ -269,7 +269,7 @@ async function ensureOpenWorkdayForTimer(
     console.warn('[ensureOpenWorkdayForTimer] lookup failed:', openErr)
   }
   if (openRows && openRows.length > 0) {
-    return { id: openRows[0].id, started_at: openRows[0].started_at }
+    return { id: openRows[0].id, started_at: openRows[0].started_at, created: false }
   }
 
   const startedAt =
@@ -302,7 +302,7 @@ async function ensureOpenWorkdayForTimer(
   console.log(
     `[ensureOpenWorkdayForTimer] auto-started workday ${ins.id} for staff=${staffId} at ${ins.started_at} (source=${source})`,
   )
-  return ins
+  return { ...ins, created: true }
 }
 
 // Back-compat shim — existing callers using positional args.
@@ -313,7 +313,7 @@ async function ensureOpenWorkday(
   startedAtIso?: string,
   source: string = 'ensure_open_workday',
   target: EnsureWorkdayArgs['target'] = null,
-): Promise<{ id: string; started_at: string } | null> {
+): Promise<{ id: string; started_at: string; created: boolean } | null> {
   return ensureOpenWorkdayForTimer(supabase, {
     staff_id: staffId,
     organization_id: organizationId,
