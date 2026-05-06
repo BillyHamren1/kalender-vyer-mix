@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource, getEventColor, loadResourcesFromStorage } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
+import { useNavigate } from 'react-router-dom';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import { deleteCalendarEvent } from '@/services/eventService';
