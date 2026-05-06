@@ -2499,7 +2499,11 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
       organization_id: organizationId,
       start_at: startedAtIso,
       source: 'create_time_report',
-      target: { kind: target_type ?? 'unknown', id: target_id ?? null },
+      target: large_project_id
+        ? { kind: 'large_project', id: large_project_id }
+        : booking_id
+          ? { kind: 'booking', id: booking_id }
+          : { kind: 'manual' },
     })
   } catch (wdErr: any) {
     console.error('[create_time_report] workday-first failed, aborting:', wdErr)
