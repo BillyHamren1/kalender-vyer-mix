@@ -376,7 +376,7 @@ export const useProjectDetail = (projectId: string) => {
     activities: activitiesQuery.data || [],
     bookingAttachments: bookingAttachmentsQuery.data || [],
     isLoading: projectQuery.isLoading,
-    updateProject: updateFieldsMutation.mutate,
+    updateProject: updateFieldsMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutate,
     addTask: addTaskMutation.mutate,
     updateTask: updateTaskMutation.mutate,
