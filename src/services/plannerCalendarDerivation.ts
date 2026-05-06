@@ -299,6 +299,28 @@ export const buildPlannerCalendarEvents = ({
       nonProjectSkippedNonStaffable++;
       continue;
     }
+    // GUARD: även om projectId-resolvern missade, dubbelkolla mot master
+    // (large_project_bookings) + fallback (bookings.large_project_id).
+    // En bokning som tillhör ett large project får ALDRIG renderas som
+    // ett vanligt booking-kort i personalkalendern.
+    const guardLpId = (row.booking_id ? bookingToProject.get(row.booking_id) : undefined) || booking?.large_project_id;
+    if (guardLpId) {
+      if (import.meta.env?.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[large-project-booking-event-suppressed]', {
+          source: 'buildPlannerCalendarEvents.nonProjectFallback',
+          booking_id: row.booking_id,
+          booking_number: row.booking_number,
+          largeProjectId: guardLpId,
+          largeProjectName: projectsById.get(guardLpId)?.name || null,
+          calendar_event_id: row.id,
+          event_type: row.event_type,
+          source_date: sourceDate,
+          reason: 'booking belongs to large project and must not create standalone staff calendar event',
+        });
+      }
+      continue;
+    }
     events.push(mapRealRowToCalendarEvent(row, booking, undefined));
   }
 
