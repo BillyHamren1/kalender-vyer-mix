@@ -1038,6 +1038,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           resetExitTracker(getExitTracker(projectKey));
         }
 
+        // PRESENCE-EXIT CLEANUP (no timer): städa triggeredEnterRef när vi
+        // stabilt lämnat platsen, så att ett återbesök samma session kan
+        // trigga auto-arrival/auto-switch igen.
+        if (dist > exitRadius && !hasTimer && triggeredEnterRef.current.has(projectKey)) {
+          const ev = evaluateExit(projectKey, dist);
+          if (ev.status === 'stable' || ev.status === 'stale_autostop') {
+            triggeredEnterRef.current.delete(projectKey);
+            resetExitTracker(getExitTracker(projectKey));
+          }
+        }
+
         // EXIT while timer is running → STABLE-EXIT GATE (2026-05).
         // En enskild outside-ping stoppar inte timern. Vi kräver
         // ≥3 konsekutiva outside-pings över ≥2 min med ok accuracy.
@@ -1155,6 +1166,15 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           fireAnomalyStop({ bookingId: booking.id });
         }
         if (dist <= enterRadius) resetExitTracker(getExitTracker(booking.id));
+
+        // PRESENCE-EXIT CLEANUP (no timer) — se project-grenen.
+        if (dist > exitRadius && !hasTimer && triggeredEnterRef.current.has(booking.id)) {
+          const ev = evaluateExit(booking.id, dist);
+          if (ev.status === 'stable' || ev.status === 'stale_autostop') {
+            triggeredEnterRef.current.delete(booking.id);
+            resetExitTracker(getExitTracker(booking.id));
+          }
+        }
 
         // EXIT while timer is running → STABLE-EXIT GATE (2026-05).
         if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(booking.id)) {
@@ -1292,6 +1312,22 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         fireAnomalyStop({ locationId: loc.id });
       }
       if (inside) resetExitTracker(getExitTracker(locKey));
+
+      // PRESENCE-EXIT CLEANUP (no timer) — gör så att andra besöket samma
+      // session triggar auto-arrival igen (annars sitter locKey kvar i
+      // triggeredEnterRef och ENTER-grenen hoppas över).
+      if (
+        accuracyOk &&
+        evalShouldExit(userPosition.lat, userPosition.lng, target, accuracy) &&
+        !hasTimer &&
+        triggeredEnterRef.current.has(locKey)
+      ) {
+        const ev = evaluateExit(locKey, dist);
+        if (ev.status === 'stable' || ev.status === 'stale_autostop') {
+          triggeredEnterRef.current.delete(locKey);
+          resetExitTracker(getExitTracker(locKey));
+        }
+      }
 
       // EXIT: hysteresis + accuracy gate + STABLE-EXIT GATE (2026-05).
       // En enskild punkt utanför stoppar inte timern. Workdayen rörs aldrig.
