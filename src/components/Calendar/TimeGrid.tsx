@@ -73,7 +73,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const { handleEventClick } = useEventNavigation();
 
   const timeSlots = generateTimeSlots();
-  const totalTeamColumnsWidth = resources.length * TEAM_COLUMN_WIDTH;
+
+  const getAssignedStaffForTeamSafe = (teamId: string) => {
+    if (!weeklyStaffOperations) return [];
+    const staff = weeklyStaffOperations.getStaffForTeamAndDate(teamId, day);
+    return Array.isArray(staff) ? staff : [];
+  };
+  // Bredda team-kolumnen när det finns fler än 5 tilldelade personer.
+  const WIDE_TEAM_COLUMN_WIDTH = TEAM_COLUMN_WIDTH * 2;
+  const teamColumnWidths = resources.map((r) =>
+    getAssignedStaffForTeamSafe(r.id).length > 5 ? WIDE_TEAM_COLUMN_WIDTH : TEAM_COLUMN_WIDTH
+  );
+  const totalTeamColumnsWidth = teamColumnWidths.reduce((sum, w) => sum + w, 0);
 
   const handleBookingEventClick = (event: CalendarEvent) => {
     if (onEventClick) { onEventClick(event); return; }
