@@ -97,7 +97,7 @@ const EventActionPopover: React.FC<Props> = ({
 
       // Determine which events to update
       const targets = applyToAll
-        ? sortedDays.filter(d => d.event_type === phaseRaw)
+        ? days.filter(d => d.event_type === phaseRaw)
         : [{ id: event.id, source_date: eventDate, event_type: phaseRaw } as any];
 
       if (ext.largeProjectId && (phaseRaw === 'rig' || phaseRaw === 'rigDown')) {
