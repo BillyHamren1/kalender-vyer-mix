@@ -233,8 +233,8 @@ const RowShell: React.FC<{
         ${GRID}
         px-2.5 py-1
         border-b border-border last:border-b-0
-        border-l-4 ${accentBorder[accent]}
-        ${active ? 'bg-emerald-50/40 dark:bg-emerald-950/15' : ''}
+        border-l-4 ${active ? 'border-l-emerald-500' : accentBorder[accent]}
+        ${active ? 'bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300/60 dark:ring-emerald-700/40' : ''}
         ${expandable ? 'cursor-pointer hover:bg-muted/40' : ''}
         transition-colors
       `}
@@ -252,6 +252,7 @@ const RowShell: React.FC<{
     </div>
   );
 };
+
 
 /* ------------------------------------------------------------------ */
 /*  Inner technical events + extra badges (expand)                    */
