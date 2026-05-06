@@ -3,6 +3,13 @@ import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { enqueueLocationPoint, flushLocationQueue } from '@/services/locationSyncQueue';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
+import {
+  decideLocationMode,
+  logModeChange,
+  type LocationMode,
+  type LocationModeDecision,
+} from '@/lib/geofence/locationMode';
+import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
