@@ -211,6 +211,27 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
     teamId: string | undefined,
     enrichingCE?: CalendarEventLite
   ) => {
+    // GUARD: bookings that belong to a large project must NEVER produce a
+    // standalone staff-calendar event. Master = large_project_bookings,
+    // fallback = bookings.large_project_id. See product rule.
+    const lpGuardId = bookingToLP.get(booking.id) || booking.large_project_id;
+    if (lpGuardId) {
+      if (typeof console !== 'undefined' && (import.meta as any)?.env?.DEV) {
+        const projectName = largeProjects.get(lpGuardId)?.name || null;
+        console.info('[large-project-booking-event-suppressed]', {
+          source: 'deriveStaffEvents.upsertNormal',
+          booking_id: booking.id,
+          booking_number: booking.booking_number || null,
+          largeProjectId: lpGuardId,
+          largeProjectName: projectName,
+          phase,
+          date,
+          reason: 'booking belongs to large project and must not create standalone staff calendar event',
+        });
+      }
+      return;
+    }
+
     const staffName = staffNames.get(staffId) || `Staff ${staffId}`;
     const client = booking.client || 'Bokning';
     const key = `${staffId}|${booking.id}|${date}|${phase}`;
