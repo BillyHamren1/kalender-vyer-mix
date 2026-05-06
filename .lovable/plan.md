@@ -1,36 +1,60 @@
 ## Mål
 
-När datum ändras på ett **stort projekt** ska vi inte längre PUT:a till externa Bokning-API:t (det är det som ger `400: Unknown type: bookings`). Datumen lever på `large_projects` + speglas till `calendar_events` lokalt. Vanliga (icke-LP) bokningar fortsätter skriva via `planning-api-proxy` som idag.
+Göra det snabbt att flytta och justera kalender-events. Ersätt nuvarande hover-info med en klickbar **action popover** som samlar de vanligaste operationerna på ett ställe.
 
 ## Ändringar
 
-### 1. `src/services/largeProjectScheduleSync.ts`
-`propagateProjectDatesToBookings()` skrivs om:
-- **Ta bort** `updateBookingDatesViaApi`-anropen (det är de som returnerar 400).
-- **Behåll** trigger av `import-bookings` per sub-booking så `calendar_events` regenereras från `large_projects`-datumen (regenereringen i `import-bookings` läser redan från `large_projects` när bokningen är länkad — verifieras i steg 2).
-- Ny doc-kommentar: "LP-datum ägs av `large_projects`, inte av sub-bookings. Externa bokningssystemet bryr sig inte om sub-booking-datum för LP."
+### 1. Ny komponent: `src/components/Calendar/EventActionPopover.tsx`
+En enda Radix `Popover` som triggas genom **enkelklick** på eventet (ersätter dagens hover-flöde för planning-events). Innehåll uppifrån och ner:
 
-### 2. Verifiera/justera `calendar_events`-regenerering
-Kolla att `import-bookings` (eller motsvarande regenerator) bygger `calendar_events` från `large_projects.rig_dates/event_dates/rigdown_dates` när bokningen har `large_project_id`. Om den fortfarande läser från `bookings.rig_dates` behöver vi byta källa, annars blir kalendern tom efter en datumändring eftersom sub-booking-datumen inte längre uppdateras.
+**a) Team-rad (flytta team)**
+- Hämtar `teamResources` via `useTeamResources` (filtrerar bort `team-11` och `transport`, samma logik som `MoveDayPopover`).
+- Renderar varje team som liten `Button` (visar t.ex. "T1", "T2"…). Aktivt team markeras (variant `default`), övriga `outline`.
+- Klick → samma flytt-pipeline som `MoveDayPopover.moveOneDay(newTeamId)` (consolidated event-ids för LP, recompute_booking_staff_for_day RPC, optimistic `setEvents`). Vi extraherar den logiken till en hook `useMoveEventToTeam(event, setEvents, onUpdate)` så både popovern och befintliga ←/→-pilar (om vi behåller dem) använder samma kod.
 
-Alternativ om regeneratorn är för komplex att röra: gör en lokal "skugg-skrivning" direkt mot `bookings`-tabellen (lokala spegeln, inte externa API:t) av `rig_dates/event_dates/rigdown_dates` enbart för LP-syskon, så regeneratorn ser nya datum. Detta bryter inte single-source-regeln eftersom externa systemet inte heller bryr sig om dessa datum för LP.
+**b) Rigg-datum-rad (lägg till / ta bort dagar)**
+- Lista bokningens `rig` / `event` / `rigDown`-datum (hämtas från `calendar_events` filtrerat på `booking_id` — eller, för LP, `consolidatedBookingIds`). Rendera som chip per datum + typ, sorterat kronologiskt.
+- Varje chip: klickbar → bekräftelse → `deleteCalendarEvent(id)` (samma path som `DeleteDayButton`).
+- Sista chip: "+ Lägg till dag" → öppnar befintlig `AddRiggDayDialog`.
 
-### 3. `src/pages/project/LargeProjectLayout.tsx`
-- Uppdatera felmeddelande/toast i `handleScheduleUpdate` så texten inte längre nämner "bokningssystemet" (det är inte längre där det sparas för LP).
-- Behåll `large_projects`-skrivningen + Gantt-period-uppdateringen som idag.
+**c) Tid-rad (snabbjustera start/slut)**
+- Två kompakta Select-dropdowns (timme + minut, 30-min-steg) för start och slut, prefyllda från `event.start`/`event.end`.
+- "Spara"-knapp → kallar `updateCalendarEvent` (eller `moveLargeProjectDay` för LP) — samma helpers som `QuickTimeEditPopover` redan använder. Vi återanvänder den logiken (extraherar i `useQuickTimeUpdate` om nödvändigt) istället för att duplicera.
 
-### 4. Memory
-Lägg till `mem://constraints/large-project-dates-local-authority-v1`:
-> Stora projekts datum (rig/event/rigdown) ägs av `large_projects` lokalt. Skriv ALDRIG dessa till externa Bokning-API:t — externa systemet erkänner inte LP-datum på sub-booking-nivå. `calendar_events` regenereras från `large_projects` via `import-bookings` (eller direkt). Skiljer sig från vanliga bokningar där externa API:t fortfarande är source of truth.
+**d) Footer**
+- "Öppna bokning" → `handleViewDetails()` (befintlig).
+- "Flytta datum…" → öppnar `MoveEventDateDialog` (befintlig).
 
-Lägg till core-rad i `mem://index.md`.
+### 2. `src/components/Calendar/CustomEvent.tsx`
+- Ta bort `EventHoverCard`-omslaget för planning-events (behåll det för project-activity och read-only/warehouse-event där relevant — eller ersätt även där om vi bestämmer oss; default: bara planning-events får nya popovern).
+- Wrappa `eventCardContent` i `<EventActionPopover event={event} setEvents={setEvents} onUpdate={onEventResize}>` så enkelklick öppnar action-popovern.
+- Behåll `onContextMenu` (öppnar `MoveEventDateDialog`) och dubbelklick (`handleViewDetails`).
+- Ta bort de små in-card-ikonerna `AddDayButton` / `MoveDayPopover` / `DeleteDayButton` från eventytan eftersom funktionaliteten nu finns i popovern (renare kort, mindre felklick). `DeleteDayButton`-knappen bevaras för cancelled events.
 
-## Det här rörs INTE
-- `updateBookingDatesViaApi` finns kvar för vanliga (icke-LP) bokningar i `BookingDetail`-flödet.
-- `planning-api-proxy` rörs inte.
-- Memory "Cross-system Data Authority" / "Booking system single source of truth" gäller fortfarande för vanliga bokningar.
+### 3. Drag-n-drop påverkas inte
+`TimeGridEventLayer.EventWrapper` är fortsatt `draggable` — popovern öppnas på klick (mouseup utan drag), inte på dragstart.
 
-## Risker
-- Om regeneratorn i `import-bookings` läser sub-booking-datum: efter denna fix får LP **inga** datum i kalendern förrän vi också byter källa till `large_projects`. Därför är steg 2 obligatoriskt och blockerande.
+### 4. Hover-kortet
+`EventHoverCard` används kvar för project-activity-rendering och read-only-vy. Inom planning-vyn slutar det att renderas.
 
-Säg "kör" så börjar jag med att läsa `import-bookings` för att avgöra om steg 2 behöver "skugg-skrivning" eller bara källbyte, sedan implementerar jag i ordning 1 → 2 → 3 → 4.
+## Tekniska detaljer
+
+- Återanvänd existerande services — vi skapar inga nya DB-anrop:
+  - Team-flytt: samma kod som `MoveDayPopover.moveOneDay`.
+  - Tid-edit: samma som `QuickTimeEditPopover` (vanlig + LP-gren).
+  - Add day: `AddRiggDayDialog`.
+  - Delete day: `deleteCalendarEvent` + last-row-warning från `DeleteDayButton`.
+- Datumlistan i avsnitt b) hämtas via en lättviktig query `useEventBookingDays(event)` (single `select id, event_type, start_time, end_time from calendar_events where booking_id = ? OR id in (consolidatedEventIds)`).
+- Popovern sätter `data-state="open"` så `EventHoverCard`-detekteringen redan är konsistent med övriga dialoger.
+
+## Filer
+
+- ny: `src/components/Calendar/EventActionPopover.tsx`
+- ny: `src/hooks/useMoveEventToTeam.ts` (extraherad från `MoveDayPopover`)
+- ny: `src/hooks/useEventBookingDays.ts`
+- edit: `src/components/Calendar/CustomEvent.tsx` (byt wrapper, ta bort in-card-knappar)
+- edit: `src/components/Calendar/MoveDayPopover.tsx` (refaktoreras att använda `useMoveEventToTeam`, alternativt bli intern del av popovern)
+
+## Out of scope
+- Ändringar i warehouse-events (de behåller dagens beteende).
+- Ändringar i project-activity-rendering.
