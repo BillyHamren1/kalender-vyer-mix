@@ -45,6 +45,8 @@ const MobileTimeReport = () => {
 
   const { activeTimers, stopSession, geo, dialogs } = useWorkSession(bookings, staff?.id);
   const { orgLocations, startTimer } = geo;
+  // Server snapshot is authority for today's totals + active state.
+  const { snapshot: todaySnapshot } = useStaffDaySnapshot();
 
   const fetchReports = async () => {
     try {
