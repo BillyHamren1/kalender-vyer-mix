@@ -25,7 +25,7 @@ const ANOMALY_LABELS: Record<AnomalyKind | 'all', string> = {
   stayed_after_planned_end: 'Kvar efter planerat',
   late_start: 'Sen start',
   over_planned_time: 'Över planerad tid',
-  unallocated_time: 'Oallokerad tid',
+  unallocated_time: 'Ej fördelat på projekt',
   needs_review: 'Behöver review',
   open_timer_stale: 'Öppen timer',
   overlap: 'Överlapp',
