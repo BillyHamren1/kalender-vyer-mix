@@ -15,6 +15,8 @@ const unresolved: RichGeocode = {
   error: 'mapbox_token_unavailable',
   cacheKey: '59.000,18.000',
   tokenAvailable: false,
+  poiDistanceMeters: null,
+  nearbyPois: [],
 };
 
 const resolved: RichGeocode = {
@@ -26,6 +28,8 @@ const resolved: RichGeocode = {
   source: 'mapbox',
   error: null,
   tokenAvailable: true,
+  poiDistanceMeters: null,
+  nearbyPois: [],
 };
 
 describe('resolveLookupCoord', () => {
