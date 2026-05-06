@@ -434,9 +434,9 @@ const LargeProjectLayout = () => {
           {/* Datumkort flyttade in i headern */}
           <div className="mt-4 pt-4 border-t border-border/40">
             <LargeProjectScheduleEditable
-              startDates={project.start_date}
-              eventDates={project.event_date}
-              endDates={project.end_date}
+              startDates={derivedTimes.rigDates}
+              eventDates={derivedTimes.eventDates}
+              endDates={derivedTimes.rigDownDates}
               startStartTime={derivedTimes.startStart}
               startEndTime={derivedTimes.startEnd}
               eventStartTime={derivedTimes.eventStart}
