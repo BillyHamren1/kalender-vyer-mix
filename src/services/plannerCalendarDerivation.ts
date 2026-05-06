@@ -345,15 +345,17 @@ export const buildPlannerCalendarEvents = ({
     const includedClientNames = Array.from(group.clientNames);
     events.push({
       id: group.rep.id,
-      title: project?.name || 'Stort projekt',
+      title: project?.project_number
+        ? `${project.project_number} · ${project?.name || 'Stort projekt'}`
+        : (project?.name || 'Stort projekt'),
       start: group.earliestStart,
       end: group.latestEnd,
       resourceId,
       // Project-neutral: top-level bookingId/bookingNumber MUST NOT carry a
       // sub-booking identity for large-project tiles. They live in metadata.
       bookingId: undefined,
-      bookingNumber: undefined,
-      booking_number: undefined,
+      bookingNumber: project?.project_number || undefined,
+      booking_number: project?.project_number || undefined,
       eventType: phase,
       delivery_address: project?.address || group.rep.delivery_address || repBooking?.deliveryaddress || undefined,
       extendedProps: {
@@ -362,11 +364,12 @@ export const buildPlannerCalendarEvents = ({
         booking_id: undefined,
         resourceId,
         deliveryAddress: project?.address || group.rep.delivery_address || repBooking?.deliveryaddress || undefined,
-        bookingNumber: undefined,
+        bookingNumber: project?.project_number || undefined,
         eventType: phase,
         sourceDate,
         largeProjectId: projectId,
         largeProjectName: project?.name || undefined,
+        largeProjectNumber: project?.project_number || undefined,
         isLargeProject: true,
         isSyntheticFallback: false,
         phase,
