@@ -72,6 +72,12 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   // Context menu handlers
   const handleViewDetails = useCallback(() => {
+    // LP-tiles har medvetet bookingId=undefined — navigera direkt till projektet.
+    const largeProjectId = (event.extendedProps as any)?.largeProjectId;
+    if (event.extendedProps?.isLargeProject && largeProjectId) {
+      window.location.href = `/large-project/${largeProjectId}`;
+      return;
+    }
     if (event.bookingId) {
       // Create mock event info for navigation
       const mockEventInfo = {
