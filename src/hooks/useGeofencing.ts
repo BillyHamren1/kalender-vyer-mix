@@ -1117,7 +1117,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
             }));
             // Subtil feedback — UI ska INTE upplevas som "timer stoppad",
             // utan som att fördelningen ändrats. Arbetsdagen rörs inte.
-            const nextLabel = exitDecision?.action === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
+            const nextLabel = exitDecision === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
             toast.message(`Tid registreras inte längre på ${lpName ?? 'projektet'} → ${nextLabel}`);
           }
         }
@@ -1239,7 +1239,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
                 stop_reason: stopReason,
               },
             }));
-            const nextLabel = exitDecision?.action === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
+            const nextLabel = exitDecision === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
             toast.message(`Tid registreras inte längre på ${booking.client ?? 'bokningen'} → ${nextLabel}`);
           }
         }
@@ -1400,7 +1400,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
               stop_reason: stopReason,
             },
           }));
-          const nextLabel = exitDecision?.action === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
+          const nextLabel = exitDecision === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
           toast.message(`Tid registreras inte längre på ${loc.name ?? 'platsen'} → ${nextLabel}`);
         }
       }
