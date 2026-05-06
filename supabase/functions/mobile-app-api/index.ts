@@ -5436,7 +5436,7 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         })
         atLocation = { id: loc.id, name: loc.name }
         console.log(`[geofence] Staff ${staffId} entered ${loc.name} (mode=${loc.geofence_mode || 'circle'})`)
-      } else if (!isInside && openEntry && openEntry.source === 'gps') {
+      } else if (!isInside && openEntry && (openEntry.source === 'gps' || openEntry.source === 'foreground_geofence')) {
         // Left — close GPS entry (never auto-close manual entries)
         await supabase
           .from('location_time_entries')
