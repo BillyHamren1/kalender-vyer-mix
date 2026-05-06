@@ -478,9 +478,19 @@ const GlobalActiveTimerBanner: React.FC = () => {
     }
   }, [stopAny, refreshActiveDayState, t]);
 
+  // UNIFIED MODEL (2026-05-06): På /m/jobs äger WorkDayPanel den synliga
+  // "tid registreras just nu på"-statusen. För att inte dubblera samma info
+  // som en separat rad ovanför panelen döljer vi aktivitets-raderna där.
+  // Sync-warning (server-only / stale_ping / sync-problem) visas alltid —
+  // det är inte en huvudtimer utan en korrigeringssignal användaren måste se.
+  const onJobsPage = location.pathname === '/m/jobs' || location.pathname === '/m';
+  const showActivityRows = !onJobsPage;
+  const hasSyncWarning =
+    stalePing || serverOnlyEntries.length > 0 || localOnlyKeys.length > 0;
+
   return (
     <>
-      {(timers.size > 0 || serverOnlyEntries.length > 0 || stalePing) && (
+      {(stalePing || serverOnlyEntries.length > 0 || (showActivityRows && timers.size > 0) || (onJobsPage && hasSyncWarning)) && (
         <div className="relative z-20 px-5 pt-3 space-y-2">
           {stalePing && (
             <div className="flex items-center gap-2 p-2 rounded-xl border border-warning/40 bg-warning/10 text-xs">
@@ -499,7 +509,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
               onRehydrate={() => { void refreshActiveDayState(); }}
             />
           ))}
-          {Array.from(timers.entries()).map(([key, timer]) => (
+          {showActivityRows && Array.from(timers.entries()).map(([key, timer]) => (
             <TimerRow
               key={key}
               timerKey={key}
@@ -509,6 +519,21 @@ const GlobalActiveTimerBanner: React.FC = () => {
               syncProblem={localOnlyKeys.includes(key)}
             />
           ))}
+          {/* På /m/jobs visar vi bara TimerRow när det är ett synkproblem som
+              WorkDayPanel inte kan kommunicera (server-only finns ovan, men
+              local-only måste också synas). */}
+          {!showActivityRows && Array.from(timers.entries())
+            .filter(([key]) => localOnlyKeys.includes(key))
+            .map(([key, timer]) => (
+              <TimerRow
+                key={key}
+                timerKey={key}
+                timer={timer}
+                isSaving={savingKeys.has(key)}
+                onStop={handleStop}
+                syncProblem
+              />
+            ))}
         </div>
       )}
       {/* Start/End day CTA moved into centered MobileHeader controls so the
