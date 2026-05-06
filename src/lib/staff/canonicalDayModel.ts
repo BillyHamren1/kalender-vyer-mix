@@ -314,10 +314,13 @@ export function buildCanonicalStaffDayModel(
     !wd.open &&
     undistributedMinutes > UNDISTRIBUTED_NOISE_MIN
   ) {
+    // Ofördelad tid är OK — visas som info, blockerar inte attest.
+    // Lönegrundande tid styrs av workday; fördelningen på projekt
+    // är en sekundär uppgift som inte ska skrämma admin.
     anomalies.push({
       kind: 'large_undistributed',
-      severity: undistributedMinutes > 60 ? 'warning' : 'info',
-      label: 'Ofördelad tid',
+      severity: 'info',
+      label: 'Ej fördelat på projekt',
       detail: `${undistributedMinutes} min av lönegrundande tid är inte fördelad på något projekt.`,
       minutes: undistributedMinutes,
     });
