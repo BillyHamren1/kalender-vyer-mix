@@ -140,22 +140,32 @@ const PlaceLabel: React.FC<{
   className?: string;
 }> = ({ place, fallback, className }) => {
   const label = safePlaceLabel(place, fallback);
-  const href = buildMapUrl(place);
-  if (!href) {
+  const hasCoord = place?.lat != null && place?.lng != null;
+  const { staffId, date } = useContext(MapContext);
+  const [open, setOpen] = useState(false);
+  if (!hasCoord) {
     return <span className={className}>{label}</span>;
   }
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      className={`${className ?? ''} inline-flex items-center gap-0.5 hover:underline`}
-      title="Öppna i Google Maps"
-    >
-      <span className="truncate">{label}</span>
-      <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
-    </a>
+    <>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        className={`${className ?? ''} inline-flex items-center gap-0.5 hover:underline text-left`}
+        title="Visa på karta"
+      >
+        <span className="truncate">{label}</span>
+        <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+      </button>
+      <AddressMapDialog
+        open={open}
+        onOpenChange={setOpen}
+        address={place?.label ?? label}
+        coords={{ lat: place!.lat as number, lng: place!.lng as number }}
+        staffId={staffId}
+        date={date}
+      />
+    </>
   );
 };
 
