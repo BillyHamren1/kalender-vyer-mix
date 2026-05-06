@@ -61,47 +61,83 @@ export const useEventOperations = ({
         return;
       }
 
-      // Large projects are planned at project level: the visible team comes
-      // from large_project_team_assignments, not sibling calendar_events.
-      // ANY team change for a large project MUST go through that table —
-      // a PATCH on calendar_events.resource_id is silently ignored by the
-      // derivation layer and the tile snaps back on refresh.
-      // Time-snap-on-drop in FullCalendar can flip startChanged/endChanged
-      // even on a pure team move, so we ignore those flags here.
-      if (largeProjectId && largeProjectPhase && teamChanged && newDate && !dateChanged) {
-        await setLargeProjectDayTeam(largeProjectId, largeProjectPhase, newDate, info.newResource.id);
-        // If the time also got nudged, persist that — but WITHOUT resourceId.
-        if (startChanged || endChanged) {
-          const timeOnly: Partial<CalendarEvent> = {};
-          if (eventData.start) timeOnly.start = eventData.start;
-          if (eventData.end) timeOnly.end = eventData.end;
-          if (Object.keys(timeOnly).length > 0) {
-            try { await updateCalendarEvent(info.event.id, timeOnly); } catch (e) {
-              console.warn('[useEventOperations] time persist after team move failed', e);
-            }
-          }
-        }
-        toast.success(changeDescription || 'Projektdag uppdaterad');
-        return;
-      }
+      // Calendar placement (both normal bookings and large projects) is
+      // driven by calendar_events.resource_id. large_project_team_assignments
+      // is NOT authoritative for planner placement — any team change must be
+      // mirrored to calendar_events.resource_id, otherwise the tile snaps
+      // back on refresh.
+      const consolidatedEventIds: string[] = Array.isArray(
+        (info.event.extendedProps as any)?.consolidatedEventIds
+      ) ? (info.event.extendedProps as any).consolidatedEventIds.filter(Boolean) : [];
+      const consolidatedBookingIds: string[] = Array.isArray(
+        (info.event.extendedProps as any)?.consolidatedBookingIds
+      ) ? (info.event.extendedProps as any).consolidatedBookingIds.filter(Boolean) : [];
 
-      // Persist to DB (FullCalendar already shows the new position optimistically)
-      const updated = await updateCalendarEvent(info.event.id, eventData);
+      let updated: any = null;
+
+      if (largeProjectId && teamChanged && consolidatedEventIds.length > 0) {
+        // Update the WHOLE consolidated (project, phase, date, team) group.
+        const updatePatch: any = { resource_id: info.newResource.id };
+        if (eventData.start) updatePatch.start_time = eventData.start;
+        if (eventData.end) updatePatch.end_time = eventData.end;
+        const { error: updErr } = await supabase
+          .from('calendar_events')
+          .update(updatePatch)
+          .in('id', consolidatedEventIds);
+        if (updErr) throw updErr;
+
+        if (import.meta.env.DEV) {
+          console.info('[calendar-team-change] large project', {
+            eventId: info.event.id,
+            largeProjectId,
+            phase: largeProjectPhase,
+            sourceDate: oldDate,
+            targetDate: newDate,
+            oldTeamId: info.oldResource?.id,
+            newTeamId: info.newResource.id,
+            updatedEventIds: consolidatedEventIds,
+            ranRecompute: true,
+          });
+        }
+      } else {
+        // Persist to DB (FullCalendar already shows the new position optimistically)
+        updated = await updateCalendarEvent(info.event.id, eventData);
+        if (import.meta.env.DEV && teamChanged) {
+          console.info('[calendar-team-change] normal booking', {
+            eventId: info.event.id,
+            bookingId: (updated as any)?.bookingId,
+            largeProjectId,
+            phase: largeProjectPhase,
+            sourceDate: oldDate,
+            targetDate: newDate,
+            oldTeamId: info.oldResource?.id,
+            newTeamId: info.newResource.id,
+            updatedEventIds: [info.event.id],
+            ranRecompute: true,
+          });
+        }
+      }
 
       // Räkna om BSA för (booking, datum) för båda dagarna som potentiellt
       // berördes — säkerställer att personalen härleds från staff_assignments ×
       // calendar_events.resource_id (team-modellen).
       try {
-        const bookingId = (info.event.extendedProps as any)?.booking_id
-          || (info.event.extendedProps as any)?.bookingId
-          || updated.bookingId;
-        if (bookingId) {
+        const bookingIdCandidates = consolidatedBookingIds.length > 0
+          ? consolidatedBookingIds
+          : [
+              (info.event.extendedProps as any)?.booking_id
+                || (info.event.extendedProps as any)?.bookingId
+                || updated?.bookingId,
+            ].filter(Boolean) as string[];
+        if (bookingIdCandidates.length > 0) {
           const dates = Array.from(new Set([oldDate, newDate].filter(Boolean))) as string[];
-          await Promise.all(dates.map(d =>
-            supabase.rpc('recompute_booking_staff_for_day' as any, {
-              p_booking_id: bookingId,
-              p_date: d,
-            })
+          await Promise.all(bookingIdCandidates.flatMap(bid =>
+            dates.map(d =>
+              supabase.rpc('recompute_booking_staff_for_day' as any, {
+                p_booking_id: bid,
+                p_date: d,
+              })
+            )
           ));
         }
       } catch (rpcErr) {
