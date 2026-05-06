@@ -214,7 +214,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
     } finally {
       setStartingDay(false);
     }
-  }, [requestStart, start, ensureActive]);
+  }, [requestStart, start]);
 
   if (workdayOpen) {
     // End-day button intentionally moved to the Profile page.
