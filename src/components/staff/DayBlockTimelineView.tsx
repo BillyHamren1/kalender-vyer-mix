@@ -352,8 +352,13 @@ const PlaceDebugPanel: React.FC<{
   ];
   return (
     <div className="bg-muted/20 border-b border-border px-3 py-1.5 pl-[200px]">
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">
-        Plats-debug · {title}
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+          Plats-debug · {title}
+        </div>
+        {hasCoord && (
+          <GeocodeTestButton lat={place.lat as number} lng={place.lng as number} />
+        )}
       </div>
       <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
         {rows.map(([k, v]) => (
@@ -363,6 +368,60 @@ const PlaceDebugPanel: React.FC<{
           </React.Fragment>
         ))}
       </dl>
+    </div>
+  );
+};
+
+const GeocodeTestButton: React.FC<{ lat: number; lng: number }> = ({ lat, lng }) => {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<null | {
+    tokenAvailable: boolean;
+    source: string;
+    label: string;
+    unresolved: boolean;
+    error: string | null;
+    mapsUrl: string | null;
+  }>(null);
+  const run = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      const { testReverseGeocode } = await import('@/hooks/useReverseGeocodeRich');
+      const r = await testReverseGeocode(lat, lng);
+      setResult({
+        tokenAvailable: r.tokenAvailable,
+        source: r.source,
+        label: r.label,
+        unresolved: r.unresolved,
+        error: r.error,
+        mapsUrl: r.mapsUrl,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <button
+        type="button"
+        onClick={run}
+        disabled={busy}
+        className="text-[10px] px-2 py-0.5 rounded border border-border bg-background hover:bg-muted disabled:opacity-50"
+      >
+        {busy ? 'Testar…' : 'Testa adressuppslag'}
+      </button>
+      {result && (
+        <div className="text-[10px] text-muted-foreground bg-background border border-border rounded px-2 py-1 mt-1 w-[280px]">
+          <div><span className="opacity-60">tokenAvailable:</span> {result.tokenAvailable ? 'ja' : <span className="text-rose-600">nej</span>}</div>
+          <div><span className="opacity-60">source:</span> {result.source}</div>
+          <div><span className="opacity-60">unresolved:</span> {result.unresolved ? <span className="text-rose-600">true</span> : 'false'}</div>
+          <div><span className="opacity-60">label:</span> <span className="text-foreground/80">{result.label}</span></div>
+          <div><span className="opacity-60">error:</span> {result.error ? <span className="text-rose-600">{result.error}</span> : '—'}</div>
+          {result.mapsUrl && (
+            <div><a href={result.mapsUrl} target="_blank" rel="noopener noreferrer" className="underline">öppna karta</a></div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
