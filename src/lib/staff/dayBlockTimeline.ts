@@ -381,6 +381,16 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     // Okänd + för kort → tillhör raw/debug, inte huvudjournalen.
     if (!isKnown && durationMin < MIN_UNKNOWN_REVIEW_MIN) continue;
 
+    // Dagen har inte startat (ingen workday, ingen timer, ingen TR).
+    // Då ska huvudjournalen vara tom — inga "07:05 → pågår" på okända
+    // GPS-vistelser. Användaren ser dem fortfarande i råvyn.
+    if (workCtxMs == null) continue;
+
+    // Visit slutar innan dagen ens började → hör inte hemma i huvudjournalen.
+    const visitEndMsEarly = new Date(v.end).getTime();
+    if (Number.isFinite(visitEndMsEarly) && visitEndMsEarly <= workCtxMs) continue;
+
+
     const presenceKind: PresenceKind = isProject ? 'project' : isLocation ? 'location' : 'unknown';
 
     // Klipp visit-start vid arbetskontextens start om visit börjar tidigare.
