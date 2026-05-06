@@ -85,6 +85,7 @@ interface PendingStop {
  */
 const GlobalActiveTimerBanner: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
