@@ -468,7 +468,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const handleStopServerEntry = useCallback(async (entry: ActiveDayOpenEntryLite) => {
     try {
       await mobileApi.stopLocationTimer({ entry_id: entry.id });
-      toast.success(t('workday.activityStopped') || 'Aktivitet stoppad');
+      toast.success('Aktivitet stoppad');
       await refreshActiveDayState();
     } catch (err: any) {
       toast.error(err?.message || t('common.couldNotSaveRetry'));
