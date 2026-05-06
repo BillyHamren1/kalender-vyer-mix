@@ -213,22 +213,20 @@ export const useEventDragDrop = (
         if (updErr) throw updErr;
 
         if (import.meta.env.DEV) {
-          console.info('[calendar-team-change] large project (drag)', {
-            eventId: eventData.id,
-            bookingId: eventData.bookingId,
+          console.info('[large-project-move] booking-neutral group move', {
             largeProjectId: eventData.largeProjectId,
             phase: eventData.eventType,
-            sourceDate: currentDateStr,
-            targetDate: targetDateStr,
+            oldSourceDate: currentDateStr,
+            newSourceDate: targetDateStr,
             oldTeamId: eventData.resourceId,
             newTeamId: targetTeamId,
             updatedEventIds: eventIds,
-            ranRecompute: true,
+            includedBookingIds: bookingIdsForRecompute,
           });
         }
 
         // 3. BSA-recompute för varje booking på källa+mål-datum.
-        const bookingIds = Array.from(new Set(eventData.consolidatedBookingIds || []));
+        const bookingIds = bookingIdsForRecompute;
         const dates = Array.from(new Set([currentDateStr, targetDateStr]));
         await Promise.all(bookingIds.flatMap(bid =>
           dates.map(d =>
