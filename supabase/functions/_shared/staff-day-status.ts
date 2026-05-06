@@ -136,6 +136,12 @@ export interface DaySegment {
     taskId?: string | null;
   };
   approved?: boolean | null;
+  /** True when ref points at a real booking/large_project/location_id. */
+  hasConfirmedRef?: boolean;
+  /** Backend-known classification: 'private' | 'break' | null. */
+  classification?: string | null;
+  /** Canonical status from workdayPolicy.classifySegment. */
+  policyStatus: PolicyStatus;
 }
 
 export interface DayFlag {
@@ -164,7 +170,10 @@ export interface DayTotals {
   workdayMinutes: number;          // total payable workday duration
   allocatedProjectMinutes: number; // sum of time_reports
   travelMinutes: number;           // sum of travel logs
-  unallocatedMinutes: number;      // workday - allocated - travel (>=0)
+  /** workday - allocated - travel (>=0). Includes unknown-inside-workday. */
+  unallocatedMinutes: number;
+  /** Subset of unallocated: unknown vistelser inom arbetsdagen. */
+  unknownWithinWorkdayMinutes: number;
   liveMinutes: number;             // current active location duration
   isWorkdayOpen: boolean;
 }
@@ -182,6 +191,8 @@ export interface StaffDaySnapshot {
     approved: boolean;
     adminNote: string | null;
     durationMinutes: number;
+    /** ISO of an earlier confirmed worksite presence (back-date suggestion). */
+    suggestedStartedAt: Iso | null;
   } | null;
   active: ActiveActivity | null;
   totals: DayTotals;
