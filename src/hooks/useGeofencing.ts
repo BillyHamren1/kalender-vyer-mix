@@ -1714,10 +1714,6 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     // Per-target cooldown so the engine doesn't immediately re-prompt for
     // the same target while the user is still inside its radius.
     try {
-      // Lazy import to avoid pulling cooldown helpers into the hot path of
-      // existing geofencing logic — they live alongside the location-mode engine.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { recordDismissCooldown } = require('@/lib/geofence/dismissCooldown');
       const targetKey =
         (event as any)?.targetKey ||
         (event?.locationId && `fixed-${event.locationId}`) ||
