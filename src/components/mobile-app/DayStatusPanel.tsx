@@ -7,6 +7,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
 import { useActiveDayState, type ActiveDayOpenEntry } from '@/hooks/useActiveDayState';
+import { useWorkSession } from '@/hooks/useWorkSession';
+import { useMobileBookings } from '@/hooks/useMobileData';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { extractUTCTime } from '@/utils/dateUtils';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { toast } from 'sonner';
