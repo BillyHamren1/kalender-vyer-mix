@@ -248,8 +248,8 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
               </Badge>
             )}
             {undistributedHours > 0 && (
-              <Badge variant="outline" className="text-[11px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
-                <AlertTriangle className="h-3 w-3" /> Ofördelad {formatHoursMinutes(undistributedHours)}
+              <Badge variant="outline" className="text-[11px] gap-1 text-muted-foreground" title="Ej fördelat på projekt — blockerar inte godkännande.">
+                Ej fördelat på projekt {formatHoursMinutes(undistributedHours)}
               </Badge>
             )}
             {overDistributedHours > 0 && (
