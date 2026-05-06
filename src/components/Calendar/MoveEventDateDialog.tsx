@@ -464,7 +464,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
               onClick={handleMove}
               disabled={isSubmitting || !selectedDate}
             >
-              {isSubmitting ? 'Flyttar...' : 'Flytta'}
+              {isSubmitting ? 'Sparar...' : 'Spara'}
             </Button>
           </DialogFooter>
         </DialogContent>
