@@ -98,11 +98,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     });
   };
 
-  const getAssignedStaffForTeam = (teamId: string) => {
-    if (!weeklyStaffOperations) return [];
-    const staff = weeklyStaffOperations.getStaffForTeamAndDate(teamId, day);
-    return Array.isArray(staff) ? staff : [];
-  };
+  const getAssignedStaffForTeam = getAssignedStaffForTeamSafe;
 
   const handlePickStaffForTeam = async (teamId: string, staffId: string) => {
     if (!onStaffDrop) return;
