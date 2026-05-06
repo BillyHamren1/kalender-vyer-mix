@@ -37,6 +37,7 @@ interface BookingRow {
 interface LargeProjectRow {
   id: string;
   name: string | null;
+  project_number?: string | null;
   address: string | null;
   start_date: string[] | null;
   event_date: string[] | null;
