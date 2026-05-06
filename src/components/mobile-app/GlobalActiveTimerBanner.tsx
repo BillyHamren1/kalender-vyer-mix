@@ -25,6 +25,18 @@ import { AlertTriangle, RefreshCw, WifiOff } from 'lucide-react';
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
 
+/**
+ * Recovery only. The live UI source of truth is GeofencingContext.activeTimers.
+ *
+ * Do NOT use this for rendering the banner timer list — it exists solely as a
+ * fallback for:
+ *   - app restart / cold boot recovery (before the provider has rehydrated)
+ *   - pending-stop reconciliation after the app was killed mid-stop
+ *   - looking up a snapshot of a timer that has just been removed from context
+ *
+ * If you find yourself reaching for this in render code, stop and use
+ * `useGeofencingContext().activeTimers` instead.
+ */
 function loadTimersFromStorage(): Map<string, ActiveTimer> {
   try {
     const raw = localStorage.getItem(TIMERS_KEY);
