@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWorkDay } from '@/hooks/useWorkDay';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
+import { useActiveDayState } from '@/hooks/useActiveDayState';
 import { cn } from '@/lib/utils';
 
 /**
@@ -80,20 +81,29 @@ export const WorkDayHeaderTimer: React.FC = () => {
     };
   }, [startIso]);
 
-  // Pick the first active activity timer (UI surface; full list lives in banner).
+  // Server-state är sanning. Om lokal activeTimers saknar rad men servern
+  // har en öppen entry — visa den. På så sätt syns aktiviteten alltid i
+  // headern oavsett localStorage.
+  const { state: activeDayState } = useActiveDayState();
+
   const activeTimer = useMemo(() => {
-    if (!geo?.activeTimers || geo.activeTimers.size === 0) return null;
-    // Map iteration order is insertion order — fine as a stable representative.
-    const first = geo.activeTimers.values().next().value as
-      | {
-          locationName?: string;
-          client?: string;
-          establishmentTaskTitle?: string;
-          largeProjectId?: string;
-        }
-      | undefined;
-    return first ?? null;
-  }, [geo?.activeTimers]);
+    if (geo?.activeTimers && geo.activeTimers.size > 0) {
+      const first = geo.activeTimers.values().next().value as
+        | {
+            locationName?: string;
+            client?: string;
+            establishmentTaskTitle?: string;
+            largeProjectId?: string;
+          }
+        | undefined;
+      if (first) return first;
+    }
+    const serverEntry = activeDayState?.open_entries?.[0];
+    if (serverEntry) {
+      return { locationName: serverEntry.target_label } as { locationName?: string };
+    }
+    return null;
+  }, [geo?.activeTimers, activeDayState?.open_entries]);
 
   if (!startIso) return null;
 
