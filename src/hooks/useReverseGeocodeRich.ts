@@ -72,7 +72,12 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
   });
   if (!token) return baseFallback('mapbox_token_unavailable', 'none', false);
 
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=sv&limit=5&types=poi,address,neighborhood,locality,place`;
+  // OBS: Mapbox kräver `limit=1` när man kombinerar flera typer i reverse-
+  // geocoding. Annars returneras HTTP 422 ("limit must be combined with a
+  // single type parameter when reverse geocoding") och alla okända platser
+  // hamnar som "adress kunde inte hämtas". Vi tar topp-träffen och hämtar
+  // POI/adress/place från context istället.
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=sv&limit=1&types=poi,address,neighborhood,locality,place`;
   try {
     const res = await fetch(url);
     if (!res.ok) return baseFallback(`mapbox_http_${res.status}`, 'mapbox');
