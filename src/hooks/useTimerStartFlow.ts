@@ -336,7 +336,7 @@ export function useTimerStartFlow(
     async (
       target: WorkTarget,
       opts: { startedAtIso?: string; label: string; taskId?: string; taskTitle?: string },
-    ): Promise<Extract<StartStatus, 'started' | 'already_running' | 'workday_failed' | 'start_failed' | 'blocked'>> => {
+    ): Promise<Extract<StartStatus, 'started' | 'already_running' | 'workday_failed' | 'start_failed' | 'awaiting_distance_confirmation'>> => {
       const coords = resolveTargetCoords(target);
       if (!userPosition || !coords) {
         return performStart(target, opts);
