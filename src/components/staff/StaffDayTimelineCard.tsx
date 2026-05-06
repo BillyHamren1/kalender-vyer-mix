@@ -136,6 +136,7 @@ function SegmentRow({ seg }: { seg: StaffDaySegment }) {
 export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props) => {
   const { staffName, date, model } = props;
   const [showRaw, setShowRaw] = useState(false);
+  const { approve, isApproving } = useApproveTimeReport();
 
   const timeline = useMemo(() => {
     const wd = model.reportState.workday;
