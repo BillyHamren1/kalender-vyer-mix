@@ -226,6 +226,10 @@ export default function ProjectAddressMapDialog({
       toast.error("Välj en punkt på kartan eller sök en adress först");
       return;
     }
+    if (mode === "polygon" && !polygon) {
+      toast.error("Rita en polygon på kartan innan du sparar");
+      return;
+    }
     setSaving(true);
     try {
       await onSave({
