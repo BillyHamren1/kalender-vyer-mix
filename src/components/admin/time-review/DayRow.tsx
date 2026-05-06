@@ -1,19 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Clock, Car, AlertTriangle, ChevronRight, CalendarClock, Briefcase } from 'lucide-react';
+import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DayStatusBadge } from './DayStatusBadge';
 import { MiniTimelineBar } from './MiniTimelineBar';
 import { DayApprovalAction } from './DayApprovalAction';
+import {
+  evaluateDayApprovalState,
+  type DayApprovalState,
+} from '@/lib/admin/adminTimeReviewEngine';
 import type { DayReviewRow } from '@/lib/admin/timeReviewQueries';
 import { extractUTCTime } from '@/utils/dateUtils';
 
 const fmtMinutes = (m: number) => {
-  if (!m) return '0m';
+  if (!m) return '0h 0m';
   const h = Math.floor(m / 60);
   const mm = m % 60;
-  return h > 0 ? `${h}h ${mm.toString().padStart(2, '0')}m` : `${mm}m`;
+  return `${h}h ${mm.toString().padStart(2, '0')}m`;
 };
 
 const initials = (name: string) =>
@@ -26,12 +29,42 @@ const initials = (name: string) =>
 
 const safeFormat = (value: string | null | undefined, pattern: string) => {
   if (!value) return null;
-  // För HH:mm-mönster: läs siffrorna direkt ur ISO-strängen — ingen
-  // tidszons-konvertering. Personalkalendern visar tider naivt ("08 = 08")
-  // och planerad tid måste matcha det exakt.
   if (pattern === 'HH:mm') return extractUTCTime(value);
   const parsed = parseISO(value);
   return Number.isNaN(parsed.getTime()) ? null : format(parsed, pattern, { locale: sv });
+};
+
+const STATUS_LABEL: Record<DayApprovalState, string> = {
+  in_progress: 'Pågående',
+  ready_for_approval: 'Redo',
+  approved: 'Godkänd',
+  requires_correction: 'Redo',
+};
+
+const STATUS_TONE: Record<DayApprovalState, string> = {
+  in_progress: 'bg-muted text-muted-foreground border-border',
+  ready_for_approval: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  approved: 'bg-primary/15 text-primary border-primary/30',
+  requires_correction: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+};
+
+const useNowTick = (active: boolean) => {
+  const [, setN] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => setN((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [active]);
+};
+
+const elapsed = (sinceIso: string) => {
+  const start = new Date(sinceIso).getTime();
+  const diff = Math.max(0, Date.now() - start);
+  const s = Math.floor(diff / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`;
 };
 
 export interface DayRowProps {
@@ -40,28 +73,49 @@ export interface DayRowProps {
 }
 
 export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
-  const m = row.result.metrics;
-  const status = row.result.status;
-  const dayLabel = safeFormat(`${row.date}T00:00:00`, 'EEEE d MMM') ?? row.date;
-  const workdayStartLabel = safeFormat(row.workdayStart, 'HH:mm');
-  const workdayEndLabel = safeFormat(row.workdayEnd, 'HH:mm');
-  const plannedStartLabel = safeFormat(row.plannedStart, 'HH:mm');
-  const plannedEndLabel = safeFormat(row.plannedEnd, 'HH:mm');
+  const isActive = !!row.workdayStart && !row.workdayEnd;
+  const isClosed = !!row.workdayStart && !!row.workdayEnd;
 
-  const isPlannedOnly = !row.workdayStart && row.plannedJobs.length > 0;
-  const notStarted = row.result.anomalies.some((a) => a.kind === 'planned_no_start');
-  const accent =
-    notStarted
-      ? 'border-l-rose-500'
-      : status === 'critical'
-        ? 'border-l-destructive'
-        : status === 'warning'
-          ? 'border-l-amber-500'
-          : row.workdayStart && !row.workdayEnd
-            ? 'border-l-teal-500'
-            : isPlannedOnly
-              ? 'border-l-sky-400'
-              : 'border-l-emerald-500';
+  // Find current open activity (work entry without end_time on an active day).
+  const openEntry = isActive
+    ? row.workEntries.find((e) => e.start_time && !e.end_time && !e.is_subdivision)
+    : null;
+
+  // Try to map openEntry's booking → friendly project name via plannedJobs.
+  // (booking_id finns på time_reports men exponeras inte i ReviewWorkEntry-typen,
+  //  så vi fallback:ar till första planerade jobbet om vi inte har match.)
+  const currentProject =
+    row.plannedJobs[0]?.client ||
+    row.plannedJobs[0]?.bookingNumber ||
+    null;
+
+  useNowTick(isActive && !!openEntry);
+
+  const status = evaluateDayApprovalState(row.result, {
+    workday: row.workdayStart ? { started_at: row.workdayStart, ended_at: row.workdayEnd } : null,
+    openTimer: openEntry?.start_time ? { startTime: openEntry.start_time } : null,
+    assistantEvents: [],
+    reviewStatus: row.reviewStatus,
+  });
+
+  const statusLabel = isClosed && status.state === 'in_progress' ? 'Avslutad' : STATUS_LABEL[status.state];
+  const statusTone = isClosed && status.state === 'in_progress'
+    ? 'bg-slate-200 text-slate-700 border-slate-300'
+    : STATUS_TONE[status.state];
+
+  const dayLabel = safeFormat(`${row.date}T00:00:00`, 'EEEE d MMM') ?? row.date;
+  const startLabel = safeFormat(row.workdayStart, 'HH:mm') ?? '–';
+  const endLabel = safeFormat(row.workdayEnd, 'HH:mm') ?? '–';
+  const payable = row.result.metrics.reportedActivityMinutes + row.result.metrics.travelMinutes;
+
+  const reviewCount = row.result.anomalies.length;
+  const showReview = reviewCount > 0;
+
+  const accent = isActive
+    ? 'border-l-emerald-500'
+    : isClosed
+      ? 'border-l-slate-400'
+      : 'border-l-sky-400';
 
   return (
     <div
@@ -70,12 +124,12 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
       onClick={() => onClick(row)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(row); }}
       className={cn(
-        'group w-full text-left rounded-xl border bg-card hover:bg-accent/40 hover:shadow-sm transition-all px-4 py-3 flex flex-col gap-2 border-l-4 cursor-pointer',
+        'group w-full text-left rounded-xl border bg-card hover:bg-accent/40 hover:shadow-sm transition-all px-4 py-3 flex flex-col gap-3 border-l-4 cursor-pointer',
         accent,
       )}
     >
+      {/* TOPPRAD: namn · datum · start · lönegrundande · status */}
       <div className="flex items-center gap-3">
-        {/* Avatar */}
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
           style={{ backgroundColor: row.staffColor || 'hsl(var(--primary))' }}
@@ -83,101 +137,38 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
           {initials(row.staffName)}
         </div>
 
-        {/* Name + date */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-sm truncate">{row.staffName}</p>
-            <DayStatusBadge
-              result={row.result}
-              workday={row.workdayStart ? { started_at: row.workdayStart, ended_at: row.workdayEnd } : null}
-              reviewStatus={row.reviewStatus}
-            />
-            {row.reviewStatus === 'needs_review' && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                Markerad
-              </span>
-            )}
-            {notStarted && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-500/15 px-1.5 py-0.5 rounded animate-pulse">
-                Ej startat
-              </span>
-            )}
-            {!notStarted && isPlannedOnly && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 bg-sky-500/10 px-1.5 py-0.5 rounded">
-                Planerad
+            <span className="text-xs text-muted-foreground capitalize">{dayLabel}</span>
+            {showReview && (
+              <span title={`${reviewCount} sak(er) att granska`} className="inline-flex items-center text-amber-600">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-semibold ml-0.5">{reviewCount}</span>
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground capitalize">
-            {dayLabel}
-            {row.workdayStart ? (
-              <>
-                <span className="mx-1.5">·</span>
-                {workdayStartLabel ?? 'Okänd start'}
-                {row.workdayEnd ? `–${workdayEndLabel ?? 'okänt slut'}` : '– pågår'}
-              </>
-            ) : row.plannedStart ? (
-              <>
-                <span className="mx-1.5">·</span>
-                <span className="inline-flex items-center gap-1 normal-case text-muted-foreground/80">
-                  <CalendarClock className="w-3 h-3" />
-                  Planerad {plannedStartLabel ?? 'okänd tid'}
-                  {row.plannedEnd ? `–${plannedEndLabel ?? 'okänd tid'}` : ''}
-                </span>
-              </>
-            ) : null}
-          </p>
-          {row.plannedJobs.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {row.plannedJobs.slice(0, 4).map((job) => {
-                const inferred =
-                  job.start && job.end &&
-                  row.workEntries.some((e) => e.start_time && e.end_time &&
-                    new Date(e.start_time).getTime() < new Date(job.end!).getTime() &&
-                    new Date(e.end_time).getTime() > new Date(job.start!).getTime());
-                return (
-                  <span
-                    key={job.bookingId}
-                    className={cn(
-                      'inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border',
-                      inferred
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
-                        : 'bg-muted/40 border-border text-muted-foreground',
-                    )}
-                    title={`${job.bookingNumber ?? ''} ${job.client ?? ''}${inferred ? ' — rapporterad' : ' — ej rapporterad'}`}
-                  >
-                    <Briefcase className="w-2.5 h-2.5" />
-                    {job.bookingNumber ?? job.client ?? job.bookingId.slice(0, 6)}
-                    {job.start && (
-                      <span className="opacity-70">
-                        {safeFormat(job.start, 'HH:mm') ?? 'okänd tid'}
-                        {job.end ? `–${safeFormat(job.end, 'HH:mm') ?? 'okänd tid'}` : ''}
-                      </span>
-                    )}
-                  </span>
-                );
-              })}
-              {row.plannedJobs.length > 4 && (
-                <span className="text-[10px] text-muted-foreground">+{row.plannedJobs.length - 4}</span>
-              )}
-            </div>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground mt-0.5">
+            <span>
+              <span className="text-[10px] uppercase tracking-wider mr-1">Start</span>
+              <span className="font-mono font-semibold text-foreground">{startLabel}</span>
+            </span>
+            <span>
+              <span className="text-[10px] uppercase tracking-wider mr-1">Lönegrundande</span>
+              <span className="font-mono font-semibold text-foreground">{fmtMinutes(payable)}</span>
+            </span>
+          </div>
+        </div>
+
+        <span
+          className={cn(
+            'inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-semibold shrink-0',
+            statusTone,
           )}
-        </div>
+        >
+          {statusLabel}
+        </span>
 
-        {/* Numbers — Arbetsdag · Fördelat · Oallokerat (neutral) */}
-        <div className="hidden md:flex items-center gap-5 text-xs shrink-0">
-          <Stat icon={<Clock className="w-3 h-3 text-muted-foreground" />} label="Arbetsdag" value={fmtMinutes(m.workdayMinutes)} />
-          <Stat icon={<CalendarClock className="w-3 h-3 text-sky-600" />} label="Planerat" value={fmtMinutes(row.plannedMinutes)} tone={row.plannedMinutes ? 'text-sky-700' : 'text-muted-foreground'} />
-          <Stat label="Fördelat" value={fmtMinutes(m.reportedActivityMinutes + m.travelMinutes)} tone="text-emerald-700" />
-          <Stat icon={<Car className="w-3 h-3 text-amber-600" />} label="Resa" value={fmtMinutes(m.travelMinutes)} tone={m.travelMinutes ? 'text-amber-700' : 'text-muted-foreground'} />
-          <Stat
-            label="Oallokerat"
-            value={fmtMinutes(m.unallocatedMinutes)}
-            tone="text-muted-foreground"
-          />
-        </div>
-
-        {/* Approval action — stop propagation so click doesn't open dialog */}
         <div className="hidden lg:flex shrink-0" onClick={(e) => e.stopPropagation()}>
           <DayApprovalAction
             workdayId={row.workdayId}
@@ -191,7 +182,48 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
         <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-foreground transition-colors shrink-0" />
       </div>
 
-      {/* Mini timeline */}
+      {/* AKTIV / AVSLUTAD-PANEL */}
+      {isActive && (
+        <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                På projekt nu
+              </span>
+            </div>
+            <div className="text-sm font-semibold text-foreground truncate mt-0.5">
+              {currentProject ?? 'Pågående aktivitet'}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              sedan {safeFormat(openEntry?.start_time ?? row.workdayStart, 'HH:mm') ?? '–'}
+            </div>
+          </div>
+          {openEntry?.start_time && (
+            <div className="font-mono text-lg font-bold text-emerald-700 tabular-nums">
+              {elapsed(openEntry.start_time)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isClosed && (
+        <div className="rounded-lg bg-muted/60 border border-border px-3 py-2 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Avslutad
+            </span>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              slut {endLabel}
+            </div>
+          </div>
+          <div className="font-mono text-lg font-bold text-foreground tabular-nums">
+            {fmtMinutes(payable)}
+          </div>
+        </div>
+      )}
+
+      {/* TIMELINE */}
       <MiniTimelineBar
         date={row.date}
         workday={row.workdayStart ? { started_at: row.workdayStart, ended_at: row.workdayEnd } : null}
@@ -201,14 +233,5 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
     </div>
   );
 };
-
-const Stat: React.FC<{ icon?: React.ReactNode; label: string; value: string; tone?: string }> = ({ icon, label, value, tone }) => (
-  <div className="flex flex-col items-end leading-tight">
-    <span className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-      {icon}{label}
-    </span>
-    <span className={cn('font-mono font-bold tabular-nums', tone || 'text-foreground')}>{value}</span>
-  </div>
-);
 
 export default DayRow;
