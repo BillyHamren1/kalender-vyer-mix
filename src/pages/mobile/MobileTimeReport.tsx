@@ -21,7 +21,10 @@ import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
 import MobileDayCard from '@/components/mobile-app/MobileDayCard';
 import MyDayTimeline from '@/components/mobile-app/MyDayTimeline';
 import { buildMobileDayCardModel, buildDayCardModelFromSnapshot } from '@/lib/mobile/dayCardModel';
-import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatus } from '@/hooks/useStaffDayStatus';
+import MobileTimeTabs, { type TimeTabId } from '@/components/mobile-app/time/MobileTimeTabs';
+import TimeCalendarTab from '@/components/mobile-app/time/TimeCalendarTab';
+import TimeReportTab from '@/components/mobile-app/time/TimeReportTab';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
@@ -47,7 +50,8 @@ const MobileTimeReport = () => {
   const { activeTimers, stopSession, geo, dialogs } = useWorkSession(bookings, staff?.id);
   const { orgLocations, startTimer } = geo;
   // Server snapshot is authority for today's totals + active state.
-  const { snapshot: todaySnapshot } = useStaffDaySnapshot();
+  const { snapshot: todaySnapshot } = useStaffDayStatus();
+  const [activeTab, setActiveTab] = useState<TimeTabId>('today');
 
   const fetchReports = async () => {
     try {
@@ -252,6 +256,13 @@ const MobileTimeReport = () => {
       <MobileHeroHeader eyebrow={t('time.eyebrow')} title={t('time.title2')} subtitle={t('time.subtitle2')} />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
+        {/* Tabs — Idag (default) / Kalender / Tidrapport */}
+        <MobileTimeTabs value={activeTab} onChange={setActiveTab} />
+
+        {activeTab === 'calendar' && <TimeCalendarTab />}
+        {activeTab === 'report' && <TimeReportTab />}
+
+        {activeTab === 'today' && <>
         {/* HUVUDVY — användarens tolkade dag (samma kanoniska StaffDayTimeline
             som admin ser). time_reports lever kvar som rådata längre ned. */}
         <MyDayTimeline />
@@ -541,6 +552,7 @@ const MobileTimeReport = () => {
             })
           )}
         </div>
+        </>}
       </div>
       {dialogs}
     </div>
