@@ -213,6 +213,8 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
         )}
       </div>
     </section>
+    {workSessionDialogs}
+    </>
   );
 };
 
