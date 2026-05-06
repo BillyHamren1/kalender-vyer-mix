@@ -54,6 +54,7 @@ const EventActionPopover: React.FC<Props> = ({
   const [showAddDay, setShowAddDay] = useState(false);
   const [savingTime, setSavingTime] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [applyToAll, setApplyToAll] = useState(false);
 
   const { teams, busy: teamBusy, moveOneDay, currentTeamId } = useMoveEventToTeam(event, setEvents, async () => {
     if (onUpdate) await onUpdate();
@@ -93,20 +94,34 @@ const EventActionPopover: React.FC<Props> = ({
 
       const ext: any = event.extendedProps || {};
       const phaseRaw = (ext.eventType || event.eventType) as string | undefined;
+
+      // Determine which events to update
+      const targets = applyToAll
+        ? days.filter(d => d.event_type === phaseRaw)
+        : [{ id: event.id, source_date: eventDate, event_type: phaseRaw } as any];
+
       if (ext.largeProjectId && (phaseRaw === 'rig' || phaseRaw === 'rigDown')) {
-        const sourceDate = ext.sourceDate || eventDate;
-        await moveLargeProjectDay({
-          largeProjectId: ext.largeProjectId,
-          phase: phaseRaw as LargeProjectPhase,
-          fromDate: sourceDate,
-          toDate: sourceDate,
-          newStartISO: `${sourceDate}T${sH}:${sM}:00Z`,
-          newEndISO: `${sourceDate}T${eH}:${eM}:00Z`,
-        });
+        for (const t of targets) {
+          const sd = t.source_date || (t.start_time?.split('T')[0]) || eventDate;
+          await moveLargeProjectDay({
+            largeProjectId: ext.largeProjectId,
+            phase: phaseRaw as LargeProjectPhase,
+            fromDate: sd,
+            toDate: sd,
+            newStartISO: `${sd}T${sH}:${sM}:00Z`,
+            newEndISO: `${sd}T${eH}:${eM}:00Z`,
+          });
+        }
       } else {
-        await updateCalendarEvent(event.id, { start: newStartISO, end: newEndISO });
+        for (const t of targets) {
+          const sd = t.source_date || (t.start_time?.split('T')[0]) || eventDate;
+          await updateCalendarEvent(t.id, {
+            start: `${sd}T${sH}:${sM}:00Z`,
+            end: `${sd}T${eH}:${eM}:00Z`,
+          });
+        }
       }
-      toast.success('Tid uppdaterad');
+      toast.success(applyToAll ? `Tid uppdaterad för ${targets.length} dagar` : 'Tid uppdaterad');
       if (onUpdate) await onUpdate();
       setRefreshKey(k => k + 1);
     } catch (e: any) {
@@ -146,7 +161,7 @@ const EventActionPopover: React.FC<Props> = ({
           </div>
         </PopoverTrigger>
         <PopoverContent
-          className="w-80 p-3 z-[9999]"
+          className="w-[420px] p-3 z-[9999]"
           align="center"
           side="right"
           sideOffset={8}
@@ -239,6 +254,15 @@ const EventActionPopover: React.FC<Props> = ({
                   {savingTime ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Spara'}
                 </Button>
               </div>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={applyToAll}
+                  onChange={(e) => setApplyToAll(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                Ändra för alla {PHASE_LABEL[(event.extendedProps as any)?.eventType || event.eventType] || ''}-dagar
+              </label>
             </div>
 
             {/* FOOTER */}
