@@ -19,6 +19,7 @@ export const EventWrapper: React.FC<{
       e.preventDefault();
       return;
     }
+    const ext: any = event.extendedProps || {};
     const data: DraggedEventData = {
       id: event.id,
       title: event.title,
@@ -27,8 +28,10 @@ export const EventWrapper: React.FC<{
       bookingId: event.bookingId,
       eventType: event.eventType,
       resourceId: event.resourceId,
-      isSyntheticFallback: !!(event.extendedProps as any)?.isSyntheticFallback,
-      largeProjectId: (event.extendedProps as any)?.largeProjectId,
+      isSyntheticFallback: !!ext.isSyntheticFallback,
+      largeProjectId: ext.largeProjectId,
+      consolidatedEventIds: Array.isArray(ext.consolidatedEventIds) ? ext.consolidatedEventIds : undefined,
+      consolidatedBookingIds: Array.isArray(ext.consolidatedBookingIds) ? ext.consolidatedBookingIds : undefined,
     };
     e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
     e.dataTransfer.effectAllowed = 'move';
