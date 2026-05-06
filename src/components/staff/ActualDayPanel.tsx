@@ -97,12 +97,24 @@ interface ActualDayPanelProps {
    * Repair-action när workday saknas men det finns starka arbetsbevis
    * (assignment + GPS, timer existerar, två arbetsplatser, etc.).
    * Caller bör trigga `admin_repair_workday_from_evidence` edge-action.
+   * Detta är fallback-vägen (manuell knapp) — primär väg är auto-repair.
    */
   onRepairWorkdayFromEvidence?: (input: {
     proposedStartIso: string;
     proposedEndIso: string | null;
     reasonCodes: StrongWorkReasonCode[];
   }) => Promise<void> | void;
+  /**
+   * Primär auto-repair-väg. Triggas automatiskt när evidensen är "hög säkerhet"
+   * (timer_or_time_report_exists + (gps_on_known_work_site | server_engine_confident)).
+   * Caller bör anropa `auto_repair_missing_workdays_from_evidence` edge-action.
+   * Returnera `{ created: true }` när workday skapades.
+   */
+  onAutoRepairWorkdayFromEvidence?: (input: {
+    reasonCodes: StrongWorkReasonCode[];
+  }) => Promise<{ created: boolean }>;
+  /** Stäng av auto-repair (default: på när handler finns). */
+  autoRepairEnabled?: boolean;
 }
 
 const fmtHm = (iso: string) => {
