@@ -19,7 +19,8 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
 import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
 import MobileDayCard from '@/components/mobile-app/MobileDayCard';
-import { buildMobileDayCardModel } from '@/lib/mobile/dayCardModel';
+import { buildMobileDayCardModel, buildDayCardModelFromSnapshot } from '@/lib/mobile/dayCardModel';
+import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
