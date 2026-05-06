@@ -577,6 +577,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleStartLocationTimer(supabase, staffId, data, organizationId)
       case 'stop_location_timer':
         return await handleStopLocationTimer(supabase, staffId, data, organizationId)
+      case 'stop_open_entry':
+        return await handleStopOpenEntry(supabase, staffId, data, organizationId)
       case 'dismiss_location_entry':
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
