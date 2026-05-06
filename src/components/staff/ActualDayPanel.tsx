@@ -111,11 +111,12 @@ interface ActualDayPanelProps {
    * Primär auto-repair-väg. Triggas automatiskt när evidensen är "hög säkerhet"
    * (timer_or_time_report_exists + (gps_on_known_work_site | server_engine_confident)).
    * Caller bör anropa `auto_repair_missing_workdays_from_evidence` edge-action.
-   * Returnera `{ created: true }` när workday skapades.
+   * Returnera status så panelen kan skilja mellan nyskapad workday,
+   * redan existerande workday och faktiskt skip/fel.
    */
   onAutoRepairWorkdayFromEvidence?: (input: {
     reasonCodes: StrongWorkReasonCode[];
-  }) => Promise<{ created: boolean }>;
+  }) => Promise<{ status: 'created' | 'existing' | 'skipped' }>;
   /** Stäng av auto-repair (default: på när handler finns). */
   autoRepairEnabled?: boolean;
   /**
@@ -549,7 +550,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     : 0;
   const repairIndicators = useMemo(() => computeStrongWorkIndicators(model), [model]);
   const [repairBusy, setRepairBusy] = useState(false);
-  const [autoRepairState, setAutoRepairState] = useState<'idle' | 'running' | 'created' | 'failed'>('idle');
+  const [autoRepairState, setAutoRepairState] = useState<'idle' | 'running' | 'created' | 'existing' | 'failed'>('idle');
   const autoRepairTriedRef = React.useRef<string | null>(null);
 
   // SINGLE SOURCE OF TRUTH för "finns arbetsdag":
@@ -558,7 +559,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   // räknas som "workday finns" — annars kan headerstatus säga "Saknar
   // arbetsdag" samtidigt som repair-bannern säger "Auto-skapad".
   const hasWorkdayEffective =
-    !!wd || autoRepairState === 'created' || repairBusy;
+    !!wd || autoRepairState === 'created' || autoRepairState === 'existing' || repairBusy;
 
   const showRepairBanner =
     !hasWorkdayEffective &&
@@ -602,12 +603,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     setAutoRepairState('running');
     onAutoRepairWorkdayFromEvidence({ reasonCodes: repairIndicators.reasonCodes })
       .then(async (res) => {
-        if (res?.created) {
+        if (res?.status === 'created') {
           setAutoRepairState('created');
           toast.success('Arbetsdag auto-skapad från arbetsbevis');
           // Be parent refetcha så modellen får den nya workdayen direkt;
           // annars riskerar header säga "Saknar arbetsdag" tills nästa
           // refetch tickar.
+          try { await onWorkdayChanged?.(); } catch { /* tyst */ }
+        } else if (res?.status === 'existing') {
+          setAutoRepairState('existing');
           try { await onWorkdayChanged?.(); } catch { /* tyst */ }
         } else {
           // Backend stoppade auto-repair — fall tillbaka till manuell knapp.
