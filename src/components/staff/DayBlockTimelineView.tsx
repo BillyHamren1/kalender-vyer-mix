@@ -13,11 +13,19 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
+import { AddressMapDialog } from './AddressMapDialog';
+
 interface ExcludeCtx {
   canExclude: boolean;
   onExclude?: (blockId: string) => void | Promise<void>;
 }
 const ExcludeContext = createContext<ExcludeCtx>({ canExclude: false });
+
+interface MapCtx {
+  staffId?: string;
+  date?: string;
+}
+const MapContext = createContext<MapCtx>({});
 
 const RowExcludeButton: React.FC<{ blockId: string; label: string }> = ({ blockId, label }) => {
   const { canExclude, onExclude } = useContext(ExcludeContext);
@@ -132,22 +140,32 @@ const PlaceLabel: React.FC<{
   className?: string;
 }> = ({ place, fallback, className }) => {
   const label = safePlaceLabel(place, fallback);
-  const href = buildMapUrl(place);
-  if (!href) {
+  const hasCoord = place?.lat != null && place?.lng != null;
+  const { staffId, date } = useContext(MapContext);
+  const [open, setOpen] = useState(false);
+  if (!hasCoord) {
     return <span className={className}>{label}</span>;
   }
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      className={`${className ?? ''} inline-flex items-center gap-0.5 hover:underline`}
-      title="Öppna i Google Maps"
-    >
-      <span className="truncate">{label}</span>
-      <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
-    </a>
+    <>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        className={`${className ?? ''} inline-flex items-center gap-0.5 hover:underline text-left`}
+        title="Visa på karta"
+      >
+        <span className="truncate">{label}</span>
+        <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+      </button>
+      <AddressMapDialog
+        open={open}
+        onOpenChange={setOpen}
+        address={place?.label ?? label}
+        coords={{ lat: place!.lat as number, lng: place!.lng as number }}
+        staffId={staffId}
+        date={date}
+      />
+    </>
   );
 };
 
@@ -651,9 +669,11 @@ export interface DayBlockTimelineProps {
   excludedKeys?: Set<string>;
   onExcludeBlock?: (blockId: string) => void | Promise<void>;
   canExclude?: boolean;
+  staffId?: string;
+  date?: string;
 }
 
-export const DayBlockTimeline: React.FC<DayBlockTimelineProps> = ({ blocks, excludedKeys, onExcludeBlock, canExclude }) => {
+export const DayBlockTimeline: React.FC<DayBlockTimelineProps> = ({ blocks, excludedKeys, onExcludeBlock, canExclude, staffId, date }) => {
   const visible = excludedKeys && excludedKeys.size > 0
     ? blocks.filter(b => !excludedKeys.has(b.id))
     : blocks;
@@ -667,24 +687,26 @@ export const DayBlockTimeline: React.FC<DayBlockTimelineProps> = ({ blocks, excl
   }
   return (
     <ExcludeContext.Provider value={{ canExclude: !!canExclude && !!onExcludeBlock, onExclude: onExcludeBlock }}>
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
-        <div className={`${GRID} px-2.5 py-1.5 bg-muted/40 border-b border-border text-[10px] uppercase tracking-wider font-semibold text-muted-foreground`}>
-          <div className="pl-1">Tid</div>
-          <div>Händelse</div>
-          <div className="text-right">Status</div>
-          <div />
-        </div>
-        {visible.map(b =>
-          b.kind === 'presence' ? <PresenceRow key={b.id} block={b} />
-          : b.kind === 'journey' ? <JourneyRow key={b.id} block={b} />
-          : <GapRow key={b.id} block={b} />
-        )}
-        {hiddenCount > 0 && (
-          <div className="px-3 py-1.5 text-[10px] text-muted-foreground italic border-t border-border bg-muted/20">
-            {hiddenCount} rad{hiddenCount === 1 ? '' : 'er'} dolda av admin (manuellt exkluderade).
+      <MapContext.Provider value={{ staffId, date }}>
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className={`${GRID} px-2.5 py-1.5 bg-muted/40 border-b border-border text-[10px] uppercase tracking-wider font-semibold text-muted-foreground`}>
+            <div className="pl-1">Tid</div>
+            <div>Händelse</div>
+            <div className="text-right">Status</div>
+            <div />
           </div>
-        )}
-      </div>
+          {visible.map(b =>
+            b.kind === 'presence' ? <PresenceRow key={b.id} block={b} />
+            : b.kind === 'journey' ? <JourneyRow key={b.id} block={b} />
+            : <GapRow key={b.id} block={b} />
+          )}
+          {hiddenCount > 0 && (
+            <div className="px-3 py-1.5 text-[10px] text-muted-foreground italic border-t border-border bg-muted/20">
+              {hiddenCount} rad{hiddenCount === 1 ? '' : 'er'} dolda av admin (manuellt exkluderade).
+            </div>
+          )}
+        </div>
+      </MapContext.Provider>
     </ExcludeContext.Provider>
   );
 };
