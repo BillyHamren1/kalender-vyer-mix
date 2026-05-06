@@ -83,6 +83,8 @@ function saveTimers(map: Map<string, ActiveTimer>) {
  */
 export function useTimerReconciliation(enabled: boolean) {
   const [staleTimers, setStaleTimers] = useState<StaleEntry[]>([]);
+  const [serverOnlyEntries, setServerOnlyEntries] = useState<ServerOnlyEntry[]>([]);
+  const [syncProblems, setSyncProblems] = useState<ReconcileSyncProblem[]>([]);
   const runningRef = useRef(false);
 
   const reconcile = useCallback(async () => {
@@ -90,17 +92,13 @@ export function useTimerReconciliation(enabled: boolean) {
     runningRef.current = true;
     try {
       const local = loadTimers();
-      if (local.size === 0) {
-        setStaleTimers([]);
-        return;
-      }
 
       // Fetch open server entries (last 7 days window, only open ones)
       const fromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
         .toISOString().split('T')[0];
       let openEntries: any[] = [];
       try {
-        const res = await mobileApi.getLocationTimeEntries({ date_from: fromDate, limit: 100 });
+        const res = await mobileApi.getLocationTimeEntries({ date_from: fromDate, limit: 200 });
         openEntries = (res.entries || []).filter((e: any) => !e.exited_at);
       } catch (err) {
         console.warn('[Reconcile] Could not fetch server entries:', err);
@@ -108,49 +106,84 @@ export function useTimerReconciliation(enabled: boolean) {
         return;
       }
 
-      const openByLocation = new Set<string>(
-        openEntries.map((e: any) => `location-${e.location_id}`)
-      );
+      // Build a server-key index covering location/project/booking entries.
+      const serverKeyToEntry = new Map<string, any>();
+      for (const e of openEntries) {
+        for (const k of serverKeysForEntry(e)) {
+          if (!serverKeyToEntry.has(k)) serverKeyToEntry.set(k, e);
+        }
+      }
 
       const stale: StaleEntry[] = [];
+      const problems: ReconcileSyncProblem[] = [];
+      const matchedServerKeys = new Set<string>();
       let mutated = false;
       const next = new Map(local);
 
       for (const [key, timer] of local) {
         const ageMs = Date.now() - new Date(timer.startTime).getTime();
         const isOld = ageMs > STALE_AGE_MS;
-        const isLocationTimer = key.startsWith('location-');
 
-        // Location timer: only flag when missing on server AND >24h old.
-        // Yngre timers utan server-match kan bero på pending sync / race och
-        // ska inte trigga "stale" — nästa reconcile-cykel försöker igen.
-        if (isLocationTimer && !openByLocation.has(key) && isOld) {
+        // Try every key representation this timer could match on the server.
+        const variants = localKeyVariants(key, timer);
+        const matchedEntry = variants
+          .map(v => serverKeyToEntry.get(v))
+          .find(Boolean);
+
+        if (matchedEntry) {
+          for (const v of variants) {
+            if (serverKeyToEntry.has(v)) matchedServerKeys.add(v);
+          }
+          // Healthy match — clear any prior stale flag.
+          if (timer.isStale) {
+            const { isStale: _i, staleReason: _r, ...rest } = timer;
+            next.set(key, rest as ActiveTimer);
+            mutated = true;
+          }
+          continue;
+        }
+
+        // No server match. Only flag once the timer is older than the
+        // pending-sync grace window (covers retry storms / queue lag).
+        if (isOld) {
           if (!timer.isStale) {
             next.set(key, { ...timer, isStale: true, staleReason: 'no_server_match' });
             mutated = true;
           }
-          stale.push({ key, timer: next.get(key)! });
-          continue;
+          const flagged = next.get(key)!;
+          stale.push({ key, timer: flagged });
+          problems.push({
+            key,
+            kind: 'local_only',
+            reason: 'no_server_match',
+            timer: flagged,
+          });
         }
+      }
 
-        // Booking/project timer: only age-based flagging (no server timer to check)
-        if (!isLocationTimer && isOld) {
-          if (!timer.isStale) {
-            next.set(key, { ...timer, isStale: true, staleReason: 'age' });
-            mutated = true;
-          }
-          stale.push({ key, timer: next.get(key)! });
-          continue;
-        }
-
-        // Already-flagged stale that is still here
-        if (timer.isStale) {
-          stale.push({ key, timer });
-        }
+      // Server-only: open server entries that no local timer represents.
+      const serverOnly: ServerOnlyEntry[] = [];
+      for (const [k, e] of serverKeyToEntry) {
+        if (matchedServerKeys.has(k)) continue;
+        // Avoid emitting the same entry twice via its alternate keys.
+        const alt = serverKeysForEntry(e);
+        if (alt.some(a => matchedServerKeys.has(a))) continue;
+        // Prefer the canonical (prefixed) representation.
+        const canonical = alt[0] || k;
+        if (serverOnly.some(s => s.key === canonical)) continue;
+        serverOnly.push({ key: canonical, entry: e });
+        problems.push({
+          key: canonical,
+          kind: 'server_only',
+          reason: 'open_server_entry_without_local_timer',
+          entry: e,
+        });
       }
 
       if (mutated) saveTimers(next);
       setStaleTimers(stale);
+      setServerOnlyEntries(serverOnly);
+      setSyncProblems(problems);
     } finally {
       runningRef.current = false;
     }
@@ -164,6 +197,7 @@ export function useTimerReconciliation(enabled: boolean) {
       saveTimers(current);
     }
     setStaleTimers((prev) => prev.filter((s) => s.key !== key));
+    setSyncProblems((prev) => prev.filter((p) => p.key !== key));
   }, []);
 
   useEffect(() => {
@@ -180,5 +214,5 @@ export function useTimerReconciliation(enabled: boolean) {
     };
   }, [enabled, reconcile]);
 
-  return { staleTimers, dismissStale, reconcile };
+  return { staleTimers, serverOnlyEntries, syncProblems, dismissStale, reconcile };
 }
