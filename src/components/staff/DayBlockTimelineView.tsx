@@ -621,6 +621,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
       {open && (
         <>
           <ExtraBadges badges={extraBadges} />
+          <NearbyPoiList place={block.resolvedPlace as any} />
           <PlaceDebugPanel title="plats" place={block.resolvedPlace as any} />
           <InnerEvents block={block} />
         </>
