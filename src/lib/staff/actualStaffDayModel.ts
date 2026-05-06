@@ -1230,31 +1230,37 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
 
   // ── ActualVisits (komprimerad form av PlaceVisit) ────────────────
   const knownSites = input.knownSites ?? [];
-  const findNearestSite = (c: { lat: number; lng: number }): NearestKnownSiteDebug | null => {
-    if (!knownSites.length) return null;
-    let best: NearestKnownSiteDebug | null = null;
-    for (const s of knownSites) {
+  const CANDIDATE_RADIUS_METERS = 150;
+  const findNearestSites = (c: { lat: number; lng: number }): {
+    nearest: NearestKnownSiteDebug | null;
+    candidates: NearestKnownSiteDebug[];
+  } => {
+    if (!knownSites.length) return { nearest: null, candidates: [] };
+    const all: NearestKnownSiteDebug[] = knownSites.map(s => {
       const d = haversineMeters({ lat: s.lat, lng: s.lng }, c);
-      if (!best || d < best.distanceMeters) {
-        best = {
-          id: s.id,
-          name: s.name,
-          lat: s.lat,
-          lng: s.lng,
-          radiusMeters: s.radiusMeters,
-          distanceMeters: Math.round(d),
-          outsideByMeters: Math.round(d - s.radiusMeters),
-        };
-      }
-    }
-    return best;
+      return {
+        id: s.id,
+        name: s.name,
+        lat: s.lat,
+        lng: s.lng,
+        radiusMeters: s.radiusMeters,
+        distanceMeters: Math.round(d),
+        outsideByMeters: Math.round(d - s.radiusMeters),
+        autoLoginEligible: (s as any).autoLoginEligible ?? undefined,
+        daysFromActiveWindow: (s as any).daysFromActiveWindow ?? undefined,
+        activeWindowLabel: (s as any).activeWindowLabel ?? null,
+      };
+    }).sort((a, b) => a.distanceMeters - b.distanceMeters);
+    const nearest = all[0] ?? null;
+    const candidates = all.filter(s => s.distanceMeters <= CANDIDATE_RADIUS_METERS);
+    return { nearest, candidates };
   };
 
   const actualVisits: ActualVisit[] = input.visits.map(v => {
     const accs = v.pings.map(p => (p.accuracy == null ? NaN : Number(p.accuracy))).filter(n => Number.isFinite(n));
     const avgAccuracy = accs.length ? Math.round((accs.reduce((s, n) => s + n, 0) / accs.length) * 10) / 10 : null;
     const isUnknown = !v.knownSite;
-    const nearest = isUnknown ? findNearestSite(v.centre) : null;
+    const { nearest, candidates } = isUnknown ? findNearestSites(v.centre) : { nearest: null, candidates: [] };
     let unmatchReason: string | null = null;
     if (isUnknown) {
       if (!knownSites.length) {
@@ -1278,6 +1284,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       pingCount: v.pingCount,
       avgAccuracy,
       nearestKnownSite: nearest,
+      candidatesWithinRadius: candidates,
       unmatchReason,
     };
   });
