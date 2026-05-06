@@ -443,9 +443,15 @@ const StaffTimeReports: React.FC = () => {
         const label = event.largeProjectName || event.client || 'Bokning';
         addPlanned(event.staffId, label);
       }
+      // staff_assignments = personalkalenderns team-tilldelning för dagen.
+      // Personer i ett team SKA visas som planerade på tidrapportsidan
+      // även om teamet inte har någon bokning den dagen — annars matchar
+      // listan inte det adminen ser i personalkalendern.
       for (const r of saRows) {
         if (!r.staff_id) continue;
         plannedFromSA.add(r.staff_id);
+        const teamLabel = r.team_id ? `Team ${String(r.team_id).replace(/^team-/, '')}` : 'Planerad';
+        addPlanned(r.staff_id, teamLabel);
       }
       // OBS: large_project_staff är projektmedlemskap, inte dagsassignering.
       // Det får därför INTE användas för att visa någon som "planerad" på
