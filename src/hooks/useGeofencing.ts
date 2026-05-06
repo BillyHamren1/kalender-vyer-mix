@@ -88,6 +88,8 @@ import {
   type EntryTrackerState,
   type EntryEvaluation,
 } from '@/lib/geofence/stableEntry';
+import { recordDismissCooldown } from '@/lib/geofence/dismissCooldown';
+import { Capacitor } from '@capacitor/core';
 
 /**
  * Fire the cross-hook signal that ends an open `travel_time_logs` row.
@@ -658,10 +660,18 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     }
   }, [staffId, bookings]);
 
-  // Single consolidated GPS watcher
+  // Single consolidated GPS watcher.
+  // NATIVE GUARD: on iOS/Android the @capgo/background-geolocation engine
+  // owned by useBackgroundLocationReporter is the SOLE GPS source — do not
+  // start a second navigator.geolocation.watchPosition here (would burn
+  // battery and create racey state). Web/PWA still uses the foreground watcher.
   useEffect(() => {
     const settings = getGpsSettings();
     if (!settings.enabled || !navigator.geolocation) return;
+    if (Capacitor.isNativePlatform()) {
+      setIsTracking(true); // background reporter is the source of truth
+      return;
+    }
 
     setIsTracking(true);
 
@@ -1709,6 +1719,19 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const dismissGeofenceEvent = useCallback(() => {
     const event = geofenceEvent;
     setGeofenceEvent(null);
+
+    // Per-target cooldown so the engine doesn't immediately re-prompt for
+    // the same target while the user is still inside its radius.
+    try {
+      const targetKey =
+        (event as any)?.targetKey ||
+        (event?.locationId && `fixed-${event.locationId}`) ||
+        ((event as any)?.bookingId && `booking-${(event as any).bookingId}`) ||
+        ((event as any)?.largeProjectId && `project-${(event as any).largeProjectId}`);
+      if (targetKey) recordDismissCooldown(targetKey);
+    } catch (err) {
+      console.warn('[Geofence] cooldown record failed:', err);
+    }
 
     // If dismissing a location enter event, delete the background GPS entry
     // so no time is recorded for this visit
