@@ -1201,8 +1201,6 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             <span className="text-slate-600 dark:text-slate-300">ej startad</span>
           ) : status.kind === 'review' && /hög säkerhet|förslag/i.test(status.label) ? (
             <span className="text-blue-700 dark:text-blue-300">saknas (hög säkerhet)</span>
-          ) : status.kind === 'planned_only' ? (
-            <span className="text-slate-600 dark:text-slate-300">ej startad</span>
           ) : (
             <span className="text-amber-600">saknas</span>
           )}
