@@ -232,6 +232,13 @@ export const buildPlannerCalendarEvents = ({
     latestEnd: string;
   }>();
 
+  // PERSONAL/PLANNER allowlist: endast rig/event/rigDown är bemanningsbara
+  // standardfaser för stora projekt. Lager/transport hör hemma i
+  // warehouse_calendar_events och visas aldrig här. Projektaktiviteter
+  // (event_type='activity') hör till PROJEKTKALENDERN och får inte heller
+  // läcka in i personalkalendern (ingen explicit "staffingRequired"-flagga
+  // finns idag i schemat — opt-in saknas).
+  let nonProjectSkippedNonStaffable = 0;
   for (const row of sortedRealEvents) {
     const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
     const projectId = booking?.large_project_id || (row.booking_id ? bookingToProject.get(row.booking_id) : undefined);
@@ -268,6 +275,13 @@ export const buildPlannerCalendarEvents = ({
     }
 
     if (!row.resource_id) continue;
+    // Defensiv allowlist för icke-projekt-bokningar: släpp bara igenom
+    // kända bemanningsbara faser. Filtrerar bort 'activity' och okända
+    // legacy-event_type.
+    if (!phase) {
+      nonProjectSkippedNonStaffable++;
+      continue;
+    }
     events.push(mapRealRowToCalendarEvent(row, booking, undefined));
   }
 
@@ -326,6 +340,7 @@ export const buildPlannerCalendarEvents = ({
     console.log('large-project rows missing assignment', largeProjectMissingAssignment);
     console.log('large-project rows rendered via fallback', largeProjectFallbackRendered);
     console.log('large-project rows emitted (total)', largeProjectEmittedCount);
+    console.log('non-project rows skipped (non-staffable event_type)', nonProjectSkippedNonStaffable);
     console.log('final calendar events emitted', sorted.length);
     console.groupEnd();
     /* eslint-enable no-console */
