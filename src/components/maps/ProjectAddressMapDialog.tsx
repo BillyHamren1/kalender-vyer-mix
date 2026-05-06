@@ -55,10 +55,16 @@ export default function ProjectAddressMapDialog({
   const [mapStyle, setMapStyle] = useState<MapStyle>("streets");
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [mapReadyVersion, setMapReadyVersion] = useState(0);
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
+  const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const polygonRef = useRef<GeoJSON.Polygon | null>(null);
+
+  coordsRef.current = coords;
+  polygonRef.current = polygon;
 
   // ── reset state when opening ───────────────────────────────────────────────
   useEffect(() => {
@@ -172,19 +178,20 @@ export default function ProjectAddressMapDialog({
   // default Stockholm center because handleMapReady captured coords=null.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !coords) return;
+    if (!open || !map || !coords) return;
     const run = () => {
       map.jumpTo({ center: [coords.lng, coords.lat], zoom: 15 });
       renderOverlays();
     };
     if (map.isStyleLoaded()) run();
     else map.once('idle', run);
-  }, [coords, renderOverlays]);
+  }, [coords, open, renderOverlays, mapReadyVersion]);
 
   // ── map setup ──────────────────────────────────────────────────────────────
   const handleMapReady = useCallback(
     (map: mapboxgl.Map) => {
       mapRef.current = map;
+      setMapReadyVersion((v) => v + 1);
 
       // Click-to-place pin (circle mode)
       map.on("click", (e) => {
@@ -212,15 +219,15 @@ export default function ProjectAddressMapDialog({
       map.on("draw.delete", syncPolygon);
 
       // Restore existing polygon if any
-      if (polygon) {
+      if (polygonRef.current) {
         try {
-          draw.add({ type: "Feature", properties: {}, geometry: polygon } as any);
+          draw.add({ type: "Feature", properties: {}, geometry: polygonRef.current } as any);
         } catch {/* ignore */}
       }
 
       // Initial centring + overlays
-      if (coords) {
-        map.flyTo({ center: [coords.lng, coords.lat], zoom: 15, essential: true });
+      if (coordsRef.current) {
+        map.flyTo({ center: [coordsRef.current.lng, coordsRef.current.lat], zoom: 15, essential: true });
       }
       map.once("idle", () => renderOverlays());
     },
