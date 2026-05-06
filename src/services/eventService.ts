@@ -295,17 +295,20 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
   
   const { data, error } = await supabase
     .from('calendar_events')
-    .insert({
-      title: event.title,
-      start_time: event.start,
-      end_time: event.end,
-      resource_id: event.resourceId,
-      booking_id: event.bookingId,
-      event_type: event.eventType,
-      delivery_address: event.delivery_address,
-      booking_number: event.booking_number,
-      source_date: sourceDate
-    })
+    .upsert(
+      {
+        title: event.title,
+        start_time: event.start,
+        end_time: event.end,
+        resource_id: event.resourceId,
+        booking_id: event.bookingId,
+        event_type: event.eventType,
+        delivery_address: event.delivery_address,
+        booking_number: event.booking_number,
+        source_date: sourceDate,
+      },
+      { onConflict: 'booking_id,event_type,source_date,organization_id' }
+    )
     .select()
     .single();
 
