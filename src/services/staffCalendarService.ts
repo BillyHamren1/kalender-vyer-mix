@@ -276,6 +276,22 @@ export const getStaffCalendarEvents = async (
       calendarEvents,
     });
 
+    // Dev-only: validate large-project grouping & warn loudly on splits.
+    if (import.meta.env?.DEV) {
+      const bookingToLp = resolveLargeProjectMembershipFromRows(
+        Array.from(new Set([...bookingIds, ...largeProjectBookings.map(r => r.booking_id)])),
+        largeProjectBookings,
+        bookings,
+      );
+      const lpNames = new Map<string, string>();
+      largeProjects.forEach((p: any, id: string) => lpNames.set(id, p?.name || ''));
+      validateLargeProjectGrouping({
+        events: derived,
+        bookingToLargeProject: bookingToLp,
+        largeProjectNames: lpNames,
+      });
+    }
+
     const events: StaffCalendarEvent[] = derived.map(d => ({
       id: d.id,
       title: d.title,
