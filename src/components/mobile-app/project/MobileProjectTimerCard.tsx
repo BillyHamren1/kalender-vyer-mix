@@ -73,11 +73,8 @@ export const MobileProjectTimerCard = ({ largeProjectId, projectName }: Props) =
       .reduce((sum: number, r: any) => sum + (Number(r.hours_worked) || 0), 0);
   }, [timeReports, largeProjectId, todayKey]);
 
-  const liveSeconds = currentTimer
-    ? Math.max(0, differenceInSeconds(new Date(), parseISO(currentTimer.startTime)))
-    : 0;
-
   const handleStart = async () => {
+
     await requestStart(
       { kind: 'project', largeProjectId, name: projectName },
       { label: projectName },
