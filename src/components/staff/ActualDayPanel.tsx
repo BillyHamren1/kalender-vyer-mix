@@ -1163,19 +1163,10 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   const headerWdMin = effectiveDay ? effectiveDay.wdMin : wdMin;
   const headerWdEmpty = effectiveDay?.empty === true;
 
-  // Projektblock vars motsvarande presenceBlock har exkluderats — döljs
-  // direkt från "På projekt"-bannern.
-  const excludedProjectStartIsos = useMemo(() => {
-    if (!excludedKeys || excludedKeys.size === 0) return new Set<string>();
-    return new Set(
-      enrichedBlockTimeline
-        .filter(b => excludedKeys.has(b.id) && b.kind === 'presence' && (b as any).presenceKind === 'project')
-        .map(b => b.startIso),
-    );
-  }, [excludedKeys, enrichedBlockTimeline]);
-  const visibleOngoingProject = currentOngoingProject && !excludedProjectStartIsos.has(currentOngoingProject.startIso)
-    ? currentOngoingProject
-    : null;
+  // (Tidigare excludedProjectStartIsos / visibleOngoingProject borttaget —
+  // "Aktiv just nu" kommer från DayHeaderPanel och behöver ingen
+  // separat exkluderingslogik.)
+
 
   // Normaliserad huvudjournal — samma struktur för alla.
   const headerModel = useMemo(() => buildDayHeaderModel({ model }), [model]);
