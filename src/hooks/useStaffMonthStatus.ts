@@ -119,8 +119,19 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     if (!staffId) return;
     void refresh();
     const id = window.setInterval(refresh, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [staffId, refresh]);
+    const onFocus = () => { void refresh(); };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('timer-state-changed', scheduleRefresh);
+    window.addEventListener('workday-started', scheduleRefresh);
+    window.addEventListener('workday-ended', scheduleRefresh);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('timer-state-changed', scheduleRefresh);
+      window.removeEventListener('workday-started', scheduleRefresh);
+      window.removeEventListener('workday-ended', scheduleRefresh);
+    };
+  }, [staffId, refresh, scheduleRefresh]);
 
   useEffect(() => {
     if (!staffId) return;
