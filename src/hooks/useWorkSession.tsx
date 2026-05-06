@@ -726,6 +726,7 @@ export function useWorkSession(
     startSession,
     startSessionWithDistanceCheck,
     stopSession,
+    stopAny,
     cancelPendingSession,
     getActiveTimer,
     resolveTargetCoords,
