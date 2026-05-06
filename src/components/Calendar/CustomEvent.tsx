@@ -40,6 +40,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
+  const navigate = useNavigate();
   
   // EDIT CONTROLLER: Global mutex via context — shared across all events
   const editController = useGlobalEditController();
