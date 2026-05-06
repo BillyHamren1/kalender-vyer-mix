@@ -77,19 +77,19 @@ describe('evaluateDayApprovalState — 4-stegs dagstatus', () => {
     expect(s.state).toBe('requires_correction');
   });
 
-  it('Kräver korrigering: överrapportering >30 min (critical anomaly)', () => {
-    // 2h workday men 4h rapporterat → over_distributed critical
+  it('Kräver korrigering: pending assistent-händelser', () => {
     const input: AdminTimeReviewInput = {
-      workday: wd('07:00', '09:00'),
-      workEntries: [{ id: 'a', start_time: iso('07:00'), end_time: iso('11:00'), hours_worked: 4 }],
-      now: new Date(iso('12:00')),
+      workday: wd('07:00', '16:00'),
+      workEntries: [{ id: 'a', start_time: iso('07:00'), end_time: iso('16:00'), hours_worked: 9 }],
+      assistantEvents: [{ id: 'e', acknowledged: false }],
+      now: new Date(iso('17:00')),
     };
     const r = evaluateAdminTimeReview(input);
-    // adminTimeReviewEngine räknar inte over_distributed, men ev. overlap-typer
-    // → vi förlitar oss på att hardError-grenen tar emot critical anomalies.
-    // Säkerställ åtminstone att vi inte blir "ready_for_approval".
-    const s = evaluateDayApprovalState(r, { workday: input.workday });
-    expect(s.state).not.toBe('ready_for_approval');
+    const s = evaluateDayApprovalState(r, {
+      workday: input.workday,
+      assistantEvents: input.assistantEvents,
+    });
+    expect(s.state).toBe('requires_correction');
   });
 
   it('Pågår vinner över oallokerad tid när workday saknas', () => {
