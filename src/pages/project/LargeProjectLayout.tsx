@@ -294,12 +294,12 @@ const LargeProjectLayout = () => {
       try {
         await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
       } catch (err: any) {
-        console.error('Error propagating schedule to bookings:', err);
+        console.error('Error regenerating calendar for project dates:', err);
         // Force refetch so UI reverts to actual server state.
         queryClient.invalidateQueries({ queryKey: ['large-project', id] });
         queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
         const msg = err?.message || 'Okänt fel';
-        toast.error(`Datumen sparades INTE i bokningssystemet: ${msg}`);
+        toast.error(`Kunde inte uppdatera kalendern: ${msg}`);
         return;
       }
     }
