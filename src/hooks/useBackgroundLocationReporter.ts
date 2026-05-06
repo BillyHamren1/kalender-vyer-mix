@@ -160,23 +160,64 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       checkBackgroundGeofences(latitude, longitude);
     };
 
-    // Heartbeat: force a ping every 60s using last known position so we can
-    // distinguish "phone still alive but stationary" from "app dead".
+    // Adaptive heartbeat: interval is recomputed every tick from the current
+    // LocationMode (see locationMode.ts). Far away → slow, near → fast.
     const sendHeartbeat = () => {
       const pos = lastKnownPosRef.current;
       const sid = staffIdRef.current;
-      if (!pos || !sid) return;
-      lastReportRef.current = Date.now();
-      enqueueLocationPoint({
-        latitude: pos.lat,
-        longitude: pos.lng,
-        accuracy: pos.accuracy,
-        speed: pos.speed,
-        source: 'heartbeat',
-      });
-      void flushLocationQueue();
+      if (pos && sid) {
+        lastReportRef.current = Date.now();
+        enqueueLocationPoint({
+          latitude: pos.lat,
+          longitude: pos.lng,
+          accuracy: pos.accuracy,
+          speed: pos.speed,
+          source: 'heartbeat',
+        });
+        void flushLocationQueue();
+      }
+      // Recompute mode + reschedule with the appropriate interval.
+      rescheduleHeartbeat();
     };
-    heartbeatTimerRef.current = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+
+    const rescheduleHeartbeat = () => {
+      const decision = computeMode();
+      currentHeartbeatMsRef.current = decision.heartbeatMs;
+      if (heartbeatTimerRef.current != null) {
+        clearTimeout(heartbeatTimerRef.current);
+      }
+      heartbeatTimerRef.current = window.setTimeout(sendHeartbeat, decision.heartbeatMs);
+    };
+
+    const computeMode = (): LocationModeDecision => {
+      const targets = loadGeofenceTargets();
+      const pos = lastKnownPosRef.current;
+      const arrivals = loadPendingArrivals();
+      const arrivalKeys = new Set(arrivals.map(a => a.key));
+      const decoratedTargets = targets.map(t => ({
+        key: t.key,
+        lat: t.lat,
+        lng: t.lng,
+        radius: t.radius || ENTER_RADIUS,
+        cooldownActive: isInDismissCooldown(t.key),
+      }));
+      const decision = decideLocationMode({
+        position: pos ? { lat: pos.lat, lng: pos.lng } : null,
+        targets: decoratedTargets,
+        hasActiveTimer: false, // reporter doesn't own timer state — engine treats as 'unknown'; consumers can override later
+        hasPendingArrival: arrivals.length > 0,
+        insideKeys: insideRef.current,
+        previousMode: currentModeRef.current,
+      });
+      // Suppress lookup of arrivalKeys-only side; keep variable to satisfy noUnused
+      void arrivalKeys;
+      logModeChange(currentModeRef.current, decision);
+      currentModeRef.current = decision.mode;
+      return decision;
+    };
+
+    // Kick off first scheduling immediately
+    rescheduleHeartbeat();
 
     const checkBackgroundGeofences = (lat: number, lng: number) => {
       const targets = loadGeofenceTargets();
@@ -192,9 +233,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         const exitRadius = enterRadius + 50;
 
         if (dist <= enterRadius) {
-          // Inside geofence
-          if (!insideRef.current.has(target.key) && !arrivalKeys.has(target.key)) {
-            // New arrival — save pending
+          // Per-target cooldown: if user recently dismissed this target,
+          // skip creating a new pending arrival until cooldown expires.
+          const cooldownActive = isInDismissCooldown(target.key);
+          if (!insideRef.current.has(target.key) && !arrivalKeys.has(target.key) && !cooldownActive) {
             insideRef.current.add(target.key);
             arrivals.push({
               key: target.key,
@@ -213,12 +255,14 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
             console.log(`[BGLocation] Pending arrival saved: ${target.name} (${target.key})`);
           } else {
             insideRef.current.add(target.key);
+            if (cooldownActive) {
+              // eslint-disable-next-line no-console
+              console.info('[BGLocation] entry suppressed by per-target cooldown', { key: target.key });
+            }
           }
         } else if (dist > exitRadius) {
-          // Outside geofence — remove from inside tracking
           if (insideRef.current.has(target.key)) {
             insideRef.current.delete(target.key);
-            // Remove pending arrival if user left before opening the app
             const beforeLen = arrivals.length;
             arrivals = arrivals.filter(a => a.key !== target.key);
             if (arrivals.length !== beforeLen) {
@@ -232,6 +276,8 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       if (changed) {
         savePendingArrivals(arrivals);
       }
+      // Mode may have changed (entered/exited a target) — reschedule
+      rescheduleHeartbeat();
     };
 
     if (Capacitor.isNativePlatform()) {
