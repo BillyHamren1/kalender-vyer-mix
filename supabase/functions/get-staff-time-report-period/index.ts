@@ -1,10 +1,10 @@
-// Edge Function: get-staff-month-status
-// Returns per-day status across a calendar month (YYYY-MM) for a staff member.
+// Edge Function: get-staff-time-report-period
+// Returns the staff member's time-report summary for a period (week/month).
 // Auth: JWT required. Self OR admin/manager-ish roles. Strict org-isolation.
 // Backend owns the truth — UI must not re-aggregate raw tables.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { buildMonthDays, eachDayOfMonth } from "../_shared/staff-month-status.ts";
+import { buildPeriodPayload, type PeriodKind } from "../_shared/staff-time-report-period.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,14 +21,6 @@ function bad(status: number, error: string, extra: Record<string, unknown> = {})
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function thisMonthInStockholm(): string {
-  return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Europe/Stockholm",
-    year: "numeric",
-    month: "2-digit",
-  }).format(new Date());
 }
 
 function todayInStockholm(): string {
@@ -57,7 +49,7 @@ Deno.serve(async (req) => {
   if (claimsErr || !claimsData?.claims) return bad(401, "Unauthorized");
   const userId = claimsData.claims.sub as string;
 
-  let body: { staffId?: string; month?: string };
+  let body: { staffId?: string; kind?: PeriodKind; startDate?: string; endDate?: string };
   try {
     body = await req.json();
   } catch {
@@ -65,9 +57,15 @@ Deno.serve(async (req) => {
   }
   const staffId = (body.staffId ?? "").trim();
   if (!staffId) return bad(400, "staffId is required");
-  const month = (body.month ?? thisMonthInStockholm()).trim();
-  if (!/^\d{4}-\d{2}$/.test(month)) return bad(400, "month must be YYYY-MM");
+  const kind: PeriodKind = body.kind === "month" ? "month" : "week";
+  const startDate = (body.startDate ?? "").trim();
+  const endDate = (body.endDate ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return bad(400, "startDate/endDate must be YYYY-MM-DD");
+  }
+  if (startDate > endDate) return bad(400, "startDate must be <= endDate");
 
+  // Auth + org guard
   const { data: profile } = await admin
     .from("profiles")
     .select("organization_id")
@@ -84,7 +82,6 @@ Deno.serve(async (req) => {
   if (!targetStaff || targetStaff.organization_id !== orgId) {
     return bad(404, "Staff not found in your organization");
   }
-
   const isSelf = targetStaff.user_id === userId;
   let isPrivileged = false;
   if (!isSelf) {
@@ -97,12 +94,8 @@ Deno.serve(async (req) => {
   }
   if (!isSelf && !isPrivileged) return bad(403, "Forbidden");
 
-  const monthStart = `${month}-01`;
-  const [y, m] = month.split("-").map(Number);
-  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
-  const padStart = new Date(new Date(`${monthStart}T00:00:00Z`).getTime() - 24 * 3600 * 1000).toISOString();
-  const padEnd = new Date(new Date(`${monthEnd}T23:59:59Z`).getTime() + 24 * 3600 * 1000).toISOString();
+  const padStart = new Date(new Date(`${startDate}T00:00:00Z`).getTime() - 24 * 3600 * 1000).toISOString();
+  const padEnd = new Date(new Date(`${endDate}T23:59:59Z`).getTime() + 24 * 3600 * 1000).toISOString();
 
   const [workdayRes, trRes, travelRes, flagRes] = await Promise.all([
     admin
@@ -114,11 +107,11 @@ Deno.serve(async (req) => {
       .lte("started_at", padEnd),
     admin
       .from("time_reports")
-      .select("report_date, hours_worked")
+      .select("report_date, hours_worked, overtime_hours")
       .eq("organization_id", orgId)
       .eq("staff_id", staffId)
-      .gte("report_date", monthStart)
-      .lte("report_date", monthEnd),
+      .gte("report_date", startDate)
+      .lte("report_date", endDate),
     admin
       .from("travel_time_logs")
       .select("start_time, end_time, hours_worked, report_date")
@@ -131,52 +124,30 @@ Deno.serve(async (req) => {
       .select("flag_date, severity, resolved")
       .eq("organization_id", orgId)
       .eq("staff_id", staffId)
-      .gte("flag_date", monthStart)
-      .lte("flag_date", monthEnd),
+      .gte("flag_date", startDate)
+      .lte("flag_date", endDate),
   ]);
 
   const errs = [workdayRes.error, trRes.error, travelRes.error, flagRes.error].filter(Boolean);
   if (errs.length) {
-    console.error("[get-staff-month-status] db errors", errs);
+    console.error("[get-staff-time-report-period] db errors", errs);
     return bad(500, "Database error", { details: errs.map((e) => e?.message) });
   }
 
-  const todayYmd = todayInStockholm();
-  const { days, totals } = buildMonthDays(
-    eachDayOfMonth(month),
-    {
-      workdays: (workdayRes.data ?? []) as never,
-      timeReports: (trRes.data ?? []) as never,
-      travelLogs: (travelRes.data ?? []) as never,
-      flags: (flagRes.data ?? []) as never,
-    },
-    todayYmd,
-  );
+  const payload = buildPeriodPayload({
+    kind,
+    startDate,
+    endDate,
+    staffId,
+    todayYmd: todayInStockholm(),
+    workdays: (workdayRes.data ?? []) as never,
+    timeReports: (trRes.data ?? []) as never,
+    travelLogs: (travelRes.data ?? []) as never,
+    flags: (flagRes.data ?? []) as never,
+  });
 
-  // Derived top-level status for the month
-  const hasOpen = days.some((d) => d.isOngoing);
-  const allApproved = days.every((d) => d.workdayMinutes === 0 || d.approved);
-  const anyReview = days.some((d) => d.status === "review_required");
-  const hasAny = days.some((d) => d.workdayMinutes > 0);
-  const status = !hasAny
-    ? "empty"
-    : hasOpen
-    ? "open"
-    : anyReview
-    ? "review_required"
-    : allApproved
-    ? "approved"
-    : "closed";
-
-  return new Response(
-    JSON.stringify({
-      month,
-      staffId,
-      days,
-      totals,
-      status,
-      lastUpdatedAt: new Date().toISOString(),
-    }),
-    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-  );
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });

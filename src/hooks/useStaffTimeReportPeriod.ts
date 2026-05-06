@@ -65,6 +65,10 @@ export interface StaffTimeReportPeriod {
   status: 'draft' | 'submitted' | 'approved' | 'mixed' | 'empty';
   totals: StaffTimeReportPeriodTotals;
   rows: StaffTimeReportRow[];
+  /** Per-day list from backend snapshot. UI binds, never recomputes. */
+  days?: Array<Record<string, unknown>>;
+  /** Reasons the period is not yet ready to submit. */
+  blockers?: Array<{ date: string; type: string; message: string }>;
   lastUpdatedAt: string;
 }
 
@@ -117,31 +121,31 @@ export function useStaffTimeReportPeriod(
     inFlight.current = true;
     setIsLoading(true);
     try {
-      // Backend endpoint not yet implemented. Emit a stable empty
-      // structure so the UI binds without local aggregation. When
-      // `get-staff-time-report-period` ships, replace with:
-      //
-      //   const { data, error: invokeErr } = await supabase.functions.invoke(
-      //     'get-staff-time-report-period',
-      //     { body: { staffId, kind: input.kind, startDate, endDate } },
-      //   );
-      //   if (invokeErr) throw invokeErr;
-      //   setPeriod(data as StaffTimeReportPeriod);
+      const { data, error: invokeErr } = await supabase.functions.invoke(
+        'get-staff-time-report-period',
+        { body: { staffId, kind: input.kind, startDate, endDate } },
+      );
+      if (invokeErr) throw invokeErr;
+      if (data?.error) throw new Error(data.error);
+      // Backend returns { period:{kind,startDate,endDate}, staffId, totals, days, blockers, status, lastUpdatedAt }.
+      // Flatten into the consumer shape — UI must NOT recompute totals.
       setPeriod({
-        kind: input.kind,
-        startDate,
-        endDate,
+        kind: data?.period?.kind ?? input.kind,
+        startDate: data?.period?.startDate ?? startDate,
+        endDate: data?.period?.endDate ?? endDate,
         staffId,
-        status: 'empty',
+        status: data?.status ?? 'empty',
         totals: {
-          workMinutes: 0,
-          overtimeMinutes: 0,
-          travelMinutes: 0,
-          unallocatedMinutes: 0,
+          workMinutes: data?.totals?.workMinutes ?? 0,
+          overtimeMinutes: data?.totals?.overtimeMinutes ?? 0,
+          travelMinutes: data?.totals?.travelMinutes ?? 0,
+          unallocatedMinutes: data?.totals?.unallocatedMinutes ?? 0,
         },
         rows: [],
-        lastUpdatedAt: new Date().toISOString(),
-      });
+        days: data?.days ?? [],
+        blockers: data?.blockers ?? [],
+        lastUpdatedAt: data?.lastUpdatedAt ?? new Date().toISOString(),
+      } as StaffTimeReportPeriod);
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Kunde inte ladda perioden');
