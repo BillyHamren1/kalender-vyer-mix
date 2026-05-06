@@ -503,6 +503,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   onRepairWorkdayFromEvidence,
   onAutoRepairWorkdayFromEvidence,
   autoRepairEnabled = true,
+  onWorkdayChanged,
 }) => {
   const { isAdmin, hasAnyRole } = useUserRoles();
   const canExclude = isAdmin || hasAnyRole(['projekt', 'lager']);
