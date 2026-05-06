@@ -2494,7 +2494,13 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
   // workday for the same staff. Anchor the workday at report_date+start_time.
   try {
     const startedAtIso = new Date(`${report_date}T${start_time}:00`).toISOString()
-    await ensureOpenWorkday(supabase, staffId, organizationId, startedAtIso)
+    await ensureOpenWorkdayForTimer(supabase, {
+      staff_id: staffId,
+      organization_id: organizationId,
+      start_at: startedAtIso,
+      source: 'create_time_report',
+      target: { kind: target_type ?? 'unknown', id: target_id ?? null },
+    })
   } catch (wdErr: any) {
     console.error('[create_time_report] workday-first failed, aborting:', wdErr)
     return new Response(
