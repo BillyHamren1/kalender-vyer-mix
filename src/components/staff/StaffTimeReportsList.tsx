@@ -9,7 +9,7 @@ import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { TimeReportReviewTable } from './TimeReportReviewTable';
-import { ActualDayPanel } from './ActualDayPanel';
+import { StaffDayTimelineCard } from './StaffDayTimelineCard';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type { DaySegment, LatestPing, PlanningStatus, PresenceDebug } from '@/pages/StaffTimeReports';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
@@ -477,7 +477,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                     ⚠️ GPS-historiken för {staff.name} har trunkerats (mer än 20 000 pings för dagen). Timeline kan vara ofullständig — tysta perioder är inte nödvändigtvis "signal tappad".
                   </div>
                 )}
-                <ActualDayPanel
+                <StaffDayTimelineCard
                   staffName={staff.name}
                   staffId={staff.id}
                   date={dateStr}
