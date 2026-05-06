@@ -567,6 +567,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleAdminCreateWorkdayFromPlanned(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'admin_repair_workday_from_evidence':
         return await handleAdminRepairWorkdayFromEvidence(supabase, staffOrg?.user_id || null, data, organizationId)
+      case 'auto_repair_missing_workdays_from_evidence':
+        return await handleAutoRepairMissingWorkdaysFromEvidence(supabase, staffOrg?.user_id || null, data, organizationId)
       case 'toggle_establishment_task':
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
       case 'get_organization_locations':
@@ -11031,6 +11033,270 @@ async function handleAdminRepairWorkdayFromEvidence(
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
   return new Response(JSON.stringify({ created: 'workday', workday_id: ins.id, started_at: proposed_start_iso, metadata }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
+
+/**
+ * auto_repair_missing_workdays_from_evidence — cron-/system-säker auto-repair.
+ *
+ * Hittar dagar (default: igår + idag, eller given `dates[]` / `from`/`to`) där
+ * det finns LTE eller time_report men ingen workday för samma staff/org/dag.
+ *
+ * High-confidence regel:
+ *   - timer_or_time_report_exists   (alltid sant här — vi kräver LTE/TR)
+ *   OCH (
+ *      gps_on_known_work_site       (LTE/TR är knuten till booking/large_project/location
+ *                                     ELLER en GPS-LTE finns för dagen)
+ *      ELLER
+ *      server_engine_confident      (auto_started LTE med metadata.confidence ∈ medium/high)
+ *   )
+ *
+ * Planering utan GPS/timer auto-repareras INTE.
+ *
+ * Skapar workday med:
+ *   started_at = tidigaste arbetsrelevanta start (LTE.entered_at / TR.start)
+ *   source     = 'auto_repair_from_timer_or_gps'
+ *   metadata   = { auto_started, confidence:'high', reason_codes, evidence_summary }
+ *
+ * Idempotent: skipps om workday redan finns för dagen (start..end).
+ *
+ * Caller:
+ *   - Admin/projekt-roll (UI-knapp)
+ *   - Cron: pg_cron + pg_net med x-cron-secret header (matchar CRON_SECRET env)
+ *
+ * Optional payload:
+ *   { target_staff_id?: string, dates?: string[], from?: string, to?: string, dry_run?: boolean }
+ */
+async function handleAutoRepairMissingWorkdaysFromEvidence(
+  supabase: any,
+  callerUserId: string | null,
+  data: any,
+  organizationId: string,
+) {
+  // Auth: admin/projekt OR cron secret header (handled in caller via header check below).
+  // Since we don't have access to req here, we rely on role check. Cron path uses
+  // service-role JWT which has no user_id → fall through to role check (deny),
+  // so cron must pass `cron_secret` in body.
+  const cronSecret = Deno.env.get('CRON_SECRET') || ''
+  const providedSecret: string | undefined = data?.cron_secret
+  const isCron = !!(cronSecret && providedSecret && providedSecret === cronSecret)
+  if (!isCron) {
+    if (!(await callerHasAdminOrProjektRole(supabase, callerUserId))) {
+      return new Response(JSON.stringify({ error: 'Forbidden: admin/projekt role or cron_secret required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+  }
+
+  const dryRun = data?.dry_run === true
+  const targetStaffId: string | undefined = data?.target_staff_id
+
+  // Resolve date window — default to last 2 days (today + yesterday in UTC).
+  let dates: string[] = []
+  if (Array.isArray(data?.dates) && data.dates.length > 0) {
+    dates = data.dates.filter((d: any) => typeof d === 'string')
+  } else {
+    const from: string | undefined = data?.from
+    const to: string | undefined = data?.to
+    const start = from ? new Date(`${from}T00:00:00.000Z`) : new Date(Date.now() - 24 * 3600 * 1000)
+    const end = to ? new Date(`${to}T00:00:00.000Z`) : new Date()
+    for (let t = start.getTime(); t <= end.getTime(); t += 24 * 3600 * 1000) {
+      dates.push(new Date(t).toISOString().slice(0, 10))
+    }
+  }
+
+  type RepairResult = {
+    staff_id: string
+    date: string
+    action: 'created' | 'skipped_existing_workday' | 'skipped_no_evidence' | 'skipped_low_confidence' | 'error'
+    workday_id?: string
+    started_at?: string
+    reason_codes?: string[]
+    error?: string
+  }
+  const results: RepairResult[] = []
+
+  for (const date of dates) {
+    const dayStart = `${date}T00:00:00.000Z`
+    const dayEnd = `${date}T23:59:59.999Z`
+
+    // Fetch LTE + time_reports for the day (optionally scoped to staff).
+    let lteQ = supabase
+      .from('location_time_entries')
+      .select('id, staff_id, entered_at, exited_at, source, location_id, booking_id, large_project_id, metadata')
+      .eq('organization_id', organizationId)
+      .eq('entry_date', date)
+    if (targetStaffId) lteQ = lteQ.eq('staff_id', targetStaffId)
+    const { data: ltes, error: lteErr } = await lteQ
+    if (lteErr) {
+      console.error('[auto_repair] LTE query failed:', lteErr)
+      continue
+    }
+
+    let trQ = supabase
+      .from('time_reports')
+      .select('id, staff_id, start_time, end_time, report_date, booking_id, large_project_id, location_id, is_subdivision')
+      .eq('organization_id', organizationId)
+      .eq('report_date', date)
+      .eq('is_subdivision', false)
+    if (targetStaffId) trQ = trQ.eq('staff_id', targetStaffId)
+    const { data: trs, error: trErr } = await trQ
+    if (trErr) {
+      console.error('[auto_repair] TR query failed:', trErr)
+      continue
+    }
+
+    // Group by staff_id
+    const byStaff = new Map<string, { ltes: any[]; trs: any[] }>()
+    for (const r of ltes ?? []) {
+      const k = r.staff_id
+      if (!byStaff.has(k)) byStaff.set(k, { ltes: [], trs: [] })
+      byStaff.get(k)!.ltes.push(r)
+    }
+    for (const r of trs ?? []) {
+      const k = r.staff_id
+      if (!byStaff.has(k)) byStaff.set(k, { ltes: [], trs: [] })
+      byStaff.get(k)!.trs.push(r)
+    }
+
+    for (const [staffId, ev] of byStaff) {
+      // Skip if workday already exists for this staff/day.
+      const { data: existingWd } = await supabase
+        .from('workdays')
+        .select('id')
+        .eq('staff_id', staffId)
+        .eq('organization_id', organizationId)
+        .gte('started_at', dayStart).lte('started_at', dayEnd)
+        .limit(1)
+      if (existingWd && existingWd.length > 0) {
+        results.push({ staff_id: staffId, date, action: 'skipped_existing_workday' })
+        continue
+      }
+
+      // Evidence evaluation
+      const reasonCodes = new Set<string>()
+      reasonCodes.add('timer_or_time_report_exists')
+
+      // gps_on_known_work_site:
+      //   - any LTE has a known target (location/booking/large_project) OR source='gps'
+      //   - any TR has a known target
+      const hasKnownTargetLte = ev.ltes.some(
+        (l) => !!(l.location_id || l.booking_id || l.large_project_id) || l.source === 'gps',
+      )
+      const hasKnownTargetTr = ev.trs.some((t) => !!(t.location_id || t.booking_id || t.large_project_id))
+      if (hasKnownTargetLte || hasKnownTargetTr) reasonCodes.add('gps_on_known_work_site')
+
+      // server_engine_confident: auto_started LTE with confidence medium/high
+      const hasConfidentAutoStart = ev.ltes.some((l) => {
+        const m = (l.metadata ?? {}) as any
+        const conf = m?.confidence ?? m?.auto_start?.confidence
+        const auto = m?.auto_started === true || m?.autoStarted === true
+        return auto && (conf === 'medium' || conf === 'high')
+      })
+      if (hasConfidentAutoStart) reasonCodes.add('server_engine_confident')
+
+      const highConfidence =
+        reasonCodes.has('timer_or_time_report_exists') &&
+        (reasonCodes.has('gps_on_known_work_site') || reasonCodes.has('server_engine_confident'))
+
+      if (!highConfidence) {
+        results.push({
+          staff_id: staffId,
+          date,
+          action: 'skipped_low_confidence',
+          reason_codes: Array.from(reasonCodes),
+        })
+        continue
+      }
+
+      // Earliest work-relevant start
+      const candidates: string[] = []
+      for (const l of ev.ltes) if (l.entered_at) candidates.push(l.entered_at)
+      for (const t of ev.trs) {
+        if (t.start_time && t.report_date) {
+          candidates.push(new Date(`${t.report_date}T${t.start_time}`).toISOString())
+        }
+      }
+      if (!candidates.length) {
+        results.push({ staff_id: staffId, date, action: 'skipped_no_evidence' })
+        continue
+      }
+      const startedAtIso = candidates.sort()[0]
+
+      if (dryRun) {
+        results.push({
+          staff_id: staffId,
+          date,
+          action: 'created',
+          started_at: startedAtIso,
+          reason_codes: Array.from(reasonCodes),
+        })
+        continue
+      }
+
+      // Insert workday — use ensureOpenWorkdayForTimer for consistency.
+      try {
+        const wd = await ensureOpenWorkdayForTimer(supabase, {
+          staff_id: staffId,
+          organization_id: organizationId,
+          start_at: startedAtIso,
+          source: 'auto_repair_from_timer_or_gps',
+          target: { kind: 'auto_repair', name: date },
+        })
+        if (!wd) {
+          results.push({ staff_id: staffId, date, action: 'error', error: 'ensure_workday_returned_null' })
+          continue
+        }
+        // Enrich metadata with high-confidence evidence summary.
+        await supabase
+          .from('workdays')
+          .update({
+            metadata: {
+              auto_started: true,
+              auto_start_source: 'auto_repair_from_timer_or_gps',
+              confidence: 'high',
+              reason_codes: Array.from(reasonCodes),
+              repaired_by: isCron ? 'cron' : 'admin',
+              admin_user_id: isCron ? null : callerUserId,
+              evidence_summary: {
+                lte_count: ev.ltes.length,
+                tr_count: ev.trs.length,
+                has_known_target_lte: hasKnownTargetLte,
+                has_known_target_tr: hasKnownTargetTr,
+                has_confident_auto_start: hasConfidentAutoStart,
+              },
+              guarantee: 'no_timer_without_workday',
+            },
+            review_status: 'needs_review',
+          })
+          .eq('id', wd.id)
+          .eq('organization_id', organizationId)
+        results.push({
+          staff_id: staffId,
+          date,
+          action: 'created',
+          workday_id: wd.id,
+          started_at: wd.started_at,
+          reason_codes: Array.from(reasonCodes),
+        })
+      } catch (e: any) {
+        console.error('[auto_repair] insert failed:', e)
+        results.push({ staff_id: staffId, date, action: 'error', error: e?.message || String(e) })
+      }
+    }
+  }
+
+  const summary = {
+    dates,
+    total: results.length,
+    created: results.filter(r => r.action === 'created').length,
+    skipped_existing: results.filter(r => r.action === 'skipped_existing_workday').length,
+    skipped_low_confidence: results.filter(r => r.action === 'skipped_low_confidence').length,
+    errors: results.filter(r => r.action === 'error').length,
+    dry_run: dryRun,
+  }
+  console.log('[auto_repair_missing_workdays_from_evidence] summary:', summary)
+  return new Response(JSON.stringify({ summary, results }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
