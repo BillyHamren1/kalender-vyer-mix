@@ -31,8 +31,10 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ActualDayPanel } from './ActualDayPanel';
 import { RawEvidenceDrawer } from './RawEvidenceDrawer';
+import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import {
   buildStaffDayTimelineFromRaw,
