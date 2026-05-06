@@ -408,6 +408,20 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       : blockDurationMin >= 30 ? 'strong_visit'
       : blockDurationMin >= 15 ? 'possible_visit'
       : 'short_stop';
+    // Adress är "känd" så snart vi har koordinater eller ett nearestKnownSite.
+    // I så fall är det INTE platsen som är okänd — det är vilket projekt
+    // platsen tillhör. Visa "Okänt projekt – sparas som övrigt" och ge
+    // hint om närmsta projekt (utan att binda timern till det).
+    const hasCoords = v.centre != null;
+    const nearest = (v as unknown as { nearestKnownSite?: { name: string; distanceMeters: number } | null }).nearestKnownSite ?? null;
+    const unknownSubtitle = presenceKind === 'unknown'
+      ? (hasCoords || nearest
+          ? (nearest
+              ? `Okänt projekt – sparas som övrigt · närmsta projekt: ${nearest.name} (${nearest.distanceMeters} m)`
+              : `Okänt projekt – sparas som övrigt`)
+          : 'Okänd plats — kräver granskning')
+      : null;
+
     blocks.push({
       kind: 'presence',
       presenceKind,
@@ -417,7 +431,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       durationMin: blockDurationMin,
       placeKey: v.key,
       title: v.label,
-      subtitle: presenceKind === 'unknown' ? 'Okänd plats — kräver granskning' : null,
+      subtitle: unknownSubtitle,
       isProject,
       strength,
       requiresReview: presenceKind === 'unknown',
@@ -437,6 +451,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       clippedFromIso,
       clippedReason,
     });
+
   }
 
   // 1b) FALLBACK: om inga actualVisits, använd presence-events från mainEvents
@@ -569,6 +584,23 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     // Förbud 5: from och to mappar till samma presenceBlock
     if (fromBlock === toBlock) continue;
     if (fromBlock.placeKey && toBlock.placeKey && fromBlock.placeKey === toBlock.placeKey) continue;
+    // Förbud 5b: from och to ligger inom ~80 m (samma adress, olika placeKey).
+    // Vanligt vid GPS-jitter mellan två okända kluster på samma plats.
+    {
+      const fromVisit = fromBlock.placeKey ? visitByKey.get(fromBlock.placeKey) : null;
+      const toVisit = toBlock.placeKey ? visitByKey.get(toBlock.placeKey) : null;
+      const fc = fromVisit?.centre ?? null;
+      const tc = toVisit?.centre ?? null;
+      if (fc && tc) {
+        const R = 6371000;
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(tc.lat - fc.lat);
+        const dLng = toRad(tc.lng - fc.lng);
+        const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(fc.lat)) * Math.cos(toRad(tc.lat)) * Math.sin(dLng / 2) ** 2;
+        const dist = 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+        if (dist <= 80) continue;
+      }
+    }
 
     const labelStr = typeof ev.label === 'string' ? ev.label : '';
     const stripped = labelStr.replace(/^(Förflyttning|Möjlig förflyttning[^:]*|Bakgrunds-GPS[^:]*):\s*/, '');
