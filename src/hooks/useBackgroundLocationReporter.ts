@@ -165,52 +165,41 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     // Reset inside tracking on new session
     insideRef.current.clear();
 
-    const handlePosition = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
-      // Always update latest position for consumers (travel detection etc.)
-      setLatestPosition({
-        lat: latitude,
-        lng: longitude,
-        accuracy,
-        speed,
-        timestamp: Date.now(),
-      });
+    let stopped = false;
+    let restartingNative = false;
+    let appliedDistanceFilter = -1;
 
-      // Cache for heartbeat
+    const onLocation = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
+      handlePosition(latitude, longitude, accuracy, speed);
+    };
+
+    const handlePosition = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
+      lastPingAtRef.current = Date.now();
+      setLatestPosition({ lat: latitude, lng: longitude, accuracy, speed, timestamp: Date.now() });
       lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
 
-      // Throttle API reports to every 30s
       const now = Date.now();
       if (now - lastReportRef.current < REPORT_THROTTLE_MS) {
-        // Still run geofence check even when throttled
         checkBackgroundGeofences(latitude, longitude);
         return;
       }
       lastReportRef.current = now;
 
-      // Skip enqueue if no staffId (token refresh / logged out) — but keep
-      // GPS watcher alive so we resume instantly when session returns.
       if (staffIdRef.current) {
-        enqueueLocationPoint({
-          latitude,
-          longitude,
-          accuracy,
-          speed,
-          source: 'background',
-        });
+        enqueueLocationPoint({ latitude, longitude, accuracy, speed, source: 'background' });
         void flushLocationQueue();
+        lastUploadAtRef.current = now;
       }
 
-      // Run geofence check (works without staffId — purely local)
       checkBackgroundGeofences(latitude, longitude);
     };
 
-    // Adaptive heartbeat: interval is recomputed every tick from the current
-    // LocationMode (see locationMode.ts). Far away → slow, near → fast.
     const sendHeartbeat = () => {
       const pos = lastKnownPosRef.current;
       const sid = staffIdRef.current;
+      const now = Date.now();
       if (pos && sid) {
-        lastReportRef.current = Date.now();
+        lastReportRef.current = now;
         enqueueLocationPoint({
           latitude: pos.lat,
           longitude: pos.lng,
@@ -219,25 +208,40 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           source: 'heartbeat',
         });
         void flushLocationQueue();
+        lastUploadAtRef.current = now;
       }
-      // Recompute mode + reschedule with the appropriate interval.
       rescheduleHeartbeat();
     };
 
     const rescheduleHeartbeat = () => {
       const decision = computeMode();
       currentHeartbeatMsRef.current = decision.heartbeatMs;
-      if (heartbeatTimerRef.current != null) {
-        clearTimeout(heartbeatTimerRef.current);
-      }
+      currentDistanceFilterRef.current = decision.distanceFilter;
+      if (heartbeatTimerRef.current != null) clearTimeout(heartbeatTimerRef.current);
       heartbeatTimerRef.current = window.setTimeout(sendHeartbeat, decision.heartbeatMs);
+
+      if (Capacitor.isNativePlatform()) {
+        maybeRestartNative(decision.distanceFilter);
+      }
+
+      const arrivals = loadPendingArrivals();
+      setDebug({
+        currentLocationMode: decision.mode,
+        selectedHeartbeatMs: decision.heartbeatMs,
+        selectedDistanceFilter: decision.distanceFilter,
+        nearestTargetDistanceMeters: decision.nearestTargetDistanceMeters,
+        hasActiveTimer: readHasActiveTimer(),
+        hasPendingArrival: arrivals.length > 0,
+        lastPingAt: lastPingAtRef.current,
+        lastUploadAt: lastUploadAtRef.current,
+        lastNativeRestartAt: lastNativeRestartRef.current || null,
+      });
     };
 
     const computeMode = (): LocationModeDecision => {
       const targets = loadGeofenceTargets();
       const pos = lastKnownPosRef.current;
       const arrivals = loadPendingArrivals();
-      const arrivalKeys = new Set(arrivals.map(a => a.key));
       const decoratedTargets = targets.map(t => ({
         key: t.key,
         lat: t.lat,
@@ -248,19 +252,76 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const decision = decideLocationMode({
         position: pos ? { lat: pos.lat, lng: pos.lng } : null,
         targets: decoratedTargets,
-        hasActiveTimer: false, // reporter doesn't own timer state — engine treats as 'unknown'; consumers can override later
+        // Read live timer state from the localStorage cache that
+        // useGeofencing keeps in sync — decoupled from React tree.
+        hasActiveTimer: readHasActiveTimer(),
         hasPendingArrival: arrivals.length > 0,
         insideKeys: insideRef.current,
         previousMode: currentModeRef.current,
       });
-      // Suppress lookup of arrivalKeys-only side; keep variable to satisfy noUnused
-      void arrivalKeys;
       logModeChange(currentModeRef.current, decision);
       currentModeRef.current = decision.mode;
       return decision;
     };
 
-    // Kick off first scheduling immediately
+    /**
+     * Restart the native tracker with a new distanceFilter when the mode
+     * change is significant enough to warrant the cost.
+     *   - never restart more than once per RESTART_MIN_INTERVAL_MS (60s)
+     *   - only restart if the filter delta ≥ RESTART_DISTANCE_DELTA (30m)
+     *   - never run two parallel start() calls
+     */
+    const maybeRestartNative = (nextFilter: number) => {
+      if (restartingNative) return;
+      if (appliedDistanceFilter < 0) return; // first start() not yet finished
+      const now = Date.now();
+      if (Math.abs(nextFilter - appliedDistanceFilter) < RESTART_DISTANCE_DELTA) return;
+      if (now - lastNativeRestartRef.current < RESTART_MIN_INTERVAL_MS) return;
+      restartingNative = true;
+      lastNativeRestartRef.current = now;
+      // eslint-disable-next-line no-console
+      console.info('[BGLocation] restart for distanceFilter change', {
+        from: appliedDistanceFilter, to: nextFilter,
+      });
+      BackgroundGeolocation.stop()
+        .catch(() => { /* ignore */ })
+        .then(() => startNative(nextFilter))
+        .finally(() => { restartingNative = false; });
+    };
+
+    const startNative = (distanceFilter: number) => {
+      appliedDistanceFilter = distanceFilter;
+      return BackgroundGeolocation.start(
+        {
+          backgroundMessage: 'EventFlow Time spårar din position',
+          backgroundTitle: 'EventFlow Time',
+          requestPermissions: true,
+          stale: false,
+          distanceFilter,
+        },
+        (location, error) => {
+          if (stopped) return;
+          if (error) {
+            if (error.code === 'NOT_AUTHORIZED') {
+              console.warn('[BGLocation] User denied location permission');
+            } else {
+              console.warn('[BGLocation] error:', error.code);
+            }
+            return;
+          }
+          if (location) {
+            onLocation(location.latitude, location.longitude, location.accuracy ?? null, location.speed ?? null);
+          }
+        },
+      ).then(() => {
+        // eslint-disable-next-line no-console
+        console.log(`[BGLocation] native tracking active (distanceFilter=${distanceFilter}m)`);
+      }).catch((err) => {
+        console.warn('[BGLocation] Failed to start:', err?.message || err);
+      });
+    };
+
+    // Kick off first scheduling immediately (this also seeds distanceFilter)
     rescheduleHeartbeat();
 
     const checkBackgroundGeofences = (lat: number, lng: number) => {
@@ -277,8 +338,6 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         const exitRadius = enterRadius + 50;
 
         if (dist <= enterRadius) {
-          // Per-target cooldown: if user recently dismissed this target,
-          // skip creating a new pending arrival until cooldown expires.
           const cooldownActive = isInDismissCooldown(target.key);
           if (!insideRef.current.has(target.key) && !arrivalKeys.has(target.key) && !cooldownActive) {
             insideRef.current.add(target.key);
@@ -317,66 +376,27 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         }
       }
 
-      if (changed) {
-        savePendingArrivals(arrivals);
-      }
+      if (changed) savePendingArrivals(arrivals);
       // Mode may have changed (entered/exited a target) — reschedule
       rescheduleHeartbeat();
     };
 
     if (Capacitor.isNativePlatform()) {
-      // Native: use @capgo/background-geolocation for true background tracking
-      let stopped = false;
-
-      BackgroundGeolocation.start(
-        {
-          backgroundMessage: 'EventFlow Time spårar din position',
-          backgroundTitle: 'EventFlow Time',
-          requestPermissions: true,
-          stale: false,
-          // Smaller distanceFilter = more pings even with small movement.
-          // Heartbeat handles the truly stationary case.
-          distanceFilter: 10,
-        },
-        (location, error) => {
-          if (stopped) return;
-          if (error) {
-            if (error.code === 'NOT_AUTHORIZED') {
-              console.warn('[BGLocation] User denied location permission');
-            } else {
-              console.warn('[BGLocation] error:', error.code);
-            }
-            return;
-          }
-          if (location) {
-            handlePosition(
-              location.latitude,
-              location.longitude,
-              location.accuracy ?? null,
-              location.speed ?? null,
-            );
-          }
-        },
-      ).then(() => {
-        console.log('[BGLocation] background tracking started (distanceFilter=10, heartbeat=60s)');
-      }).catch((err) => {
-        console.warn('[BGLocation] Failed to start:', err?.message || err);
-      });
+      const initialFilter = currentDistanceFilterRef.current || DEFAULT_DISTANCE_FILTER;
+      void startNative(initialFilter);
 
       // NOTE: No cleanup that stops BackgroundGeolocation. Once started, the
-      // tracker must live for the entire app lifetime. Stopping it would
-      // cause iOS to kill the background service permanently until the user
-      // manually re-opens the app — even with "Allow always" permission.
+      // tracker must live for the entire app lifetime. The mode-driven
+      // restart inside maybeRestartNative is the ONLY reason we ever call
+      // stop(), and it always immediately re-starts with new options.
       return () => {
-        // Intentionally empty: keep heartbeat + tracker running across
-        // staffId changes, token refreshes, and component unmounts.
+        // Intentionally empty.
       };
     } else {
-      // Web: use navigator.geolocation
       if (!navigator.geolocation) return;
 
       const onPosition = (pos: GeolocationPosition) => {
-        handlePosition(
+        onLocation(
           pos.coords.latitude,
           pos.coords.longitude,
           pos.coords.accuracy ?? null,
@@ -392,10 +412,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         timeout: 15000,
       });
 
-      // Same policy as native: keep watcher alive for app lifetime.
       return () => {};
     }
   }, [staffId]);
 
-  return { latestPosition };
+  return { latestPosition, debug };
 };
+
