@@ -150,6 +150,7 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
   }
 
   return (
+    <>
     <section className="rounded-2xl border border-border bg-card shadow-sm p-4 space-y-4">
       {/* Top row — workday + payable */}
       <div className="flex items-start justify-between gap-3">
