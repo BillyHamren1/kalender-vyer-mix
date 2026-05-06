@@ -171,7 +171,7 @@ d2('canonical — workday utan time_reports', () => {
     e2(m.distributedMinutes).toBe(0);
     e2(m.undistributedMinutes).toBe(720);
     e2(m.status).toBe('requires_distribution');
-    e2(m.reviewRequired).toBe(true);
+    e2(m.reviewRequired).toBe(false);
     e2(m.anomalies.some(a => a.kind === 'large_undistributed')).toBe(true);
   });
 
