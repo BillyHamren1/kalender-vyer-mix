@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Square, Building2, Loader2, LogOut, Play } from 'lucide-react';
+import { Square, Building2, Loader2, LogOut, Play, Pencil, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { ActiveTimer } from '@/hooks/useGeofencing';
 import { EndOfDayStopDialog, type EndOfDayResult } from './EndOfDayStopDialog';
 import { NextActionDialog } from './NextActionDialog';
@@ -20,7 +20,7 @@ import { extractUTCTime } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
 import { useActiveDayState, type ActiveDayOpenEntry } from '@/hooks/useActiveDayState';
 type ActiveDayOpenEntryLite = ActiveDayOpenEntry;
-import { AlertTriangle, RefreshCw, WifiOff } from 'lucide-react';
+import { AlertTriangle, WifiOff } from 'lucide-react';
 
 const TIMERS_KEY = 'eventflow-mobile-timers';
 const PENDING_STOP_KEY = 'eventflow-pending-stop';
