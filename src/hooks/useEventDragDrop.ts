@@ -20,6 +20,10 @@ export interface DraggedEventData {
   targetResourceId?: string;
   isSyntheticFallback?: boolean;
   largeProjectId?: string;
+  // For large-project tiles: every calendar_events.id that belongs to this
+  // (project, phase, date, team) group. Drag mutates the WHOLE group.
+  consolidatedEventIds?: string[];
+  consolidatedBookingIds?: string[];
 }
 
 export const DRAG_DATA_TYPE = 'application/x-calendar-event';
