@@ -368,7 +368,7 @@ export function useTimerStartFlow(
             }
           },
         });
-        return 'blocked';
+        return 'awaiting_distance_confirmation';
       }
       return performStart(target, opts);
     },
