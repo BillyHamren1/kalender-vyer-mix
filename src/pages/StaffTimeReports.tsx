@@ -609,7 +609,7 @@ const StaffTimeReports: React.FC = () => {
           .eq('is_active', true),
         supabase
           .from('bookings')
-          .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate, status')
+          .select('id, client, booking_number, large_project_id, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate, status')
           .not('delivery_latitude', 'is', null)
           .lte('rigdaydate', windowEnd)
           .gte('rigdowndate', windowStart)
