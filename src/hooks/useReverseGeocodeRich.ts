@@ -126,6 +126,30 @@ async function reverseGeocodeRich(lat: number, lng: number): Promise<RichGeocode
 
 const round = (n: number) => Math.round(n * 1000) / 1000;
 
+/**
+ * Dev/debug helper: kör reverse-geocode för en koordinat utan React Query.
+ * Bypass:ar cache så att det alltid ses som ett friskt anrop. Loggar i
+ * console för enkel diagnos och returnerar fullständig RichGeocode.
+ */
+export async function testReverseGeocode(lat: number, lng: number): Promise<RichGeocode> {
+  // eslint-disable-next-line no-console
+  console.groupCollapsed(`[testReverseGeocode] ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+  const out = await reverseGeocodeRich(lat, lng);
+  // eslint-disable-next-line no-console
+  console.log({
+    tokenAvailable: out.tokenAvailable,
+    source: out.source,
+    label: out.label,
+    unresolved: out.unresolved,
+    error: out.error,
+    mapsUrl: out.mapsUrl,
+    cacheKey: out.cacheKey,
+  });
+  // eslint-disable-next-line no-console
+  console.groupEnd();
+  return out;
+}
+
 export function useReverseGeocodeRich(
   coords: Array<{ lat: number; lng: number } | null | undefined>,
 ): Array<RichGeocode | null> {
