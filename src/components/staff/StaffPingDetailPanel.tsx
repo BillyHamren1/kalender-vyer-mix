@@ -32,11 +32,15 @@ export const StaffPingDetailPanel = ({ staffId, staffName, date, fromIso, toIso 
   // Single source of truth — same query key as the rest of the day's UI.
   const { data: allPings = [], isLoading, error } = useStaffPingsForDay(staffId, date, true);
 
+  const fromMs = fromIso ? new Date(fromIso).getTime() : NaN;
+  const toMs = toIso ? new Date(toIso).getTime() : NaN;
+  const hasFrom = Number.isFinite(fromMs);
+  const hasTo = Number.isFinite(toMs);
   const points = allPings.filter(p => {
-    if (!fromIso && !toIso) return true;
+    if (!hasFrom && !hasTo) return true;
     const t = new Date(p.recorded_at).getTime();
-    if (fromIso && t < new Date(fromIso).getTime()) return false;
-    if (toIso && t > new Date(toIso).getTime()) return false;
+    if (hasFrom && t < fromMs) return false;
+    if (hasTo && t > toMs) return false;
     return true;
   });
 

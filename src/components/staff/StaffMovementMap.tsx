@@ -62,14 +62,18 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
     };
   }, [staffId, date]);
 
-  // Optional time-window filter
+  // Optional time-window filter — invalid bounds are ignored (don't blank the map)
   const points = useMemo(() => {
-    if (!fromIso && !toIso) return allPoints;
-    const fromMs = fromIso ? new Date(fromIso).getTime() : -Infinity;
-    const toMs = toIso ? new Date(toIso).getTime() : Infinity;
+    const fromMs = fromIso ? new Date(fromIso).getTime() : NaN;
+    const toMs = toIso ? new Date(toIso).getTime() : NaN;
+    const hasFrom = Number.isFinite(fromMs);
+    const hasTo = Number.isFinite(toMs);
+    if (!hasFrom && !hasTo) return allPoints;
     return allPoints.filter(p => {
       const t = new Date(p.recorded_at).getTime();
-      return t >= fromMs && t <= toMs;
+      if (hasFrom && t < fromMs) return false;
+      if (hasTo && t > toMs) return false;
+      return true;
     });
   }, [allPoints, fromIso, toIso]);
 
