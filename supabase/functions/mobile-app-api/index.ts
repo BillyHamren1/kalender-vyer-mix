@@ -11470,7 +11470,7 @@ async function handleGetActiveDayState(supabase: any, staffId: string, organizat
       .is('ended_at', null)
       .order('started_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('location_time_entries')
-      .select('id, location_id, booking_id, large_project_id, entered_at, source')
+      .select('id, location_id, booking_id, large_project_id, entered_at, source, metadata')
       .eq('staff_id', staffId).eq('organization_id', organizationId)
       .gte('entry_date', dateFrom)
       .is('exited_at', null)
@@ -11489,11 +11489,39 @@ async function handleGetActiveDayState(supabase: any, staffId: string, organizat
       .eq('organization_id', organizationId).eq('is_active', true),
   ])
 
+  const ltes = (ltesRes.data || []) as any[]
+
+  // Resolve labels for booking/large_project targets in two batched queries.
+  const bookingIds = Array.from(new Set(ltes.map(e => e.booking_id).filter(Boolean).map(String)))
+  const projectIds = Array.from(new Set(ltes.map(e => e.large_project_id).filter(Boolean).map(String)))
+  const [bookingsRes, projectsRes] = await Promise.all([
+    bookingIds.length
+      ? supabase.from('bookings')
+          .select('id, booking_number, client, assigned_project_name')
+          .in('id', bookingIds)
+      : Promise.resolve({ data: [] as any[] }),
+    projectIds.length
+      ? supabase.from('large_projects')
+          .select('id, name')
+          .in('id', projectIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ])
+  const bookingMap = new Map<string, any>(((bookingsRes.data || []) as any[]).map((b: any) => [String(b.id), b]))
+  const projectMap = new Map<string, any>(((projectsRes.data || []) as any[]).map((p: any) => [String(p.id), p]))
+
   const locMap = new Map<string, string>(
     ((locationsRes.data || []) as any[]).map((l: any) => [String(l.id), l.name || 'Plats'])
   )
 
-  const open_entries = ((ltesRes.data || []) as any[]).map((e: any) => {
+  // Compute global ping age once so per-entry status can reuse it.
+  const ping = pingRes.data as any
+  const pingUpdatedAt: string | null = ping?.updated_at || null
+  const pingAgeMs: number | null = pingUpdatedAt
+    ? Math.max(0, Date.now() - new Date(pingUpdatedAt).getTime())
+    : null
+  const pingIsStale = pingAgeMs == null || pingAgeMs > STALE_PING_MS
+
+  const open_entries = ltes.map((e: any) => {
     let target_kind: 'location' | 'booking' | 'large_project' | 'unknown' = 'unknown'
     let target_id: string | null = null
     let target_label = 'Aktivitet'
@@ -11502,11 +11530,35 @@ async function handleGetActiveDayState(supabase: any, staffId: string, organizat
       target_label = locMap.get(target_id) || 'Plats'
     } else if (e.large_project_id) {
       target_kind = 'large_project'; target_id = String(e.large_project_id)
-      target_label = 'Projekt'
+      const p = projectMap.get(target_id)
+      target_label = p?.name || 'Projekt'
     } else if (e.booking_id) {
       target_kind = 'booking'; target_id = String(e.booking_id)
-      target_label = 'Uppdrag'
+      const b = bookingMap.get(target_id)
+      const num = b?.booking_number ? String(b.booking_number) : null
+      const name = b?.assigned_project_name || b?.client || null
+      target_label = [num, name].filter(Boolean).join(' · ') || 'Uppdrag'
     }
+
+    const md = (e.metadata && typeof e.metadata === 'object') ? e.metadata : {}
+    const auto_started = Boolean(md.auto_started ?? md.auto_start ?? false)
+    const auto_start_source = md.auto_start_source ?? md.geofence_source ?? null
+    const confidence = md.confidence ?? null
+
+    // Per-entry status — server has no direct geofence-distance check here, so
+    // we expose what we can derive and let the client refine. `active_signal_lost`
+    // wins when GPS hasn't pinged in >STALE_PING_MS; otherwise `active_unknown`
+    // (the client's geofencing layer reclassifies to on_site/left_site).
+    const status: 'active_on_site' | 'active_but_left_site' | 'active_signal_lost' | 'active_unknown' =
+      pingIsStale ? 'active_signal_lost' : 'active_unknown'
+
+    // Departure heuristics — currently not derived server-side. Surface the
+    // contract so clients can populate / display when a future engine fills it.
+    const last_known_arrival_at: string | null = e.entered_at || null
+    const last_known_departure_at: string | null = md.last_known_departure_at ?? null
+    const departure_detected: boolean = Boolean(md.departure_detected ?? false)
+    const suggested_stop_at: string | null = md.suggested_stop_at ?? last_known_departure_at ?? null
+
     return {
       id: e.id,
       target_kind,
@@ -11514,6 +11566,19 @@ async function handleGetActiveDayState(supabase: any, staffId: string, organizat
       target_label,
       entered_at: e.entered_at,
       source: e.source ?? null,
+      metadata: md,
+      auto_started,
+      auto_start_source,
+      confidence,
+      latest_ping_at: pingUpdatedAt,
+      latest_ping_age_ms: pingAgeMs,
+      stale_ping: pingIsStale,
+      last_known_arrival_at,
+      last_known_departure_at,
+      departure_detected,
+      suggested_stop_at,
+      status,
+      correction_actions: ['stop_now', 'stop_from_departure', 'change_target', 'mark_not_work'],
     }
   })
 
