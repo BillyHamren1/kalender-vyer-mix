@@ -269,17 +269,24 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         });
 
         if (realEventId) {
+          // PERSONALKALENDER-REGEL: vid datumflytt MÅSTE resource_id alltid
+          // sparas — team är dagsspecifikt, samma teamkolumn på ny dag är en
+          // ny dag-team-koppling. Vid teambyte samma dag räcker det att
+          // skicka nytt resource_id.
+          const dateChanged = newDateStr !== currentDateStr;
           const updatePayload: any = {
             start: newStartISO,
             end: newEndISO,
           };
           if (teamChanged) {
             updatePayload.resourceId = selectedResourceId;
+          } else if (dateChanged && event.resourceId) {
+            updatePayload.resourceId = event.resourceId;
           }
           try {
             const result = await updateCalendarEvent(realEventId, updatePayload);
             syncedSiblings = (result as any)?.syncedSiblings ?? 0;
-            trace('updateCalendarEvent OK', { realEventId, updatePayload });
+            trace('updateCalendarEvent OK', { realEventId, updatePayload, dateChanged, teamChanged });
           } catch (err) {
             traceError('updateCalendarEvent FAILED', err);
             throw new Error(`Steg "Uppdatera kalenderhändelse" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
