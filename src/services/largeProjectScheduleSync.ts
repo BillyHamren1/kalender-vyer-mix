@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { updateBookingDatesViaApi } from "@/services/planningApiService";
 
 export type DateType = 'rig' | 'event' | 'rigDown';
 
