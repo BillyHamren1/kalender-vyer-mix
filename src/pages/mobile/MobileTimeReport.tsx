@@ -19,7 +19,8 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
 import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
 import MobileDayCard from '@/components/mobile-app/MobileDayCard';
-import { buildMobileDayCardModel } from '@/lib/mobile/dayCardModel';
+import { buildMobileDayCardModel, buildDayCardModelFromSnapshot } from '@/lib/mobile/dayCardModel';
+import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
@@ -44,6 +45,8 @@ const MobileTimeReport = () => {
 
   const { activeTimers, stopSession, geo, dialogs } = useWorkSession(bookings, staff?.id);
   const { orgLocations, startTimer } = geo;
+  // Server snapshot is authority for today's totals + active state.
+  const { snapshot: todaySnapshot } = useStaffDaySnapshot();
 
   const fetchReports = async () => {
     try {
@@ -248,14 +251,12 @@ const MobileTimeReport = () => {
       <MobileHeroHeader eyebrow={t('time.eyebrow')} title={t('time.title2')} subtitle={t('time.subtitle2')} />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
-        {/* Day status — primary view: workday + current activity + actions */}
-        <DayStatusPanel
-          todayReports={timeReports.filter(r => r.report_date === format(new Date(), 'yyyy-MM-dd'))}
-          onChanged={fetchReports}
-        />
+        {/* Day status — primary view: workday + current activity + actions (server snapshot) */}
+        <DayStatusPanel onChanged={fetchReports} />
 
-        {/* Active timers (legacy multi-timer list — kept for parallel timers) */}
-        {activeTimers.size > 0 && (
+        {/* Active timers (legacy multi-timer list). Server snapshot is authority:
+            hide if backend says no activity is active. */}
+        {todaySnapshot?.active && activeTimers.size > 0 && (
           <div className="space-y-3">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">{t('time.activeTimers')}</h2>
             {Array.from(activeTimers.entries()).map(([key, timer]) => (
@@ -458,24 +459,25 @@ const MobileTimeReport = () => {
                 ? t('time.today')
                 : format(parseISO(date), 'd MMM yyyy');
 
-              // Workday-first day card — visar arbetsdag/fördelat/ej fördelat
-              // och status. För idag visar DayStatusPanel redan live-vyn,
-              // så vi hoppar över kortet här för att inte dubbla.
+              // For today, prefer the server snapshot as source of truth.
+              // For past days we still build locally from time_reports/travel/workdays.
               const wd = workdayByDate[date] || null;
-              const dayModel = buildMobileDayCardModel({
-                date,
-                workday: wd
-                  ? {
-                      id: wd.id,
-                      started_at: wd.started_at,
-                      ended_at: wd.ended_at,
-                      review_status: wd.review_status,
-                    }
-                  : null,
-                reports,
-                travelLogs: travelLogsByDate[date] ?? [],
-                hasActiveTimer: isToday && activeTimers.size > 0,
-              });
+              const dayModel = (isToday && todaySnapshot)
+                ? buildDayCardModelFromSnapshot(todaySnapshot)
+                : buildMobileDayCardModel({
+                    date,
+                    workday: wd
+                      ? {
+                          id: wd.id,
+                          started_at: wd.started_at,
+                          ended_at: wd.ended_at,
+                          review_status: wd.review_status,
+                        }
+                      : null,
+                    reports,
+                    travelLogs: travelLogsByDate[date] ?? [],
+                    hasActiveTimer: isToday && activeTimers.size > 0,
+                  });
 
               return (
                 <div key={date} className="space-y-2">
