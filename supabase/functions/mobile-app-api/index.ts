@@ -2457,6 +2457,19 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
     }
   }
 
+  // Workday-first guarantee: a time_report can never exist without a
+  // workday for the same staff. Anchor the workday at report_date+start_time.
+  try {
+    const startedAtIso = new Date(`${report_date}T${start_time}:00`).toISOString()
+    await ensureOpenWorkday(supabase, staffId, organizationId, startedAtIso)
+  } catch (wdErr: any) {
+    console.error('[create_time_report] workday-first failed, aborting:', wdErr)
+    return new Response(
+      JSON.stringify({ error: 'workday_first_failed', detail: wdErr?.message || String(wdErr) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
   // Create time report — use server-calculated hours
   const { data: report, error } = await supabase
     .from('time_reports')
