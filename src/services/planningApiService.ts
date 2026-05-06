@@ -160,7 +160,7 @@ export const updateDeliveryViaApi = (bookingId: string, data: {
  * Update internal notes via the Booking system.
  */
 export const updateInternalNotesViaApi = (bookingId: string, notes: string) =>
-  callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data: { internalnotes: notes } });
+  callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data: { internalnotes: notes } });
 
 /**
  * Update booking status via the Booking system.
