@@ -12,13 +12,32 @@ interface EventHoverCardProps {
   disabled?: boolean;
 }
 
-/**
- * STABILIZATION: Wrapped in React.memo to prevent re-renders when
- * parent re-renders but event data hasn't changed.
- */
+/** Suppress hover-cards while any modal dialog is open. */
+function useAnyDialogOpen() {
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const check = () => {
+      const found = document.querySelector(
+        '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'
+      );
+      setOpen(!!found);
+    };
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.body, {
+      subtree: true, childList: true, attributes: true, attributeFilter: ['data-state'],
+    });
+    return () => obs.disconnect();
+  }, []);
+  return open;
+}
+
 const EventHoverCard: React.FC<EventHoverCardProps> = ({
   children, event, onClick = undefined, onDoubleClick = undefined, disabled = false
 }) => {
+  const dialogOpen = useAnyDialogOpen();
+  const effectiveDisabled = disabled || dialogOpen;
   const products = event.extendedProps?.products || [];
   const deliveryAddress = event.extendedProps?.deliveryAddress;
   const internalNotes = event.extendedProps?.internalNotes;
@@ -36,7 +55,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({
     .join(', ');
 
   return (
-    <HoverCard openDelay={800} closeDelay={100} open={disabled ? false : undefined}>
+    <HoverCard openDelay={800} closeDelay={100} open={effectiveDisabled ? false : undefined}>
       <HoverCardTrigger asChild>
         {onClick || onDoubleClick ? (
           <div 
