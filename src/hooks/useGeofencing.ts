@@ -660,10 +660,18 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     }
   }, [staffId, bookings]);
 
-  // Single consolidated GPS watcher
+  // Single consolidated GPS watcher.
+  // NATIVE GUARD: on iOS/Android the @capgo/background-geolocation engine
+  // owned by useBackgroundLocationReporter is the SOLE GPS source — do not
+  // start a second navigator.geolocation.watchPosition here (would burn
+  // battery and create racey state). Web/PWA still uses the foreground watcher.
   useEffect(() => {
     const settings = getGpsSettings();
     if (!settings.enabled || !navigator.geolocation) return;
+    if (Capacitor.isNativePlatform()) {
+      setIsTracking(true); // background reporter is the source of truth
+      return;
+    }
 
     setIsTracking(true);
 
