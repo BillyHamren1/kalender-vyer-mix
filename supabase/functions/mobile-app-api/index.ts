@@ -215,7 +215,81 @@ async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Pro
   return data?.id
 }
 
-async function handleRequest(req: Request, rotationSlot: { token: string | null }): Promise<Response> {
+/**
+ * ensureOpenWorkday — workday-first guarantee for ALL server-side flows
+ * that create activity rows (location_time_entries / time_reports / GPS
+ * auto-entries / accept_unplanned_site_visit).
+ *
+ * Rule: aktiv timer/time_report får ALDRIG existera utan workday.
+ *  - If an open workday exists for (staff, org) → return it.
+ *  - Otherwise insert a new workdays row with started_at = startedAtIso.
+ *  - If insert fails → throw, so the caller aborts BEFORE creating the
+ *    activity row.
+ *
+ * Skipped (returns null) when staffId is not a real staff_members row
+ * (web-JWT planner fallback / admin paths) so admin tooling keeps working.
+ */
+async function ensureOpenWorkday(
+  supabase: any,
+  staffId: string | undefined,
+  organizationId: string,
+  startedAtIso?: string,
+): Promise<{ id: string; started_at: string } | null> {
+  if (!staffId || !organizationId) return null
+
+  // Guard: only run for real staff rows.
+  const { data: staffRow } = await supabase
+    .from('staff_members')
+    .select('id')
+    .eq('id', staffId)
+    .maybeSingle()
+  if (!staffRow) return null
+
+  // Existing open workday?
+  const { data: openRows, error: openErr } = await supabase
+    .from('workdays')
+    .select('id, started_at, ended_at')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('ended_at', null)
+    .order('started_at', { ascending: false })
+    .limit(1)
+  if (openErr) {
+    console.warn('[ensureOpenWorkday] lookup failed:', openErr)
+  }
+  if (openRows && openRows.length > 0) {
+    return { id: openRows[0].id, started_at: openRows[0].started_at }
+  }
+
+  const startedAt =
+    startedAtIso && !isNaN(new Date(startedAtIso).getTime())
+      ? new Date(startedAtIso).toISOString()
+      : new Date().toISOString()
+
+  const { data: ins, error: insErr } = await supabase
+    .from('workdays')
+    .insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      started_at: startedAt,
+      started_by: 'server_workday_first',
+      notes: 'Auto-skapad av server (workday-first guarantee)',
+      metadata: {
+        auto_started: true,
+        auto_start_source: 'ensure_open_workday',
+        guarantee: 'no_timer_without_workday',
+      },
+    })
+    .select('id, started_at')
+    .single()
+  if (insErr) {
+    console.error('[ensureOpenWorkday] insert failed:', insErr)
+    throw new Error(`workday_first_failed: ${insErr.message}`)
+  }
+  console.log(`[ensureOpenWorkday] auto-started workday ${ins.id} for staff=${staffId} at ${ins.started_at}`)
+  return ins
+}
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
