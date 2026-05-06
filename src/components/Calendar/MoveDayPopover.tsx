@@ -148,6 +148,7 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
     setBusy(true);
     let prevSnapshot: CalendarEvent[] | null = null;
     try {
+      const phase = event.eventType;
       if (setEvents) {
         setEvents((prev) => {
           prevSnapshot = prev;
@@ -156,8 +157,9 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
               Boolean((ev.extendedProps as any)?.largeProjectId) &&
               (ev.extendedProps as any)?.largeProjectId === (event.extendedProps as any)?.largeProjectId;
             const sameBookingSeries = ev.bookingId === event.bookingId;
+            const samePhase = !phase || ev.eventType === phase;
 
-            if (sameLargeProject || sameBookingSeries) {
+            if ((sameLargeProject || sameBookingSeries) && samePhase) {
               return { ...ev, resourceId: newTeamId };
             }
             return ev;
@@ -180,11 +182,15 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
         bookingIds = (siblings || []).map((s) => s.id);
       }
 
-      const { data: events } = await supabase
+      // Filtrera på samma fas — användaren flyttar bara aktuell fas
+      // (rig/event/rigDown), inte hela projektets serie.
+      let query = supabase
         .from('calendar_events')
         .select('id, booking_id, source_date, start_time')
         .in('booking_id', bookingIds)
         .neq('event_type', 'activity');
+      if (phase) query = query.eq('event_type', phase);
+      const { data: events } = await query;
 
       const targetIds = (events || []).map((e) => e.id);
       if (targetIds.length === 0) {
@@ -197,6 +203,18 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
         .update({ resource_id: newTeamId })
         .in('id', targetIds);
       if (error) throw error;
+
+      if (import.meta.env.DEV) {
+        console.info('[calendar-team-change] series move', {
+          bookingId: event.bookingId,
+          largeProjectId: (event.extendedProps as any)?.largeProjectId,
+          phase,
+          oldTeamId: event.resourceId,
+          newTeamId,
+          updatedEventIds: targetIds,
+          ranRecompute: true,
+        });
+      }
 
       const seen = new Set<string>();
       for (const ev of events || []) {
