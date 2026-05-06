@@ -1038,6 +1038,17 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           resetExitTracker(getExitTracker(projectKey));
         }
 
+        // PRESENCE-EXIT CLEANUP (no timer): städa triggeredEnterRef när vi
+        // stabilt lämnat platsen, så att ett återbesök samma session kan
+        // trigga auto-arrival/auto-switch igen.
+        if (dist > exitRadius && !hasTimer && triggeredEnterRef.current.has(projectKey)) {
+          const ev = evaluateExit(projectKey, dist);
+          if (ev.status === 'stable' || ev.status === 'stale_autostop') {
+            triggeredEnterRef.current.delete(projectKey);
+            resetExitTracker(getExitTracker(projectKey));
+          }
+        }
+
         // EXIT while timer is running → STABLE-EXIT GATE (2026-05).
         // En enskild outside-ping stoppar inte timern. Vi kräver
         // ≥3 konsekutiva outside-pings över ≥2 min med ok accuracy.
