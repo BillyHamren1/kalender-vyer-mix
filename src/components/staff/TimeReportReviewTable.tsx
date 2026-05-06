@@ -262,9 +262,9 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                 <Car className="h-3 w-3" /> Föreslagen restid {formatHoursMinutes(suggestedTravelHours)}
               </Badge>
             )}
-            {canonical && canonical.anomalies.length > 0 && (
-              <Badge variant="outline" className="text-[11px] gap-1 border-destructive/40 text-destructive" title={canonical.anomalies.map(a => `${a.label}: ${a.detail}`).join('\n')}>
-                <AlertTriangle className="h-3 w-3" /> {canonical.anomalies.length} avvikelse{canonical.anomalies.length === 1 ? '' : 'r'}
+            {canonical && canonical.anomalies.filter(a => a.severity !== 'info').length > 0 && (
+              <Badge variant="outline" className="text-[11px] gap-1 border-destructive/40 text-destructive" title={canonical.anomalies.filter(a => a.severity !== 'info').map(a => `${a.label}: ${a.detail}`).join('\n')}>
+                <AlertTriangle className="h-3 w-3" /> {canonical.anomalies.filter(a => a.severity !== 'info').length} avvikelse{canonical.anomalies.filter(a => a.severity !== 'info').length === 1 ? '' : 'r'}
               </Badge>
             )}
             {summary.gapMinutes > 0 && (
