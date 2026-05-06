@@ -152,12 +152,68 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
         }
 
         if (teamChanged && selectedResourceId) {
+          // PRIMARY: mirror to calendar_events.resource_id — this is what the
+          // planner uses for team placement. Without this, the LP tile snaps
+          // back to old team on refresh.
+          const consolidatedEventIds: string[] = Array.isArray(event.extendedProps?.consolidatedEventIds)
+            ? event.extendedProps!.consolidatedEventIds.filter(Boolean) : [];
+          const consolidatedBookingIds: string[] = Array.isArray(event.extendedProps?.consolidatedBookingIds)
+            ? event.extendedProps!.consolidatedBookingIds.filter(Boolean) : [];
+
+          let updatedIds: string[] = [];
+          try {
+            if (consolidatedEventIds.length > 0) {
+              const { error: ceErr } = await supabase
+                .from('calendar_events')
+                .update({ resource_id: selectedResourceId })
+                .in('id', consolidatedEventIds);
+              if (ceErr) throw ceErr;
+              updatedIds = consolidatedEventIds;
+            } else if (consolidatedBookingIds.length > 0) {
+              // Fallback lookup via (booking_ids, phase, source_date=newDateStr)
+              const { data: rows, error: lookupErr } = await supabase
+                .from('calendar_events')
+                .select('id')
+                .in('booking_id', consolidatedBookingIds)
+                .eq('event_type', phase)
+                .eq('source_date', newDateStr);
+              if (lookupErr) throw lookupErr;
+              updatedIds = (rows || []).map(r => r.id);
+              if (updatedIds.length > 0) {
+                const { error: upErr } = await supabase
+                  .from('calendar_events')
+                  .update({ resource_id: selectedResourceId })
+                  .in('id', updatedIds);
+                if (upErr) throw upErr;
+              }
+            }
+            trace('calendar_events.resource_id mirror OK', { team: selectedResourceId, updatedIds });
+          } catch (err) {
+            traceError('calendar_events.resource_id mirror FAILED', err);
+            throw new Error(`Steg "Spegla team till calendar_events" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
+          }
+
+          // SECONDARY: also persist via large_project_team_assignments for
+          // bakåtkompatibilitet/staff-stöd. Not authoritative for placement.
           try {
             await setLargeProjectDayTeam(largeProjectId, phase, newDateStr, selectedResourceId);
-            trace('setLargeProjectDayTeam OK', { team: selectedResourceId });
+            trace('setLargeProjectDayTeam OK (secondary mirror)', { team: selectedResourceId });
           } catch (err) {
-            traceError('setLargeProjectDayTeam FAILED', err);
-            throw new Error(`Steg "Spara team för projektdag" misslyckades: ${err instanceof Error ? err.message : String(err)}`);
+            console.warn('[MoveEventDateDialog] setLargeProjectDayTeam (secondary) failed (continuing):', err);
+          }
+
+          if (import.meta.env.DEV) {
+            console.info('[calendar-team-change] large project (dialog)', {
+              eventId: event.id,
+              largeProjectId,
+              phase,
+              sourceDate: currentDateStr,
+              targetDate: newDateStr,
+              oldTeamId: event.resourceId,
+              newTeamId: selectedResourceId,
+              updatedEventIds: updatedIds,
+              ranRecompute: false,
+            });
           }
         }
 
