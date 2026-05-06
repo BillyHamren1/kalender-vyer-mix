@@ -245,9 +245,22 @@ export const buildPlannerCalendarEvents = ({
   let nonProjectSkippedNonStaffable = 0;
   for (const row of sortedRealEvents) {
     const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
-    const projectId = booking?.large_project_id || (row.booking_id ? bookingToProject.get(row.booking_id) : undefined);
+    // Master: large_project_bookings; fallback: bookings.large_project_id
+    const projectId = (row.booking_id ? bookingToProject.get(row.booking_id) : undefined) || booking?.large_project_id;
     const phase = normalizePhase(row.event_type);
     const sourceDate = extractDate(row.source_date || row.start_time);
+
+    if (import.meta.env?.DEV) {
+      const titleHay = `${row.booking_number || ''} ${(booking as any)?.client || ''}`.toLowerCase();
+      if (titleHay.includes('game fair') && !projectId) {
+        console.warn('[large-project-split-warning]', {
+          booking_id: row.booking_id,
+          booking_number: row.booking_number,
+          client: (booking as any)?.client,
+          reason: 'calendar row was not resolved through large_project_bookings',
+        });
+      }
+    }
 
     if (projectId && phase && sourceDate) {
       // Hide the event-day phase from the planner (legacy rule).

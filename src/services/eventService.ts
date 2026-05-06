@@ -222,14 +222,22 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   const combinedLargeProjects = [...(projectsData || []), ...extraProjects];
 
   if (import.meta.env?.DEV) {
-    console.log('🔎 [fetchCalendarEvents] large project resolution:', {
+    const lpRows = largeProjectBookingsData || [];
+    const lpBookingIdSet = new Set(lpRows.map(r => r.booking_id));
+    // booking_ids that exist in large_project_bookings BUT where bookings.large_project_id is null/missing
+    const fallbackOnlyExamples = (bookingsData || [])
+      .filter(b => lpBookingIdSet.has(b.id) && !b.large_project_id)
+      .slice(0, 5)
+      .map(b => ({ id: b.id, booking_number: b.booking_number, client: b.client }));
+
+    console.info('[large-project-membership-fetch]', {
       realBookingIds: realBookingIds.length,
-      bookingIds: bookingIds.length,
-      allRelevantBookingIds: allRelevantBookingIds.length,
-      largeProjectBookingsRows: (largeProjectBookingsData || []).length,
-      largeProjectIdsFromMembership: largeProjectIdsFromMembership.length,
+      bookingRows: (bookingsData || []).length,
+      largeProjectBookings: lpRows.length,
+      largeProjectIdsFound: largeProjectIdsFromMembership.length,
       relevantProjectIdsFromBookings: relevantProjectIdsFromBookings.length,
       combinedLargeProjects: combinedLargeProjects.length,
+      lpMembershipWithoutBookingFlag: fallbackOnlyExamples,
     });
   }
 
