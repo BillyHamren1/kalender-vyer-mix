@@ -17,6 +17,7 @@ import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
+import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
