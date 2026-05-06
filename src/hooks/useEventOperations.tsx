@@ -75,11 +75,24 @@ export const useEventOperations = ({
 
       let updated: any = null;
 
-      if (largeProjectId && teamChanged && consolidatedEventIds.length > 0) {
-        // Update the WHOLE consolidated (project, phase, date, team) group.
-        const updatePatch: any = { resource_id: info.newResource.id };
+      // Effective resource for the move: new column if team changed,
+      // otherwise the existing column. Personal calendar rule: team is
+      // day-specific, so resource_id MUST be re-persisted on any date move.
+      const effectiveResourceId: string | undefined =
+        info.newResource?.id
+          || (typeof info.event.getResources === 'function' ? info.event.getResources()[0]?.id : undefined)
+          || (info.event.extendedProps as any)?.resourceId;
+
+      // Large-project tile = consolidated (project, phase, date, team) group.
+      // Mutate the WHOLE group on any team OR date change.
+      const lpGroupMove = !!largeProjectId && (teamChanged || dateChanged);
+
+      if (lpGroupMove && consolidatedEventIds.length > 0) {
+        const updatePatch: any = {};
+        if (effectiveResourceId) updatePatch.resource_id = effectiveResourceId;
         if (eventData.start) updatePatch.start_time = eventData.start;
         if (eventData.end) updatePatch.end_time = eventData.end;
+        if (dateChanged && newDate) updatePatch.source_date = newDate;
         const { error: updErr } = await supabase
           .from('calendar_events')
           .update(updatePatch)
@@ -94,15 +107,22 @@ export const useEventOperations = ({
             sourceDate: oldDate,
             targetDate: newDate,
             oldTeamId: info.oldResource?.id,
-            newTeamId: info.newResource.id,
+            newTeamId: effectiveResourceId,
             updatedEventIds: consolidatedEventIds,
+            dateChanged,
+            teamChanged,
             ranRecompute: true,
           });
         }
       } else {
-        // Persist to DB (FullCalendar already shows the new position optimistically)
+        // PERSONALKALENDER-REGEL: vid datumflytt MÅSTE resource_id alltid
+        // sparas tillsammans med start/end, även om FullCalendar inte ser
+        // teamet som "ändrat" (samma kolumn på ny dag = nytt dagsteam).
+        if (dateChanged && effectiveResourceId && !eventData.resourceId) {
+          eventData.resourceId = effectiveResourceId;
+        }
         updated = await updateCalendarEvent(info.event.id, eventData);
-        if (import.meta.env.DEV && teamChanged) {
+        if (import.meta.env.DEV && (teamChanged || dateChanged)) {
           console.info('[calendar-team-change] normal booking', {
             eventId: info.event.id,
             bookingId: (updated as any)?.bookingId,
@@ -111,8 +131,10 @@ export const useEventOperations = ({
             sourceDate: oldDate,
             targetDate: newDate,
             oldTeamId: info.oldResource?.id,
-            newTeamId: info.newResource.id,
+            newTeamId: effectiveResourceId,
             updatedEventIds: [info.event.id],
+            dateChanged,
+            teamChanged,
             ranRecompute: true,
           });
         }
