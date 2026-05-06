@@ -5342,13 +5342,22 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         .maybeSingle()
 
       if (isInside && !openEntry) {
-        // Arrived — create GPS entry
+        // Arrived — create GPS entry. Workday-first: ensure an open workday
+        // exists with the same start ts. If that fails we DO NOT create the
+        // GPS entry — no timer without workday.
+        const enteredAtIso = new Date().toISOString()
+        try {
+          await ensureOpenWorkday(supabase, staffId, organizationId, enteredAtIso)
+        } catch (wdErr) {
+          console.error('[geofence] workday-first failed, skipping GPS entry:', wdErr)
+          continue
+        }
         await supabase.from('location_time_entries').insert({
           organization_id: organizationId,
           staff_id: staffId,
           location_id: loc.id,
-          entry_date: new Date().toISOString().split('T')[0],
-          entered_at: new Date().toISOString(),
+          entry_date: enteredAtIso.split('T')[0],
+          entered_at: enteredAtIso,
           source: 'gps',
         })
         atLocation = { id: loc.id, name: loc.name }
