@@ -177,15 +177,8 @@ export const HeaderStartEndDayButton: React.FC = () => {
     setStartingDay(true);
     try {
       if (selection.kind === 'target') {
-        // WORKDAY-FIRST: säkerställ att dagtimern faktiskt startas innan vi
-        // delegerar till requestStart. requestStart kan returnera
-        // 'duplicate' (om en activity-timer redan finns lokalt) och då
-        // körs aldrig performStart → ingen workday skapas.
-        const wd = await ensureActive();
-        if (!wd) {
-          toast.error('Kunde inte starta arbetspasset. Försök igen.');
-          return;
-        }
+        // requestStart() ansvarar ensamt för ensureWorkDayActive +
+        // konflikt/distance/startSession. Ingen separat ensureActive() här.
         const result = await requestStart(selection.target, { label: selection.label });
         if (result === 'started' || result === 'already_running') {
           toast.success(`Arbetspass startat på ${selection.label}`);
@@ -194,6 +187,8 @@ export const HeaderStartEndDayButton: React.FC = () => {
           // Globala TimerConflictDialog tar över; stäng vår dialog.
           setDialogOpen(false);
         }
+        return;
+      }
         return;
       }
 
