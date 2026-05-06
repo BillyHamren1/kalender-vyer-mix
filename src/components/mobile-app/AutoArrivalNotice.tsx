@@ -112,16 +112,21 @@ export const AutoArrivalNotice: React.FC = () => {
             <div className="flex-1 text-sm">
               <p className="font-medium">
                 {notice.workdayOnly
-                  ? `Arbetsdag startad ${arrivalHHmm} från ${notice.label}`
-                  : `Arbetsdag och timer startades ${arrivalHHmm} från ${notice.label}`}
+                  ? `Arbetsdag igång sedan ${arrivalHHmm} — fördela tiden på projekt eller plats`
+                  : `Tid registreras nu på ${notice.label}`}
               </p>
+              {!notice.workdayOnly && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Arbetsdag igång sedan {arrivalHHmm}
+                </p>
+              )}
               {notice.isPlannedToday === false && (
                 <span className="mt-1 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-                  Oplanerad aktivitet – auto-startad från GPS
+                  Oplanerad fördelning – satt automatiskt från GPS
                 </span>
               )}
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Auto-startat från GPS. Korrigera om något är fel.
+                Korrigera om något är fel — arbetsdagen påverkas inte.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={openCorrection}>Korrigera</Button>

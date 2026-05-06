@@ -41,6 +41,7 @@
  * timerStopApi.contract.test.ts).
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { PendingArrival, clearPendingArrivals } from '@/hooks/useBackgroundLocationReporter';
 import { enqueueTimerStart, removeFromQueue, isTimerPendingSync } from '@/services/timerSyncQueue';
@@ -1114,6 +1115,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
                 stop_reason: stopReason,
               },
             }));
+            // Subtil feedback — UI ska INTE upplevas som "timer stoppad",
+            // utan som att fördelningen ändrats. Arbetsdagen rörs inte.
+            const nextLabel = exitDecision === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
+            toast.message(`Tid registreras inte längre på ${lpName ?? 'projektet'} → ${nextLabel}`);
           }
         }
       } else {
@@ -1234,6 +1239,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
                 stop_reason: stopReason,
               },
             }));
+            const nextLabel = exitDecision === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
+            toast.message(`Tid registreras inte längre på ${booking.client ?? 'bokningen'} → ${nextLabel}`);
           }
         }
       }
@@ -1393,6 +1400,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
               stop_reason: stopReason,
             },
           }));
+          const nextLabel = exitDecision === 'auto_start_travel' ? 'Resa' : 'Ej fördelat';
+          toast.message(`Tid registreras inte längre på ${loc.name ?? 'platsen'} → ${nextLabel}`);
         }
       }
     }
