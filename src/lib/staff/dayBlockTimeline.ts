@@ -806,7 +806,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const visit = expectedKey ? visitByKey.get(expectedKey) : undefined;
     const knownSiteId = visit?.knownSiteId ?? null;
     const isKnownSite = !!knownSiteId
-      || !!(expectedKey && (expectedKey.startsWith('booking:') || expectedKey.startsWith('large:') || expectedKey.startsWith('site:') || expectedKey.startsWith('location:')));
+      || !!(expectedKey && (expectedKey.startsWith('booking:') || expectedKey.startsWith('large:') || expectedKey.startsWith('site:') || expectedKey.startsWith('location:') || expectedKey.startsWith('loc:') || expectedKey.startsWith('warehouse:')));
     const isProject = !!knownSiteId
       && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
 
