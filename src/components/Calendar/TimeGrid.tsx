@@ -219,6 +219,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
           {resources.map((resource, index) => {
             const assignedStaff = getAssignedStaffForTeam(resource.id);
+            const colWidth = teamColumnWidths[index];
+            const wide = assignedStaff.length > 5;
             return (
               <div
                 key={`staff-${resource.id}`}
@@ -226,13 +228,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 style={{
                   gridColumn: index + 2,
                   gridRow: 3,
-                  width: fullWidth ? 'auto' : `${TEAM_COLUMN_WIDTH}px`,
-                  minWidth: fullWidth ? 0 : `${TEAM_COLUMN_WIDTH}px`,
+                  width: fullWidth ? 'auto' : `${colWidth}px`,
+                  minWidth: fullWidth ? 0 : `${colWidth}px`,
                   minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
                 }}
               >
                 <div className="staff-header-assignment-area">
-                  <div className="assigned-staff-header-list">
+                  <div className={`assigned-staff-header-list${wide ? ' assigned-staff-header-list--wide' : ''}`}>
                     {assignedStaff.map((staff) => (
                       <StaffItem
                         key={staff.id}
