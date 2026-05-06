@@ -311,6 +311,12 @@ export interface NearestKnownSiteDebug {
   distanceMeters: number;
   /** Hur många meter UTANFÖR siten klustercentret ligger (negativt = inuti). */
   outsideByMeters: number;
+  /** True om visit-datum ligger inom autologin-fönstret (rig-2d → rigdown+2d). */
+  autoLoginEligible?: boolean;
+  /** 0 om inom fönstret, annars antal dagar utanför närmaste fönsterkant. */
+  daysFromActiveWindow?: number;
+  /** "Rig 18/5 – Rigdown 31/5" eller motsvarande. */
+  activeWindowLabel?: string | null;
 }
 
 export interface ActualVisit {
@@ -327,6 +333,11 @@ export interface ActualVisit {
   avgAccuracy: number | null;
   /** Endast satt för okända kluster: närmaste kända plats + varför ingen träff. */
   nearestKnownSite?: NearestKnownSiteDebug | null;
+  /**
+   * Alla kandidater inom 150 m från klustercenter, sorterade på avstånd.
+   * Används av UI för "flera projekt på adressen — välj projekt"-fall.
+   */
+  candidatesWithinRadius?: NearestKnownSiteDebug[];
   /** Mänsklig förklaring varför internal match misslyckades. */
   unmatchReason?: string | null;
 }
