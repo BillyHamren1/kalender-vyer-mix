@@ -294,7 +294,7 @@ const MobileTimeReport = () => {
 
         {/* Report form (collapsible) */}
         {showForm && (
-          <div className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm w-full min-w-0 overflow-hidden box-border">
+          <div id="time-report-form" className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm w-full min-w-0 overflow-hidden box-border">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-[15px] text-foreground">{t('time.newReport')}</h2>
               <button onClick={() => setShowForm(false)} className="text-xs text-muted-foreground hover:text-foreground">
