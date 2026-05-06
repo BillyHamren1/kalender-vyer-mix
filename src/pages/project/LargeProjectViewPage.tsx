@@ -50,6 +50,15 @@ const LargeProjectViewPage = () => {
         projectId={project.id}
       />
 
+      {/* Leveranskontakt från bokningen */}
+      {contactBooking && (
+        <ProjectContactCard
+          contactName={contactBooking.contact_name}
+          contactPhone={contactBooking.contact_phone}
+          contactEmail={contactBooking.contact_email}
+        />
+      )}
+
       {/* Tabbed content */}
       <Tabs defaultValue="files" className="space-y-6">
         <div className="border-b border-border/40 overflow-x-auto">
