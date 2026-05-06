@@ -106,14 +106,14 @@ describe('App Timer · single visible surface contract', () => {
     expect(panel).toMatch(/getActivityLabel/);
   });
 
-  /* 7. Profile time report shows MyDayTimeline above raw rows. */
-  it('MobileTimeReport mounts MyDayTimeline before the raw report list', () => {
+  /* 7. Profile time report shows the snapshot-driven Idag tab above raw rows. */
+  it('MobileTimeReport mounts TodayTab before the raw report list', () => {
     const src = read(TIME_REPORT_PAGE);
-    const myDayIdx = src.indexOf('<MyDayTimeline');
+    const todayIdx = src.indexOf('<TodayTab');
     const rawHeader = src.indexOf('Rådata');
-    expect(myDayIdx).toBeGreaterThan(-1);
+    expect(todayIdx).toBeGreaterThan(-1);
     expect(rawHeader).toBeGreaterThan(-1);
-    expect(myDayIdx).toBeLessThan(rawHeader);
+    expect(todayIdx).toBeLessThan(rawHeader);
   });
 
   it('MobileTimeHistory shows MyDayTimeline before raw rows for selected day', () => {

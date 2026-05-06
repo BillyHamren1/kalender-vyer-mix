@@ -25,6 +25,7 @@ import { useStaffDayStatus } from '@/hooks/useStaffDayStatus';
 import MobileTimeTabs, { type TimeTabId } from '@/components/mobile-app/time/MobileTimeTabs';
 import TimeCalendarTab from '@/components/mobile-app/time/TimeCalendarTab';
 import TimeReportTab from '@/components/mobile-app/time/TimeReportTab';
+import TodayTab from '@/components/mobile-app/time/TodayTab';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
@@ -263,59 +264,10 @@ const MobileTimeReport = () => {
         {activeTab === 'report' && <TimeReportTab />}
 
         {activeTab === 'today' && <>
-        {/* HUVUDVY — användarens tolkade dag (samma kanoniska StaffDayTimeline
-            som admin ser). time_reports lever kvar som rådata längre ned. */}
-        <MyDayTimeline />
-
-        {/* Day status — workday + current activity + actions (server snapshot) */}
-        <DayStatusPanel onChanged={fetchReports} />
-
-        {/* Active timers (legacy multi-timer list). Server snapshot is authority:
-            hide if backend says no activity is active. */}
-        {todaySnapshot?.active && activeTimers.size > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">{t('time.activeTimers')}</h2>
-            {Array.from(activeTimers.entries()).map(([key, timer]) => (
-              <ActiveTimerCard
-                key={key}
-                timer={timer}
-                isLocation={!!timer.locationId}
-                onStop={async () => {
-                  // UNIFIED ENGINE — same code path for booking, project,
-                  // and location timers. The hook handles break decision,
-                  // save-then-stop ordering, and pure-location presence.
-                  const target: WorkTarget = timer.locationId
-                    ? {
-                        kind: 'location',
-                        locationId: timer.locationId,
-                        name: timer.locationName || timer.client,
-                        // UNIFIED (Fas 1): location timers create time_reports
-                        // by default — same path as bookings/projects.
-                      }
-                    : timer.largeProjectId
-                      ? {
-                          kind: 'project',
-                          largeProjectId: timer.largeProjectId,
-                          name: timer.client,
-                        }
-                      : { kind: 'booking', bookingId: key, client: timer.client };
-
-                  try {
-                    const res = await stopSession(target);
-                    if (res.cancelled) return;
-                    if (res.saved) {
-                      if (target.kind === 'location') toast.success(t('time.activityEnded'));
-                      else toast.success(t('time.reportSavedHours', { hours: res.hoursWorked }));
-                      fetchReports();
-                    }
-                  } catch (err: any) {
-                    toast.error(err?.message || t('time.couldNotEndActivity'));
-                  }
-                }}
-              />
-            ))}
-          </div>
-        )}
+        {/* HUVUDVY — server-driven snapshot. Live status, arbetsdagen,
+            "behöver din hjälp", dagens tidslinje och primär action.
+            Detta är den enda källan till sanning för Idag-tabben. */}
+        <TodayTab />
 
 
         {/* Header — rådata-sektion. Huvudvyn är MyDayTimeline ovan. */}
