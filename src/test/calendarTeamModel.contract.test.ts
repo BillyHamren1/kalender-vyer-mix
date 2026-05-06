@@ -44,6 +44,12 @@ describe('Calendar Team Model — contract', () => {
     expect(src).toMatch(/setLargeProjectDayTeam/);
   });
 
+  it('useEventDragDrop saves same-day team moves for large projects', () => {
+    const src = read('src/hooks/useEventDragDrop.ts');
+    expect(src).toMatch(/setLargeProjectDayTeam/);
+    expect(src).toMatch(/currentDateStr === targetDateStr/);
+  });
+
   it('MoveEventDateDialog calls recompute_booking_staff_for_day', () => {
     const src = read('src/components/Calendar/MoveEventDateDialog.tsx');
     expect(src).toMatch(/recompute_booking_staff_for_day/);

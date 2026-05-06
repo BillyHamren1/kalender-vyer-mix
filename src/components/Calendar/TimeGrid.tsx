@@ -22,6 +22,7 @@ interface TimeGridProps {
   resources: Resource[];
   events: CalendarEvent[];
   getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
+  onEventDrop?: (e: React.DragEvent, targetDateStr: string, targetResourceId?: string) => void | Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
   dayWidth?: number;
@@ -54,6 +55,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   resources,
   events,
   getEventsForDayAndResource,
+  onEventDrop,
   onStaffDrop,
   weeklyStaffOperations,
   onEventResize,
@@ -277,6 +279,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               >
                 <div
                   className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
+                  onDragOver={onEventDrop ? (e) => e.preventDefault() : undefined}
+                  onDrop={onEventDrop ? (e) => {
+                    e.stopPropagation();
+                    void onEventDrop(e, format(day, 'yyyy-MM-dd'), resource.id);
+                  } : undefined}
                   style={{
                     width: '100%',
                     minWidth: 0,
