@@ -133,7 +133,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`),
     supabase
       .from('large_projects')
-      .select('id, name, address, start_date, event_date, end_date, deleted_at')
+      .select('id, name, project_number, address, start_date, event_date, end_date, deleted_at')
       .is('deleted_at', null),
   ]);
 
@@ -198,7 +198,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   if (missingProjectIds.length > 0) {
     const { data: extra, error: extraErr } = await supabase
       .from('large_projects')
-      .select('id, name, address, start_date, event_date, end_date, deleted_at')
+      .select('id, name, project_number, address, start_date, event_date, end_date, deleted_at')
       .in('id', missingProjectIds)
       .is('deleted_at', null);
     if (extraErr) {

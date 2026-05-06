@@ -7556,6 +7556,10 @@ export type Database = {
           event_type_result: string
         }[]
       }
+      cleanup_non_rep_lp_calendar_events: {
+        Args: { _booking_id: string }
+        Returns: number
+      }
       cleanup_staff_location_history: {
         Args: never
         Returns: {
@@ -7619,6 +7623,7 @@ export type Database = {
         Returns: boolean
       }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
+      lp_rep_booking_id: { Args: { _lp: string }; Returns: string }
       mark_booking_changes_seen: {
         Args: { p_booking_id: string }
         Returns: undefined
