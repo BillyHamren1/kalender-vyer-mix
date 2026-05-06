@@ -215,6 +215,81 @@ async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Pro
   return data?.id
 }
 
+/**
+ * ensureOpenWorkday — workday-first guarantee for ALL server-side flows
+ * that create activity rows (location_time_entries / time_reports / GPS
+ * auto-entries / accept_unplanned_site_visit).
+ *
+ * Rule: aktiv timer/time_report får ALDRIG existera utan workday.
+ *  - If an open workday exists for (staff, org) → return it.
+ *  - Otherwise insert a new workdays row with started_at = startedAtIso.
+ *  - If insert fails → throw, so the caller aborts BEFORE creating the
+ *    activity row.
+ *
+ * Skipped (returns null) when staffId is not a real staff_members row
+ * (web-JWT planner fallback / admin paths) so admin tooling keeps working.
+ */
+async function ensureOpenWorkday(
+  supabase: any,
+  staffId: string | undefined,
+  organizationId: string,
+  startedAtIso?: string,
+): Promise<{ id: string; started_at: string } | null> {
+  if (!staffId || !organizationId) return null
+
+  // Guard: only run for real staff rows.
+  const { data: staffRow } = await supabase
+    .from('staff_members')
+    .select('id')
+    .eq('id', staffId)
+    .maybeSingle()
+  if (!staffRow) return null
+
+  // Existing open workday?
+  const { data: openRows, error: openErr } = await supabase
+    .from('workdays')
+    .select('id, started_at, ended_at')
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .is('ended_at', null)
+    .order('started_at', { ascending: false })
+    .limit(1)
+  if (openErr) {
+    console.warn('[ensureOpenWorkday] lookup failed:', openErr)
+  }
+  if (openRows && openRows.length > 0) {
+    return { id: openRows[0].id, started_at: openRows[0].started_at }
+  }
+
+  const startedAt =
+    startedAtIso && !isNaN(new Date(startedAtIso).getTime())
+      ? new Date(startedAtIso).toISOString()
+      : new Date().toISOString()
+
+  const { data: ins, error: insErr } = await supabase
+    .from('workdays')
+    .insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      started_at: startedAt,
+      started_by: 'server_workday_first',
+      notes: 'Auto-skapad av server (workday-first guarantee)',
+      metadata: {
+        auto_started: true,
+        auto_start_source: 'ensure_open_workday',
+        guarantee: 'no_timer_without_workday',
+      },
+    })
+    .select('id, started_at')
+    .single()
+  if (insErr) {
+    console.error('[ensureOpenWorkday] insert failed:', insErr)
+    throw new Error(`workday_first_failed: ${insErr.message}`)
+  }
+  console.log(`[ensureOpenWorkday] auto-started workday ${ins.id} for staff=${staffId} at ${ins.started_at}`)
+  return ins
+}
+
 async function handleRequest(req: Request, rotationSlot: { token: string | null }): Promise<Response> {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -2380,6 +2455,19 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
         )
       }
     }
+  }
+
+  // Workday-first guarantee: a time_report can never exist without a
+  // workday for the same staff. Anchor the workday at report_date+start_time.
+  try {
+    const startedAtIso = new Date(`${report_date}T${start_time}:00`).toISOString()
+    await ensureOpenWorkday(supabase, staffId, organizationId, startedAtIso)
+  } catch (wdErr: any) {
+    console.error('[create_time_report] workday-first failed, aborting:', wdErr)
+    return new Response(
+      JSON.stringify({ error: 'workday_first_failed', detail: wdErr?.message || String(wdErr) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
   }
 
   // Create time report — use server-calculated hours
@@ -5267,13 +5355,22 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         .maybeSingle()
 
       if (isInside && !openEntry) {
-        // Arrived — create GPS entry
+        // Arrived — create GPS entry. Workday-first: ensure an open workday
+        // exists with the same start ts. If that fails we DO NOT create the
+        // GPS entry — no timer without workday.
+        const enteredAtIso = new Date().toISOString()
+        try {
+          await ensureOpenWorkday(supabase, staffId, organizationId, enteredAtIso)
+        } catch (wdErr) {
+          console.error('[geofence] workday-first failed, skipping GPS entry:', wdErr)
+          continue
+        }
         await supabase.from('location_time_entries').insert({
           organization_id: organizationId,
           staff_id: staffId,
           location_id: loc.id,
-          entry_date: new Date().toISOString().split('T')[0],
-          entered_at: new Date().toISOString(),
+          entry_date: enteredAtIso.split('T')[0],
+          entered_at: enteredAtIso,
           source: 'gps',
         })
         atLocation = { id: loc.id, name: loc.name }
@@ -5780,6 +5877,18 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
       enteredAtIso = parsed.toISOString()
       entryDate = new Date(parsed.getTime() + 60 * 60 * 1000).toISOString().split('T')[0]
     }
+  }
+
+  // 3b. WORKDAY-FIRST GUARANTEE — never create an LTE without an open workday.
+  // Use the same `entered_at` so timer-start ≤ workday start cannot occur.
+  try {
+    await ensureOpenWorkday(supabase, staffId, organizationId, enteredAtIso)
+  } catch (wdErr: any) {
+    console.error('[start_location_timer] workday-first failed, aborting timer start:', wdErr)
+    return new Response(
+      JSON.stringify({ error: 'workday_first_failed', detail: wdErr?.message || String(wdErr) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
   }
 
   // 4. Insert new open entry.
@@ -9281,6 +9390,16 @@ async function handleAcceptUnplannedSiteVisit(
   if (openEntry) {
     entry = openEntry
   } else {
+    // Workday-first: never create an LTE without an open workday.
+    try {
+      await ensureOpenWorkday(supabase, staffId, organizationId, nowIso)
+    } catch (wdErr: any) {
+      console.error('[accept_unplanned_site_visit] workday-first failed, aborting:', wdErr)
+      return new Response(
+        JSON.stringify({ error: 'workday_first_failed', detail: wdErr?.message || String(wdErr) }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
     const { data: inserted, error: insErr } = await supabase
       .from('location_time_entries')
       .insert({
