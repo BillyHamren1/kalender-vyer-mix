@@ -264,10 +264,19 @@ export function buildStaffDayTimeline(
     date: model.date,
     workday_start,
     workday_end,
+    workday_suggested: !wd && workday_start != null,
     status,
     payable_minutes,
     segments,
     review_required,
     review_count,
+    evidence: {
+      workdayRowIds: wd ? [wd.id] : [],
+      timeReportIds: model.reportState.timeReports.map((r) => r.id),
+      travelLogIds: model.reportState.travelLogs.map((t) => t.id),
+      locationEntryIds: model.reportState.locationEntries.map((l) => l.id),
+      assistantEventIds: [],
+      notes: [],
+    },
   };
 }
