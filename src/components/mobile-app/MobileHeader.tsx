@@ -258,18 +258,25 @@ export const HeaderStartEndDayButton: React.FC = () => {
 /** Wraps header markup with a portal to the slot, falling back to inline. */
 export const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const slot = useMobileHeaderSlot();
+  // When portalled into #mobile-header-slot, the slot itself paints the iOS
+  // safe-area (statusbar). When falling back to inline (non-Time shells like
+  // MobileAppLayout), we must paint it ourselves.
   const content = (
-    <div
-      className="relative bg-primary shadow-sm"
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-    >
+    <div className="relative bg-primary shadow-sm">
       <HeaderWorkdayControls />
       {children}
     </div>
   );
   if (slot) return createPortal(content, slot);
-  // Fallback: render inline (non-Time shells)
-  return <div className="sticky top-0 z-[60]">{content}</div>;
+  // Fallback: render inline (non-Time shells) — include safe-area padding here.
+  return (
+    <div
+      className="sticky top-0 z-[60] bg-primary"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
+      {content}
+    </div>
+  );
 };
 
 /* ---- Variant: Hero ---- */
