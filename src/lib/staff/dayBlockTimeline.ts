@@ -316,7 +316,7 @@ const resolveJourneyEndpoint = (
   const mapUrl = mapUrlOf(lat, lng);
   const isInternal = !!visit?.knownSiteId
     || !!(placeKey && (placeKey.startsWith('booking:') || placeKey.startsWith('large:')
-      || placeKey.startsWith('site:') || placeKey.startsWith('location:') || placeKey.startsWith('warehouse:')));
+      || placeKey.startsWith('site:') || placeKey.startsWith('location:') || placeKey.startsWith('loc:') || placeKey.startsWith('warehouse:')));
   if (isInternal && (visit?.label || fallbackLabel)) {
     return { label: visit?.label || fallbackLabel || 'Plats', lat, lng, mapUrl, lookupStatus: 'matched_internal' };
   }
@@ -375,7 +375,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const isProject = !!knownSiteId
       && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
     const isLocation = !!knownSiteId
-      && (knownSiteId.startsWith('location:') || knownSiteId.startsWith('site:') || knownSiteId.startsWith('warehouse:'));
+      && (knownSiteId.startsWith('location:') || knownSiteId.startsWith('loc:') || knownSiteId.startsWith('site:') || knownSiteId.startsWith('warehouse:'));
     const isKnown = isProject || isLocation;
 
     // Okänd + för kort → tillhör raw/debug, inte huvudjournalen.
@@ -806,7 +806,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const visit = expectedKey ? visitByKey.get(expectedKey) : undefined;
     const knownSiteId = visit?.knownSiteId ?? null;
     const isKnownSite = !!knownSiteId
-      || !!(expectedKey && (expectedKey.startsWith('booking:') || expectedKey.startsWith('large:') || expectedKey.startsWith('site:') || expectedKey.startsWith('location:')));
+      || !!(expectedKey && (expectedKey.startsWith('booking:') || expectedKey.startsWith('large:') || expectedKey.startsWith('site:') || expectedKey.startsWith('location:') || expectedKey.startsWith('loc:') || expectedKey.startsWith('warehouse:')));
     const isProject = !!knownSiteId
       && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
 
