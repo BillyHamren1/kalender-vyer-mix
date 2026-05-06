@@ -88,6 +88,17 @@ export interface StaffDaySegment {
   payable: boolean;
 }
 
+export interface StaffDayEvidence {
+  /** Råa kvitton — får INTE renderas som segments. Endast audit/bevisning. */
+  workdayRowIds?: string[];
+  timeReportIds?: string[];
+  travelLogIds?: string[];
+  locationEntryIds?: string[];
+  assistantEventIds?: string[];
+  /** Frikopplade noteringar (ex. "GPS visade ankomst 06:42 men ingen workday öppen"). */
+  notes?: string[];
+}
+
 export interface StaffDayTimeline {
   staff_id: string;
   staff_name: string;
@@ -95,6 +106,8 @@ export interface StaffDayTimeline {
   date: string;
   workday_start: string | null;
   workday_end: string | null;
+  /** True när workday saknas men start/slut härleddes ur evidence (GPS/timer). */
+  workday_suggested: boolean;
   status: StaffDayStatus;
   /** Summan av payable segmenters minuter. */
   payable_minutes: number;
@@ -102,6 +115,8 @@ export interface StaffDayTimeline {
   review_required: boolean;
   /** Antal saker som behöver granskas (okända block + oresolved flags + anomalies). */
   review_count: number;
+  /** Råa källrader — för audit/bevisning. UI får ALDRIG bygga segments av detta. */
+  evidence: StaffDayEvidence;
 }
 
 export interface BuildStaffDayTimelineInput {
@@ -249,10 +264,19 @@ export function buildStaffDayTimeline(
     date: model.date,
     workday_start,
     workday_end,
+    workday_suggested: !wd && workday_start != null,
     status,
     payable_minutes,
     segments,
     review_required,
     review_count,
+    evidence: {
+      workdayRowIds: wd ? [wd.id] : [],
+      timeReportIds: model.reportState.timeReports.map((r) => r.id),
+      travelLogIds: model.reportState.travelLogs.map((t) => t.id),
+      locationEntryIds: model.reportState.locationEntries.map((l) => l.id),
+      assistantEventIds: [],
+      notes: [],
+    },
   };
 }

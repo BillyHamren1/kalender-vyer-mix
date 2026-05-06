@@ -1,46 +1,56 @@
 ---
 name: StaffDayTimeline canonical UI model
-description: Tunn fasad src/lib/staff/staffDayTimeline.ts (buildStaffDayTimeline) är kanonisk UI-modell för admin-tidrapportering; rådata=audit/bevisning
+description: Central byggare src/lib/time/StaffDayTimelineBuilder.ts producerar kanonisk StaffDayTimeline för all admin-tidrapportering; rådata=evidence
 type: constraint
 ---
 
-# StaffDayTimeline — kanonisk UI-modell
+# StaffDayTimeline — kanonisk UI-modell + central byggare
 
-**Beslut (2026-05-06):** Huvudvyn för admin-tidrapportering visar EN sak: `StaffDayTimeline`. Råa tabeller (`location_time_entries`, `time_reports`, `travel_time_logs`, `assistant_events`, GPS, repair/watchdog) får finnas kvar som **input/bevisning** — men aldrig som huvudobjekt i UI.
+**Beslut (2026-05-06):** Huvudvyn för admin-tidrapportering visar EN sak: `StaffDayTimeline`. Råa tabeller (`workday`, `time_reports`, `travel_time_logs`, `location_time_entries`, `assistant_events`, GPS, repair/watchdog) sparas som **input/evidence** — men aldrig som huvudobjekt i UI.
 
-## Kanonisk modell
+**Ingen UI-komponent får själv tolka råa tabeller.** Allt går via den centrala byggaren.
 
-`src/lib/staff/staffDayTimeline.ts` exporterar `buildStaffDayTimeline()`:
+## Filer
+
+- `src/lib/time/StaffDayTimelineBuilder.ts` — **CENTRAL byggare**. `buildStaffDayTimelineFromRaw(input)` tar råa tabellrader och returnerar en `StaffDayTimeline`. Detta är vägen som ALLA admin-vyer ska gå.
+- `src/lib/staff/staffDayTimeline.ts` — Typer + `buildStaffDayTimeline(model, blocks)` (tunn fasad ovanpå `ActualStaffDayModel` + `DayBlockTimeline` för existerande integration).
+- Kontraktstester:
+  - `src/lib/time/__tests__/StaffDayTimelineBuilder.contract.test.ts` (12 tester)
+  - `src/lib/staff/__tests__/staffDayTimeline.contract.test.ts` (11 tester)
+
+## Modell
 
 ```ts
 StaffDayTimeline {
   staff_id, staff_name, date,
-  workday_start, workday_end,
+  workday_start, workday_end, workday_suggested,
   status: 'no_workday' | 'open' | 'closed' | 'review_required',
   payable_minutes,
   segments: StaffDaySegment[],
   review_required, review_count,
+  evidence: { workdayRowIds, timeReportIds, travelLogIds, locationEntryIds, assistantEventIds, notes },
 }
 
 StaffDaySegment.kind ∈ project | travel | warehouse | break | other | unknown
 ```
 
-## Arkitektur
+## Builder-regler
 
-- **Tunn fasad** ovanpå `buildActualStaffDayModel` + `buildDayBlockTimeline`.
-- Pure / UI-agnostic. Bygger ALDRIG nya fakta — bara projicerar.
-- Mappning:
-  - PresenceBlock(project) → `project` (payable)
-  - PresenceBlock(location) → `warehouse` (payable)
-  - PresenceBlock(unknown) → `unknown` (review, ej payable)
-  - JourneyBlock → `travel` (payable, label="Resa")
-  - GapBlock → `unknown` (review, ej payable)
-- `payable_minutes` = summan av project + warehouse + travel.
-- `review_count` = unresolved workday_flags + proposedReport.anomalies + segment.reviewRequired.
+1. `workday.start/end` är HUVUDRAM för dagen.
+2. Saknas workday MEN det finns starka signaler (timer/TR ≥10 min) ⇒ föreslå start/slut från första/sista signal, sätt `workday_suggested=true` + `review_required=true`.
+3. Segments täcker dagen så gott det går — gap mellan presence blir `unknown`-segment, INTE fel.
+4. Råa rader sparas i `evidence`. UI får aldrig bygga segments av dem.
+5. Dedup: TR vinner över överlappande LTE. LTE med `reportedAsDistribution=true` skippas.
+6. Subdivisions filtreras bort.
+7. Travel utan destination eller utan approval ⇒ `reviewRequired=true`, ej payable.
+8. Pure / UI-agnostic. Ingen DB. Ingen React.
 
-## Regler
+## payable-mappning
 
-- Ny admin-UI för tidrapportering (StaffTimeReportsList, StaffTimeReportDetail) ska konsumera `StaffDayTimeline`, inte rå-tabeller.
-- "Bevisning/Audit"-vyer som vill visa rå-events öppnas separat och läser `ActualStaffDayModel` direkt.
-- Kontraktet låst av `src/lib/staff/__tests__/staffDayTimeline.contract.test.ts`. Ändra inte fältset utan att uppdatera konsumenter.
-- Etapp 1 (modell + tester) klar 2026-05-06. UI-migration (StaffTimeReportsList + Detail) görs i separat etapp.
+- project + warehouse + travel (approved) = payable
+- break + other + unknown + presence-only LTE = ej payable
+- `payable_minutes` = summan över payable segments
+
+## UI-konsumenter
+
+Ny admin-UI (StaffTimeReportsList, StaffTimeReportDetail, AdminTimeReviewDashboard) ska konsumera `StaffDayTimeline` via `buildStaffDayTimelineFromRaw`. "Bevisning/Audit"-vyer som vill visa råa rader öppnas separat och slår upp via `evidence.*Ids`.

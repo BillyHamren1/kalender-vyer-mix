@@ -123,6 +123,7 @@ describe('buildStaffDayTimeline — fältkontrakt', () => {
     expect(keys).toEqual(
       [
         'date',
+        'evidence',
         'payable_minutes',
         'review_count',
         'review_required',
@@ -132,6 +133,7 @@ describe('buildStaffDayTimeline — fältkontrakt', () => {
         'status',
         'workday_end',
         'workday_start',
+        'workday_suggested',
       ],
     );
   });
@@ -276,10 +278,12 @@ const _typecheck: StaffDayTimeline = {
   date: '',
   workday_start: null,
   workday_end: null,
+  workday_suggested: false,
   status: 'open',
   payable_minutes: 0,
   segments: [],
   review_required: false,
   review_count: 0,
+  evidence: {},
 };
 void _typecheck;
