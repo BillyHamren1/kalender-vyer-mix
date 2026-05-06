@@ -622,4 +622,103 @@ const TimerRow: React.FC<{
   );
 };
 
+/**
+ * ServerEntryRow — visar en location_time_entry som ligger öppen på servern
+ * men saknar lokal motsvarighet. Behandlas som en RIKTIG aktiv timer:
+ *   • elapsed-klocka från entered_at
+ *   • Stoppa-knapp (entry_id-baserad, går direkt mot mobile-app-api)
+ *   • Korrigera-knapp (öppnar /m/report för efterredigering)
+ *   • Återställ lokalt-knapp (refreshar active_day_state, hjälper när
+ *     localStorage är ur synk).
+ *
+ * Servern är sanning — användaren måste alltid kunna stoppa raden
+ * även om localStorage är tomt.
+ */
+const ServerEntryRow: React.FC<{
+  entry: ActiveDayOpenEntryLite;
+  onStop: (entry: ActiveDayOpenEntryLite) => Promise<void>;
+  onCorrect: () => void;
+  onRehydrate: () => void;
+}> = ({ entry, onStop, onCorrect, onRehydrate }) => {
+  const [, setTick] = useState(0);
+  const [armed, setArmed] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!armed) return;
+    const id = window.setTimeout(() => setArmed(false), 4000);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+
+  const elapsed = Math.max(0, differenceInSeconds(new Date(), parseISO(entry.entered_at)));
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = elapsed % 60;
+
+  const handleStopClick = async () => {
+    if (saving) return;
+    if (!armed) { setArmed(true); return; }
+    setArmed(false);
+    setSaving(true);
+    try { await onStop(entry); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-2xl border border-primary/30 bg-primary/5">
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5">
+          <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />
+          {entry.target_label}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Startad {extractUTCTime(entry.entered_at)} · serverstyrd
+        </p>
+      </div>
+      <div className="font-mono font-extrabold text-base tabular-nums text-primary">
+        {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
+      </div>
+      <div className="flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="rounded-xl h-9 w-9 p-0"
+          onClick={onCorrect}
+          title="Korrigera tidrapporten"
+          aria-label="Korrigera"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="rounded-xl h-9 w-9 p-0"
+          onClick={onRehydrate}
+          title="Återställ lokalt — hämta server-status igen"
+          aria-label="Återställ lokalt"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          variant={armed ? 'destructive' : 'outline'}
+          className="rounded-xl h-9 gap-1 text-xs font-semibold"
+          onClick={handleStopClick}
+          disabled={saving}
+          title={armed ? 'Tryck igen för att avsluta aktiviteten på servern' : 'Avsluta aktiviteten — stoppar serverns öppna rad'}
+        >
+          {saving
+            ? <Loader2 className="w-3 h-3 animate-spin" />
+            : <Square className="w-3 h-3" />}
+          {saving ? 'Sparar…' : armed ? 'Tryck igen' : 'Stopp'}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 export default GlobalActiveTimerBanner;
