@@ -43,10 +43,34 @@ import type {
 
 // ── Råa input-typer ──────────────────────────────────────────────────
 
+/**
+ * Markörer för "syntetiska" / system-genererade rader. När `synthetic=true`
+ * får raden ALDRIG bli ett huvudsegment. Den ligger kvar i `evidence`,
+ * påverkar `review_required`, och kan föreslå start/slut via workday-envelope —
+ * men visas inte som arbetspass i huvudvyn.
+ *
+ * `autoOrigin` används för att flagga vad systemet gjorde (auto_repair,
+ * server_background_gps_backfill, watchdog, ...). Texten visas bara i
+ * RawEvidenceDrawer, aldrig i huvudvyn.
+ */
+export type AutoOriginCode =
+  | 'auto_repair'
+  | 'server_background_gps_backfill'
+  | 'server_background_gps'
+  | 'watchdog'
+  | 'cron'
+  | 'ai_reconciled'
+  | 'gap_derived'
+  | string;
+
 export interface BuilderWorkdayInput {
   id: string;
   started_at: string;
   ended_at: string | null;
+  /** True om workdayen skapats av auto-repair / cron / watchdog. Påverkar inte
+   *  envelope-rendering (workday är fortfarande ram), men `autoOrigin` lyfts
+   *  till evidence/notes så admin ser hur den uppstod. */
+  autoOrigin?: AutoOriginCode | null;
 }
 
 export interface BuilderTimeReportInput {
@@ -59,6 +83,9 @@ export interface BuilderTimeReportInput {
   category?: 'project' | 'location' | 'lager' | 'travel' | 'other';
   approved?: boolean;
   is_subdivision?: boolean;
+  /** True ⇒ raden visas inte som segment, går bara till evidence + review. */
+  synthetic?: boolean;
+  autoOrigin?: AutoOriginCode | null;
 }
 
 export interface BuilderTravelLogInput {
@@ -69,6 +96,8 @@ export interface BuilderTravelLogInput {
   toAddress?: string | null;
   approved?: boolean;
   destinationBookingId?: string | null;
+  synthetic?: boolean;
+  autoOrigin?: AutoOriginCode | null;
 }
 
 export interface BuilderLocationEntryInput {
@@ -80,6 +109,9 @@ export interface BuilderLocationEntryInput {
   reportedAsDistribution?: boolean;
   /** True för rena presence-stämplingar (ej lönegrundande). */
   presenceOnly?: boolean;
+  /** True ⇒ raden visas inte som segment, går bara till evidence + review. */
+  synthetic?: boolean;
+  autoOrigin?: AutoOriginCode | null;
 }
 
 export interface BuilderAssistantEventInput {
@@ -153,6 +185,7 @@ function timeReportToSegment(
   now: number,
 ): RawSegment | null {
   if (tr.is_subdivision) return null;
+  if (tr.synthetic) return null; // syntetisk: går till evidence, inte segment
   if (!tr.start_iso) return null;
   const endIso = tr.end_iso;
   const ongoing = !endIso;
@@ -180,6 +213,7 @@ function travelLogToSegment(
   tl: BuilderTravelLogInput,
   now: number,
 ): RawSegment | null {
+  if (tl.synthetic) return null;
   if (!tl.start_iso) return null;
   const ongoing = !tl.end_iso;
   const durationMin = minutesBetween(tl.start_iso, tl.end_iso, now);
@@ -212,6 +246,7 @@ function locationEntryToSegment(
 ): RawSegment | null {
   // Promotade location-timers blir TR ⇒ skippa här för att undvika dubbel.
   if (lte.reportedAsDistribution) return null;
+  if (lte.synthetic) return null; // watchdog/auto_assigned/clamped → bara evidence
   const ongoing = !lte.exited_at;
   const durationMin = minutesBetween(lte.entered_at, lte.exited_at, now);
   if (durationMin <= 0 && !ongoing) return null;
@@ -388,8 +423,22 @@ export function buildStaffDayTimelineFromRaw(
     .filter((s) => s.payable)
     .reduce((sum, s) => sum + (s.durationMin || 0), 0);
 
+  // Samla auto-origin / synthetic-noter — visas i drawer/evidence,
+  // ALDRIG i huvudvyn. Räknas mot review_count.
+  const autoOriginNotes: string[] = [];
+  if (input.workday?.autoOrigin) {
+    autoOriginNotes.push(`Arbetsdag skapad automatiskt (${input.workday.autoOrigin}).`);
+  }
+  const syntheticTr = (input.timeReports ?? []).filter((t) => t.synthetic);
+  const syntheticLte = (input.locationEntries ?? []).filter((l) => l.synthetic);
+  const syntheticTravel = (input.travelLogs ?? []).filter((t) => t.synthetic);
+  if (syntheticTr.length) autoOriginNotes.push(`${syntheticTr.length} tidrapport(er) härledd från system (auto-repair/backfill) — visas inte som segment.`);
+  if (syntheticLte.length) autoOriginNotes.push(`${syntheticLte.length} timer/närvaro stoppad av watchdog/clamp — visas inte som segment.`);
+  if (syntheticTravel.length) autoOriginNotes.push(`${syntheticTravel.length} resa härledd från servermotor — visas inte som segment.`);
+
   const segmentReviewCount = segments.filter((s) => s.reviewRequired).length;
-  const review_count = segmentReviewCount + (envelope.suggested ? 1 : 0);
+  const review_count =
+    segmentReviewCount + (envelope.suggested ? 1 : 0) + autoOriginNotes.length;
   const review_required = review_count > 0;
 
   let status: StaffDayStatus;
@@ -409,7 +458,7 @@ export function buildStaffDayTimelineFromRaw(
     travelLogIds: (input.travelLogs ?? []).map((t) => t.id),
     locationEntryIds: (input.locationEntries ?? []).map((l) => l.id),
     assistantEventIds: (input.assistantEvents ?? []).map((a) => a.id),
-    notes: envelope.notes,
+    notes: [...envelope.notes, ...autoOriginNotes],
   };
 
   return {
