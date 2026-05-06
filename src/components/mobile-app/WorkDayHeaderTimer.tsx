@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWorkDay } from '@/hooks/useWorkDay';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
+import { useActiveDayState } from '@/hooks/useActiveDayState';
 import { cn } from '@/lib/utils';
 
 /**
