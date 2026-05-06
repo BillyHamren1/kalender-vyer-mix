@@ -5422,11 +5422,21 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
           location_id: loc.id,
           entry_date: enteredAtIso.split('T')[0],
           entered_at: enteredAtIso,
-          source: 'gps',
+          source: 'foreground_geofence',
+          metadata: {
+            geofence_source: 'foreground_geofence',
+            geofence_mode: loc.geofence_mode || 'circle',
+            location_id: loc.id,
+            location_name: loc.name,
+            gps_accuracy_m: accuracy ?? null,
+            confidence: accuracyOk ? 'high' : 'medium',
+            entered_via: 'mobile_app_api.update_location',
+            workday_first_guarantee: true,
+          },
         })
         atLocation = { id: loc.id, name: loc.name }
         console.log(`[geofence] Staff ${staffId} entered ${loc.name} (mode=${loc.geofence_mode || 'circle'})`)
-      } else if (!isInside && openEntry && openEntry.source === 'gps') {
+      } else if (!isInside && openEntry && (openEntry.source === 'gps' || openEntry.source === 'foreground_geofence')) {
         // Left — close GPS entry (never auto-close manual entries)
         await supabase
           .from('location_time_entries')
