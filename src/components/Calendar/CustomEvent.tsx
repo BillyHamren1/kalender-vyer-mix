@@ -183,15 +183,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             AVBOKAD
           </div>
         )}
-        {/* Move-day pilar + Add-day plus — endast planning team-events (ej warehouse, ej readOnly, ej cancelled) */}
-        {!isCancelled && !isWarehouseEvent && !readOnly && event.bookingId && (
-          <>
-            <AddDayButton event={event} />
-            <MoveDayPopover event={event} setEvents={setEvents} onUpdate={onEventResize} />
-          </>
-        )}
-        {/* Radera enskild dag — tillgängligt för planning- och warehouse-events */}
-        {!isCancelled && !readOnly && (
+        {/* In-card move/add/delete-day buttons removed — moved into EventActionPopover */}
+        {/* Radera enskild dag — tillgängligt för cancelled (popover ej tillgänglig då) */}
+        {isCancelled && !readOnly && (
           <DeleteDayButton event={event} setEvents={setEvents} onUpdate={onEventResize} />
         )}
         {/* Large project badge — inline, not overlapping */}
