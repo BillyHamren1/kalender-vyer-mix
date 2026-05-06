@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
-import { moveLargeProjectDay, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
+import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { resolveCalendarEventId } from '@/services/calendarEventResolver';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
@@ -17,6 +17,7 @@ export interface DraggedEventData {
   bookingId?: string;
   eventType?: string;
   resourceId: string;
+  targetResourceId?: string;
   isSyntheticFallback?: boolean;
   largeProjectId?: string;
 }
@@ -80,7 +81,7 @@ export const useEventDragDrop = (
     }
   }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent, targetDateStr: string) => {
+  const handleDrop = useCallback(async (e: React.DragEvent, targetDateStr: string, targetResourceId?: string) => {
     e.preventDefault();
     setDragOverDate(null);
     setIsDragging(false);
@@ -96,9 +97,10 @@ export const useEventDragDrop = (
       return;
     }
 
-    // Check if dropping on the same date
     const currentDateStr = eventData.start.split('T')[0];
-    if (currentDateStr === targetDateStr) return;
+    const targetTeamId = targetResourceId || eventData.targetResourceId || eventData.resourceId;
+    const teamChanged = targetTeamId !== eventData.resourceId;
+    if (currentDateStr === targetDateStr && !teamChanged) return;
 
     setIsMoving(true);
 
@@ -127,14 +129,14 @@ export const useEventDragDrop = (
                 ev.eventType === eventData.eventType &&
                 evDateStr === currentDateStr
               ) {
-                return { ...ev, start: newStartISO, end: newEndISO };
+                return { ...ev, start: newStartISO, end: newEndISO, resourceId: targetTeamId };
               }
               return ev;
             });
           }
           return prev.map(ev =>
             ev.id === eventData.id
-              ? { ...ev, start: newStartISO, end: newEndISO }
+              ? { ...ev, start: newStartISO, end: newEndISO, resourceId: targetTeamId }
               : ev
           );
         });
@@ -142,6 +144,20 @@ export const useEventDragDrop = (
 
       // ── Large project: move the whole project-day across all linked bookings
       if (eventData.largeProjectId && eventData.eventType) {
+        if (teamChanged) {
+          await setLargeProjectDayTeam(
+            eventData.largeProjectId,
+            eventData.eventType as LargeProjectPhase,
+            targetDateStr,
+            targetTeamId,
+          );
+        }
+        if (currentDateStr === targetDateStr) {
+          toast.success('Projektdag uppdaterad');
+          if (refreshEvents) void refreshEvents();
+          return;
+        }
+
         await moveLargeProjectDay({
           largeProjectId: eventData.largeProjectId,
           phase: eventData.eventType as LargeProjectPhase,
@@ -155,6 +171,34 @@ export const useEventDragDrop = (
           description: `${eventData.title} → ${format(targetDate, 'EEE d MMM')}`,
         });
         // Refresh i bakgrunden — UI är redan uppdaterat optimistiskt.
+        if (refreshEvents) void refreshEvents();
+        return;
+      }
+
+      if (currentDateStr === targetDateStr && teamChanged) {
+        const realEventId = await resolveCalendarEventId({
+          rawId: eventData.id,
+          bookingId: eventData.bookingId,
+          eventType: eventData.eventType,
+          sourceDate: currentDateStr,
+        });
+
+        if (!realEventId) {
+          toast.error('Kunde inte hitta kalenderhändelsen att flytta');
+          if (prevSnapshot && setEvents) setEvents(prevSnapshot);
+          return;
+        }
+
+        await updateCalendarEvent(realEventId, { resourceId: targetTeamId });
+
+        if (eventData.bookingId) {
+          await supabase.rpc('recompute_booking_staff_for_day' as any, {
+            p_booking_id: eventData.bookingId,
+            p_date: currentDateStr,
+          });
+        }
+
+        toast.success('Team uppdaterat');
         if (refreshEvents) void refreshEvents();
         return;
       }
