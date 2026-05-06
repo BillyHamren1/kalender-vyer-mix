@@ -156,7 +156,7 @@ async function handleCompute(
   const entries = (entriesRes.data ?? []) as LocationEntryRow[];
   const workdays = (workdaysRes.data ?? []) as WorkdayRow[];
 
-  // Collect referenced booking + project IDs to fetch coordinates
+  // Collect referenced booking + project IDs (already linked to staff today)
   const bookingIds = unique([
     ...reports.map((r) => r.booking_id).filter(Boolean) as string[],
     ...entries.map((e) => e.booking_id).filter(Boolean) as string[],
@@ -166,7 +166,18 @@ async function handleCompute(
     ...entries.map((e) => e.large_project_id).filter(Boolean) as string[],
   ]);
 
-  const [bookingsRes, projectsRes] = await Promise.all([
+  // ── Candidate window: also include ALL active/upcoming bookings & projects
+  // in the org around this date, so GPS visits to known job sites are
+  // recognised even if the staff member has no assignment yet. The match is a
+  // *suggestion* — admin/staff can correct it later.
+  const dateOnly = args.date; // YYYY-MM-DD
+  const windowDate = new Date(args.date);
+  const minus2 = new Date(windowDate); minus2.setDate(minus2.getDate() - 2);
+  const plus30 = new Date(windowDate); plus30.setDate(plus30.getDate() + 30);
+  const winFrom = minus2.toISOString().slice(0, 10);
+  const winTo = plus30.toISOString().slice(0, 10);
+
+  const [bookingsRes, projectsRes, candidateBookingsRes, candidateProjectsRes] = await Promise.all([
     bookingIds.length
       ? supabase.from("bookings")
           .select("id, client, deliveryaddress, delivery_latitude, delivery_longitude")
@@ -177,13 +188,35 @@ async function handleCompute(
           .select("id, name, address, address_latitude, address_longitude, address_radius_meters")
           .in("id", projectIds)
       : Promise.resolve({ data: [] as any[] }),
+    supabase.from("bookings")
+      .select("id, client, deliveryaddress, delivery_latitude, delivery_longitude, rigdaydate, rigdowndate, eventdate, status")
+      .eq("organization_id", orgId)
+      .not("delivery_latitude", "is", null)
+      .not("delivery_longitude", "is", null)
+      .neq("status", "cancelled")
+      .or(`and(rigdaydate.lte.${winTo},rigdowndate.gte.${winFrom}),eventdate.gte.${winFrom},rigdaydate.gte.${winFrom}`)
+      .limit(500),
+    supabase.from("large_projects")
+      .select("id, name, address, address_latitude, address_longitude, address_radius_meters, start_date, end_date, event_date, status")
+      .eq("organization_id", orgId)
+      .not("address_latitude", "is", null)
+      .not("address_longitude", "is", null)
+      .or(`and(start_date.lte.${winTo},end_date.gte.${winFrom}),event_date.gte.${winFrom},start_date.gte.${winFrom}`)
+      .limit(500),
   ]);
 
-  // Build known places
+  // Build known places — merge linked + candidate sets, dedupe by id.
   const knownPlaces: KnownPlace[] = [];
+  const seen = new Set<string>();
+  const pushPlace = (p: KnownPlace) => {
+    const key = `${p.type}:${p.id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    knownPlaces.push(p);
+  };
   for (const loc of (locationsRes.data ?? [])) {
     if (loc.latitude == null || loc.longitude == null) continue;
-    knownPlaces.push({
+    pushPlace({
       id: loc.id,
       type: "location",
       name: loc.name,
@@ -192,9 +225,10 @@ async function handleCompute(
       radiusM: loc.radius_meters ?? 100,
     });
   }
-  for (const b of (bookingsRes.data ?? [])) {
+  const allBookings = [...(bookingsRes.data ?? []), ...(candidateBookingsRes.data ?? [])];
+  for (const b of allBookings) {
     if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
-    knownPlaces.push({
+    pushPlace({
       id: b.id,
       type: "booking",
       name: b.client || b.deliveryaddress || "Bokning",
@@ -203,9 +237,10 @@ async function handleCompute(
       radiusM: 100,
     });
   }
-  for (const p of (projectsRes.data ?? [])) {
+  const allProjects = [...(projectsRes.data ?? []), ...(candidateProjectsRes.data ?? [])];
+  for (const p of allProjects) {
     if (p.address_latitude == null || p.address_longitude == null) continue;
-    knownPlaces.push({
+    pushPlace({
       id: p.id,
       type: "project",
       name: p.name || p.address || "Projekt",
