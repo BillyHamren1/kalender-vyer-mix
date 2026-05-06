@@ -611,7 +611,7 @@ export function evaluateDayApprovalState(
         a.severity === 'critical' &&
         a.kind !== 'open_timer_stale' &&
         a.kind !== 'missing_logout' &&
-        a.kind !== 'workday_open_stale',
+        a.kind !== 'planned_no_start',
     );
     if (hasHardError) {
       return { state: 'requires_correction', ...STATE_LABELS.requires_correction };
