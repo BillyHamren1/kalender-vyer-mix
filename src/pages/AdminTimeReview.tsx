@@ -20,6 +20,7 @@ const LazyDailyOverviewDialog = React.lazy(async () => {
 });
 
 const AdminTimeReview: React.FC = () => {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterState>({
     from: new Date(),
     to: new Date(),
@@ -30,6 +31,29 @@ const AdminTimeReview: React.FC = () => {
   });
   const [topFilter, setTopFilter] = useState<keyof SummaryCounts | null>(null);
   const [openRow, setOpenRow] = useState<DayReviewRow | null>(null);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+
+  const runBackfill = async (dryRun: boolean) => {
+    setBackfillBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('close-stale-workday-entries', {
+        body: { mode: 'backfill', dry_run: dryRun },
+      });
+      if (error) throw error;
+      const planned = data?.planned?.length ?? 0;
+      const closed = data?.closed ?? 0;
+      if (dryRun) {
+        toast.info(`Hittade ${planned} öppna timer-rader att stänga (test-körning)`);
+      } else {
+        toast.success(`${closed} timer-rader stängdes`);
+        queryClient.invalidateQueries({ queryKey: ['admin-time-review-rows'] });
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Backfill misslyckades');
+    } finally {
+      setBackfillBusy(false);
+    }
+  };
 
   const fromYmd = format(filter.from, 'yyyy-MM-dd');
   const toYmd = format(filter.to, 'yyyy-MM-dd');
