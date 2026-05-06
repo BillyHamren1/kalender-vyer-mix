@@ -156,16 +156,36 @@ export const useEventDragDrop = (
       //    Same-team move on a different date → also update bookings phase
       //    date for any sibling whose primary phase date matched the source.
       if (eventData.largeProjectId && eventData.eventType) {
-        // 1. Resolve the exact set of calendar_events rows to update.
+        // 1. Resolve the exact set of calendar_events rows to update — keyed
+        //    by (largeProjectId, phase, sourceDate, teamId). NEVER by a single
+        //    sub-booking. Three-tier resolution:
+        //      a) consolidatedEventIds from the tile metadata (preferred)
+        //      b) lookup via consolidatedBookingIds + phase/date/team
+        //      c) deep fallback: large_project_bookings → calendar_events
         let eventIds = (eventData.consolidatedEventIds || []).filter(Boolean);
+
+        let bookingIdsForRecompute = Array.from(
+          new Set((eventData.consolidatedBookingIds || []).filter(Boolean))
+        );
+
         if (eventIds.length === 0) {
-          // Fallback: query by (booking_ids, phase, source_date, resource_id).
-          const bookingIds = (eventData.consolidatedBookingIds || []).filter(Boolean);
-          if (bookingIds.length > 0) {
+          if (bookingIdsForRecompute.length === 0) {
+            // Deep fallback — load all sibling bookings for this large project.
+            const { data: lpbRows, error: lpbErr } = await supabase
+              .from('large_project_bookings')
+              .select('booking_id')
+              .eq('large_project_id', eventData.largeProjectId);
+            if (lpbErr) throw lpbErr;
+            bookingIdsForRecompute = Array.from(
+              new Set((lpbRows || []).map((r: any) => r.booking_id).filter(Boolean))
+            );
+          }
+
+          if (bookingIdsForRecompute.length > 0) {
             const { data: rows, error: lookupErr } = await supabase
               .from('calendar_events')
               .select('id')
-              .in('booking_id', bookingIds)
+              .in('booking_id', bookingIdsForRecompute)
               .eq('event_type', eventData.eventType)
               .eq('source_date', currentDateStr)
               .eq('resource_id', eventData.resourceId);
