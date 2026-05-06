@@ -17,6 +17,7 @@ import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
+import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
@@ -221,7 +222,13 @@ const MobileTimeReport = () => {
       <MobileHeroHeader eyebrow={t('time.eyebrow')} title={t('time.title2')} subtitle={t('time.subtitle2')} />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
-        {/* Active timers */}
+        {/* Day status — primary view: workday + current activity + actions */}
+        <DayStatusPanel
+          todayReports={timeReports.filter(r => r.report_date === format(new Date(), 'yyyy-MM-dd'))}
+          onChanged={fetchReports}
+        />
+
+        {/* Active timers (legacy multi-timer list — kept for parallel timers) */}
         {activeTimers.size > 0 && (
           <div className="space-y-3">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">{t('time.activeTimers')}</h2>
@@ -287,7 +294,7 @@ const MobileTimeReport = () => {
 
         {/* Report form (collapsible) */}
         {showForm && (
-          <div className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm w-full min-w-0 overflow-hidden box-border">
+          <div id="time-report-form" className="rounded-2xl border border-border/80 bg-card px-5 py-6 space-y-6 shadow-sm w-full min-w-0 overflow-hidden box-border">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-[15px] text-foreground">{t('time.newReport')}</h2>
               <button onClick={() => setShowForm(false)} className="text-xs text-muted-foreground hover:text-foreground">
