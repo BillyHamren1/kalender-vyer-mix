@@ -178,8 +178,7 @@ export function useStaffDaySnapshot(date?: string): Result {
     if (!staffId) return;
     const channel = supabase.channel(`staff-day-snapshot:${staffId}:${targetDate}`);
     for (const table of REALTIME_TABLES) {
-      channel.on(
-        // @ts-expect-error postgres_changes typing
+      (channel as any).on(
         'postgres_changes',
         { event: '*', schema: 'public', table, filter: `staff_id=eq.${staffId}` },
         scheduleRefresh,
