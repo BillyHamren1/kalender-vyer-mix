@@ -216,25 +216,36 @@ async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Pro
 }
 
 /**
- * ensureOpenWorkday — workday-first guarantee for ALL server-side flows
- * that create activity rows (location_time_entries / time_reports / GPS
- * auto-entries / accept_unplanned_site_visit).
+ * ensureOpenWorkdayForTimer — workday-first guarantee for ALL server-side
+ * flows that create activity rows (location_time_entries / time_reports /
+ * GPS auto-entries / accept_unplanned_site_visit / assistant start).
  *
  * Rule: aktiv timer/time_report får ALDRIG existera utan workday.
  *  - If an open workday exists for (staff, org) → return it.
- *  - Otherwise insert a new workdays row with started_at = startedAtIso.
+ *  - Otherwise insert a new workdays row with started_at = start_at and
+ *    metadata describing source + matched target.
  *  - If insert fails → throw, so the caller aborts BEFORE creating the
  *    activity row.
  *
- * Skipped (returns null) when staffId is not a real staff_members row
+ * Skipped (returns null) when staff_id is not a real staff_members row
  * (web-JWT planner fallback / admin paths) so admin tooling keeps working.
+ *
+ * ALL timer/LTE/time_report start flows MUST call this helper instead of
+ * duplicating workday-creation logic.
  */
-async function ensureOpenWorkday(
+type EnsureWorkdayArgs = {
+  staff_id: string | undefined
+  organization_id: string
+  start_at?: string
+  source: string // e.g. 'create_time_report' | 'geofence_enter' | 'start_location_timer' | 'accept_unplanned_site_visit' | 'assistant_start_activity'
+  target?: { kind: string; id?: string | null; name?: string | null } | null
+}
+
+async function ensureOpenWorkdayForTimer(
   supabase: any,
-  staffId: string | undefined,
-  organizationId: string,
-  startedAtIso?: string,
+  args: EnsureWorkdayArgs,
 ): Promise<{ id: string; started_at: string } | null> {
+  const { staff_id: staffId, organization_id: organizationId, start_at, source, target } = args
   if (!staffId || !organizationId) return null
 
   // Guard: only run for real staff rows.
@@ -255,15 +266,15 @@ async function ensureOpenWorkday(
     .order('started_at', { ascending: false })
     .limit(1)
   if (openErr) {
-    console.warn('[ensureOpenWorkday] lookup failed:', openErr)
+    console.warn('[ensureOpenWorkdayForTimer] lookup failed:', openErr)
   }
   if (openRows && openRows.length > 0) {
     return { id: openRows[0].id, started_at: openRows[0].started_at }
   }
 
   const startedAt =
-    startedAtIso && !isNaN(new Date(startedAtIso).getTime())
-      ? new Date(startedAtIso).toISOString()
+    start_at && !isNaN(new Date(start_at).getTime())
+      ? new Date(start_at).toISOString()
       : new Date().toISOString()
 
   const { data: ins, error: insErr } = await supabase
@@ -273,21 +284,43 @@ async function ensureOpenWorkday(
       staff_id: staffId,
       started_at: startedAt,
       started_by: 'server_workday_first',
-      notes: 'Auto-skapad av server (workday-first guarantee)',
+      notes: `Auto-skapad av server (workday-first guarantee, source=${source})`,
       metadata: {
         auto_started: true,
-        auto_start_source: 'ensure_open_workday',
+        auto_start_source: source,
+        matched_target: target ?? null,
+        reason: 'timer_start_requires_workday',
         guarantee: 'no_timer_without_workday',
       },
     })
     .select('id, started_at')
     .single()
   if (insErr) {
-    console.error('[ensureOpenWorkday] insert failed:', insErr)
+    console.error('[ensureOpenWorkdayForTimer] insert failed:', insErr)
     throw new Error(`workday_first_failed: ${insErr.message}`)
   }
-  console.log(`[ensureOpenWorkday] auto-started workday ${ins.id} for staff=${staffId} at ${ins.started_at}`)
+  console.log(
+    `[ensureOpenWorkdayForTimer] auto-started workday ${ins.id} for staff=${staffId} at ${ins.started_at} (source=${source})`,
+  )
   return ins
+}
+
+// Back-compat shim — existing callers using positional args.
+async function ensureOpenWorkday(
+  supabase: any,
+  staffId: string | undefined,
+  organizationId: string,
+  startedAtIso?: string,
+  source: string = 'ensure_open_workday',
+  target: EnsureWorkdayArgs['target'] = null,
+): Promise<{ id: string; started_at: string } | null> {
+  return ensureOpenWorkdayForTimer(supabase, {
+    staff_id: staffId,
+    organization_id: organizationId,
+    start_at: startedAtIso,
+    source,
+    target,
+  })
 }
 
 async function handleRequest(req: Request, rotationSlot: { token: string | null }): Promise<Response> {
@@ -2461,7 +2494,17 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
   // workday for the same staff. Anchor the workday at report_date+start_time.
   try {
     const startedAtIso = new Date(`${report_date}T${start_time}:00`).toISOString()
-    await ensureOpenWorkday(supabase, staffId, organizationId, startedAtIso)
+    await ensureOpenWorkdayForTimer(supabase, {
+      staff_id: staffId,
+      organization_id: organizationId,
+      start_at: startedAtIso,
+      source: 'create_time_report',
+      target: large_project_id
+        ? { kind: 'large_project', id: large_project_id }
+        : booking_id
+          ? { kind: 'booking', id: booking_id }
+          : { kind: 'manual' },
+    })
   } catch (wdErr: any) {
     console.error('[create_time_report] workday-first failed, aborting:', wdErr)
     return new Response(
@@ -5360,7 +5403,13 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         // GPS entry — no timer without workday.
         const enteredAtIso = new Date().toISOString()
         try {
-          await ensureOpenWorkday(supabase, staffId, organizationId, enteredAtIso)
+          await ensureOpenWorkdayForTimer(supabase, {
+            staff_id: staffId,
+            organization_id: organizationId,
+            start_at: enteredAtIso,
+            source: 'geofence_enter',
+            target: { kind: 'location', id: loc.id, name: loc.name },
+          })
         } catch (wdErr) {
           console.error('[geofence] workday-first failed, skipping GPS entry:', wdErr)
           continue
@@ -5882,7 +5931,19 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
   // 3b. WORKDAY-FIRST GUARANTEE — never create an LTE without an open workday.
   // Use the same `entered_at` so timer-start ≤ workday start cannot occur.
   try {
-    await ensureOpenWorkday(supabase, staffId, organizationId, enteredAtIso)
+    await ensureOpenWorkdayForTimer(supabase, {
+      staff_id: staffId,
+      organization_id: organizationId,
+      start_at: enteredAtIso,
+      source: 'start_location_timer',
+      target: large_project_id
+        ? { kind: 'large_project', id: large_project_id }
+        : booking_id
+          ? { kind: 'booking', id: booking_id }
+          : location_id
+            ? { kind: 'location', id: location_id }
+            : { kind: 'manual' },
+    })
   } catch (wdErr: any) {
     console.error('[start_location_timer] workday-first failed, aborting timer start:', wdErr)
     return new Response(
@@ -9392,7 +9453,13 @@ async function handleAcceptUnplannedSiteVisit(
   } else {
     // Workday-first: never create an LTE without an open workday.
     try {
-      await ensureOpenWorkday(supabase, staffId, organizationId, nowIso)
+      await ensureOpenWorkdayForTimer(supabase, {
+        staff_id: staffId,
+        organization_id: organizationId,
+        start_at: nowIso,
+        source: 'accept_unplanned_site_visit',
+        target: { kind: 'booking', id: booking_id },
+      })
     } catch (wdErr: any) {
       console.error('[accept_unplanned_site_visit] workday-first failed, aborting:', wdErr)
       return new Response(
