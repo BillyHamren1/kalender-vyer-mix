@@ -169,21 +169,35 @@ export const buildProjectBlocks = (input: BuildProjectBlocksInput): ProjectBlock
   const { events, visitByKey, plannedTargetIds, workdayStartedIso } = input;
   const blocks: ProjectBlock[] = [];
 
-  // Index timer events per placeKey för att korsreferera
-  const timerStartByPlaceKey = new Map<string, string>();
-  const timerStopByPlaceKey = new Map<string, string>();
-  const timerActiveByPlaceKey = new Map<string, boolean>();
-  for (const ev of events) {
-    const placeKey = (ev.meta as any)?.placeKey as string | undefined;
-    if (!placeKey) continue;
+  // Bygg lista över timer-intervall per placeKey: starts paras med första
+  // efterföljande stop (samma placeKey). En öppen start ger end=null = aktiv.
+  // Detta gör att två besök på samma plats kan få olika timer-status.
+  type TimerInterval = { placeKey: string; start: string; end: string | null };
+  const timerIntervals: TimerInterval[] = [];
+  const openStartsByKey = new Map<string, number[]>(); // index i timerIntervals
+  const sortedTimerEvents = events
+    .filter(e => e.kind === 'timer_started' || e.kind === 'timer_stopped')
+    .filter(e => !!(e.meta as any)?.placeKey)
+    .slice()
+    .sort((a, b) => a.at.localeCompare(b.at));
+  for (const ev of sortedTimerEvents) {
+    const placeKey = (ev.meta as any).placeKey as string;
     if (ev.kind === 'timer_started') {
-      if (!timerStartByPlaceKey.has(placeKey)) timerStartByPlaceKey.set(placeKey, ev.at);
-      // Om vi inte ser en stop, då är den aktiv
-      timerActiveByPlaceKey.set(placeKey, true);
-    }
-    if (ev.kind === 'timer_stopped') {
-      timerStopByPlaceKey.set(placeKey, ev.at);
-      timerActiveByPlaceKey.set(placeKey, false);
+      const idx = timerIntervals.length;
+      timerIntervals.push({ placeKey, start: ev.at, end: null });
+      const list = openStartsByKey.get(placeKey) ?? [];
+      list.push(idx);
+      openStartsByKey.set(placeKey, list);
+    } else {
+      const list = openStartsByKey.get(placeKey);
+      if (list && list.length > 0) {
+        const idx = list.shift()!;
+        timerIntervals[idx].end = ev.at;
+        openStartsByKey.set(placeKey, list);
+      } else {
+        // stop utan känd start — registrera som "punkt"-intervall så hasTimer fångar den
+        timerIntervals.push({ placeKey, start: ev.at, end: ev.at });
+      }
     }
   }
 
