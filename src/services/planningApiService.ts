@@ -154,7 +154,7 @@ export const updateDeliveryViaApi = (bookingId: string, data: {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
-}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
 
 /**
  * Update internal notes via the Booking system.
