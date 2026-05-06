@@ -5857,6 +5857,18 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     }
   }
 
+  // 3b. WORKDAY-FIRST GUARANTEE — never create an LTE without an open workday.
+  // Use the same `entered_at` so timer-start ≤ workday start cannot occur.
+  try {
+    await ensureOpenWorkday(supabase, staffId, organizationId, enteredAtIso)
+  } catch (wdErr: any) {
+    console.error('[start_location_timer] workday-first failed, aborting timer start:', wdErr)
+    return new Response(
+      JSON.stringify({ error: 'workday_first_failed', detail: wdErr?.message || String(wdErr) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
   // 4. Insert new open entry.
   const insertPayload: any = {
     organization_id: organizationId,
