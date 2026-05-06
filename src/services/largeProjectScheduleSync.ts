@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { updateBookingDatesViaApi } from "@/services/planningApiService";
 
 export type DateType = 'rig' | 'event' | 'rigDown';
 
@@ -33,16 +32,17 @@ export function arrayToPeriod(dates: string[] | null | undefined): { start: stri
   return { start: sorted[0], end: sorted[sorted.length - 1] };
 }
 
-const FIELD_MAP = {
-  rig: { single: 'rigdaydate', array: 'rig_dates', start: 'rig_start_time', end: 'rig_end_time' },
-  event: { single: 'eventdate', array: 'event_dates', start: 'event_start_time', end: 'event_end_time' },
-  rigDown: { single: 'rigdowndate', array: 'rigdown_dates', start: 'rigdown_start_time', end: 'rigdown_end_time' },
-} as const;
-
 /**
- * Propagate one phase's full date array (and optional times) to every linked sub-booking.
- * Sends both the array (rig_dates[] etc.) and the legacy single field (first date) for backward compatibility.
- * After writing, triggers `import-bookings` per booking so calendar_events are regenerated for ALL days.
+ * Propagate one phase's full date array to every linked sub-booking.
+ *
+ * IMPORTANT — LP datum-policy (mem://constraints/large-project-dates-local-authority-v1):
+ * Stora projekts datum (rig/event/rigdown) ägs av `large_projects` LOKALT.
+ * Externa Bokning-API:t accepterar inte LP-datum på sub-booking-nivå
+ * (returnerar 400 "Unknown type: bookings"). Vi skriver därför ALDRIG dessa
+ * via planning-api-proxy. `import-bookings`-reconcileraren läser redan från
+ * `large_projects` (REP-path) när den materialiserar `calendar_events`.
+ *
+ * Vi triggar bara `import-bookings` för REP-bokningen så kalendern regenereras.
  */
 export async function propagateProjectDatesToBookings(params: {
   bookingIds: string[];
@@ -51,28 +51,11 @@ export async function propagateProjectDatesToBookings(params: {
   startTime?: string | null;
   endTime?: string | null;
 }): Promise<void> {
-  const { bookingIds, dateType, dates, startTime, endTime } = params;
+  const { bookingIds } = params;
   if (bookingIds.length === 0) return;
 
-  const fields = FIELD_MAP[dateType];
-  const firstDate = dates.length > 0 ? dates[0] : null;
-
-  // 1. Write to each sub-booking via Booking API
-  await Promise.all(
-    bookingIds.map(bid => {
-      const updateData: Record<string, any> = {
-        // Legacy single-date field (first date) for backward compatibility
-        [fields.single]: firstDate,
-        // Full array — Booking system stores all days
-        [fields.array]: dates,
-      };
-      if (firstDate && startTime) updateData[fields.start] = `${firstDate}T${startTime}:00Z`;
-      if (firstDate && endTime) updateData[fields.end] = `${firstDate}T${endTime}:00Z`;
-      return updateBookingDatesViaApi(bid, updateData);
-    })
-  );
-
-  // 2. Trigger calendar_events regeneration per booking (one event per day)
+  // Trigger calendar_events regeneration. Reconcileraren skippar non-REP-bokningar
+  // automatiskt och plockar LP-datumen från large_projects.
   const { data: { user } } = await supabase.auth.getUser();
   let orgId: string | undefined;
   if (user) {
