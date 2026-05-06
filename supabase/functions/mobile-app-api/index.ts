@@ -11582,22 +11582,14 @@ async function handleGetActiveDayState(supabase: any, staffId: string, organizat
     }
   })
 
-  const ping = pingRes.data as any
-  let latest_ping: any = null
-  let latest_ping_age_ms: number | null = null
-  let stale_ping = false
-  if (ping && ping.updated_at) {
-    latest_ping = {
-      latitude: ping.latitude != null ? Number(ping.latitude) : null,
-      longitude: ping.longitude != null ? Number(ping.longitude) : null,
-      accuracy: ping.accuracy != null ? Number(ping.accuracy) : null,
-      updated_at: ping.updated_at,
-    }
-    latest_ping_age_ms = Math.max(0, Date.now() - new Date(ping.updated_at).getTime())
-    stale_ping = latest_ping_age_ms > STALE_PING_MS
-  } else {
-    stale_ping = true
-  }
+  const latest_ping = ping && ping.updated_at ? {
+    latitude: ping.latitude != null ? Number(ping.latitude) : null,
+    longitude: ping.longitude != null ? Number(ping.longitude) : null,
+    accuracy: ping.accuracy != null ? Number(ping.accuracy) : null,
+    updated_at: ping.updated_at,
+  } : null
+  const latest_ping_age_ms = pingAgeMs
+  const stale_ping = pingIsStale
 
   const wd = workdayRes.data as any
   const workday = wd ? {
