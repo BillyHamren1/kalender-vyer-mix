@@ -63,10 +63,24 @@ export const useEventOperations = ({
 
       // Large projects are planned at project level: the visible team comes
       // from large_project_team_assignments, not sibling calendar_events.
-      // If we only changed team here, saving resource_id would be ignored by
-      // the derivation layer and the event snaps back on refresh/realtime.
-      if (largeProjectId && largeProjectPhase && teamChanged && !dateChanged && !startChanged && !endChanged && newDate) {
+      // ANY team change for a large project MUST go through that table —
+      // a PATCH on calendar_events.resource_id is silently ignored by the
+      // derivation layer and the tile snaps back on refresh.
+      // Time-snap-on-drop in FullCalendar can flip startChanged/endChanged
+      // even on a pure team move, so we ignore those flags here.
+      if (largeProjectId && largeProjectPhase && teamChanged && newDate && !dateChanged) {
         await setLargeProjectDayTeam(largeProjectId, largeProjectPhase, newDate, info.newResource.id);
+        // If the time also got nudged, persist that — but WITHOUT resourceId.
+        if (startChanged || endChanged) {
+          const timeOnly: Partial<CalendarEvent> = {};
+          if (eventData.start) timeOnly.start = eventData.start;
+          if (eventData.end) timeOnly.end = eventData.end;
+          if (Object.keys(timeOnly).length > 0) {
+            try { await updateCalendarEvent(info.event.id, timeOnly); } catch (e) {
+              console.warn('[useEventOperations] time persist after team move failed', e);
+            }
+          }
+        }
         toast.success(changeDescription || 'Projektdag uppdaterad');
         return;
       }
