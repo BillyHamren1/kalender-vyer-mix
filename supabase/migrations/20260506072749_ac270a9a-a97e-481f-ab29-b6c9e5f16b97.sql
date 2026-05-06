@@ -1,0 +1,1 @@
+ALTER TABLE public.actual_day_event_overrides ALTER COLUMN staff_id TYPE text USING staff_id::text;
