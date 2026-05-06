@@ -97,12 +97,24 @@ interface ActualDayPanelProps {
    * Repair-action när workday saknas men det finns starka arbetsbevis
    * (assignment + GPS, timer existerar, två arbetsplatser, etc.).
    * Caller bör trigga `admin_repair_workday_from_evidence` edge-action.
+   * Detta är fallback-vägen (manuell knapp) — primär väg är auto-repair.
    */
   onRepairWorkdayFromEvidence?: (input: {
     proposedStartIso: string;
     proposedEndIso: string | null;
     reasonCodes: StrongWorkReasonCode[];
   }) => Promise<void> | void;
+  /**
+   * Primär auto-repair-väg. Triggas automatiskt när evidensen är "hög säkerhet"
+   * (timer_or_time_report_exists + (gps_on_known_work_site | server_engine_confident)).
+   * Caller bör anropa `auto_repair_missing_workdays_from_evidence` edge-action.
+   * Returnera `{ created: true }` när workday skapades.
+   */
+  onAutoRepairWorkdayFromEvidence?: (input: {
+    reasonCodes: StrongWorkReasonCode[];
+  }) => Promise<{ created: boolean }>;
+  /** Stäng av auto-repair (default: på när handler finns). */
+  autoRepairEnabled?: boolean;
 }
 
 const fmtHm = (iso: string) => {
@@ -473,6 +485,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   extraActions,
   rawGpsSlot,
   onRepairWorkdayFromEvidence,
+  onAutoRepairWorkdayFromEvidence,
+  autoRepairEnabled = true,
 }) => {
   const { isAdmin, hasAnyRole } = useUserRoles();
   const canExclude = isAdmin || hasAnyRole(['projekt', 'lager']);
@@ -516,7 +530,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     : 0;
   const repairIndicators = useMemo(() => computeStrongWorkIndicators(model), [model]);
   const showRepairBanner = !wd && repairIndicators.hasStrong && !!repairIndicators.proposedStartIso;
+  const isHighConfidence =
+    repairIndicators.reasonCodes.includes('timer_or_time_report_exists') &&
+    (repairIndicators.reasonCodes.includes('gps_on_known_work_site') ||
+      repairIndicators.reasonCodes.includes('server_engine_confident'));
   const [repairBusy, setRepairBusy] = useState(false);
+  const [autoRepairState, setAutoRepairState] = useState<'idle' | 'running' | 'created' | 'failed'>('idle');
+  const autoRepairTriedRef = React.useRef<string | null>(null);
+
   const handleRepair = async () => {
     if (!onRepairWorkdayFromEvidence || !repairIndicators.proposedStartIso) return;
     try {
@@ -533,6 +554,42 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       setRepairBusy(false);
     }
   };
+
+  // Primär väg: kör auto-repair direkt vid hög säkerhet — ingen admin-klick
+  // krävs när timer redan finns och evidensen är stark.
+  React.useEffect(() => {
+    if (!autoRepairEnabled) return;
+    if (!onAutoRepairWorkdayFromEvidence) return;
+    if (wd) return; // workday finns redan
+    if (!isHighConfidence) return;
+    const key = `${staffId ?? ''}|${date ?? ''}`;
+    if (autoRepairTriedRef.current === key) return;
+    autoRepairTriedRef.current = key;
+    setAutoRepairState('running');
+    onAutoRepairWorkdayFromEvidence({ reasonCodes: repairIndicators.reasonCodes })
+      .then((res) => {
+        if (res?.created) {
+          setAutoRepairState('created');
+          toast.success('Arbetsdag auto-skapad från arbetsbevis');
+        } else {
+          // Backend stoppade auto-repair — fall tillbaka till manuell knapp.
+          setAutoRepairState('failed');
+        }
+      })
+      .catch((e: any) => {
+        setAutoRepairState('failed');
+        console.warn('[ActualDayPanel] auto-repair failed:', e?.message ?? e);
+      });
+  }, [
+    autoRepairEnabled,
+    onAutoRepairWorkdayFromEvidence,
+    wd,
+    isHighConfidence,
+    staffId,
+    date,
+    repairIndicators.reasonCodes,
+  ]);
+
 
   const rawEvents = showAllEvents ? buildRawTimeline(model.actualEvents) : buildMainTimeline(model.actualEvents);
   const hiddenReasons = useMemo(() => buildHiddenReasonMap(model.actualEvents), [model.actualEvents]);
@@ -1205,7 +1262,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <Sparkles className="h-4 w-4 text-blue-700 dark:text-blue-300 shrink-0" />
           <div className="text-xs flex-1 min-w-[16rem]">
             <div className="font-medium text-blue-900 dark:text-blue-100">
-              Arbetsdag saknas – hög säkerhet · kan auto-skapa från {fmtHm(repairIndicators.proposedStartIso!)}
+              {autoRepairState === 'running'
+                ? `Arbetsdag auto-skapas från ${fmtHm(repairIndicators.proposedStartIso!)}…`
+                : autoRepairState === 'created'
+                  ? `Arbetsdag auto-skapad från ${fmtHm(repairIndicators.proposedStartIso!)}`
+                  : `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${fmtHm(repairIndicators.proposedStartIso!)}`}
             </div>
             <div className="text-blue-900/80 dark:text-blue-100/80">
               Föreslagen start <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedStartIso!)}</span>
@@ -1215,7 +1276,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               {' · '}{repairIndicators.reasonCodes.join(', ')}
             </div>
           </div>
-          {onRepairWorkdayFromEvidence ? (
+          {/* Auto-repair är primär väg vid hög säkerhet. Manuell knapp visas
+              bara som fallback när auto-repair är avstängd, inte högconf, eller
+              backend stoppade auto-repair. */}
+          {autoRepairState === 'running' ? (
+            <Badge variant="outline" className="text-[10px]">Skapar…</Badge>
+          ) : autoRepairState === 'created' ? (
+            <Badge variant="outline" className="text-[10px]">Skapad</Badge>
+          ) : onRepairWorkdayFromEvidence ? (
             <Button size="sm" disabled={repairBusy} onClick={handleRepair}>
               {repairBusy ? 'Skapar…' : 'Skapa arbetsdag'}
             </Button>
@@ -1224,6 +1292,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           )}
         </div>
       )}
+
 
       {/* A2. Planering — collapsed sektion ovanför huvudjournalen.
           Visar enbart förväntan; aldrig blandat med faktiska händelser. */}
