@@ -524,3 +524,118 @@ export function evaluateDayApprovability(
 
   return { canApprove, canOverride, blockers, criticalAnomalies, reason };
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Day approval state — single source of truth for the 4-state UX
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * 4-stegs dagstatus som speglar attestflödet:
+ *
+ *   - 'in_progress'        — workday öppen, eller ingen workday alls men
+ *                             personalen är registrerad (timer/rapport pågår).
+ *   - 'ready_for_approval' — workday har start + slut, ingen aktiv timer,
+ *                             ingen överrapportering, inga hårda
+ *                             tekniska fel. **Oallokerad tid blockerar inte.**
+ *   - 'approved'           — workdays.review_status='approved'.
+ *   - 'requires_correction'— hårda fel: överrapportering, saknad
+ *                             utloggning, öppen workday äldre än 18h,
+ *                             pending assistent-händelser, eller andra
+ *                             critical anomalies som inte är override-bara.
+ *
+ * Modell:
+ *   - Stängd workday = attestbar dagsrapport.
+ *   - time_reports = fördelning *inom* dagen (kan justeras i attestflödet).
+ *   - Oallokerad tid räknas som info, aldrig blockerande.
+ */
+export type DayApprovalState =
+  | 'in_progress'
+  | 'ready_for_approval'
+  | 'approved'
+  | 'requires_correction';
+
+export interface DayApprovalStateResult {
+  state: DayApprovalState;
+  /** Kort svensk etikett för chip/knapp. */
+  label: string;
+  /** Längre tooltip-text. */
+  detail: string;
+}
+
+const STATE_LABELS: Record<DayApprovalState, { label: string; detail: string }> = {
+  in_progress: { label: 'Pågår', detail: 'Arbetsdagen är ännu inte avslutad.' },
+  ready_for_approval: {
+    label: 'Redo för attest',
+    detail: 'Arbetsdagen är stängd och kan godkännas. Eventuell oallokerad tid blockerar inte.',
+  },
+  approved: { label: 'Godkänd', detail: 'Dagen är godkänd som dagsrapport.' },
+  requires_correction: {
+    label: 'Kräver korrigering',
+    detail: 'Hårda fel finns (t.ex. överrapportering, saknad utloggning eller öppen timer).',
+  },
+};
+
+/**
+ * evaluateDayApprovalState — härleder den 4-stegs status som UI:t visar.
+ *
+ * Hierarki (högst till lägst):
+ *   1. approved  (reviewStatus='approved')
+ *   2. requires_correction (hårda fel som inte bara är "open workday")
+ *   3. in_progress (workday saknas eller är fortfarande öppen,
+ *                   utan andra hårda fel)
+ *   4. ready_for_approval (alla grindar uppfyllda)
+ */
+export function evaluateDayApprovalState(
+  result: AdminTimeReviewResult,
+  context: {
+    workday: ReviewWorkdayInput | null;
+    openTimer?: ReviewOpenTimer | null;
+    assistantEvents?: ReviewAssistantEvent[];
+    reviewStatus?: 'open' | 'needs_review' | 'approved' | string | null;
+  },
+): DayApprovalStateResult {
+  if (context.reviewStatus === 'approved') {
+    return { state: 'approved', ...STATE_LABELS.approved };
+  }
+
+  const ap = evaluateDayApprovability(result, context);
+
+  // Pågår: workday saknas helt eller är fortfarande öppen.
+  // Ingen aktiv timer/pending assistant räknas också som "pågår" —
+  // användaren har inte stängt sin dag ännu, det är inte ett fel.
+  if (ap.blockers.includes('workday_missing') || ap.blockers.includes('workday_open')) {
+    // Men om det finns andra hårda fel (overlap, over_distributed osv.)
+    // ska "Kräver korrigering" vinna så admin inte missar dem.
+    const hasHardError = result.anomalies.some(
+      (a) =>
+        a.severity === 'critical' &&
+        a.kind !== 'open_timer_stale' &&
+        a.kind !== 'missing_logout' &&
+        a.kind !== 'planned_no_start',
+    );
+    if (hasHardError) {
+      return { state: 'requires_correction', ...STATE_LABELS.requires_correction };
+    }
+    return { state: 'in_progress', ...STATE_LABELS.in_progress };
+  }
+
+  // Aktiv timer kvar efter stängd workday → kräver korrigering.
+  if (ap.blockers.includes('open_timer')) {
+    return { state: 'requires_correction', ...STATE_LABELS.requires_correction };
+  }
+
+  // Pending assistent-händelser blockerar attest men är ingen "fel" i sig.
+  // Visa som "Kräver korrigering" så admin agerar.
+  if (ap.blockers.includes('pending_assistant_events')) {
+    return { state: 'requires_correction', ...STATE_LABELS.requires_correction };
+  }
+
+  // Soft critical (over_distributed > 30, planned_no_start > 60 osv.) →
+  // kräver korrigering (admin kan välja override-flödet om hen vill).
+  if (ap.criticalAnomalies.length > 0) {
+    return { state: 'requires_correction', ...STATE_LABELS.requires_correction };
+  }
+
+  // Annars: redo för attest. Oallokerad tid (info) räknas inte här.
+  return { state: 'ready_for_approval', ...STATE_LABELS.ready_for_approval };
+}

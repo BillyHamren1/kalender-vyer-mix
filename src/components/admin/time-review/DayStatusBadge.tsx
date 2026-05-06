@@ -2,57 +2,61 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import {
   AdminTimeReviewResult,
-  summarizeForBadge,
-  ReviewStatus,
+  evaluateDayApprovalState,
+  type DayApprovalState,
+  type ReviewWorkdayInput,
+  type ReviewOpenTimer,
+  type ReviewAssistantEvent,
 } from '@/lib/admin/adminTimeReviewEngine';
 
 /**
- * DayStatusBadge — single chip rendering of a person×day's review status.
+ * DayStatusBadge — visar dagens 4-stegs attest-status:
+ *   Pågår / Redo för attest / Godkänd / Kräver korrigering
  *
- * Reads from the same `evaluateAdminTimeReview()` result that
- * AdminTimeReviewDashboard rows and DayReviewPanel use, so the colour
- * and label can never drift between surfaces.
+ * Drivs av evaluateDayApprovalState() — samma källa som DayApprovalAction.
+ * Oallokerad tid räknas aldrig som "Kräver korrigering".
  */
 export interface DayStatusBadgeProps {
   result: AdminTimeReviewResult;
-  /** When true, show "{n}" badge with the anomaly count. */
-  showCount?: boolean;
+  workday: ReviewWorkdayInput | null;
+  reviewStatus?: 'open' | 'needs_review' | 'approved' | string | null;
+  openTimer?: ReviewOpenTimer | null;
+  assistantEvents?: ReviewAssistantEvent[];
   className?: string;
 }
 
-const STATUS_CLASSES: Record<ReviewStatus, string> = {
-  ok: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
-  warning: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
-  critical: 'bg-destructive/15 text-destructive border-destructive/40',
-};
-
-const STATUS_FALLBACK_LABEL: Record<ReviewStatus, string> = {
-  ok: 'OK',
-  warning: 'Granska',
-  critical: 'Åtgärd krävs',
+const STATE_CLASSES: Record<DayApprovalState, string> = {
+  in_progress: 'bg-muted text-muted-foreground border-border',
+  ready_for_approval: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  approved: 'bg-primary/15 text-primary border-primary/30',
+  requires_correction: 'bg-destructive/15 text-destructive border-destructive/40',
 };
 
 export const DayStatusBadge: React.FC<DayStatusBadgeProps> = ({
   result,
-  showCount = true,
+  workday,
+  reviewStatus,
+  openTimer = null,
+  assistantEvents = [],
   className,
 }) => {
-  const summary = summarizeForBadge(result);
-  const label = summary.topLabel ?? STATUS_FALLBACK_LABEL[summary.status];
+  const state = evaluateDayApprovalState(result, {
+    workday,
+    openTimer,
+    assistantEvents,
+    reviewStatus,
+  });
 
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold',
-        STATUS_CLASSES[summary.status],
+        STATE_CLASSES[state.state],
         className,
       )}
-      title={summary.topLabel ?? undefined}
+      title={state.detail}
     >
-      <span className="truncate max-w-[160px]">{label}</span>
-      {showCount && summary.count > 1 && (
-        <span className="opacity-70">+{summary.count - 1}</span>
-      )}
+      <span className="truncate max-w-[160px]">{state.label}</span>
     </span>
   );
 };
