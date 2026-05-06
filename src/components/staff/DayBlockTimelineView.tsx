@@ -169,6 +169,71 @@ const PlaceLabel: React.FC<{
   );
 };
 
+/**
+ * Liten chip som visar vad som finns på platsen enligt Mapbox POI.
+ * Renderas bara när reverse-geocoden har returnerat ett vettigt POI-namn.
+ */
+const PoiChip: React.FC<{
+  place?: {
+    poiName?: string | null;
+    poiCategory?: string | null;
+    poiDistanceMeters?: number | null;
+  } | null;
+}> = ({ place }) => {
+  const name = place?.poiName?.trim();
+  if (!name) return null;
+  const cat = place?.poiCategory?.split(',')[0]?.trim() ?? null;
+  const dist = place?.poiDistanceMeters ?? null;
+  const tooltipParts: string[] = [];
+  if (cat) tooltipParts.push(cat);
+  if (dist != null) tooltipParts.push(`~${dist} m`);
+  return (
+    <span
+      className="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10px] font-medium max-w-[14rem] truncate"
+      title={tooltipParts.length ? `Mapbox POI · ${tooltipParts.join(' · ')}` : 'Mapbox POI'}
+    >
+      <span>📍</span>
+      <span className="truncate">{name}</span>
+    </span>
+  );
+};
+
+/** Lista över andra POI i närheten för expand-vyn. */
+const NearbyPoiList: React.FC<{
+  place?: {
+    nearbyPois?: Array<{ name: string; category: string | null; distanceMeters: number | null; mapsUrl?: string }> | null;
+    poiName?: string | null;
+  } | null;
+}> = ({ place }) => {
+  const list = (place?.nearbyPois ?? []).filter((p) => p.name && p.name !== place?.poiName).slice(0, 4);
+  if (list.length === 0) return null;
+  return (
+    <div className="px-2.5 py-1.5 text-[11px] text-muted-foreground border-b border-border bg-muted/20">
+      <span className="font-medium text-foreground/80">I närheten:</span>{' '}
+      {list.map((p, i) => (
+        <React.Fragment key={`${p.name}-${i}`}>
+          {i > 0 && <span> · </span>}
+          {p.mapsUrl ? (
+            <a
+              href={p.mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="hover:underline"
+              title={p.category ? `${p.category}${p.distanceMeters != null ? ` · ~${p.distanceMeters} m` : ''}` : undefined}
+            >
+              {p.name}
+            </a>
+          ) : (
+            <span title={p.category ?? undefined}>{p.name}</span>
+          )}
+          {p.distanceMeters != null && <span className="text-muted-foreground/70"> ({p.distanceMeters}m)</span>}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
 /* ------------------------------------------------------------------ */
 /*  Shared row primitives — kompakta rader (~34–40px höga)            */
 /* ------------------------------------------------------------------ */
@@ -534,6 +599,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
             <Building2 className="h-3.5 w-3.5" />
           </span>
           <PlaceLabel place={block.resolvedPlace} fallback={block.title} className="font-semibold text-foreground truncate" />
+          <PoiChip place={block.resolvedPlace as any} />
           {subtitle && (
             <>
               <span className="text-muted-foreground shrink-0">·</span>
@@ -555,6 +621,7 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
       {open && (
         <>
           <ExtraBadges badges={extraBadges} />
+          <NearbyPoiList place={block.resolvedPlace as any} />
           <PlaceDebugPanel title="plats" place={block.resolvedPlace as any} />
           <InnerEvents block={block} />
         </>

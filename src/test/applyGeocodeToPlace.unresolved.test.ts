@@ -25,6 +25,8 @@ describe('applyGeocodeToPlace — unresolved guard', () => {
       error: 'mapbox_token_unavailable',
       cacheKey: '59.329,18.069',
       tokenAvailable: false,
+  poiDistanceMeters: null,
+  nearbyPois: [],
     };
 
     const out = applyGeocodeToPlace(basePlace, { status: 'ok', geo: unresolved });
@@ -50,6 +52,8 @@ describe('applyGeocodeToPlace — unresolved guard', () => {
       error: null,
       cacheKey: '59.329,18.069',
       tokenAvailable: true,
+  poiDistanceMeters: null,
+  nearbyPois: [],
     };
 
     const out = applyGeocodeToPlace(basePlace, { status: 'ok', geo: ok });

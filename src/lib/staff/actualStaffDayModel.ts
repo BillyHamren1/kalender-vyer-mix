@@ -276,6 +276,10 @@ export interface ResolvedPlace {
   city: string | null;
   poiName: string | null;
   poiCategory: string | null;
+  /** Avstånd (m) till `poiName` från klustercenter. */
+  poiDistanceMeters?: number | null;
+  /** Andra POI:s i närheten (max ~5), sorterade efter avstånd. */
+  nearbyPois?: Array<{ name: string; category: string | null; distanceMeters: number | null; mapsUrl: string }>;
   lat: number | null;
   lng: number | null;
   /** Google Maps-länk om koordinater finns, annars null. */
