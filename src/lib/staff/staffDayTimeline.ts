@@ -153,13 +153,19 @@ function presenceToKind(b: PresenceBlock): StaffDaySegmentKind {
 
 function presenceToSegment(b: PresenceBlock): StaffDaySegment {
   const kind = presenceToKind(b);
+  // Unknown presence visas i huvudvyn som "Ej fördelat" — aldrig tekniska
+  // labels eller råa platsnamn. Råetiketten finns kvar i evidence/drawer.
+  const label =
+    kind === 'unknown'
+      ? 'Ej fördelat'
+      : (b.resolvedPlace?.label ?? b.title);
   return {
     id: b.id,
     kind,
     startIso: b.startIso,
     endIso: b.endIso,
     durationMin: b.durationMin,
-    label: b.resolvedPlace?.label ?? b.title,
+    label,
     subtitle: b.subtitle,
     ongoing: b.ongoing,
     reviewRequired: b.requiresReview || kind === 'unknown',
@@ -194,8 +200,11 @@ function gapToSegment(b: GapBlock): StaffDaySegment {
     startIso: b.startIso,
     endIso: b.endIso,
     durationMin: b.durationMin,
-    label: b.expectedLabel ?? 'Glapp',
-    subtitle: b.explanation,
+    // Glapp/oallokerad tid visas som "Ej fördelat" i huvudvyn.
+    // Tekniska orsaker (gps_lost, server_background_gps_backfill etc.)
+    // exponeras endast i RawEvidenceDrawer.
+    label: 'Ej fördelat',
+    subtitle: null,
     ongoing: false,
     reviewRequired: true,
     sourceBlockId: b.id,
