@@ -375,7 +375,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     const isProject = !!knownSiteId
       && (knownSiteId.startsWith('booking:') || knownSiteId.startsWith('large:'));
     const isLocation = !!knownSiteId
-      && (knownSiteId.startsWith('location:') || knownSiteId.startsWith('site:') || knownSiteId.startsWith('warehouse:'));
+      && (knownSiteId.startsWith('location:') || knownSiteId.startsWith('loc:') || knownSiteId.startsWith('site:') || knownSiteId.startsWith('warehouse:'));
     const isKnown = isProject || isLocation;
 
     // Okänd + för kort → tillhör raw/debug, inte huvudjournalen.
