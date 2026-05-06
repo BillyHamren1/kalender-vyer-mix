@@ -398,9 +398,12 @@ const MobileGlobalOverlays: React.FC = () => {
    */
   const arrivalAlreadyHandled = React.useMemo(() => {
     if (!plannedArrivalTarget) return false;
-    const wt = arrivalToWorkTargetSafe(plannedArrivalTarget);
-    if (!wt) return false;
-    const key = resolveTargetKey(wt);
+    const t = plannedArrivalTarget;
+    const key = t.kind === 'location'
+      ? `location-${t.target_id}`
+      : t.kind === 'project'
+        ? `project-${t.target_id}`
+        : t.target_id;
     return providerActiveTimers.has(key);
   }, [plannedArrivalTarget, providerActiveTimers]);
 
