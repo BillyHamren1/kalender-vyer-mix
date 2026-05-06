@@ -89,6 +89,35 @@ function loadGeofenceTargets(): GeofenceTarget[] {
  */
 const REPORT_THROTTLE_MS = 30_000;     // normal movement-driven report
 const DEFAULT_HEARTBEAT_MS = 60_000;   // fallback if mode engine not ready
+const DEFAULT_DISTANCE_FILTER = 50;    // fallback if mode engine not ready
+const RESTART_MIN_INTERVAL_MS = 60_000; // min time between native restarts
+const RESTART_DISTANCE_DELTA = 30;      // only restart if filter changed >=30m
+
+const ACTIVE_TIMERS_KEY = 'eventflow-mobile-timers';
+
+/** Cheap check — reads timer cache from localStorage written by useGeofencing. */
+function readHasActiveTimer(): boolean {
+  try {
+    const raw = localStorage.getItem(ACTIVE_TIMERS_KEY);
+    if (!raw) return false;
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) && arr.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export interface BackgroundLocationDebugInfo {
+  currentLocationMode: LocationMode | null;
+  selectedHeartbeatMs: number;
+  selectedDistanceFilter: number;
+  nearestTargetDistanceMeters: number | null;
+  hasActiveTimer: boolean;
+  hasPendingArrival: boolean;
+  lastPingAt: number | null;
+  lastUploadAt: number | null;
+  lastNativeRestartAt: number | null;
+}
 
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
   const lastReportRef = useRef(0);
@@ -103,6 +132,21 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   // Adaptive mode state
   const currentModeRef = useRef<LocationMode | null>(null);
   const currentHeartbeatMsRef = useRef<number>(DEFAULT_HEARTBEAT_MS);
+  const currentDistanceFilterRef = useRef<number>(DEFAULT_DISTANCE_FILTER);
+  const lastNativeRestartRef = useRef<number>(0);
+  const lastPingAtRef = useRef<number | null>(null);
+  const lastUploadAtRef = useRef<number | null>(null);
+  const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
+    currentLocationMode: null,
+    selectedHeartbeatMs: DEFAULT_HEARTBEAT_MS,
+    selectedDistanceFilter: DEFAULT_DISTANCE_FILTER,
+    nearestTargetDistanceMeters: null,
+    hasActiveTimer: false,
+    hasPendingArrival: false,
+    lastPingAt: null,
+    lastUploadAt: null,
+    lastNativeRestartAt: null,
+  });
 
   // Keep ref in sync so heartbeat survives auth-token refreshes without restart
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
