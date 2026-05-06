@@ -1313,6 +1313,22 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       }
       if (inside) resetExitTracker(getExitTracker(locKey));
 
+      // PRESENCE-EXIT CLEANUP (no timer) — gör så att andra besöket samma
+      // session triggar auto-arrival igen (annars sitter locKey kvar i
+      // triggeredEnterRef och ENTER-grenen hoppas över).
+      if (
+        accuracyOk &&
+        evalShouldExit(userPosition.lat, userPosition.lng, target, accuracy) &&
+        !hasTimer &&
+        triggeredEnterRef.current.has(locKey)
+      ) {
+        const ev = evaluateExit(locKey, dist);
+        if (ev.status === 'stable' || ev.status === 'stale_autostop') {
+          triggeredEnterRef.current.delete(locKey);
+          resetExitTracker(getExitTracker(locKey));
+        }
+      }
+
       // EXIT: hysteresis + accuracy gate + STABLE-EXIT GATE (2026-05).
       // En enskild punkt utanför stoppar inte timern. Workdayen rörs aldrig.
       if (
