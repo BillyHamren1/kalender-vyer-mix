@@ -655,11 +655,6 @@ const ServerEntryRow: React.FC<{
     return () => window.clearTimeout(id);
   }, [armed]);
 
-  const elapsed = Math.max(0, differenceInSeconds(new Date(), parseISO(entry.entered_at)));
-  const h = Math.floor(elapsed / 3600);
-  const m = Math.floor((elapsed % 3600) / 60);
-  const s = elapsed % 60;
-
   const handleStopClick = async () => {
     if (saving) return;
     if (!armed) { setArmed(true); return; }
@@ -671,16 +666,16 @@ const ServerEntryRow: React.FC<{
   return (
     <div className="flex items-center gap-3 p-3 rounded-2xl border border-primary/30 bg-primary/5">
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5">
+        <p className="text-[10px] uppercase tracking-wider font-bold text-primary/70">
+          Tid registreras här
+        </p>
+        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5 mt-0.5">
           <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />
           {entry.target_label}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Startad {extractUTCTime(entry.entered_at)} · serverstyrd
+          Sedan {extractUTCTime(entry.entered_at)} · serverstyrd
         </p>
-      </div>
-      <div className="font-mono font-extrabold text-base tabular-nums text-primary">
-        {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
       <div className="flex items-center gap-1">
         <Button
