@@ -947,7 +947,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
   //    samma projekt under det fönstret visa timern som närvarande, och
   //    eventuella tomrum mellan dem fyllas med inferred presence-block så
   //    tiden hänger ihop visuellt. Bara det SISTA blocket får timer.active.
-  const nowIso = new Date().toISOString();
+  // (timer-tail/timer-bridge är borttagna — ingen "now"-referens behövs här.)
   const projectGroups = new Map<string, PresenceBlock[]>();
   for (const b of withGaps) {
     if (b.kind !== 'presence') continue;
