@@ -73,7 +73,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const { handleEventClick } = useEventNavigation();
 
   const timeSlots = generateTimeSlots();
-  const totalTeamColumnsWidth = resources.length * TEAM_COLUMN_WIDTH;
+
+  const getAssignedStaffForTeamSafe = (teamId: string) => {
+    if (!weeklyStaffOperations) return [];
+    const staff = weeklyStaffOperations.getStaffForTeamAndDate(teamId, day);
+    return Array.isArray(staff) ? staff : [];
+  };
+  // Bredda team-kolumnen när det finns fler än 5 tilldelade personer.
+  const WIDE_TEAM_COLUMN_WIDTH = TEAM_COLUMN_WIDTH * 2;
+  const teamColumnWidths = resources.map((r) =>
+    getAssignedStaffForTeamSafe(r.id).length > 5 ? WIDE_TEAM_COLUMN_WIDTH : TEAM_COLUMN_WIDTH
+  );
+  const totalTeamColumnsWidth = teamColumnWidths.reduce((sum, w) => sum + w, 0);
 
   const handleBookingEventClick = (event: CalendarEvent) => {
     if (onEventClick) { onEventClick(event); return; }
@@ -87,11 +98,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     });
   };
 
-  const getAssignedStaffForTeam = (teamId: string) => {
-    if (!weeklyStaffOperations) return [];
-    const staff = weeklyStaffOperations.getStaffForTeamAndDate(teamId, day);
-    return Array.isArray(staff) ? staff : [];
-  };
+  const getAssignedStaffForTeam = getAssignedStaffForTeamSafe;
 
   const handlePickStaffForTeam = async (teamId: string, staffId: string) => {
     if (!onStaffDrop) return;
@@ -104,7 +111,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   const gridTemplateColumns = fullWidth
     ? `${TIME_COLUMN_WIDTH}px repeat(${resources.length}, 1fr) ${TIME_COLUMN_WIDTH}px`
-    : `${TIME_COLUMN_WIDTH}px ${resources.map(() => `${TEAM_COLUMN_WIDTH}px`).join(' ')} ${TIME_COLUMN_WIDTH}px`;
+    : `${TIME_COLUMN_WIDTH}px ${teamColumnWidths.map((w) => `${w}px`).join(' ')} ${TIME_COLUMN_WIDTH}px`;
   const totalWidth = fullWidth ? '100%' : `${TIME_COLUMN_WIDTH * 2 + totalTeamColumnsWidth}px`;
   const rightTimeColumn = resources.length + 2;
 
@@ -168,6 +175,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           {resources.map((resource, index) => {
             const isActiveTeam = openPickerTeamId === resource.id;
             const assignedIds = getAssignedStaffForTeam(resource.id).map((s) => s.id);
+            const colWidth = teamColumnWidths[index];
             return (
               <div
                 key={`header-${resource.id}`}
@@ -175,8 +183,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 style={{
                   gridColumn: index + 2,
                   gridRow: 2,
-                  width: fullWidth ? 'auto' : `${TEAM_COLUMN_WIDTH}px`,
-                  minWidth: fullWidth ? 0 : `${TEAM_COLUMN_WIDTH}px`,
+                  width: fullWidth ? 'auto' : `${colWidth}px`,
+                  minWidth: fullWidth ? 0 : `${colWidth}px`,
                   ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {}),
                 }}
               >
@@ -211,6 +219,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
           {resources.map((resource, index) => {
             const assignedStaff = getAssignedStaffForTeam(resource.id);
+            const colWidth = teamColumnWidths[index];
+            const wide = assignedStaff.length > 5;
             return (
               <div
                 key={`staff-${resource.id}`}
@@ -218,13 +228,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 style={{
                   gridColumn: index + 2,
                   gridRow: 3,
-                  width: fullWidth ? 'auto' : `${TEAM_COLUMN_WIDTH}px`,
-                  minWidth: fullWidth ? 0 : `${TEAM_COLUMN_WIDTH}px`,
+                  width: fullWidth ? 'auto' : `${colWidth}px`,
+                  minWidth: fullWidth ? 0 : `${colWidth}px`,
                   minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
                 }}
               >
                 <div className="staff-header-assignment-area">
-                  <div className="assigned-staff-header-list">
+                  <div className={`assigned-staff-header-list${wide ? ' assigned-staff-header-list--wide' : ''}`}>
                     {assignedStaff.map((staff) => (
                       <StaffItem
                         key={staff.id}
@@ -256,13 +266,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
           {resources.map((resource, index) => {
             const resourceEvents = getEventsForDayAndResource(day, resource.id);
+            const colWidth = teamColumnWidths[index];
             return (
               <SimpleTimeSlot
                 key={`timeslots-${resource.id}`}
                 isLast={index === resources.length - 1}
                 gridColumn={index + 2}
                 fullWidth={fullWidth}
-                fixedWidth={fullWidth ? undefined : TEAM_COLUMN_WIDTH}
+                fixedWidth={fullWidth ? undefined : colWidth}
               >
                 <div
                   className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
