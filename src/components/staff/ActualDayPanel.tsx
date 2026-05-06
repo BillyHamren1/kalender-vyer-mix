@@ -44,6 +44,7 @@ import { useUserRoles } from '@/hooks/useUserRoles';
 import { useActualDayEventOverrides } from '@/hooks/useActualDayEventOverrides';
 import ExcludedEventsSection from './ExcludedEventsSection';
 import DayHeaderPanel from './DayHeaderPanel';
+import ActiveNowBanner from './ActiveNowBanner';
 import { buildDayHeaderModel } from '@/lib/staff/dayHeaderModel';
 
 /**
