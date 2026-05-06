@@ -276,16 +276,22 @@ export const buildPlannerCalendarEvents = ({
 
       const key = `${projectId}|${phase}|${sourceDate}|${row.resource_id}`;
       const existing = projectGroups.get(key);
+      const rowBookingNumber = row.booking_number || booking?.booking_number || '';
+      const rowClientName = booking?.client || '';
       if (!existing) {
         projectGroups.set(key, {
           rep: row,
           bookingIds: new Set(row.booking_id ? [row.booking_id] : []),
+          bookingNumbers: new Set(rowBookingNumber ? [rowBookingNumber] : []),
+          clientNames: new Set(rowClientName ? [rowClientName] : []),
           eventIds: new Set([row.id]),
           earliestStart: row.start_time,
           latestEnd: row.end_time,
         });
       } else {
         if (row.booking_id) existing.bookingIds.add(row.booking_id);
+        if (rowBookingNumber) existing.bookingNumbers.add(rowBookingNumber);
+        if (rowClientName) existing.clientNames.add(rowClientName);
         existing.eventIds.add(row.id);
         if (row.start_time < existing.earliestStart) existing.earliestStart = row.start_time;
         if (row.end_time > existing.latestEnd) existing.latestEnd = row.end_time;
