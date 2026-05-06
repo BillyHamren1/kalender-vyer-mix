@@ -254,6 +254,15 @@ const EventActionPopover: React.FC<Props> = ({
                   {savingTime ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Spara'}
                 </Button>
               </div>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={applyToAll}
+                  onChange={(e) => setApplyToAll(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                Ändra för alla {PHASE_LABEL[(event.extendedProps as any)?.eventType || event.eventType] || ''}-dagar
+              </label>
             </div>
 
             {/* FOOTER */}
