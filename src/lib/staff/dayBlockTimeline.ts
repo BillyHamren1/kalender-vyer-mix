@@ -201,6 +201,15 @@ export interface BuildBlockTimelineInput {
   actualVisits?: ActualVisit[];
   /** Indexerad på placeKey för label/duration-konsistens + lat/lng för okända block och journey endpoints. */
   visitByKey: Map<string, VisitInfo>;
+  /**
+   * ISO för när "arbetsdagen/arbetskontexten" börjar (workday.started_at
+   * eller första timer/time_report-start om workday saknas). Visits som
+   * börjar före denna tid får sin block-start KLIPPT till denna tid när
+   * arbetsrelevansen kommer från overlap (workday/timer/TR), så
+   * huvudjournalen inte visar 00:00–07:00 som arbetsblock när workday
+   * startade 05:47. Original visit-start sparas i `clippedFromIso`.
+   */
+  workContextStartIso?: string | null;
 }
 
 /**
