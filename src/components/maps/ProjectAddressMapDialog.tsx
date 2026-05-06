@@ -221,6 +221,25 @@ export default function ProjectAddressMapDialog({
     modeRef.current = mode;
   }, [mode]);
 
+  const activateCircleMode = () => {
+    setMode("circle");
+    drawRef.current?.changeMode("simple_select");
+  };
+
+  const activatePolygonMode = () => {
+    setMode("polygon");
+    const draw = drawRef.current;
+    if (!draw) return;
+
+    if (!polygon) {
+      draw.deleteAll();
+      draw.changeMode("draw_polygon");
+      return;
+    }
+
+    draw.changeMode("simple_select");
+  };
+
   const handleSave = async () => {
     if (!coords && mode === "circle") {
       toast.error("Välj en punkt på kartan eller sök en adress först");
@@ -287,7 +306,7 @@ export default function ProjectAddressMapDialog({
                 size="sm"
                 variant={mode === "circle" ? "default" : "ghost"}
                 className="h-8 gap-1"
-                onClick={() => setMode("circle")}
+                onClick={activateCircleMode}
               >
                 <CircleIcon className="h-3.5 w-3.5" /> Cirkel
               </Button>
@@ -295,7 +314,7 @@ export default function ProjectAddressMapDialog({
                 size="sm"
                 variant={mode === "polygon" ? "default" : "ghost"}
                 className="h-8 gap-1"
-                onClick={() => setMode("polygon")}
+                onClick={activatePolygonMode}
               >
                 <Pencil className="h-3.5 w-3.5" /> Polygon
               </Button>
