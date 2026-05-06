@@ -26,6 +26,11 @@ const LargeProjectViewPage = () => {
   const bookingId = (project as any)?.bookings?.[0]?.booking_id || null;
   const { assignments: transportAssignments } = useProjectTransport(bookingId);
 
+  // Hitta första underbokning som har kontaktinfo (leverans-kontakt följer med från importen)
+  const contactBooking = ((project as any)?.bookings || [])
+    .map((b: any) => b.booking)
+    .find((b: any) => b && (b.contact_name || b.contact_phone || b.contact_email));
+
   if (!project) return null;
 
   return (
