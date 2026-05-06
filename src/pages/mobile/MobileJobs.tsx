@@ -193,6 +193,8 @@ const MobileJobs = () => {
 
       {/* Content */}
       <div className="flex-1 px-4 py-4 space-y-5">
+        {/* Primary workday panel — den enda synliga huvud-timern. */}
+        <WorkDayPanel />
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-7 h-7 animate-spin text-primary" />
