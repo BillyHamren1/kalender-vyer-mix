@@ -82,7 +82,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     return Array.isArray(staff) ? staff : [];
   };
   // Bredda team-kolumnen när det finns fler än 5 tilldelade personer.
-  const WIDE_TEAM_COLUMN_WIDTH = TEAM_COLUMN_WIDTH * 2;
+  const WIDE_TEAM_COLUMN_WIDTH = Math.round(TEAM_COLUMN_WIDTH * 1.55); // ~två namn bredvid varandra
   const teamColumnWidths = resources.map((r) =>
     getAssignedStaffForTeamSafe(r.id).length > 5 ? WIDE_TEAM_COLUMN_WIDTH : TEAM_COLUMN_WIDTH
   );
