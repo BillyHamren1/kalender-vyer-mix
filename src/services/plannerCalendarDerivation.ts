@@ -198,33 +198,40 @@ export const buildPlannerCalendarEvents = ({
 
   // ── Real calendar_events rows are the SOLE source of truth for TIMES.
   //
-  // LARGE PROJECTS ARE PLANNED AT THE PROJECT LEVEL — NOT PER SIBLING BOOKING.
-  // A large project bundles many sibling bookings, each carrying their own
-  // calendar_events row with its own resource_id (inherited from the original
-  // booking import). Those per-sibling resource_ids are NOT authoritative for
-  // a large project. The single source of truth for the team a project sits
-  // in on a given (phase, date) is `large_project_team_assignments`.
+  // LARGE PROJECTS ARE PLANNED PER (PROJECT, PHASE, DATE, TEAM).
+  // Each rig/rigDown calendar_events row is a first-class planning unit.
+  // A large project may appear in MULTIPLE teams the same day — one tile
+  // per team. We consolidate sibling bookings that share the SAME team into
+  // a single tile so the planner shows "Swedish game fair · team-1" as one
+  // chip even if 20 sub-bookings live there. But team-2 the same day shows
+  // as a SEPARATE tile.
   //
-  // Rules for project-linked events:
-  //  1. Group all sibling rows by (projectId, phase, date) and emit ONE row.
-  //  2. The team comes from large_project_team_assignments. Always.
-  //  3. If no assignment exists yet → the project is "unplanned" for that
-  //     day and we do not emit it into a team column. (Unplanned-staging
-  //     surfaces it elsewhere; see useUnplannedProjects.)
-  //  4. Choose the sibling row deterministically (lowest booking_number, then
-  //     lowest id) just to have a stable id/start/end to render. The chosen
-  //     sibling's resource_id is IGNORED.
+  // The team comes directly from `calendar_events.resource_id`.
+  // `large_project_team_assignments` (LPTA) is no longer authoritative for
+  // placement here — it is used by other systems (mobile staff visibility,
+  // booking_staff_assignments derivation). Drag-and-drop in the planner
+  // mutates `calendar_events.resource_id` on the underlying group.
   const sortedRealEvents = [...realEvents].sort((a, b) => {
     const sa = (a.source_date || a.start_time || '').localeCompare(b.source_date || b.start_time || '');
     if (sa !== 0) return sa;
     const ta = (a.event_type || '').localeCompare(b.event_type || '');
     if (ta !== 0) return ta;
+    const ra = (a.resource_id || '').localeCompare(b.resource_id || '');
+    if (ra !== 0) return ra;
     const bna = (a.booking_number || '').localeCompare(b.booking_number || '');
     if (bna !== 0) return bna;
     return (a.id || '').localeCompare(b.id || '');
   });
 
-  const projectEmitted = new Set<string>();
+  // Group key: (projectId, phase, date, team). One tile per group.
+  const projectGroups = new Map<string, {
+    rep: RealCalendarEventRow;
+    bookingIds: Set<string>;
+    eventIds: Set<string>;
+    earliestStart: string;
+    latestEnd: string;
+  }>();
+
   for (const row of sortedRealEvents) {
     const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
     const projectId = booking?.large_project_id || (row.booking_id ? bookingToProject.get(row.booking_id) : undefined);
@@ -232,87 +239,77 @@ export const buildPlannerCalendarEvents = ({
     const sourceDate = extractDate(row.source_date || row.start_time);
 
     if (projectId && phase && sourceDate) {
-      const key = `${projectId}|${phase}|${sourceDate}`;
-      if (projectEmitted.has(key)) continue;
-      const project = projectsById.get(projectId);
-      // ONLY the project-level assignment may place a large project in a team
-      // column. Sibling resource_id is intentionally ignored.
-      const assignedResourceId = projectTeamByKey.get(key);
-
-      let resourceId = assignedResourceId;
-      let fallbackResourceUsed = false;
-      let missingLargeProjectTeamAssignment = false;
-
-      if (!assignedResourceId) {
-        // Event-days are intentionally hidden from the planner calendar.
-        // Keep that behavior — never emit event_type="event" rows here.
-        if (phase === 'event') {
-          eventDaysHidden++;
-          continue;
-        }
-
+      // Hide the event-day phase from the planner (legacy rule).
+      if (phase === 'event') { eventDaysHidden++; continue; }
+      // Project-linked rows REQUIRE a resource_id to be placed in a team
+      // column. If missing, skip silently (sync should backfill it).
+      if (!row.resource_id) {
         largeProjectMissingAssignment++;
-
-        // For visible planning phases (rig / rigDown), warn loudly and
-        // fall back to the sibling row's resource_id so the project does
-        // not silently disappear from the calendar.
-        // eslint-disable-next-line no-console
-        console.warn('[plannerCalendarDerivation] Missing large_project_team_assignments for large project calendar event', {
-          largeProjectId: projectId,
-          bookingId: row.booking_id,
-          phase,
-          sourceDate,
-          calendarEventId: row.id,
-          expectedAssignmentKey: `${projectId}:${phase}:${sourceDate}`,
-          message: 'Missing large_project_team_assignments for large project calendar event',
-        });
-
-        if (!row.resource_id) continue;
-        resourceId = row.resource_id;
-        fallbackResourceUsed = true;
-        missingLargeProjectTeamAssignment = true;
-        largeProjectFallbackRendered++;
+        continue;
       }
 
-      largeProjectEmittedCount++;
-
-      projectEmitted.add(key);
-      events.push({
-        id: row.id,
-        title: project?.name || booking?.client || row.title,
-        start: row.start_time,
-        end: row.end_time,
-        resourceId: resourceId as string,
-        bookingId: row.booking_id || undefined,
-        bookingNumber: row.booking_number || booking?.booking_number || undefined,
-        booking_number: row.booking_number || booking?.booking_number || undefined,
-        eventType: phase,
-        delivery_address: row.delivery_address || project?.address || booking?.deliveryaddress || undefined,
-        extendedProps: {
-          bookingId: row.booking_id || undefined,
-          booking_id: row.booking_id || undefined,
-          resourceId: resourceId as string,
-          deliveryAddress: row.delivery_address || project?.address || booking?.deliveryaddress || undefined,
-          bookingNumber: row.booking_number || booking?.booking_number || undefined,
-          eventType: phase,
-          sourceDate,
-          largeProjectId: projectId,
-          largeProjectName: project?.name || undefined,
-          isLargeProject: true,
-          isSyntheticFallback: false,
-          phase,
-          manuallyAssigned: false,
-          missingLargeProjectTeamAssignment,
-          fallbackResourceUsed,
-          originalResourceId: row.resource_id || undefined,
-          expectedAssignmentKey: `${projectId}:${phase}:${sourceDate}`,
-        },
-      });
+      const key = `${projectId}|${phase}|${sourceDate}|${row.resource_id}`;
+      const existing = projectGroups.get(key);
+      if (!existing) {
+        projectGroups.set(key, {
+          rep: row,
+          bookingIds: new Set(row.booking_id ? [row.booking_id] : []),
+          eventIds: new Set([row.id]),
+          earliestStart: row.start_time,
+          latestEnd: row.end_time,
+        });
+      } else {
+        if (row.booking_id) existing.bookingIds.add(row.booking_id);
+        existing.eventIds.add(row.id);
+        if (row.start_time < existing.earliestStart) existing.earliestStart = row.start_time;
+        if (row.end_time > existing.latestEnd) existing.latestEnd = row.end_time;
+      }
       continue;
     }
 
     if (!row.resource_id) continue;
     events.push(mapRealRowToCalendarEvent(row, booking, undefined));
+  }
+
+  // Emit one tile per (project, phase, date, team) group.
+  for (const [key, group] of projectGroups) {
+    const [projectId, phase, sourceDate, resourceId] = key.split('|') as [string, PlannerPhase, string, string];
+    const project = projectsById.get(projectId);
+    const repBooking = group.rep.booking_id ? bookingsById.get(group.rep.booking_id) : undefined;
+    const lptaTeam = projectTeamByKey.get(`${projectId}|${phase}|${sourceDate}`);
+    largeProjectEmittedCount++;
+    events.push({
+      id: group.rep.id,
+      title: project?.name || repBooking?.client || group.rep.title,
+      start: group.earliestStart,
+      end: group.latestEnd,
+      resourceId,
+      bookingId: group.rep.booking_id || undefined,
+      bookingNumber: group.rep.booking_number || repBooking?.booking_number || undefined,
+      booking_number: group.rep.booking_number || repBooking?.booking_number || undefined,
+      eventType: phase,
+      delivery_address: group.rep.delivery_address || project?.address || repBooking?.deliveryaddress || undefined,
+      extendedProps: {
+        bookingId: group.rep.booking_id || undefined,
+        booking_id: group.rep.booking_id || undefined,
+        resourceId,
+        deliveryAddress: group.rep.delivery_address || project?.address || repBooking?.deliveryaddress || undefined,
+        bookingNumber: group.rep.booking_number || repBooking?.booking_number || undefined,
+        eventType: phase,
+        sourceDate,
+        largeProjectId: projectId,
+        largeProjectName: project?.name || undefined,
+        isLargeProject: true,
+        isSyntheticFallback: false,
+        phase,
+        manuallyAssigned: false,
+        // All bookings + calendar_events ids that belong to this team-tile.
+        // Drag handler uses this to mutate the whole group atomically.
+        consolidatedBookingIds: Array.from(group.bookingIds),
+        consolidatedEventIds: Array.from(group.eventIds),
+        lptaTeamId: lptaTeam || undefined,
+      },
+    });
   }
 
   const sorted = events.sort((a, b) => String(a.start).localeCompare(String(b.start)));

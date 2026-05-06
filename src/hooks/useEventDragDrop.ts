@@ -20,6 +20,10 @@ export interface DraggedEventData {
   targetResourceId?: string;
   isSyntheticFallback?: boolean;
   largeProjectId?: string;
+  // For large-project tiles: every calendar_events.id that belongs to this
+  // (project, phase, date, team) group. Drag mutates the WHOLE group.
+  consolidatedEventIds?: string[];
+  consolidatedBookingIds?: string[];
 }
 
 export const DRAG_DATA_TYPE = 'application/x-calendar-event';
@@ -34,6 +38,7 @@ export const useEventDragDrop = (
   const dragCounterRef = useRef<Map<string, number>>(new Map());
 
   const handleDragStart = useCallback((e: React.DragEvent, event: CalendarEvent) => {
+    const ext: any = event.extendedProps || {};
     const data: DraggedEventData = {
       id: event.id,
       title: event.title,
@@ -42,8 +47,10 @@ export const useEventDragDrop = (
       bookingId: event.bookingId,
       eventType: event.eventType,
       resourceId: event.resourceId,
-      isSyntheticFallback: !!(event.extendedProps as any)?.isSyntheticFallback,
-      largeProjectId: (event.extendedProps as any)?.largeProjectId,
+      isSyntheticFallback: !!ext.isSyntheticFallback,
+      largeProjectId: ext.largeProjectId,
+      consolidatedEventIds: Array.isArray(ext.consolidatedEventIds) ? ext.consolidatedEventIds : undefined,
+      consolidatedBookingIds: Array.isArray(ext.consolidatedBookingIds) ? ext.consolidatedBookingIds : undefined,
     };
     e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
     e.dataTransfer.effectAllowed = 'move';
@@ -120,14 +127,16 @@ export const useEventDragDrop = (
         setEvents(prev => {
           prevSnapshot = prev;
           if (eventData.largeProjectId && eventData.eventType) {
-            // Flytta alla events som tillhör samma projektdag (samma fas + datum)
+            // Flytta endast denna teams tile för (projekt, fas, datum) — andra
+            // team för samma projektdag rörs inte.
             return prev.map(ev => {
               const lpId = (ev.extendedProps as any)?.largeProjectId;
               const evDateStr = (typeof ev.start === 'string' ? ev.start : new Date(ev.start as any).toISOString()).split('T')[0];
               if (
                 lpId === eventData.largeProjectId &&
                 ev.eventType === eventData.eventType &&
-                evDateStr === currentDateStr
+                evDateStr === currentDateStr &&
+                ev.resourceId === eventData.resourceId
               ) {
                 return { ...ev, start: newStartISO, end: newEndISO, resourceId: targetTeamId };
               }
@@ -142,35 +151,65 @@ export const useEventDragDrop = (
         });
       }
 
-      // ── Large project: move the whole project-day across all linked bookings
+      // ── Large project tile = a (project, phase, date, team) group of
+      //    calendar_events rows. Mutate every row in the group atomically.
+      //    Same-team move on a different date → also update bookings phase
+      //    date for any sibling whose primary phase date matched the source.
       if (eventData.largeProjectId && eventData.eventType) {
-        if (teamChanged) {
-          await setLargeProjectDayTeam(
-            eventData.largeProjectId,
-            eventData.eventType as LargeProjectPhase,
-            targetDateStr,
-            targetTeamId,
-          );
+        // 1. Resolve the exact set of calendar_events rows to update.
+        let eventIds = (eventData.consolidatedEventIds || []).filter(Boolean);
+        if (eventIds.length === 0) {
+          // Fallback: query by (booking_ids, phase, source_date, resource_id).
+          const bookingIds = (eventData.consolidatedBookingIds || []).filter(Boolean);
+          if (bookingIds.length > 0) {
+            const { data: rows, error: lookupErr } = await supabase
+              .from('calendar_events')
+              .select('id')
+              .in('booking_id', bookingIds)
+              .eq('event_type', eventData.eventType)
+              .eq('source_date', currentDateStr)
+              .eq('resource_id', eventData.resourceId);
+            if (lookupErr) throw lookupErr;
+            eventIds = (rows || []).map(r => r.id);
+          }
         }
-        if (currentDateStr === targetDateStr) {
-          toast.success('Projektdag uppdaterad');
-          if (refreshEvents) void refreshEvents();
+
+        if (eventIds.length === 0) {
+          toast.error('Hittade inga kalenderrader för denna projektdag.');
+          if (prevSnapshot && setEvents) setEvents(prevSnapshot);
           return;
         }
 
-        await moveLargeProjectDay({
-          largeProjectId: eventData.largeProjectId,
-          phase: eventData.eventType as LargeProjectPhase,
-          fromDate: currentDateStr,
-          toDate: targetDateStr,
-          newStartISO,
-          newEndISO,
-        });
+        // 2. Update the WHOLE group: new resource, new times, new source_date.
+        const { error: updErr } = await supabase
+          .from('calendar_events')
+          .update({
+            resource_id: targetTeamId,
+            start_time: newStartISO,
+            end_time: newEndISO,
+            source_date: targetDateStr,
+          })
+          .in('id', eventIds);
+        if (updErr) throw updErr;
+
+        // 3. BSA-recompute för varje booking på källa+mål-datum.
+        const bookingIds = Array.from(new Set(eventData.consolidatedBookingIds || []));
+        const dates = Array.from(new Set([currentDateStr, targetDateStr]));
+        await Promise.all(bookingIds.flatMap(bid =>
+          dates.map(d =>
+            supabase.rpc('recompute_booking_staff_for_day' as any, {
+              p_booking_id: bid,
+              p_date: d,
+            }).then(() => {}, (err: any) => {
+              console.warn('[useEventDragDrop] BSA recompute failed (non-fatal)', { bid, d, err });
+            })
+          )
+        ));
+
         const targetDate = new Date(targetDateStr + 'T12:00:00Z');
         toast.success('Projektdag flyttad', {
           description: `${eventData.title} → ${format(targetDate, 'EEE d MMM')}`,
         });
-        // Refresh i bakgrunden — UI är redan uppdaterat optimistiskt.
         if (refreshEvents) void refreshEvents();
         return;
       }
