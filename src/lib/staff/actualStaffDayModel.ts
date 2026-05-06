@@ -1300,16 +1300,25 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
 
   if (input.workday) {
     const wdStartMs = new Date(input.workday.started_at).getTime();
-    const earliestVisit = actualVisits[0];
-    if (earliestVisit && new Date(earliestVisit.start).getTime() < wdStartMs - 5 * 60_000) {
+    // Pre-workday anomaly får ENDAST baseras på första arbetsrelevanta visit.
+    // actualVisits[0] kan vara nattlig/bakgrunds-/hemnära/okänd GPS som börjar
+    // 00:00 — den får aldrig föreslå proposedWorkdayStart 00:00.
+    const earliestWorkRelevantVisit = actualVisits.find(v => {
+      const r = visitRelevance.get(v.key);
+      return r === 'work_confirmed' || r === 'work_possible';
+    });
+    if (
+      earliestWorkRelevantVisit
+      && new Date(earliestWorkRelevantVisit.start).getTime() < wdStartMs - 5 * 60_000
+    ) {
       anomalies.push({
-        id: `pre-wd:${earliestVisit.key}`,
+        id: `pre-wd:${earliestWorkRelevantVisit.key}`,
         label: 'GPS-aktivitet före arbetsdagens start',
-        detail: `Vistelse på ${earliestVisit.label} ${earliestVisit.start.slice(11, 16)} — workday startade ${input.workday.started_at.slice(11, 16)}.`,
+        detail: `Vistelse på ${earliestWorkRelevantVisit.label} ${earliestWorkRelevantVisit.start.slice(11, 16)} — workday startade ${input.workday.started_at.slice(11, 16)}.`,
         severity: 'warning',
-        suggestion: `Justera arbetsdagens start till ${earliestVisit.start.slice(11, 16)}? Eller ignorera som ej arbetstid.`,
+        suggestion: `Justera arbetsdagens start till ${earliestWorkRelevantVisit.start.slice(11, 16)}? Eller ignorera som ej arbetstid.`,
       });
-      proposedWorkdayStart = earliestVisit.start;
+      proposedWorkdayStart = earliestWorkRelevantVisit.start;
     }
   }
 
