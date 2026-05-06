@@ -55,7 +55,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({
     .join(', ');
 
   return (
-    <HoverCard openDelay={800} closeDelay={100} open={disabled ? false : undefined}>
+    <HoverCard openDelay={800} closeDelay={100} open={effectiveDisabled ? false : undefined}>
       <HoverCardTrigger asChild>
         {onClick || onDoubleClick ? (
           <div 
