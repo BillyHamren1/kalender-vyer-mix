@@ -149,14 +149,19 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
 
   const bookingRows = bookingsData || [];
   const bookingIds = Array.from(new Set(bookingRows.map(booking => booking.id).filter(Boolean))) as string[];
-  const relevantProjectIds = Array.from(new Set(bookingRows.map(booking => booking.large_project_id).filter(Boolean))) as string[];
+  const realBookingIds = Array.from(new Set(realRows.map((row: any) => row.booking_id).filter(Boolean))) as string[];
+  // Union: master = any booking_id touched by either calendar_events or fallback bookings window
+  const allRelevantBookingIds = Array.from(new Set([...realBookingIds, ...bookingIds]));
+  const relevantProjectIdsFromBookings = Array.from(new Set(bookingRows.map(booking => booking.large_project_id).filter(Boolean))) as string[];
 
+  // large_project_bookings is master — resolve by booking_id (not by large_project_id)
+  // so events get classified as part of a large project even when bookings.large_project_id is null.
   const [{ data: largeProjectBookingsData, error: largeProjectBookingsError }, { data: bookingAssignmentsData, error: bookingAssignmentsError }] = await Promise.all([
-    relevantProjectIds.length > 0
+    allRelevantBookingIds.length > 0
       ? supabase
           .from('large_project_bookings')
           .select('large_project_id, booking_id')
-          .in('large_project_id', relevantProjectIds)
+          .in('booking_id', allRelevantBookingIds)
       : Promise.resolve({ data: [], error: null }),
     bookingIds.length > 0
       ? supabase
@@ -167,7 +172,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   ]);
 
   if (largeProjectBookingsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch large_project_bookings fallback rows:', largeProjectBookingsError);
+    console.error('❌ [fetchCalendarEvents] Failed to fetch large_project_bookings master rows:', largeProjectBookingsError);
     throw largeProjectBookingsError;
   }
 
@@ -176,10 +181,32 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     throw bookingAssignmentsError;
   }
 
+  const largeProjectIdsFromMembership = Array.from(
+    new Set((largeProjectBookingsData || []).map(row => row.large_project_id).filter(Boolean))
+  ) as string[];
+
   const allProjectIds = Array.from(new Set([
-    ...relevantProjectIds,
+    ...relevantProjectIdsFromBookings,
+    ...largeProjectIdsFromMembership,
     ...((projectsData || []).map(p => p.id)),
   ]));
+
+  // Ensure we have large_projects rows for every membership-derived id (not just those already loaded by deleted_at filter window)
+  const loadedProjectIds = new Set((projectsData || []).map(p => p.id));
+  const missingProjectIds = allProjectIds.filter(id => !loadedProjectIds.has(id));
+  let extraProjects: any[] = [];
+  if (missingProjectIds.length > 0) {
+    const { data: extra, error: extraErr } = await supabase
+      .from('large_projects')
+      .select('id, name, address, start_date, event_date, end_date, deleted_at')
+      .in('id', missingProjectIds)
+      .is('deleted_at', null);
+    if (extraErr) {
+      console.warn('⚠️ [fetchCalendarEvents] Failed to fetch additional large_projects by membership:', extraErr);
+    } else {
+      extraProjects = extra || [];
+    }
+  }
 
   const { data: lptaData, error: lptaError } = allProjectIds.length > 0
     ? await supabase
@@ -192,10 +219,28 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     console.warn('⚠️ [fetchCalendarEvents] Failed to fetch large_project_team_assignments:', lptaError);
   }
 
+  const combinedLargeProjects = [...(projectsData || []), ...extraProjects];
+
+  if (import.meta.env?.DEV) {
+    console.log('🔎 [fetchCalendarEvents] large project resolution:', {
+      realBookingIds: realBookingIds.length,
+      bookingIds: bookingIds.length,
+      allRelevantBookingIds: allRelevantBookingIds.length,
+      largeProjectBookingsRows: (largeProjectBookingsData || []).length,
+      largeProjectIdsFromMembership: largeProjectIdsFromMembership.length,
+      relevantProjectIdsFromBookings: relevantProjectIdsFromBookings.length,
+      combinedLargeProjects: combinedLargeProjects.length,
+    });
+  }
+
   const events = buildPlannerCalendarEvents({
     realEvents: realRows,
     bookings: bookingRows,
-    largeProjects: (projectsData || []).filter(project => {
+    largeProjects: combinedLargeProjects.filter(project => {
+      // Always keep projects discovered via membership (they're explicitly relevant)
+      if (largeProjectIdsFromMembership.includes(project.id) || relevantProjectIdsFromBookings.includes(project.id)) {
+        return true;
+      }
       const allDates = [...(project.start_date || []), ...(project.event_date || []), ...(project.end_date || [])];
       return allDates.some(date => date >= fromDate && date <= toDate);
     }),
