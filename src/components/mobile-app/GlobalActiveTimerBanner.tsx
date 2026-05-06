@@ -462,6 +462,19 @@ const GlobalActiveTimerBanner: React.FC = () => {
 
   const stalePing = !!activeDayState?.stale_ping && !!activeDayState?.workday;
 
+  // Stoppa en server-öppen entry direkt mot mobile-app-api. Ingen
+  // local timer behövs — servern är sanning. Vid ok refreshas
+  // active_day_state så raden försvinner.
+  const handleStopServerEntry = useCallback(async (entry: ActiveDayOpenEntryLite) => {
+    try {
+      await mobileApi.stopLocationTimer({ entry_id: entry.id });
+      toast.success(t('workday.activityStopped') || 'Aktivitet stoppad');
+      await refreshActiveDayState();
+    } catch (err: any) {
+      toast.error(err?.message || t('common.couldNotSaveRetry'));
+    }
+  }, [refreshActiveDayState, t]);
+
   return (
     <>
       {(timers.size > 0 || serverOnlyEntries.length > 0 || stalePing) && (
@@ -475,28 +488,13 @@ const GlobalActiveTimerBanner: React.FC = () => {
             </div>
           )}
           {serverOnlyEntries.map((e) => (
-            <div
+            <ServerEntryRow
               key={`server-only-${e.id}`}
-              className="flex items-center gap-2 p-3 rounded-2xl border border-primary/30 bg-primary/5 text-xs"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-primary shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold truncate">
-                  Aktiv på servern: {e.target_label}
-                </p>
-                <p className="opacity-70 truncate">
-                  Startad {extractUTCTime(e.entered_at)} · återställs lokalt…
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-lg text-[11px]"
-                onClick={() => { void refreshActiveDayState(); }}
-              >
-                <RefreshCw className="w-3 h-3" />
-              </Button>
-            </div>
+              entry={e}
+              onStop={handleStopServerEntry}
+              onCorrect={() => navigate('/m/report')}
+              onRehydrate={() => { void refreshActiveDayState(); }}
+            />
           ))}
           {Array.from(timers.entries()).map(([key, timer]) => (
             <TimerRow
