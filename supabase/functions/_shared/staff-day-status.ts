@@ -259,7 +259,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents } = input;
 
   // ---- Workday ----
-  const workdaySnap = workday
+  const workdaySnapBase = workday
     ? {
         id: workday.id,
         startedAt: workday.started_at,
@@ -273,15 +273,26 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       }
     : null;
 
-  // ---- Segments ----
-  const segments: DaySegment[] = [];
+  // PolicyWorkday is the lightweight context the policy module reads.
+  const policyWorkday: PolicyWorkday | null = workdaySnapBase
+    ? {
+        startedAt: workdaySnapBase.startedAt,
+        endedAt: workdaySnapBase.endedAt,
+        approved: workdaySnapBase.approved,
+      }
+    : null;
+
+  // ---- Segments (no policyStatus yet — we tag after sort) ----
+  const rawSegments: Array<DaySegment & { _policy: PolicySegment }> = [];
 
   for (const tr of timeReports) {
     const startedAt = combineDateTime(tr.report_date, tr.start_time) ?? `${date}T00:00:00`;
     const endedAt = combineDateTime(tr.report_date, tr.end_time);
     const minutes = hoursToMin(tr.hours_worked) || diffMinutes(startedAt, endedAt, now);
-    segments.push({
-      kind: tr.large_project_id ? "project" : "booking",
+    const kind = tr.large_project_id ? "project" : "booking";
+    const hasConfirmedRef = !!(tr.large_project_id || tr.booking_id);
+    rawSegments.push({
+      kind,
       startedAt,
       endedAt,
       durationMinutes: minutes,
@@ -294,12 +305,18 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
         largeProjectId: tr.large_project_id,
       },
       approved: tr.approved,
+      hasConfirmedRef,
+      classification: null,
+      policyStatus: "confirmed_work",
+      _policy: {
+        kind, startedAt, endedAt, approved: tr.approved, hasConfirmedRef,
+      },
     });
   }
 
   for (const tl of travelLogs) {
     const minutes = hoursToMin(tl.hours_worked) || diffMinutes(tl.start_time, tl.end_time, now);
-    segments.push({
+    rawSegments.push({
       kind: "travel",
       startedAt: tl.start_time,
       endedAt: tl.end_time,
@@ -307,12 +324,22 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       isActive: !tl.end_time,
       label: tl.description ||
         `Resa ${tl.from_address ?? "?"} → ${tl.to_address ?? tl.manual_project_name ?? "?"}`,
-      source: tl.source ?? "travel_log",
+      source: (tl as { source?: string }).source ?? "travel_log",
       refs: {
         travelLogId: tl.id,
         bookingId: tl.destination_booking_id ?? null,
       },
       approved: tl.approved,
+      hasConfirmedRef: !!tl.destination_booking_id,
+      classification: tl.classification ?? null,
+      policyStatus: "travel_within_workday",
+      _policy: {
+        kind: "travel",
+        startedAt: tl.start_time,
+        endedAt: tl.end_time,
+        approved: tl.approved,
+        classification: tl.classification ?? null,
+      },
     });
   }
 
@@ -326,13 +353,20 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       : le.booking_id || le.large_project_id
       ? le.large_project_id ? "project" : "booking"
       : "unknown";
-    segments.push({
+    const hasConfirmedRef = !!(le.location_id || le.booking_id || le.large_project_id);
+    const meta = (le.metadata ?? {}) as Record<string, unknown>;
+    const classification = (meta.classification as string | undefined) ?? null;
+    rawSegments.push({
       kind,
       startedAt: le.entered_at,
       endedAt: le.exited_at,
       durationMinutes: minutes,
       isActive,
-      label: isActive ? "Pågående aktivitet" : kind === "location" ? "Plats" : kind === "unknown" ? "Okänd plats" : "Vistelse",
+      label: isActive
+        ? "Pågående aktivitet"
+        : kind === "location" ? "Plats"
+        : kind === "unknown" ? "Okänd vistelse"
+        : "Vistelse",
       source: le.source ?? "location_entry",
       refs: {
         locationEntryId: le.id,
@@ -341,10 +375,24 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
         locationId: le.location_id,
         taskId: le.task_id,
       },
+      hasConfirmedRef,
+      classification,
+      policyStatus: "unclassified_within_workday",
+      _policy: {
+        kind, startedAt: le.entered_at, endedAt: le.exited_at,
+        hasConfirmedRef, classification,
+      },
     });
   }
 
-  segments.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  // Tag every segment with its canonical policy status now that we have
+  // the workday context.
+  const segments: DaySegment[] = rawSegments
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+    .map(({ _policy, ...rest }) => ({
+      ...rest,
+      policyStatus: classifySegment(_policy, policyWorkday, now),
+    }));
 
   // ---- Active activity ----
   const openLoc = locationEntries.find((l) => !l.exited_at);
@@ -361,21 +409,50 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       }
     : null;
 
+  // ---- Workday back-date suggestion ----
+  // Only confirmed worksite presence may suggest moving started_at earlier.
+  const policySegments: PolicySegment[] = rawSegments.map((r) => r._policy);
+  const suggestedStartedAt = suggestedWorkdayStart(policySegments, policyWorkday);
+
+  const workdaySnap = workdaySnapBase
+    ? { ...workdaySnapBase, suggestedStartedAt }
+    : null;
+
   // ---- Totals ----
+  // Allocated/travel are summed from their tables. Unknown vistelser
+  // INSIDE the workday must NOT shrink the workday total — they show up
+  // as part of unallocatedMinutes (and separately as
+  // unknownWithinWorkdayMinutes for UI).
   const allocated = timeReports.reduce((s, t) => s + (hoursToMin(t.hours_worked) || 0), 0);
   const travelMin = travelLogs.reduce((s, t) => s + (hoursToMin(t.hours_worked) || diffMinutes(t.start_time, t.end_time, now)), 0);
   const wdMin = workdaySnap?.durationMinutes ?? 0;
   const unallocated = Math.max(0, wdMin - allocated - travelMin);
-  const liveMinutes = active?.durationMinutes ?? 0;
 
+  let unknownWithinWd = 0;
+  for (const seg of segments) {
+    if (
+      (seg.kind === "unknown" || (seg.kind === "location" && !seg.hasConfirmedRef)) &&
+      countsAsPayableUnallocated(
+        { kind: seg.kind, startedAt: seg.startedAt, endedAt: seg.endedAt, classification: seg.classification, hasConfirmedRef: seg.hasConfirmedRef },
+        policyWorkday,
+        now,
+      )
+    ) {
+      unknownWithinWd += seg.durationMinutes;
+    }
+  }
+
+  const liveMinutes = active?.durationMinutes ?? 0;
   const totals: DayTotals = {
     workdayMinutes: wdMin,
     allocatedProjectMinutes: allocated,
     travelMinutes: travelMin,
     unallocatedMinutes: unallocated,
+    unknownWithinWorkdayMinutes: unknownWithinWd,
     liveMinutes,
     isWorkdayOpen: workdaySnap?.isOpen ?? false,
   };
+
 
   // ---- Flags ----
   const dayFlags: DayFlag[] = flags.map((f) => ({
