@@ -23,7 +23,6 @@ import { format } from 'date-fns';
 import {
   AlertTriangle,
   ArrowRight,
-  ChevronDown,
   ChevronRight,
   Clock,
   HelpCircle,
