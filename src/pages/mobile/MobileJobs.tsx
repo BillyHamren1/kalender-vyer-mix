@@ -11,6 +11,7 @@ import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { HeaderShell, HeaderStartEndDayButton } from '@/components/mobile-app/MobileHeader';
+import WorkDayPanel from '@/components/mobile-app/WorkDayPanel';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
@@ -193,6 +194,8 @@ const MobileJobs = () => {
 
       {/* Content */}
       <div className="flex-1 px-4 py-4 space-y-5">
+        {/* Primary workday panel — den enda synliga huvud-timern. */}
+        <WorkDayPanel />
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-7 h-7 animate-spin text-primary" />
