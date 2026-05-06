@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ReprocessDayPreviewDialog, type ReprocessChoice } from './ReprocessDayPreviewDialog';
 import { toast } from 'sonner';
 import { useReverseGeocodeRichStatus, type RichGeocode, type RichGeocodeStatus } from '@/hooks/useReverseGeocodeRich';
+import { resolveLookupCoord } from '@/lib/staff/resolveLookupCoord';
 import { inferActivityFromPlace } from '@/lib/staff/inferActivityFromPlace';
 import { extractUTCTime } from '@/utils/dateUtils';
 import type {
@@ -577,15 +578,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   ): { label: string; geo: RichGeocode | null; status: 'ok' | 'loading' | 'error' } | null => {
     if (!c) return null;
     const key = `${c.lat.toFixed(3)},${c.lng.toFixed(3)}`;
-    const s = geoByKey.get(key);
-    if (s?.data?.unresolved) {
-      return { label: 'Okänd plats – adress kunde inte hämtas', geo: s.data, status: 'error' };
-    }
-    if (s?.data) return { label: s.data.label, geo: s.data, status: 'ok' };
-    if (s?.isLoading) return { label: 'Slår upp adress…', geo: null, status: 'loading' };
-    if (s?.isError) return { label: 'Okänd plats – adress kunde inte hämtas', geo: null, status: 'error' };
-    // Initialt tillstånd innan query startat: behandla som loading.
-    return { label: 'Slår upp adress…', geo: null, status: 'loading' };
+    return resolveLookupCoord(geoByKey.get(key));
   };
 
   // Indexera actualVisits per placeKey för knownSiteId + durationMin.
