@@ -564,14 +564,9 @@ const TimerRow: React.FC<{
   onStop: (key: string, timer: ActiveTimer) => void;
   syncProblem?: boolean;
 }> = ({ timerKey, timer, isSaving, onStop, syncProblem = false }) => {
-  const elapsed = differenceInSeconds(new Date(), parseISO(timer.startTime));
-  const h = Math.floor(elapsed / 3600);
-  const m = Math.floor((elapsed % 3600) / 60);
-  const s = elapsed % 60;
   const isLocation = !!timer.locationId;
 
   // Two-tap confirmation — first tap arms ("Tryck igen"), second tap stops.
-  // Prevents accidental taps that users mistake for double-reporting.
   const [armed, setArmed] = useState(false);
   useEffect(() => {
     if (!armed) return;
@@ -579,6 +574,8 @@ const TimerRow: React.FC<{
     return () => window.clearTimeout(id);
   }, [armed]);
 
+  // UNIFIED MODEL: only the workday clock ticks. The activity row is a
+  // status indicator ("var tiden registreras just nu"), not its own timer.
   const handleClick = () => {
     if (isSaving) return;
     if (!armed) {
@@ -595,18 +592,18 @@ const TimerRow: React.FC<{
       syncProblem ? 'border-warning/40 bg-warning/10' : 'border-primary/20 bg-primary/5'
     )}>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5">
+        <p className="text-[10px] uppercase tracking-wider font-bold text-primary/70">
+          Tid registreras här
+        </p>
+        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5 mt-0.5">
           {isLocation && <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />}
           {timer.locationName || timer.client}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Startad {extractUTCTime(timer.startTime)}
+          Sedan {extractUTCTime(timer.startTime)}
           {timer.isAutoStarted && ' (automatiskt)'}
           {syncProblem && ' · synkproblem — server saknar rad'}
         </p>
-      </div>
-      <div className="font-mono font-extrabold text-base tabular-nums text-primary">
-        {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
       <Button
         size="sm"
@@ -614,12 +611,12 @@ const TimerRow: React.FC<{
         className="rounded-xl h-9 gap-1 text-xs font-semibold"
         onClick={handleClick}
         disabled={isSaving}
-        title={armed ? 'Tryck igen för att avsluta aktiviteten' : 'Avsluta aktiviteten — sparar tidrapporten'}
+        title={armed ? 'Tryck igen för att sluta registrera tid här' : 'Sluta registrera tid här — arbetsdagen fortsätter'}
       >
         {isSaving
           ? <Loader2 className="w-3 h-3 animate-spin" />
           : <Square className="w-3 h-3" />}
-        {isSaving ? 'Sparar…' : armed ? 'Tryck igen' : 'Stopp'}
+        {isSaving ? 'Sparar…' : armed ? 'Tryck igen' : 'Sluta här'}
       </Button>
     </div>
   );
@@ -658,11 +655,6 @@ const ServerEntryRow: React.FC<{
     return () => window.clearTimeout(id);
   }, [armed]);
 
-  const elapsed = Math.max(0, differenceInSeconds(new Date(), parseISO(entry.entered_at)));
-  const h = Math.floor(elapsed / 3600);
-  const m = Math.floor((elapsed % 3600) / 60);
-  const s = elapsed % 60;
-
   const handleStopClick = async () => {
     if (saving) return;
     if (!armed) { setArmed(true); return; }
@@ -674,16 +666,16 @@ const ServerEntryRow: React.FC<{
   return (
     <div className="flex items-center gap-3 p-3 rounded-2xl border border-primary/30 bg-primary/5">
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5">
+        <p className="text-[10px] uppercase tracking-wider font-bold text-primary/70">
+          Tid registreras här
+        </p>
+        <p className="font-bold text-sm truncate text-foreground flex items-center gap-1.5 mt-0.5">
           <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />
           {entry.target_label}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Startad {extractUTCTime(entry.entered_at)} · serverstyrd
+          Sedan {extractUTCTime(entry.entered_at)} · serverstyrd
         </p>
-      </div>
-      <div className="font-mono font-extrabold text-base tabular-nums text-primary">
-        {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
       <div className="flex items-center gap-1">
         <Button
