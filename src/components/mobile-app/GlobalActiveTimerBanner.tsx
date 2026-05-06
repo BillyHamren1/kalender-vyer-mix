@@ -566,6 +566,14 @@ const TimerRow: React.FC<{
 }> = ({ timerKey, timer, isSaving, onStop, syncProblem = false }) => {
   const isLocation = !!timer.locationId;
 
+  // Two-tap confirmation — first tap arms ("Tryck igen"), second tap stops.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const id = window.setTimeout(() => setArmed(false), 4000);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+
   // UNIFIED MODEL: only the workday clock ticks. The activity row is a
   // status indicator ("var tiden registreras just nu"), not its own timer.
   const handleClick = () => {
