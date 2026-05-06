@@ -624,19 +624,204 @@ async function processOrganization(supabase: any, organizationId: string) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BACKFILL MODE — admin-triggered cleanup of stale `location_time_entries`.
+//
+// For every open row whose `entered_at` is older than `min_age_minutes`
+// (default 30), look at the staff's GPS pings AFTER `entered_at` and find
+// the first sustained "outside" window (>=outside_min_minutes contiguous
+// pings >= outside_distance_m from target). Close at the first ping of
+// that outside window. If no pings exist, close at `entered_at + 8h`
+// (clamped to end-of-day) and mark `stop_reason='backfill_no_pings'`.
+//
+// Idempotent (only updates rows still NULL). Per-org. dry_run supported.
+// ─────────────────────────────────────────────────────────────────────────────
+const BACKFILL_MIN_AGE_MIN = 30;
+const BACKFILL_OUTSIDE_MIN_M = 150;
+const BACKFILL_OUTSIDE_MIN_MIN = 30;
+
+async function processBackfillForOrg(
+  supabase: any,
+  organizationId: string,
+  opts: { dry_run?: boolean; min_age_minutes?: number } = {},
+) {
+  const minAge = opts.min_age_minutes ?? BACKFILL_MIN_AGE_MIN;
+  const olderThanIso = new Date(Date.now() - minAge * 60 * 1000).toISOString();
+
+  const { data: open, error } = await supabase
+    .from("location_time_entries")
+    .select("id, staff_id, location_id, entered_at, entry_date")
+    .eq("organization_id", organizationId)
+    .is("exited_at", null)
+    .lt("entered_at", olderThanIso);
+  if (error) throw error;
+
+  const planned: Array<{
+    id: string; staff_id: string; entered_at: string;
+    exited_at: string; total_minutes: number;
+    stop_reason: string;
+  }> = [];
+
+  for (const row of open || []) {
+    // Resolve target coords
+    const { data: loc } = await supabase
+      .from("organization_locations")
+      .select("latitude, longitude")
+      .eq("id", row.location_id)
+      .maybeSingle();
+
+    let exitedAt: string | null = null;
+    let stopReason = "backfill_no_pings";
+
+    if (loc?.latitude != null && loc?.longitude != null) {
+      const { data: pings } = await supabase
+        .from("staff_location_history")
+        .select("lat, lng, recorded_at")
+        .eq("staff_id", row.staff_id)
+        .eq("organization_id", organizationId)
+        .gte("recorded_at", row.entered_at)
+        .order("recorded_at", { ascending: true })
+        .limit(2000);
+
+      // Walk pings; find first contiguous outside window >= 30 min.
+      let runStart: string | null = null;
+      let runStartMs = 0;
+      for (const p of pings || []) {
+        const dist = distMeters(
+          { lat: Number(loc.latitude), lng: Number(loc.longitude) },
+          { lat: Number(p.lat), lng: Number(p.lng) },
+        );
+        const outside = dist >= BACKFILL_OUTSIDE_MIN_M;
+        const tMs = new Date(p.recorded_at).getTime();
+        if (outside) {
+          if (!runStart) {
+            runStart = p.recorded_at;
+            runStartMs = tMs;
+          } else if (tMs - runStartMs >= BACKFILL_OUTSIDE_MIN_MIN * 60 * 1000) {
+            exitedAt = runStart;
+            stopReason = "backfill_stale_no_return_30m";
+            break;
+          }
+        } else {
+          runStart = null;
+          runStartMs = 0;
+        }
+      }
+    }
+
+    if (!exitedAt) {
+      // No qualifying outside window — fall back to entered_at + 8h, clamped.
+      exitedAt = clampAutoCloseEnd(
+        row.entered_at,
+        row.entry_date,
+        PROVISIONAL_DURATION_HOURS,
+        null,
+      );
+    }
+
+    const totalMinutes = Math.max(
+      0,
+      Math.round(
+        (new Date(exitedAt).getTime() - new Date(row.entered_at).getTime()) / 60000,
+      ),
+    );
+    planned.push({
+      id: row.id,
+      staff_id: row.staff_id,
+      entered_at: row.entered_at,
+      exited_at: exitedAt,
+      total_minutes: totalMinutes,
+      stop_reason: stopReason,
+    });
+  }
+
+  if (opts.dry_run) {
+    return { planned, closed: 0, dry_run: true };
+  }
+
+  let closed = 0;
+  for (const p of planned) {
+    const { error: updErr } = await supabase
+      .from("location_time_entries")
+      .update({
+        exited_at: p.exited_at,
+        total_minutes: p.total_minutes,
+        stop_source: "admin_backfill",
+        stop_reason: p.stop_reason,
+        stopped_by: "system:backfill",
+        stop_metadata: {
+          mode: "backfill",
+          min_age_minutes: minAge,
+          outside_distance_m: BACKFILL_OUTSIDE_MIN_M,
+          outside_min_minutes: BACKFILL_OUTSIDE_MIN_MIN,
+        },
+      })
+      .eq("id", p.id)
+      .is("exited_at", null);
+    if (!updErr) closed++;
+    else console.error(`[backfill] ${p.id} failed`, updErr.message);
+  }
+
+  return { planned, closed, dry_run: false };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Auth-guard: require cron secret. Anonymous → 401.
-  const provided = req.headers.get("x-cron-secret");
-  const expected = Deno.env.get("CRON_SECRET");
-  if (!expected || !provided || provided !== expected) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  // Two auth modes:
+  //   • cron secret in `x-cron-secret` (default nightly run)
+  //   • admin user via Bearer JWT (manual backfill from AdminTimeReview)
+  const cronSecret = req.headers.get("x-cron-secret");
+  const expectedCron = Deno.env.get("CRON_SECRET");
+  const authHeader = req.headers.get("Authorization") || "";
+  const isCron = !!expectedCron && cronSecret === expectedCron;
+
+  // Parse body early so we can branch on mode.
+  let body: any = {};
+  if (req.method === "POST") {
+    try { body = await req.json(); } catch { body = {}; }
+  }
+  const mode: string = body?.mode || "cron";
+
+  let adminOrgId: string | null = null;
+  let adminUserId: string | null = null;
+
+  if (!isCron) {
+    // Verify admin JWT
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    if (!token) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: userRes, error: uerr } = await adminClient.auth.getUser(token);
+    if (uerr || !userRes?.user) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    adminUserId = userRes.user.id;
+    // Resolve org + admin role
+    const { data: roles } = await adminClient
+      .from("user_roles")
+      .select("organization_id, role")
+      .eq("user_id", adminUserId);
+    const adminRow = (roles || []).find((r: any) => r.role === "admin" || r.role === "super_admin");
+    if (!adminRow) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    adminOrgId = adminRow.organization_id;
   }
 
   const supabase = createClient(
