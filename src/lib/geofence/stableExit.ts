@@ -20,9 +20,19 @@
 
 export const EXIT_PING_MIN_COUNT = 3;
 export const EXIT_PING_MIN_SPAN_MS = 2 * 60 * 1000;          // 2 min
-export const EXIT_PING_WINDOW_MS = 10 * 60 * 1000;           // trim window
+// Trim window utökat till 35 min så att en outside-ping från för 30 min sedan
+// fortfarande lever kvar i trackern och kan trigga STALE-AUTOSTOP nedan.
+export const EXIT_PING_WINDOW_MS = 35 * 60 * 1000;           // trim window
 export const EXIT_PING_MAX_AGE_MS = 5 * 60 * 1000;           // "no_signal"
 export const EXIT_PING_MAX_ACCURACY_M = 75;
+/**
+ * STALE-OUTSIDE AUTOSTOP (2026-05).
+ * Om vi har ackumulerat outside-pings i ≥30 min utan att personen kommit
+ * tillbaka, tvinga stopp av activity-timern oavsett om stable-exit-gaten
+ * passerat. Stopptiden sätts till FÖRSTA outside-pingen (faktisk lämning),
+ * inte "nu". Workdayen rörs inte.
+ */
+export const EXIT_STALE_AUTOSTOP_MS = 30 * 60 * 1000;
 
 export interface ExitPing {
   /** Wall-clock timestamp (ms). */
@@ -37,13 +47,15 @@ export interface ExitTrackerState {
   pings: ExitPing[];
 }
 
-export type ExitStatus = 'stable' | 'insufficient' | 'unstable' | 'no_signal';
+export type ExitStatus = 'stable' | 'insufficient' | 'unstable' | 'no_signal' | 'stale_autostop';
 
 export interface ExitEvaluation {
   status: ExitStatus;
   pings: ExitPing[];
   spanMs: number;
   reason: string;
+  /** ISO time we treat as "user actually left". Set on stable + stale_autostop. */
+  exitedAtIso?: string;
 }
 
 export function createExitTracker(): ExitTrackerState {
@@ -76,6 +88,23 @@ export function evaluateStableExit(
   lastPingAgeMs: number | null,
 ): ExitEvaluation {
   const pings = state.pings;
+
+  // STALE-OUTSIDE AUTOSTOP — körs FÖRST. Även med dålig accuracy / få pings:
+  // om personen inte varit innanför radien på 30 min så har hen lämnat.
+  // Stopptid = första outside-pingen (faktisk lämning).
+  if (pings.length > 0) {
+    const first = pings[0];
+    const ageOfFirstOutside = nowTs - first.ts;
+    if (ageOfFirstOutside >= EXIT_STALE_AUTOSTOP_MS) {
+      return {
+        status: 'stale_autostop',
+        pings,
+        spanMs: pings[pings.length - 1].ts - first.ts,
+        reason: `first outside ping ${Math.round(ageOfFirstOutside / 60000)} min ago — forced stop`,
+        exitedAtIso: new Date(first.ts).toISOString(),
+      };
+    }
+  }
 
   // Signal tappad — vi vet inte var personen är. Stoppa ingenting.
   if (lastPingAgeMs == null || lastPingAgeMs > EXIT_PING_MAX_AGE_MS) {
@@ -113,7 +142,13 @@ export function evaluateStableExit(
     };
   }
 
-  return { status: 'stable', pings, spanMs: span, reason: 'ok' };
+  return {
+    status: 'stable',
+    pings,
+    spanMs: span,
+    reason: 'ok',
+    exitedAtIso: new Date(pings[0].ts).toISOString(),
+  };
 }
 
 /**
