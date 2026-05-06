@@ -9453,7 +9453,13 @@ async function handleAcceptUnplannedSiteVisit(
   } else {
     // Workday-first: never create an LTE without an open workday.
     try {
-      await ensureOpenWorkday(supabase, staffId, organizationId, nowIso)
+      await ensureOpenWorkdayForTimer(supabase, {
+        staff_id: staffId,
+        organization_id: organizationId,
+        start_at: nowIso,
+        source: 'accept_unplanned_site_visit',
+        target: { kind: 'booking', id: booking_id },
+      })
     } catch (wdErr: any) {
       console.error('[accept_unplanned_site_visit] workday-first failed, aborting:', wdErr)
       return new Response(
