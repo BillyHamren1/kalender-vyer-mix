@@ -390,9 +390,13 @@ export function buildCanonicalStaffDayModel(
   else if (undistributedMinutes > UNDISTRIBUTED_NOISE_MIN)
     status = 'requires_distribution';
 
+  // Oallokerad/ofördelad tid räknas inte som review-blockerare i sig.
+  // Workday-start/slut + faktiska avvikelser styr review_required.
+  const blockingAnomalies = anomalies.filter(
+    (a) => a.kind !== 'large_undistributed' && a.severity !== 'info',
+  );
   const reviewRequired =
-    anomalies.length > 0 ||
-    status === 'requires_distribution' ||
+    blockingAnomalies.length > 0 ||
     status === 'no_workday' ||
     status === 'over_reported';
 
