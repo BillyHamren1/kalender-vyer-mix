@@ -39,6 +39,11 @@ describe('Calendar Team Model — contract', () => {
     expect(src).toMatch(/recompute_booking_staff_for_day/);
   });
 
+  it('useEventOperations saves large-project team moves via setLargeProjectDayTeam', () => {
+    const src = read('src/hooks/useEventOperations.tsx');
+    expect(src).toMatch(/setLargeProjectDayTeam/);
+  });
+
   it('MoveEventDateDialog calls recompute_booking_staff_for_day', () => {
     const src = read('src/components/Calendar/MoveEventDateDialog.tsx');
     expect(src).toMatch(/recompute_booking_staff_for_day/);
