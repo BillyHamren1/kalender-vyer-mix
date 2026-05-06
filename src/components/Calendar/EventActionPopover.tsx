@@ -161,7 +161,7 @@ const EventActionPopover: React.FC<Props> = ({
           </div>
         </PopoverTrigger>
         <PopoverContent
-          className="w-80 p-3 z-[9999]"
+          className="w-[420px] p-3 z-[9999]"
           align="center"
           side="right"
           sideOffset={8}
