@@ -175,6 +175,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           {resources.map((resource, index) => {
             const isActiveTeam = openPickerTeamId === resource.id;
             const assignedIds = getAssignedStaffForTeam(resource.id).map((s) => s.id);
+            const colWidth = teamColumnWidths[index];
             return (
               <div
                 key={`header-${resource.id}`}
@@ -182,8 +183,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 style={{
                   gridColumn: index + 2,
                   gridRow: 2,
-                  width: fullWidth ? 'auto' : `${TEAM_COLUMN_WIDTH}px`,
-                  minWidth: fullWidth ? 0 : `${TEAM_COLUMN_WIDTH}px`,
+                  width: fullWidth ? 'auto' : `${colWidth}px`,
+                  minWidth: fullWidth ? 0 : `${colWidth}px`,
                   ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {}),
                 }}
               >
