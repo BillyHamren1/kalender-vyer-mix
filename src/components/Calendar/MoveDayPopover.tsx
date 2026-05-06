@@ -24,9 +24,15 @@ interface Props {
 /**
  * Två pilar (← →) i nedre högra hörnet av eventet — flyttar till föregående
  * eller nästa team i listan. Klick öppnar en dialog där användaren väljer:
- *   - "Endast denna dag" → uppdaterar bara denna calendar_events-rad
+ *   - "Endast denna dag" → uppdaterar denna projektdags konsoliderade
+ *     calendar_events-grupp (alla syskonbokningar för (projekt, fas, datum, team))
+ *     om event.extendedProps.consolidatedEventIds finns; annars enskild rad.
  *   - "Hela serien" → flyttar alla calendar_events för bookingen (eller alla
- *     syskonbokningar i large_project) till valt team
+ *     syskonbokningar i large_project) i SAMMA fas till valt team.
+ *
+ * Calendar placement för both vanliga bookings and large projects styrs av
+ * calendar_events.resource_id. large_project_team_assignments är inte
+ * authoritative för planner placement.
  */
 export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) => {
   const { teamResources } = useTeamResources();
