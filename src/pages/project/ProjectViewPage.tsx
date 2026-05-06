@@ -10,6 +10,7 @@ import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
+import ProjectContactCard from "@/components/project/ProjectContactCard";
 import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 
@@ -147,6 +148,13 @@ const ProjectViewPage = () => {
               projectLeader={projectLeaderDisplay}
               bookingAttachments={bookingAttachments}
             />
+            <div className="px-1 pb-1">
+              <ProjectContactCard
+                contactName={(displayBooking as any).contact_name}
+                contactPhone={(displayBooking as any).contact_phone}
+                contactEmail={(displayBooking as any).contact_email}
+              />
+            </div>
           </div>
         )}
 

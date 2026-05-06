@@ -5,6 +5,7 @@ import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
+import ProjectContactCard from "@/components/project/ProjectContactCard";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 
 
@@ -25,6 +26,11 @@ const LargeProjectViewPage = () => {
   const bookingId = (project as any)?.bookings?.[0]?.booking_id || null;
   const { assignments: transportAssignments } = useProjectTransport(bookingId);
 
+  // Hitta första underbokning som har kontaktinfo (leverans-kontakt följer med från importen)
+  const contactBooking = ((project as any)?.bookings || [])
+    .map((b: any) => b.booking)
+    .find((b: any) => b && (b.contact_name || b.contact_phone || b.contact_email));
+
   if (!project) return null;
 
   return (
@@ -43,6 +49,15 @@ const LargeProjectViewPage = () => {
         currentNotes={(project as any).internalnotes}
         projectId={project.id}
       />
+
+      {/* Leveranskontakt från bokningen */}
+      {contactBooking && (
+        <ProjectContactCard
+          contactName={contactBooking.contact_name}
+          contactPhone={contactBooking.contact_phone}
+          contactEmail={contactBooking.contact_email}
+        />
+      )}
 
       {/* Tabbed content */}
       <Tabs defaultValue="files" className="space-y-6">
