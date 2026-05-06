@@ -205,11 +205,18 @@ async function handleCompute(
       .limit(500),
   ]);
 
-  // Build known places
+  // Build known places — merge linked + candidate sets, dedupe by id.
   const knownPlaces: KnownPlace[] = [];
+  const seen = new Set<string>();
+  const pushPlace = (p: KnownPlace) => {
+    const key = `${p.type}:${p.id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    knownPlaces.push(p);
+  };
   for (const loc of (locationsRes.data ?? [])) {
     if (loc.latitude == null || loc.longitude == null) continue;
-    knownPlaces.push({
+    pushPlace({
       id: loc.id,
       type: "location",
       name: loc.name,
@@ -218,9 +225,10 @@ async function handleCompute(
       radiusM: loc.radius_meters ?? 100,
     });
   }
-  for (const b of (bookingsRes.data ?? [])) {
+  const allBookings = [...(bookingsRes.data ?? []), ...(candidateBookingsRes.data ?? [])];
+  for (const b of allBookings) {
     if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
-    knownPlaces.push({
+    pushPlace({
       id: b.id,
       type: "booking",
       name: b.client || b.deliveryaddress || "Bokning",
@@ -229,9 +237,10 @@ async function handleCompute(
       radiusM: 100,
     });
   }
-  for (const p of (projectsRes.data ?? [])) {
+  const allProjects = [...(projectsRes.data ?? []), ...(candidateProjectsRes.data ?? [])];
+  for (const p of allProjects) {
     if (p.address_latitude == null || p.address_longitude == null) continue;
-    knownPlaces.push({
+    pushPlace({
       id: p.id,
       type: "project",
       name: p.name || p.address || "Projekt",
