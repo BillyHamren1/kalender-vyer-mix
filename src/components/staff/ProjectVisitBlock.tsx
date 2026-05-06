@@ -225,10 +225,24 @@ export const buildProjectBlocks = (input: BuildProjectBlocksInput): ProjectBlock
     const endIso = ongoing ? null : (departedAt || visit?.end || ev.until || null);
     const durationMin = visit?.durationMin ?? ev.durationMin ?? 0;
 
-    const timerStartedIso = timerStartByPlaceKey.get(placeKey) ?? null;
-    const timerStoppedIso = timerStopByPlaceKey.get(placeKey) ?? null;
-    const timerActive = !!timerActiveByPlaceKey.get(placeKey);
-    const hasTimer = !!timerStartedIso || !!timerStoppedIso;
+    // Match timer-intervall mot blockets fönster (overlap).
+    const blockStartMs = new Date(startIso).getTime();
+    const blockEndMs = endIso ? new Date(endIso).getTime() : Date.now();
+    const overlapping = timerIntervals.filter(t => {
+      if (t.placeKey !== placeKey) return false;
+      const ts = new Date(t.start).getTime();
+      const te = t.end ? new Date(t.end).getTime() : Date.now();
+      return te >= blockStartMs && ts <= blockEndMs;
+    });
+    const timerStartedIso = overlapping.length > 0
+      ? overlapping.reduce((min, t) => (!min || t.start < min ? t.start : min), '' as string) || null
+      : null;
+    const stops = overlapping.filter(t => t.end !== null);
+    const timerStoppedIso = stops.length > 0
+      ? stops.reduce((max, t) => (!max || (t.end as string) > max ? (t.end as string) : max), '' as string) || null
+      : null;
+    const timerActive = overlapping.some(t => t.end === null);
+    const hasTimer = overlapping.length > 0;
 
     blocks.push({
       id: `pblock:${ev.id}`,
