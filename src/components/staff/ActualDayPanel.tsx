@@ -531,7 +531,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     });
   };
 
-  const status = deriveStatus(model);
+  // (deriveStatus borttagen — huvudstatus levereras nu av buildDayHeaderModel.)
+  void deriveStatus; // håll borttagningen synlig om legacy-call dyker upp
+
   const wd = model.reportState.workday;
   const wdMin = wd
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
