@@ -142,42 +142,44 @@ export const MobileProjectTimerCard = ({ largeProjectId, projectName }: Props) =
           </span>
         </div>
 
-        {/* Live timer */}
+        {/* UNIFIED MODEL: arbetsdagstimern är enda synliga rullande klocka.
+            Här visar vi bara om tiden registreras på projektet just nu. */}
         {currentTimer ? (
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-[10px] uppercase tracking-wider text-primary/70 font-bold">
-                Pågår nu
+                Tid registreras på projektet
               </p>
-              <p className="text-2xl font-mono tabular-nums font-extrabold text-primary leading-tight">
-                {formatHMS(liveSeconds)}
+              <p className="text-sm font-semibold text-foreground mt-0.5 truncate">
+                {projectName}
               </p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Startad {format(parseISO(currentTimer.startTime), 'HH:mm')}
+                Sedan {format(parseISO(currentTimer.startTime), 'HH:mm')}
                 {currentTimer.isAutoStarted && ' (automatiskt)'}
               </p>
             </div>
             <button
               onClick={handleStop}
               disabled={stopping}
-              className="shrink-0 h-14 px-5 rounded-2xl bg-destructive text-destructive-foreground font-bold flex items-center gap-2 shadow-md active:scale-95 transition-all disabled:opacity-60"
+              className="shrink-0 h-12 px-4 rounded-2xl bg-card border border-destructive/40 text-destructive font-semibold flex items-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-60"
+              title="Sluta registrera tid på projektet — arbetsdagen fortsätter"
             >
               {stopping ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <Square className="w-5 h-5" />
               )}
-              {stopping ? 'Sparar…' : 'Avsluta'}
+              {stopping ? 'Sparar…' : 'Sluta här'}
             </button>
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
-                Ingen pågående timer
+                Inte aktiv på projektet
               </p>
               <p className="text-sm text-foreground/70 mt-0.5">
-                Tryck för att börja rapportera tid på projektet
+                Tryck för att registrera arbetsdagstid på projektet
               </p>
             </div>
             <button
@@ -185,7 +187,7 @@ export const MobileProjectTimerCard = ({ largeProjectId, projectName }: Props) =
               className="shrink-0 h-14 px-5 rounded-2xl bg-primary text-primary-foreground font-bold flex items-center gap-2 shadow-md active:scale-95 transition-all"
             >
               <Play className="w-5 h-5 ml-0.5" />
-              Starta
+              Registrera här
             </button>
           </div>
         )}
