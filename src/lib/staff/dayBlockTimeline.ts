@@ -412,15 +412,41 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     // I så fall är det INTE platsen som är okänd — det är vilket projekt
     // platsen tillhör. Visa "Okänt projekt – sparas som övrigt" och ge
     // hint om närmsta projekt (utan att binda timern till det).
+    //
+    // Tre fall:
+    //   - 1 kandidat inom 150 m, autoLoginEligible → "Trolig: X (m)"
+    //   - 1 kandidat inom 150 m, utanför ±2d-fönster → "Närmsta: X (m) – ej aktivt"
+    //   - flera kandidater inom 150 m → "Flera projekt på adressen – välj projekt"
+    //   - ingen kandidat inom 150 m → "Okänt projekt – sparas som övrigt"
     const hasCoords = v.centre != null;
-    const nearest = (v as unknown as { nearestKnownSite?: { name: string; distanceMeters: number } | null }).nearestKnownSite ?? null;
-    const unknownSubtitle = presenceKind === 'unknown'
-      ? (hasCoords || nearest
-          ? (nearest
-              ? `Okänt projekt – sparas som övrigt · närmsta projekt: ${nearest.name} (${nearest.distanceMeters} m)`
-              : `Okänt projekt – sparas som övrigt`)
-          : 'Okänd plats — kräver granskning')
-      : null;
+    const vAny = v as unknown as {
+      nearestKnownSite?: { name: string; distanceMeters: number; autoLoginEligible?: boolean; activeWindowLabel?: string | null } | null;
+      candidatesWithinRadius?: Array<{ id: string; name: string; distanceMeters: number; autoLoginEligible?: boolean; activeWindowLabel?: string | null }>;
+    };
+    const nearest = vAny.nearestKnownSite ?? null;
+    const candidates = vAny.candidatesWithinRadius ?? [];
+    let unknownSubtitle: string | null = null;
+    if (presenceKind === 'unknown') {
+      if (candidates.length > 1) {
+        const names = candidates.slice(0, 3).map(c => c.name).join(', ');
+        unknownSubtitle = `Okänt projekt – sparas som övrigt · flera projekt på adressen: ${names}`;
+      } else if (candidates.length === 1) {
+        const c = candidates[0];
+        if (c.autoLoginEligible) {
+          unknownSubtitle = `Okänt projekt – sparas som övrigt · trolig: ${c.name} (${c.distanceMeters} m)`;
+        } else {
+          const win = c.activeWindowLabel ? ` – ej aktivt nu (${c.activeWindowLabel})` : ' – ej aktivt nu';
+          unknownSubtitle = `Okänt projekt – sparas som övrigt · närmsta: ${c.name} (${c.distanceMeters} m)${win}`;
+        }
+      } else if (hasCoords || nearest) {
+        // Ingen kandidat inom 150 m — närmsta är "i området" men inte på adressen.
+        unknownSubtitle = nearest
+          ? `Okänt projekt – sparas som övrigt · närmsta: ${nearest.name} (${nearest.distanceMeters} m)`
+          : `Okänt projekt – sparas som övrigt`;
+      } else {
+        unknownSubtitle = 'Okänd plats — kräver granskning';
+      }
+    }
 
     blocks.push({
       kind: 'presence',

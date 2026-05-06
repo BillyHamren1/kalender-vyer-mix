@@ -15,6 +15,16 @@ export interface KnownSite {
   lat: number;
   lng: number;
   radiusMeters: number;
+  /**
+   * True om visit-datum ligger inom sajtens autologin-fönster
+   * (bokning: rigday-2d ≤ visitDate ≤ rigdown+2d; large_project: motsv).
+   * Endast relevant för "närmsta projekt"-förslag — påverkar inte matchKnownSite.
+   */
+  autoLoginEligible?: boolean;
+  /** 0 om inom fönstret, annars antal dagar utanför närmaste fönsterkant. */
+  daysFromActiveWindow?: number;
+  /** Mänsklig etikett för fönstret, t.ex. "Rig 18/5 – Rigdown 31/5". */
+  activeWindowLabel?: string;
 }
 
 export interface PlaceVisit {

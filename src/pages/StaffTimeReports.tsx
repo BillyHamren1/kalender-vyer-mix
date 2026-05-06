@@ -566,29 +566,69 @@ const StaffTimeReports: React.FC = () => {
       //   4. ID:n som RAPPORTER/LTE pekar på (säkerhet om datumkolumner
       //      inte är satta på bokningen)
       const knownSites: KnownSite[] = [];
-      const [orgLocsRes, bookingsByDateRes, lpsByDateRes, bookingCoordsRes, lpCoordsRes] = await Promise.all([
+      // ±21-dagars fönster runt visit-datum så att projekt vars rig/event/rigdown
+      // ligger en/två veckor bort fortfarande finns i poolen för "närmsta projekt"-
+      // förslag. Utan detta blir det enda projekt som råkar matcha exakt dagens
+      // datum "närmast" — fast det kan ligga 7 km bort.
+      const windowDays = 21;
+      const dateMs = new Date(`${dateStr}T00:00:00Z`).getTime();
+      const fmtDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+      const windowStart = fmtDate(dateMs - windowDays * 86_400_000);
+      const windowEnd = fmtDate(dateMs + windowDays * 86_400_000);
+
+      // Autologin-fönster: rig-2d ≤ visit ≤ rigdown+2d
+      const autoWindowDays = 2;
+      const computeAutoWindow = (rigStart: string | null, rigEnd: string | null): {
+        eligible: boolean;
+        daysOutside: number;
+        label: string | null;
+      } => {
+        if (!rigStart && !rigEnd) return { eligible: false, daysOutside: Infinity, label: null };
+        const startMs = rigStart ? new Date(`${rigStart}T00:00:00Z`).getTime() : null;
+        const endMs = rigEnd ? new Date(`${rigEnd}T00:00:00Z`).getTime() : startMs;
+        const lo = (startMs ?? endMs!) - autoWindowDays * 86_400_000;
+        const hi = (endMs ?? startMs!) + autoWindowDays * 86_400_000;
+        const eligible = dateMs >= lo && dateMs <= hi;
+        const daysOutside = eligible
+          ? 0
+          : Math.ceil(Math.min(Math.abs(dateMs - lo), Math.abs(dateMs - hi)) / 86_400_000);
+        const fmtSv = (s: string) => {
+          const [, m, d] = s.split('-');
+          return `${parseInt(d, 10)}/${parseInt(m, 10)}`;
+        };
+        const parts: string[] = [];
+        if (rigStart) parts.push(`Rig ${fmtSv(rigStart)}`);
+        if (rigEnd && rigEnd !== rigStart) parts.push(`Rigdown ${fmtSv(rigEnd)}`);
+        return { eligible, daysOutside, label: parts.length ? parts.join(' – ') : null };
+      };
+
+      const [orgLocsRes, bookingsWindowRes, lpsWindowRes, bookingCoordsRes, lpCoordsRes] = await Promise.all([
         supabase
           .from('organization_locations')
           .select('id, name, latitude, longitude, radius_meters, is_active')
           .eq('is_active', true),
         supabase
           .from('bookings')
-          .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate')
-          .or(`eventdate.eq.${dateStr},rigdaydate.eq.${dateStr},rigdowndate.eq.${dateStr}`),
+          .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate, status')
+          .not('delivery_latitude', 'is', null)
+          .lte('rigdaydate', windowEnd)
+          .gte('rigdowndate', windowStart)
+          .neq('status', 'CANCELLED'),
+        // large_projects: start_date/end_date är date[]. Hämta brett och filtrera i JS.
         supabase
           .from('large_projects')
           .select('id, name, address_latitude, address_longitude, address_radius_meters, start_date, end_date, event_date')
-          .or(`and(start_date.lte.${dateStr},end_date.gte.${dateStr}),event_date.eq.${dateStr}`),
+          .not('address_latitude', 'is', null),
         bookingIds.length
           ? supabase
               .from('bookings')
-              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude')
+              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate, status')
               .in('id', bookingIds)
           : Promise.resolve({ data: [] as any[] } as any),
         largeProjectIds.length
           ? supabase
               .from('large_projects')
-              .select('id, name, address_latitude, address_longitude, address_radius_meters')
+              .select('id, name, address_latitude, address_longitude, address_radius_meters, start_date, end_date, event_date')
               .in('id', largeProjectIds)
           : Promise.resolve({ data: [] as any[] } as any),
       ]);
@@ -608,34 +648,52 @@ const StaffTimeReports: React.FC = () => {
           lat: Number(l.latitude),
           lng: Number(l.longitude),
           radiusMeters: Number(l.radius_meters ?? 200) || 200,
+          autoLoginEligible: true, // fixed locations är alltid aktiva
+          daysFromActiveWindow: 0,
+          activeWindowLabel: null,
         });
       }
       const allBookingRows = [
-        ...((bookingsByDateRes as any).data || []),
+        ...((bookingsWindowRes as any).data || []),
         ...((bookingCoordsRes as any).data || []),
       ];
       for (const b of allBookingRows) {
         if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
+        const win = computeAutoWindow(b.rigdaydate ?? b.eventdate ?? null, b.rigdowndate ?? b.eventdate ?? null);
         pushSite({
           id: `booking:${b.id}`,
           name: b.booking_number ? `${b.booking_number} · ${b.client ?? 'Bokning'}` : (b.client ?? b.deliveryaddress ?? 'Bokning'),
           lat: Number(b.delivery_latitude),
           lng: Number(b.delivery_longitude),
           radiusMeters: 200,
+          autoLoginEligible: win.eligible,
+          daysFromActiveWindow: win.daysOutside,
+          activeWindowLabel: win.label,
         });
       }
       const allLpRows = [
-        ...((lpsByDateRes as any).data || []),
+        ...((lpsWindowRes as any).data || []),
         ...((lpCoordsRes as any).data || []),
       ];
       for (const lp of allLpRows) {
         if (lp.address_latitude == null || lp.address_longitude == null) continue;
+        // Overlap-check för date[]-kolumner i JS.
+        const startDates: string[] = Array.isArray(lp.start_date) ? lp.start_date : (lp.start_date ? [lp.start_date] : []);
+        const endDates: string[] = Array.isArray(lp.end_date) ? lp.end_date : (lp.end_date ? [lp.end_date] : []);
+        const minStart = startDates.sort()[0] ?? null;
+        const maxEnd = endDates.sort().slice(-1)[0] ?? minStart;
+        // Filter: behåll bara projekt vars [minStart, maxEnd] överlappar [windowStart, windowEnd].
+        if (minStart && maxEnd && (maxEnd < windowStart || minStart > windowEnd)) continue;
+        const win = computeAutoWindow(minStart, maxEnd);
         pushSite({
           id: `large:${lp.id}`,
           name: lp.name || 'Stort projekt',
           lat: Number(lp.address_latitude),
           lng: Number(lp.address_longitude),
           radiusMeters: Number(lp.address_radius_meters ?? 200) || 200,
+          autoLoginEligible: win.eligible,
+          daysFromActiveWindow: win.daysOutside,
+          activeWindowLabel: win.label,
         });
       }
 
