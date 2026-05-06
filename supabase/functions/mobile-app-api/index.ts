@@ -577,6 +577,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleStartLocationTimer(supabase, staffId, data, organizationId)
       case 'stop_location_timer':
         return await handleStopLocationTimer(supabase, staffId, data, organizationId)
+      case 'stop_open_entry':
+        return await handleStopOpenEntry(supabase, staffId, data, organizationId)
       case 'dismiss_location_entry':
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
@@ -6644,6 +6646,166 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
 
   return new Response(
     JSON.stringify({ success: true, entry: updated }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// stop_open_entry — universal "stop a server-only LTE" action
+// ────────────────────────────────────────────────────────────────────────
+// Purpose: a server-side LTE that has no matching local timer must still be
+// stoppable from the app. Mirrors what useWorkSession.stopSession does for
+// local timers, but operates purely from `entry_id`:
+//   1) load the open LTE (org/staff scoped)
+//   2) if the target requires a time_report (booking/large_project/location-
+//      mapped reportable entry), create one spanning entered_at → stop_at
+//   3) close the LTE with exited_at + stop_source/stop_reason/stopped_by
+//   4) return the refreshed active_day_state envelope
+//
+// Body: { entry_id: string, stop_at?: ISO, stop_source?, stop_reason?,
+//         skip_time_report?: boolean, break_time?: number }
+async function handleStopOpenEntry(supabase: any, staffId: string, data: any, organizationId: string) {
+  const {
+    entry_id,
+    stop_at,
+    stop_source,
+    stop_reason,
+    skip_time_report,
+    break_time,
+  } = data || {}
+
+  if (!entry_id || typeof entry_id !== 'string') {
+    return new Response(
+      JSON.stringify({ error: 'entry_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // 1) Load the open LTE (must belong to this staff + org and be still open).
+  const { data: entry, error: loadErr } = await supabase
+    .from('location_time_entries')
+    .select('*')
+    .eq('id', entry_id)
+    .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+
+  if (loadErr) {
+    console.error('[stop_open_entry] load failed:', loadErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to load entry' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (!entry) {
+    return new Response(
+      JSON.stringify({ error: 'Entry not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  if (entry.exited_at) {
+    // Idempotent — already closed. Return current state so the UI clears.
+    const stateRes = await handleGetActiveDayState(supabase, staffId, organizationId)
+    const stateBody = await stateRes.json().catch(() => ({}))
+    return new Response(
+      JSON.stringify({ success: true, already_closed: true, entry, active_day_state: stateBody }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const stopIso = (typeof stop_at === 'string' && stop_at) || new Date().toISOString()
+  const startedAt = new Date(entry.entered_at)
+  const stoppedAt = new Date(stopIso)
+  if (!(stoppedAt > startedAt)) {
+    return new Response(
+      JSON.stringify({ error: 'stop_at must be after entered_at' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // 2) Optionally create a time_report. Skip for pure "presence" entries
+  // (location entries that started without an associated reportable target),
+  // for caller-requested skips, and when the entry has no booking/project link.
+  const md = (entry.metadata && typeof entry.metadata === 'object') ? entry.metadata : {}
+  const presenceOnly = md.presence_only === true || md.role === 'presence'
+  const wantsReport = !skip_time_report && !presenceOnly &&
+    (entry.booking_id || entry.large_project_id || entry.location_id)
+
+  let createdReportId: string | null = null
+  if (wantsReport) {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const report_date = `${startedAt.getUTCFullYear()}-${pad(startedAt.getUTCMonth() + 1)}-${pad(startedAt.getUTCDate())}`
+    const start_time = `${pad(startedAt.getUTCHours())}:${pad(startedAt.getUTCMinutes())}`
+    const end_time = `${pad(stoppedAt.getUTCHours())}:${pad(stoppedAt.getUTCMinutes())}`
+
+    // Encode location-only entries the way handleCreateTimeReport expects.
+    let trBookingId: string | null = entry.booking_id || null
+    let trLargeProjectId: string | null = entry.large_project_id || null
+    if (!trBookingId && !trLargeProjectId && entry.location_id) {
+      trBookingId = `location-${entry.location_id}`
+    }
+
+    const trRes = await handleCreateTimeReport(supabase, staffId, {
+      booking_id: trBookingId || undefined,
+      large_project_id: trLargeProjectId || undefined,
+      report_date,
+      start_time,
+      end_time,
+      break_time: typeof break_time === 'number' ? break_time : 0,
+      description: 'Stoppad från banner (server-only timer)',
+    }, organizationId)
+
+    if (trRes.status >= 400) {
+      const body = await trRes.json().catch(() => ({}))
+      console.warn('[stop_open_entry] time_report create failed, closing LTE anyway:', body)
+      // We do NOT abort — closing the orphan LTE is more important than
+      // failing the whole stop. The client can offer "Korrigera" afterwards.
+    } else {
+      const body = await trRes.json().catch(() => ({}))
+      createdReportId = body?.report?.id || body?.id || null
+    }
+  }
+
+  // 3) Close the LTE.
+  const stopMd = {
+    ...(entry.stop_metadata && typeof entry.stop_metadata === 'object' ? entry.stop_metadata : {}),
+    closed_via: 'stop_open_entry',
+    created_time_report_id: createdReportId,
+    skipped_time_report: !wantsReport,
+  }
+  const { data: closed, error: closeErr } = await supabase
+    .from('location_time_entries')
+    .update({
+      exited_at: stopIso,
+      stop_source: stop_source || 'user_manual',
+      stop_reason: stop_reason || 'banner_stop_server_only',
+      stopped_by: staffId,
+      stop_metadata: stopMd,
+    })
+    .eq('id', entry.id)
+    .is('exited_at', null)
+    .select()
+    .maybeSingle()
+
+  if (closeErr) {
+    console.error('[stop_open_entry] close failed:', closeErr)
+    return new Response(
+      JSON.stringify({ error: 'Failed to close entry', detail: closeErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // 4) Return refreshed active_day_state for instant UI rehydrate.
+  const stateRes = await handleGetActiveDayState(supabase, staffId, organizationId)
+  const stateBody = await stateRes.json().catch(() => ({}))
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      entry: closed || entry,
+      created_time_report_id: createdReportId,
+      active_day_state: stateBody,
+    }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }

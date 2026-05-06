@@ -743,6 +743,24 @@ export const mobileApi = {
   stopLocationTimer: (data: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string }) =>
     callApi<{ success?: boolean; entry: any }>('stop_location_timer', data),
 
+  /** Stoppa en server-öppen LTE direkt (banner: server-only timer). Skapar
+   * time_report om target kräver det och returnerar uppdaterad active_day_state. */
+  stopOpenEntry: (data: {
+    entry_id: string;
+    stop_at?: string;
+    stop_source?: string;
+    stop_reason?: string;
+    skip_time_report?: boolean;
+    break_time?: number;
+  }) =>
+    callApi<{
+      success: boolean;
+      entry: any;
+      created_time_report_id: string | null;
+      active_day_state: any;
+      already_closed?: boolean;
+    }>('stop_open_entry', data),
+
   dismissLocationEntry: (locationId: string) =>
     callApi<{ success?: boolean }>('dismiss_location_entry', { location_id: locationId }),
 
