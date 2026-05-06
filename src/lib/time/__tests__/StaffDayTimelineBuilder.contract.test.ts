@@ -155,12 +155,12 @@ describe('buildStaffDayTimelineFromRaw — kontrakt', () => {
     expect(out.segments.find((s) => s.id === 'tr:sub')).toBeUndefined();
   });
 
-  it('öppen workday + ongoing TR ⇒ status=open', () => {
+  it('öppen workday + ongoing TR (täcker hela ramen) ⇒ status=open', () => {
     const out = buildStaffDayTimelineFromRaw({
       ...base,
       workday: { id: 'wd1', started_at: iso(7), ended_at: null },
       timeReports: [
-        { id: 'tr1', start_iso: iso(8), end_iso: null, hours: 0, label: 'A', category: 'project' },
+        { id: 'tr1', start_iso: iso(7), end_iso: null, hours: 0, label: 'A', category: 'project' },
       ],
     });
     expect(out.status).toBe('open');
