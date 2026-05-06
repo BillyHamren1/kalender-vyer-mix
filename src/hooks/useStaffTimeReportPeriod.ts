@@ -106,6 +106,7 @@ export function useStaffTimeReportPeriod(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const debounce = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (!staffId) {
@@ -150,12 +151,28 @@ export function useStaffTimeReportPeriod(
     }
   }, [staffId, input.kind, startDate, endDate]);
 
+  const scheduleRefresh = useCallback(() => {
+    if (debounce.current) window.clearTimeout(debounce.current);
+    debounce.current = window.setTimeout(() => { void refresh(); }, 400);
+  }, [refresh]);
+
   useEffect(() => {
     if (!staffId) return;
     void refresh();
     const id = window.setInterval(refresh, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [staffId, refresh]);
+    const onFocus = () => { void refresh(); };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('timer-state-changed', scheduleRefresh);
+    window.addEventListener('workday-started', scheduleRefresh);
+    window.addEventListener('workday-ended', scheduleRefresh);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('timer-state-changed', scheduleRefresh);
+      window.removeEventListener('workday-started', scheduleRefresh);
+      window.removeEventListener('workday-ended', scheduleRefresh);
+    };
+  }, [staffId, refresh, scheduleRefresh]);
 
   useEffect(() => {
     if (!staffId) return;
@@ -163,23 +180,25 @@ export function useStaffTimeReportPeriod(
       `staff-period:${staffId}:${input.kind}:${startDate}`,
     );
     for (const table of [
+      'workdays',
       'time_reports',
       'travel_time_logs',
-      'workdays',
+      'location_time_entries',
+      'workday_flags',
+      'assistant_events',
     ] as const) {
       (channel as any).on(
         'postgres_changes',
         { event: '*', schema: 'public', table, filter: `staff_id=eq.${staffId}` },
-        () => {
-          void refresh();
-        },
+        scheduleRefresh,
       );
     }
     channel.subscribe();
     return () => {
       supabase.removeChannel(channel);
+      if (debounce.current) window.clearTimeout(debounce.current);
     };
-  }, [staffId, input.kind, startDate, refresh]);
+  }, [staffId, input.kind, startDate, scheduleRefresh]);
 
   return { period, isLoading, error, refresh };
 }
