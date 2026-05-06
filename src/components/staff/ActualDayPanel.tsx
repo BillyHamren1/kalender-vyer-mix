@@ -1322,13 +1322,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         <PlanningSection items={planningItems} />
       )}
 
-      {canExclude && overrides.length > 0 && (
-        <ExcludedEventsSection
-          overrides={overrides}
-          blocks={enrichedBlockTimeline}
-          onRestore={(id) => restore(id)}
-        />
-      )}
+      {/* ExcludedEventsSection flyttad — renderas under journalen för
+          enhetlig sektionsordning över alla rapporter. */}
 
       {/* B. Faktiska händelser — alltid synlig */}
       <section className="px-4 py-3 border-b">
@@ -2075,6 +2070,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         </>
         )}
       </section>
+
+      {canExclude && overrides.length > 0 && (
+        <ExcludedEventsSection
+          overrides={overrides}
+          blocks={enrichedBlockTimeline}
+          onRestore={(id) => restore(id)}
+        />
+      )}
+
 
       {/* C. Föreslagna korrigeringar — visas FÖRE rapport, eftersom det är den
           handlingsbara översikten admin ska reagera på. */}
