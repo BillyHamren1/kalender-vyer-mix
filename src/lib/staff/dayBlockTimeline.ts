@@ -382,18 +382,39 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     if (!isKnown && durationMin < MIN_UNKNOWN_REVIEW_MIN) continue;
 
     const presenceKind: PresenceKind = isProject ? 'project' : isLocation ? 'location' : 'unknown';
+
+    // Klipp visit-start vid arbetskontextens start om visit börjar tidigare.
+    // Detta hindrar t.ex. ett 00:00–07:00 GPS-kluster på FA Warehouse från
+    // att visas som arbetsblock 00:00–07:00 när workday/timer/TR först
+    // började 05:47. Vi behåller original-starttiden i clippedFromIso för
+    // raw-vy/debug.
+    const visitStartMs = new Date(v.start).getTime();
+    const visitEndMs = new Date(v.end).getTime();
+    let blockStartIso = v.start;
+    let blockDurationMin = durationMin;
+    let clippedFromIso: string | null = null;
+    let clippedReason: 'clipped_to_work_context_start' | null = null;
+    if (workCtxMs != null
+      && visitStartMs < workCtxMs
+      && visitEndMs > workCtxMs) {
+      clippedFromIso = v.start;
+      clippedReason = 'clipped_to_work_context_start';
+      blockStartIso = workContextStartIso!;
+      blockDurationMin = Math.max(0, Math.round((visitEndMs - workCtxMs) / 60_000));
+    }
+
     const strength: PresenceStrength = isProject
       ? 'project'
-      : durationMin >= 30 ? 'strong_visit'
-      : durationMin >= 15 ? 'possible_visit'
+      : blockDurationMin >= 30 ? 'strong_visit'
+      : blockDurationMin >= 15 ? 'possible_visit'
       : 'short_stop';
     blocks.push({
       kind: 'presence',
       presenceKind,
-      id: `pb:visit:${v.key}:${v.start}`,
-      startIso: v.start,
+      id: `pb:visit:${v.key}:${blockStartIso}`,
+      startIso: blockStartIso,
       endIso: v.end,
-      durationMin,
+      durationMin: blockDurationMin,
       placeKey: v.key,
       title: v.label,
       subtitle: presenceKind === 'unknown' ? 'Okänd plats — kräver granskning' : null,
@@ -406,13 +427,15 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       innerEvents: [],
       timer: { startedIso: null, stoppedIso: null, active: false, present: false },
       timeReport: { startedIso: null, closedIso: null, present: false },
-      arrivalIso: v.start,
+      arrivalIso: blockStartIso,
       departureIso: v.end,
       plannedStartIso: null,
       sources: { timeReport: false, timer: false, gpsVisit: true, assistant: false },
       evidenceLabel: null,
       confidence: 'low',
       resolvedPlace: resolvePresencePlace(presenceKind, v as unknown as VisitInfo, v.label),
+      clippedFromIso,
+      clippedReason,
     });
   }
 
