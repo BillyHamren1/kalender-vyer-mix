@@ -1,9 +1,12 @@
 import React, { Suspense, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Loader2, Clock } from 'lucide-react';
+import { Loader2, Clock, Wrench } from 'lucide-react';
+import { toast } from 'sonner';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 import { fetchDayReviewRows, type DayReviewRow } from '@/lib/admin/timeReviewQueries';
 import { SummaryCards, type SummaryCounts } from '@/components/admin/time-review/SummaryCards';
 import { FilterBar, type FilterState } from '@/components/admin/time-review/FilterBar';
@@ -17,6 +20,7 @@ const LazyDailyOverviewDialog = React.lazy(async () => {
 });
 
 const AdminTimeReview: React.FC = () => {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterState>({
     from: new Date(),
     to: new Date(),
@@ -27,6 +31,29 @@ const AdminTimeReview: React.FC = () => {
   });
   const [topFilter, setTopFilter] = useState<keyof SummaryCounts | null>(null);
   const [openRow, setOpenRow] = useState<DayReviewRow | null>(null);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+
+  const runBackfill = async (dryRun: boolean) => {
+    setBackfillBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('close-stale-workday-entries', {
+        body: { mode: 'backfill', dry_run: dryRun },
+      });
+      if (error) throw error;
+      const planned = data?.planned?.length ?? 0;
+      const closed = data?.closed ?? 0;
+      if (dryRun) {
+        toast.info(`Hittade ${planned} öppna timer-rader att stänga (test-körning)`);
+      } else {
+        toast.success(`${closed} timer-rader stängdes`);
+        queryClient.invalidateQueries({ queryKey: ['admin-time-review-rows'] });
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Backfill misslyckades');
+    } finally {
+      setBackfillBusy(false);
+    }
+  };
 
   const fromYmd = format(filter.from, 'yyyy-MM-dd');
   const toYmd = format(filter.to, 'yyyy-MM-dd');
@@ -73,6 +100,27 @@ const AdminTimeReview: React.FC = () => {
       <PageHeader title="Tidkontroll" subtitle="Granska och godkänn arbetsdagar i en samlad vy" icon={Clock} />
 
       <div className="space-y-4">
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => runBackfill(true)}
+            disabled={backfillBusy}
+          >
+            <Wrench className="h-4 w-4 mr-1" />
+            Förhandsgranska städning
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => runBackfill(false)}
+            disabled={backfillBusy}
+          >
+            {backfillBusy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Wrench className="h-4 w-4 mr-1" />}
+            Städa öppna timers
+          </Button>
+        </div>
+
         <SummaryCards counts={counts} activeFilter={topFilter} onFilterChange={setTopFilter} />
 
         <FilterBar value={filter} onChange={setFilter} staffOptions={staffOptions} onReset={resetFilter} />

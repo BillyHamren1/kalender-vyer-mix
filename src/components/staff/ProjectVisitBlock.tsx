@@ -147,6 +147,12 @@ const ProjectVisitBlock: React.FC<Props> = ({ block }) => {
             Saknar arbetsdag
           </Badge>
         )}
+        {block.timerActive && block.lastPingIso && (Date.now() - new Date(block.lastPingIso).getTime()) > 30 * 60 * 1000 && (
+          <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-500 text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="h-3 w-3 mr-0.5" />
+            Misstänkt glömd timer
+          </Badge>
+        )}
       </div>
     </div>
   );
