@@ -148,13 +148,8 @@ export const HeaderStartEndDayButton: React.FC = () => {
       const match = findNearbyBooking(bookings, pos);
 
       if (match) {
-        // WORKDAY-FIRST: säkerställ dagtimer även om activity-timer redan
-        // skulle vara igång (då skulle requestStart returnera 'duplicate').
-        const wd = await ensureActive();
-        if (!wd) {
-          toast.error('Kunde inte starta arbetspasset. Försök igen.');
-          return;
-        }
+        // requestStart() är ensam ansvarig för ensureWorkDayActive +
+        // konflikt/distance/startSession. Ingen separat ensureActive() här.
         const target = match.large_project_id && match.large_project_name
           ? { kind: 'project' as const, largeProjectId: match.large_project_id, name: match.large_project_name }
           : { kind: 'booking' as const, bookingId: match.id, client: match.client };
@@ -170,7 +165,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
     } finally {
       setStartingDay(false);
     }
-  }, [startingDay, workdayOpen, userPosition, bookings, requestStart, ensureActive]);
+  }, [startingDay, workdayOpen, userPosition, bookings, requestStart]);
 
   /**
    * Användaren har valt något i dialogen.
@@ -182,15 +177,8 @@ export const HeaderStartEndDayButton: React.FC = () => {
     setStartingDay(true);
     try {
       if (selection.kind === 'target') {
-        // WORKDAY-FIRST: säkerställ att dagtimern faktiskt startas innan vi
-        // delegerar till requestStart. requestStart kan returnera
-        // 'duplicate' (om en activity-timer redan finns lokalt) och då
-        // körs aldrig performStart → ingen workday skapas.
-        const wd = await ensureActive();
-        if (!wd) {
-          toast.error('Kunde inte starta arbetspasset. Försök igen.');
-          return;
-        }
+        // requestStart() ansvarar ensamt för ensureWorkDayActive +
+        // konflikt/distance/startSession. Ingen separat ensureActive() här.
         const result = await requestStart(selection.target, { label: selection.label });
         if (result === 'started' || result === 'already_running') {
           toast.success(`Arbetspass startat på ${selection.label}`);
@@ -226,7 +214,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
     } finally {
       setStartingDay(false);
     }
-  }, [requestStart, start, ensureActive]);
+  }, [requestStart, start]);
 
   if (workdayOpen) {
     // End-day button intentionally moved to the Profile page.
