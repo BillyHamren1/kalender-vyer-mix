@@ -491,6 +491,13 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       resolvedPlace: resolvePresencePlace(presenceKind, v as unknown as VisitInfo, v.label),
       clippedFromIso,
       clippedReason,
+      policyStatus: presenceKind === 'project'
+        ? 'confirmed_work'
+        : presenceKind === 'location'
+        ? 'confirmed_work'
+        : overlapsWorkday
+        ? 'unclassified_within_workday'
+        : 'unknown_needs_review',
     });
 
   }
