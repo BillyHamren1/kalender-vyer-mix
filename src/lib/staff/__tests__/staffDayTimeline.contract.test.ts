@@ -278,10 +278,12 @@ const _typecheck: StaffDayTimeline = {
   date: '',
   workday_start: null,
   workday_end: null,
+  workday_suggested: false,
   status: 'open',
   payable_minutes: 0,
   segments: [],
   review_required: false,
   review_count: 0,
+  evidence: {},
 };
 void _typecheck;
