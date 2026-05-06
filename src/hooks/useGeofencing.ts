@@ -1045,7 +1045,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         // Workdayen rörs ALDRIG av geofence — bara aktivitetstimern.
         if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(projectKey)) {
           const ev = evaluateExit(projectKey, dist);
-          if (ev.status !== 'stable') {
+          const isStable = ev.status === 'stable' || ev.status === 'stale_autostop';
+          if (!isStable) {
             if (ev.status === 'insufficient' || ev.status === 'unstable') {
               emitReviewDeparture({
                 kind: 'project', targetId: lpId, label: lpName, ev,
@@ -1055,9 +1056,10 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           } else {
             triggeredExitRef.current.add(projectKey);
             triggeredEnterRef.current.delete(projectKey);
-            const exitedAtIso = new Date().toISOString();
+            const exitedAtIso = ev.exitedAtIso ?? new Date().toISOString();
             maybeReportDeparture(projectKey, exitedAtIso);
             const stopMeta = buildExitMetadata(ev);
+            const stopReason = ev.status === 'stale_autostop' ? 'stale_autostop_30min' : 'stable_exit';
             const stopFn = autoActionsRef.stop;
             if (stopFn) {
               void stopFn({ key: projectKey, exitedAtIso }).catch((err) => {
@@ -1073,7 +1075,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
                 happened_at: exitedAtIso,
                 source: 'geofence',
                 suggested_action: 'auto_stopped_activity',
-                metadata: { ...stopMeta, stop_source: 'geofence_auto', stop_reason: 'stable_exit' },
+                metadata: { ...stopMeta, stop_source: 'geofence_auto', stop_reason: stopReason },
               }).catch(() => {});
             } else {
               fireAnomalyStart({ bookingId: projectKey, largeProjectId: lpId });
@@ -1088,6 +1090,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
                 exitedAtIso,
                 decision: exitDecision,
                 exit_metadata: stopMeta,
+                stop_reason: stopReason,
               },
             }));
           }
