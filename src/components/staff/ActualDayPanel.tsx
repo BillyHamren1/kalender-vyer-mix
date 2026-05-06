@@ -603,12 +603,15 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     setAutoRepairState('running');
     onAutoRepairWorkdayFromEvidence({ reasonCodes: repairIndicators.reasonCodes })
       .then(async (res) => {
-        if (res?.created) {
+        if (res?.status === 'created') {
           setAutoRepairState('created');
           toast.success('Arbetsdag auto-skapad från arbetsbevis');
           // Be parent refetcha så modellen får den nya workdayen direkt;
           // annars riskerar header säga "Saknar arbetsdag" tills nästa
           // refetch tickar.
+          try { await onWorkdayChanged?.(); } catch { /* tyst */ }
+        } else if (res?.status === 'existing') {
+          setAutoRepairState('existing');
           try { await onWorkdayChanged?.(); } catch { /* tyst */ }
         } else {
           // Backend stoppade auto-repair — fall tillbaka till manuell knapp.
