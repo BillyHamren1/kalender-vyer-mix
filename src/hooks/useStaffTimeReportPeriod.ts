@@ -65,6 +65,10 @@ export interface StaffTimeReportPeriod {
   status: 'draft' | 'submitted' | 'approved' | 'mixed' | 'empty';
   totals: StaffTimeReportPeriodTotals;
   rows: StaffTimeReportRow[];
+  /** Per-day list from backend snapshot. UI binds, never recomputes. */
+  days?: Array<Record<string, unknown>>;
+  /** Reasons the period is not yet ready to submit. */
+  blockers?: Array<{ date: string; type: string; message: string }>;
   lastUpdatedAt: string;
 }
 
