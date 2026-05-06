@@ -185,6 +185,7 @@ function timeReportToSegment(
   now: number,
 ): RawSegment | null {
   if (tr.is_subdivision) return null;
+  if (tr.synthetic) return null; // syntetisk: går till evidence, inte segment
   if (!tr.start_iso) return null;
   const endIso = tr.end_iso;
   const ongoing = !endIso;
