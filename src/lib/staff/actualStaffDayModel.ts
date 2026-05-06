@@ -1315,30 +1315,35 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       .reduce((s, t) => s + t.hours * 60, 0),
   );
 
-  // Föreslå ny workday-start om GPS visar aktivitet före workday
+  // Föreslå ny workday-start om bekräftad arbetsplatsnärvaro finns FÖRE workday.
+  // Endast `work_confirmed` (matchad känd plats / hård evidens) får tidigarelägga
+  // workday — `work_possible` (≤800m, närliggande), okänd adress, hem, travel
+  // och rena GPS-pings räknas ALDRIG. Se isConfirmedWorksitePresence + memo:
+  // [Time Data Authority] / [Confirmed Worksite Presence v1].
   let proposedWorkdayStart = input.workday?.started_at ?? null;
   let proposedWorkdayEnd = input.workday?.ended_at ?? null;
   const anomalies: ProposedAnomaly[] = [];
 
   if (input.workday) {
     const wdStartMs = new Date(input.workday.started_at).getTime();
-    // Pre-workday anomaly får ENDAST baseras på första arbetsrelevanta visit.
-    // actualVisits[0] kan vara nattlig/bakgrunds-/hemnära/okänd GPS som börjar
-    // 00:00 — den får aldrig föreslå proposedWorkdayStart 00:00.
-    const earliestWorkRelevantVisit = actualVisits.find(v => {
+    // Pre-workday anomaly får ENDAST baseras på första BEKRÄFTADE arbetsplats-
+    // visit (work_confirmed). Närliggande/okända/privata visits ignoreras helt
+    // för auto-justeringen — de visas separat som "Okänd vistelse under
+    // arbetsdag – kräver granskning" om de ligger inom workday-fönstret.
+    const earliestConfirmedWorksiteVisit = actualVisits.find(v => {
       const r = visitRelevance.get(v.key);
-      return r === 'work_confirmed' || r === 'work_possible';
+      return r === 'work_confirmed';
     });
     if (
-      earliestWorkRelevantVisit
-      && new Date(earliestWorkRelevantVisit.start).getTime() < wdStartMs - 5 * 60_000
+      earliestConfirmedWorksiteVisit
+      && new Date(earliestConfirmedWorksiteVisit.start).getTime() < wdStartMs - 5 * 60_000
     ) {
       // Hard work-evidence i pre-workday-fönstret = timer, time_report eller
       // assistant_event ANTINGEN inom visiten ELLER mellan visit-start och
       // workday-start. Bara känd plats räknas INTE — en GPS-vistelse på FA
       // Warehouse 00:00–07:00 ska inte göra hela natten till arbetstid bara
       // för att platsen är känd.
-      const visitStartMs = new Date(earliestWorkRelevantVisit.start).getTime();
+      const visitStartMs = new Date(earliestConfirmedWorksiteVisit.start).getTime();
       const preWindowEndMs = wdStartMs;
       const preWindowStartMs = visitStartMs;
       const overlapsPreWindow = (s: number, e: number) =>
@@ -1349,19 +1354,24 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         || assistantTimes.some(t => t >= preWindowStartMs && t <= preWindowEndMs);
 
       anomalies.push({
-        id: `pre-wd:${earliestWorkRelevantVisit.key}`,
-        label: 'GPS-aktivitet före arbetsdagens start',
-        detail: `Vistelse på ${earliestWorkRelevantVisit.label} ${earliestWorkRelevantVisit.start.slice(11, 16)} — workday startade ${input.workday.started_at.slice(11, 16)}.`,
+        id: `pre-wd:${earliestConfirmedWorksiteVisit.key}`,
+        label: 'Bekräftad arbetsplats före arbetsdagens start',
+        detail: `Vistelse på ${earliestConfirmedWorksiteVisit.label} ${earliestConfirmedWorksiteVisit.start.slice(11, 16)} — workday startade ${input.workday.started_at.slice(11, 16)}.`,
         severity: 'warning',
         suggestion: hasHardEvidenceBeforeWorkday
-          ? `Justera arbetsdagens start till ${earliestWorkRelevantVisit.start.slice(11, 16)}? Eller ignorera som ej arbetstid.`
-          : `GPS visade aktivitet på ${earliestWorkRelevantVisit.label} före arbetsdagens start, men inga timers eller tidrapporter stödjer arbete under den tiden. Justera arbetsdagens start manuellt om det var arbete, annars ignorera.`,
+          ? `Start automatiskt justerad från ${input.workday.started_at.slice(11, 16)} till ${earliestConfirmedWorksiteVisit.start.slice(11, 16)} baserat på bekräftad projektnärvaro.`
+          : `GPS visade aktivitet på ${earliestConfirmedWorksiteVisit.label} före arbetsdagens start, men inga timers eller tidrapporter stödjer arbete under den tiden. Justera arbetsdagens start manuellt om det var arbete, annars ignorera.`,
       });
-      // Bara om hård bevisning finns får vi automatiskt föreslå en tidigare
-      // workday-start. Annars stannar förslaget i anomaly-listan och admin
-      // får välja själv. Known-site-match ensam räcker INTE.
-      if (hasHardEvidenceBeforeWorkday) {
-        proposedWorkdayStart = earliestWorkRelevantVisit.start;
+      // Idempotent auto-justering: bara om
+      //   1) hård bevisning finns,
+      //   2) workday inte är godkänd/låst (admin-override skyddas av
+      //      reportState.workday.review_status / approved_at i UI-lagret),
+      //   3) ny start faktiskt är tidigare än existerande start.
+      if (
+        hasHardEvidenceBeforeWorkday
+        && earliestConfirmedWorksiteVisit.start < input.workday.started_at
+      ) {
+        proposedWorkdayStart = earliestConfirmedWorksiteVisit.start;
       }
     }
   }

@@ -55,6 +55,15 @@ export interface DecisionInput {
   lateAfterPlannedMinutes?: number;
 }
 
+/**
+ * STRIKT regel: bara `work_confirmed` (matchad känd arbetsplats / hård evidens)
+ * får tidigarelägga eller starta workday automatiskt. `work_possible` (≤800m
+ * närliggande), okänd plats, hem och bakgrund får ALDRIG vara golvet.
+ * Se isConfirmedWorksitePresence.
+ */
+const isConfirmedWorksite = (r: string | undefined): boolean =>
+  r === 'work_confirmed';
+
 const isMainJournal = (r: string | undefined): boolean =>
   r === 'work_confirmed' || r === 'work_possible';
 
@@ -66,23 +75,26 @@ export function classifyWorkStart(input: DecisionInput): WorkStartDecision {
     (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
   );
 
-  // Identify the first work-relevant visit (first work anchor).
+  // Identify the first CONFIRMED-worksite visit (first work anchor).
+  // work_possible räknas som journalpost men aldrig som auto-start-golv.
   const firstWorkVisit = sorted.find(v => {
     const r = input.visitRelevance.get(v.placeKey);
-    return isMainJournal(r);
+    return isConfirmedWorksite(r);
   }) ?? null;
 
-  // Did we have any pre-work visits that were night/private/unknown?
+  // Did we have any pre-work visits that were night/private/unknown/possible?
   const hidNightLeadIn = !!firstWorkVisit
     && sorted.some(v => v !== firstWorkVisit
       && new Date(v.start).getTime() < new Date(firstWorkVisit.start).getTime()
-      && !isMainJournal(input.visitRelevance.get(v.placeKey)));
+      && !isConfirmedWorksite(input.visitRelevance.get(v.placeKey)));
 
-  // Travel between two work-relevant visits?
+  // Travel between two confirmed work-sites? (Inter-worksite travel still
+  // requires both endpoints to be confirmed worksites — possible-near sites
+  // are never enough to claim work-travel for auto-start purposes.)
   const hasInterWorksiteTravel = input.travels.some(t => {
     const fr = input.visitRelevance.get(t.from.placeKey);
     const to = input.visitRelevance.get(t.to.placeKey);
-    return isMainJournal(fr) && isMainJournal(to);
+    return isConfirmedWorksite(fr) && isConfirmedWorksite(to);
   });
 
   const hasAssignment = input.plannedAssignments.length > 0;
