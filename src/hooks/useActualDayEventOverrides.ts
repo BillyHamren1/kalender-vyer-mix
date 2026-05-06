@@ -56,7 +56,8 @@ export function useActualDayEventOverrides(staffId: string | null, localDate: st
     if (error) {
       if ((error as any).code !== '23505') {
         console.error('exclude override failed', error);
-        toast.error('Kunde inte ta bort raden');
+        const msg = (error as any).message || (error as any).details || 'okänt fel';
+        toast.error(`Kunde inte ta bort raden: ${msg}`);
         return false;
       }
     }
