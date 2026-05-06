@@ -213,6 +213,7 @@ function travelLogToSegment(
   tl: BuilderTravelLogInput,
   now: number,
 ): RawSegment | null {
+  if (tl.synthetic) return null;
   if (!tl.start_iso) return null;
   const ongoing = !tl.end_iso;
   const durationMin = minutesBetween(tl.start_iso, tl.end_iso, now);
