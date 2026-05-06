@@ -947,7 +947,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
   //    samma projekt under det fönstret visa timern som närvarande, och
   //    eventuella tomrum mellan dem fyllas med inferred presence-block så
   //    tiden hänger ihop visuellt. Bara det SISTA blocket får timer.active.
-  const nowIso = new Date().toISOString();
+  // (timer-tail/timer-bridge är borttagna — ingen "now"-referens behövs här.)
   const projectGroups = new Map<string, PresenceBlock[]>();
   for (const b of withGaps) {
     if (b.kind !== 'presence') continue;
@@ -977,54 +977,21 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       return cand < min ? cand : min;
     }, group[0].startIso);
 
-    // Fyll hål mellan block för samma projekt
-    for (let i = 0; i < group.length - 1; i++) {
-      const cur = group[i];
-      const nxt = group[i + 1];
-      const curEndIso = cur.endIso ?? nxt.startIso;
-      const curEndMs = new Date(curEndIso).getTime();
-      const nxtStartMs = new Date(nxt.startIso).getTime();
-      const gapMin = Math.round((nxtStartMs - curEndMs) / 60_000);
-      if (gapMin < 2) continue;
-      // Hoppa över om ett block (presence eller journey) redan täcker gapet
-      const overlaps = consolidated.some(b => {
-        if (b === cur || b === nxt) return false;
-        const bs = new Date(b.startIso).getTime();
-        const be = (b.kind === 'presence' && !b.endIso) ? Number.POSITIVE_INFINITY : new Date(b.endIso!).getTime();
-        return bs < nxtStartMs && be > curEndMs;
-      });
-      if (overlaps) continue;
-      consolidated.push({
-        kind: 'presence',
-        presenceKind: cur.presenceKind,
-        id: `pb:timer-bridge:${cur.id}:${nxt.id}`,
-        startIso: curEndIso,
-        endIso: nxt.startIso,
-        durationMin: gapMin,
-        placeKey: cur.placeKey ?? nxt.placeKey,
-        title: cur.title ?? nxt.title,
-        subtitle: 'Timer aktiv · ingen GPS-vistelse',
-        isProject: cur.isProject,
-        strength: cur.isProject ? 'project' : 'inferred_between_journeys',
-        requiresReview: false,
-        ongoing: false,
-        lastPingIso: null,
-        sourceEventIds: [],
-        innerEvents: [],
-        timer: { startedIso: null, stoppedIso: null, active: false, present: true },
-        timeReport: { startedIso: null, closedIso: null, present: cur.timeReport.present || nxt.timeReport.present },
-        arrivalIso: null,
-        departureIso: null,
-        plannedStartIso: null,
-        sources: { timeReport: false, timer: true, gpsVisit: false, assistant: false },
-        evidenceLabel: 'Timer',
-        confidence: 'medium',
-        resolvedPlace: cur.resolvedPlace ?? nxt.resolvedPlace,
-      });
-    }
-
-    // Sprid timer-status: alla block får timer.present=true, bara sista får
-    // timer.active=true. Mellanblock som tidigare hade ongoing/active stängs.
+    // BORTTAGET (huvudjournal): syntetiska "timer-bridge" och "timer-tail"-block.
+    // Tidigare fyllde vi gap mellan projektsegment och förlängde sista blocket
+    // till "nu" som egna presence-rader. Det skapade falska "timer sedan 07:57"-
+    // visualiseringar som inte motsvarade riktiga arbetssegment och som
+    // konkurrerade med ActiveNowBanner.
+    //
+    // Aktiv timer visas nu uteslutande via:
+    //   - ActiveNowBanner (header.active = öppen time_report/LTE)
+    //   - WorkDay-state (header.workday.ongoing)
+    //   - activeTimers-providern (mobil)
+    // Råspår av timer-events (timer_started/stopped) finns kvar i råvyn
+    // ("Visa rådata") oförändrat — inget raderas.
+    //
+    // Vi behåller bara den lättviktiga spridningen av timer.startedIso/active
+    // på de RIKTIGA segmenten (för debug-utskrifter), utan att skapa nya block.
     const last = group[group.length - 1];
     for (const b of group) {
       b.timer.present = true;
@@ -1032,54 +999,14 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       if (b !== last) {
         b.timer.active = false;
         b.ongoing = false;
-        // Om mellanblocket tidigare var "öppet" (endIso=null), stäng vid nästa block-start
         if (b.endIso == null) {
           const idx = group.indexOf(b);
           b.endIso = group[idx + 1].startIso;
         }
       }
     }
-    // Sista blocket: markera som aktivt och förläng till nu om det inte redan
-    // sträcker sig dit (så raden visar "07:57 → pågår · live").
-    last.timer.active = true;
-    last.ongoing = true;
-    if (last.endIso != null && last.endIso < nowIso) {
-      // Skapa ett extra "timer aktiv"-block efter sista vistelsen så raden
-      // är synlig fram till nu.
-      const tailStart = last.endIso;
-      const tailMin = Math.max(0, Math.round((Date.now() - new Date(tailStart).getTime()) / 60_000));
-      if (tailMin >= 2) {
-        consolidated.push({
-          kind: 'presence',
-          presenceKind: last.presenceKind,
-          id: `pb:timer-tail:${last.id}`,
-          startIso: tailStart,
-          endIso: null,
-          durationMin: tailMin,
-          placeKey: last.placeKey,
-          title: last.title,
-          subtitle: 'Timer aktiv · ingen GPS-vistelse',
-          isProject: last.isProject,
-          strength: last.isProject ? 'project' : 'inferred_between_journeys',
-          requiresReview: false,
-          ongoing: true,
-          lastPingIso: null,
-          sourceEventIds: [],
-          innerEvents: [],
-          timer: { startedIso: earliestStartIso, stoppedIso: null, active: true, present: true },
-          timeReport: { startedIso: earliestStartIso, closedIso: null, present: last.timeReport.present },
-          arrivalIso: null,
-          departureIso: null,
-          plannedStartIso: null,
-          sources: { timeReport: last.timeReport.present, timer: true, gpsVisit: false, assistant: false },
-          evidenceLabel: 'Timer',
-          confidence: 'medium',
-          resolvedPlace: last.resolvedPlace,
-        });
-        last.timer.active = false;
-        last.ongoing = false;
-      }
-    }
+    // Sista blocket markeras inte längre som "förlängt till nu" — vi låter
+    // dess riktiga endIso stå. ActiveNowBanner äger "pågår nu"-vyn.
   }
 
   consolidated.sort((a, b) => a.startIso.localeCompare(b.startIso));
