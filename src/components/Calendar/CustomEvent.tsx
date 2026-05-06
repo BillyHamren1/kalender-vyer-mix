@@ -77,7 +77,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     // LP-tiles har medvetet bookingId=undefined — navigera direkt till projektet.
     const largeProjectId = (event.extendedProps as any)?.largeProjectId;
     if (event.extendedProps?.isLargeProject && largeProjectId) {
-      window.location.href = `/large-project/${largeProjectId}`;
+      navigate(`/large-project/${largeProjectId}`);
       return;
     }
     if (event.bookingId) {
