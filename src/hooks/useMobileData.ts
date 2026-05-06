@@ -82,6 +82,19 @@ export function useMobileTravelLogs() {
   });
 }
 
+/**
+ * Workdays för mobilens dagskort. Defaultar 14 dagar bakåt.
+ * Workdayn är dagens totala arbetstid och DEN viktiga raden — alla
+ * day-status/badges utgår från denna. Oallokerad tid är OK.
+ */
+export function useMobileWorkdays(days = 14) {
+  return useQuery({
+    queryKey: ['mobile-workdays-review', days],
+    queryFn: () => mobileApi.listWorkdaysReview({ days }).then(r => r.workdays),
+    staleTime: STALE_TIME,
+  });
+}
+
 export function useInvalidateMobileData() {
   const queryClient = useQueryClient();
   return {

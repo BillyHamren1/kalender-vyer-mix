@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking, MobileTimeReport as MobileTimeReportType } from '@/services/mobileApiService';
 import { ActiveTimer } from '@/hooks/useGeofencing';
 import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
-import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
+import { useMobileBookings, useInvalidateMobileData, useMobileTravelLogs, useMobileWorkdays } from '@/hooks/useMobileData';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { Clock, Square, Loader2, Check, Send, Building2, Plus, ChevronRight, FileText, Info } from 'lucide-react';
@@ -18,6 +18,8 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
 import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
+import MobileDayCard from '@/components/mobile-app/MobileDayCard';
+import { buildMobileDayCardModel } from '@/lib/mobile/dayCardModel';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
@@ -25,6 +27,8 @@ const MobileTimeReport = () => {
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
   const { invalidateTimeReports } = useInvalidateMobileData();
+  const { data: travelLogs = [] } = useMobileTravelLogs();
+  const { data: workdays = [] } = useMobileWorkdays(14);
   const [isSaving, setIsSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [timeReports, setTimeReports] = useState<MobileTimeReportType[]>([]);
@@ -216,6 +220,28 @@ const MobileTimeReport = () => {
   }, {});
 
   const sortedDates = Object.keys(reportsByDate).sort((a, b) => b.localeCompare(a));
+  const todayYmd = format(new Date(), 'yyyy-MM-dd');
+
+  // Workday-lookup per dag (yyyy-MM-dd) — workday är dagens totala arbetstid.
+  const workdayByDate = useMemo(() => {
+    const map: Record<string, typeof workdays[number]> = {};
+    for (const w of workdays) {
+      const key = w.day_key || (w.started_at ? w.started_at.slice(0, 10) : null);
+      if (!key) continue;
+      // Behåll senaste — listan kan ha flera per dag.
+      if (!map[key]) map[key] = w;
+    }
+    return map;
+  }, [workdays]);
+
+  const travelLogsByDate = useMemo(() => {
+    const map: Record<string, typeof travelLogs> = {};
+    for (const l of travelLogs) {
+      if (!l.report_date) continue;
+      (map[l.report_date] ??= []).push(l);
+    }
+    return map;
+  }, [travelLogs]);
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
@@ -427,18 +453,43 @@ const MobileTimeReport = () => {
           ) : (
             sortedDates.map(date => {
               const reports = reportsByDate[date];
-              const totalHours = reports.reduce((sum, r) => sum + (r.hours_worked || 0), 0);
-              const isToday = date === format(new Date(), 'yyyy-MM-dd');
+              const isToday = date === todayYmd;
               const dateLabel = isToday
                 ? t('time.today')
                 : format(parseISO(date), 'd MMM yyyy');
 
+              // Workday-first day card — visar arbetsdag/fördelat/ej fördelat
+              // och status. För idag visar DayStatusPanel redan live-vyn,
+              // så vi hoppar över kortet här för att inte dubbla.
+              const wd = workdayByDate[date] || null;
+              const dayModel = buildMobileDayCardModel({
+                date,
+                workday: wd
+                  ? {
+                      id: wd.id,
+                      started_at: wd.started_at,
+                      ended_at: wd.ended_at,
+                      review_status: wd.review_status,
+                    }
+                  : null,
+                reports,
+                travelLogs: travelLogsByDate[date] ?? [],
+                hasActiveTimer: isToday && activeTimers.size > 0,
+              });
+
               return (
-                <div key={date} className="space-y-1.5">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-xs font-semibold text-foreground">{dateLabel}</span>
-                    <span className="text-xs text-muted-foreground">{formatHoursMinutes(totalHours)}</span>
-                  </div>
+                <div key={date} className="space-y-2">
+                  {!isToday && (
+                    <MobileDayCard model={dayModel} dateLabel={dateLabel} />
+                  )}
+                  {isToday && (
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-semibold text-foreground">{dateLabel}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatHoursMinutes(dayModel.distributedMinutes / 60)}
+                      </span>
+                    </div>
+                  )}
                   {reports.map(r => (
                     <button
                       key={r.id}
