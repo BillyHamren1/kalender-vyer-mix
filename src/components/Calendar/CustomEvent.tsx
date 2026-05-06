@@ -213,15 +213,17 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
           {displayTitle}
         </div>
-        <div 
-          className={`event-booking ${isCancelled ? 'line-through' : ''}`}
-          style={{ 
-            color: isCancelled ? '#991B1B' : '#000000',
-            fontSize: '10px'
-          }}
-        >
-          #{bookingNumber}
-        </div>
+        {!event.extendedProps?.isLargeProject && (
+          <div 
+            className={`event-booking ${isCancelled ? 'line-through' : ''}`}
+            style={{ 
+              color: isCancelled ? '#991B1B' : '#000000',
+              fontSize: '10px'
+            }}
+          >
+            #{bookingNumber}
+          </div>
+        )}
         {locationLine && (
           <div 
             className={`event-city ${isCancelled ? 'line-through' : ''}`}
