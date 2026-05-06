@@ -91,11 +91,13 @@ export function buildEvents(input: BuildEventsInput): DayEvent[] {
         fallback?.type ??
         (isLikelyHome(seg, input.homePlace) ? "home" : "unknown");
       const planned = !!matched || !!fallback;
+      const needsPick = !!matched?.requiresConfirmation;
       const dur = Math.round(seg.durationMin);
-      const text = name
+      const baseName = name ? (needsPick ? `${name} (välj rätt projekt)` : name) : null;
+      const text = baseName
         ? planned
-          ? `Stannade – ${name} (${formatDur(dur)})`
-          : `Stannade på ${name} (${formatDur(dur)}) · Ej planerat`
+          ? `Stannade – ${baseName} (${formatDur(dur)})`
+          : `Stannade på ${baseName} (${formatDur(dur)}) · Ej planerat`
         : `Stannade på okänd plats (${formatDur(dur)}) · Ej planerat`;
 
       events.push({
