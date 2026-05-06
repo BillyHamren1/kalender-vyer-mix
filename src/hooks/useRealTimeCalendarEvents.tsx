@@ -83,89 +83,51 @@ export const useRealTimeCalendarEvents = () => {
           }
         }
 
-        // Enhance events using the pre-fetched booking data (no async, pure map)
+        // fetchCalendarEvents() returns the authoritative planner tiles already
+        // grouped on the correct identity. Do NOT re-consolidate large projects
+        // here — that risks splitting/merging them differently from the planner.
         const enhancedEvents = calendarEvents.map(event => {
-          if (event.bookingId && bookingMap.has(event.bookingId)) {
-            const booking = bookingMap.get(event.bookingId);
-            return {
-              ...event,
-              bookingNumber: booking.booking_number,
-              bookingStatus: booking.status,
-              extendedProps: {
-                ...event.extendedProps,
-                client: booking.client,
-                deliveryAddress: booking.deliveryaddress,
-                deliveryCity: booking.delivery_city,
-                deliveryPostalCode: booking.delivery_postal_code,
-                exactTimeNeeded: booking.exact_time_needed,
-                exactTimeInfo: booking.exact_time_info,
-                internalNotes: booking.internalnotes,
-                carryMoreThan10m: booking.carry_more_than_10m,
-                groundNailsAllowed: booking.ground_nails_allowed,
-                products: booking.booking_products || [],
-                bookingNumber: booking.booking_number,
-                booking_id: booking.id,
-                bookingStatus: booking.status,
-                assignedProjectId: booking.assigned_project_id,
-                assignedProjectName: booking.assigned_project_name,
-                assignedToProject: booking.assigned_to_project,
-                largeProjectId: booking.large_project_id
-              }
-            };
-          }
-          return event;
-        });
+          const booking = event.bookingId ? bookingMap.get(event.bookingId) : undefined;
+          const largeProjectId = event.extendedProps?.largeProjectId || booking?.large_project_id;
+          const projectName = largeProjectId
+            ? (largeProjectMap.get(largeProjectId) || event.extendedProps?.largeProjectName || event.title)
+            : undefined;
 
-        // Consolidate large project events: group by (large_project_id, event_type, source_date, resource_id).
-        // Including resourceId means a project that exists in multiple teams the
-        // same day shows as ONE tile per team — matching the planner derivation
-        // and allowing rigdays in different teams to coexist.
-        const consolidatedEvents: CalendarEvent[] = [];
-        const lpGroupMap = new Map<string, CalendarEvent>();
-
-        for (const event of enhancedEvents) {
-          const lpId = event.extendedProps?.largeProjectId;
-          if (!lpId) {
-            consolidatedEvents.push(event);
-            continue;
-          }
-
-          const sourceDate = (event.extendedProps as any)?.sourceDate || event.start?.split('T')[0] || '';
-          const groupKey = `${lpId}-${event.eventType}-${sourceDate}-${event.resourceId}`;
-
-          if (!lpGroupMap.has(groupKey)) {
-            const projectName = largeProjectMap.get(lpId) || event.title;
-            const consolidated: CalendarEvent = {
-              ...event,
-              title: projectName,
-              extendedProps: {
-                ...event.extendedProps,
-                isLargeProject: true,
-                largeProjectId: lpId,
-                largeProjectName: projectName,
-                consolidatedBookingIds: (event.extendedProps as any)?.consolidatedBookingIds || [event.bookingId],
-              }
-            };
-            lpGroupMap.set(groupKey, consolidated);
-            consolidatedEvents.push(consolidated);
-          } else {
-            // Merge this event's booking into the existing consolidated event
-            const existing = lpGroupMap.get(groupKey)!;
-            const ids = existing.extendedProps?.consolidatedBookingIds || [];
-            if (event.bookingId && !ids.includes(event.bookingId)) {
-              ids.push(event.bookingId);
+          return {
+            ...event,
+            title: projectName || event.title,
+            bookingNumber: booking?.booking_number || event.bookingNumber,
+            bookingStatus: booking?.status || event.bookingStatus,
+            extendedProps: {
+              ...event.extendedProps,
+              client: booking?.client || event.extendedProps?.client,
+              deliveryAddress: booking?.deliveryaddress || event.extendedProps?.deliveryAddress,
+              deliveryCity: booking?.delivery_city || event.extendedProps?.deliveryCity,
+              deliveryPostalCode: booking?.delivery_postal_code || event.extendedProps?.deliveryPostalCode,
+              exactTimeNeeded: booking?.exact_time_needed || event.extendedProps?.exactTimeNeeded,
+              exactTimeInfo: booking?.exact_time_info || event.extendedProps?.exactTimeInfo,
+              internalNotes: booking?.internalnotes || event.extendedProps?.internalNotes,
+              carryMoreThan10m: booking?.carry_more_than_10m ?? event.extendedProps?.carryMoreThan10m,
+              groundNailsAllowed: booking?.ground_nails_allowed ?? event.extendedProps?.groundNailsAllowed,
+              products: booking?.booking_products || event.extendedProps?.products || [],
+              bookingNumber: booking?.booking_number || event.extendedProps?.bookingNumber,
+              booking_id: booking?.id || event.extendedProps?.booking_id,
+              bookingStatus: booking?.status || event.extendedProps?.bookingStatus,
+              assignedProjectId: booking?.assigned_project_id || event.extendedProps?.assignedProjectId,
+              assignedProjectName: booking?.assigned_project_name || event.extendedProps?.assignedProjectName,
+              assignedToProject: booking?.assigned_to_project ?? event.extendedProps?.assignedToProject,
+              largeProjectId: largeProjectId || event.extendedProps?.largeProjectId,
+              largeProjectName: projectName || event.extendedProps?.largeProjectName,
+              isLargeProject: Boolean(largeProjectId) || event.extendedProps?.isLargeProject,
             }
-            // Use earliest start and latest end
-            if (event.start < existing.start) existing.start = event.start;
-            if (event.end > existing.end) existing.end = event.end;
-          }
-        }
+          };
+        });
 
         setEvents(prev => {
           if (
             !force &&
             prev.length > 0 &&
-            consolidatedEvents.length === 0
+            enhancedEvents.length === 0
           ) {
             console.warn(`[useRealTimeCalendarEvents] Ignoring empty reload while ${prev.length} events are already visible`);
             return prev;
@@ -174,14 +136,14 @@ export const useRealTimeCalendarEvents = () => {
           if (
             !force &&
             prev.length > 0 &&
-            consolidatedEvents.length > 0 &&
-            consolidatedEvents.length < prev.length * 0.5
+            enhancedEvents.length > 0 &&
+            enhancedEvents.length < prev.length * 0.5
           ) {
-            console.warn(`[useRealTimeCalendarEvents] Ignoring suspicious shrink ${prev.length} → ${consolidatedEvents.length}`);
+            console.warn(`[useRealTimeCalendarEvents] Ignoring suspicious shrink ${prev.length} → ${enhancedEvents.length}`);
             return prev;
           }
 
-          return consolidatedEvents;
+          return enhancedEvents;
         });
 
         // Check if we need to fix any titles (only run once per session)
