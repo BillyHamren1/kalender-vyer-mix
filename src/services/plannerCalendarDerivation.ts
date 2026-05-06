@@ -1,4 +1,5 @@
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { resolveLargeProjectMembershipFromRows } from '@/lib/largeProject/resolveLargeProjectMembership';
 
 type PlannerPhase = 'rig' | 'event' | 'rigDown';
 
@@ -164,10 +165,13 @@ export const buildPlannerCalendarEvents = ({
   const bookingsById = new Map(bookings.map((booking) => [booking.id, booking]));
   const projectsById = new Map(largeProjects.map((project) => [project.id, project]));
 
-  const bookingToProject = new Map<string, string>();
-  for (const link of largeProjectBookings) {
-    bookingToProject.set(link.booking_id, link.large_project_id);
-  }
+  // Authoritative LP membership: large_project_bookings, with bookings.large_project_id as fallback only.
+  const bookingFallbacks = new Map(bookings.map((b) => [b.id, { id: b.id, large_project_id: b.large_project_id }]));
+  const bookingToProject = resolveLargeProjectMembershipFromRows(
+    bookings.map((b) => b.id),
+    largeProjectBookings,
+    bookingFallbacks,
+  );
 
   const realByBooking = new Map<string, RealCalendarEventRow[]>();
   for (const event of realEvents) {
