@@ -106,7 +106,7 @@ export const StopTimerDialog: React.FC<StopTimerDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Square className="h-4 w-4 text-destructive fill-destructive" />
-            Stoppa timer
+            Sluta registrera tid här
           </DialogTitle>
           <DialogDescription>
             {staffName} · {sessionLabel}

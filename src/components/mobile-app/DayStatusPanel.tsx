@@ -261,7 +261,7 @@ const CurrentActivityCard: React.FC<{
       <div className="grid grid-cols-2 gap-2">
         <Button size="sm" variant="default" className="rounded-xl h-10 gap-1.5 text-xs font-semibold" onClick={onStop} disabled={!!busy}>
           {busy === 'stop' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
-          Stoppa timer
+          Sluta här
         </Button>
         <Button size="sm" variant="outline" className="rounded-xl h-10 gap-1.5 text-xs font-semibold" onClick={onSwitch} disabled={!!busy}>
           <ArrowRightLeft className="w-3.5 h-3.5" />
