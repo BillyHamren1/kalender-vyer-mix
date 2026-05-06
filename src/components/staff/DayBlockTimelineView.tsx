@@ -552,7 +552,8 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
   // tillstånd och planerings-/granskningsmarkörer.
   const badges: StatusBadge[] = [];
   if (isProject) {
-    if (block.timer.active) badges.push({ label: 'TIMER AKTIV', tone: 'ok' });
+    // "TIMER AKTIV" tas bort från radnivå — aktiv timer visas i ActiveNowBanner
+    // (en enda källa), inte parallellt på blockraderna.
     if (block.plannedStartIso) badges.push({ label: 'PLANERAD', tone: 'planned' });
     else if (block.sources.gpsVisit || block.arrivalIso) badges.push({ label: 'OPLANERAD', tone: 'info' });
     if (block.sources.gpsVisit || block.arrivalIso) badges.push({ label: 'GPS', tone: 'info' });
@@ -568,15 +569,14 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
   const headBadge = badges[0];
   const extraBadges = badges.slice(1);
 
-  // Kompakt subtitle — endast viktigaste signalen
+  // Kompakt subtitle — endast viktigaste signalen.
+  // "timer sedan ..." är borttagen från radnivå; aktiv timer-info visas i ActiveNowBanner.
   const subtitle = isProject
-    ? (block.timer.active
-        ? `timer sedan ${fmtHm(block.timer.startedIso)}`
-        : block.timeReport.present
-          ? `tidrapport ${fmtHm(block.timeReport.startedIso)}${block.timeReport.closedIso ? `–${fmtHm(block.timeReport.closedIso)}` : ''}`
-          : block.arrivalIso
-            ? `GPS ${fmtHm(block.arrivalIso)}${block.departureIso ? `–${fmtHm(block.departureIso)}` : ''}`
-            : 'projekt')
+    ? (block.timeReport.present
+        ? `tidrapport ${fmtHm(block.timeReport.startedIso)}${block.timeReport.closedIso ? `–${fmtHm(block.timeReport.closedIso)}` : ''}`
+        : block.arrivalIso
+          ? `GPS ${fmtHm(block.arrivalIso)}${block.departureIso ? `–${fmtHm(block.departureIso)}` : ''}`
+          : 'projekt')
     : block.subtitle ?? '';
 
   const expandable = block.innerEvents.length > 0 || extraBadges.length > 0 || isDebugRelevant(block.resolvedPlace);
