@@ -47,13 +47,15 @@ export interface ExitTrackerState {
   pings: ExitPing[];
 }
 
-export type ExitStatus = 'stable' | 'insufficient' | 'unstable' | 'no_signal';
+export type ExitStatus = 'stable' | 'insufficient' | 'unstable' | 'no_signal' | 'stale_autostop';
 
 export interface ExitEvaluation {
   status: ExitStatus;
   pings: ExitPing[];
   spanMs: number;
   reason: string;
+  /** ISO time we treat as "user actually left". Set on stable + stale_autostop. */
+  exitedAtIso?: string;
 }
 
 export function createExitTracker(): ExitTrackerState {
