@@ -249,11 +249,8 @@ const MobileTimeReport = () => {
       <MobileHeroHeader eyebrow={t('time.eyebrow')} title={t('time.title2')} subtitle={t('time.subtitle2')} />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
-        {/* Day status — primary view: workday + current activity + actions */}
-        <DayStatusPanel
-          todayReports={timeReports.filter(r => r.report_date === format(new Date(), 'yyyy-MM-dd'))}
-          onChanged={fetchReports}
-        />
+        {/* Day status — primary view: workday + current activity + actions (server snapshot) */}
+        <DayStatusPanel onChanged={fetchReports} />
 
         {/* Active timers (legacy multi-timer list — kept for parallel timers) */}
         {activeTimers.size > 0 && (
