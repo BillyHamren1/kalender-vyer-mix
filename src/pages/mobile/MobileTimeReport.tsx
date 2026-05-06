@@ -459,24 +459,25 @@ const MobileTimeReport = () => {
                 ? t('time.today')
                 : format(parseISO(date), 'd MMM yyyy');
 
-              // Workday-first day card — visar arbetsdag/fördelat/ej fördelat
-              // och status. För idag visar DayStatusPanel redan live-vyn,
-              // så vi hoppar över kortet här för att inte dubbla.
+              // For today, prefer the server snapshot as source of truth.
+              // For past days we still build locally from time_reports/travel/workdays.
               const wd = workdayByDate[date] || null;
-              const dayModel = buildMobileDayCardModel({
-                date,
-                workday: wd
-                  ? {
-                      id: wd.id,
-                      started_at: wd.started_at,
-                      ended_at: wd.ended_at,
-                      review_status: wd.review_status,
-                    }
-                  : null,
-                reports,
-                travelLogs: travelLogsByDate[date] ?? [],
-                hasActiveTimer: isToday && activeTimers.size > 0,
-              });
+              const dayModel = (isToday && todaySnapshot)
+                ? buildDayCardModelFromSnapshot(todaySnapshot)
+                : buildMobileDayCardModel({
+                    date,
+                    workday: wd
+                      ? {
+                          id: wd.id,
+                          started_at: wd.started_at,
+                          ended_at: wd.ended_at,
+                          review_status: wd.review_status,
+                        }
+                      : null,
+                    reports,
+                    travelLogs: travelLogsByDate[date] ?? [],
+                    hasActiveTimer: isToday && activeTimers.size > 0,
+                  });
 
               return (
                 <div key={date} className="space-y-2">
