@@ -199,7 +199,7 @@ function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: 
     if (ind.hasStrong && ind.proposedStartIso) {
       return {
         kind: 'missing_strong_evidence',
-        label: `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${ind.proposedStartIso.slice(11, 16)}`,
+        label: `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${fmtHm(ind.proposedStartIso)}`,
       };
     }
     return { kind: 'missing_report', label: 'Saknar arbetsdag' };
