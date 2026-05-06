@@ -1,69 +1,81 @@
-# Stort projekt äger ALLA datum — sub-bokningens datum är "frusen referens"
+## Vad som faktiskt är fel
 
-## Regel (ny invariant)
+Rapporterna SER olika ut för att UI har växt fram i lager — header, badges, journal-rader och korrigeringar har var sitt regelverk. När datatillståndet skiftar (pågående / signal tappad / saknar arbetsdag / auto-skapad / okänt projekt) tar olika kodvägar över och ritar olika kombinationer av rubriker, pillar och sektioner.
 
-När en bokning har `large_project_id IS NOT NULL`:
-- Sub-bokningens egna `rigdaydate / eventdate / rigdowndate` och `*_start_time / *_end_time` får **stå kvar och visas** i UI som referens.
-- De **påverkar inte**: kalender (calendar_events), BSA, planering, mobil, packning, ekonomi.
-- De **skrivs aldrig tillbaka** till externa Booking-systemet per sub-bokning.
-- Reconciler ignorerar datum-/tid-fält för sub-bokningar i stora projekt (skriver inte över lokalt, flaggar inte som drift).
+Konkret från dina fem skärmdumpar:
 
-Datum för stora projektet ägs av `large_projects` (samt `large_project_phases` om det används) + de calendar_events som projektkalendern producerar.
+| Person | Header-pill | Topp-banner | Råvy/kompakt? | Status-badges som dyker upp |
+|---|---|---|---|---|
+| Billy | "Pågående arbetsdag" + "(omräknad)" + "EXKLUDERADE (4)" | — | kompakt | VISTELSE / GRANSKA / MÖJLIG / TIMER SAKNAS |
+| (rad 2) | — | — | kompakt | VISTELSE / RESA / OPLANERAD / MÖJLIG / TIMER AKTIV |
+| Kristaps | "Pågående arbetsdag" + "Planerad: Team 1" | "PÅ PROJEKT — ingen timer registrerad" | rådata-vy | PÅ PROJEKT / PÅ PROJEKT NU / Oplanerat / Saknar arbetsdag |
+| Armands | "Signal tappad" | "Arbetsdag auto-skapad från 07:57" | kompakt | OPLANERAD / PÅ PROJEKT / TIMER AKTIV |
+| Elvijs | "Saknar arbetsdag" + "Signal tappad" | "Arbetsdag auto-skapad från 07:57" | kompakt | GRANSKA / TIMER SAKNAS / TIMER SAKNAS |
 
----
+Inga av dessa är trasig data — det är samma motor som producerar dem. Problemet är att rad-skalet inte normaliserar vyn:
 
-## Vad detta löser
+1. **Header-pillen** beräknas i `deriveStatus()` (ActualDayPanel.tsx 168–209) med 9 olika returvärden som renderas som olika sorters chips på olika ställen runt namnet.
+2. **Topp-bannern** ("PÅ PROJEKT — ingen timer", "Arbetsdag auto-skapad", osv.) ritas separat från header-pillen och kan dyka upp samtidigt eller saknas.
+3. **Vy-läget** växlar mellan kompakt journal och rådata-vy beroende på state (Kristaps får rådata p.g.a. saknar arbetsdag).
+4. **Badge-vokabulären** i `DayBlockTimelineView.tsx` 549–562 stoppar in upp till 5 badges per rad utan prioritet, så vissa rader visar 4 badges, andra 1.
+5. **"Exkluderade händelser"-bannern** dyker upp högst upp för Billy men längst ner för andra.
 
-Bug just nu: när du flyttar en rigdag i personalkalendern för en bokning i Swedish game fair, hoppar den tillbaka. Orsak: olika delar av systemet försöker hålla sub-bokningens `rigdaydate` i synk med eventet, och `import-bookings` skriver tillbaka det externa värdet → eventet "spöker tillbaka". Med nya regeln slutar det här bråket helt.
+## Förslag
 
----
+Bygg en gemensam **DayReportShell** som varje rapportrad går igenom. Den ska producera samma sektioner i samma ordning för ALLA tillstånd:
 
-## Implementation
+```text
+┌─ DayReportShell ─────────────────────────────────────────┐
+│ [Namn]  [EN status-pill]  [Planerad: Team X om finns]    │
+│ Datum · Arbetsdag-tid · Lönegrundande                    │
+├──────────────────────────────────────────────────────────┤
+│ [Topp-banner — MAX 1, hierarkisk]                        │
+│   • Signal tappad (högst prio)                           │
+│   • Auto-skapad arbetsdag                                │
+│   • På projekt utan timer                                │
+│   • Saknar arbetsdag                                     │
+│   • (inget — om allt är OK)                              │
+├──────────────────────────────────────────────────────────┤
+│ DAGENS FAKTISKA HÄNDELSER  [▸ Visa alla händelser]       │
+│   Alltid kompakt-vy som default. Rådata bara via toggle. │
+│   Varje rad: TID · IKON · PLATS · EN status-badge        │
+├──────────────────────────────────────────────────────────┤
+│ EXKLUDERADE HÄNDELSER (n)  — alltid här om n>0           │
+├──────────────────────────────────────────────────────────┤
+│ FÖRESLAGNA KORRIGERINGAR                                 │
+├──────────────────────────────────────────────────────────┤
+│ NUVARANDE SPARAD RAPPORT                                 │
+└──────────────────────────────────────────────────────────┘
+```
 
-### 1. `src/services/timeSync.ts`
-- I `syncPhaseTime`: om bokningen tillhör ett stort projekt → **skippa `bookings.<phase>_*_time`-update** (både för primär bokning och syskon). Skriv bara `calendar_events`. Logga `[timeSync] skipping bookings update — large project owns dates`.
+### Konkreta ändringar
 
-### 2. `src/components/Calendar/AddRiggDayDialog.tsx`
-- Ta bort blocket som skriver `bookings.rigdaydate / *_start_time / *_end_time` när bokningen har `large_project_id`.
-- Behåll `calendar_events`-insert + BSA-recompute.
-- Bonus-fix: midnatts-överlapp. Om `endTime <= startTime`, lägg `+1 dag` på `endDateTime` så vi aldrig får negativ varaktighet i databasen.
+1. **Reducera `deriveStatus()` till 5 statusar** (ActualDayPanel.tsx 168–209): `ok` · `ongoing` · `signal_lost` · `auto_repaired` · `needs_review`. Allt annat (planned_only, missing_report, missing_strong_evidence, pre_workday) blir topp-banners istället för pillar.
 
-### 3. `src/components/Calendar/MoveEventDateDialog.tsx`, `useEventDragDrop.ts`, `useEventOperations.tsx`
-- Samma princip: flytta bara `calendar_events`-rader. Rör inte `bookings.*_date / *_time` när `large_project_id` finns.
+2. **En topp-banner-komponent med prioritetslista** — välj högst prioriterade. Idag ritas "Pågående arbetsdag" + "(omräknad)" + "EXKLUDERADE" + "På projekt utan timer" som separata block utan ordning.
 
-### 4. `src/services/planningApiService.ts → updateBookingDatesViaApi`
-- Lägg till early-return: om bokningen har `large_project_id`, returnera success utan att anropa planning-api-proxy. Logga `skipped: dates owned by large project`. Hindrar att äldre kod råkar pusha datum till externa Booking-systemet.
+3. **Låsa journal-vyn till kompakt som default**, även när `workday` saknas. Idag växlar Kristaps automatiskt till rådata-vy vilket gör hans rapport oigenkännlig från de andras. Toggla med "Visa rådata" i hörnet — alltid synlig, alltid samma plats.
 
-### 5. `supabase/functions/import-bookings/*` + `supabase/functions/sync-reconciliation/*`
-- I upsert-loopen: om bokningen har `large_project_id` (eller det remote-värdet säger så) → **uteslut datum-/tid-fält** ur det som skrivs till lokal `bookings`. Övriga fält (kund, produkter, anteckningar, status) synkas som vanligt.
-- I reconciliation: rapportera datumavvikelser på sub-bokningar i stora projekt som "informational" (inte drift), och **utför inte** auto-fix på dessa fält.
+4. **En badge per rad i journalen** (DayBlockTimelineView.tsx 549–567). Idag pushas upp till 5 badges. Inför prioritet:
+   - `TIMER AKTIV` > `TIMER SAKNAS` > `GRANSKA` > `OPLANERAD` > strength-default
+   - Övriga badges flyttas in i expand-vyn.
 
-### 6. UI — visa som "frusen referens" (lätt diff)
-- I bokningsdetaljen, när `large_project_id` finns: visa befintliga datum med muted text + badge "Styrs av stort projekt". Datepickers disabled, länk "Ändra i stora projektet →".
+5. **Flytta "EXKLUDERADE HÄNDELSER" till fast position** under journalen istället för ovanför (Billy har den ovanför, andra under).
 
-### 7. Engångsstädning av databas (migration via insert-tool för UPDATE)
-- Reparera alla `calendar_events` där `end_time <= start_time` → `end_time = start_time + interval '4 hours'`.
-- Lämna sub-bokningarnas `rigdaydate/eventdate/rigdowndate` orörda (de är nu officiellt frusen referens).
+6. **Enhetlig "Okänt projekt"-rendering**: Billys rader 09:22 och 11:37 visar lång subtitle "Okänt projekt – sparas som övrigt · närmsta: 2604-96 (275 m)". Korta ner till `Okänt projekt` + ikon med tooltip för detaljer. Detta är samma data som idag bara visas på vissa rader.
 
-### 8. Memory
-Skapa `mem://constraints/large-project-date-authority-v1`:
-> Stora projektet äger ALLA datum/tider för sub-bokningar. Sub-bokningens egna `*_date/*_time` är frusen referens — får visas men aldrig påverka kalender/synk/ekonomi/mobil/packning. Reconciler hoppar datum-fält när `large_project_id` är satt. AddRiggDay/MoveEvent/timeSync skriver bara `calendar_events` för sub-bokningar i stora projekt.
+### Tekniska detaljer
 
-Lägg in en kort Core-rad i `mem://index.md`:
-> **Large project date authority**: Stora projektet äger alla datum/tider. Sub-bokningens datum visas som referens men påverkar inget.
+- Filer som ändras:
+  - `src/components/staff/ActualDayPanel.tsx` — slå ihop header + topp-banners till en `DayReportShell`-komponent. Reducera `deriveStatus`.
+  - `src/components/staff/DayBlockTimelineView.tsx` — prioritera badges, max 1 per rad, korta subtitles.
+  - Ny: `src/components/staff/DayReportTopBanner.tsx` — väljer högst prioriterade banner från model-state.
+- Ingen ändring i datalogik (`actualStaffDayModel`, `dayBlockTimeline`, edge functions). Allt detta är ren rendering.
+- Skydd: contract-test som verifierar att samma `ActualStaffDayModel` alltid renderar samma sektionsordning oavsett state.
 
----
+### Ej i scope
 
-## Tester
-- `src/test/largeProjectDateAuthority.contract.test.ts`: 
-  - Add rigday i stort projekt skriver INTE `bookings.rigdaydate`.
-  - Move event i stort projekt skriver INTE `bookings.rig_start_time`.
-  - `updateBookingDatesViaApi` no-op:ar för bokningar med `large_project_id`.
-  - `import-bookings` upsert-payload utesluter datum-fält när `large_project_id` finns.
+- Ingen ändring i hur tider beräknas, hur GPS klassas eller hur korrigeringsförslag genereras. Detta är ENBART visuell normalisering.
+- Anomalier som "Signal tappad" / "Saknar arbetsdag" finns kvar — de bara presenteras i samma slot istället för slumpmässigt runt header.
 
----
-
-## Vad jag INTE rör
-- Standalone-bokningar (utan `large_project_id`) fungerar precis som idag.
-- `large_projects`-tabellens egna datum hanteras inte av denna ändring.
-- Befintliga datum på sub-bokningar rensas inte — de står kvar som referens.
+Vill du att jag kör?
