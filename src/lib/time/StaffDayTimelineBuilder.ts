@@ -43,10 +43,34 @@ import type {
 
 // ── Råa input-typer ──────────────────────────────────────────────────
 
+/**
+ * Markörer för "syntetiska" / system-genererade rader. När `synthetic=true`
+ * får raden ALDRIG bli ett huvudsegment. Den ligger kvar i `evidence`,
+ * påverkar `review_required`, och kan föreslå start/slut via workday-envelope —
+ * men visas inte som arbetspass i huvudvyn.
+ *
+ * `autoOrigin` används för att flagga vad systemet gjorde (auto_repair,
+ * server_background_gps_backfill, watchdog, ...). Texten visas bara i
+ * RawEvidenceDrawer, aldrig i huvudvyn.
+ */
+export type AutoOriginCode =
+  | 'auto_repair'
+  | 'server_background_gps_backfill'
+  | 'server_background_gps'
+  | 'watchdog'
+  | 'cron'
+  | 'ai_reconciled'
+  | 'gap_derived'
+  | string;
+
 export interface BuilderWorkdayInput {
   id: string;
   started_at: string;
   ended_at: string | null;
+  /** True om workdayen skapats av auto-repair / cron / watchdog. Påverkar inte
+   *  envelope-rendering (workday är fortfarande ram), men `autoOrigin` lyfts
+   *  till evidence/notes så admin ser hur den uppstod. */
+  autoOrigin?: AutoOriginCode | null;
 }
 
 export interface BuilderTimeReportInput {
@@ -59,6 +83,9 @@ export interface BuilderTimeReportInput {
   category?: 'project' | 'location' | 'lager' | 'travel' | 'other';
   approved?: boolean;
   is_subdivision?: boolean;
+  /** True ⇒ raden visas inte som segment, går bara till evidence + review. */
+  synthetic?: boolean;
+  autoOrigin?: AutoOriginCode | null;
 }
 
 export interface BuilderTravelLogInput {
@@ -69,6 +96,8 @@ export interface BuilderTravelLogInput {
   toAddress?: string | null;
   approved?: boolean;
   destinationBookingId?: string | null;
+  synthetic?: boolean;
+  autoOrigin?: AutoOriginCode | null;
 }
 
 export interface BuilderLocationEntryInput {
@@ -80,6 +109,9 @@ export interface BuilderLocationEntryInput {
   reportedAsDistribution?: boolean;
   /** True för rena presence-stämplingar (ej lönegrundande). */
   presenceOnly?: boolean;
+  /** True ⇒ raden visas inte som segment, går bara till evidence + review. */
+  synthetic?: boolean;
+  autoOrigin?: AutoOriginCode | null;
 }
 
 export interface BuilderAssistantEventInput {
