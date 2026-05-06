@@ -46,7 +46,7 @@ describe('evaluateAdminTimeReview — metrics & anomalies', () => {
     expect(a!.minutes).toBeGreaterThanOrEqual(120);
   });
 
-  it('3. Oallokerad tid → warning', () => {
+  it('3. Oallokerad tid → info, blockerar inte attest', () => {
     const input: AdminTimeReviewInput = {
       workday: baseWorkday('07:00', '17:00'), // 10h
       workEntries: [
@@ -59,7 +59,7 @@ describe('evaluateAdminTimeReview — metrics & anomalies', () => {
     const a = r.anomalies.find((x) => x.kind === 'unallocated_time');
     expect(a).toBeDefined();
     expect(a!.minutes).toBeGreaterThan(60);
-    expect(['warning', 'critical']).toContain(a!.severity);
+    expect(a!.severity).toBe('info');
   });
 
   it('4. Pending assistant_events → needs_review', () => {
