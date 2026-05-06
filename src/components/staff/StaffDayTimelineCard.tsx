@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ActualDayPanel } from './ActualDayPanel';
+import { RawEvidenceDrawer } from './RawEvidenceDrawer';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import {
   buildStaffDayTimelineFromRaw,
