@@ -246,6 +246,7 @@ function locationEntryToSegment(
 ): RawSegment | null {
   // Promotade location-timers blir TR ⇒ skippa här för att undvika dubbel.
   if (lte.reportedAsDistribution) return null;
+  if (lte.synthetic) return null; // watchdog/auto_assigned/clamped → bara evidence
   const ongoing = !lte.exited_at;
   const durationMin = minutesBetween(lte.entered_at, lte.exited_at, now);
   if (durationMin <= 0 && !ongoing) return null;
