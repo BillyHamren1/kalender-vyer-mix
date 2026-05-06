@@ -1,49 +1,44 @@
-# Fix: motsägande timer-status på "På projekt"-banner vs journal-block
+## Mål
+Stoppa parallella timers (t.ex. Westers 09:29 + FA Lager 12:28) historiskt och förhindra att det uppstår igen.
 
-## Vad användaren ser
+## 1. Backfill — städa redan öppna entries
+Lägg till `mode: 'backfill'` i edge function `close-stale-workday-entries`:
+- Scannar alla `location_time_entries` där `exited_at IS NULL` och `entered_at < now() - 30 min`.
+- För varje öppen rad: hämta GPS-pings för den staffen efter `entered_at`. Hitta första ping som ligger >150m från target i ≥30 min sammanhängande "ute".
+- Stäng raden vid den tidpunkten (`exited_at`, `total_minutes`, `stop_source='backfill'`, `stop_reason='stale_no_return_30m'`, `stop_metadata={mode:'backfill'}`).
+- Om inga pings finns → stäng vid `entered_at + planned_end_of_day` eller fallback `entered_at + 8h`, `stop_reason='stale_no_pings'`.
+- Idempotent (skippa om redan stängd). Per-org filter, dry-run-flagga.
+- Ny admin-knapp i `AdminTimeReview` "Städa öppna timers" som anropar action.
 
-Headern säger **"På projekt – timer saknas"** (eller "timer osäker") medan ett ProjectVisitBlock i huvudjournalen för samma projekt säger **"timer aktiv"** — eller tvärtom. Båda gäller samma projekt och samma dag, så det ser ut som en bugg.
+## 2. Concurrency-regel: location stoppar booking/project
+I `src/lib/timerConcurrency.ts` är reglerna redan korrekta (location vs project = switch, `one_active_timer_at_a_time`). Problemet är att switchen kräver UI-bekräftelse — för **geofence-arrival på lager** vill vi auto-switch tyst.
 
-## Rotorsak
+Komplettering i `useGeofencing.ts` `tryAutoSwitchFromArrival`:
+- När arrival sker på en `location` (lager) och det finns aktiv `booking`/`project`-timer på annan plats → stoppa den gamla via `saveAndStopTimer` med `stop_reason='switched_to_location'` innan ny location-timer startas. Logga som `auto_switch`.
+- Sätt `workday_flag='auto_closed_on_location_arrival'` på den gamla så admin ser det.
 
-I `src/components/staff/ProjectVisitBlock.tsx` (`buildProjectBlocks`) byggs ETT block per `gps_visit`-rad. Om personen besökt projektet två gånger samma dag (t.ex. lämnat, kom tillbaka) får vi **två block med samma `placeKey`**.
+## 3. UI-varning: stale ongoing rows
+I `src/components/staff/ProjectVisitBlock.tsx` + `ActualDayPanel.tsx`:
+- Om `timerActive=true` och senaste GPS-ping för staffen är >30 min gammalt OCH staff är inte på samma plats längre → visa badge "Misstänkt glömd timer" (gul varning) och CTA "Stäng vid sista ping".
+- Härleds rent i frontend från `actualVisits` + `timerIntervals` + `lastPingAt`.
 
-Timer-eventen (`timer_started` / `timer_stopped`) indexeras däremot **en gång per placeKey** — och kopplas alltså till ett av besöken, men `hasTimer/timerActive` får samma värde för **båda blocken** trots att timern bara verkligen var igång under ett av dem.
+## 4. Tester
+- `supabase/functions/close-stale-workday-entries/backfill_test.ts` — täcker pings utanför, inga pings, redan stängd, dry-run.
+- `src/test/timerConcurrency.autoSwitchOnLocationArrival.test.ts` — verifierar tyst stop av project när location-arrival.
+- Uppdatera `src/test/timeReporting.manifest.ts` med båda.
 
-Banner (`ActualDayPanel.tsx` rad 1237–1246) väljer `currentOngoingProject` = **senaste pågående block**. Det blocket kan ha `timerActive=false` (timer stoppades vid första besökets slut), så bannern skriver "timer saknas", samtidigt som journalen visar det tidigare blocket som "timer aktiv" via samma karta.
+## Tekniska detaljer
+- Edge function action-payload: `{ action: 'backfill', dry_run?: boolean, before_iso?: string, organization_id }`.
+- Använder service role internt; admin-knapp authas via `verify_jwt + has_role('admin')`.
+- Memory-uppdatering: nytt entry `mem://features/field-staff/stale-timer-backfill-v1.md` + Core-rad om auto-switch på location-arrival.
 
-Dessutom är ordet "saknas" missvisande — det betyder bara "ingen timer-event ligger inom detta GPS-fönster", inte att något är trasigt.
-
-## Plan
-
-1. **Tidsfönsterbaserad timer-koppling** i `buildProjectBlocks`
-   - Bygg lista över timer-intervall `(placeKey, startedIso, stoppedIso|null)` istället för en map per placeKey.
-   - För varje block, sätt:
-     - `timerStartedIso` = första timer_started inom `[block.startIso, block.endIso ?? now]`
-     - `timerStoppedIso` = motsvarande stop (om något)
-     - `timerActive` = sant endast om en timer öppnad i blockets fönster fortfarande är öppen
-     - `hasTimer` = sant om någon timer överlappar blockets fönster
-   - Resultat: två besök på samma plats får sin egen, korrekta timer-status.
-
-2. **Konsistent källa för bannern**
-   - Bannern använder redan `currentOngoingProject` från samma `projectBlocks`-array, så fix #1 räcker för att ban­ner och journal alltid visar samma värde för samma block.
-
-3. **Tydligare språk i bannern** (`ActualDayPanel.tsx` rad 1242–1246)
-   - `'På projekt – timer aktiv'` → behåll
-   - `'På projekt – timer saknas'` → **`'På projekt – ingen timer registrerad'`**
-   - `'På projekt – timer osäker'` → **`'På projekt – timer stoppad tidigare'`** (när vi ser timer_stopped men ingen pågående timer)
-   - `'På projekt – arbetsdag saknas'` → behåll
-
-4. **Test**
-   - Lägg till case i `src/lib/staff/__tests__/` (ny fil `projectBlocks.timerWindow.test.ts`):
-     - Två besök, en timer som öppnas+stängs i besök 1 → besök 1: `timerActive=false, hasTimer=true`; besök 2: `hasTimer=false`.
-     - Ett besök, timer fortfarande öppen → `timerActive=true`.
-     - Ett besök, ingen timer → `hasTimer=false`.
-
-## Filer som ändras
-
-- `src/components/staff/ProjectVisitBlock.tsx` — `buildProjectBlocks` byter index till tidsfönster.
-- `src/components/staff/ActualDayPanel.tsx` — nytt headline-språk (rad 1242–1246).
-- `src/lib/staff/__tests__/projectBlocks.timerWindow.test.ts` — ny testfil.
-
-Inga DB- eller edge-function-ändringar behövs.
+## Filer som ändras/skapas
+- `supabase/functions/close-stale-workday-entries/index.ts` (utöka)
+- `supabase/functions/close-stale-workday-entries/backfill_test.ts` (ny)
+- `src/hooks/useGeofencing.ts` (auto-switch silent stop)
+- `src/components/staff/ProjectVisitBlock.tsx` (stale badge data)
+- `src/components/staff/ActualDayPanel.tsx` (stale badge UI)
+- `src/pages/AdminTimeReview.tsx` (knapp "Städa öppna timers")
+- `src/test/timerConcurrency.autoSwitchOnLocationArrival.test.ts` (ny)
+- `src/test/timeReporting.manifest.ts` (uppdatera)
+- `.lovable/memory/features/field-staff/stale-timer-backfill-v1.md` (ny) + index
