@@ -386,14 +386,52 @@ const MobileGlobalOverlays: React.FC = () => {
     ? arrivalTarget
     : null;
 
+  /**
+   * CONFIDENCE-DRIVEN POPUP POLICY (Prompt 5).
+   *
+   * If the engine has already started/has an active timer for the same
+   * target the arrival prompt would point at — server agrees and local
+   * agrees — there is nothing for the user to decide. Don't show a
+   * blocking dialog; silently mark the prompt resolved so the banner
+   * (AutoArrivalNotice / GlobalActiveTimerBanner) can carry the
+   * informative state instead.
+   */
+  const arrivalAlreadyHandled = React.useMemo(() => {
+    if (!plannedArrivalTarget) return false;
+    const t = plannedArrivalTarget;
+    const key = t.kind === 'location'
+      ? `location-${t.target_id}`
+      : t.kind === 'project'
+        ? `project-${t.target_id}`
+        : t.target_id;
+    return providerActiveTimers.has(key);
+  }, [plannedArrivalTarget, providerActiveTimers]);
+
+  // Auto-resolve the prompt when the engine already did the right thing.
+  // No popup, no toast — the AutoArrivalNotice banner already informed
+  // the user. Idempotent guard via a ref so we don't loop on each render.
+  const autoResolvedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!plannedArrivalTarget || !arrivalAlreadyHandled) return;
+    const sig = `${plannedArrivalTarget.kind}:${plannedArrivalTarget.target_id}:${plannedArrivalTarget.arrived_at}`;
+    if (autoResolvedRef.current.has(sig)) return;
+    autoResolvedRef.current.add(sig);
+    void markResolved(plannedArrivalTarget);
+    setArrivalDialogOpen(false);
+  }, [plannedArrivalTarget, arrivalAlreadyHandled, markResolved]);
+
   useEffect(() => {
     if (eodActive) return;
+    if (arrivalAlreadyHandled) {
+      setArrivalDialogOpen(false);
+      return;
+    }
     if (arrivalState?.should_prompt && plannedArrivalTarget) {
       setArrivalDialogOpen(true);
     } else if (!plannedArrivalTarget) {
       setArrivalDialogOpen(false);
     }
-  }, [arrivalState?.should_prompt, plannedArrivalTarget, eodActive]);
+  }, [arrivalState?.should_prompt, plannedArrivalTarget, eodActive, arrivalAlreadyHandled]);
 
   /**
    * Map an ArrivalTarget → WorkTarget. The WorkSession engine is what
