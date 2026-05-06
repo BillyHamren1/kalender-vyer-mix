@@ -87,12 +87,11 @@ export const DayRow: React.FC<DayRowProps> = ({ row, onClick }) => {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="font-semibold text-sm truncate">{row.staffName}</p>
-            <DayStatusBadge result={row.result} />
-            {row.reviewStatus === 'approved' && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                Godkänd
-              </span>
-            )}
+            <DayStatusBadge
+              result={row.result}
+              workday={row.workdayStart ? { started_at: row.workdayStart, ended_at: row.workdayEnd } : null}
+              reviewStatus={row.reviewStatus}
+            />
             {row.reviewStatus === 'needs_review' && (
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-500/10 px-1.5 py-0.5 rounded">
                 Markerad
