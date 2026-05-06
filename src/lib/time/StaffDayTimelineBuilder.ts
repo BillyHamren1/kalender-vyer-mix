@@ -423,8 +423,22 @@ export function buildStaffDayTimelineFromRaw(
     .filter((s) => s.payable)
     .reduce((sum, s) => sum + (s.durationMin || 0), 0);
 
+  // Samla auto-origin / synthetic-noter — visas i drawer/evidence,
+  // ALDRIG i huvudvyn. Räknas mot review_count.
+  const autoOriginNotes: string[] = [];
+  if (input.workday?.autoOrigin) {
+    autoOriginNotes.push(`Arbetsdag skapad automatiskt (${input.workday.autoOrigin}).`);
+  }
+  const syntheticTr = (input.timeReports ?? []).filter((t) => t.synthetic);
+  const syntheticLte = (input.locationEntries ?? []).filter((l) => l.synthetic);
+  const syntheticTravel = (input.travelLogs ?? []).filter((t) => t.synthetic);
+  if (syntheticTr.length) autoOriginNotes.push(`${syntheticTr.length} tidrapport(er) härledd från system (auto-repair/backfill) — visas inte som segment.`);
+  if (syntheticLte.length) autoOriginNotes.push(`${syntheticLte.length} timer/närvaro stoppad av watchdog/clamp — visas inte som segment.`);
+  if (syntheticTravel.length) autoOriginNotes.push(`${syntheticTravel.length} resa härledd från servermotor — visas inte som segment.`);
+
   const segmentReviewCount = segments.filter((s) => s.reviewRequired).length;
-  const review_count = segmentReviewCount + (envelope.suggested ? 1 : 0);
+  const review_count =
+    segmentReviewCount + (envelope.suggested ? 1 : 0) + autoOriginNotes.length;
   const review_required = review_count > 0;
 
   let status: StaffDayStatus;
@@ -444,7 +458,7 @@ export function buildStaffDayTimelineFromRaw(
     travelLogIds: (input.travelLogs ?? []).map((t) => t.id),
     locationEntryIds: (input.locationEntries ?? []).map((l) => l.id),
     assistantEventIds: (input.assistantEvents ?? []).map((a) => a.id),
-    notes: envelope.notes,
+    notes: [...envelope.notes, ...autoOriginNotes],
   };
 
   return {
