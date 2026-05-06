@@ -104,7 +104,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       };
       handleEventClick(mockEventInfo);
     }
-  }, [event, handleEventClick]);
+  }, [event, handleEventClick, navigate]);
 
   // Handle removing a cancelled event from the calendar
   const handleRemoveCancelledEvent = useCallback(async (e: React.MouseEvent) => {
