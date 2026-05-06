@@ -143,6 +143,11 @@ export interface PresenceBlock {
   clippedFromIso?: string | null;
   /** Anledning till clipping. */
   clippedReason?: 'clipped_to_work_context_start' | null;
+  /**
+   * Canonical workday-policy status (see src/lib/staff/workdayPolicy.ts).
+   * UI ska föredra detta för label/färg över heuristik på presenceKind.
+   */
+  policyStatus?: import('./workdayPolicy').PolicyStatus;
 }
 
 export interface JourneyBlock {
@@ -378,17 +383,29 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       && (knownSiteId.startsWith('location:') || knownSiteId.startsWith('loc:') || knownSiteId.startsWith('site:') || knownSiteId.startsWith('warehouse:'));
     const isKnown = isProject || isLocation;
 
-    // Okänd + för kort → tillhör raw/debug, inte huvudjournalen.
-    if (!isKnown && durationMin < MIN_UNKNOWN_REVIEW_MIN) continue;
+    // Workday-policy: en okänd vistelse INOM en pågående arbetsdag får
+    // ALDRIG silently försvinna — den ska visas som "behöver granskning"
+    // och räknas inom arbetsdagen. Endast okända vistelser UTANFÖR
+    // arbetsdagskontexten (eller helt utan kontext) filtreras bort som
+    // raw/debug när de är för korta.
+    const visitStartMsForPolicy = new Date(v.start).getTime();
+    const visitEndMsForPolicy = new Date(v.end).getTime();
+    const overlapsWorkday = workCtxMs != null
+      && Number.isFinite(visitEndMsForPolicy)
+      && visitEndMsForPolicy > workCtxMs;
+
+    // Okänd + för kort + utanför arbetsdag → tillhör raw/debug.
+    if (!isKnown && durationMin < MIN_UNKNOWN_REVIEW_MIN && !overlapsWorkday) continue;
 
     // Dagen har inte startat (ingen workday, ingen timer, ingen TR).
-    // Då ska huvudjournalen vara tom — inga "07:05 → pågår" på okända
-    // GPS-vistelser. Användaren ser dem fortfarande i råvyn.
+    // Då ska huvudjournalen vara tom — en okänd GPS-vistelse får inte
+    // starta arbetsdagen automatiskt. Användaren ser den i råvyn.
     if (workCtxMs == null) continue;
 
     // Visit slutar innan dagen ens började → hör inte hemma i huvudjournalen.
-    const visitEndMsEarly = new Date(v.end).getTime();
+    const visitEndMsEarly = visitEndMsForPolicy;
     if (Number.isFinite(visitEndMsEarly) && visitEndMsEarly <= workCtxMs) continue;
+
 
 
     const presenceKind: PresenceKind = isProject ? 'project' : isLocation ? 'location' : 'unknown';
@@ -474,6 +491,13 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       resolvedPlace: resolvePresencePlace(presenceKind, v as unknown as VisitInfo, v.label),
       clippedFromIso,
       clippedReason,
+      policyStatus: presenceKind === 'project'
+        ? 'confirmed_work'
+        : presenceKind === 'location'
+        ? 'confirmed_work'
+        : overlapsWorkday
+        ? 'unclassified_within_workday'
+        : 'unknown_needs_review',
     });
 
   }
