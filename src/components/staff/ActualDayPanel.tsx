@@ -578,6 +578,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     if (!c) return null;
     const key = `${c.lat.toFixed(3)},${c.lng.toFixed(3)}`;
     const s = geoByKey.get(key);
+    if (s?.data?.unresolved) {
+      return { label: 'Okänd plats – adress kunde inte hämtas', geo: s.data, status: 'error' };
+    }
     if (s?.data) return { label: s.data.label, geo: s.data, status: 'ok' };
     if (s?.isLoading) return { label: 'Slår upp adress…', geo: null, status: 'loading' };
     if (s?.isError) return { label: 'Okänd plats – adress kunde inte hämtas', geo: null, status: 'error' };
