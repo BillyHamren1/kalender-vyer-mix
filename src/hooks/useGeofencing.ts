@@ -145,7 +145,7 @@ export interface AutoStartActivityOutcome {
     | 'already_running'
     | 'workday_failed'
     | 'conflict'
-    | 'blocked'
+    | 'awaiting_distance_confirmation'
     | 'start_failed';
 }
 export type AutoStartActivityFn =
