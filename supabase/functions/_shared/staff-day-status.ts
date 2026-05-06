@@ -503,6 +503,32 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     });
   }
 
+  if (unknownWithinWd > 0 && !workdaySnap?.approved) {
+    dayFlags.push({
+      id: `unknown-within-workday-${workdaySnap?.id ?? date}`,
+      type: "unknown_within_workday",
+      severity: "warning",
+      title: "Okänd vistelse · behöver granskning",
+      description: `${unknownWithinWd} min okänd vistelse ligger inom arbetsdagen.`,
+      needsUserInput: true,
+      resolved: false,
+      source: "computed",
+    });
+  }
+
+  if (workdaySnap && suggestedStartedAt && suggestedStartedAt < workdaySnap.startedAt) {
+    dayFlags.push({
+      id: `early-confirmed-presence-${workdaySnap.id}`,
+      type: "early_confirmed_presence",
+      severity: "info",
+      title: "Tidigare bekräftat arbete",
+      description: `Bekräftad arbetsplats finns från ${suggestedStartedAt.slice(11, 16)} — arbetsdagen kan tidigareläggas.`,
+      needsUserInput: false,
+      resolved: false,
+      source: "computed",
+    });
+  }
+
   if (workdaySnap?.adminNote) {
     dayFlags.push({
       id: `admin-${workdaySnap.id}`,
