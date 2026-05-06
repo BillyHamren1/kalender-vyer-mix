@@ -43,6 +43,8 @@ import DayBlockTimeline from './DayBlockTimelineView';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useActualDayEventOverrides } from '@/hooks/useActualDayEventOverrides';
 import ExcludedEventsSection from './ExcludedEventsSection';
+import DayHeaderPanel from './DayHeaderPanel';
+import { buildDayHeaderModel } from '@/lib/staff/dayHeaderModel';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
