@@ -206,6 +206,12 @@ async function handleCompute(
   ]);
 
   // Build known places — merge linked + candidate sets, dedupe by id.
+  // RULE (clarified 2026-05-06): when MULTIPLE bookings/projects share the same
+  // address, the one whose date window is closest to the visit date wins. If
+  // the visit falls within rig-2 → rigdown+2 of the primary candidate, it is
+  // auto-assigned. Otherwise the match is kept but flagged
+  // `requiresConfirmation = true` and the alternatives are surfaced so the
+  // user can pick the correct one.
   const knownPlaces: KnownPlace[] = [];
   const seen = new Set<string>();
   const pushPlace = (p: KnownPlace) => {
@@ -225,28 +231,136 @@ async function handleCompute(
       radiusM: loc.radius_meters ?? 100,
     });
   }
+
+  // Helper: compute day-distance + auto-window membership for a candidate.
+  const targetMs = new Date(`${args.date}T12:00:00Z`).getTime();
+  const dayMs = 86_400_000;
+  const dayDist = (iso: string | null) => {
+    if (!iso) return Number.POSITIVE_INFINITY;
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return Number.POSITIVE_INFINITY;
+    return Math.round(Math.abs(t - targetMs) / dayMs);
+  };
+  const inWindow = (fromIso: string | null, toIso: string | null) => {
+    if (!fromIso && !toIso) return false;
+    const from = fromIso ? new Date(fromIso).getTime() - 2 * dayMs : Number.NEGATIVE_INFINITY;
+    const to = toIso ? new Date(toIso).getTime() + 2 * dayMs : (fromIso ? new Date(fromIso).getTime() + 2 * dayMs : Number.POSITIVE_INFINITY);
+    return targetMs >= from && targetMs <= to;
+  };
+
+  interface Candidate {
+    id: string;
+    type: "booking" | "project";
+    name: string;
+    lat: number;
+    lng: number;
+    radiusM: number;
+    dayDistance: number;
+    insideAutoWindow: boolean;
+    /** Already linked to staff today via report/entry — always trusted. */
+    linked: boolean;
+  }
+
+  const candidates: Candidate[] = [];
   const allBookings = [...(bookingsRes.data ?? []), ...(candidateBookingsRes.data ?? [])];
+  const linkedBookingIds = new Set(bookingIds);
+  const seenBookingIds = new Set<string>();
   for (const b of allBookings) {
     if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
-    pushPlace({
+    if (seenBookingIds.has(b.id)) continue;
+    seenBookingIds.add(b.id);
+    const rig = (b as any).rigdaydate ?? null;
+    const rigDown = (b as any).rigdowndate ?? (b as any).eventdate ?? rig;
+    candidates.push({
       id: b.id,
       type: "booking",
       name: b.client || b.deliveryaddress || "Bokning",
       lat: Number(b.delivery_latitude),
       lng: Number(b.delivery_longitude),
       radiusM: 100,
+      dayDistance: Math.min(dayDist(rig), dayDist(rigDown), dayDist((b as any).eventdate ?? null)),
+      insideAutoWindow: inWindow(rig, rigDown),
+      linked: linkedBookingIds.has(b.id),
     });
   }
   const allProjects = [...(projectsRes.data ?? []), ...(candidateProjectsRes.data ?? [])];
+  const linkedProjectIds = new Set(projectIds);
+  const seenProjectIds = new Set<string>();
   for (const p of allProjects) {
     if (p.address_latitude == null || p.address_longitude == null) continue;
-    pushPlace({
+    if (seenProjectIds.has(p.id)) continue;
+    seenProjectIds.add(p.id);
+    const sd = (p as any).start_date ?? null;
+    const ed = (p as any).end_date ?? (p as any).event_date ?? sd;
+    candidates.push({
       id: p.id,
       type: "project",
       name: p.name || p.address || "Projekt",
       lat: Number(p.address_latitude),
       lng: Number(p.address_longitude),
       radiusM: p.address_radius_meters ?? 100,
+      dayDistance: Math.min(dayDist(sd), dayDist(ed), dayDist((p as any).event_date ?? null)),
+      insideAutoWindow: inWindow(sd, ed),
+      linked: linkedProjectIds.has(p.id),
+    });
+  }
+
+  // Cluster candidates by physical proximity (≈80 m haversine), so that
+  // multiple projects on the same address share a single primary.
+  const CLUSTER_M = 80;
+  const haversine = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+    const R = 6371000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(bLat - aLat);
+    const dLng = toRad(bLng - aLng);
+    const s = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+  };
+
+  const clusters: Candidate[][] = [];
+  for (const c of candidates) {
+    let placed = false;
+    for (const cl of clusters) {
+      const head = cl[0];
+      if (haversine(head.lat, head.lng, c.lat, c.lng) <= CLUSTER_M) {
+        cl.push(c);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) clusters.push([c]);
+  }
+
+  for (const cl of clusters) {
+    // Pick primary: linked > insideAutoWindow > smallest dayDistance.
+    const sorted = [...cl].sort((a, b) => {
+      if (a.linked !== b.linked) return a.linked ? -1 : 1;
+      if (a.insideAutoWindow !== b.insideAutoWindow) return a.insideAutoWindow ? -1 : 1;
+      return a.dayDistance - b.dayDistance;
+    });
+    const primary = sorted[0];
+    const others = sorted.slice(1);
+    // requiresConfirmation when there are siblings AND primary is not within
+    // auto-window AND not already linked.
+    const requiresConfirmation = others.length > 0 && !primary.insideAutoWindow && !primary.linked;
+    pushPlace({
+      id: primary.id,
+      type: primary.type,
+      name: primary.name,
+      lat: primary.lat,
+      lng: primary.lng,
+      radiusM: primary.radiusM,
+      requiresConfirmation,
+      alternatives: others.length
+        ? others.map((o) => ({
+            id: o.id,
+            type: o.type,
+            name: o.name,
+            dayDistance: Number.isFinite(o.dayDistance) ? o.dayDistance : 9999,
+            insideAutoWindow: o.insideAutoWindow,
+          }))
+        : undefined,
     });
   }
 
