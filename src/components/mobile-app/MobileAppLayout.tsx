@@ -42,6 +42,13 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         className="bg-card max-w-lg mx-auto fixed inset-0 overflow-y-auto overscroll-none"
         style={{ WebkitOverflowScrolling: 'touch' as any }}
       >
+        {/* Solid primary bar behind the iOS statusbar so system icons (clock,
+            battery, wifi) always sit on a colored background even on pages
+            that don't render their own MobileHeader. */}
+        <div
+          className="sticky top-0 z-[55] bg-primary"
+          style={{ height: 'env(safe-area-inset-top, 0px)' }}
+        />
         <div style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
           {/* Global overlays — banners render here at top of content, dialogs portal to root. */}
           <MobileGlobalOverlays />

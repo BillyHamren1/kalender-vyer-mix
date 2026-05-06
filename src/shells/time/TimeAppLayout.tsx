@@ -51,8 +51,15 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
         <div className="h-full max-w-lg mx-auto bg-card flex flex-col overflow-hidden">
           {/* Header slot — headers portal in here so they sit OUTSIDE the scroll container.
               This avoids the iOS WKWebView bug where position: sticky inside a momentum-scrolling
-              container jitters/lags behind the scroll. */}
-          <div id="mobile-header-slot" className="shrink-0 bg-primary z-[60]" />
+              container jitters/lags behind the scroll.
+              The slot itself paints the iOS safe-area (statusbar region) in primary so
+              system icons (clock, battery, wifi) always sit on a solid colored bar — even
+              on pages that don't render their own MobileHeader. */}
+          <div
+            id="mobile-header-slot"
+            className="shrink-0 bg-primary z-[60]"
+            style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+          />
           <div
             ref={scrollRef}
             className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
