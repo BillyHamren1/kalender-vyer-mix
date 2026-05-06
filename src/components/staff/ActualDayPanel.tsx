@@ -2067,6 +2067,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             )}
           </div>
         )}
+        </>
         )}
       </section>
 
