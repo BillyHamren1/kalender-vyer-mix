@@ -332,11 +332,14 @@ export function evaluateAdminTimeReview(
   }
 
   if (unallocatedMinutes > 0) {
+    // Oallokerad tid är OK — visas som info, blockerar inte attest.
+    // Det viktiga är att arbetsdagens start/slut är korrekta; allt
+    // som inte är fördelat på projekt/resa är fortfarande lönegrundande.
     anomalies.push({
       kind: 'unallocated_time',
-      severity: unallocatedMinutes > 60 ? 'warning' : 'info',
-      label: 'Oallokerad tid',
-      detail: `${unallocatedMinutes} min inom arbetsdagen saknar aktivitet eller restid.`,
+      severity: 'info',
+      label: 'Ej fördelat på projekt',
+      detail: `${unallocatedMinutes} min av arbetsdagen är inte fördelad på projekt eller restid.`,
       minutes: unallocatedMinutes,
     });
   }
