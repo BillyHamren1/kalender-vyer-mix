@@ -65,7 +65,9 @@ const REALTIME_TABLES = [
   'workdays',
   'time_reports',
   'travel_time_logs',
+  'location_time_entries',
   'workday_flags',
+  'assistant_events',
 ] as const;
 
 export function useStaffMonthStatus(month?: Date | string): Result {
