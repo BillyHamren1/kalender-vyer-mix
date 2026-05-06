@@ -284,7 +284,24 @@ export const useEventDragDrop = (
 
       // 1. Update the calendar_events row in place
       try {
-        await updateCalendarEvent(realEventId, { start: newStartISO, end: newEndISO });
+        const updatePayload: any = { start: newStartISO, end: newEndISO };
+        if (teamChanged) updatePayload.resourceId = targetTeamId;
+        if (import.meta.env.DEV) {
+          console.info('[calendar-team-change] normal booking (drag)', {
+            eventId: eventData.id,
+            realEventId,
+            bookingId: eventData.bookingId,
+            largeProjectId: eventData.largeProjectId,
+            phase: eventData.eventType,
+            sourceDate: currentDateStr,
+            targetDate: targetDateStr,
+            oldTeamId: eventData.resourceId,
+            newTeamId: teamChanged ? targetTeamId : eventData.resourceId,
+            updatedEventIds: [realEventId],
+            ranRecompute: true,
+          });
+        }
+        await updateCalendarEvent(realEventId, updatePayload);
       } catch (err) {
         console.error('[useEventDragDrop] calendar_events update failed', err);
         throw err;
