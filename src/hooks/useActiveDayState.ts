@@ -18,6 +18,19 @@ export type ActiveDayOpenEntry = {
   target_label: string;
   entered_at: string;
   source: string | null;
+  metadata?: Record<string, any>;
+  auto_started?: boolean;
+  auto_start_source?: string | null;
+  confidence?: string | null;
+  latest_ping_at?: string | null;
+  latest_ping_age_ms?: number | null;
+  stale_ping?: boolean;
+  last_known_arrival_at?: string | null;
+  last_known_departure_at?: string | null;
+  departure_detected?: boolean;
+  suggested_stop_at?: string | null;
+  status?: 'active_on_site' | 'active_but_left_site' | 'active_signal_lost' | 'active_unknown';
+  correction_actions?: Array<'stop_now' | 'stop_from_departure' | 'change_target' | 'mark_not_work'>;
 };
 
 export interface ActiveDayState {
