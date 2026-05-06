@@ -139,6 +139,10 @@ export interface PresenceBlock {
   confidence: 'high' | 'medium' | 'low';
   /** Upplöst plats för rendering — UI ska föredra detta över `title`. */
   resolvedPlace: ResolvedPlace;
+  /** Original visit-start innan clipping till workday/timer/TR-context. */
+  clippedFromIso?: string | null;
+  /** Anledning till clipping. */
+  clippedReason?: 'clipped_to_work_context_start' | null;
 }
 
 export interface JourneyBlock {
