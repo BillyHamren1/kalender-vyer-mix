@@ -27,6 +27,8 @@ const MobileTimeReport = () => {
   const { staff } = useMobileAuth();
   const { data: bookings = [], isLoading } = useMobileBookings();
   const { invalidateTimeReports } = useInvalidateMobileData();
+  const { data: travelLogs = [] } = useMobileTravelLogs();
+  const { data: workdays = [] } = useMobileWorkdays(14);
   const [isSaving, setIsSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [timeReports, setTimeReports] = useState<MobileTimeReportType[]>([]);
