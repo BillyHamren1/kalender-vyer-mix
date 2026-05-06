@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { differenceInSeconds, parseISO, format } from 'date-fns';
+import { parseISO, format } from 'date-fns';
 import { Play, Square, Clock, Loader2, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -15,13 +15,6 @@ interface Props {
   largeProjectId: string;
   projectName: string;
 }
-
-const formatHMS = (seconds: number) => {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-};
 
 const formatHours = (h: number) => h.toFixed(1).replace('.', ',');
 
