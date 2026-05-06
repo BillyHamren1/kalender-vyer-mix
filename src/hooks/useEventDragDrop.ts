@@ -192,6 +192,21 @@ export const useEventDragDrop = (
           .in('id', eventIds);
         if (updErr) throw updErr;
 
+        if (import.meta.env.DEV) {
+          console.info('[calendar-team-change] large project (drag)', {
+            eventId: eventData.id,
+            bookingId: eventData.bookingId,
+            largeProjectId: eventData.largeProjectId,
+            phase: eventData.eventType,
+            sourceDate: currentDateStr,
+            targetDate: targetDateStr,
+            oldTeamId: eventData.resourceId,
+            newTeamId: targetTeamId,
+            updatedEventIds: eventIds,
+            ranRecompute: true,
+          });
+        }
+
         // 3. BSA-recompute för varje booking på källa+mål-datum.
         const bookingIds = Array.from(new Set(eventData.consolidatedBookingIds || []));
         const dates = Array.from(new Set([currentDateStr, targetDateStr]));
@@ -284,7 +299,24 @@ export const useEventDragDrop = (
 
       // 1. Update the calendar_events row in place
       try {
-        await updateCalendarEvent(realEventId, { start: newStartISO, end: newEndISO });
+        const updatePayload: any = { start: newStartISO, end: newEndISO };
+        if (teamChanged) updatePayload.resourceId = targetTeamId;
+        if (import.meta.env.DEV) {
+          console.info('[calendar-team-change] normal booking (drag)', {
+            eventId: eventData.id,
+            realEventId,
+            bookingId: eventData.bookingId,
+            largeProjectId: eventData.largeProjectId,
+            phase: eventData.eventType,
+            sourceDate: currentDateStr,
+            targetDate: targetDateStr,
+            oldTeamId: eventData.resourceId,
+            newTeamId: teamChanged ? targetTeamId : eventData.resourceId,
+            updatedEventIds: [realEventId],
+            ranRecompute: true,
+          });
+        }
+        await updateCalendarEvent(realEventId, updatePayload);
       } catch (err) {
         console.error('[useEventDragDrop] calendar_events update failed', err);
         throw err;

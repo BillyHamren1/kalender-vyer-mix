@@ -24,9 +24,15 @@ interface Props {
 /**
  * Två pilar (← →) i nedre högra hörnet av eventet — flyttar till föregående
  * eller nästa team i listan. Klick öppnar en dialog där användaren väljer:
- *   - "Endast denna dag" → uppdaterar bara denna calendar_events-rad
+ *   - "Endast denna dag" → uppdaterar denna projektdags konsoliderade
+ *     calendar_events-grupp (alla syskonbokningar för (projekt, fas, datum, team))
+ *     om event.extendedProps.consolidatedEventIds finns; annars enskild rad.
  *   - "Hela serien" → flyttar alla calendar_events för bookingen (eller alla
- *     syskonbokningar i large_project) till valt team
+ *     syskonbokningar i large_project) i SAMMA fas till valt team.
+ *
+ * Calendar placement för both vanliga bookings and large projects styrs av
+ * calendar_events.resource_id. large_project_team_assignments är inte
+ * authoritative för planner placement.
  */
 export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) => {
   const { teamResources } = useTeamResources();
@@ -48,7 +54,7 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
     try {
       await supabase.rpc('recompute_booking_staff_for_day' as any, {
         p_booking_id: bookingId,
-        p_assignment_date: sourceDate,
+        p_date: sourceDate,
       });
     } catch (e) {
       console.warn('[MoveDayPopover] recompute_booking_staff_for_day failed (continuing):', e);
@@ -60,6 +66,12 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
     let prevSnapshot: CalendarEvent[] | null = null;
     try {
       const sourceDate = (event as any).source_date || event.start.split('T')[0];
+      const ext: any = event.extendedProps || {};
+      const consolidatedEventIds: string[] = Array.isArray(ext.consolidatedEventIds)
+        ? ext.consolidatedEventIds.filter(Boolean) : [];
+      const consolidatedBookingIds: string[] = Array.isArray(ext.consolidatedBookingIds)
+        ? ext.consolidatedBookingIds.filter(Boolean) : [];
+      const isLargeProject = Boolean(ext.largeProjectId);
 
       if (setEvents) {
         setEvents((prev) => {
@@ -67,9 +79,10 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
           return prev.map((ev) => {
             const sameLargeProjectDay =
               (ev.extendedProps as any)?.largeProjectId &&
-              (ev.extendedProps as any)?.largeProjectId === (event.extendedProps as any)?.largeProjectId &&
+              (ev.extendedProps as any)?.largeProjectId === ext.largeProjectId &&
               ev.eventType === event.eventType &&
-              (typeof ev.start === 'string' ? ev.start : new Date(ev.start as any).toISOString()).split('T')[0] === sourceDate;
+              (typeof ev.start === 'string' ? ev.start : new Date(ev.start as any).toISOString()).split('T')[0] === sourceDate &&
+              ev.resourceId === event.resourceId;
 
             if (sameLargeProjectDay || ev.id === event.id) {
               return { ...ev, resourceId: newTeamId };
@@ -79,12 +92,42 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
         });
       }
 
-      const { error } = await supabase
-        .from('calendar_events')
-        .update({ resource_id: newTeamId })
-        .eq('id', event.id);
-      if (error) throw error;
-      if (event.bookingId) await recompute(event.bookingId, sourceDate);
+      let updatedIds: string[] = [];
+      if (isLargeProject && consolidatedEventIds.length > 0) {
+        const { error } = await supabase
+          .from('calendar_events')
+          .update({ resource_id: newTeamId })
+          .in('id', consolidatedEventIds);
+        if (error) throw error;
+        updatedIds = consolidatedEventIds;
+      } else {
+        const { error } = await supabase
+          .from('calendar_events')
+          .update({ resource_id: newTeamId })
+          .eq('id', event.id);
+        if (error) throw error;
+        updatedIds = [event.id];
+      }
+
+      if (import.meta.env.DEV) {
+        console.info('[calendar-team-change] large project / booking', {
+          eventId: event.id,
+          bookingId: event.bookingId,
+          largeProjectId: ext.largeProjectId,
+          phase: event.eventType,
+          sourceDate,
+          targetDate: sourceDate,
+          oldTeamId: event.resourceId,
+          newTeamId,
+          updatedEventIds: updatedIds,
+          ranRecompute: true,
+        });
+      }
+
+      const bookingIdsForRecompute = isLargeProject && consolidatedBookingIds.length > 0
+        ? consolidatedBookingIds
+        : (event.bookingId ? [event.bookingId] : []);
+      await Promise.all(bookingIdsForRecompute.map(bid => recompute(bid, sourceDate)));
       toast.success('Dagen flyttad');
       if (onUpdate) void onUpdate();
     } catch (e: any) {
@@ -105,6 +148,7 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
     setBusy(true);
     let prevSnapshot: CalendarEvent[] | null = null;
     try {
+      const phase = event.eventType;
       if (setEvents) {
         setEvents((prev) => {
           prevSnapshot = prev;
@@ -113,8 +157,9 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
               Boolean((ev.extendedProps as any)?.largeProjectId) &&
               (ev.extendedProps as any)?.largeProjectId === (event.extendedProps as any)?.largeProjectId;
             const sameBookingSeries = ev.bookingId === event.bookingId;
+            const samePhase = !phase || ev.eventType === phase;
 
-            if (sameLargeProject || sameBookingSeries) {
+            if ((sameLargeProject || sameBookingSeries) && samePhase) {
               return { ...ev, resourceId: newTeamId };
             }
             return ev;
@@ -137,11 +182,15 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
         bookingIds = (siblings || []).map((s) => s.id);
       }
 
-      const { data: events } = await supabase
+      // Filtrera på samma fas — användaren flyttar bara aktuell fas
+      // (rig/event/rigDown), inte hela projektets serie.
+      let query = supabase
         .from('calendar_events')
         .select('id, booking_id, source_date, start_time')
         .in('booking_id', bookingIds)
         .neq('event_type', 'activity');
+      if (phase) query = query.eq('event_type', phase);
+      const { data: events } = await query;
 
       const targetIds = (events || []).map((e) => e.id);
       if (targetIds.length === 0) {
@@ -154,6 +203,18 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
         .update({ resource_id: newTeamId })
         .in('id', targetIds);
       if (error) throw error;
+
+      if (import.meta.env.DEV) {
+        console.info('[calendar-team-change] series move', {
+          bookingId: event.bookingId,
+          largeProjectId: (event.extendedProps as any)?.largeProjectId,
+          phase,
+          oldTeamId: event.resourceId,
+          newTeamId,
+          updatedEventIds: targetIds,
+          ranRecompute: true,
+        });
+      }
 
       const seen = new Set<string>();
       for (const ev of events || []) {
