@@ -220,6 +220,28 @@ const MobileTimeReport = () => {
   }, {});
 
   const sortedDates = Object.keys(reportsByDate).sort((a, b) => b.localeCompare(a));
+  const todayYmd = format(new Date(), 'yyyy-MM-dd');
+
+  // Workday-lookup per dag (yyyy-MM-dd) — workday är dagens totala arbetstid.
+  const workdayByDate = useMemo(() => {
+    const map: Record<string, typeof workdays[number]> = {};
+    for (const w of workdays) {
+      const key = w.day_key || (w.started_at ? w.started_at.slice(0, 10) : null);
+      if (!key) continue;
+      // Behåll senaste — listan kan ha flera per dag.
+      if (!map[key]) map[key] = w;
+    }
+    return map;
+  }, [workdays]);
+
+  const travelLogsByDate = useMemo(() => {
+    const map: Record<string, typeof travelLogs> = {};
+    for (const l of travelLogs) {
+      if (!l.report_date) continue;
+      (map[l.report_date] ??= []).push(l);
+    }
+    return map;
+  }, [travelLogs]);
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
