@@ -629,6 +629,86 @@ export function useWorkSession(
   );
 
   /**
+   * UNIFIED STOP ENGINE (Prompt 7).
+   *
+   * The single sanctioned entry point for ANY caller that wants to stop
+   * "the thing that's currently running" — no matter whether the timer
+   * exists locally, only on the server, or both.
+   *
+   * Resolution order:
+   *   1. If a local ActiveTimer matches the input → route through
+   *      stopSession (full break-dialog, save-then-stop, anomalies,
+   *      gap-derived-travel hooks).
+   *   2. Otherwise, if a server open_entry id is provided → call
+   *      mobileApi.stopOpenEntry (server creates the time_report and
+   *      closes the LTE atomically).
+   *   3. Always: refresh active_day_state, dispatch `timer-state-changed`,
+   *      and surface a toast on failure (handled by callers via the
+   *      thrown error).
+   *
+   * Every stop path in the app — manual stop, server-only stop, stale
+   * timer save/discard, auto-switch, end-day, assistant leave — MUST go
+   * through this verb. Callers may pass `skipReport` for the
+   * "mark not work" path.
+   */
+  const stopAny = useCallback(
+    async (input: {
+      /** A typed target — preferred. Used to look up local timer. */
+      target?: WorkTarget;
+      /** Server-side open_entry id. Used as fallback when no local timer. */
+      serverEntryId?: string;
+      /** Optional override for the actual stop time (EOD dialog, stale cap). */
+      stopAtIso?: string;
+      /** Skip writing a time_report (banner "Inte arbete" / pure presence). */
+      skipReport?: boolean;
+      /** Pass an explicit break decision to bypass the dialog. */
+      breakChoice?: ExplicitBreakChoice;
+      /** End-of-day post-exit context (banner + assistant). */
+      endOfDayContext?: EndOfDayContext;
+      /** Free-text reason persisted on the LTE close (server path only). */
+      stopReason?: string;
+      stopSource?: string;
+    }): Promise<{ saved: boolean; via: 'local' | 'server' | 'noop'; cancelled?: boolean }> => {
+      const localTimer = input.target
+        ? activeTimers.get(resolveTargetKey(input.target))
+        : undefined;
+
+      // Path 1 — local timer (fully unified flow).
+      if (input.target && localTimer) {
+        const targetForStop: WorkTarget = input.skipReport && input.target.kind === 'location'
+          ? { ...input.target, createsTimeReport: false }
+          : input.target;
+        const res = await stopSession(targetForStop, {
+          stopAtIso: input.stopAtIso,
+          breakChoice: input.breakChoice,
+          endOfDayContext: input.endOfDayContext,
+        });
+        // stopSession already clears local timer + dispatches via setActiveTimers.
+        // Best-effort: poke active_day_state listeners.
+        try { window.dispatchEvent(new Event('active-day-state-refresh')); } catch {}
+        return { saved: !!res.saved, cancelled: res.cancelled, via: 'local' };
+      }
+
+      // Path 2 — server-only entry.
+      if (input.serverEntryId) {
+        await mobileApi.stopOpenEntry({
+          entry_id: input.serverEntryId,
+          stop_at: input.stopAtIso,
+          skip_time_report: input.skipReport,
+          stop_source: input.stopSource ?? 'user_manual',
+          stop_reason: input.stopReason ?? 'unified_stop',
+        });
+        try { window.dispatchEvent(new Event('timer-state-changed')); } catch {}
+        try { window.dispatchEvent(new Event('active-day-state-refresh')); } catch {}
+        return { saved: !input.skipReport, via: 'server' };
+      }
+
+      return { saved: false, via: 'noop' };
+    },
+    [activeTimers, stopSession],
+  );
+
+  /**
    * The dialog element MUST be rendered by callers so the break prompt
    * is mounted in their tree. Returned as a ready-to-render fragment
    * so call-sites don't have to know about StopBreakDecisionDialog.
@@ -646,6 +726,7 @@ export function useWorkSession(
     startSession,
     startSessionWithDistanceCheck,
     stopSession,
+    stopAny,
     cancelPendingSession,
     getActiveTimer,
     resolveTargetCoords,

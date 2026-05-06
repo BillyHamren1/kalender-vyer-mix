@@ -7,6 +7,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
 import { useActiveDayState, type ActiveDayOpenEntry } from '@/hooks/useActiveDayState';
+import { useWorkSession } from '@/hooks/useWorkSession';
+import { useMobileBookings } from '@/hooks/useMobileData';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { extractUTCTime } from '@/utils/dateUtils';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { toast } from 'sonner';
@@ -55,6 +58,9 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
   const { state, refresh } = useActiveDayState();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<null | 'stop' | 'not_work'>(null);
+  const { staff } = useMobileAuth();
+  const { data: bookings = [] } = useMobileBookings();
+  const { stopAny, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
 
   const wd = state?.workday;
   const open = state?.open_entries ?? [];
@@ -78,14 +84,27 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
     ? Math.floor(state.latest_ping_age_ms / 60000)
     : null;
 
+  const buildTargetForEntry = (entry: ActiveDayOpenEntry) => {
+    if (entry.target_kind === 'large_project' && entry.target_id) {
+      return { kind: 'project' as const, largeProjectId: entry.target_id, name: entry.target_label };
+    }
+    if (entry.target_kind === 'booking' && entry.target_id) {
+      return { kind: 'booking' as const, bookingId: entry.target_id, client: entry.target_label };
+    }
+    if (entry.target_kind === 'location' && entry.target_id) {
+      return { kind: 'location' as const, locationId: entry.target_id, name: entry.target_label };
+    }
+    return undefined;
+  };
+
   const handleStop = async () => {
     if (!primary || busy) return;
     setBusy('stop');
     try {
-      await mobileApi.stopOpenEntry({
-        entry_id: primary.id,
-        stop_source: 'user_manual',
-        stop_reason: 'day_status_stop',
+      await stopAny({
+        target: buildTargetForEntry(primary),
+        serverEntryId: primary.id,
+        stopReason: 'day_status_stop',
       });
       toast.success('Timer stoppad');
       await refresh();
@@ -102,11 +121,11 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
     if (!confirm('Markera som ej arbete? Ingen tidrapport sparas och den öppna posten stängs.')) return;
     setBusy('not_work');
     try {
-      await mobileApi.stopOpenEntry({
-        entry_id: primary.id,
-        skip_time_report: true,
-        stop_source: 'user_manual',
-        stop_reason: 'mark_not_work',
+      await stopAny({
+        target: buildTargetForEntry(primary),
+        serverEntryId: primary.id,
+        skipReport: true,
+        stopReason: 'mark_not_work',
       });
       toast.success('Markerat som ej arbete');
       await refresh();
@@ -131,6 +150,7 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
   }
 
   return (
+    <>
     <section className="rounded-2xl border border-border bg-card shadow-sm p-4 space-y-4">
       {/* Top row — workday + payable */}
       <div className="flex items-start justify-between gap-3">
@@ -193,6 +213,8 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
         )}
       </div>
     </section>
+    {workSessionDialogs}
+    </>
   );
 };
 

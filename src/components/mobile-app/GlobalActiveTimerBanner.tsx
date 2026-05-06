@@ -89,7 +89,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
+  const { stopSession, stopAny, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
   const { current: currentWorkday, start: startWorkday } = useWorkDay();
   const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
   const [startingDay, setStartingDay] = useState(false);
@@ -467,17 +467,16 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // active_day_state så raden försvinner.
   const handleStopServerEntry = useCallback(async (entry: ActiveDayOpenEntryLite) => {
     try {
-      await mobileApi.stopOpenEntry({
-        entry_id: entry.id,
-        stop_source: 'user_manual',
-        stop_reason: 'banner_stop_server_only',
+      await stopAny({
+        serverEntryId: entry.id,
+        stopReason: 'banner_stop_server_only',
       });
       toast.success('Aktivitet stoppad');
       await refreshActiveDayState();
     } catch (err: any) {
       toast.error(err?.message || t('common.couldNotSaveRetry'));
     }
-  }, [refreshActiveDayState, t]);
+  }, [stopAny, refreshActiveDayState, t]);
 
   return (
     <>

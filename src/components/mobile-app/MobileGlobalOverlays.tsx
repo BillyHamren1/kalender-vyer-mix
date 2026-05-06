@@ -585,12 +585,20 @@ const MobileGlobalOverlays: React.FC = () => {
 
   const handleStaleDiscard = useCallback(async (key: string) => {
     const entry = staleTimers.find((s) => s.key === key);
-    if (entry?.timer.locationId) {
-      try { await mobileApi.stopLocationTimer({ location_id: entry.timer.locationId }); } catch {}
+    if (!entry) return;
+    try {
+      // Route through unified stop engine — skips time_report and closes
+      // any matching server entry. Same path for local-only and server-only.
+      const target = timerToTarget(key, entry.timer);
+      await stopSession({ ...target, ...(target.kind === 'location' ? { createsTimeReport: false } : {}) } as any, {
+        breakChoice: { kind: 'no_break' },
+      });
+    } catch (err) {
+      console.warn('[StaleDiscard] stopSession failed (non-fatal):', err);
     }
     dismissStale(key);
     toast.message('Timer kastad');
-  }, [staleTimers, dismissStale]);
+  }, [staleTimers, dismissStale, stopSession]);
 
   // Prefetch inbox so it's cached before the user opens it.
   useEffect(() => {
