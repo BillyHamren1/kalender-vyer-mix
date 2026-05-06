@@ -1019,6 +1019,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           lookupStatus: 'failed' as any,
           lookupError: lookup.geo?.error ?? 'lookup_failed',
           tokenAvailable: lookup.geo?.tokenAvailable ?? (p as any).tokenAvailable ?? null,
+          source: lookup.geo?.source ?? null,
+          cacheKey: lookup.geo?.cacheKey ?? null,
         } as T;
       }
       const g = lookup.geo;
@@ -1030,6 +1032,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         lookupStatus: status as any,
         lookupError: g.error ?? null,
         tokenAvailable: g.tokenAvailable ?? true,
+        source: g.source ?? null,
+        cacheKey: g.cacheKey ?? null,
       } as T;
     };
     return blockTimeline.map(b => {
