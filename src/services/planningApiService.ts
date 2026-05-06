@@ -176,7 +176,7 @@ export const updateLogisticsViaApi = (bookingId: string, data: {
   ground_nails_allowed?: boolean;
   exact_time_needed?: boolean;
   exact_time_info?: string;
-}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
 
 // ===== Product CRUD via Booking API =====
 
