@@ -289,7 +289,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
             Resa <span className="font-medium text-foreground">{fmtMin(totals.travel)}</span>
           </span>
           {totals.unallocated > 0 && (
-            <span className="tabular-nums text-amber-600">
+            <span className="tabular-nums text-muted-foreground" title="Ej fördelat på projekt — blockerar inte godkännande.">
               Oallokerat <span className="font-medium">{fmtMin(totals.unallocated)}</span>
             </span>
           )}
