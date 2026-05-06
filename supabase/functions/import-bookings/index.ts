@@ -967,18 +967,83 @@ async function reconcileCalendarEvents(
 
   // ── LARGE PROJECT OVERRIDE ──────────────────────────────────────────────
   // If this booking belongs to a "Projekt stort" (large_projects), the project
-  // owns the authoritative multi-day schedule (start_date[], event_date[], end_date[]).
-  // Each sub-booking should materialize calendar events for EVERY project day so
-  // the staff calendar shows the full duration per team — not only the single
-  // legacy rigdaydate/eventdate/rigdowndate the Booking system originally sent.
+  // owns the authoritative multi-day schedule. We CONSOLIDATE: only ONE
+  // representative sub-booking per LP writes calendar_events. All other
+  // sub-bookings skip phase-event creation entirely (logged via
+  // [large-project-booking-phase-skipped]). The planner derivation already
+  // groups by (largeProjectId, phase, date, team) so the rep row is enough
+  // to render the project tile; sibling bookings are exposed as metadata.
+  let isLargeProjectRep = false;
+  let largeProjectIdForGuard: string | null = null;
   try {
     const { data: parentBooking } = await supabase
       .from('bookings')
       .select('large_project_id')
       .eq('id', bookingData.id)
       .maybeSingle();
-    const lpId = parentBooking?.large_project_id;
+    const lpId = parentBooking?.large_project_id
+      || (await supabase
+        .from('large_project_bookings')
+        .select('large_project_id')
+        .eq('booking_id', bookingData.id)
+        .maybeSingle()).data?.large_project_id
+      || null;
     if (lpId) {
+      largeProjectIdForGuard = lpId;
+      // Find ALL sibling booking_ids in this LP (master = large_project_bookings,
+      // fallback = bookings.large_project_id) and pick the lexicographically
+      // smallest UUID as the deterministic rep.
+      const [{ data: lpbRows }, { data: bRows }] = await Promise.all([
+        supabase.from('large_project_bookings').select('booking_id').eq('large_project_id', lpId),
+        supabase.from('bookings').select('id').eq('large_project_id', lpId),
+      ]);
+      const siblingIds = new Set<string>([
+        bookingData.id,
+        ...((lpbRows || []).map((r: any) => r.booking_id).filter(Boolean)),
+        ...((bRows || []).map((r: any) => r.id).filter(Boolean)),
+      ]);
+      const repId = Array.from(siblingIds).sort()[0];
+      isLargeProjectRep = repId === bookingData.id;
+
+      if (!isLargeProjectRep) {
+        // Skip ALL phase-event creation for non-rep sub-bookings. Log each
+        // would-be phase explicitly so we can audit Game Fair-class issues.
+        const skippedPhases: Array<{ phase: string; date: string }> = [];
+        for (const d of rigDates) skippedPhases.push({ phase: 'rig', date: d });
+        for (const d of eventDates) skippedPhases.push({ phase: 'event', date: d });
+        for (const d of rigdownDates) skippedPhases.push({ phase: 'rigDown', date: d });
+        for (const sp of skippedPhases) {
+          console.info('[large-project-booking-phase-skipped]', {
+            booking_id: bookingData.id,
+            booking_number: bookingData.booking_number || null,
+            phase: sp.phase,
+            date: sp.date,
+            largeProjectId: lpId,
+            rep_booking_id: repId,
+            reason: 'booking belongs to large project; only the representative sub-booking materializes calendar_events for the LP',
+          });
+        }
+        // Remove any pre-existing phase rows owned by this non-rep booking.
+        if ((existingEvents || []).length > 0) {
+          const idsToDelete = (existingEvents || [])
+            .filter((e: any) => e.event_type === 'rig' || e.event_type === 'rigDown' || e.event_type === 'event')
+            .map((e: any) => e.id);
+          if (idsToDelete.length > 0) {
+            const { error: delErr } = await supabase
+              .from('calendar_events')
+              .delete()
+              .in('id', idsToDelete);
+            if (delErr) {
+              console.error('[Calendar Reconcile] Failed to clean up non-rep LP phase events:', delErr);
+            } else {
+              console.log(`[Calendar Reconcile] Cleaned ${idsToDelete.length} stale non-rep LP phase events for booking ${bookingData.id}`);
+            }
+          }
+        }
+        return;
+      }
+
+      // REP path: use the LP's authoritative date arrays.
       const { data: lp } = await supabase
         .from('large_projects')
         .select('start_date, event_date, end_date')
@@ -990,7 +1055,7 @@ async function reconcileCalendarEvents(
       if (lpRig.length > 0) rigDates = [...new Set(lpRig)].sort();
       if (lpEvent.length > 0) eventDates = [...new Set(lpEvent)].sort();
       if (lpDown.length > 0) rigdownDates = [...new Set(lpDown)].sort();
-      console.log(`[Calendar Reconcile] LargeProject override for booking ${bookingData.id} (lp=${lpId}): rig=${rigDates.length}, event=${eventDates.length}, rigDown=${rigdownDates.length}`);
+      console.log(`[Calendar Reconcile] LP REP override for booking ${bookingData.id} (lp=${lpId}): rig=${rigDates.length}, event=${eventDates.length}, rigDown=${rigdownDates.length}`);
     }
   } catch (lpErr) {
     console.error(`[Calendar Reconcile] Large project override failed:`, lpErr);
