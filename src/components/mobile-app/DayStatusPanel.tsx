@@ -58,6 +58,9 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
   const { state, refresh } = useActiveDayState();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<null | 'stop' | 'not_work'>(null);
+  const { staff } = useMobileAuth();
+  const { data: bookings = [] } = useMobileBookings();
+  const { stopAny, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
 
   const wd = state?.workday;
   const open = state?.open_entries ?? [];
