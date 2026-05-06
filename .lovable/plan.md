@@ -1,28 +1,56 @@
 ## Problem
 
-Skärmdumpen visar "närmsta: 2603-84 · Magnusson Petfood AB" för en GPS-vistelse. `2603-84` är en **sub-booking under ett stort projekt**, inte ett fristående jobb. Det är fel beteende — vi ska aldrig föreslå (eller "extrahera") en underliggande bokning ur ett stort projekt; det stora projektet är planeringsenheten.
+På raden för en okänd vistelse (t.ex. `Mjölbyvägen 10, 573 34 Tranås — Okänt projekt`) visas bara gatuadressen. Användaren vill se **vad som faktiskt ligger på platsen** (POI-namn / verksamhet) så det går snabbt att avgöra om det är ett kommande bygge, ett tidigare bygge, en kund, eller bara en privat adress.
 
-## Orsak
+## Rotorsak
 
-Efter ±21d-fönsterutökningen i `src/pages/StaffTimeReports.tsx` pushas **alla** bokningar i fönstret som egna `KnownSite` (`booking:<id>`), inklusive de som har `large_project_id != null`. När `findNearestSite` sedan letar närmsta kandidat kan en sub-booking vinna över sitt eget stora projekt (t.ex. för att den har en något annan `delivery_latitude`, eller för att stora projektets `address_*` inte är satta). UI skriver då ut bokningens `booking_number · client` istället för det stora projektets namn.
-
-Detta är samma princip som vår memory `large-project-team-source-of-truth-v1` / `large/management`: stora projekt planeras på projektnivå — sub-bookings ska inte exponeras som självständiga "närmsta projekt"-förslag.
+`useReverseGeocodeRich` skickar idag ETT Mapbox-anrop med `limit=1&types=poi,address,…`. Mapbox returnerar då typiskt en `address.*`-feature och POI-fältet blir tomt. Slutlabeln blir gatuadress, och `poiName/poiCategory` försvinner. Inget i UI visar POI separat även när det finns.
 
 ## Lösning
 
-Ett enda, minimalt fix i `src/pages/StaffTimeReports.tsx` (KnownSites-bygget runt rad 605–700):
+Två parallella Mapbox-anrop per okänd punkt + utöka rendering så POI alltid syns när Mapbox känner till en verksamhet.
 
-1. Hämta `large_project_id` på bokningarna i båda queries (`bookingsWindowRes` och `bookingCoordsRes`).
-2. När en booking-rad har `large_project_id != null`:
-   - Pusha **inte** den som en egen `KnownSite` (`booking:<id>`) i kandidatpoolen.
-   - Undantag: om bokningens id finns i `bookingIds` (dvs. en time_report/LTE faktiskt pekar på sub-bookingen) får den vara kvar — då är det redan en bekräftad rapportkälla, inte ett "närmsta"-gissningsförslag.
-3. Säkerställ att det stora projektet det tillhör finns i poolen även om `large_projects.address_latitude` saknas: fall tillbaka på första underliggande bokningens `delivery_latitude/longitude` för `large:<lp_id>` så att GPS-förslaget pekar på projektet (med projektets namn) istället för en sub-booking.
+### 1. `src/hooks/useReverseGeocodeRich.ts`
 
-Resultat: GPS-vistelser nära ett stort projekts adress får antingen "närmsta: <Stora projektets namn>" eller — om vi saknar koordinater för båda — ingen kandidat alls. Aldrig "närmsta: <booking_number> · <client>" för en sub-booking.
+- Gör två fetch i parallell mot Mapbox reverse:
+  - `?types=address&limit=1` → adress + ort
+  - `?types=poi&limit=5` → upp till 5 POI inom ~100 m
+- Plocka närmaste meningsfulla POI (filtrera bort `category=residential`, ren adress, etc.).
+- Returnera utökad `RichGeocode`:
+  - `address`, `city` (oförändrat)
+  - `poiName`, `poiCategory` (närmaste POI ≤ ~100 m)
+  - Ny: `nearbyPois: Array<{ name; category; distanceMeters }>` (max 3, sorterade på avstånd) — för debug-expand och tooltip.
+- `label`: behåll dagens prioritet (POI > adress) men säkerställ att POI inte slukar gatuadressen — lägg den i `address` så UI kan visa båda.
 
-## Filer som ändras
+### 2. `src/lib/staff/dayBlockTimeline.ts` → `ResolvedPlace`
 
-- `src/pages/StaffTimeReports.tsx` — lägg till `large_project_id` i select, filtrera vid `pushSite`, fall tillbaka på sub-booking-koordinater för `large:<id>` när address_latitude saknas.
-- `src/lib/staff/__tests__/nearestKnownSite.regression.test.ts` — ny test: sub-booking med `large_project_id` får inte föreslås som närmsta; stora projektet vinner.
+- Lägg till valfria fält `poiName`, `poiCategory`, `nearbyPois` på `ResolvedPlace` (de propageras redan från `useReverseGeocodeRich` via `applyEndpoint` i `ActualDayPanel`, men typen behöver fälten).
 
-Inga ändringar i `actualStaffDayModel.ts` / `dayBlockTimeline.ts` behövs — de jobbar bara mot KnownSites-poolen vi matar in.
+### 3. `src/components/staff/DayBlockTimelineView.tsx` → `PresenceRow`
+
+För `presenceKind === 'unknown'`-rader med upplöst adress:
+
+- Huvudraden visar adressen som idag (klickbar Google Maps-länk).
+- **Ny chip** direkt efter adressen: `📍 <poiName>` med tooltip = `<poiCategory> · ~<dist> m` när POI finns. Klick = öppna Google Maps på POI.
+- Fortsätter med befintlig subtitle `Okänt projekt – sparas som övrigt · närmsta: Tiomila 2026 (2287 m)`.
+- I expand-vyn: lista `nearbyPois` (max 3) som "I närheten: Företag A · Företag B · Företag C".
+
+### 4. Test
+
+Lägg till en regression i `src/lib/staff/__tests__/` som mockar två-anropsvarianten och säkerställer att en feature med POI-träff ger `poiName` även när bästa adress också finns.
+
+## Resultat
+
+Raden går från:
+
+```
+12:04–12:45 · 41m   Mjölbyvägen 10, 573 34 Tranås · Okänt projekt – sparas som övrigt · närmsta: Tiomila 2026 (2287 m)
+```
+
+till:
+
+```
+12:04–12:45 · 41m   Mjölbyvägen 10, 573 34 Tranås · 📍 Westmans Bil  ·  Okänt projekt – sparas som övrigt · närmsta: Tiomila 2026 (2287 m)
+```
+
+så det syns omedelbart vad som ligger där, utan att GPS-träffen automatiskt klassas som arbete.
