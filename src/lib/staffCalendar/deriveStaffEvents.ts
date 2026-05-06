@@ -340,7 +340,8 @@ export const deriveStaffEvents = (input: DeriveInput): DerivedStaffEvent[] => {
     const booking = bookings.get(a.booking_id);
     if (!booking) continue;
 
-    const lpId = booking.large_project_id || bookingToLP.get(booking.id);
+    // Master order: large_project_bookings membership wins over bookings.large_project_id (fallback only)
+    const lpId = bookingToLP.get(booking.id) || booking.large_project_id;
 
     if (lpId) {
       const project = largeProjects.get(lpId);
