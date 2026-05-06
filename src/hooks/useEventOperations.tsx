@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { updateCalendarEvent } from '@/services/eventService';
-import { setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
+import { type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import { toast } from 'sonner';
