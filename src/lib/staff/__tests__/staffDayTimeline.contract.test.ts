@@ -123,6 +123,7 @@ describe('buildStaffDayTimeline — fältkontrakt', () => {
     expect(keys).toEqual(
       [
         'date',
+        'evidence',
         'payable_minutes',
         'review_count',
         'review_required',
@@ -132,6 +133,7 @@ describe('buildStaffDayTimeline — fältkontrakt', () => {
         'status',
         'workday_end',
         'workday_start',
+        'workday_suggested',
       ],
     );
   });
