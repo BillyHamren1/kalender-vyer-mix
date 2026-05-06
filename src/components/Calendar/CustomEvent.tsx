@@ -360,12 +360,23 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   return (
     <>
-      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
-        <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+      <EventActionPopover
+        event={event}
+        setEvents={setEvents}
+        onUpdate={onEventResize}
+        onOpenDetails={handleViewDetails}
+        onMoveDate={() => {
+          if (moveDateHandlers.canOpen()) {
+            moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
+            setShowDateDialog(true);
+          }
+        }}
+      >
+        <div onContextMenu={handleContextMenu} onDoubleClick={handleViewDetails} style={{ width: '100%', height: '100%' }}>
           {eventCardContent}
         </div>
-      </EventHoverCard>
-      
+      </EventActionPopover>
+
       {/* Date Move Dialog — LEGACY local state, gated by editController */}
       <MoveEventDateDialog
         open={showDateDialog}
