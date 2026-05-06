@@ -1261,9 +1261,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             <div className="font-medium text-blue-900 dark:text-blue-100">
               {autoRepairState === 'running'
                 ? `Arbetsdag auto-skapas från ${fmtHm(repairIndicators.proposedStartIso!)}…`
-                : autoRepairState === 'created'
-                  ? `Arbetsdag auto-skapad från ${fmtHm(repairIndicators.proposedStartIso!)}`
-                  : `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${fmtHm(repairIndicators.proposedStartIso!)}`}
+                : `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${fmtHm(repairIndicators.proposedStartIso!)}`}
             </div>
             <div className="text-blue-900/80 dark:text-blue-100/80">
               Föreslagen start <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedStartIso!)}</span>
@@ -1273,13 +1271,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               {' · '}{repairIndicators.reasonCodes.join(', ')}
             </div>
           </div>
-          {/* Auto-repair är primär väg vid hög säkerhet. Manuell knapp visas
-              bara som fallback när auto-repair är avstängd, inte högconf, eller
-              backend stoppade auto-repair. */}
+          {/* Auto-repair är primär väg vid hög säkerhet. När den lyckats
+              döljs hela bannern (hasWorkdayEffective). Manuell knapp visas
+              bara som fallback. */}
           {autoRepairState === 'running' ? (
             <Badge variant="outline" className="text-[10px]">Skapar…</Badge>
-          ) : autoRepairState === 'created' ? (
-            <Badge variant="outline" className="text-[10px]">Skapad</Badge>
           ) : onRepairWorkdayFromEvidence ? (
             <Button size="sm" disabled={repairBusy} onClick={handleRepair}>
               {repairBusy ? 'Skapar…' : 'Skapa arbetsdag'}
