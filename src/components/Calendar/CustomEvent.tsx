@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource, getEventColor, loadResourcesFromStorage } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
+import { useNavigate } from 'react-router-dom';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import { deleteCalendarEvent } from '@/services/eventService';
@@ -39,6 +40,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
+  const navigate = useNavigate();
   
   // EDIT CONTROLLER: Global mutex via context — shared across all events
   const editController = useGlobalEditController();
@@ -72,6 +74,12 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   // Context menu handlers
   const handleViewDetails = useCallback(() => {
+    // LP-tiles har medvetet bookingId=undefined — navigera direkt till projektet.
+    const largeProjectId = (event.extendedProps as any)?.largeProjectId;
+    if (event.extendedProps?.isLargeProject && largeProjectId) {
+      navigate(`/large-project/${largeProjectId}`);
+      return;
+    }
     if (event.bookingId) {
       // Create mock event info for navigation
       const mockEventInfo = {
@@ -96,7 +104,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       };
       handleEventClick(mockEventInfo);
     }
-  }, [event, handleEventClick]);
+  }, [event, handleEventClick, navigate]);
 
   // Handle removing a cancelled event from the calendar
   const handleRemoveCancelledEvent = useCallback(async (e: React.MouseEvent) => {

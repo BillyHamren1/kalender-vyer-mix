@@ -58,9 +58,11 @@ const LargeProjectLayout = () => {
   const { project, isLoading } = detail;
   const bookings = project?.bookings || [];
 
-  // Derive times from linked bookings (earliest start, latest end)
+  // Derive dates AND times directly from linked bookings (single source of
+  // truth — same data the planner calendar reads). Per-booking date arrays
+  // are unioned, deduped and sorted so what users see matches the calendar.
   const derivedTimes = useMemo(() => {
-    const bs = bookings.map(b => b.booking).filter(Boolean);
+    const bs = bookings.map(b => b.booking).filter(Boolean) as any[];
     const earliest = (vals: (string | null | undefined)[]) => {
       const valid = vals.filter(Boolean).map(v => v!.includes('T') ? v!.substring(11, 16) : v!.substring(0, 5)).sort();
       return valid[0] || null;
@@ -69,6 +71,16 @@ const LargeProjectLayout = () => {
       const valid = vals.filter(Boolean).map(v => v!.includes('T') ? v!.substring(11, 16) : v!.substring(0, 5)).sort();
       return valid[valid.length - 1] || null;
     };
+    const collectDates = (singleField: string, arrayField: string) => {
+      const set = new Set<string>();
+      for (const b of bs) {
+        const arr = (b?.[arrayField] as string[] | null) || [];
+        for (const d of arr) if (d) set.add(String(d).slice(0, 10));
+        const single = b?.[singleField];
+        if (single) set.add(String(single).slice(0, 10));
+      }
+      return Array.from(set).sort();
+    };
     return {
       startStart: earliest(bs.map(b => b!.rig_start_time)),
       startEnd: latest(bs.map(b => b!.rig_end_time)),
@@ -76,8 +88,12 @@ const LargeProjectLayout = () => {
       eventEnd: latest(bs.map(b => b!.event_end_time)),
       endStart: earliest(bs.map(b => b!.rigdown_start_time)),
       endEnd: latest(bs.map(b => b!.rigdown_end_time)),
+      rigDates: collectDates('rigdaydate', 'rig_dates'),
+      eventDates: collectDates('eventdate', 'event_dates'),
+      rigDownDates: collectDates('rigdowndate', 'rigdown_dates'),
     };
   }, [bookings]);
+
 
   // Resolve project_leader UUID to name
   const rawLeader = project?.project_leader || null;
@@ -418,9 +434,9 @@ const LargeProjectLayout = () => {
           {/* Datumkort flyttade in i headern */}
           <div className="mt-4 pt-4 border-t border-border/40">
             <LargeProjectScheduleEditable
-              startDates={project.start_date}
-              eventDates={project.event_date}
-              endDates={project.end_date}
+              startDates={derivedTimes.rigDates}
+              eventDates={derivedTimes.eventDates}
+              endDates={derivedTimes.rigDownDates}
               startStartTime={derivedTimes.startStart}
               startEndTime={derivedTimes.startEnd}
               eventStartTime={derivedTimes.eventStart}
