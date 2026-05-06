@@ -54,3 +54,12 @@ StaffDaySegment.kind ∈ project | travel | warehouse | break | other | unknown
 ## UI-konsumenter
 
 Ny admin-UI (StaffTimeReportsList, StaffTimeReportDetail, AdminTimeReviewDashboard) ska konsumera `StaffDayTimeline` via `buildStaffDayTimelineFromRaw`. "Bevisning/Audit"-vyer som vill visa råa rader öppnas separat och slår upp via `evidence.*Ids`.
+
+## Etapp 2 (2026-05-06): time_reports är inte huvudvy
+
+`time_reports` är **segment-/fördelningsdata inuti StaffDayTimeline**, inte primär lista i admin-UI:
+
+- `StaffDayTimelineCard` renderar bara `timeline.segments` i huvudvyn. Den gamla rad-tabellen (`TimeReportReviewTable`) skickas in som `reportSlot` men renderas **inuti `RawEvidenceDrawer`** — aldrig som primär lista.
+- Saknas time_report men workday finns: visas som `unknown`/`other`-segment via gap-fyllning, **aldrig som "0h"**.
+- Attest sker på dagsnivå via "Godkänn dagen"-knappen på kortet (godkänner alla `evidence.timeReportIds` i en bulk-mutation). Per-rad-attest finns kvar i drawern och i `TimeReportApprovalPanel` (legacy).
+- Mobile-vyer (`MobileTimeReport`, `MobileTimeHistory`) ingår INTE i denna etapp.

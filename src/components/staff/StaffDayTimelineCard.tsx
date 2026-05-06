@@ -31,8 +31,10 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ActualDayPanel } from './ActualDayPanel';
 import { RawEvidenceDrawer } from './RawEvidenceDrawer';
+import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import {
   buildStaffDayTimelineFromRaw,
@@ -134,6 +136,7 @@ function SegmentRow({ seg }: { seg: StaffDaySegment }) {
 export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props) => {
   const { staffName, date, model } = props;
   const [showRaw, setShowRaw] = useState(false);
+  const { approveMutation } = useApproveTimeReport();
 
   const timeline = useMemo(() => {
     const wd = model.reportState.workday;
@@ -198,17 +201,31 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
             )}
           </p>
         </div>
-        {timeline.review_required && (
-          <button
-            type="button"
-            onClick={() => setShowRaw(true)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200"
-            title="Öppna rådata för att granska"
-          >
-            <AlertTriangle className="h-3.5 w-3.5" />
-            <span>{timeline.review_count} {timeline.review_count === 1 ? 'sak' : 'saker'} att granska</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {timeline.review_required && (
+            <button
+              type="button"
+              onClick={() => setShowRaw(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200"
+              title="Öppna rådata för att granska"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>{timeline.review_count} {timeline.review_count === 1 ? 'sak' : 'saker'} att granska</span>
+            </button>
+          )}
+          {timeline.evidence.timeReportIds.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant={timeline.review_required ? 'outline' : 'default'}
+              disabled={approveMutation.isPending}
+              onClick={() => approveMutation.mutate(timeline.evidence.timeReportIds)}
+              title="Godkänn alla tidrapporter för dagen"
+            >
+              {approveMutation.isPending ? 'Godkänner…' : 'Godkänn dagen'}
+            </Button>
+          )}
+        </div>
       </header>
 
       {/* Segments — systemets bästa tolkning */}
@@ -224,10 +241,9 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
         </div>
       )}
 
-      {/* Eventuellt rapport-slot direkt under (inkommande prop) */}
-      {props.reportSlot && <div className="pt-1">{props.reportSlot}</div>}
-
-      {/* Rådata / bevisning — öppnas i en sidopanel (drawer). */}
+      {/* Rådata / bevisning — öppnas i en sidopanel (drawer).
+          OBS: reportSlot (rad-tabellen) renderas EJ i huvudvyn längre.
+          time_reports är segment-/fördelningsdata och visas i drawern. */}
       <div className="border-t pt-2">
         <button
           type="button"
@@ -235,7 +251,7 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronRight className="h-3.5 w-3.5" />
-          <span>Visa rådata / bevisning</span>
+          <span>Visa rådata / bevisning{props.reportSlot ? ' · rapportrader' : ''}</span>
         </button>
       </div>
 
@@ -254,8 +270,8 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
           date: props.date,
           model: props.model,
           lastPingIso: props.lastPingIso,
-          reportSlot: undefined,
-          extraActions: props.extraActions,
+          reportSlot: props.reportSlot,
+          extraActions: undefined,
           rawGpsSlot: props.rawGpsSlot,
           onAdjustWorkday: props.onAdjustWorkday,
           onCreateDistributionFromGps: props.onCreateDistributionFromGps,
