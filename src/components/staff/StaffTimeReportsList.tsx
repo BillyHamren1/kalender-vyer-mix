@@ -172,7 +172,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
     });
     if (error) throw new Error(error.message);
     if ((data as any)?.error) throw new Error((data as any).error);
-    const created = ((data as any)?.summary?.created ?? 0) > 0;
+    const created = ((data as any)?.results ?? []).some((row: any) => row?.staff_id === staffId && row?.date === dateStr && row?.action === 'created');
     if (created) {
       await queryClient.invalidateQueries({ queryKey: ['staff-time-reports'] });
       await queryClient.invalidateQueries({ queryKey: ['workdays'] });
