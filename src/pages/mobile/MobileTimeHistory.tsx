@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/i18n/LanguageContext';
+import MyDayTimeline from '@/components/mobile-app/MyDayTimeline';
 
 type ViewMode = 'calendar' | 'list';
 type ListFilter = 'week' | 'month';
@@ -290,9 +291,12 @@ const MobileTimeHistory = () => {
             </div>
 
             {selectedDate && (
-              <div className="space-y-1.5">
+              <div className="space-y-3">
+                {/* HUVUDVY för vald dag — den tolkade arbetsdagen, inte rådata. */}
+                <MyDayTimeline date={format(selectedDate, 'yyyy-MM-dd')} />
+
                 <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">
-                  {format(selectedDate, 'd MMMM yyyy', { locale: dfLocale })}
+                  Rådata · {format(selectedDate, 'd MMMM yyyy', { locale: dfLocale })}
                 </h3>
                 {selectedDateReports.length === 0 ? (
                   <div className="text-center py-6">

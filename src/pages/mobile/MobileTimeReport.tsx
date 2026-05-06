@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
 import DayStatusPanel from '@/components/mobile-app/DayStatusPanel';
 import MobileDayCard from '@/components/mobile-app/MobileDayCard';
+import MyDayTimeline from '@/components/mobile-app/MyDayTimeline';
 import { buildMobileDayCardModel, buildDayCardModelFromSnapshot } from '@/lib/mobile/dayCardModel';
 import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
 
@@ -251,7 +252,11 @@ const MobileTimeReport = () => {
       <MobileHeroHeader eyebrow={t('time.eyebrow')} title={t('time.title2')} subtitle={t('time.subtitle2')} />
 
       <div className="flex-1 px-5 pt-5 pb-28 space-y-4 w-full min-w-0 max-w-full box-border">
-        {/* Day status — primary view: workday + current activity + actions (server snapshot) */}
+        {/* HUVUDVY — användarens tolkade dag (samma kanoniska StaffDayTimeline
+            som admin ser). time_reports lever kvar som rådata längre ned. */}
+        <MyDayTimeline />
+
+        {/* Day status — workday + current activity + actions (server snapshot) */}
         <DayStatusPanel onChanged={fetchReports} />
 
         {/* Active timers (legacy multi-timer list). Server snapshot is authority:
@@ -302,9 +307,11 @@ const MobileTimeReport = () => {
         )}
 
 
-        {/* Header with small "new" button */}
+        {/* Header — rådata-sektion. Huvudvyn är MyDayTimeline ovan. */}
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{t('time.myReports2')}</h2>
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            Rådata · {t('time.myReports2')}
+          </h2>
           {!showForm && (
             <Button
               type="button"
@@ -318,6 +325,9 @@ const MobileTimeReport = () => {
             </Button>
           )}
         </div>
+        <p className="text-[11px] text-muted-foreground -mt-1">
+          Enskilda time_report-rader. Min dag ovan visar den tolkade arbetsdagen.
+        </p>
 
         {/* Report form (collapsible) */}
         {showForm && (
