@@ -140,14 +140,37 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
 
   const timeline = useMemo(() => {
     const wd = model.reportState.workday;
+
+    // Klassa workday-ursprung. Auto-repair/cron/watchdog visas inte med text
+    // i huvudvyn — bara via review_required + evidence/notes.
+    const startedBy = (wd?.started_by ?? '').toLowerCase();
+    const wdAutoOrigin: string | null =
+      startedBy.startsWith('auto_repair') ? 'auto_repair'
+      : startedBy === 'cron' || startedBy === 'watchdog' || startedBy === 'system'
+        ? startedBy
+        : null;
+
+    // Syntetiska källor som ALDRIG ska bli huvudsegment.
+    const SYNTHETIC_LTE_SOURCES = new Set([
+      'auto_assigned',
+      'auto_assigned_bg',
+      'auto_assigned_backfill',
+      'ai_reconciled',
+      'system',
+      'watchdog',
+      'cron',
+    ]);
+    const SYNTHETIC_TRAVEL_SOURCES = new Set([
+      'geofence_auto_switch_server_backfill',
+      'server_background_gps_backfill',
+    ]);
+
     const timeReports: BuilderTimeReportInput[] = model.reportState.timeReports.map((r) => ({
       id: r.id,
       start_iso: r.start_iso,
       end_iso: r.end_iso,
       hours: r.hours,
       label: r.label,
-      // Klassificering: project för bookings/large_projects, location för
-      // location_id, annars 'project' som default. Travel hanteras separat.
       category: r.large_project_id || r.booking_id
         ? 'project'
         : r.location_id
@@ -155,28 +178,46 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
           : 'project',
       approved: r.approved,
     }));
-    const travelLogs: BuilderTravelLogInput[] = model.reportState.travelLogs.map((t) => ({
-      id: t.id,
-      start_iso: t.start_iso,
-      end_iso: t.end_iso,
-      fromAddress: t.fromAddress,
-      toAddress: t.toAddress,
-      approved: t.approved,
-      destinationBookingId: null,
-    }));
-    const locationEntries: BuilderLocationEntryInput[] = model.reportState.locationEntries.map((l) => ({
-      id: l.id,
-      entered_at: l.entered_at,
-      exited_at: l.exited_at,
-      label: l.label,
-      presenceOnly: l.isPresenceOnly,
-    }));
+    const travelLogs: BuilderTravelLogInput[] = model.reportState.travelLogs.map((t) => {
+      const src = String(t.source ?? '').toLowerCase();
+      const synthetic = SYNTHETIC_TRAVEL_SOURCES.has(src);
+      return {
+        id: t.id,
+        start_iso: t.start_iso,
+        end_iso: t.end_iso,
+        fromAddress: t.fromAddress,
+        toAddress: t.toAddress,
+        approved: t.approved,
+        destinationBookingId: null,
+        synthetic,
+        autoOrigin: synthetic ? src : null,
+      };
+    });
+    const locationEntries: BuilderLocationEntryInput[] = model.reportState.locationEntries.map((l) => {
+      const src = String(l.source ?? '').toLowerCase();
+      const meta = (l.metadata && typeof l.metadata === 'object') ? l.metadata as Record<string, any> : {};
+      const autoStartSrc = String(meta.auto_start_source ?? '').toLowerCase();
+      const isBackfill = autoStartSrc === 'server_background_gps_backfill'
+        || src === 'auto_geofence_server_backfill';
+      const synthetic = SYNTHETIC_LTE_SOURCES.has(src) || isBackfill;
+      return {
+        id: l.id,
+        entered_at: l.entered_at,
+        exited_at: l.exited_at,
+        label: l.label,
+        presenceOnly: l.isPresenceOnly,
+        synthetic,
+        autoOrigin: synthetic ? (isBackfill ? 'server_background_gps_backfill' : src) : null,
+      };
+    });
 
     return buildStaffDayTimelineFromRaw({
       staff_id: props.staffId ?? 'unknown',
       staff_name: staffName,
       date,
-      workday: wd ? { id: wd.id, started_at: wd.started_at, ended_at: wd.ended_at } : null,
+      workday: wd
+        ? { id: wd.id, started_at: wd.started_at, ended_at: wd.ended_at, autoOrigin: wdAutoOrigin }
+        : null,
       timeReports,
       travelLogs,
       locationEntries,
