@@ -115,7 +115,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   const gridTemplateColumns = fullWidth
     ? `${TIME_COLUMN_WIDTH}px repeat(${resources.length}, 1fr) ${TIME_COLUMN_WIDTH}px`
-    : `${TIME_COLUMN_WIDTH}px ${resources.map(() => `${TEAM_COLUMN_WIDTH}px`).join(' ')} ${TIME_COLUMN_WIDTH}px`;
+    : `${TIME_COLUMN_WIDTH}px ${teamColumnWidths.map((w) => `${w}px`).join(' ')} ${TIME_COLUMN_WIDTH}px`;
   const totalWidth = fullWidth ? '100%' : `${TIME_COLUMN_WIDTH * 2 + totalTeamColumnsWidth}px`;
   const rightTimeColumn = resources.length + 2;
 
