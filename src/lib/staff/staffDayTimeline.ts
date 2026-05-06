@@ -88,6 +88,17 @@ export interface StaffDaySegment {
   payable: boolean;
 }
 
+export interface StaffDayEvidence {
+  /** Råa kvitton — får INTE renderas som segments. Endast audit/bevisning. */
+  workdayRowIds?: string[];
+  timeReportIds?: string[];
+  travelLogIds?: string[];
+  locationEntryIds?: string[];
+  assistantEventIds?: string[];
+  /** Frikopplade noteringar (ex. "GPS visade ankomst 06:42 men ingen workday öppen"). */
+  notes?: string[];
+}
+
 export interface StaffDayTimeline {
   staff_id: string;
   staff_name: string;
@@ -95,6 +106,8 @@ export interface StaffDayTimeline {
   date: string;
   workday_start: string | null;
   workday_end: string | null;
+  /** True när workday saknas men start/slut härleddes ur evidence (GPS/timer). */
+  workday_suggested: boolean;
   status: StaffDayStatus;
   /** Summan av payable segmenters minuter. */
   payable_minutes: number;
@@ -102,6 +115,8 @@ export interface StaffDayTimeline {
   review_required: boolean;
   /** Antal saker som behöver granskas (okända block + oresolved flags + anomalies). */
   review_count: number;
+  /** Råa källrader — för audit/bevisning. UI får ALDRIG bygga segments av detta. */
+  evidence: StaffDayEvidence;
 }
 
 export interface BuildStaffDayTimelineInput {
