@@ -467,17 +467,16 @@ const GlobalActiveTimerBanner: React.FC = () => {
   // active_day_state så raden försvinner.
   const handleStopServerEntry = useCallback(async (entry: ActiveDayOpenEntryLite) => {
     try {
-      await mobileApi.stopOpenEntry({
-        entry_id: entry.id,
-        stop_source: 'user_manual',
-        stop_reason: 'banner_stop_server_only',
+      await stopAny({
+        serverEntryId: entry.id,
+        stopReason: 'banner_stop_server_only',
       });
       toast.success('Aktivitet stoppad');
       await refreshActiveDayState();
     } catch (err: any) {
       toast.error(err?.message || t('common.couldNotSaveRetry'));
     }
-  }, [refreshActiveDayState, t]);
+  }, [stopAny, refreshActiveDayState, t]);
 
   return (
     <>
