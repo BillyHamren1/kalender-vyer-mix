@@ -1998,7 +1998,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             <Sparkles className="h-3 w-3" />
             Föreslagna korrigeringar
           </h4>
-          <ul className="space-y-1.5">
+          <ul className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
             {model.proposedReport.anomalies.map((a: ProposedAnomaly) => (
               <li
                 key={a.id}
