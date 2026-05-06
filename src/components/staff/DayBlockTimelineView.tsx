@@ -288,19 +288,59 @@ const isDebugRelevant = (p: PlaceLike): boolean => {
   return true;
 };
 
+const explainLookupError = (err: string | null | undefined): string | null => {
+  if (!err) return null;
+  if (err === 'mapbox_token_unavailable') return 'Mapbox-token saknas (edge function mapbox-token returnerade inget) — geocoding kan inte köras.';
+  if (err === 'no_features') return 'Mapbox returnerade 0 features för koordinaten — punkten ligger troligen i obebott område.';
+  if (err === 'no_label_resolvable') return 'Mapbox-svar saknade användbar plats/adress.';
+  if (err === 'lookup_not_started') return 'Reverse-geocode-query har inte startat ännu.';
+  if (err === 'lookup_failed') return 'Geocoding misslyckades utan specifik orsak.';
+  if (err === 'missing_coords') return 'Saknar lat/lng — kan inte slå upp adress.';
+  const httpMatch = err.match(/^mapbox_http_(\d+)$/);
+  if (httpMatch) {
+    const code = httpMatch[1];
+    if (code === '401' || code === '403') return `Mapbox HTTP ${code} — token avvisad/utan behörighet (kontrollera mapbox-token-funktionen och token-scopes).`;
+    if (code === '429') return 'Mapbox HTTP 429 — rate limit nådd.';
+    return `Mapbox HTTP ${code}.`;
+  }
+  if (err.startsWith('exception:')) return `Undantag vid fetch: ${err.slice('exception:'.length)}`;
+  return null;
+};
+
 const PlaceDebugPanel: React.FC<{
   title: string;
-  place: PlaceLike & { lookupError?: string | null; nearestKnownSite?: any; unmatchReason?: string | null; pingCount?: number | null; avgAccuracy?: number | null };
+  place: PlaceLike & {
+    lookupError?: string | null;
+    tokenAvailable?: boolean | null;
+    source?: string | null;
+    cacheKey?: string | null;
+    nearestKnownSite?: any;
+    unmatchReason?: string | null;
+    pingCount?: number | null;
+    avgAccuracy?: number | null;
+  };
 }> = ({ title, place }) => {
   if (!place || !isDebugRelevant(place)) return null;
   const hasCoord = place.lat != null && place.lng != null;
   const mapUrl = buildMapUrl(place);
   const nearest = (place as any).nearestKnownSite ?? null;
   const distM = nearest?.distanceMeters ?? null;
+  const errExplanation = explainLookupError(place.lookupError);
+  const tokenAvail = place.tokenAvailable;
   const rows: Array<[string, React.ReactNode]> = [
     ['lat/lng', hasCoord ? `${place.lat!.toFixed(6)}, ${place.lng!.toFixed(6)}` : <span className="text-rose-600">saknas</span>],
     ['lookupStatus', String(place.lookupStatus ?? '—')],
-    ['lookupError', place.lookupError ? <span className="text-rose-600">{place.lookupError}</span> : '—'],
+    ['lookupError', place.lookupError
+      ? <span className="text-rose-600">{place.lookupError}</span>
+      : '—'],
+    ...(errExplanation ? [['→ orsak', <span className="text-rose-600">{errExplanation}</span>] as [string, React.ReactNode]] : []),
+    ['tokenAvailable', tokenAvail == null
+      ? '—'
+      : tokenAvail
+        ? <span className="text-emerald-600">ja</span>
+        : <span className="text-rose-600">nej (mapbox-token saknas)</span>],
+    ['source', place.source ?? '—'],
+    ['cacheKey', place.cacheKey ?? '—'],
     ['mapUrl', mapUrl
       ? <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">öppna<ExternalLink className="h-3 w-3" /></a>
       : '—'],
