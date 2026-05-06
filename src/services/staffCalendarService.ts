@@ -178,12 +178,32 @@ export const getStaffCalendarEvents = async (
       (rows || []).forEach(b => bookings.set(b.id, b));
     }
 
-    // 4) Large projects referenced via memberships OR via bookings
+    // 4) Large projects referenced via memberships, via bookings.large_project_id,
+    //    OR (authoritative) via large_project_bookings membership.
+    //    large_project_bookings is the MASTER for LP membership; bookings.large_project_id
+    //    is a mirrored convenience column that may be stale/NULL on sub-bookings.
     const lpIdsFromMembership = largeProjectStaff.map(r => r.large_project_id);
     const lpIdsFromBookings = Array.from(bookings.values())
       .map((b: any) => b.large_project_id)
       .filter(Boolean);
-    const lpIds = Array.from(new Set([...lpIdsFromMembership, ...lpIdsFromBookings]));
+
+    // Authoritative lookup: which of our assigned bookings are part of any large project?
+    let lpbByBookingRows: Array<{ large_project_id: string; booking_id: string }> = [];
+    if (bookingIds.length > 0) {
+      const { data: lpbByBooking, error: lpbByBookingErr } = await supabase
+        .from('large_project_bookings')
+        .select('large_project_id, booking_id')
+        .in('booking_id', bookingIds);
+      if (lpbByBookingErr) console.error('[staffCalendar] large_project_bookings (by booking) fetch error:', lpbByBookingErr);
+      lpbByBookingRows = (lpbByBooking || []) as any[];
+    }
+    const lpIdsFromLpb = lpbByBookingRows.map(r => r.large_project_id);
+
+    const lpIds = Array.from(new Set([
+      ...lpIdsFromMembership,
+      ...lpIdsFromBookings,
+      ...lpIdsFromLpb,
+    ]));
 
     const largeProjects = new Map<string, any>();
     let largeProjectBookings: Array<{ large_project_id: string; booking_id: string }> = [];
@@ -203,6 +223,19 @@ export const getStaffCalendarEvents = async (
       if (lpbErr) console.error('[staffCalendar] large_project_bookings fetch error:', lpbErr);
       (lpRows || []).forEach((p: any) => largeProjects.set(p.id, p));
       largeProjectBookings = (lpbRows || []) as any[];
+    }
+
+    // Dev log: surface large-project grouping inputs for debugging
+    if (largeProjects.size > 0) {
+      const groupCounts = new Map<string, number>();
+      for (const r of largeProjectBookings) {
+        groupCounts.set(r.large_project_id, (groupCounts.get(r.large_project_id) || 0) + 1);
+      }
+      console.log('[staff-calendar-large-project-grouping]', {
+        largeProjectIds: Array.from(largeProjects.keys()),
+        bookingsByLp: Object.fromEntries(groupCounts),
+        recoveredFromLpb: lpIdsFromLpb.filter(id => !lpIdsFromBookings.includes(id) && !lpIdsFromMembership.includes(id)),
+      });
     }
 
     // 5) Calendar events used only for enrichment.
