@@ -25,6 +25,7 @@ import { useStaffDayStatus } from '@/hooks/useStaffDayStatus';
 import MobileTimeTabs, { type TimeTabId } from '@/components/mobile-app/time/MobileTimeTabs';
 import TimeCalendarTab from '@/components/mobile-app/time/TimeCalendarTab';
 import TimeReportTab from '@/components/mobile-app/time/TimeReportTab';
+import TodayTab from '@/components/mobile-app/time/TodayTab';
 
 const MobileTimeReport = () => {
   const navigate = useNavigate();
