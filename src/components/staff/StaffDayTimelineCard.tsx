@@ -23,7 +23,6 @@ import { format } from 'date-fns';
 import {
   AlertTriangle,
   ArrowRight,
-  ChevronDown,
   ChevronRight,
   Clock,
   HelpCircle,
@@ -33,6 +32,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ActualDayPanel } from './ActualDayPanel';
+import { RawEvidenceDrawer } from './RawEvidenceDrawer';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import {
   buildStaffDayTimelineFromRaw,
@@ -227,47 +227,49 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
       {/* Eventuellt rapport-slot direkt under (inkommande prop) */}
       {props.reportSlot && <div className="pt-1">{props.reportSlot}</div>}
 
-      {/* Rådata / bevisning — collapsed by default */}
+      {/* Rådata / bevisning — öppnas i en sidopanel (drawer). */}
       <div className="border-t pt-2">
         <button
           type="button"
-          onClick={() => setShowRaw((v) => !v)}
+          onClick={() => setShowRaw(true)}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
-          {showRaw ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          <ChevronRight className="h-3.5 w-3.5" />
           <span>Visa rådata / bevisning</span>
         </button>
-        {showRaw && (
-          <div className="mt-3">
-            <ActualDayPanel
-              staffName={props.staffName}
-              staffId={props.staffId}
-              date={props.date}
-              model={props.model}
-              lastPingIso={props.lastPingIso}
-              reportSlot={undefined /* renderas redan ovan */}
-              extraActions={props.extraActions}
-              rawGpsSlot={props.rawGpsSlot}
-              onAdjustWorkday={props.onAdjustWorkday}
-              onCreateDistributionFromGps={props.onCreateDistributionFromGps}
-              onApproveTravelSuggestion={props.onApproveTravelSuggestion}
-              onIgnoreEvent={props.onIgnoreEvent}
-              onRecomputeDay={props.onRecomputeDay}
-              onShowRawGps={props.onShowRawGps}
-              onResolvePlannedGap={props.onResolvePlannedGap}
-              onRepairWorkdayFromEvidence={props.onRepairWorkdayFromEvidence}
-              onAutoRepairWorkdayFromEvidence={props.onAutoRepairWorkdayFromEvidence}
-              autoRepairEnabled={props.autoRepairEnabled}
-              onWorkdayChanged={props.onWorkdayChanged}
-            />
-          </div>
-        )}
       </div>
 
       {/* Action-rad utanför rådata om props.extraActions skickats */}
-      {!showRaw && props.extraActions && (
+      {props.extraActions && (
         <div className="flex items-center pt-1">{props.extraActions}</div>
       )}
+
+      <RawEvidenceDrawer
+        open={showRaw}
+        onOpenChange={setShowRaw}
+        timeline={timeline}
+        panelProps={{
+          staffName: props.staffName,
+          staffId: props.staffId,
+          date: props.date,
+          model: props.model,
+          lastPingIso: props.lastPingIso,
+          reportSlot: undefined,
+          extraActions: props.extraActions,
+          rawGpsSlot: props.rawGpsSlot,
+          onAdjustWorkday: props.onAdjustWorkday,
+          onCreateDistributionFromGps: props.onCreateDistributionFromGps,
+          onApproveTravelSuggestion: props.onApproveTravelSuggestion,
+          onIgnoreEvent: props.onIgnoreEvent,
+          onRecomputeDay: props.onRecomputeDay,
+          onShowRawGps: props.onShowRawGps,
+          onResolvePlannedGap: props.onResolvePlannedGap,
+          onRepairWorkdayFromEvidence: props.onRepairWorkdayFromEvidence,
+          onAutoRepairWorkdayFromEvidence: props.onAutoRepairWorkdayFromEvidence,
+          autoRepairEnabled: props.autoRepairEnabled,
+          onWorkdayChanged: props.onWorkdayChanged,
+        }}
+      />
     </section>
   );
 };
