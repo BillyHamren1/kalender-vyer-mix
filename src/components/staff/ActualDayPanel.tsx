@@ -1011,18 +1011,26 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       if (lookup.status === 'loading') {
         return { ...p, label: 'Slår upp adress…', mapUrl, lookupStatus: 'pending' as any, lookupError: null } as T;
       }
-      if (lookup.status === 'error' || !lookup.geo) {
+      if (lookup.status === 'error' || !lookup.geo || lookup.geo.unresolved === true) {
         return {
           ...p,
           label: 'Okänd plats – adress kunde inte hämtas',
           mapUrl,
           lookupStatus: 'failed' as any,
           lookupError: lookup.geo?.error ?? 'lookup_failed',
+          tokenAvailable: lookup.geo?.tokenAvailable ?? (p as any).tokenAvailable ?? null,
         } as T;
       }
       const g = lookup.geo;
       const status = g.poiName ? 'poi_lookup' : 'reverse_geocoded';
-      return { ...p, label: g.label, mapUrl, lookupStatus: status as any, lookupError: g.error ?? null } as T;
+      return {
+        ...p,
+        label: g.label,
+        mapUrl,
+        lookupStatus: status as any,
+        lookupError: g.error ?? null,
+        tokenAvailable: g.tokenAvailable ?? true,
+      } as T;
     };
     return blockTimeline.map(b => {
       if (b.kind === 'presence') {
