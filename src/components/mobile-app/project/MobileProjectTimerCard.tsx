@@ -64,15 +64,7 @@ export const MobileProjectTimerCard = ({ largeProjectId, projectName }: Props) =
 
   const projectKey = `project-${largeProjectId}`;
   const currentTimer = activeTimers.get(projectKey);
-  const [, setTick] = useState(0);
   const [stopping, setStopping] = useState(false);
-
-  // Tick once per second only when a project timer is running.
-  useEffect(() => {
-    if (!currentTimer) return;
-    const id = setInterval(() => setTick((x) => x + 1), 1000);
-    return () => clearInterval(id);
-  }, [currentTimer]);
 
   // Sum hours_worked logged today on this large project.
   // Subdivisions are metadata only — never sum them or we'd double-count.
