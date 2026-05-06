@@ -11,6 +11,7 @@ import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { HeaderShell, HeaderStartEndDayButton } from '@/components/mobile-app/MobileHeader';
+import WorkDayPanel from '@/components/mobile-app/WorkDayPanel';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
