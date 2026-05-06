@@ -231,6 +231,8 @@ export const buildPlannerCalendarEvents = ({
   const projectGroups = new Map<string, {
     rep: RealCalendarEventRow;
     bookingIds: Set<string>;
+    bookingNumbers: Set<string>;
+    clientNames: Set<string>;
     eventIds: Set<string>;
     earliestStart: string;
     latestEnd: string;
