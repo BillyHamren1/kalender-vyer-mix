@@ -546,11 +546,13 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
   const accent: RowAccent = isProject ? 'project' : 'location';
 
   // Bygg alla badges
+  // OBS: "TIMER SAKNAS" / "ARBETSDAG SAKNAS" / "SIGNAL TAPPAD" / "TIMER SEDAN"
+  // är debug-information och får INTE visas som huvudstatus. De ingår i
+  // den normaliserade DayHeaderPanel istället. Här visar vi bara aktiva
+  // tillstånd och planerings-/granskningsmarkörer.
   const badges: StatusBadge[] = [];
   if (isProject) {
     if (block.timer.active) badges.push({ label: 'TIMER AKTIV', tone: 'ok' });
-    else if (!block.timer.present && !block.timeReport.present) badges.push({ label: 'TIMER SAKNAS', tone: 'warn' });
-    if (!block.timeReport.present && !block.timer.present) badges.push({ label: 'ARBETSDAG SAKNAS', tone: 'warn' });
     if (block.plannedStartIso) badges.push({ label: 'PLANERAD', tone: 'planned' });
     else if (block.sources.gpsVisit || block.arrivalIso) badges.push({ label: 'OPLANERAD', tone: 'info' });
     if (block.sources.gpsVisit || block.arrivalIso) badges.push({ label: 'GPS', tone: 'info' });

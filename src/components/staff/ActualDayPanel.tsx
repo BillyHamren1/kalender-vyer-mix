@@ -43,6 +43,8 @@ import DayBlockTimeline from './DayBlockTimelineView';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useActualDayEventOverrides } from '@/hooks/useActualDayEventOverrides';
 import ExcludedEventsSection from './ExcludedEventsSection';
+import DayHeaderPanel from './DayHeaderPanel';
+import { buildDayHeaderModel } from '@/lib/staff/dayHeaderModel';
 
 /**
  * ActualDayPanel — visar dagen i tre lager:
@@ -529,7 +531,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     });
   };
 
-  const status = deriveStatus(model);
+  // (deriveStatus borttagen — huvudstatus levereras nu av buildDayHeaderModel.)
+  void deriveStatus; // håll borttagningen synlig om legacy-call dyker upp
+
   const wd = model.reportState.workday;
   const wdMin = wd
     ? Math.max(0, Math.round(((wd.ended_at ? new Date(wd.ended_at).getTime() : Date.now()) - new Date(wd.started_at).getTime()) / 60_000))
@@ -1012,14 +1016,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     [projectBlocks],
   );
 
-  // "På projekt just nu" — senaste pågående projektblock (om något).
-  const currentOngoingProject = useMemo(() => {
-    const ongoing = projectBlocks.filter(b => b.ongoing);
-    if (ongoing.length === 0) return null;
-    return ongoing.reduce((latest, b) =>
-      !latest || b.startIso > latest.startIso ? b : latest,
-    null as (typeof ongoing)[number] | null);
-  }, [projectBlocks]);
+  // (Tidigare "På projekt just nu"-banner är borttagen; "Aktiv just nu"
+  // ingår nu i den normaliserade DayHeaderPanel.)
+
 
   // Block-baserad huvudjournal (presence/journey-block).
   // VIKTIGT: bygger PÅ model.actualVisits + model.actualEvents — inte på den
@@ -1166,124 +1165,53 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
   const headerWdMin = effectiveDay ? effectiveDay.wdMin : wdMin;
   const headerWdEmpty = effectiveDay?.empty === true;
 
-  // Projektblock vars motsvarande presenceBlock har exkluderats — döljs
-  // direkt från "På projekt"-bannern.
-  const excludedProjectStartIsos = useMemo(() => {
-    if (!excludedKeys || excludedKeys.size === 0) return new Set<string>();
-    return new Set(
-      enrichedBlockTimeline
-        .filter(b => excludedKeys.has(b.id) && b.kind === 'presence' && (b as any).presenceKind === 'project')
-        .map(b => b.startIso),
-    );
-  }, [excludedKeys, enrichedBlockTimeline]);
-  const visibleOngoingProject = currentOngoingProject && !excludedProjectStartIsos.has(currentOngoingProject.startIso)
-    ? currentOngoingProject
-    : null;
+  // (Tidigare excludedProjectStartIsos / visibleOngoingProject borttaget —
+  // "Aktiv just nu" kommer från DayHeaderPanel och behöver ingen
+  // separat exkluderingslogik.)
 
-  return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-      {/* A. Header */}
-      <div className="px-4 py-3 border-b bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <div className="font-semibold text-sm">{staffName}</div>
-        <div className="text-xs text-muted-foreground tabular-nums">{date}</div>
-        <div className="text-xs">
-          <span className="text-muted-foreground">Arbetsdag </span>
-          {headerWdStart ? (
-            <span className="tabular-nums font-medium text-foreground">
-              {fmtHm(headerWdStart)} → {headerOngoing ? 'pågår' : headerWdEnd ? fmtHm(headerWdEnd) : 'pågår'}
-              {showEffectiveOverlay && (
-                <span className="ml-1 text-[10px] text-amber-700 dark:text-amber-300" title="Tolkning räknad efter admin-exkludering">(omräknad)</span>
-              )}
-            </span>
-          ) : headerWdEmpty ? (
-            <span className="text-amber-600">tom efter exkludering</span>
-          ) : status.kind === 'planned_only' ? (
-            <span className="text-slate-600 dark:text-slate-300">ej startad</span>
-          ) : status.kind === 'review' && /hög säkerhet|förslag/i.test(status.label) ? (
-            <span className="text-blue-700 dark:text-blue-300">saknas (hög säkerhet)</span>
-          ) : (
-            <span className="text-amber-600">saknas</span>
-          )}
-        </div>
-        <div className="text-xs">
-          <span className="text-muted-foreground">Lönegrundande </span>
-          <span className="tabular-nums font-medium text-foreground">{fmtMin(headerWdMin)}</span>
-          {showEffectiveOverlay && wd && headerWdMin !== wdMin && (
-            <span className="ml-1 text-[10px] text-muted-foreground line-through tabular-nums">{fmtMin(wdMin)}</span>
-          )}
-        </div>
-        {(() => {
-          if (!isAutoRepairedWorkday(wd)) return null;
-          const wmeta = (wd as any)?.metadata as any;
-          const src = wmeta?.auto_start_source as string | undefined;
-          const isTimerRepair = src === 'auto_repair_from_timer';
-          const isBackfill = src === 'server_background_gps_backfill' || wmeta?.backfilled === true;
-          return (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <Badge className="bg-indigo-100 text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-100 font-medium">
-                {isTimerRepair ? 'Auto-skapad från timer' : 'Auto-skapad från GPS'}
-                {wmeta?.confidence ? ` · ${wmeta.confidence}` : ''}
-              </Badge>
-              {isBackfill && (
-                <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300">
-                  Backfill
-                </Badge>
-              )}
-            </div>
-          );
-        })()}
-        {planningItems.length > 0 && (
-          <PlanningHeaderPill items={planningItems} />
-        )}
-        <div className="ml-auto">
-          <Badge className={`${statusBadgeClass(status.kind)} font-medium`}>{status.label}</Badge>
-        </div>
-      </div>
 
-      {visibleOngoingProject && (() => {
-        const b = visibleOngoingProject;
-        const timerState: 'active' | 'missing' | 'uncertain' =
-          b.timerActive ? 'active' : b.hasTimer ? 'uncertain' : 'missing';
-        const wdMissing = !b.workdayStarted;
-        const headline =
-          wdMissing ? 'På projekt – arbetsdag saknas'
-          : timerState === 'active' ? 'På projekt – timer aktiv'
-          : timerState === 'uncertain' ? 'På projekt – timer stoppad tidigare'
-          : 'På projekt – ingen timer registrerad';
-        const tone =
-          wdMissing || timerState === 'missing'
-            ? 'border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100'
-            : timerState === 'uncertain'
-              ? 'border-amber-400/50 bg-amber-50/60 dark:bg-amber-950/20 text-amber-900 dark:text-amber-100'
-              : 'border-emerald-500/60 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100';
+  // Normaliserad huvudjournal — samma struktur för alla.
+  const headerModel = useMemo(() => buildDayHeaderModel({ model }), [model]);
+
+  const headerExtras = (
+    <>
+      {isAutoRepairedWorkday(wd) && (() => {
+        const wmeta = (wd as any)?.metadata as any;
+        const src = wmeta?.auto_start_source as string | undefined;
+        const isTimerRepair = src === 'auto_repair_from_timer';
+        const isBackfill = src === 'server_background_gps_backfill' || wmeta?.backfilled === true;
         return (
-          <div className={`px-4 py-3 border-b border-2 ${tone} flex flex-wrap items-center gap-x-4 gap-y-1`}>
-            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 font-bold uppercase tracking-wider text-[10px]">
-              ● På projekt
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Badge className="bg-indigo-100 text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-100 font-medium">
+              {isTimerRepair ? 'Auto-skapad från timer' : 'Auto-skapad från GPS'}
+              {wmeta?.confidence ? ` · ${wmeta.confidence}` : ''}
             </Badge>
-            <div className="font-semibold text-sm truncate min-w-0 max-w-[40ch]">
-              {b.title}
-            </div>
-            <div className="text-xs tabular-nums">
-              <span className="opacity-70">Sedan </span>
-              <span className="font-medium">{fmtHm(b.startIso)}</span>
-            </div>
-            {b.lastPingIso && (
-              <div className="text-xs tabular-nums">
-                <span className="opacity-70">senaste GPS </span>
-                <span className="font-medium">{fmtHm(b.lastPingIso)}</span>
-              </div>
+            {isBackfill && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-400 text-amber-700 dark:text-amber-300">
+                Backfill
+              </Badge>
             )}
-            <div className="text-xs">
-              <span className="opacity-70">Pågått </span>
-              <span className="font-medium tabular-nums">{fmtMin(b.durationMin)}</span>
-            </div>
-            <div className="ml-auto text-xs font-semibold">
-              {headline}
-            </div>
           </div>
         );
       })()}
+      {planningItems.length > 0 && <PlanningHeaderPill items={planningItems} />}
+      {showEffectiveOverlay && (
+        <span className="text-[10px] text-amber-700 dark:text-amber-300" title="Tolkning räknad efter admin-exkludering">
+          (omräknad)
+        </span>
+      )}
+    </>
+  );
+
+  return (
+    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      {/* A. Normaliserad huvudjournal */}
+      <DayHeaderPanel
+        staffName={staffName}
+        date={date}
+        header={headerModel}
+        extra={headerExtras}
+      />
 
       {showRepairBanner && (
         <div className="px-4 py-3 border-b bg-blue-50/60 dark:bg-blue-950/20 flex flex-wrap items-center gap-x-3 gap-y-2">
