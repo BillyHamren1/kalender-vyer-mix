@@ -326,7 +326,8 @@ export function useTimerStartFlow(
    * Distance-aware wrapper around performStart.
    *
    * If we have GPS + target coords AND the user is far away, we open the
-   * DistanceWarningDialog and resolve with `'blocked'`. The dialog's confirm
+   * DistanceWarningDialog and resolve with `'awaiting_distance_confirmation'`.
+   * The dialog's confirm
    * handler triggers a fresh performStart that runs to completion later.
    *
    * Returns the actual outcome from performStart in the no-warning path so
