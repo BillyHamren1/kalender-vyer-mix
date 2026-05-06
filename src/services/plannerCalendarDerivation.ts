@@ -231,6 +231,8 @@ export const buildPlannerCalendarEvents = ({
   const projectGroups = new Map<string, {
     rep: RealCalendarEventRow;
     bookingIds: Set<string>;
+    bookingNumbers: Set<string>;
+    clientNames: Set<string>;
     eventIds: Set<string>;
     earliestStart: string;
     latestEnd: string;
@@ -274,16 +276,22 @@ export const buildPlannerCalendarEvents = ({
 
       const key = `${projectId}|${phase}|${sourceDate}|${row.resource_id}`;
       const existing = projectGroups.get(key);
+      const rowBookingNumber = row.booking_number || booking?.booking_number || '';
+      const rowClientName = booking?.client || '';
       if (!existing) {
         projectGroups.set(key, {
           rep: row,
           bookingIds: new Set(row.booking_id ? [row.booking_id] : []),
+          bookingNumbers: new Set(rowBookingNumber ? [rowBookingNumber] : []),
+          clientNames: new Set(rowClientName ? [rowClientName] : []),
           eventIds: new Set([row.id]),
           earliestStart: row.start_time,
           latestEnd: row.end_time,
         });
       } else {
         if (row.booking_id) existing.bookingIds.add(row.booking_id);
+        if (rowBookingNumber) existing.bookingNumbers.add(rowBookingNumber);
+        if (rowClientName) existing.clientNames.add(rowClientName);
         existing.eventIds.add(row.id);
         if (row.start_time < existing.earliestStart) existing.earliestStart = row.start_time;
         if (row.end_time > existing.latestEnd) existing.latestEnd = row.end_time;
@@ -331,23 +339,29 @@ export const buildPlannerCalendarEvents = ({
     const repBooking = group.rep.booking_id ? bookingsById.get(group.rep.booking_id) : undefined;
     const lptaTeam = projectTeamByKey.get(`${projectId}|${phase}|${sourceDate}`);
     largeProjectEmittedCount++;
+    const includedBookingIds = Array.from(group.bookingIds);
+    const includedBookingNumbers = Array.from(group.bookingNumbers);
+    const includedClientNames = Array.from(group.clientNames);
     events.push({
       id: group.rep.id,
-      title: project?.name || repBooking?.client || group.rep.title,
+      title: project?.name || 'Stort projekt',
       start: group.earliestStart,
       end: group.latestEnd,
       resourceId,
-      bookingId: group.rep.booking_id || undefined,
-      bookingNumber: group.rep.booking_number || repBooking?.booking_number || undefined,
-      booking_number: group.rep.booking_number || repBooking?.booking_number || undefined,
+      // Project-neutral: top-level bookingId/bookingNumber MUST NOT carry a
+      // sub-booking identity for large-project tiles. They live in metadata.
+      bookingId: undefined,
+      bookingNumber: undefined,
+      booking_number: undefined,
       eventType: phase,
-      delivery_address: group.rep.delivery_address || project?.address || repBooking?.deliveryaddress || undefined,
+      delivery_address: project?.address || group.rep.delivery_address || repBooking?.deliveryaddress || undefined,
       extendedProps: {
-        bookingId: group.rep.booking_id || undefined,
-        booking_id: group.rep.booking_id || undefined,
+        // Drilldown only — never used for rendering identity on LP tiles.
+        bookingId: undefined,
+        booking_id: undefined,
         resourceId,
-        deliveryAddress: group.rep.delivery_address || project?.address || repBooking?.deliveryaddress || undefined,
-        bookingNumber: group.rep.booking_number || repBooking?.booking_number || undefined,
+        deliveryAddress: project?.address || group.rep.delivery_address || repBooking?.deliveryaddress || undefined,
+        bookingNumber: undefined,
         eventType: phase,
         sourceDate,
         largeProjectId: projectId,
@@ -356,9 +370,14 @@ export const buildPlannerCalendarEvents = ({
         isSyntheticFallback: false,
         phase,
         manuallyAssigned: false,
-        // All bookings + calendar_events ids that belong to this team-tile.
-        // Drag handler uses this to mutate the whole group atomically.
-        consolidatedBookingIds: Array.from(group.bookingIds),
+        // Underbokningar exponeras endast som metadata för drilldown/debug.
+        // De får inte styra antalet synliga kort eller tile-identitet.
+        includedBookingIds,
+        includedBookingNumbers,
+        includedClientNames,
+        totalIncludedBookings: includedBookingIds.length,
+        // Backward-compat alias used by drag handler — same set as included.
+        consolidatedBookingIds: includedBookingIds,
         consolidatedEventIds: Array.from(group.eventIds),
         lptaTeamId: lptaTeam || undefined,
       },
