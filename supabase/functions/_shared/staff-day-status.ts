@@ -1,5 +1,22 @@
 // Shared logic to build a normalized "staff day snapshot" from raw tables.
 // Pure functions — no I/O. The edge function fetches rows and calls buildStaffDaySnapshot.
+//
+// Workday policy authority: this builder defers all "is this work?" /
+// "may this start the workday?" / "does this count inside the workday?"
+// decisions to ../_shared/workdayPolicy.ts. Unknown / travel segments
+// inside the workday are tagged for review but their minutes are kept
+// inside the workday total (never silently dropped).
+
+import {
+  classifySegment,
+  countsAsPayableUnallocated,
+  countsWithinActiveWorkday,
+  isConfirmedWorksitePresence,
+  suggestedWorkdayStart,
+  type PolicySegment,
+  type PolicyStatus,
+  type PolicyWorkday,
+} from "./workdayPolicy.ts";
 
 export type Iso = string;
 
