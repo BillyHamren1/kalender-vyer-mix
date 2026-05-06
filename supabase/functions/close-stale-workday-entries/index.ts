@@ -830,6 +830,24 @@ serve(async (req) => {
   );
 
   try {
+    if (mode === "backfill") {
+      if (!adminOrgId) {
+        return new Response(JSON.stringify({ error: "admin_required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const result = await processBackfillForOrg(supabase, adminOrgId, {
+        dry_run: !!body?.dry_run,
+        min_age_minutes: body?.min_age_minutes,
+      });
+      console.log("[backfill] done", { org: adminOrgId, ...result, by: adminUserId });
+      return new Response(JSON.stringify({ success: true, mode: "backfill", ...result }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: orgs, error: orgErr } = await supabase
       .from("organizations")
       .select("id");
