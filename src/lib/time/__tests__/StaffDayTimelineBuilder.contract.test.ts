@@ -184,4 +184,44 @@ describe('buildStaffDayTimelineFromRaw — kontrakt', () => {
       'workday_suggested',
     ]);
   });
+
+  describe('synthetic / auto-origin', () => {
+    it('synthetic time_report blir EJ segment, men hamnar i evidence + bumpar review', () => {
+      const out = buildStaffDayTimelineFromRaw({
+        ...base,
+        workday: { id: 'wd1', started_at: iso(7), ended_at: iso(16) },
+        timeReports: [
+          { id: 'tr1', start_iso: iso(8), end_iso: iso(12), hours: 4, label: 'Auto', synthetic: true, autoOrigin: 'auto_repair' },
+        ],
+      });
+      expect(out.segments.some((s) => s.id === 'tr:tr1')).toBe(false);
+      expect(out.evidence.timeReportIds).toContain('tr1');
+      expect(out.review_required).toBe(true);
+      expect(out.evidence.notes.some((n) => /auto-repair|backfill|system/i.test(n))).toBe(true);
+    });
+
+    it('synthetic location_entry (watchdog/clamp) blir EJ segment', () => {
+      const out = buildStaffDayTimelineFromRaw({
+        ...base,
+        workday: { id: 'wd1', started_at: iso(7), ended_at: iso(16) },
+        locationEntries: [
+          { id: 'l1', entered_at: iso(8), exited_at: iso(12), label: 'Plats', presenceOnly: false, synthetic: true, autoOrigin: 'watchdog' },
+        ],
+      });
+      expect(out.segments.some((s) => s.id === 'lte:l1')).toBe(false);
+      expect(out.evidence.locationEntryIds).toContain('l1');
+      expect(out.review_required).toBe(true);
+    });
+
+    it('workday med autoOrigin är fortfarande envelope (ram), men noteras', () => {
+      const out = buildStaffDayTimelineFromRaw({
+        ...base,
+        workday: { id: 'wd1', started_at: iso(7), ended_at: iso(16), autoOrigin: 'auto_repair' },
+      });
+      expect(out.workday_start).toBe(iso(7));
+      expect(out.workday_end).toBe(iso(16));
+      expect(out.review_required).toBe(true);
+      expect(out.evidence.notes.some((n) => /auto/i.test(n))).toBe(true);
+    });
+  });
 });
