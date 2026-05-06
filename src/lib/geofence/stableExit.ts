@@ -20,9 +20,19 @@
 
 export const EXIT_PING_MIN_COUNT = 3;
 export const EXIT_PING_MIN_SPAN_MS = 2 * 60 * 1000;          // 2 min
-export const EXIT_PING_WINDOW_MS = 10 * 60 * 1000;           // trim window
+// Trim window utökat till 35 min så att en outside-ping från för 30 min sedan
+// fortfarande lever kvar i trackern och kan trigga STALE-AUTOSTOP nedan.
+export const EXIT_PING_WINDOW_MS = 35 * 60 * 1000;           // trim window
 export const EXIT_PING_MAX_AGE_MS = 5 * 60 * 1000;           // "no_signal"
 export const EXIT_PING_MAX_ACCURACY_M = 75;
+/**
+ * STALE-OUTSIDE AUTOSTOP (2026-05).
+ * Om vi har ackumulerat outside-pings i ≥30 min utan att personen kommit
+ * tillbaka, tvinga stopp av activity-timern oavsett om stable-exit-gaten
+ * passerat. Stopptiden sätts till FÖRSTA outside-pingen (faktisk lämning),
+ * inte "nu". Workdayen rörs inte.
+ */
+export const EXIT_STALE_AUTOSTOP_MS = 30 * 60 * 1000;
 
 export interface ExitPing {
   /** Wall-clock timestamp (ms). */
