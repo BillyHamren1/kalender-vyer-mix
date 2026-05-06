@@ -54,6 +54,7 @@ const EventActionPopover: React.FC<Props> = ({
   const [showAddDay, setShowAddDay] = useState(false);
   const [savingTime, setSavingTime] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [applyToAll, setApplyToAll] = useState(false);
 
   const { teams, busy: teamBusy, moveOneDay, currentTeamId } = useMoveEventToTeam(event, setEvents, async () => {
     if (onUpdate) await onUpdate();
