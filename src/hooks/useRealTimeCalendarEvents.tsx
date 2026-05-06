@@ -116,7 +116,10 @@ export const useRealTimeCalendarEvents = () => {
           return event;
         });
 
-        // Consolidate large project events: group by (large_project_id, event_type, source_date)
+        // Consolidate large project events: group by (large_project_id, event_type, source_date, resource_id).
+        // Including resourceId means a project that exists in multiple teams the
+        // same day shows as ONE tile per team — matching the planner derivation
+        // and allowing rigdays in different teams to coexist.
         const consolidatedEvents: CalendarEvent[] = [];
         const lpGroupMap = new Map<string, CalendarEvent>();
 
@@ -128,7 +131,7 @@ export const useRealTimeCalendarEvents = () => {
           }
 
           const sourceDate = (event.extendedProps as any)?.sourceDate || event.start?.split('T')[0] || '';
-          const groupKey = `${lpId}-${event.eventType}-${sourceDate}`;
+          const groupKey = `${lpId}-${event.eventType}-${sourceDate}-${event.resourceId}`;
 
           if (!lpGroupMap.has(groupKey)) {
             const projectName = largeProjectMap.get(lpId) || event.title;
@@ -140,7 +143,7 @@ export const useRealTimeCalendarEvents = () => {
                 isLargeProject: true,
                 largeProjectId: lpId,
                 largeProjectName: projectName,
-                consolidatedBookingIds: [event.bookingId]
+                consolidatedBookingIds: (event.extendedProps as any)?.consolidatedBookingIds || [event.bookingId],
               }
             };
             lpGroupMap.set(groupKey, consolidated);
