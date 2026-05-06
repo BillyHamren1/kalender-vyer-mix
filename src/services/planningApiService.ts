@@ -140,7 +140,7 @@ export const updateBookingDatesViaApi = (bookingId: string, data: {
   event_end_time?: string | null;
   rigdown_start_time?: string | null;
   rigdown_end_time?: string | null;
-}) => callPlanningApi({ type: 'update_booking', method: 'POST', booking_id: bookingId, data });
+}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
 
 /**
  * Update delivery details via the Booking system.
