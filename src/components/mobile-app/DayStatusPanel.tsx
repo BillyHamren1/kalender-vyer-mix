@@ -84,14 +84,27 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
     ? Math.floor(state.latest_ping_age_ms / 60000)
     : null;
 
+  const buildTargetForEntry = (entry: ActiveDayOpenEntry) => {
+    if (entry.target_kind === 'large_project' && entry.target_id) {
+      return { kind: 'project' as const, largeProjectId: entry.target_id, name: entry.target_label };
+    }
+    if (entry.target_kind === 'booking' && entry.target_id) {
+      return { kind: 'booking' as const, bookingId: entry.target_id, client: entry.target_label };
+    }
+    if (entry.target_kind === 'location' && entry.target_id) {
+      return { kind: 'location' as const, locationId: entry.target_id, name: entry.target_label };
+    }
+    return undefined;
+  };
+
   const handleStop = async () => {
     if (!primary || busy) return;
     setBusy('stop');
     try {
-      await mobileApi.stopOpenEntry({
-        entry_id: primary.id,
-        stop_source: 'user_manual',
-        stop_reason: 'day_status_stop',
+      await stopAny({
+        target: buildTargetForEntry(primary),
+        serverEntryId: primary.id,
+        stopReason: 'day_status_stop',
       });
       toast.success('Timer stoppad');
       await refresh();
@@ -108,11 +121,11 @@ export const DayStatusPanel: React.FC<Props> = ({ todayReports, onChanged }) => 
     if (!confirm('Markera som ej arbete? Ingen tidrapport sparas och den öppna posten stängs.')) return;
     setBusy('not_work');
     try {
-      await mobileApi.stopOpenEntry({
-        entry_id: primary.id,
-        skip_time_report: true,
-        stop_source: 'user_manual',
-        stop_reason: 'mark_not_work',
+      await stopAny({
+        target: buildTargetForEntry(primary),
+        serverEntryId: primary.id,
+        skipReport: true,
+        stopReason: 'mark_not_work',
       });
       toast.success('Markerat som ej arbete');
       await refresh();
