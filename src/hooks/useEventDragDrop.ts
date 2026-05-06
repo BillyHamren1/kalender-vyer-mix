@@ -297,10 +297,12 @@ export const useEventDragDrop = (
       const primaryDate = (bkRes.data as any)?.[fields.date];
       const isPrimaryDay = primaryDate && primaryDate === currentDateStr;
 
-      // 1. Update the calendar_events row in place
+      // 1. Update the calendar_events row in place.
+      // PERSONALKALENDER-REGEL: vid datumflytt MÅSTE resource_id alltid
+      // sparas tillsammans med start/end (team är dagsspecifikt — samma
+      // teamkolumn på ny dag är en ny dag-team-koppling).
       try {
-        const updatePayload: any = { start: newStartISO, end: newEndISO };
-        if (teamChanged) updatePayload.resourceId = targetTeamId;
+        const updatePayload: any = { start: newStartISO, end: newEndISO, resourceId: targetTeamId };
         if (import.meta.env.DEV) {
           console.info('[calendar-team-change] normal booking (drag)', {
             eventId: eventData.id,
@@ -311,7 +313,8 @@ export const useEventDragDrop = (
             sourceDate: currentDateStr,
             targetDate: targetDateStr,
             oldTeamId: eventData.resourceId,
-            newTeamId: teamChanged ? targetTeamId : eventData.resourceId,
+            newTeamId: targetTeamId,
+            teamChanged,
             updatedEventIds: [realEventId],
             ranRecompute: true,
           });
