@@ -1167,6 +1167,15 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         }
         if (dist <= enterRadius) resetExitTracker(getExitTracker(booking.id));
 
+        // PRESENCE-EXIT CLEANUP (no timer) — se project-grenen.
+        if (dist > exitRadius && !hasTimer && triggeredEnterRef.current.has(booking.id)) {
+          const ev = evaluateExit(booking.id, dist);
+          if (ev.status === 'stable' || ev.status === 'stale_autostop') {
+            triggeredEnterRef.current.delete(booking.id);
+            resetExitTracker(getExitTracker(booking.id));
+          }
+        }
+
         // EXIT while timer is running → STABLE-EXIT GATE (2026-05).
         if (dist > exitRadius && hasTimer && !triggeredExitRef.current.has(booking.id)) {
           const ev = evaluateExit(booking.id, dist);
