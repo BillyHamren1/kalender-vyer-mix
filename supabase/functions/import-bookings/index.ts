@@ -2629,9 +2629,27 @@ serve(async (req) => {
           delivery_postal_code: externalBooking.delivery_postal_code,
           delivery_latitude: externalBooking.delivery_geocode?.lat,
           delivery_longitude: externalBooking.delivery_geocode?.lng,
-          contact_name: externalBooking.contact_name ?? externalBooking.contact_person ?? externalBooking.contact?.name ?? null,
-          contact_phone: externalBooking.contact_phone ?? externalBooking.contact?.phone ?? externalBooking.phone ?? null,
-          contact_email: externalBooking.contact_email ?? externalBooking.contact?.email ?? externalBooking.email ?? null,
+          // Leveranskontakt: externa bokningssystemet skickar primärt
+          // `delivery_contact_name` / `delivery_contact_phone`. Behåll äldre
+          // fallbacks för bakåtkompatibilitet.
+          contact_name:
+            externalBooking.delivery_contact_name
+            ?? externalBooking.contact_name
+            ?? externalBooking.contact_person
+            ?? externalBooking.contact?.name
+            ?? null,
+          contact_phone:
+            externalBooking.delivery_contact_phone
+            ?? externalBooking.contact_phone
+            ?? externalBooking.contact?.phone
+            ?? externalBooking.phone
+            ?? null,
+          contact_email:
+            externalBooking.delivery_contact_email
+            ?? externalBooking.contact_email
+            ?? externalBooking.contact?.email
+            ?? externalBooking.email
+            ?? null,
           carry_more_than_10m: externalBooking.carry_more_than_10m || false,
           ground_nails_allowed: externalBooking.ground_nails_allowed || false,
           exact_time_needed: externalBooking.exact_time_needed || false,
