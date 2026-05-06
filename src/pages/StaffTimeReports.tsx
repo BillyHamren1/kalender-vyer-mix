@@ -622,7 +622,7 @@ const StaffTimeReports: React.FC = () => {
         bookingIds.length
           ? supabase
               .from('bookings')
-              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate, status')
+              .select('id, client, booking_number, large_project_id, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate, status')
               .in('id', bookingIds)
           : Promise.resolve({ data: [] as any[] } as any),
         largeProjectIds.length
