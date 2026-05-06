@@ -63,3 +63,15 @@ Ny admin-UI (StaffTimeReportsList, StaffTimeReportDetail, AdminTimeReviewDashboa
 - Saknas time_report men workday finns: visas som `unknown`/`other`-segment via gap-fyllning, **aldrig som "0h"**.
 - Attest sker på dagsnivå via "Godkänn dagen"-knappen på kortet (godkänner alla `evidence.timeReportIds` i en bulk-mutation). Per-rad-attest finns kvar i drawern och i `TimeReportApprovalPanel` (legacy).
 - Mobile-vyer (`MobileTimeReport`, `MobileTimeHistory`) ingår INTE i denna etapp.
+
+## Etapp 3 (2026-05-06): Auto-repair / watchdog / backfill aldrig som segment
+
+Builder-input stödjer nu `synthetic?: boolean` + `autoOrigin?: string` på time_reports/travel/location_entries och `autoOrigin?: string` på workday. Regler:
+
+- `synthetic=true` ⇒ raden visas **aldrig** som huvudsegment. Den ligger kvar i `evidence.*Ids` och bidrar med en not till `evidence.notes` + räknas mot `review_count`.
+- Workday med `autoOrigin` används **fortfarande** som envelope (ram för dagen) — men en not lyfts: "Arbetsdag skapad automatiskt (auto_repair)".
+- Källor som callsiten i `StaffDayTimelineCard` markerar som synthetic:
+  - LTE source ∈ {auto_assigned, auto_assigned_bg, auto_assigned_backfill, ai_reconciled, system, watchdog, cron} eller `metadata.auto_start_source = server_background_gps_backfill`.
+  - Travel source ∈ {geofence_auto_switch_server_backfill, server_background_gps_backfill}.
+  - Workday `started_by` börjar med `auto_repair` eller är `cron`/`watchdog`/`system`.
+- Förbjudna texter i huvudvyn: `server_background_gps_backfill`, `auto_closed_by_later_action`, `gps_on_known_work_site`, `auto_repair_from_timer`. De får endast visas i `RawEvidenceDrawer` / `ActualDayPanel`.
