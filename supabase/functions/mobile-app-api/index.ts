@@ -290,6 +290,7 @@ async function ensureOpenWorkday(
   return ins
 }
 
+async function handleRequest(req: Request, rotationSlot: { token: string | null }): Promise<Response> {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
