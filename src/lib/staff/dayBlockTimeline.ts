@@ -353,7 +353,8 @@ const strengthFromMeta = (ev: ActualEvent, fallbackMin: number): PresenceStrengt
 };
 
 export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[] {
-  const { mainEvents = [], allEvents, visitByKey, actualVisits = [] } = input;
+  const { mainEvents = [], allEvents, visitByKey, actualVisits = [], workContextStartIso = null } = input;
+  const workCtxMs = workContextStartIso ? new Date(workContextStartIso).getTime() : null;
 
   const blocks: DayBlock[] = [];
   const consumedEventIds = new Set<string>();
