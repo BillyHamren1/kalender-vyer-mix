@@ -3,6 +3,8 @@ import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./st
 import { fetchStaffMembers, StaffMember } from "./staffService";
 import { format } from "date-fns";
 import { deriveStaffEvents } from "@/lib/staffCalendar/deriveStaffEvents";
+import { validateLargeProjectGrouping } from "@/lib/staffCalendar/validateLargeProjectGrouping";
+import { resolveLargeProjectMembershipFromRows } from "@/lib/largeProject/resolveLargeProjectMembership";
 
 export interface StaffResource {
   id: string;
