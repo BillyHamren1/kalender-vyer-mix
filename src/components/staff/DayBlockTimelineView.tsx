@@ -157,11 +157,34 @@ const PlaceLabel: React.FC<{
 
 const GRID = 'grid grid-cols-[190px_minmax(0,1fr)_110px_20px] items-center gap-2';
 
+const fmtHmsLive = (startIso: string, nowMs: number) => {
+  const startMs = new Date(startIso).getTime();
+  const sec = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+};
+
 const TimeCell: React.FC<{ startIso: string; endIso?: string | null; durationMin: number; ongoing?: boolean }> = ({ startIso, endIso, durationMin, ongoing }) => {
-  const range = endIso && !ongoing
-    ? `${fmtHm(startIso)}–${fmtHm(endIso)}`
-    : `${fmtHm(startIso)} → pågår`;
-  // Alltid en rad: "06:51–07:33 · 42m"
+  const [now, setNow] = useState(() => Date.now());
+  React.useEffect(() => {
+    if (!ongoing) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [ongoing]);
+
+  if (ongoing) {
+    return (
+      <div className="text-xs tabular-nums whitespace-nowrap truncate">
+        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+          {fmtHm(startIso)} → pågår
+        </span>
+        <span className="text-emerald-700 dark:text-emerald-400"> · {fmtHmsLive(startIso, now)}</span>
+      </div>
+    );
+  }
+  const range = endIso ? `${fmtHm(startIso)}–${fmtHm(endIso)}` : `${fmtHm(startIso)} → pågår`;
   return (
     <div className="text-xs tabular-nums whitespace-nowrap truncate">
       <span className="font-semibold text-foreground">{range}</span>
@@ -169,6 +192,7 @@ const TimeCell: React.FC<{ startIso: string; endIso?: string | null; durationMin
     </div>
   );
 };
+
 
 type RowAccent = 'project' | 'location' | 'journey' | 'gap';
 
