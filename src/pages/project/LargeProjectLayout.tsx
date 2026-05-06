@@ -286,34 +286,32 @@ const LargeProjectLayout = () => {
     const dateFieldMap = { rig: 'start_date', event: 'event_date', rigDown: 'end_date' } as const;
     const bookingIds = bookings.map(b => b.booking_id);
 
-    // SAFETY: Booking system (source of truth) MUST be written first.
-    // Only after that succeeds do we update the local large_projects mirror
-    // and the Gantt period. This prevents the UI from showing dates as
-    // "saved" when the actual booking write failed.
-    if (dates.length > 0 && bookingIds.length > 0) {
-      try {
-        await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
-      } catch (err: any) {
-        console.error('Error regenerating calendar for project dates:', err);
-        // Force refetch so UI reverts to actual server state.
-        queryClient.invalidateQueries({ queryKey: ['large-project', id] });
-        queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
-        const msg = err?.message || 'Okänt fel';
-        toast.error(`Kunde inte uppdatera kalendern: ${msg}`);
-        return;
-      }
-    }
-
-    // Booking write OK → mirror to local large_projects + Gantt
+    // 1. Skriv lokalt till large_projects FÖRST — det är source of truth för LP-datum.
+    //    import-bookings-reconcileraren läser sedan dessa när calendar_events regenereras.
     try {
       await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
     } catch (err) {
       console.error('Local large_projects update failed:', err);
       queryClient.invalidateQueries({ queryKey: ['large-project', id] });
-      toast.error('Kunde inte spara datumen lokalt — laddar om');
+      toast.error('Kunde inte spara datumen — laddar om');
       return;
     }
 
+    // 2. Trigga calendar_events-regenerering från de nya LP-datumen.
+    if (bookingIds.length > 0) {
+      try {
+        await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
+      } catch (err: any) {
+        console.error('Error regenerating calendar for project dates:', err);
+        queryClient.invalidateQueries({ queryKey: ['large-project', id] });
+        queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
+        const msg = err?.message || 'Okänt fel';
+        toast.error(`Datumen sparades men kalendern kunde inte regenereras: ${msg}`);
+        return;
+      }
+    }
+
+    // 3. Spegla till Gantt-perioden.
     try {
       const ganttKeyMap = { rig: 'establishment', event: 'event', rigDown: 'deestablishment' } as const;
       const ganttKey = ganttKeyMap[dateType];
@@ -332,7 +330,7 @@ const LargeProjectLayout = () => {
 
     queryClient.invalidateQueries({ queryKey: ['large-project', id] });
     if (dates.length === 0 || bookingIds.length === 0) return;
-    toast.success('Schema uppdaterat för alla bokningar');
+    toast.success('Schema uppdaterat');
   };
 
   return (
