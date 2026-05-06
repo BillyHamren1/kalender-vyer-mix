@@ -13,11 +13,19 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
+import { AddressMapDialog } from './AddressMapDialog';
+
 interface ExcludeCtx {
   canExclude: boolean;
   onExclude?: (blockId: string) => void | Promise<void>;
 }
 const ExcludeContext = createContext<ExcludeCtx>({ canExclude: false });
+
+interface MapCtx {
+  staffId?: string;
+  date?: string;
+}
+const MapContext = createContext<MapCtx>({});
 
 const RowExcludeButton: React.FC<{ blockId: string; label: string }> = ({ blockId, label }) => {
   const { canExclude, onExclude } = useContext(ExcludeContext);
