@@ -41,7 +41,7 @@ const emptyModel = (date: string, withWorkday = true): ActualStaffDayModel => ({
   },
   lastPingAgeMin: null,
   signalLost: false,
-  workStartDecision: { case: 'E', reason: 'no-evidence' } as ActualStaffDayModel['workStartDecision'],
+  workStartDecision: {} as ActualStaffDayModel['workStartDecision'],
 });
 
 const presence = (overrides: Partial<PresenceBlock>): PresenceBlock => ({
