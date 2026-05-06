@@ -272,3 +272,95 @@ export function statusLabel(status: DayStatus): string {
     case 'error':    return 'Kräver korrigering';
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Snapshot-driven builder.
+//
+// When the mobile app already has a server-built StaffDaySnapshot from the
+// `get-staff-day-status` Edge Function, we MUST use that as the source of
+// truth instead of recombining workdays/time_reports/travel_logs locally.
+// This keeps admin and mobile views in lockstep.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface SnapshotLike {
+  date: string;
+  workday: {
+    id: string;
+    startedAt: string;
+    endedAt: string | null;
+    isOpen: boolean;
+    reviewStatus: string | null;
+    approved: boolean;
+    durationMinutes: number;
+  } | null;
+  active: { startedAt: string; durationMinutes: number } | null;
+  totals: {
+    workdayMinutes: number;
+    allocatedProjectMinutes: number;
+    travelMinutes: number;
+    unallocatedMinutes: number;
+    isWorkdayOpen: boolean;
+  };
+  flags: Array<{ type: string; severity: 'info' | 'warning' | 'error'; title: string; description: string | null }>;
+}
+
+export function buildDayCardModelFromSnapshot(snap: SnapshotLike): DayCardModel {
+  const wd = snap.workday;
+  const reportedMinutes = snap.totals.allocatedProjectMinutes;
+  const travelMinutes = snap.totals.travelMinutes;
+  const distributedMinutes = reportedMinutes + travelMinutes;
+  const workdayMinutes = snap.totals.workdayMinutes;
+  const unallocatedMinutes = snap.totals.unallocatedMinutes;
+
+  // Map server flags → local DayError taxonomy (only the ones the card cares about).
+  const errors: DayError[] = [];
+  for (const f of snap.flags) {
+    if (f.type === 'missing_workday') {
+      errors.push({ kind: 'workday_missing', label: f.title, detail: f.description ?? '' });
+    } else if (f.type === 'missing_end_time') {
+      errors.push({ kind: 'workday_no_end', label: f.title, detail: f.description ?? '' });
+    } else if (f.type === 'overlap') {
+      errors.push({ kind: 'overlap', label: f.title, detail: f.description ?? '' });
+    }
+  }
+  const overDistributed = workdayMinutes > 0 && distributedMinutes > workdayMinutes + 1;
+  if (overDistributed) {
+    errors.push({
+      kind: 'over_distributed',
+      label: 'För mycket rapporterat',
+      detail: 'Mer projekt-/restid är rapporterad än vad arbetsdagen tillåter.',
+    });
+  }
+  const hasActiveTimer = !!snap.active;
+  if (hasActiveTimer && wd?.endedAt) {
+    errors.push({
+      kind: 'active_timer',
+      label: 'Aktiv timer kvar',
+      detail: 'En timer är fortfarande igång efter att arbetsdagen avslutades.',
+    });
+  }
+
+  const reviewApproved = !!wd?.approved;
+  let status: DayStatus;
+  if (reviewApproved) status = 'approved';
+  else if (errors.length > 0) status = 'error';
+  else if (snap.totals.isWorkdayOpen) status = 'ongoing';
+  else status = 'ready';
+
+  return {
+    date: snap.date,
+    workdayStartIso: wd?.startedAt ?? null,
+    workdayEndIso: wd?.endedAt ?? null,
+    workdayMinutes,
+    isWorkdayOpen: snap.totals.isWorkdayOpen,
+    reviewApproved,
+    reportedMinutes,
+    travelMinutes,
+    distributedMinutes,
+    unallocatedMinutes,
+    status,
+    errors,
+    hasActiveTimer,
+    hasOverlap: errors.some((e) => e.kind === 'overlap'),
+    overDistributed,
+  };
+}
