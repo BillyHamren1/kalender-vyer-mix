@@ -160,7 +160,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   const handleAutoRepairFromEvidence = async (
     staffId: string,
     input: { reasonCodes: string[] },
-  ): Promise<{ created: boolean }> => {
+  ): Promise<{ status: 'created' | 'existing' | 'skipped' }> => {
     const { data, error } = await supabase.functions.invoke('mobile-app-api', {
       body: {
         action: 'auto_repair_missing_workdays_from_evidence',
@@ -172,12 +172,20 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
     });
     if (error) throw new Error(error.message);
     if ((data as any)?.error) throw new Error((data as any).error);
-    const created = ((data as any)?.results ?? []).some((row: any) => row?.staff_id === staffId && row?.date === dateStr && row?.action === 'created');
-    if (created) {
+    const matchingRow = ((data as any)?.results ?? []).find(
+      (row: any) => row?.staff_id === staffId && row?.date === dateStr,
+    );
+    const status: 'created' | 'existing' | 'skipped' =
+      matchingRow?.action === 'created'
+        ? 'created'
+        : matchingRow?.action === 'skipped_existing_workday'
+          ? 'existing'
+          : 'skipped';
+    if (status === 'created' || status === 'existing') {
       await queryClient.invalidateQueries({ queryKey: ['staff-time-reports'] });
       await queryClient.invalidateQueries({ queryKey: ['workdays'] });
     }
-    return { created };
+    return { status };
   };
 
   const filtered = useMemo(() => {
