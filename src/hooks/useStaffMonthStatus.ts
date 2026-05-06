@@ -1,25 +1,26 @@
 /**
  * useStaffMonthStatus(month)
  * ==========================
- * Single official entrypoint the Time-page calendar tab uses for **per-day
- * status across a month**. The mobile app must not aggregate workdays /
- * time_reports / travel_logs itself — backend (`get-staff-month-status`
- * Edge Function) owns the truth. Until that endpoint exists this hook is a
- * **forward-compatible stub**: it returns a stable empty result so the UI
- * can already render the structure (calendar grid, day badges, totals)
- * without any local recombination.
+ * Backend-owned per-day status across a calendar month. Calls the
+ * `get-staff-month-status` Edge Function — the mobile app must NOT
+ * aggregate workdays / time_reports / travel_logs itself.
  *
- * When the backend lands, switch the body to call
- * `supabase.functions.invoke('get-staff-month-status', { body: { staffId, month } })`
- * and emit the same `StaffMonthStatus` shape — no UI changes required.
- *
- * Realtime: same pattern as `useStaffDaySnapshot` — subscribe to the
- * underlying tables and trigger a refetch only.
+ * Realtime: subscribes to the underlying tables (staff-scoped) and uses
+ * the events purely as triggers to refetch.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, startOfMonth } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
+
+export type StaffMonthDayKind =
+  | 'open'
+  | 'approved'
+  | 'review_required'
+  | 'closed'
+  | 'missing'
+  | 'off'
+  | 'locked';
 
 export interface StaffMonthDayStatus {
   /** yyyy-MM-dd */
@@ -31,6 +32,8 @@ export interface StaffMonthDayStatus {
   isWorkdayOpen: boolean;
   hasFlags: boolean;
   reviewStatus: string | null;
+  approved: boolean;
+  status: StaffMonthDayKind;
 }
 
 export interface StaffMonthStatus {
@@ -43,6 +46,9 @@ export interface StaffMonthStatus {
     allocatedProjectMinutes: number;
     travelMinutes: number;
     unallocatedMinutes: number;
+    approvedMinutes: number;
+    pendingReviewMinutes: number;
+    daysWithFlags: number;
   };
   lastUpdatedAt: string;
 }
@@ -55,6 +61,12 @@ interface Result {
 }
 
 const POLL_MS = 60_000;
+const REALTIME_TABLES = [
+  'workdays',
+  'time_reports',
+  'travel_time_logs',
+  'workday_flags',
+] as const;
 
 export function useStaffMonthStatus(month?: Date | string): Result {
   const { staff } = useMobileAuth();
@@ -69,6 +81,7 @@ export function useStaffMonthStatus(month?: Date | string): Result {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const debounce = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (!staffId) {
@@ -79,27 +92,13 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     inFlight.current = true;
     setIsLoading(true);
     try {
-      // Backend endpoint not yet implemented — emit a stable empty
-      // structure so the UI renders without local aggregation.
-      // When `get-staff-month-status` ships, replace this block with:
-      //
-      //   const { data, error: invokeErr } = await supabase.functions.invoke(
-      //     'get-staff-month-status', { body: { staffId, month: monthKey } }
-      //   );
-      //   if (invokeErr) throw invokeErr;
-      //   setStatus(data as StaffMonthStatus);
-      setStatus({
-        month: monthKey,
-        staffId,
-        days: [],
-        totals: {
-          workdayMinutes: 0,
-          allocatedProjectMinutes: 0,
-          travelMinutes: 0,
-          unallocatedMinutes: 0,
-        },
-        lastUpdatedAt: new Date().toISOString(),
-      });
+      const { data, error: invokeErr } = await supabase.functions.invoke(
+        'get-staff-month-status',
+        { body: { staffId, month: monthKey } },
+      );
+      if (invokeErr) throw invokeErr;
+      if (data?.error) throw new Error(data.error);
+      setStatus(data as StaffMonthStatus);
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Kunde inte ladda månadsstatus');
@@ -109,6 +108,11 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     }
   }, [staffId, monthKey]);
 
+  const scheduleRefresh = useCallback(() => {
+    if (debounce.current) window.clearTimeout(debounce.current);
+    debounce.current = window.setTimeout(() => { void refresh(); }, 400);
+  }, [refresh]);
+
   useEffect(() => {
     if (!staffId) return;
     void refresh();
@@ -116,29 +120,22 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     return () => window.clearInterval(id);
   }, [staffId, refresh]);
 
-  // Realtime — when backend lands, refetch on changes to the raw tables.
   useEffect(() => {
     if (!staffId) return;
     const channel = supabase.channel(`staff-month-status:${staffId}:${monthKey}`);
-    for (const table of [
-      'workdays',
-      'time_reports',
-      'travel_time_logs',
-      'workday_flags',
-    ] as const) {
+    for (const table of REALTIME_TABLES) {
       (channel as any).on(
         'postgres_changes',
         { event: '*', schema: 'public', table, filter: `staff_id=eq.${staffId}` },
-        () => {
-          void refresh();
-        },
+        scheduleRefresh,
       );
     }
     channel.subscribe();
     return () => {
       supabase.removeChannel(channel);
+      if (debounce.current) window.clearTimeout(debounce.current);
     };
-  }, [staffId, monthKey, refresh]);
+  }, [staffId, monthKey, scheduleRefresh]);
 
   return { status, isLoading, error, refresh };
 }
