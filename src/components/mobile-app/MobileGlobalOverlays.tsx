@@ -261,8 +261,8 @@ const MobileGlobalOverlays: React.FC = () => {
         if (status === 'started' || status === 'already_running') {
           // VISIBLE FEEDBACK — auto-start får aldrig vara osynligt.
           if (status === 'started') {
-            toast.success(`Arbetsdag startad automatiskt från ${arrivalHHmm}`, {
-              description: `Timer startad: ${label}`,
+            toast.success(`Tid registreras på ${label}`, {
+              description: `Arbetsdag igång sedan ${arrivalHHmm}`,
             });
           }
           window.dispatchEvent(new CustomEvent('auto-arrival-started', {
@@ -304,15 +304,15 @@ const MobileGlobalOverlays: React.FC = () => {
         } else if (status === 'workday_failed' || status === 'start_failed') {
           // RECOVERY — auto-start misslyckades. Visa tydlig toast + banner.
           toast.error(
-            `GPS visar att du är på ${label}, men timer kunde inte startas.`,
-            { description: 'Försök starta manuellt eller välj projekt/plats.' },
+            `GPS visar att du är på ${label}, men tiden kunde inte börja registreras där.`,
+            { description: 'Välj projekt eller plats manuellt så registreras tiden där.' },
           );
           // Workday får inte blockeras pga aktivitet — se till att dagen
           // ändå öppnas och flagga att aktivitet saknas.
           try {
             const wd = await ensureWorkDayActive(arrivedAtIso);
             if (wd) {
-              toast.message(`Arbetsdag startad ${arrivalHHmm} — välj projekt/plats för aktivitet`);
+              toast.message(`Arbetsdag igång ${arrivalHHmm} — välj projekt eller plats för att fördela tiden`);
               window.dispatchEvent(new CustomEvent('auto-arrival-workday-only', {
                 detail: {
                   kind, targetId, label, arrivedAtIso, isPlannedToday,
@@ -512,10 +512,10 @@ const MobileGlobalOverlays: React.FC = () => {
         // det inkonsekvent state och vi vill att användaren ska se det.
         const dayOpen = await waitForActiveWorkday();
         if (!dayOpen) {
-          toast.error('Aktiviteten är aktiv men arbetsdagen syns inte. Försök igen.');
+          toast.error('Tiden registreras här men arbetsdagen syns inte. Försök igen.');
           return;
         }
-        toast.message(`${projectLabel} är redan aktivt`);
+        toast.message(`Tid registreras redan på ${projectLabel}`);
         await markResolved(plannedArrivalTarget);
         setArrivalDialogOpen(false);
         refreshArrival();
@@ -530,21 +530,21 @@ const MobileGlobalOverlays: React.FC = () => {
           waitForActiveWorkday(),
         ]);
         if (!seen && !dayOpen) {
-          toast.error('Start kunde inte verifieras. Försök igen om en stund.');
+          toast.error('Kunde inte bekräfta att tiden registreras här. Försök igen om en stund.');
           return;
         }
         if (!dayOpen) {
-          toast.error('Aktiviteten startades men arbetsdagen syns inte ännu. Försök igen.');
+          toast.error('Tiden registreras här men arbetsdagen syns inte ännu. Försök igen.');
           return;
         }
         if (!seen) {
-          toast.error('Arbetsdagen är aktiv men aktivitetstimern syns inte ännu. Försök igen.');
+          toast.error('Arbetsdagen är igång men fördelningen syns inte ännu. Försök igen.');
           return;
         }
         if (arrivalHHmm) {
-          toast.success(`Arbetsdag startad från ${arrivalHHmm}`);
+          toast.success(`Arbetsdag igång sedan ${arrivalHHmm}`);
         }
-        toast.success(`${projectLabel} är aktivt`);
+        toast.success(`Tid registreras nu på ${projectLabel}`);
         await markResolved(plannedArrivalTarget);
         setArrivalDialogOpen(false);
         refreshArrival();
