@@ -1311,14 +1311,36 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       earliestWorkRelevantVisit
       && new Date(earliestWorkRelevantVisit.start).getTime() < wdStartMs - 5 * 60_000
     ) {
+      // Hard work-evidence i pre-workday-fönstret = timer, time_report eller
+      // assistant_event ANTINGEN inom visiten ELLER mellan visit-start och
+      // workday-start. Bara känd plats räknas INTE — en GPS-vistelse på FA
+      // Warehouse 00:00–07:00 ska inte göra hela natten till arbetstid bara
+      // för att platsen är känd.
+      const visitStartMs = new Date(earliestWorkRelevantVisit.start).getTime();
+      const preWindowEndMs = wdStartMs;
+      const preWindowStartMs = visitStartMs;
+      const overlapsPreWindow = (s: number, e: number) =>
+        s < preWindowEndMs && e > preWindowStartMs;
+      const hasHardEvidenceBeforeWorkday =
+        timerWindows.some(w => overlapsPreWindow(w.s, w.e))
+        || trWindows.some(w => overlapsPreWindow(w.s, w.e))
+        || assistantTimes.some(t => t >= preWindowStartMs && t <= preWindowEndMs);
+
       anomalies.push({
         id: `pre-wd:${earliestWorkRelevantVisit.key}`,
         label: 'GPS-aktivitet före arbetsdagens start',
         detail: `Vistelse på ${earliestWorkRelevantVisit.label} ${earliestWorkRelevantVisit.start.slice(11, 16)} — workday startade ${input.workday.started_at.slice(11, 16)}.`,
         severity: 'warning',
-        suggestion: `Justera arbetsdagens start till ${earliestWorkRelevantVisit.start.slice(11, 16)}? Eller ignorera som ej arbetstid.`,
+        suggestion: hasHardEvidenceBeforeWorkday
+          ? `Justera arbetsdagens start till ${earliestWorkRelevantVisit.start.slice(11, 16)}? Eller ignorera som ej arbetstid.`
+          : `GPS visade aktivitet på ${earliestWorkRelevantVisit.label} före arbetsdagens start, men inga timers eller tidrapporter stödjer arbete under den tiden. Justera arbetsdagens start manuellt om det var arbete, annars ignorera.`,
       });
-      proposedWorkdayStart = earliestWorkRelevantVisit.start;
+      // Bara om hård bevisning finns får vi automatiskt föreslå en tidigare
+      // workday-start. Annars stannar förslaget i anomaly-listan och admin
+      // får välja själv. Known-site-match ensam räcker INTE.
+      if (hasHardEvidenceBeforeWorkday) {
+        proposedWorkdayStart = earliestWorkRelevantVisit.start;
+      }
     }
   }
 
