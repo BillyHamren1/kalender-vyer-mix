@@ -53,9 +53,14 @@ const BookingEvent: React.FC<BookingEventProps> = ({
       <div className={`text-xs ${isCancelled ? 'line-through text-red-600' : 'text-gray-600'}`}>
         {startTime} - {endTime}
       </div>
-      {event.bookingNumber && (
+      {event.bookingNumber && !event.extendedProps?.isLargeProject && (
         <div className={`text-xs ${isCancelled ? 'line-through text-red-500' : 'text-gray-500'}`}>
           #{event.bookingNumber}
+        </div>
+      )}
+      {event.extendedProps?.isLargeProject && (
+        <div className="text-[9px] font-semibold uppercase tracking-wide text-purple-700">
+          Projekt
         </div>
       )}
     </div>
