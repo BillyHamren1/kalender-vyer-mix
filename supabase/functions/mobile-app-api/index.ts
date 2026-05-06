@@ -5403,7 +5403,13 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         // GPS entry — no timer without workday.
         const enteredAtIso = new Date().toISOString()
         try {
-          await ensureOpenWorkday(supabase, staffId, organizationId, enteredAtIso)
+          await ensureOpenWorkdayForTimer(supabase, {
+            staff_id: staffId,
+            organization_id: organizationId,
+            start_at: enteredAtIso,
+            source: 'geofence_enter',
+            target: { kind: 'location', id: loc.id, name: loc.name },
+          })
         } catch (wdErr) {
           console.error('[geofence] workday-first failed, skipping GPS entry:', wdErr)
           continue
