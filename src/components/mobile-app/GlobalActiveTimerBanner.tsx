@@ -89,7 +89,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const { staff } = useMobileAuth();
   const { t } = useLanguage();
   const { data: bookings = [] } = useMobileBookings();
-  const { stopSession, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
+  const { stopSession, stopAny, dialogs: workSessionDialogs } = useWorkSession(bookings, staff?.id);
   const { current: currentWorkday, start: startWorkday } = useWorkDay();
   const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
   const [startingDay, setStartingDay] = useState(false);
