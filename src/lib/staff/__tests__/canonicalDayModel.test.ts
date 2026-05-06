@@ -16,8 +16,11 @@ describe('buildCanonicalStaffDayModel', () => {
     expect(m.undistributedMinutes).toBe(12 * 60);
     expect(m.overDistributedMinutes).toBe(0);
     expect(m.status).toBe('requires_distribution');
-    expect(m.reviewRequired).toBe(true);
-    expect(m.anomalies.find(a => a.kind === 'large_undistributed')).toBeTruthy();
+    // Oallokerad tid blockerar inte attest — info, inte review_required.
+    expect(m.reviewRequired).toBe(false);
+    const undist = m.anomalies.find(a => a.kind === 'large_undistributed');
+    expect(undist).toBeTruthy();
+    expect(undist!.severity).toBe('info');
   });
 
   it('workday 09–21 med 30 min rast → payable = 11.5h', () => {
