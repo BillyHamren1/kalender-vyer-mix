@@ -509,7 +509,7 @@ const GlobalActiveTimerBanner: React.FC = () => {
               onRehydrate={() => { void refreshActiveDayState(); }}
             />
           ))}
-          {Array.from(timers.entries()).map(([key, timer]) => (
+          {showActivityRows && Array.from(timers.entries()).map(([key, timer]) => (
             <TimerRow
               key={key}
               timerKey={key}
@@ -519,6 +519,21 @@ const GlobalActiveTimerBanner: React.FC = () => {
               syncProblem={localOnlyKeys.includes(key)}
             />
           ))}
+          {/* På /m/jobs visar vi bara TimerRow när det är ett synkproblem som
+              WorkDayPanel inte kan kommunicera (server-only finns ovan, men
+              local-only måste också synas). */}
+          {!showActivityRows && Array.from(timers.entries())
+            .filter(([key]) => localOnlyKeys.includes(key))
+            .map(([key, timer]) => (
+              <TimerRow
+                key={key}
+                timerKey={key}
+                timer={timer}
+                isSaving={savingKeys.has(key)}
+                onStop={handleStop}
+                syncProblem
+              />
+            ))}
         </div>
       )}
       {/* Start/End day CTA moved into centered MobileHeader controls so the
