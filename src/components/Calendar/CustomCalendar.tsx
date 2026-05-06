@@ -150,6 +150,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       dayWidth: undefined,
       weeklyStaffOperations,
       onEventResize: handleEventResize,
+      onEventDrop: handleDrop,
       teamVisibilityProps: allTeams && onToggleTeamForDay ? {
         allTeams,
         visibleTeams,
