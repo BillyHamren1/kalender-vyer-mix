@@ -496,17 +496,18 @@ const PresenceRow: React.FC<{ block: PresenceBlock }> = ({ block }) => {
 
   const expandable = block.innerEvents.length > 0 || extraBadges.length > 0 || isDebugRelevant(block.resolvedPlace);
 
+  const isOngoing = block.ongoing || block.timer.active;
   return (
     <>
       <RowShell
         accent={accent}
-        active={isProject && block.ongoing}
+        active={isOngoing}
         expandable={expandable}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
         trashSlot={<RowExcludeButton blockId={block.id} label={block.title ?? 'Händelse'} />}
       >
-        <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} ongoing={block.ongoing} />
+        <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} ongoing={isOngoing} />
 
         {/* HÄNDELSE — en rad, inga wraps */}
         <div className="flex items-center gap-2 min-w-0 text-xs whitespace-nowrap">
