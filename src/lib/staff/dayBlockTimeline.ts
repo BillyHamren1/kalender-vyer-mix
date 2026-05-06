@@ -139,6 +139,10 @@ export interface PresenceBlock {
   confidence: 'high' | 'medium' | 'low';
   /** Upplöst plats för rendering — UI ska föredra detta över `title`. */
   resolvedPlace: ResolvedPlace;
+  /** Original visit-start innan clipping till workday/timer/TR-context. */
+  clippedFromIso?: string | null;
+  /** Anledning till clipping. */
+  clippedReason?: 'clipped_to_work_context_start' | null;
 }
 
 export interface JourneyBlock {
@@ -197,6 +201,15 @@ export interface BuildBlockTimelineInput {
   actualVisits?: ActualVisit[];
   /** Indexerad på placeKey för label/duration-konsistens + lat/lng för okända block och journey endpoints. */
   visitByKey: Map<string, VisitInfo>;
+  /**
+   * ISO för när "arbetsdagen/arbetskontexten" börjar (workday.started_at
+   * eller första timer/time_report-start om workday saknas). Visits som
+   * börjar före denna tid får sin block-start KLIPPT till denna tid när
+   * arbetsrelevansen kommer från overlap (workday/timer/TR), så
+   * huvudjournalen inte visar 00:00–07:00 som arbetsblock när workday
+   * startade 05:47. Original visit-start sparas i `clippedFromIso`.
+   */
+  workContextStartIso?: string | null;
 }
 
 /**
@@ -340,7 +353,8 @@ const strengthFromMeta = (ev: ActualEvent, fallbackMin: number): PresenceStrengt
 };
 
 export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[] {
-  const { mainEvents = [], allEvents, visitByKey, actualVisits = [] } = input;
+  const { mainEvents = [], allEvents, visitByKey, actualVisits = [], workContextStartIso = null } = input;
+  const workCtxMs = workContextStartIso ? new Date(workContextStartIso).getTime() : null;
 
   const blocks: DayBlock[] = [];
   const consumedEventIds = new Set<string>();
@@ -368,18 +382,39 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
     if (!isKnown && durationMin < MIN_UNKNOWN_REVIEW_MIN) continue;
 
     const presenceKind: PresenceKind = isProject ? 'project' : isLocation ? 'location' : 'unknown';
+
+    // Klipp visit-start vid arbetskontextens start om visit börjar tidigare.
+    // Detta hindrar t.ex. ett 00:00–07:00 GPS-kluster på FA Warehouse från
+    // att visas som arbetsblock 00:00–07:00 när workday/timer/TR först
+    // började 05:47. Vi behåller original-starttiden i clippedFromIso för
+    // raw-vy/debug.
+    const visitStartMs = new Date(v.start).getTime();
+    const visitEndMs = new Date(v.end).getTime();
+    let blockStartIso = v.start;
+    let blockDurationMin = durationMin;
+    let clippedFromIso: string | null = null;
+    let clippedReason: 'clipped_to_work_context_start' | null = null;
+    if (workCtxMs != null
+      && visitStartMs < workCtxMs
+      && visitEndMs > workCtxMs) {
+      clippedFromIso = v.start;
+      clippedReason = 'clipped_to_work_context_start';
+      blockStartIso = workContextStartIso!;
+      blockDurationMin = Math.max(0, Math.round((visitEndMs - workCtxMs) / 60_000));
+    }
+
     const strength: PresenceStrength = isProject
       ? 'project'
-      : durationMin >= 30 ? 'strong_visit'
-      : durationMin >= 15 ? 'possible_visit'
+      : blockDurationMin >= 30 ? 'strong_visit'
+      : blockDurationMin >= 15 ? 'possible_visit'
       : 'short_stop';
     blocks.push({
       kind: 'presence',
       presenceKind,
-      id: `pb:visit:${v.key}:${v.start}`,
-      startIso: v.start,
+      id: `pb:visit:${v.key}:${blockStartIso}`,
+      startIso: blockStartIso,
       endIso: v.end,
-      durationMin,
+      durationMin: blockDurationMin,
       placeKey: v.key,
       title: v.label,
       subtitle: presenceKind === 'unknown' ? 'Okänd plats — kräver granskning' : null,
@@ -392,13 +427,15 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
       innerEvents: [],
       timer: { startedIso: null, stoppedIso: null, active: false, present: false },
       timeReport: { startedIso: null, closedIso: null, present: false },
-      arrivalIso: v.start,
+      arrivalIso: blockStartIso,
       departureIso: v.end,
       plannedStartIso: null,
       sources: { timeReport: false, timer: false, gpsVisit: true, assistant: false },
       evidenceLabel: null,
       confidence: 'low',
       resolvedPlace: resolvePresencePlace(presenceKind, v as unknown as VisitInfo, v.label),
+      clippedFromIso,
+      clippedReason,
     });
   }
 

@@ -1032,12 +1032,32 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
         avgAccuracy: v.avgAccuracy,
       });
     }
+    // workContextStartIso = tidigaste hårda arbetsbeviset (workday/timer/TR).
+    // Visits som börjar tidigare klipps till denna tid i blockTimeline så
+    // huvudjournalen inte visar t.ex. 00:00–07:00 som arbetsblock när
+    // workday startade 05:47.
+    const workCtxCandidates: number[] = [];
+    const wd = model.reportState.workday;
+    if (wd?.started_at) workCtxCandidates.push(new Date(wd.started_at).getTime());
+    for (const e of model.reportState.locationEntries) {
+      if (e.entered_at) workCtxCandidates.push(new Date(e.entered_at).getTime());
+    }
+    for (const r of model.reportState.timeReports) {
+      if (r.start_iso) workCtxCandidates.push(new Date(r.start_iso).getTime());
+    }
+    const workCtxMs = workCtxCandidates.length
+      ? Math.min(...workCtxCandidates.filter(n => Number.isFinite(n)))
+      : null;
+    const workContextStartIso = workCtxMs != null && Number.isFinite(workCtxMs)
+      ? new Date(workCtxMs).toISOString()
+      : null;
     return buildDayBlockTimeline({
       allEvents: model.actualEvents,
       actualVisits: model.actualVisits,
       visitByKey: visitMap,
+      workContextStartIso,
     });
-  }, [model.actualEvents, model.actualVisits]);
+  }, [model.actualEvents, model.actualVisits, model.reportState.workday, model.reportState.locationEntries, model.reportState.timeReports]);
 
 
   // Berika blockTimeline med reverse-geocode-resultat så att PresenceBlock-/
