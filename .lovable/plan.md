@@ -1,46 +1,60 @@
+## Vad är trasigt
 
-## Mål
+Verifierat mot databasen:
 
-Producera en komplett, läsbar rapport över **varje beslut systemet tagit idag (2026-05-06) för din org** — så vi kan se exakt vad som auto-startats, auto-stängts, vad som är förslag vs sanning, och var datan blivit fel.
+- **Swedish game fair** (large_project `f11cd5b3…`, projektnummer `260204-Projekt01`) har **64 sub‑bokningar**.
+- Alla 64 har `bookings.large_project_id` korrekt satt OCH ligger i `large_project_bookings`. Länkningen finns alltså i datan.
+- I `calendar_events` finns det dock **calendar_events för i princip alla 64 bokningar samtidigt** (33–37 bokningar per dag på team‑1, plus 2–3 på team‑2..team‑5). T.ex. `2026‑05‑15`: 35 rig‑rader på team‑1 för 35 olika bookings — ska vara 1 rep‑rad per (projekt, fas, dag, team).
+- Det är resterna från det gamla läget då varje sub‑booking skrev egna calendar_events. Ny `import-bookings`-reconciler skriver bara via "rep"-bokningen (lägsta uuid:t = `018af6ab…`) och raderar non‑rep‑rader, MEN bara när den kallas för just den booking. De gamla bokningarna re‑importeras inte, så raderingen sker aldrig → de ligger kvar.
 
-## Vad rapporten kommer att täcka
+Konsekvens:
+1. Visuellt fortfarande "alla gamefair‑bokningar var för sig" (en hög per dag).
+2. Tiles visar `bookingNumber`/`title=client` (rad 138 i `plannerCalendarDerivation.ts`) eftersom `mapRealRowToCalendarEvent` används som fallback — men den vägen ska aldrig nås för LP‑bokningar. Den nås just nu indirekt: efter konsolidering finns rep‑raden, men **non‑rep raderna grupperas också** av `buildPlannerCalendarEvents` (de har projectId via membership) → en enda tile per (projekt, fas, dag, team), däremot ser man hög för team‑1 vs team‑2..5 (vilket är korrekt). Det som ser "fult" ut är att team‑1 t.ex. har 35 rader i samma grupp men det syns som EN tile. Däremot: när man gör drag/edit får man alla 35 underlying booking_ids vilket gör interaktioner mässiga och eventuellt skapar duplicates igen.
+3. **Projektnummer saknas på tiles**: `eventService.ts` rad 136 selectar `id,name,address,start_date,event_date,end_date,deleted_at` — `project_number` är inte med, så `plannerCalendarDerivation` kan inte sätta det på tile. Inget UI visar därför projektnummer för stora projekt i kalendern.
 
-Per anställd, kronologiskt under dagen, med beslut + källa + confidence + om beslutet skrev till sanning eller bara till förslag:
+## Plan
 
-1. **Workdays** — varje rad: vem startade (`started_by`: staff själv / `server_workday_first` / `server_auto_start_repair` / admin), `metadata.auto_start_source`, `reason_codes`, `confidence`, start/slut, review_status.
-2. **Location time entries (LTE)** — varje timer: `source` (manual / `auto_start` / `location_auto` / watchdog), entered/exited, `total_minutes`, `stop_source` + `stop_reason` + `stopped_by`, `metadata.auto_start`.
-3. **Time reports** — varje rad: `source`, start/end, hours_worked, `source_entry_id` (kopplad till LTE?), booking/large_project/location, approved.
-4. **Travel logs** — varje rad: `source` (`gap_derived` / `gps` / `manual`), `auto_detected`, from→to, godkänd?
-5. **Assistant events** — varje arrival/departure/home_arrival: `suggested_action`, `resolution_status` (pending / auto_closed_by_later_action / dismissed / applied_*), kopplad till workday/LTE/time_report?
-6. **Workday flags** — varje flagga: typ, severity, om resolved.
-7. **Process-location-auto-start backfill-körningen** — vad den faktiskt skrev: 11 LTE-rader + 22 assistant_events + 4 switch + 4 travel, med vilka staff/targets.
+### 1. One‑shot SQL‑städ av stale calendar_events för stora projekt
 
-## Format
+Migration som för varje `large_project_id`:
+- räknar ut rep‑booking (= `MIN(booking_id)` över `large_project_bookings ∪ bookings.large_project_id`),
+- behåller endast calendar_events där `booking_id = rep`,
+- raderar övriga rig/rigDown/event‑rader (event_type ≠ 'activity') för icke‑rep sub‑bokningar.
 
-* **CSV-bundle** i `/mnt/documents/decisions-2026-05-06/`:
-  - `workdays.csv`
-  - `location_time_entries.csv`
-  - `time_reports.csv`
-  - `travel_logs.csv`
-  - `assistant_events.csv`
-  - `workday_flags.csv`
-  - `auto_decisions_summary.csv` (en rad per beslut: tid, staff, beslut, källa, confidence, target, resultat)
-* **Markdown-sammanfattning** `decisions-2026-05-06/REPORT.md` som per anställd listar:
-  - Vad fanns innan idag startade
-  - Vilka auto-beslut systemet tog (med tidsstämpel + källkod-path)
-  - Vad användaren gjort manuellt
-  - Vilka beslut som ser felaktiga ut (öppna pågående workdays utan slut, LTE utan stop, dubbletter, motstridiga assistant_events, gap_derived travel >180 min, etc.)
+Säkerhet: körs inom transaktion, loggar antal raderade rader per LP. Påverkar bara LP‑sub‑bokningar; vanliga bokningar lämnas orörda.
 
-## Genomförande (default-mode)
+### 2. Trigger så det inte uppstår igen
 
-1. Kör SQL-queries mot alla 6 tabellerna filtrerade på `organization_id = f5e5cade-…` och dagens Stockholm-fönster.
-2. Skriv ett Python-script som joinar staff_members, organization_locations, bookings, large_projects för läsbara namn.
-3. Generera CSV + markdown till `/mnt/documents/`.
-4. Leverera nedladdningsbara artifacts.
+`AFTER INSERT` på `large_project_bookings` och `AFTER UPDATE OF large_project_id` på `bookings`: om bokningen blir non‑rep i sin LP → radera dess rig/rigDown/event calendar_events automatiskt. (Reconciler‑logiken i edge‑funktionen blir då en backup, inte enda försvarslinjen.)
 
-## Vad jag INTE gör
+### 3. Visa projektnummer på LP‑tiles
 
-* Inga skrivningar/cleanups av datan i denna omgång — bara rapport.
-* När du sett rapporten väljer du vilka beslut som ska rullas tillbaka eller korrigeras.
+- `eventService.ts` rad 134–138 + 199–203: lägg till `project_number` i selecten.
+- `plannerCalendarDerivation.ts`: skicka vidare `project?.project_number` till `extendedProps.largeProjectNumber` och inkludera i tile‑titeln, t.ex. `"260204-Projekt01 · Swedish game fair"` (eller separat fält som UI redan visar för bokningsnummer).
+- Uppdatera `LargeProjectRow`-interface med `project_number`.
 
-Säg "kör" så genererar jag rapporten direkt.
+### 4. Liten guard för framtiden
+
+I `bookingAssignmentService.recomputeBookingAssignment` (rad 36‑47): efter att `large_project_id` sätts på en bokning → anropa ett litet RPC `cleanup_non_rep_lp_calendar_events(booking_id)` som tar bort eventuella egna calendar_events om bokningen är non‑rep. Detta täcker även manuella konverteringar i UI.
+
+### Filer som ändras
+
+- `supabase/migrations/<ny>_cleanup_lp_calendar_events.sql` — engångsstäd + trigger + RPC.
+- `src/services/eventService.ts` — utöka select med `project_number` (två ställen).
+- `src/services/plannerCalendarDerivation.ts` — propagera `project_number` till `extendedProps` och tile‑titel.
+- `src/services/bookingAssignmentService.ts` — anropa RPC efter LP‑uppdatering.
+
+### Verifiering efter körning
+
+Kör samma queries jag använt:
+```sql
+SELECT source_date, resource_id, COUNT(DISTINCT booking_id)
+FROM calendar_events
+WHERE booking_id IN (SELECT booking_id::text FROM large_project_bookings
+                     WHERE large_project_id='f11cd5b3-c9f8-4a8f-9424-a623d6820a64')
+  AND event_type='rig'
+GROUP BY 1,2 ORDER BY 1,2;
+```
+Förväntat efter: max **1 booking per (datum, team)** för varje LP.
+
+Säg "kör" så implementerar jag stegen i ordning (städ‑migration först, sedan trigger + UI‑fix).
