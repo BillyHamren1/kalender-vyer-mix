@@ -38,6 +38,7 @@ export const useEventDragDrop = (
   const dragCounterRef = useRef<Map<string, number>>(new Map());
 
   const handleDragStart = useCallback((e: React.DragEvent, event: CalendarEvent) => {
+    const ext: any = event.extendedProps || {};
     const data: DraggedEventData = {
       id: event.id,
       title: event.title,
@@ -46,8 +47,10 @@ export const useEventDragDrop = (
       bookingId: event.bookingId,
       eventType: event.eventType,
       resourceId: event.resourceId,
-      isSyntheticFallback: !!(event.extendedProps as any)?.isSyntheticFallback,
-      largeProjectId: (event.extendedProps as any)?.largeProjectId,
+      isSyntheticFallback: !!ext.isSyntheticFallback,
+      largeProjectId: ext.largeProjectId,
+      consolidatedEventIds: Array.isArray(ext.consolidatedEventIds) ? ext.consolidatedEventIds : undefined,
+      consolidatedBookingIds: Array.isArray(ext.consolidatedBookingIds) ? ext.consolidatedBookingIds : undefined,
     };
     e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
     e.dataTransfer.effectAllowed = 'move';
