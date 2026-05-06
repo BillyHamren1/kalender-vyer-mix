@@ -201,19 +201,21 @@ export function useTimerStartFlow(
    * `tryStartFromArrival`). Callers must await and only show success UI
    * when the status is `started` or `already_running`.
    *
-   *   started         — workday active + activity timer created in provider
-   *   already_running — same target was already active (no-op success)
-   *   conflict        — TimerConflictDialog opened; resolution is async
-   *   blocked         — DistanceWarningDialog opened; resolution is async
-   *                     (caller should NOT toast success yet)
-   *   workday_failed  — workday could not be ensured; activity NOT started
-   *   start_failed    — startSession returned false (race / engine refused)
+   *   started                         — workday active + activity timer created
+   *   already_running                 — same target was already active (no-op)
+   *   conflict                        — TimerConflictDialog opened; async resolution
+   *   awaiting_distance_confirmation  — DistanceWarningDialog opened; user must
+   *                                     confirm/cancel. NOT a failure — caller MUST
+   *                                     NOT show success toast or generic error.
+   *                                     Real outcome flows via dialog onConfirm.
+   *   workday_failed                  — workday could not be ensured; activity NOT started
+   *   start_failed                    — startSession returned false (race / engine refused)
    */
   type StartStatus =
     | 'started'
     | 'already_running'
     | 'conflict'
-    | 'blocked'
+    | 'awaiting_distance_confirmation'
     | 'workday_failed'
     | 'start_failed';
 
