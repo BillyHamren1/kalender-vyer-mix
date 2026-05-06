@@ -54,7 +54,7 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
     try {
       await supabase.rpc('recompute_booking_staff_for_day' as any, {
         p_booking_id: bookingId,
-        p_assignment_date: sourceDate,
+        p_date: sourceDate,
       });
     } catch (e) {
       console.warn('[MoveDayPopover] recompute_booking_staff_for_day failed (continuing):', e);
@@ -66,6 +66,12 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
     let prevSnapshot: CalendarEvent[] | null = null;
     try {
       const sourceDate = (event as any).source_date || event.start.split('T')[0];
+      const ext: any = event.extendedProps || {};
+      const consolidatedEventIds: string[] = Array.isArray(ext.consolidatedEventIds)
+        ? ext.consolidatedEventIds.filter(Boolean) : [];
+      const consolidatedBookingIds: string[] = Array.isArray(ext.consolidatedBookingIds)
+        ? ext.consolidatedBookingIds.filter(Boolean) : [];
+      const isLargeProject = Boolean(ext.largeProjectId);
 
       if (setEvents) {
         setEvents((prev) => {
@@ -73,9 +79,10 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
           return prev.map((ev) => {
             const sameLargeProjectDay =
               (ev.extendedProps as any)?.largeProjectId &&
-              (ev.extendedProps as any)?.largeProjectId === (event.extendedProps as any)?.largeProjectId &&
+              (ev.extendedProps as any)?.largeProjectId === ext.largeProjectId &&
               ev.eventType === event.eventType &&
-              (typeof ev.start === 'string' ? ev.start : new Date(ev.start as any).toISOString()).split('T')[0] === sourceDate;
+              (typeof ev.start === 'string' ? ev.start : new Date(ev.start as any).toISOString()).split('T')[0] === sourceDate &&
+              ev.resourceId === event.resourceId;
 
             if (sameLargeProjectDay || ev.id === event.id) {
               return { ...ev, resourceId: newTeamId };
@@ -85,12 +92,42 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
         });
       }
 
-      const { error } = await supabase
-        .from('calendar_events')
-        .update({ resource_id: newTeamId })
-        .eq('id', event.id);
-      if (error) throw error;
-      if (event.bookingId) await recompute(event.bookingId, sourceDate);
+      let updatedIds: string[] = [];
+      if (isLargeProject && consolidatedEventIds.length > 0) {
+        const { error } = await supabase
+          .from('calendar_events')
+          .update({ resource_id: newTeamId })
+          .in('id', consolidatedEventIds);
+        if (error) throw error;
+        updatedIds = consolidatedEventIds;
+      } else {
+        const { error } = await supabase
+          .from('calendar_events')
+          .update({ resource_id: newTeamId })
+          .eq('id', event.id);
+        if (error) throw error;
+        updatedIds = [event.id];
+      }
+
+      if (import.meta.env.DEV) {
+        console.info('[calendar-team-change] large project / booking', {
+          eventId: event.id,
+          bookingId: event.bookingId,
+          largeProjectId: ext.largeProjectId,
+          phase: event.eventType,
+          sourceDate,
+          targetDate: sourceDate,
+          oldTeamId: event.resourceId,
+          newTeamId,
+          updatedEventIds: updatedIds,
+          ranRecompute: true,
+        });
+      }
+
+      const bookingIdsForRecompute = isLargeProject && consolidatedBookingIds.length > 0
+        ? consolidatedBookingIds
+        : (event.bookingId ? [event.bookingId] : []);
+      await Promise.all(bookingIdsForRecompute.map(bid => recompute(bid, sourceDate)));
       toast.success('Dagen flyttad');
       if (onUpdate) void onUpdate();
     } catch (e: any) {
