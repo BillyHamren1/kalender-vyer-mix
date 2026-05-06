@@ -1250,7 +1250,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     })
   }
 
-
+  console.log('[get_bookings] complete', {
     staffId,
     assignmentCount: (assignments || []).length,
     realAssignmentCount: realAssignments.length,
