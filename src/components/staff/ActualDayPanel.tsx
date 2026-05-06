@@ -1262,7 +1262,11 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           <Sparkles className="h-4 w-4 text-blue-700 dark:text-blue-300 shrink-0" />
           <div className="text-xs flex-1 min-w-[16rem]">
             <div className="font-medium text-blue-900 dark:text-blue-100">
-              Arbetsdag saknas – hög säkerhet · kan auto-skapa från {fmtHm(repairIndicators.proposedStartIso!)}
+              {autoRepairState === 'running'
+                ? `Arbetsdag auto-skapas från ${fmtHm(repairIndicators.proposedStartIso!)}…`
+                : autoRepairState === 'created'
+                  ? `Arbetsdag auto-skapad från ${fmtHm(repairIndicators.proposedStartIso!)}`
+                  : `Arbetsdag saknas – hög säkerhet · kan auto-skapa från ${fmtHm(repairIndicators.proposedStartIso!)}`}
             </div>
             <div className="text-blue-900/80 dark:text-blue-100/80">
               Föreslagen start <span className="tabular-nums font-medium">{fmtHm(repairIndicators.proposedStartIso!)}</span>
@@ -1272,7 +1276,14 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
               {' · '}{repairIndicators.reasonCodes.join(', ')}
             </div>
           </div>
-          {onRepairWorkdayFromEvidence ? (
+          {/* Auto-repair är primär väg vid hög säkerhet. Manuell knapp visas
+              bara som fallback när auto-repair är avstängd, inte högconf, eller
+              backend stoppade auto-repair. */}
+          {autoRepairState === 'running' ? (
+            <Badge variant="outline" className="text-[10px]">Skapar…</Badge>
+          ) : autoRepairState === 'created' ? (
+            <Badge variant="outline" className="text-[10px]">Skapad</Badge>
+          ) : onRepairWorkdayFromEvidence ? (
             <Button size="sm" disabled={repairBusy} onClick={handleRepair}>
               {repairBusy ? 'Skapar…' : 'Skapa arbetsdag'}
             </Button>
@@ -1281,6 +1292,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
           )}
         </div>
       )}
+
 
       {/* A2. Planering — collapsed sektion ovanför huvudjournalen.
           Visar enbart förväntan; aldrig blandat med faktiska händelser. */}
