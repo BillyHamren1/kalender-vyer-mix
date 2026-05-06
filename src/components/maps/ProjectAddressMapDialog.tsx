@@ -167,6 +167,20 @@ export default function ProjectAddressMapDialog({
     renderOverlays();
   }, [renderOverlays]);
 
+  // Center map on saved coords whenever they change (or once the map becomes ready).
+  // Without this, opening the dialog with existing coords leaves the map at the
+  // default Stockholm center because handleMapReady captured coords=null.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !coords) return;
+    const run = () => {
+      map.jumpTo({ center: [coords.lng, coords.lat], zoom: 15 });
+      renderOverlays();
+    };
+    if (map.isStyleLoaded()) run();
+    else map.once('idle', run);
+  }, [coords, renderOverlays]);
+
   // ── map setup ──────────────────────────────────────────────────────────────
   const handleMapReady = useCallback(
     (map: mapboxgl.Map) => {
