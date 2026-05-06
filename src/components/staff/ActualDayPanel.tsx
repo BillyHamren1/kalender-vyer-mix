@@ -746,6 +746,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
       city: g.city,
       poiName: g.poiName,
       poiCategory: g.poiCategory,
+      poiDistanceMeters: (g as any).poiDistanceMeters ?? null,
+      nearbyPois: (g as any).nearbyPois ?? [],
       lat, lng, mapUrl,
       lookupStatus: status,
       confidence: 'medium',
