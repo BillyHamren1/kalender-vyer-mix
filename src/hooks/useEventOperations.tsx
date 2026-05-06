@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { updateCalendarEvent } from '@/services/eventService';
+import { setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import { toast } from 'sonner';
@@ -22,9 +23,25 @@ export const useEventOperations = ({
     try {
       const eventData: Partial<CalendarEvent> = {};
       let changeDescription = '';
+      const oldDate = info.oldEvent?.start
+        ? new Date(info.oldEvent.start).toISOString().slice(0, 10)
+        : null;
+      const newDate = info.event.start
+        ? new Date(info.event.start).toISOString().slice(0, 10)
+        : oldDate;
+      const teamChanged = !!info.newResource && info.oldResource?.id !== info.newResource.id;
+      const largeProjectId = (info.event.extendedProps as any)?.largeProjectId
+        || (info.oldEvent?.extendedProps as any)?.largeProjectId;
+      const largeProjectPhase = ((info.event.extendedProps as any)?.eventType
+        || (info.event.extendedProps as any)?.phase
+        || (info.oldEvent?.extendedProps as any)?.eventType
+        || (info.oldEvent?.extendedProps as any)?.phase) as LargeProjectPhase | undefined;
+      const dateChanged = Boolean(oldDate && newDate && oldDate !== newDate);
+      const startChanged = Boolean(info.event.start && info.oldEvent?.start?.getTime() !== info.event.start.getTime());
+      const endChanged = Boolean(info.event.end && info.oldEvent?.end?.getTime() !== info.event.end.getTime());
 
       // Resource (team) change
-      if (info.newResource && info.oldResource?.id !== info.newResource.id) {
+      if (teamChanged) {
         eventData.resourceId = info.newResource.id;
         const oldTeam = resources.find(r => r.id === info.oldResource?.id)?.title || info.oldResource?.id;
         const newTeam = resources.find(r => r.id === info.newResource.id)?.title || info.newResource.id;
@@ -44,6 +61,16 @@ export const useEventOperations = ({
         return;
       }
 
+      // Large projects are planned at project level: the visible team comes
+      // from large_project_team_assignments, not sibling calendar_events.
+      // If we only changed team here, saving resource_id would be ignored by
+      // the derivation layer and the event snaps back on refresh/realtime.
+      if (largeProjectId && largeProjectPhase && teamChanged && !dateChanged && !startChanged && !endChanged && newDate) {
+        await setLargeProjectDayTeam(largeProjectId, largeProjectPhase, newDate, info.newResource.id);
+        toast.success(changeDescription || 'Projektdag uppdaterad');
+        return;
+      }
+
       // Persist to DB (FullCalendar already shows the new position optimistically)
       const updated = await updateCalendarEvent(info.event.id, eventData);
 
@@ -55,12 +82,6 @@ export const useEventOperations = ({
           || (info.event.extendedProps as any)?.bookingId
           || updated.bookingId;
         if (bookingId) {
-          const oldDate = info.oldEvent?.start
-            ? new Date(info.oldEvent.start).toISOString().slice(0, 10)
-            : null;
-          const newDate = info.event.start
-            ? new Date(info.event.start).toISOString().slice(0, 10)
-            : oldDate;
           const dates = Array.from(new Set([oldDate, newDate].filter(Boolean))) as string[];
           await Promise.all(dates.map(d =>
             supabase.rpc('recompute_booking_staff_for_day' as any, {
