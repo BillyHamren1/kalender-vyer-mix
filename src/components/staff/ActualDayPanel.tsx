@@ -118,6 +118,13 @@ interface ActualDayPanelProps {
   }) => Promise<{ created: boolean }>;
   /** Stäng av auto-repair (default: på när handler finns). */
   autoRepairEnabled?: boolean;
+  /**
+   * Triggas när workday skapats/ändrats av panel-action (auto-repair eller
+   * manuell repair). Caller bör invalidera/refetcha så att modellen
+   * uppdateras direkt — annars kan headerstatus och repair-banner motsäga
+   * varandra under några sekunder.
+   */
+  onWorkdayChanged?: () => void | Promise<void>;
 }
 
 const fmtHm = (iso: string) => {
