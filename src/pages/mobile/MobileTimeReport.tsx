@@ -453,18 +453,43 @@ const MobileTimeReport = () => {
           ) : (
             sortedDates.map(date => {
               const reports = reportsByDate[date];
-              const totalHours = reports.reduce((sum, r) => sum + (r.hours_worked || 0), 0);
-              const isToday = date === format(new Date(), 'yyyy-MM-dd');
+              const isToday = date === todayYmd;
               const dateLabel = isToday
                 ? t('time.today')
                 : format(parseISO(date), 'd MMM yyyy');
 
+              // Workday-first day card — visar arbetsdag/fördelat/ej fördelat
+              // och status. För idag visar DayStatusPanel redan live-vyn,
+              // så vi hoppar över kortet här för att inte dubbla.
+              const wd = workdayByDate[date] || null;
+              const dayModel = buildMobileDayCardModel({
+                date,
+                workday: wd
+                  ? {
+                      id: wd.id,
+                      started_at: wd.started_at,
+                      ended_at: wd.ended_at,
+                      review_status: wd.review_status,
+                    }
+                  : null,
+                reports,
+                travelLogs: travelLogsByDate[date] ?? [],
+                hasActiveTimer: isToday && activeTimers.size > 0,
+              });
+
               return (
-                <div key={date} className="space-y-1.5">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-xs font-semibold text-foreground">{dateLabel}</span>
-                    <span className="text-xs text-muted-foreground">{formatHoursMinutes(totalHours)}</span>
-                  </div>
+                <div key={date} className="space-y-2">
+                  {!isToday && (
+                    <MobileDayCard model={dayModel} dateLabel={dateLabel} />
+                  )}
+                  {isToday && (
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-semibold text-foreground">{dateLabel}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatHoursMinutes(dayModel.distributedMinutes / 60)}
+                      </span>
+                    </div>
+                  )}
                   {reports.map(r => (
                     <button
                       key={r.id}
