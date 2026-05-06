@@ -189,8 +189,6 @@ export const HeaderStartEndDayButton: React.FC = () => {
         }
         return;
       }
-        return;
-      }
 
       // Manuell text: workday-first, sedan flagga.
       const wd = await start();
