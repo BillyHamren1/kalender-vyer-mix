@@ -9377,6 +9377,16 @@ async function handleAcceptUnplannedSiteVisit(
   if (openEntry) {
     entry = openEntry
   } else {
+    // Workday-first: never create an LTE without an open workday.
+    try {
+      await ensureOpenWorkday(supabase, staffId, organizationId, nowIso)
+    } catch (wdErr: any) {
+      console.error('[accept_unplanned_site_visit] workday-first failed, aborting:', wdErr)
+      return new Response(
+        JSON.stringify({ error: 'workday_first_failed', detail: wdErr?.message || String(wdErr) }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
     const { data: inserted, error: insErr } = await supabase
       .from('location_time_entries')
       .insert({
