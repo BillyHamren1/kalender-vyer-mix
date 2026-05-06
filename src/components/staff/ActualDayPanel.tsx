@@ -1014,14 +1014,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     [projectBlocks],
   );
 
-  // "På projekt just nu" — senaste pågående projektblock (om något).
-  const currentOngoingProject = useMemo(() => {
-    const ongoing = projectBlocks.filter(b => b.ongoing);
-    if (ongoing.length === 0) return null;
-    return ongoing.reduce((latest, b) =>
-      !latest || b.startIso > latest.startIso ? b : latest,
-    null as (typeof ongoing)[number] | null);
-  }, [projectBlocks]);
+  // (Tidigare "På projekt just nu"-banner är borttagen; "Aktiv just nu"
+  // ingår nu i den normaliserade DayHeaderPanel.)
+
 
   // Block-baserad huvudjournal (presence/journey-block).
   // VIKTIGT: bygger PÅ model.actualVisits + model.actualEvents — inte på den
