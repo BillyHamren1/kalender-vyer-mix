@@ -308,9 +308,9 @@ const LargeProjectLayout = () => {
     try {
       await detail.updateProject({ [dateFieldMap[dateType]]: dates } as any);
     } catch (err) {
-      console.error('Local mirror update failed:', err);
+      console.error('Local large_projects update failed:', err);
       queryClient.invalidateQueries({ queryKey: ['large-project', id] });
-      toast.error('Datumen sparades i bokningssystemet men lokal spegel misslyckades — laddar om');
+      toast.error('Kunde inte spara datumen lokalt — laddar om');
       return;
     }
 
