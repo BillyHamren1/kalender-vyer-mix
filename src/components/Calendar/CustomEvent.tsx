@@ -8,11 +8,8 @@ import { deleteCalendarEvent } from '@/services/eventService';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
-// QuickTimeEditPopover removed from warehouse events — single-click no longer
-// opens a time picker (felt accidental). Edits go via double-click / context menu.
+import EventActionPopover from './EventActionPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
-import { MoveDayPopover } from './MoveDayPopover';
-import { AddDayButton } from './AddDayButton';
 import { DeleteDayButton } from './DeleteDayButton';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import './CustomEvent.css';
@@ -186,15 +183,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             AVBOKAD
           </div>
         )}
-        {/* Move-day pilar + Add-day plus — endast planning team-events (ej warehouse, ej readOnly, ej cancelled) */}
-        {!isCancelled && !isWarehouseEvent && !readOnly && event.bookingId && (
-          <>
-            <AddDayButton event={event} />
-            <MoveDayPopover event={event} setEvents={setEvents} onUpdate={onEventResize} />
-          </>
-        )}
-        {/* Radera enskild dag — tillgängligt för planning- och warehouse-events */}
-        {!isCancelled && !readOnly && (
+        {/* In-card move/add/delete-day buttons removed — moved into EventActionPopover */}
+        {/* Radera enskild dag — tillgängligt för cancelled (popover ej tillgänglig då) */}
+        {isCancelled && !readOnly && (
           <DeleteDayButton event={event} setEvents={setEvents} onUpdate={onEventResize} />
         )}
         {/* Large project badge — inline, not overlapping */}
@@ -369,12 +360,23 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   return (
     <>
-      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
-        <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+      <EventActionPopover
+        event={event}
+        setEvents={setEvents}
+        onUpdate={onEventResize}
+        onOpenDetails={handleViewDetails}
+        onMoveDate={() => {
+          if (moveDateHandlers.canOpen()) {
+            moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
+            setShowDateDialog(true);
+          }
+        }}
+      >
+        <div onContextMenu={handleContextMenu} onDoubleClick={handleViewDetails} style={{ width: '100%', height: '100%' }}>
           {eventCardContent}
         </div>
-      </EventHoverCard>
-      
+      </EventActionPopover>
+
       {/* Date Move Dialog — LEGACY local state, gated by editController */}
       <MoveEventDateDialog
         open={showDateDialog}
