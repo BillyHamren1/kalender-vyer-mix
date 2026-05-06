@@ -41,6 +41,16 @@ export interface Ping {
   accuracy: number | null;
 }
 
+export interface KnownPlaceAlternative {
+  id: string;
+  type: MatchedSiteType;
+  name: string;
+  /** Distance in days from the target date to the closest relevant date of this candidate. */
+  dayDistance: number;
+  /** True if the visit date falls inside this candidate's auto-window (rig-2 → rigdown+2). */
+  insideAutoWindow: boolean;
+}
+
 export interface KnownPlace {
   id: string;            // booking_id (text), project_id (uuid), location_id (uuid), or "home:<staffId>"
   type: MatchedSiteType;
@@ -48,6 +58,14 @@ export interface KnownPlace {
   lat: number;
   lng: number;
   radiusM: number;       // default 100
+  /**
+   * True if this is the chosen primary among multiple candidates at the same
+   * address but the visit date sits OUTSIDE the auto-window — UI should ask
+   * staff/admin to confirm which project the visit belongs to.
+   */
+  requiresConfirmation?: boolean;
+  /** Other candidates sharing this address (excluding the primary). */
+  alternatives?: KnownPlaceAlternative[];
 }
 
 export interface Segment {
