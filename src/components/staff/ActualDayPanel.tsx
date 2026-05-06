@@ -44,6 +44,7 @@ import { useUserRoles } from '@/hooks/useUserRoles';
 import { useActualDayEventOverrides } from '@/hooks/useActualDayEventOverrides';
 import ExcludedEventsSection from './ExcludedEventsSection';
 import DayHeaderPanel from './DayHeaderPanel';
+import ActiveNowBanner from './ActiveNowBanner';
 import { buildDayHeaderModel } from '@/lib/staff/dayHeaderModel';
 
 /**
@@ -1205,6 +1206,9 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      {/* Aktiv-rad: EN konsekvent källa till "var registreras tiden just nu". */}
+      <ActiveNowBanner header={headerModel} lastPingIso={lastPingIso} />
+
       {/* A. Normaliserad huvudjournal */}
       <DayHeaderPanel
         staffName={staffName}
