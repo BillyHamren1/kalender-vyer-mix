@@ -165,6 +165,41 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         </div>
       )}
 
+      {otherFiles.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Documents & files
+          </p>
+          <div className="space-y-1.5">
+            {otherFiles.map((file: any) => {
+              const isPdf = file.file_type === 'application/pdf' || /\.pdf$/i.test(file.url || '');
+              return (
+                <a
+                  key={file.id || file.url}
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-xl border bg-card p-3 active:scale-[0.98] transition-transform"
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isPdf ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {file.file_name || file.name || 'File'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {file.source === 'booking' ? 'From booking' : 'From project'}
+                      {isPdf ? ' · PDF' : ''}
+                    </p>
+                  </div>
+                  <Download className="w-4 h-4 text-muted-foreground shrink-0" />
+                </a>
+              );
+            })}
+        </div>
+      )}
+
       {previewUrl && (
         <div
           className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-4"
