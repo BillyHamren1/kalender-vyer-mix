@@ -129,7 +129,7 @@ export const WorkDayPanel: React.FC = () => {
           toast.error('Ogiltigt mål för timer.');
           return;
         }
-        const params: Parameters<typeof mobileApi.startLocationTimer>[0] = {
+        const params: Parameters<typeof mobileApi.startTimeRegistration>[0] = {
           started_at: selection.startedAtIso,
           ...(target_type === 'booking'       ? { booking_id: target_id } : {}),
           ...(target_type === 'large_project' ? { large_project_id: target_id } : {}),
