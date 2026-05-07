@@ -81,13 +81,27 @@ interface AnalyzeRequest {
   force?: boolean;
 }
 
+interface TrackingPolicyRecommendation {
+  mode?: "low_power" | "normal" | "high_resolution";
+  heartbeatMs?: number;
+  reason?: string;
+}
+
 interface AiResult {
   suggestedType: "other_place" | "transport" | "needs_user_input";
   confidence: number;
   needsUserInput: boolean;
   userQuestion?: string;
   explanation: string;
+  // Hard rule contract — never reduces payable time, never overrides rule engine.
+  affectsPayableTime: false;
+  // What the segment should remain as if AI is unsure / low confidence.
+  // Defaults to "other_place" so that nothing is silently changed.
+  keepAsType: "other_place" | "unclear_transport" | "unclear_movement" | "gps_gap_in_workday";
+  trackingPolicyRecommendation?: TrackingPolicyRecommendation;
 }
+
+const CONFIDENCE_THRESHOLD = 0.6;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
