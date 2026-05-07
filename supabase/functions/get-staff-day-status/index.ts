@@ -217,6 +217,9 @@ Deno.serve(async (req) => {
       ),
     },
     attestation: (attestationRes.data ?? null) as never,
+    activeBoosts: (boostsRes.data ?? []) as never,
+    batteryPct,
+    dismissedCooldownActive,
   });
 
   return new Response(JSON.stringify(snapshot), {
