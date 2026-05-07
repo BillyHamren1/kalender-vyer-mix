@@ -300,6 +300,11 @@ import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type Trac
 import { buildSegmentChainGaps } from "./segmentChain.ts";
 import { clusterPings } from "./timeline/cluster.ts";
 import { matchSegmentsToPlaces } from "./timeline/matcher.ts";
+import {
+  buildGpsDayTimeline as buildEngineGpsDayTimeline,
+  type GpsPing as EngineGpsPing,
+} from "./time-engine/buildGpsDayTimeline.ts";
+import type { WorkTarget as EngineWorkTarget } from "./time-engine/contracts.ts";
 import { minutesBetween } from "./timeline/geo.ts";
 export type { TrackingPolicy, TrackingPolicyBoostRow };
 
