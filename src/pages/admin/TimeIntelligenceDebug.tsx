@@ -872,6 +872,7 @@ export default function TimeIntelligenceDebug() {
             </Button>
           </div>
 
+          <PingFirstPanel data={pingFirst} />
           <StatusGrid result={result} />
           <DayTimeline result={result} />
           <EvidenceTimeline result={result} />
