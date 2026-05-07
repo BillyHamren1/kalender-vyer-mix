@@ -18,14 +18,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Building2, MapPin, Search, Pencil, Calendar } from 'lucide-react';
+import { Building2, MapPin, Search, Pencil, Calendar, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { MobileBooking } from '@/services/mobileApiService';
 import type { WorkTarget } from '@/hooks/useWorkSession';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 export type StartDaySelection =
-  | { kind: 'target'; target: WorkTarget; label: string }
-  | { kind: 'manual'; text: string };
+  | { kind: 'target'; target: WorkTarget; label: string; startedAtIso?: string }
+  | { kind: 'manual'; text: string; startedAtIso?: string };
 
 export interface StartDayLocation {
   id: string;
