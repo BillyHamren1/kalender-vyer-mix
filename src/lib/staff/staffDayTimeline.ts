@@ -50,7 +50,13 @@ export type StaffDaySegmentKind =
   | 'warehouse'
   | 'break'
   | 'other'
-  | 'unknown';
+  | 'unknown'
+  /**
+   * Teknisk signal-status — telefonen har varit tyst under arbetsdagen.
+   * INTE ett tidsglapp. Räknas inte av, kräver inte review, fortsätter
+   * visa att arbetsdagen pågår.
+   */
+  | 'signal_stale';
 
 export type StaffDayStatus =
   | 'no_workday'        // ingen workday och inga segments alls
