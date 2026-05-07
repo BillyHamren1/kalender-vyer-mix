@@ -89,10 +89,10 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
     );
   }
 
-  const uploadedPhotos = files.filter(f => f.source === 'project' && isImageFile(f));
-  const bookingImages = files
-    .filter(f => f.source === 'booking' && isImageFile(f))
-    .filter((f, idx, arr) => arr.findIndex((x: any) => x.url === f.url) === idx);
+  const dedupe = (arr: any[]) => arr.filter((f, idx, a) => a.findIndex((x: any) => x.url === f.url) === idx);
+  const uploadedPhotos = dedupe(files.filter(f => f.source === 'project' && isImageFile(f)));
+  const bookingImages = dedupe(files.filter(f => f.source === 'booking' && isImageFile(f)));
+  const otherFiles = dedupe(files.filter(f => !isImageFile(f)));
 
   return (
     <div className="space-y-6">
