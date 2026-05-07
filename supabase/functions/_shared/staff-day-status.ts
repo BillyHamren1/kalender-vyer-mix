@@ -193,6 +193,10 @@ export interface StaffDaySnapshot {
     durationMinutes: number;
     /** ISO of an earlier confirmed worksite presence (back-date suggestion). */
     suggestedStartedAt: Iso | null;
+    /** Set when started_at was auto-back-dated from confirmed presence. */
+    autoExtendedFrom: Iso | null;
+    /** True if no DB workday existed but confirmed presence synthesised one. */
+    synthesizedFromEvidence: boolean;
   } | null;
   active: ActiveActivity | null;
   totals: DayTotals;
@@ -259,6 +263,9 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents } = input;
 
   // ---- Workday ----
+  // We may auto-extend the started_at downward (back-date) when confirmed
+  // worksite presence exists earlier — this is a hard rule, not a suggestion.
+  // The auto-extended value below is computed AFTER raw segments are built.
   const workdaySnapBase = workday
     ? {
         id: workday.id,
@@ -270,6 +277,8 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
         approved: !!workday.approved_at,
         adminNote: workday.admin_note,
         durationMinutes: diffMinutes(workday.started_at, workday.ended_at, now),
+        autoExtendedFrom: null as Iso | null,
+        synthesizedFromEvidence: false,
       }
     : null;
 
@@ -409,14 +418,77 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       }
     : null;
 
-  // ---- Workday back-date suggestion ----
-  // Only confirmed worksite presence may suggest moving started_at earlier.
+  // ---- Workday back-date / synth from confirmed presence ----
+  // HARD RULE: confirmed worksite presence before workday.started_at must
+  // automatically pull the workday earlier (unless approved/locked). If
+  // there is no workday at all but confirmed presence exists, synthesise
+  // one from the earliest confirmed presence so UI never shows
+  // "Saknar arbetsdag" while there is real work evidence.
   const policySegments: PolicySegment[] = rawSegments.map((r) => r._policy);
-  const suggestedStartedAt = suggestedWorkdayStart(policySegments, policyWorkday);
+  const earliestConfirmed = suggestedWorkdayStart(policySegments, policyWorkday);
 
-  const workdaySnap = workdaySnapBase
-    ? { ...workdaySnapBase, suggestedStartedAt }
-    : null;
+  let workdaySnap = workdaySnapBase;
+  let effectivePolicyWorkday = policyWorkday;
+
+  if (workdaySnap) {
+    const canMutate = !workdaySnap.approved;
+    if (canMutate && earliestConfirmed && earliestConfirmed < workdaySnap.startedAt) {
+      const originalStart = workdaySnap.startedAt;
+      workdaySnap = {
+        ...workdaySnap,
+        startedAt: earliestConfirmed,
+        autoExtendedFrom: originalStart,
+        durationMinutes: diffMinutes(earliestConfirmed, workdaySnap.endedAt, now),
+      };
+      effectivePolicyWorkday = {
+        startedAt: earliestConfirmed,
+        endedAt: workdaySnap.endedAt,
+        approved: workdaySnap.approved,
+      };
+    }
+  } else if (earliestConfirmed) {
+    // Synthesised workday — derived purely from confirmed worksite presence.
+    workdaySnap = {
+      id: `synth-${date}-${staffId}`,
+      startedAt: earliestConfirmed,
+      endedAt: null,
+      isOpen: true,
+      reviewStatus: null,
+      reviewReasons: [],
+      approved: false,
+      adminNote: null,
+      durationMinutes: diffMinutes(earliestConfirmed, null, now),
+      autoExtendedFrom: null,
+      synthesizedFromEvidence: true,
+    };
+    effectivePolicyWorkday = {
+      startedAt: earliestConfirmed,
+      endedAt: null,
+      approved: false,
+    };
+  }
+
+  // Re-classify segments against the (possibly extended/synth) workday so
+  // an early Tiomila ping inside the new window is "confirmed_work", not
+  // "unknown_needs_review".
+  if (effectivePolicyWorkday !== policyWorkday) {
+    for (let i = 0; i < segments.length; i++) {
+      segments[i] = {
+        ...segments[i],
+        policyStatus: classifySegment(rawSegments[i]._policy, effectivePolicyWorkday, now),
+      };
+    }
+  }
+
+  // suggestedStartedAt is kept for backward compat, but only exposed when
+  // the auto-extend path could NOT apply (e.g. day is approved/locked).
+  const suggestedStartedAt =
+    workdaySnap && workdaySnap.autoExtendedFrom == null && earliestConfirmed && earliestConfirmed < workdaySnap.startedAt
+      ? earliestConfirmed
+      : null;
+  if (workdaySnap) {
+    workdaySnap = { ...workdaySnap, suggestedStartedAt } as typeof workdaySnap;
+  }
 
   // ---- Totals ----
   // Allocated/travel are summed from their tables. Unknown vistelser
@@ -466,18 +538,15 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     source: "workday_flag",
   }));
 
-  if (!workdaySnap) {
-    dayFlags.push({
-      id: `missing-workday-${date}`,
-      type: "missing_workday",
-      severity: "warning",
-      title: "Saknad arbetsdag",
-      description: "Ingen workday hittades för denna dag.",
-      needsUserInput: false,
-      resolved: false,
-      source: "computed",
-    });
-  } else if (!workdaySnap.endedAt && new Date(workdaySnap.startedAt).getTime() < now.getTime() - 16 * 60 * MS_PER_MIN) {
+  // NOTE: "missing_workday" is no longer emitted here. The engine now
+  // synthesises a workday from confirmed worksite presence above, so the
+  // only remaining case (no workday AND no confirmed evidence) means
+  // there is genuinely nothing to report — and that is signalled by
+  // workday === null, not by a noisy warning flag.
+  // "early_confirmed_presence" is likewise gone: the engine back-dates
+  // automatically. We still surface a passive info flag if the day is
+  // approved/locked and could not be auto-extended.
+  if (workdaySnap && !workdaySnap.endedAt && new Date(workdaySnap.startedAt).getTime() < now.getTime() - 16 * 60 * MS_PER_MIN) {
     dayFlags.push({
       id: `missing-end-${workdaySnap.id}`,
       type: "missing_end_time",
@@ -507,22 +576,23 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     dayFlags.push({
       id: `unknown-within-workday-${workdaySnap?.id ?? date}`,
       type: "unknown_within_workday",
-      severity: "warning",
-      title: "Okänd vistelse · behöver granskning",
-      description: `${unknownWithinWd} min okänd vistelse ligger inom arbetsdagen.`,
-      needsUserInput: true,
+      severity: "info",
+      title: "Okänd vistelse inom arbetsdagen",
+      description: `${unknownWithinWd} min ligger inom arbetsdagen och väntar på klassning.`,
+      needsUserInput: false,
       resolved: false,
       source: "computed",
     });
   }
 
-  if (workdaySnap && suggestedStartedAt && suggestedStartedAt < workdaySnap.startedAt) {
+  if (workdaySnap && suggestedStartedAt && workdaySnap.approved) {
+    // Day is locked — engine could not auto-extend, surface as passive info.
     dayFlags.push({
       id: `early-confirmed-presence-${workdaySnap.id}`,
       type: "early_confirmed_presence",
       severity: "info",
       title: "Tidigare bekräftat arbete",
-      description: `Bekräftad arbetsplats finns från ${suggestedStartedAt.slice(11, 16)} — arbetsdagen kan tidigareläggas.`,
+      description: `Bekräftad arbetsplats finns från ${suggestedStartedAt.slice(11, 16)} (dagen är låst).`,
       needsUserInput: false,
       resolved: false,
       source: "computed",
