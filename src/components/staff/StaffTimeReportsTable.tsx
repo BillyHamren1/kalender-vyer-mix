@@ -86,6 +86,8 @@ interface JournalTableProps {
   blocks: StaffBlock[];
   date: string;
   onSelectStaff: (id: string, name: string) => void;
+  /** When true, skip UI smoothing of GPS rows (for Time Debug). */
+  debugMode?: boolean;
 }
 
 interface EditTargetPayload {
