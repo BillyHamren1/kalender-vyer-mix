@@ -159,13 +159,10 @@ const ProjectProductsList = ({
     );
     return (
       <div key={product.id}>
-        <div className="grid grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)] items-center py-2 gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center py-2 gap-3">
           <span className="min-w-0 text-sm font-medium text-foreground">{cleanName(product.name)}</span>
-          <span className="text-center text-xs font-medium text-muted-foreground tabular-nums">
-            {product.quantity} st
-          </span>
           <div className="flex justify-end">
-            {withMenu && (
+            {withMenu ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -182,24 +179,35 @@ const ProjectProductsList = ({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
+            ) : null}
           </div>
+          <span className="text-right text-sm font-medium text-foreground tabular-nums">
+            {product.quantity} st
+          </span>
         </div>
         {accessories.map((child) => (
-          <div key={child.id} className="grid grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)] items-center py-1 pl-5 pb-1.5 gap-2">
+          <div key={child.id} className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center py-1 pl-5 pb-1.5 gap-3">
             <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
               {cleanName(child.name)}
             </span>
-            <span className="text-center text-xs text-muted-foreground tabular-nums">
+            <span />
+            <span className="text-right text-xs text-muted-foreground tabular-nums">
               {child.quantity} st
             </span>
-            <span />
           </div>
         ))}
       </div>
     );
   };
+
+  const headerRow = (
+    <div className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center gap-3 py-2 border-b border-border/60 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <span>Produkt</span>
+      <span />
+      <span className="text-right">Antal</span>
+    </div>
+  );
 
   return (
     <div>
