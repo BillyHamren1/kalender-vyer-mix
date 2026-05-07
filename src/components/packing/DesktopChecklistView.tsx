@@ -315,6 +315,9 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
 
   const handleDecrement = useCallback(async (itemId: string, isParent: boolean) => {
     if (isParent) return;
+    // TODO: decrement bör senare kopplas till WMS return/minus-flöde om den
+    // ska påverka fysisk allokering. För nu uppdaterar den endast lokal
+    // packing_list_items via desktopPackingService (samma som tidigare).
     const result = await decrementPackingItem(itemId);
     if (result.success) {
       setItems(prev => {
