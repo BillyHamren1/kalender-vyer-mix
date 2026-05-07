@@ -136,7 +136,12 @@ const ProjectLayout = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/projects")} className="rounded-xl">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/projects"))}
+              className="rounded-xl"
+            >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
