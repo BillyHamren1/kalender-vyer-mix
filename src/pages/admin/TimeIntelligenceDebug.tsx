@@ -781,6 +781,74 @@ export default function TimeIntelligenceDebug() {
     }
   };
 
+  const buildCompactSummary = () => {
+    const r = result ?? {};
+    const raw = r.rawData ?? {};
+    const tm = r.targetMatches ?? {};
+    const snap = r.snapshotPreview ?? {};
+    const ww = r.wouldWrite ?? {};
+    const dm = r.debugMeta ?? {};
+    const cap = (arr: any) => Array.isArray(arr) ? arr.slice(0, 20) : arr;
+    return {
+      rawData: {
+        pingCount: raw.pingCount,
+        firstPingAt: raw.firstPingAt,
+        lastPingAt: raw.lastPingAt,
+        pingGapsOver10Min: raw.pingGapsOver10Min,
+        knownTargets: raw.knownTargets,
+        nearestTargetsPerPingCount: Array.isArray(raw.nearestTargetsPerPing) ? raw.nearestTargetsPerPing.length : raw.nearestTargetsPerPingCount,
+        pingClassificationTimelineCount: Array.isArray(raw.pingClassificationTimeline) ? raw.pingClassificationTimeline.length : raw.pingClassificationTimelineCount,
+      },
+      targetMatches: {
+        summary: tm.summary,
+      },
+      segmentPreview: cap(r.segmentPreview ?? snap.segments),
+      snapshotPreview: {
+        totals: snap.totals,
+        segmentSource: snap.segmentSource,
+        segments: cap(snap.segments),
+        rawEvidenceCounts: {
+          timeReports: Array.isArray(snap.rawEvidence?.timeReports) ? snap.rawEvidence.timeReports.length : snap.rawEvidenceCounts?.timeReports,
+          travelLogs: Array.isArray(snap.rawEvidence?.travelLogs) ? snap.rawEvidence.travelLogs.length : snap.rawEvidenceCounts?.travelLogs,
+          locationEntries: Array.isArray(snap.rawEvidence?.locationEntries) ? snap.rawEvidence.locationEntries.length : snap.rawEvidenceCounts?.locationEntries,
+        },
+        debugMeta: snap.debugMeta,
+      },
+      wouldWrite: {
+        engineReport: {
+          report: {
+            pings: ww.engineReport?.report?.pings,
+            arrivals: ww.engineReport?.report?.arrivals,
+            switches: ww.engineReport?.report?.switches,
+            workdays_opened: ww.engineReport?.report?.workdays_opened,
+            ltes_opened: ww.engineReport?.report?.ltes_opened,
+            ltes_closed: ww.engineReport?.report?.ltes_closed,
+            travels_created: ww.engineReport?.report?.travels_created,
+            plan: ww.engineReport?.report?.plan,
+          },
+        },
+        plannedActions: cap(ww.plannedActions),
+        inactionReasons: cap(ww.inactionReasons),
+      },
+      warnings: cap(r.warnings),
+      conflicts: cap(r.conflicts),
+      debugMeta: {
+        diagnostics: dm.diagnostics,
+        rawPingCoverage: dm.rawPingCoverage,
+      },
+    };
+  };
+
+  const copyCompactSummary = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(buildCompactSummary(), null, 2));
+      toast.success("Compact debug summary kopierad");
+    } catch (e: any) {
+      toast.error("Kunde inte kopiera: " + (e?.message ?? String(e)));
+    }
+  };
+
   const isDryRun = result?.dryRun !== false;
   const datePreset = useMemo(() =>
     date === todayIso() ? "today" : date === yesterdayIso() ? "yesterday" : "custom",
