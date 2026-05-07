@@ -2680,7 +2680,7 @@ serve(async (req) => {
         const bookingData: BookingData = {
           id: externalBooking.id,
           client: clientName,
-          title: externalBooking.title ?? externalBooking.name ?? null,
+          title: externalBooking.title ?? externalBooking.name ?? externalBooking.location ?? null,
           rigdaydate: rigdaydate,
           eventdate: eventdate,
           rigdowndate: rigdowndate,
