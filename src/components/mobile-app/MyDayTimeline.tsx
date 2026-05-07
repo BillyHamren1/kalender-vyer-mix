@@ -78,6 +78,7 @@ const SEGMENT_ICON: Record<StaffDaySegmentKind, React.ComponentType<{ className?
   break: Clock,
   other: Clock,
   unknown: AlertTriangle,
+  signal_stale: AlertTriangle,
 };
 
 const SEGMENT_TONE: Record<StaffDaySegmentKind, string> = {
@@ -87,6 +88,7 @@ const SEGMENT_TONE: Record<StaffDaySegmentKind, string> = {
   break: 'bg-muted text-muted-foreground',
   other: 'bg-muted text-muted-foreground',
   unknown: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  signal_stale: 'bg-muted text-muted-foreground',
 };
 
 const segmentTimeRange = (s: StaffDaySegment): string => {

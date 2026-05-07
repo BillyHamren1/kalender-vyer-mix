@@ -285,6 +285,11 @@ function dedupSegments(segments: RawSegment[]): RawSegment[] {
 }
 
 // ── Gap-fyllning: täck workday med 'unknown'-segment där inget annat finns ─
+//
+// REGEL (2026-05-07): Saknad ping är INTE ett tidsglapp.
+// När arbetsdagen är öppen och telefonen är tyst skapar vi inte längre
+// trailing "Glapp / Ingen registrerad aktivitet". Inre tysta perioder
+// blir `signal_stale` (passiv signal-status, ingen review, ingen avdrag).
 
 function fillGapsAsUnknown(
   segments: RawSegment[],
@@ -299,6 +304,7 @@ function fillGapsAsUnknown(
   const envStartMs = safeMs(envelopeStart)!;
   const envEndMs = envelopeEnd ? safeMs(envelopeEnd)! : now;
   if (envEndMs <= envStartMs) return sorted;
+  const workdayOpen = !envelopeEnd;
 
   const result: StaffDaySegment[] = [];
   let cursor = envStartMs;
@@ -308,16 +314,16 @@ function fillGapsAsUnknown(
       const startIso = new Date(cursor).toISOString();
       const endIso = new Date(segStart).toISOString();
       result.push({
-        id: `gap:${cursor}-${segStart}`,
-        kind: 'unknown',
+        id: `signal:${cursor}-${segStart}`,
+        kind: 'signal_stale',
         startIso,
         endIso,
         durationMin: Math.round((segStart - cursor) / MS_MIN),
-        label: 'Glapp',
-        subtitle: 'Ingen registrerad aktivitet',
+        label: 'Signal saknas',
+        subtitle: `Senaste signal ${new Date(cursor).toISOString().slice(11, 16)}`,
         ongoing: false,
-        reviewRequired: true,
-        sourceBlockId: `gap:${cursor}`,
+        reviewRequired: false,
+        sourceBlockId: `signal:${cursor}`,
         payable: false,
       });
     }
@@ -325,20 +331,23 @@ function fillGapsAsUnknown(
     const segEnd = safeMs(seg.endIso) ?? envEndMs;
     if (segEnd > cursor) cursor = segEnd;
   }
-  if (envEndMs > cursor + MS_MIN) {
+  // Trailing tyst period: bara visa signal-status om workday är ÖPPEN —
+  // aldrig som "Glapp". Stängd workday: ingen trailing alls (tiden ligger
+  // i workday-summan, ingen behöver granska).
+  if (workdayOpen && envEndMs > cursor + MS_MIN) {
     const startIso = new Date(cursor).toISOString();
     const endIso = new Date(envEndMs).toISOString();
     result.push({
-      id: `gap:${cursor}-${envEndMs}`,
-      kind: 'unknown',
+      id: `signal:${cursor}-${envEndMs}`,
+      kind: 'signal_stale',
       startIso,
       endIso,
       durationMin: Math.round((envEndMs - cursor) / MS_MIN),
-      label: 'Glapp',
-      subtitle: 'Ingen registrerad aktivitet',
-      ongoing: false,
-      reviewRequired: true,
-      sourceBlockId: `gap:${cursor}-end`,
+      label: 'Signal saknas',
+      subtitle: `Senaste signal ${new Date(cursor).toISOString().slice(11, 16)} · arbetsdag pågår`,
+      ongoing: true,
+      reviewRequired: false,
+      sourceBlockId: `signal:${cursor}-end`,
       payable: false,
     });
   }
