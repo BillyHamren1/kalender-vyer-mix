@@ -11,7 +11,11 @@
 // ============================================================================
 
 import { assertEquals, assert } from 'https://deno.land/std@0.224.0/assert/mod.ts'
-import { runEngine, type ProcessReport } from './engine.ts'
+// NOTE: engine.ts is the permanently-disabled wrapper. The legacy engine
+// behavior under test still lives in legacy-engine-disabled.ts (kept for
+// historical reference and this scenario test only). Do not re-import the
+// legacy engine from production code.
+import { runEngine, type ProcessReport } from './legacy-engine-disabled.ts'
 
 // ── In-memory fake Supabase ─────────────────────────────────────────────────
 
