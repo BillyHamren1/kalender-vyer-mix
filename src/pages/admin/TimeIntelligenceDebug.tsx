@@ -549,6 +549,17 @@ function PingFirstPanel({ data }: { data: any }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {data.rawPingCoverage && (
+          <div className={`text-xs rounded-md border px-3 py-2 ${data.rawPingCoverage.truncated ? TONE_CLASS.bad : TONE_CLASS.ok}`}>
+            <div className="font-mono">
+              Coverage: {data.rawPingCoverage.totalFetched} pings · {data.rawPingCoverage.pageCount} sidor
+              {data.rawPingCoverage.truncated ? " · TRUNCATED!" : ""}
+            </div>
+            <div className="opacity-80">
+              Första: {fmtTime(data.rawPingCoverage.firstPingAt)} · Sista: {fmtTime(data.rawPingCoverage.lastPingAt)}
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2 text-xs">
           {Object.entries(summary).map(([k, v]) => (
             <Badge key={k} variant="outline" className={TONE_CLASS[PING_KLASS_TONE[k] ?? "neutral"]}>
@@ -561,6 +572,39 @@ function PingFirstPanel({ data }: { data: any }) {
           Time reports: {ctx.timeReportsCount ?? 0} · Travel logs: {ctx.travelLogsCount ?? 0} ·
           Geofence-kandidater: {data.candidateCount}
         </div>
+        {Array.isArray(data.rawClusters) && data.rawClusters.length > 0 && (
+          <div>
+            <div className="text-xs font-semibold mb-1 text-muted-foreground">
+              Råa ping-kluster (före tolkning) — {data.rawClusters.length} st
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs font-mono">
+                <thead className="text-muted-foreground border-b">
+                  <tr className="text-left">
+                    <th className="py-1 pr-3">#</th>
+                    <th className="py-1 pr-3">Tid</th>
+                    <th className="py-1 pr-3">Min</th>
+                    <th className="py-1 pr-3">Pings</th>
+                    <th className="py-1 pr-3">Centroid</th>
+                    <th className="py-1 pr-3">Acc.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.rawClusters.map((c: any) => (
+                    <tr key={c.index} className="border-b">
+                      <td className="py-1 pr-3 opacity-60">{c.index}</td>
+                      <td className="py-1 pr-3 whitespace-nowrap">{fmtTime(c.start_at)}–{fmtTime(c.end_at)}</td>
+                      <td className="py-1 pr-3">{c.duration_min}</td>
+                      <td className="py-1 pr-3">{c.ping_count}</td>
+                      <td className="py-1 pr-3 opacity-80">{c.centroid_lat.toFixed(4)}, {c.centroid_lng.toFixed(4)}</td>
+                      <td className="py-1 pr-3 opacity-80">{c.avg_accuracy ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-xs font-mono">
             <thead className="text-muted-foreground border-b">
