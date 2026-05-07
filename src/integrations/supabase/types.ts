@@ -6477,6 +6477,66 @@ export type Database = {
           },
         ]
       }
+      unclear_segment_ai_analyses: {
+        Row: {
+          confidence: number
+          created_at: string
+          explanation: string
+          id: string
+          input_hash: string
+          model: string
+          needs_user_input: boolean
+          organization_id: string
+          segment_date: string
+          segment_end_ts: string
+          segment_id: string
+          segment_kind: string
+          segment_start_ts: string
+          staff_id: string
+          suggested_type: string
+          updated_at: string
+          user_question: string | null
+        }
+        Insert: {
+          confidence: number
+          created_at?: string
+          explanation: string
+          id?: string
+          input_hash: string
+          model: string
+          needs_user_input?: boolean
+          organization_id: string
+          segment_date: string
+          segment_end_ts: string
+          segment_id: string
+          segment_kind: string
+          segment_start_ts: string
+          staff_id: string
+          suggested_type: string
+          updated_at?: string
+          user_question?: string | null
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          explanation?: string
+          id?: string
+          input_hash?: string
+          model?: string
+          needs_user_input?: boolean
+          organization_id?: string
+          segment_date?: string
+          segment_end_ts?: string
+          segment_id?: string
+          segment_kind?: string
+          segment_start_ts?: string
+          staff_id?: string
+          suggested_type?: string
+          updated_at?: string
+          user_question?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
