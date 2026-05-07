@@ -3693,13 +3693,18 @@ serve(async (req) => {
           }
 
           // ── DELETE products no longer in the external API ─────────────────────
-          if (oldProducts && oldProducts.length > 0) {
+          // GUARD: never delete based on an empty external payload — that's the upstream
+          // delete+reinsert race window, not a real deletion intent.
+          const externalProductCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
+          if (oldProducts && oldProducts.length > 0 && externalProductCount > 0) {
             const toDelete = oldProducts.filter((p: any) => !seenExistingIds.has(p.id));
             if (toDelete.length > 0) {
               const idsToDelete = toDelete.map((p: any) => p.id);
-              console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API`);
+              console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API (external had ${externalProductCount})`);
               await supabase.from('booking_products').delete().in('id', idsToDelete);
             }
+          } else if (oldProducts && oldProducts.length > 0 && externalProductCount === 0) {
+            console.warn(`[Merge GUARD] Skipping delete of ${oldProducts.length} local products for booking ${bookingData.id}: external products array is empty (transient_empty_source)`);
           }
           // ─────────────────────────────────────────────────────────────────────
           
