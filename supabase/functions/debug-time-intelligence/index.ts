@@ -73,6 +73,15 @@ Deno.serve(async (req) => {
   let body: any = {};
   try { body = await req.json(); } catch { body = {}; }
 
+  // ── Scenario test mode (no DB required) ──────────────────────────────────
+  // Usage: { "mode": "scenarios" }  → runs 5 synthetic SnapshotInputs through
+  // the pure buildStaffDaySnapshot engine and reports expected vs actual
+  // classification. Used by `bash scripts/test-debug-time-intelligence.sh`
+  // and as ad-hoc smoke check after any tracking-rule change.
+  if (String(body.mode ?? "").toLowerCase() === "scenarios") {
+    return json(200, runScenarioSuite());
+  }
+
   const staffIdInput = String(body.staffId ?? "").trim();
   const date = String(body.date ?? "").trim();
   const dryRun = body.dryRun !== false; // default true
