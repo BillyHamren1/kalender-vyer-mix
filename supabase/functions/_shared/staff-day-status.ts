@@ -1097,6 +1097,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
         }
       : null,
     lastUpdatedAt: now.toISOString(),
+    debugMeta,
   };
 }
 
