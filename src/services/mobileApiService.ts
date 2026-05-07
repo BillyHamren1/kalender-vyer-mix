@@ -674,25 +674,40 @@ export const mobileApi = {
   getOrganizationLocations: () =>
     callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number; show_as_project?: boolean }[] }>('get_organization_locations'),
 
-  // Unified timer start. Exactly one of {location_id, booking_id, large_project_id} must be set.
-  // `client_dedupe_key` makes retries idempotent (same key => same row).
-  startLocationTimer: (params: {
+  // Unified timer start (Time Engine v2). Forwards to action
+  // `start_time_registration`, which writes ONLY to `active_time_registrations`.
+  // The response is remapped from `{ registration }` to `{ entry }` to keep
+  // existing callers (timerSyncQueue, useWorkSession, useGeofencing) working.
+  startLocationTimer: async (params: {
     location_id?: string;
     booking_id?: string;
     large_project_id?: string;
     task_id?: string;
     started_at?: string;
     client_dedupe_key?: string;
-  }) =>
-    callApi<{
+  }) => {
+    let target_type: 'large_project' | 'booking' | 'location' | null = null;
+    let target_id: string | null = null;
+    if (params.large_project_id) { target_type = 'large_project'; target_id = params.large_project_id; }
+    else if (params.booking_id)  { target_type = 'booking';       target_id = params.booking_id; }
+    else if (params.location_id) { target_type = 'location';      target_id = params.location_id; }
+    const res = await callApi<{
       success?: boolean;
-      already_active?: boolean;
-      idempotent?: boolean;
-      /** 'already_closed_or_consumed' = pending start matched a window already stopped/reported. */
-      status?: 'already_closed_or_consumed';
-      reason?: 'already_closed' | 'already_consumed';
-      entry: any;
-    }>('start_location_timer', params),
+      registration: any;
+    }>('start_time_registration', { target_type, target_id, started_at: params.started_at });
+    const reg = res?.registration ?? null;
+    return {
+      success: res?.success,
+      already_active: false as boolean,
+      idempotent: false as boolean,
+      status: undefined as 'already_closed_or_consumed' | undefined,
+      reason: undefined as 'already_closed' | 'already_consumed' | undefined,
+      entry: reg
+        ? { ...reg, entered_at: reg.started_at ?? reg.entered_at }
+        : null,
+    };
+  },
+
 
   // Lager (internal Lager project) tasks
   getLagerTasks: () =>
@@ -740,12 +755,25 @@ export const mobileApi = {
   uploadLagerFile: (data: { file_name: string; file_data: string; file_type: string }) =>
     callApi<{ success: boolean; file: any }>('upload_lager_file', data),
 
-  stopLocationTimer: (data: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string }) =>
-    callApi<{ success?: boolean; entry: any }>('stop_location_timer', data),
+  // Unified timer stop (Time Engine v2). Forwards to `stop_time_registration`.
+  stopLocationTimer: async (data: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string; stop_source?: string; stopped_at?: string }) => {
+    const res = await callApi<{ success?: boolean; registration: any }>('stop_time_registration', {
+      registration_id: data.entry_id ?? null,
+      stop_source: data.stop_source ?? 'user_manual',
+      stopped_at: data.stopped_at,
+    });
+    const reg = res?.registration ?? null;
+    return { success: res?.success, entry: reg };
+  },
 
-  /** Stoppa en server-öppen LTE direkt (banner: server-only timer). Skapar
-   * time_report om target kräver det och returnerar uppdaterad active_day_state. */
-  stopOpenEntry: (data: {
+
+  /**
+   * LEGACY ONLY (admin / historik / banner-cleanup).
+   * Do not use as active timer logic in the new Time app — use
+   * `stopLocationTimer` (→ stop_time_registration) instead. Operates on legacy
+   * `location_time_entries` rows.
+   */
+  stopOpenEntryLegacy: (data: {
     entry_id: string;
     stop_at?: string;
     stop_source?: string;
@@ -764,10 +792,22 @@ export const mobileApi = {
   dismissLocationEntry: (locationId: string) =>
     callApi<{ success?: boolean }>('dismiss_location_entry', { location_id: locationId }),
 
-  getLocationTimeEntries: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
+  /**
+   * LEGACY ONLY (admin / historik). Reads `location_time_entries`.
+   * Do not use for active timer state — use the get-current-time-registration /
+   * get-active-time-registration-status / get-timer-time-segments edge
+   * functions instead.
+   */
+  getLocationTimeEntriesLegacy: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
     callApi<{ entries: any[] }>('get_location_time_entries', data),
 
-  getActiveDayState: () =>
+  /**
+   * LEGACY ONLY (admin / historik / day reconciliation banner).
+   * Do not use as the active timer source in the new Time app — use the
+   * get-current-time-registration / get-active-time-registration-status
+   * edge functions instead.
+   */
+  getActiveDayStateLegacy: () =>
     callApi<{
       workday: { id: string; started_at: string; ended_at: string | null; review_status: string | null } | null;
       open_entries: Array<{

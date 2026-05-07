@@ -691,7 +691,7 @@ export function useWorkSession(
 
       // Path 2 — server-only entry.
       if (input.serverEntryId) {
-        await mobileApi.stopOpenEntry({
+        await mobileApi.stopOpenEntryLegacy({
           entry_id: input.serverEntryId,
           stop_at: input.stopAtIso,
           skip_time_report: input.skipReport,

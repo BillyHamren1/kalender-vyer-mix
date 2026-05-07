@@ -98,7 +98,7 @@ export function useTimerReconciliation(enabled: boolean) {
         .toISOString().split('T')[0];
       let openEntries: any[] = [];
       try {
-        const res = await mobileApi.getLocationTimeEntries({ date_from: fromDate, limit: 200 });
+        const res = await mobileApi.getLocationTimeEntriesLegacy({ date_from: fromDate, limit: 200 });
         openEntries = (res.entries || []).filter((e: any) => !e.exited_at);
       } catch (err) {
         console.warn('[Reconcile] Could not fetch server entries:', err);
