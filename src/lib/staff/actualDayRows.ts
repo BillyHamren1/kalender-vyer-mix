@@ -202,8 +202,14 @@ function mergeAdjacentTravels(items: TimelineItem[]): TimelineItem[] {
   return merged;
 }
 
-export function buildActualDayRows(visits: PlaceVisit[], travels: TravelGap[], visitLabels: string[]): ActualDayRow[] {
+export function buildActualDayRows(
+  visits: PlaceVisit[],
+  travels: TravelGap[],
+  visitLabels: string[],
+  options: BuildActualDayRowsOptions = {},
+): ActualDayRow[] {
   if (visits.length === 0) return [];
+  const preserveRaw = options.preserveRawSegments === true;
 
   const labels = new WeakMap<PlaceVisit, string>();
   visits.forEach((visit, index) => {
@@ -222,7 +228,8 @@ export function buildActualDayRows(visits: PlaceVisit[], travels: TravelGap[], v
 
     const fromLabel = labels.get(travel.from) ?? visitLabel;
     const toLabel = labels.get(travel.to) ?? travel.to.knownSite?.name ?? `${travel.to.centre.lat.toFixed(4)}, ${travel.to.centre.lng.toFixed(4)}`;
-    if (samePlace(travel.from, travel.to)) continue;
+    // In preserveRaw mode, keep zero-distance "travel" segments visible too.
+    if (!preserveRaw && samePlace(travel.from, travel.to)) continue;
 
     timeline.push(
       buildTravelItem(travel.from, travel.to, fromLabel, toLabel, travel.start, travel.end, travel.key, travel),
@@ -230,9 +237,11 @@ export function buildActualDayRows(visits: PlaceVisit[], travels: TravelGap[], v
   }
 
   let normalized = [...timeline].sort((a, b) => new Date(a.startIso).getTime() - new Date(b.startIso).getTime());
-  normalized = collapseMicroStops(normalized);
-  normalized = mergeSamePlaceVisits(normalized);
-  normalized = mergeAdjacentTravels(normalized);
+  if (!preserveRaw) {
+    normalized = collapseMicroStops(normalized);
+    normalized = mergeSamePlaceVisits(normalized);
+    normalized = mergeAdjacentTravels(normalized);
+  }
 
   return normalized.reduce<ActualDayRow[]>((rows, item) => {
     if (item.type === 'visit') {
@@ -244,11 +253,14 @@ export function buildActualDayRows(visits: PlaceVisit[], travels: TravelGap[], v
         startIso: item.startIso,
         endIso: item.endIso,
         hours: item.durationMin / 60,
+        ...(preserveRaw
+          ? { debugMergeStatus: 'preserved', debugOriginalSegmentId: item.key }
+          : {}),
       });
       return rows;
     }
 
-    if (samePlace(item.from, item.to)) return rows;
+    if (!preserveRaw && samePlace(item.from, item.to)) return rows;
 
     rows.push({
       source: 'gps',
@@ -258,6 +270,9 @@ export function buildActualDayRows(visits: PlaceVisit[], travels: TravelGap[], v
       startIso: item.startIso,
       endIso: item.endIso,
       hours: item.durationMin / 60,
+      ...(preserveRaw
+        ? { debugMergeStatus: 'preserved', debugOriginalSegmentId: item.key }
+        : {}),
     });
     return rows;
   }, []);
