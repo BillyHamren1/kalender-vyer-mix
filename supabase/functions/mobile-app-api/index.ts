@@ -257,6 +257,45 @@ async function ensureOpenWorkdayForTimer(
     .maybeSingle()
   if (!staffRow) return null
 
+  // ── Night auto-start guard (00:00–05:00 lokal tid Europe/Stockholm) ──
+  // Workday får ALDRIG auto-skapas nattetid utan aktiv user-startad timer.
+  // User-driven källor (manuell timer-start, manuell time_report-skapande)
+  // är undantagna — det är inte "auto-start", det är användarintention.
+  const USER_DRIVEN_SOURCES = new Set([
+    'start_location_timer',
+    'create_time_report',
+    'manual_start_workday',
+    'admin_create_time_report',
+  ])
+  if (!USER_DRIVEN_SOURCES.has(source)) {
+    try {
+      const nowForGuard = start_at && !isNaN(new Date(start_at).getTime())
+        ? new Date(start_at) : new Date()
+      const localHour = Number(
+        new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Stockholm', hour: '2-digit', hour12: false,
+        }).formatToParts(nowForGuard)
+          .find((p) => p.type === 'hour')?.value ?? '0',
+      )
+      if (localHour >= 0 && localHour < 5) {
+        const { data: activeUserTimer } = await supabase
+          .from('current_time_registration')
+          .select('id').eq('staff_id', staffId)
+          .eq('status', 'active').eq('source', 'user_timer')
+          .limit(1).maybeSingle()
+        if (!activeUserTimer) {
+          console.log(
+            `[ensureOpenWorkdayForTimer] BLOCKED night auto-start (source=${source}): blocked_night_auto_start_no_active_timer`,
+          )
+          throw new Error('blocked_night_auto_start_no_active_timer')
+        }
+      }
+    } catch (guardErr: any) {
+      if (guardErr?.message === 'blocked_night_auto_start_no_active_timer') throw guardErr
+      console.warn('[ensureOpenWorkdayForTimer] night-guard error (non-fatal):', guardErr)
+    }
+  }
+
   // Existing open workday? Must be from the SAME UTC date as the requested
   // start_at — otherwise the new timer would be parented to a stale workday
   // from a previous day (orphan that was never closed) and per-date readers
