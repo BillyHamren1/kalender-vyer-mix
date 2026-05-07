@@ -9,7 +9,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import {
-  Sun, Briefcase, Building2, Car, Clock, AlertTriangle, Check, Lock, Loader2,
+  Sun, AlertTriangle, Check, Lock, Loader2,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -17,24 +17,7 @@ import { useStaffDayStatus, type StaffDaySegment } from '@/hooks/useStaffDayStat
 import { extractUTCTime } from '@/utils/dateUtils';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { cn } from '@/lib/utils';
-
-const SEG_ICON: Record<StaffDaySegment['kind'], React.ComponentType<{ className?: string }>> = {
-  project: Briefcase,
-  booking: Briefcase,
-  location: Building2,
-  travel: Car,
-  unknown: AlertTriangle,
-  active: Sun,
-};
-
-const SEG_TONE: Record<StaffDaySegment['kind'], string> = {
-  project: 'bg-primary/10 text-primary',
-  booking: 'bg-primary/10 text-primary',
-  location: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  travel: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-  unknown: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-  active: 'bg-primary/10 text-primary',
-};
+import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
 
 function segmentRange(s: StaffDaySegment) {
   const start = extractUTCTime(s.startedAt);
@@ -149,7 +132,7 @@ export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
                 </p>
                 <div className="space-y-1.5">
                   {snapshot.segments.map((seg, idx) => {
-                    const Icon = SEG_ICON[seg.kind] ?? Clock;
+                    const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
                     return (
                       <div
                         key={`${seg.startedAt}-${idx}`}

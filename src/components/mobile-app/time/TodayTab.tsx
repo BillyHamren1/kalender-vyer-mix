@@ -1,22 +1,26 @@
 /**
- * TodayTab — live-vy + arbetsdagsassistent.
+ * TodayTab — IDAG-tabben på Time-sidan.
  *
- * Driven 100% from `useStaffDayStatus` (server snapshot). Does NOT consult
- * activeTimers, time_reports rows or workday rows directly. If the snapshot
- * says `active=null`, no live timer is shown — local hardware state is
- * never allowed to override the backend truth.
+ * SANNINGSREGEL (hård):
+ *   Allt som visas kommer från `useStaffDayStatus()` (server snapshot från
+ *   `get-staff-day-status`). Komponenten:
+ *     - räknar inte timmar
+ *     - tolkar inte plats, rast eller transport själv
+ *     - läser inte time_reports / workdays / location_time_entries / pings
+ *     - visar inte "Saknar arbetsdag" / "Glapp" / "Okänd plats" om backend
+ *       inte explicit har skickat det som segment / flag / actionNeeded.
  *
- * Block order (per spec):
- *   1. Live-statuskort         (snapshot.active)
- *   2. Arbetsdag-kort          (snapshot.workday + snapshot.totals)
- *   3. Behöver din hjälp       (snapshot.flags + unknown segments)
- *   4. Dagens tidslinje        (snapshot.segments)
- *   5. Primär action           (Starta/Avsluta arbetsdag)
+ * Sektioner enligt spec:
+ *   1. Översta statuskortet  (snapshot.workday + snapshot.totals + trackingPolicy)
+ *   2. Just nu-kort           (snapshot.active eller "Arbetsdag pågår")
+ *   3. Totaler                (snapshot.totals)
+ *   4. Dagens tidslinje       (snapshot.segments)
+ *   5. Behöver åtgärdas       (snapshot.actionsNeeded)
+ *   6. Primär action          (Starta/Avsluta arbetsdag)
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Sun, Briefcase, Building2, MapPin, Car, Clock, AlertTriangle, Check,
-  Loader2, Square, Play, HelpCircle, ChevronRight, ShieldCheck, Smartphone,
+  Sun, Loader2, Square, Play, ShieldCheck, AlertTriangle, Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -26,9 +30,7 @@ import { toast } from 'sonner';
 import {
   useStaffDayStatus,
   type StaffDaySnapshot,
-  type StaffDayActive,
   type StaffDaySegment,
-  type StaffDayFlag,
 } from '@/hooks/useStaffDayStatus';
 import { useWorkDay } from '@/hooks/useWorkDay';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
@@ -37,7 +39,7 @@ import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
 import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
 import { mobileApi } from '@/services/mobileApiService';
 import StartDayDialog, { type StartDaySelection } from '../StartDayDialog';
-import { useNavigate } from 'react-router-dom';
+import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
@@ -48,52 +50,9 @@ function useTick(intervalMs = 1000) {
   }, [intervalMs]);
 }
 
-// ────────────────────────────────────────────────────────────────────
-// Helpers — purely presentational, no aggregation
-// ────────────────────────────────────────────────────────────────────
-
-const SEG_ICON: Record<StaffDaySegment['kind'], React.ComponentType<{ className?: string }>> = {
-  project: Briefcase,
-  booking: Briefcase,
-  location: Building2,
-  travel: Car,
-  unknown: AlertTriangle,
-  active: Sun,
-};
-
-const SEG_TONE: Record<StaffDaySegment['kind'], string> = {
-  project: 'bg-primary/10 text-primary',
-  booking: 'bg-primary/10 text-primary',
-  location: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  travel: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-  unknown: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-  active: 'bg-primary/10 text-primary',
-};
-
-const ACTIVE_ICON = (a: StaffDayActive) => {
-  if (a.kind === 'project') return Briefcase;
-  if (a.kind === 'location') return Building2;
-  return Briefcase;
-};
-
-/** Confidence label from snapshot source string. */
-function activeConfidence(active: StaffDayActive, snapshot: StaffDaySnapshot | null) {
-  // Find the matching segment to read its source (geofence, manual, etc).
-  const seg = snapshot?.segments.find((s) =>
-    s.refs.locationEntryId === active.locationEntryId
-  );
-  const source = seg?.source ?? 'location_entry';
-
-  if (source.includes('geofence')) {
-    return { label: 'GPS bekräftad', tone: 'text-emerald-700 dark:text-emerald-400', icon: ShieldCheck };
-  }
-  if (source.includes('manual')) {
-    return { label: 'Manuell', tone: 'text-foreground/80', icon: Smartphone };
-  }
-  if (source.includes('review') || seg?.kind === 'unknown') {
-    return { label: 'Behöver granskning', tone: 'text-amber-700 dark:text-amber-400', icon: AlertTriangle };
-  }
-  return { label: 'Okänd källa', tone: 'text-muted-foreground', icon: HelpCircle };
+function fmtMinutes(totalMin: number | null | undefined) {
+  if (totalMin == null) return '0m';
+  return formatHoursMinutes(totalMin / 60);
 }
 
 function segmentRange(s: StaffDaySegment) {
@@ -102,242 +61,212 @@ function segmentRange(s: StaffDaySegment) {
   return `${start}–${extractUTCTime(s.endedAt)}`;
 }
 
-function segmentBadge(s: StaffDaySegment): { label: string; tone: string } {
-  if (s.kind === 'unknown') {
-    return { label: 'Behöver granskning', tone: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' };
-  }
-  if (s.source.includes('geofence')) {
-    return { label: 'GPS bekräftad', tone: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' };
-  }
-  if (s.kind === 'travel') {
-    return { label: 'Resa', tone: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' };
-  }
-  if (s.kind === 'location') {
-    return { label: 'Plats', tone: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' };
-  }
-  return { label: 'Projekt', tone: 'bg-primary/10 text-primary' };
-}
-
 // ────────────────────────────────────────────────────────────────────
-// 1) Live-statuskort
+// 1) Översta statuskortet — Arbetsdag
 // ────────────────────────────────────────────────────────────────────
 
-const LiveStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
+const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
+  const wd = snapshot.workday;
+  const isOpen = !!wd?.isOpen;
+  useTick(isOpen ? 1000 : 60_000);
+
+  const statusLine = wd?.statusLabel
+    ?? (wd ? (isOpen ? 'Arbetsdag igång' : 'Arbetsdag avslutad') : 'Ingen arbetsdag startad');
+
+  // Brutto kommer ALLTID från backend. Vid pågående dag tickar vi sekundvis
+  // mellan refetch genom att räkna live elapsed från startedAt — men vi
+  // skriver inte över backendens värde, vi visar bara "live underminute"
+  // baserat på serverns startedAt.
+  const liveBruttoMin = useMemo(() => {
+    const base = snapshot.totals?.workdayMinutes ?? 0;
+    if (!isOpen || !wd?.startedAt) return base;
+    const elapsed = Math.max(0, (Date.now() - new Date(wd.startedAt).getTime()) / 60_000);
+    return Math.max(base, elapsed);
+  }, [isOpen, wd?.startedAt, snapshot.totals?.workdayMinutes]);
+
+  const tracking = snapshot.trackingPolicy ?? null;
+  const lastSignalLabel = tracking?.lastSignalAt
+    ? extractUTCTime(tracking.lastSignalAt)
+    : null;
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            Arbetsdag
+          </p>
+          <p className="font-extrabold text-base text-foreground mt-1 flex items-center gap-1.5">
+            <Sun className="w-4 h-4 text-primary shrink-0" />
+            {statusLine}
+          </p>
+          {wd && (
+            <p className="text-[12px] text-muted-foreground tabular-nums mt-0.5">
+              <span className="font-semibold text-foreground/80">
+                {extractUTCTime(wd.startedAt)}
+              </span>{' '}
+              →{' '}
+              {wd.endedAt ? (
+                <span className="font-semibold text-foreground/80">
+                  {extractUTCTime(wd.endedAt)}
+                </span>
+              ) : (
+                <span className="text-primary font-semibold">pågår</span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide">
+            Brutto
+          </p>
+          <p className="font-extrabold text-lg tabular-nums text-foreground">
+            {fmtMinutes(liveBruttoMin)}
+          </p>
+        </div>
+      </div>
+
+      {/* Diskret signalstatus — ALDRIG som "glapp"-varning */}
+      {lastSignalLabel && (
+        <p
+          className={cn(
+            'text-[11px] flex items-center gap-1 tabular-nums',
+            tracking?.isSignalStale
+              ? 'text-amber-700 dark:text-amber-400'
+              : 'text-muted-foreground',
+          )}
+        >
+          <Clock className="w-3 h-3" />
+          Senaste signal {lastSignalLabel}
+        </p>
+      )}
+    </section>
+  );
+};
+
+// ────────────────────────────────────────────────────────────────────
+// 2) Just nu-kort
+// ────────────────────────────────────────────────────────────────────
+
+const ActiveNowCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
   useTick(1000);
   const active = snapshot.active;
   const workdayOpen = !!snapshot.workday?.isOpen;
+
   if (!active) {
-    // Workday is running but backend has not yet bound a project/location.
-    // Stay quiet — no "okänd plats" / "plats ej klassad" / "monitorerar" copy.
-    if (workdayOpen) return null;
-    return (
-      <section className="rounded-2xl border border-dashed border-border bg-muted/20 p-4">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-          Just nu
-        </p>
-        <p className="text-sm text-foreground mt-1">
-          Ingen aktiv tid registreras just nu.
-        </p>
-        <p className="text-[12px] text-muted-foreground mt-0.5">
-          Välj projekt eller plats i fliken Jobb för att börja registrera tid.
-        </p>
-      </section>
-    );
+    if (workdayOpen) {
+      // Backend säger arbetsdag pågår men ingen aktiv plats är bunden.
+      // Visa ENDAST det — inga "okänd plats" / "saknar aktivitet" / "glapp".
+      return (
+        <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
+            Just nu
+          </p>
+          <p className="text-sm font-bold text-foreground mt-1 flex items-center gap-1.5">
+            <Sun className="w-4 h-4 text-primary" />
+            Arbetsdag pågår
+          </p>
+        </section>
+      );
+    }
+    return null;
   }
 
-  const Icon = ACTIVE_ICON(active);
-  const conf = activeConfidence(active, snapshot);
-  const ConfIcon = conf.icon;
-  const elapsed = Math.max(0, Math.floor((Date.now() - new Date(active.startedAt).getTime()) / 1000));
-  const h = Math.floor(elapsed / 3600);
-  const m = Math.floor((elapsed % 3600) / 60);
-  const s = elapsed % 60;
+  const Icon = SEG_ICON[active.kind === 'project' ? 'project'
+    : active.kind === 'location' ? 'location'
+    : 'booking'];
+  const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(active.startedAt).getTime()) / 1000));
+  const h = Math.floor(elapsedSec / 3600);
+  const m = Math.floor((elapsedSec % 3600) / 60);
+  const s = elapsedSec % 60;
 
   return (
     <section className="rounded-2xl border border-primary/20 bg-card p-4 shadow-sm space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
-            Du jobbar just nu
+            Just nu
           </p>
           <div className="flex items-center gap-2 mt-1.5">
-            <span className={cn('shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10 text-primary')}>
-              <Icon className="w-4.5 h-4.5" />
+            <span className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
+              <Icon className="w-4 h-4" />
             </span>
-            <p className="font-extrabold text-base text-foreground truncate">{active.label}</p>
+            <p className="font-extrabold text-base text-foreground truncate">
+              {active.label}
+            </p>
           </div>
           <p className="text-[12px] text-muted-foreground mt-1">
-            Sedan <span className="tabular-nums font-semibold text-foreground/80">{extractUTCTime(active.startedAt)}</span>
+            Sedan{' '}
+            <span className="tabular-nums font-semibold text-foreground/80">
+              {extractUTCTime(active.startedAt)}
+            </span>
           </p>
         </div>
         <div className="font-mono font-extrabold text-lg tabular-nums text-primary shrink-0">
           {String(h).padStart(2, '0')}:{String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
         </div>
       </div>
-      <div className={cn('inline-flex items-center gap-1.5 text-[11px] font-semibold', conf.tone)}>
-        <ConfIcon className="w-3.5 h-3.5" />
-        {conf.label}
-      </div>
+
+      {/* Status från backend — ingen lokal tolkning */}
+      {active.statusLabel && (
+        <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+          <ShieldCheck className="w-3.5 h-3.5" />
+          {active.statusLabel}
+        </div>
+      )}
     </section>
   );
 };
 
 // ────────────────────────────────────────────────────────────────────
-// 2) Arbetsdag-kort
+// 3) Totaler
 // ────────────────────────────────────────────────────────────────────
 
-const WorkdayCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
-  const wd = snapshot.workday;
+const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
   const t = snapshot.totals;
-  const isOpen = !!wd?.isOpen;
-  // Tick every second while the workday is open so the "Lönegrundande" cell
-  // reflects live elapsed time without waiting for the next snapshot refetch.
-  useTick(isOpen ? 1000 : 60_000);
-
-  // Live workday minutes when open: max of server snapshot and (now - start).
-  // When closed, trust the locked snapshot value.
-  const liveWorkdayMinutes = React.useMemo(() => {
-    const base = t?.workdayMinutes ?? 0;
-    if (!isOpen || !wd?.startedAt) return base;
-    const elapsed = Math.max(0, (Date.now() - new Date(wd.startedAt).getTime()) / 60_000);
-    return Math.max(base, elapsed);
-  }, [isOpen, wd?.startedAt, t?.workdayMinutes]);
-
-  return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-            Arbetsdag
-          </p>
-          <p className="font-extrabold text-base text-foreground mt-1 flex items-center gap-1.5">
-            <Sun className="w-4 h-4 text-primary shrink-0" />
-            {wd ? (
-              <>
-                <span className="tabular-nums">{extractUTCTime(wd.startedAt)}</span>
-                <span className="text-muted-foreground mx-0.5">→</span>
-                {wd.endedAt ? (
-                  <span className="tabular-nums">{extractUTCTime(wd.endedAt)}</span>
-                ) : (
-                  <span className="text-primary">pågår</span>
-                )}
-              </>
-            ) : (
-              <span className="text-muted-foreground text-sm font-semibold">Ej startad</span>
-            )}
-          </p>
-        </div>
-        {wd?.approved && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-            <Check className="w-3.5 h-3.5" /> Godkänd
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Stat
-          label="Lönegrundande"
-          value={formatHoursMinutes(liveWorkdayMinutes / 60)}
-          strong
-        />
-        <Stat
-          label="Fördelat"
-          value={formatHoursMinutes((t?.allocatedProjectMinutes ?? 0) / 60)}
-        />
-        <Stat
-          label="Restid"
-          value={formatHoursMinutes((t?.travelMinutes ?? 0) / 60)}
-        />
-        <Stat
-          label="Ej fördelat"
-          value={formatHoursMinutes((t?.unallocatedMinutes ?? 0) / 60)}
-          muted
-        />
-      </div>
-    </section>
-  );
-};
-
-const Stat: React.FC<{ label: string; value: string; strong?: boolean; muted?: boolean }> = ({
-  label, value, strong, muted,
-}) => (
-  <div className={cn(
-    'rounded-xl border border-border px-3 py-2',
-    muted ? 'bg-muted/20' : 'bg-background/60',
-  )}>
-    <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide">
-      {label}
-    </div>
-    <div className={cn(
-      'font-extrabold text-sm tabular-nums mt-0.5',
-      strong ? 'text-foreground' : 'text-foreground/80',
-    )}>
-      {value}
-    </div>
-  </div>
-);
-
-// ────────────────────────────────────────────────────────────────────
-// 3) Behöver din hjälp
-// ────────────────────────────────────────────────────────────────────
-
-const NeedsHelpSection: React.FC<{
-  snapshot: StaffDaySnapshot;
-  onClassifyUnknown: (seg: StaffDaySegment) => void;
-}> = ({ snapshot, onClassifyUnknown }) => {
-  const flags = useMemo(
-    () => (snapshot.flags ?? []).filter((f) => !f.resolved && f.severity !== 'info'),
-    [snapshot.flags],
-  );
-  const unknownSegs = useMemo(
-    () => snapshot.segments.filter((s) => s.kind === 'unknown'),
-    [snapshot.segments],
-  );
-
-  if (flags.length === 0 && unknownSegs.length === 0) return null;
+  // Visa bara fält som backend faktiskt skickat värde för (>0 eller satt).
+  const rows: Array<{ label: string; value: string; muted?: boolean; strong?: boolean }> = [
+    { label: 'Brutto', value: fmtMinutes(t.workdayMinutes), strong: true },
+    { label: 'Rast', value: t.breakMinutes != null
+        ? fmtMinutes(t.breakMinutes)
+        : 'ej angiven', muted: t.breakMinutes == null },
+    { label: 'Lönegrundande', value: fmtMinutes(t.payableMinutes ?? t.workdayMinutes), strong: true },
+    { label: 'Projekt/lager', value: fmtMinutes(
+        (t.allocatedProjectMinutes ?? 0) + (t.warehouseMinutes ?? 0),
+      ) },
+    { label: 'Transport', value: fmtMinutes(t.travelMinutes) },
+    { label: 'Annan plats', value: fmtMinutes(t.otherPlaceMinutes ?? 0) },
+  ];
 
   return (
-    <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-        <AlertTriangle className="w-3.5 h-3.5" /> Behöver din hjälp
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+        Totaler idag
       </p>
-
-      {unknownSegs.map((seg) => (
-        <div key={seg.refs.locationEntryId ?? seg.startedAt} className="rounded-xl border border-amber-500/30 bg-card p-3 space-y-2">
-          <div>
-            <p className="font-bold text-sm text-foreground">Okänd vistelse</p>
-            <p className="text-[12px] text-muted-foreground tabular-nums">{segmentRange(seg)}</p>
+      <div className="grid grid-cols-2 gap-2">
+        {rows.map((r) => (
+          <div
+            key={r.label}
+            className={cn(
+              'rounded-xl border border-border px-3 py-2',
+              r.muted ? 'bg-muted/20' : 'bg-background/60',
+            )}
+          >
+            <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide">
+              {r.label}
+            </div>
+            <div
+              className={cn(
+                'font-extrabold text-sm tabular-nums mt-0.5',
+                r.muted ? 'text-muted-foreground' : 'text-foreground/80',
+                r.strong && 'text-foreground',
+              )}
+            >
+              {r.value}
+            </div>
           </div>
-          <p className="text-[12px] text-foreground/80">Vad var detta?</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            <Button size="sm" variant="outline" className="h-9 rounded-lg text-xs"
-              onClick={() => onClassifyUnknown({ ...seg, source: 'classify:private' })}>
-              Privat
-            </Button>
-            <Button size="sm" variant="outline" className="h-9 rounded-lg text-xs"
-              onClick={() => onClassifyUnknown({ ...seg, source: 'classify:travel' })}>
-              Resa
-            </Button>
-            <Button size="sm" variant="outline" className="h-9 rounded-lg text-xs"
-              onClick={() => onClassifyUnknown({ ...seg, source: 'classify:other_work' })}>
-              Annat arbete
-            </Button>
-            <Button size="sm" variant="ghost" className="h-9 rounded-lg text-xs text-muted-foreground"
-              onClick={() => onClassifyUnknown({ ...seg, source: 'classify:ignore' })}>
-              Ignorera
-            </Button>
-          </div>
-        </div>
-      ))}
-
-      {flags.map((f: StaffDayFlag) => (
-        <div key={f.id} className="rounded-xl border border-amber-500/30 bg-card p-3">
-          <p className="font-bold text-sm text-foreground">{f.title}</p>
-          {f.description && (
-            <p className="text-[12px] text-muted-foreground mt-0.5">{f.description}</p>
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
     </section>
   );
 };
@@ -346,7 +275,7 @@ const NeedsHelpSection: React.FC<{
 // 4) Dagens tidslinje
 // ────────────────────────────────────────────────────────────────────
 
-const DayTimelineSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
+const TimelineSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
   if (snapshot.segments.length === 0) return null;
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
@@ -355,8 +284,10 @@ const DayTimelineSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot
       </p>
       <div className="space-y-1.5">
         {snapshot.segments.map((seg, idx) => {
-          const Icon = SEG_ICON[seg.kind] ?? Clock;
-          const badge = segmentBadge(seg);
+          const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
+          const tone = SEG_TONE[seg.kind] ?? SEG_TONE.unknown;
+          const kindLabel = SEG_KIND_LABEL[seg.kind] ?? '';
+          const statusLabel = seg.statusLabel ?? null;
           return (
             <div
               key={`${seg.startedAt}-${idx}`}
@@ -366,7 +297,7 @@ const DayTimelineSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot
                 seg.isActive && 'border-primary/30 bg-primary/5',
               )}
             >
-              <div className={cn('shrink-0 w-8 h-8 rounded-lg flex items-center justify-center', SEG_TONE[seg.kind])}>
+              <div className={cn('shrink-0 w-8 h-8 rounded-lg flex items-center justify-center', tone)}>
                 <Icon className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
@@ -376,12 +307,19 @@ const DayTimelineSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot
                 <p className="text-sm font-semibold text-foreground truncate">
                   {seg.label}
                 </p>
-                <span className={cn('inline-block mt-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide', badge.tone)}>
-                  {badge.label}
-                </span>
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                  <span className={cn('inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide', tone)}>
+                    {kindLabel}
+                  </span>
+                  {statusLabel && (
+                    <span className="inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-muted text-muted-foreground">
+                      {statusLabel}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
-                {formatHoursMinutes(seg.durationMinutes / 60)}
+                {fmtMinutes(seg.durationMinutes)}
               </div>
             </div>
           );
@@ -392,7 +330,33 @@ const DayTimelineSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot
 };
 
 // ────────────────────────────────────────────────────────────────────
-// 5) Primär action
+// 5) Behöver åtgärdas — RENT från backend (actionsNeeded)
+// ────────────────────────────────────────────────────────────────────
+
+const ActionsNeededSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
+  const actions = snapshot.actionsNeeded ?? [];
+  if (actions.length === 0) return null;
+  return (
+    <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+        <AlertTriangle className="w-3.5 h-3.5" /> Behöver åtgärdas
+      </p>
+      {actions.map((a) => (
+        <div key={a.id} className="rounded-xl border border-amber-500/30 bg-card p-3">
+          <p className="font-bold text-sm text-foreground">{a.title}</p>
+          {a.description && (
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              {a.description}
+            </p>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+};
+
+// ────────────────────────────────────────────────────────────────────
+// 6) Primär action — Starta/Avsluta arbetsdag
 // ────────────────────────────────────────────────────────────────────
 
 const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapshot }) => {
@@ -439,7 +403,6 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
         setDialogOpen(false);
         return;
       }
-      // manual
       const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
       if (!wd) { toast.error('Kunde inte starta arbetsdagen'); return; }
       try {
@@ -505,15 +468,6 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
 
 export const TodayTab: React.FC = () => {
   const { snapshot, isLoading, error, refresh } = useStaffDayStatus();
-  const navigate = useNavigate();
-
-  const handleClassifyUnknown = (_seg: StaffDaySegment) => {
-    // Classification UI lives in the assistant flow / day timeline editor;
-    // for now navigate the user to the report-detail page where they can
-    // resolve the unknown segment. Backend remains the single writer.
-    toast.info('Öppnar dagens detaljvy för att klassificera vistelsen');
-    navigate('/m/report');
-  };
 
   if (isLoading && !snapshot) {
     return (
@@ -538,10 +492,11 @@ export const TodayTab: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <LiveStatusCard snapshot={snapshot} />
-      <WorkdayCard snapshot={snapshot} />
-      <NeedsHelpSection snapshot={snapshot} onClassifyUnknown={handleClassifyUnknown} />
-      <DayTimelineSection snapshot={snapshot} />
+      <WorkdayStatusCard snapshot={snapshot} />
+      <ActiveNowCard snapshot={snapshot} />
+      <TotalsCard snapshot={snapshot} />
+      <TimelineSection snapshot={snapshot} />
+      <ActionsNeededSection snapshot={snapshot} />
       <div className="pt-1">
         <PrimaryAction snapshot={snapshot} />
       </div>
