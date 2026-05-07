@@ -1,0 +1,348 @@
+/**
+ * Time Engine — processGpsTimelineForAutoStart
+ * ============================================
+ *
+ * Glue between the pure layers (buildGpsDayTimeline, resolveWorkTargets,
+ * decideAutoStart) and the new active_time_registrations table.
+ *
+ * Responsibilities:
+ *   1. Use the supplied gpsDayTimeline (or build it from raw input).
+ *   2. Resolve valid WorkTargets via resolveWorkTargets (or use supplied list).
+ *   3. Check whether an active_time_registration already exists for this staff.
+ *   4. Run decideAutoStart on relevant `stay` segments matching a known target.
+ *   5. If a decision is `allowed: true` AND no active registration exists →
+ *      INSERT a new active_time_registration row.
+ *   6. Otherwise, never write — return the full decision log.
+ *
+ * Hard rules (mirroring decideAutoStart, enforced again here for safety):
+ *   - Never auto-start from unknown_place / travel / gps_gap.
+ *   - Never auto-start from test/demo/cancelled/invalid target.
+ *   - Idempotent: the unique partial index
+ *       (organization_id, staff_id) WHERE status='active'
+ *     prevents duplicate active rows. We additionally re-check before insert
+ *     and skip if the same (segment, target) was already used.
+ */
+
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import type { ISODate, ISODateTime, UUID, WorkTarget } from './contracts.ts';
+import {
+  buildGpsDayTimeline,
+  type BuildGpsDayTimelinePolicy,
+  type GpsDayTimelineResult,
+  type GpsPing,
+  type GpsTimelineSegment,
+} from './buildGpsDayTimeline.ts';
+import {
+  resolveWorkTargets,
+  type ResolvedWorkTarget,
+  type TargetDiagnostics,
+  toWorkTarget,
+} from './resolveWorkTargets.ts';
+import {
+  decideAutoStart,
+  type AutoStartDecisionResult,
+  type DecideAutoStartSegment,
+  type DecideAutoStartTarget,
+} from './decideAutoStart.ts';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inputs / outputs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ProcessAutoStartInput {
+  organizationId: UUID;
+  staffId: UUID;
+  date: ISODate;
+  /** ISO timestamp representing local "now". Defaults to the segment endTs. */
+  localTime?: ISODateTime;
+
+  /** Provide either a pre-built timeline … */
+  gpsDayTimeline?: GpsDayTimelineResult;
+  /** … or raw pings + a build policy and we'll build the timeline. */
+  pings?: GpsPing[];
+  buildPolicy?: BuildGpsDayTimelinePolicy;
+
+  /** Provide pre-resolved targets, otherwise we'll resolve via DB. */
+  targets?: ResolvedWorkTarget[];
+
+  supabaseAdmin: SupabaseClient;
+
+  /** Dry-run: never insert, only return decisions. */
+  dryRun?: boolean;
+}
+
+export interface AutoStartDecisionLogEntry {
+  segmentId: string;
+  segmentKind: string;
+  segmentType: string;
+  decision: AutoStartDecisionResult;
+  matchedTargetId: UUID | null;
+  matchedTargetName: string | null;
+  skippedReason?:
+    | 'segment_not_known_site'
+    | 'no_target_for_segment'
+    | 'target_not_valid_for_autostart'
+    | 'already_active_registration'
+    | 'duplicate_segment';
+}
+
+export interface ProcessAutoStartResult {
+  organizationId: UUID;
+  staffId: UUID;
+  date: ISODate;
+  alreadyActive: boolean;
+  createdRegistrationId: UUID | null;
+  decisions: AutoStartDecisionLogEntry[];
+  targetDiagnostics?: TargetDiagnostics;
+  computedAt: ISODateTime;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function toDecideSegment(seg: GpsTimelineSegment): DecideAutoStartSegment {
+  return {
+    id: seg.id,
+    startTs: seg.startTs,
+    endTs: seg.endTs,
+    durationMin: seg.durationMin,
+    kind: seg.kind,
+    type: seg.type,
+    pingCount: seg.pingCount,
+    confidence: seg.confidence,
+  };
+}
+
+function toDecideTarget(rt: ResolvedWorkTarget): DecideAutoStartTarget {
+  const wt = toWorkTarget(rt);
+  return {
+    refId: rt.id,
+    kind: wt?.kind ?? mapTypeToKind(rt.type),
+    label: rt.name,
+    key: wt?.key,
+    center: wt?.center,
+    radiusM: wt?.radiusM,
+    targetValidity: rt.targetValidity,
+    timeTrackingAllowed: rt.timeTrackingAllowed,
+    assignedToUserToday: rt.targetSource === 'planned_today' || undefined,
+    explicitlyAllowed: rt.targetSource === 'explicit_time_tracking_location' || undefined,
+  };
+}
+
+function mapTypeToKind(t: ResolvedWorkTarget['type']): WorkTarget['kind'] {
+  return t === 'project' ? 'project'
+    : t === 'booking' ? 'booking'
+    : t === 'warehouse' ? 'warehouse'
+    : 'organization_location';
+}
+
+function findTargetForSegment(
+  seg: GpsTimelineSegment,
+  targets: ResolvedWorkTarget[],
+): ResolvedWorkTarget | null {
+  if (!seg.matchedTargetId) return null;
+  return targets.find(
+    (t) => t.id === seg.matchedTargetId && t.type === (seg.matchedTargetType as ResolvedWorkTarget['type']),
+  ) ?? null;
+}
+
+async function fetchActiveRegistration(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+): Promise<{ id: UUID; startedAt: ISODateTime } | null> {
+  const { data, error } = await supabaseAdmin
+    .from('active_time_registrations')
+    .select('id, started_at')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`fetchActiveRegistration: ${error.message}`);
+  return data ? { id: data.id as UUID, startedAt: data.started_at as ISODateTime } : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function processGpsTimelineForAutoStart(
+  input: ProcessAutoStartInput,
+): Promise<ProcessAutoStartResult> {
+  const { organizationId, staffId, date, supabaseAdmin } = input;
+
+  // 1) Timeline
+  let timeline = input.gpsDayTimeline;
+  if (!timeline) {
+    if (!input.pings) throw new Error('processGpsTimelineForAutoStart: need gpsDayTimeline or pings');
+    // We need targets to build a meaningful timeline (for known_site classification).
+    const tmpTargets =
+      input.targets ?? (await resolveWorkTargets({ organizationId, staffId, date, supabaseAdmin })).targets;
+    const wts: WorkTarget[] = tmpTargets.map(toDecideTarget).flatMap((t) =>
+      t.center && t.radiusM ? [{ key: t.key!, kind: t.kind, refId: t.refId, label: t.label, center: t.center, radiusM: t.radiusM }] : [],
+    );
+    timeline = buildGpsDayTimeline({
+      staffId,
+      organizationId,
+      date,
+      pings: input.pings,
+      targets: wts,
+      policy: input.buildPolicy,
+    });
+  }
+
+  // 2) Targets
+  let resolvedTargets = input.targets;
+  let targetDiagnostics: TargetDiagnostics | undefined;
+  if (!resolvedTargets) {
+    const r = await resolveWorkTargets({ organizationId, staffId, date, supabaseAdmin });
+    resolvedTargets = r.targets;
+    targetDiagnostics = r.targetDiagnostics;
+  }
+
+  // 3) Already active?
+  const active = await fetchActiveRegistration(supabaseAdmin, organizationId, staffId);
+  const decisions: AutoStartDecisionLogEntry[] = [];
+
+  // 4) Decide on relevant stay segments
+  const candidates = timeline.segments.filter(
+    (s) => s.kind === 'stay' && s.type === 'known_site' && s.matchedTargetId,
+  );
+
+  let createdRegistrationId: UUID | null = null;
+
+  for (const seg of candidates) {
+    const target = findTargetForSegment(seg, resolvedTargets);
+    if (!target) {
+      decisions.push({
+        segmentId: seg.id,
+        segmentKind: seg.kind,
+        segmentType: seg.type,
+        matchedTargetId: seg.matchedTargetId,
+        matchedTargetName: seg.matchedTargetName,
+        decision: {
+          allowed: false,
+          reason: 'blocked_invalid_target',
+          confidence: seg.confidence,
+          startAt: null,
+          targetId: null,
+          targetType: null,
+          targetName: null,
+          source: null,
+          evidence: {
+            isNightLocal: false,
+            localHour: 0,
+            dwellMinutes: seg.durationMin,
+            requiredDwellMinutes: 0,
+            pingCount: seg.pingCount,
+            requiredPingCount: 0,
+            confidence: seg.confidence,
+            requiredConfidence: 0,
+            segmentKind: seg.kind,
+            segmentType: seg.type,
+            policyUsed: 'day',
+          },
+        },
+        skippedReason: 'no_target_for_segment',
+      });
+      continue;
+    }
+
+    const decideTarget = toDecideTarget(target);
+    const decision = decideAutoStart({
+      currentSegment: toDecideSegment(seg),
+      target: decideTarget,
+      localTime: input.localTime ?? seg.endTs,
+      existingActiveRegistration: active ? { id: active.id, startedAt: active.startedAt } : null,
+    });
+
+    decisions.push({
+      segmentId: seg.id,
+      segmentKind: seg.kind,
+      segmentType: seg.type,
+      matchedTargetId: target.id,
+      matchedTargetName: target.name,
+      decision,
+      skippedReason: active ? 'already_active_registration' : undefined,
+    });
+
+    // 5) Create registration if allowed and no active row, and not yet created in this run.
+    if (
+      !createdRegistrationId &&
+      !active &&
+      !input.dryRun &&
+      decision.allowed &&
+      decision.source === 'gps_geofence_auto_start' &&
+      decision.targetId &&
+      decision.startAt
+    ) {
+      // Defensive re-check (race-safety) before insert
+      const stillFree = await fetchActiveRegistration(supabaseAdmin, organizationId, staffId);
+      if (stillFree) {
+        decisions[decisions.length - 1].skippedReason = 'already_active_registration';
+        continue;
+      }
+
+      const evidence = {
+        dwellSeconds: Math.round(seg.durationMin * 60),
+        arrivalPingsCount: seg.pingCount,
+        firstPingAt: seg.startTs,
+        lastPingAt: seg.endTs,
+        targetDistanceMeters: null as number | null,
+        targetRadiusMeters: target.radiusMeters,
+        policyReason: decision.reason,
+        segmentId: seg.id,
+        targetSource: target.targetSource,
+        engine: 'time-engine.v1',
+      };
+
+      const { data: inserted, error: insertErr } = await supabaseAdmin
+        .from('active_time_registrations')
+        .insert({
+          organization_id: organizationId,
+          staff_id: staffId,
+          status: 'active',
+          started_at: decision.startAt,
+          start_source: 'gps_geofence_auto_start',
+          auto_started: true,
+          start_target_type: target.type,
+          start_target_id: target.id,
+          start_target_label: target.name,
+          current_kind: target.type,
+          current_label: target.name,
+          current_target_type: target.type,
+          current_target_id: target.id,
+          current_confidence: decision.confidence,
+          needs_user_choice: false,
+          metadata: { evidence },
+        })
+        .select('id')
+        .maybeSingle();
+
+      if (insertErr) {
+        // Unique-violation on the partial index → another path created it concurrently.
+        // Treat as idempotent success: mark as already-active and stop.
+        if ((insertErr as any).code === '23505') {
+          decisions[decisions.length - 1].skippedReason = 'already_active_registration';
+          continue;
+        }
+        throw new Error(`insert active_time_registration: ${insertErr.message}`);
+      }
+
+      createdRegistrationId = (inserted?.id as UUID | undefined) ?? null;
+    }
+  }
+
+  return {
+    organizationId,
+    staffId,
+    date,
+    alreadyActive: !!active,
+    createdRegistrationId,
+    decisions,
+    targetDiagnostics,
+    computedAt: new Date().toISOString(),
+  };
+}
