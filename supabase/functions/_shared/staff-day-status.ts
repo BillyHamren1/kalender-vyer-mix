@@ -120,6 +120,21 @@ export interface SnapshotInput {
     largeProjects?: Record<string, string>;
     locations?: Record<string, { name: string; isWork: boolean }>;
   };
+  /** User/admin day attestation (per staff_id+date). When present, its break_minutes overrides time_reports.break_time sum. */
+  attestation?: DayAttestationRow | null;
+}
+
+export interface DayAttestationRow {
+  id: string;
+  staff_id: string;
+  date: string;
+  break_minutes: number;
+  comment: string | null;
+  status: "attested" | "locked" | "revoked" | string;
+  attested_at: string;
+  attested_by: string | null;
+  locked_at: string | null;
+  locked_by: string | null;
 }
 
 export type SegmentKind = "project" | "booking" | "travel" | "location" | "unknown" | "active";
