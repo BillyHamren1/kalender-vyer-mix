@@ -373,24 +373,8 @@ Deno.serve(async (req) => {
   }
   if (engineCallError) warnings.push(`engine dry-run: ${engineCallError}`);
 
-  const wouldWrite = {
-    engineReport,
-    engineCallError,
-    decisionWouldLog: {
-      table: "staff_day_decision_log",
-      reason: "debug_dryrun",
-      // The real chain logs here; we just describe it.
-      note: "Real run via processStaffLocationUpdate would log a row here.",
-    },
-    snapshotEnqueueWouldHappen: {
-      table: "staff_day_rebuild_queue",
-      reason: "late_ping",
-      note: "Real run would enqueue a rebuild for (staff,date).",
-    },
-    appliedRows: dryRun
-      ? "NONE — dryRun=true"
-      : "n/a (debug endpoint never applies; use process-location-auto-start with dry_run=false+confirm=true to write)",
-  };
+  // wouldWrite is built AFTER diagnostics (needs candidates + anyPingInsideTarget)
+  let wouldWrite: any = null;
 
   // ── Ping summary + gaps + nearest targets ────────────────────────────────
   const firstPingAt = pings.length > 0 ? pings[0].recorded_at : null;
@@ -528,7 +512,105 @@ Deno.serve(async (req) => {
     })(),
   };
 
-  // ── Sanity warnings ──────────────────────────────────────────────────────
+  // ── wouldWrite: planned actions + reasons for inaction ───────────────────
+  {
+    const enginePlan: any[] = Array.isArray((engineReport as any)?.report?.plan)
+      ? (engineReport as any).report.plan
+      : Array.isArray((engineReport as any)?.plan)
+        ? (engineReport as any).plan
+        : [];
+    const engineCounters = (engineReport as any)?.report ?? engineReport ?? {};
+    const arrivalsSeen = Number(engineCounters.arrivals ?? 0);
+    const ltesOpened = Number(engineCounters.ltes_opened ?? 0);
+    const ltesClosed = Number(engineCounters.ltes_closed ?? 0);
+    const travelsCreated = Number(engineCounters.travels_created ?? 0);
+    const skippedExisting = Number(engineCounters.skipped_existing ?? 0);
+
+    const tenMinAgoIso = new Date(nowMs - 10 * 60_000).toISOString();
+    const oneHourAgoIso = new Date(nowMs - 60 * 60_000).toISOString();
+    const { data: recentWakes } = await supabase
+      .from("staff_wake_requests")
+      .select("id, requested_at, reason")
+      .eq("staff_id", staffId)
+      .gte("requested_at", oneHourAgoIso)
+      .order("requested_at", { ascending: false })
+      .limit(10);
+    const wakesLastHour = (recentWakes ?? []).length;
+    const lastWakeAt = (recentWakes ?? [])[0]?.requested_at ?? null;
+    const inCooldown = !!lastWakeAt && lastWakeAt >= tenMinAgoIso;
+
+    let wakeAction: any;
+    if (!detectedState.hasOpenWorkday) {
+      wakeAction = { action: "wake_request", would_dispatch: false, reason: "no_open_workday" };
+    } else if (!policy.isSignalStale) {
+      wakeAction = { action: "wake_request", would_dispatch: false, reason: "signal_not_stale" };
+    } else if (inCooldown) {
+      wakeAction = { action: "wake_request", would_dispatch: false, reason: "cooldown_10min", lastWakeAt };
+    } else if (wakesLastHour >= 3) {
+      wakeAction = { action: "wake_request", would_dispatch: false, reason: "hourly_cap_3", wakesLastHour };
+    } else {
+      wakeAction = { action: "wake_request", would_dispatch: true, reason: "signal_stale_workday_open", wakesLastHour };
+    }
+
+    const signalStaleAction = policy.isSignalStale && detectedState.hasOpenWorkday
+      ? { action: "mark_signal_stale", would_apply: true, silenceMs: policy.silenceMs, maxSilenceMs: policy.maxSilenceMs }
+      : { action: "mark_signal_stale", would_apply: false, reason: !detectedState.hasOpenWorkday ? "no_open_workday" : "signal_not_stale" };
+
+    const snapshotAction = pings.length > 0
+      ? { action: "snapshot_rebuild", would_enqueue: true, table: "staff_day_rebuild_queue", reason: "pings_present" }
+      : { action: "snapshot_rebuild", would_enqueue: false, reason: "no_pings_to_process" };
+
+    const inactionReasons: string[] = [];
+    if (pings.length === 0) inactionReasons.push("no_recent_pings");
+    if (candidates.length === 0) inactionReasons.push("no_known_targets_with_coords_in_org");
+    if (pings.length > 0 && candidates.length > 0 && !anyPingInsideTarget)
+      inactionReasons.push("no_stable_target_found_for_any_ping");
+    if (arrivalsSeen === 0 && anyPingInsideTarget)
+      inactionReasons.push("dwell_threshold_not_reached_for_any_visit");
+    if (ltesOpened === 0 && arrivalsSeen > 0)
+      inactionReasons.push("arrivals_observed_but_below_required_dwell_or_already_open");
+    if (ltesClosed === 0 && openLte)
+      inactionReasons.push("active_lte_already_matches_current_target_or_no_departure_seen");
+    if (travelsCreated === 0 && ltesClosed > 0)
+      inactionReasons.push("close_seen_but_no_subsequent_arrival_to_travel_to");
+    if (skippedExisting > 0)
+      inactionReasons.push(`skipped_existing=${skippedExisting} (already open / recently closed match)`);
+    if (workday?.ended_at) inactionReasons.push("workday_already_closed_for_day");
+    if (attestRes.data && (attestRes.data as any).status === "approved")
+      inactionReasons.push("workday_locked_approved");
+    if (engineCallError) inactionReasons.push(`engine_call_failed: ${engineCallError}`);
+
+    wouldWrite = {
+      engineReport,
+      engineCallError,
+      plannedActions: [
+        ...enginePlan.map((p: any) => ({ source: "engine", ...p })),
+        { source: "snapshot", ...snapshotAction },
+        { source: "policy", ...signalStaleAction },
+        { source: "wake", ...wakeAction },
+      ],
+      counters: {
+        arrivals: arrivalsSeen,
+        ltes_opened: ltesOpened,
+        ltes_closed: ltesClosed,
+        travels_created: travelsCreated,
+        skipped_existing: skippedExisting,
+        wakes_last_hour: wakesLastHour,
+        in_wake_cooldown: inCooldown,
+      },
+      inactionReasons,
+      decisionWouldLog: {
+        table: "staff_day_decision_log",
+        reason: "debug_dryrun",
+        note: "Real run via processStaffLocationUpdate would log a row here.",
+      },
+      appliedRows: dryRun
+        ? "NONE — dryRun=true"
+        : "n/a (debug endpoint never applies; use process-location-auto-start with dry_run=false+confirm=true to write)",
+    };
+  }
+
+
   if (workday && !workday.ended_at && pings.length === 0) {
     warnings.push("open workday but no pings for the day — check if device uploaded any GPS");
   }
