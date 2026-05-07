@@ -56,6 +56,48 @@ function json(status: number, body: any) {
   });
 }
 
+/**
+ * Paginate through staff_location_history for the full day window.
+ * No hard limit — fetches batches of 1000 until exhausted.
+ * Normalizes lat/lng so both lat/lng and latitude/longitude work downstream.
+ */
+async function fetchAllStaffLocationPings(
+  admin: any,
+  staffId: string,
+  dayStart: string,
+  dayEnd: string,
+) {
+  const pageSize = 1000;
+  const all: any[] = [];
+  let from = 0;
+  let pageCount = 0;
+  while (true) {
+    const { data, error } = await admin
+      .from("staff_location_history")
+      .select(
+        "id, recorded_at, lat, lng, latitude, longitude, accuracy, speed, source, created_at, app_state, activity_type",
+      )
+      .eq("staff_id", staffId)
+      .gte("recorded_at", dayStart)
+      .lte("recorded_at", dayEnd)
+      .order("recorded_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) {
+      return { data: all, error, pageCount, pageSize } as any;
+    }
+    const batch = data ?? [];
+    pageCount++;
+    for (const p of batch) {
+      if (p.lat == null && p.latitude != null) p.lat = p.latitude;
+      if (p.lng == null && p.longitude != null) p.lng = p.longitude;
+    }
+    all.push(...batch);
+    if (batch.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: all, error: null, pageCount, pageSize } as any;
+}
+
 function fmtHM(iso: string | null | undefined): string {
   if (!iso) return "—";
   try { return new Date(iso).toISOString().slice(11, 16); } catch { return String(iso); }
