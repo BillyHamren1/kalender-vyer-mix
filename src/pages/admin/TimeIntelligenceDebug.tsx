@@ -651,14 +651,24 @@ export default function TimeIntelligenceDebug() {
     const sId = overrideStaffId ?? staffId;
     const d = overrideDate ?? date;
     if (!sId || !d) return null;
-    setLoading(true); setError(null); setResult(null); setBatch(null);
+    setLoading(true); setError(null); setResult(null); setBatch(null); setPingFirst(null);
     try {
-      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
-        body: { staffId: sId, date: d, dryRun },
-      });
-      if (error) throw error;
-      setResult(data);
-      return data;
+      const [debugRes, pingRes] = await Promise.all([
+        supabase.functions.invoke("debug-time-intelligence", {
+          body: { staffId: sId, date: d, dryRun },
+        }),
+        supabase.functions.invoke("ping-day-pipeline", {
+          body: { staffId: sId, date: d },
+        }),
+      ]);
+      if (debugRes.error) throw debugRes.error;
+      setResult(debugRes.data);
+      if (pingRes.error) {
+        setPingFirst({ ok: false, error: pingRes.error?.message ?? String(pingRes.error) });
+      } else {
+        setPingFirst(pingRes.data);
+      }
+      return debugRes.data;
     } catch (e: any) {
       setError(e?.message ?? String(e));
       return null;
