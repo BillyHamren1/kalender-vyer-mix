@@ -130,10 +130,6 @@ Deno.serve(async (req) => {
   let body: any = {};
   try { body = await req.json(); } catch { body = {}; }
 
-  if (String(body.mode ?? "").toLowerCase() === "scenarios") {
-    return json(200, runScenarioSuite());
-  }
-
   const headerSecret = req.headers.get("x-cron-secret") ?? "";
   const authHeader = req.headers.get("authorization") ?? "";
   const bearer = authHeader.toLowerCase().startsWith("bearer ")
