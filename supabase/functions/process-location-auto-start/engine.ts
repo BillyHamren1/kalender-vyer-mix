@@ -28,6 +28,22 @@ export const corsHeaders = {
 
 export const ENGINE_VERSION = 'auto-start@1.0.0'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY TIME WRITES DISABLED
+// ----------------------------------------------------------------------------
+// Denna gamla motor får inte längre skapa aktiv tid via:
+//   - workdays
+//   - location_time_entries
+//   - travel_time_logs
+//   - time_reports
+//   - assistant_events (start_activity)
+//
+// All ny aktiv tidskälla går genom nya Time Engine
+// (supabase/functions/_shared/time-engine/*) och active_time_registrations.
+// När flaggan är true kortsluts runEngine/processStaff direkt — inga writes.
+// ─────────────────────────────────────────────────────────────────────────────
+export const LEGACY_TIME_WRITES_DISABLED = true
+
 // ── Tuning constants (mirror src/lib/geofence/stableEntry.ts) ───────────────
 export const ENTRY_PING_MIN_COUNT = 3
 export const ENTRY_PING_MIN_DWELL_MS = 2 * 60 * 1000
