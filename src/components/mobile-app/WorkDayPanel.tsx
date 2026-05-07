@@ -5,22 +5,23 @@ import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
-import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
-import { useWorkDay } from '@/hooks/useWorkDay';
 import { mobileApi } from '@/services/mobileApiService';
-import { clearWorkdayEnded } from '@/services/workdayState';
 import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
 
 /**
  * WorkDayPanel — den ENDA synliga timer-ytan i Tidappen.
  *
- * Två lägen, drivna ENBART av backendens get-active-timer-status:
- *   A) Ingen aktiv timer  → "Tid registreras inte"  + [Starta timer]
+ * Frikopplad från workday/useWorkSession. Styr ENBART
+ * `active_time_registrations` via Time Engine v2:
+ *   - start: mobileApi.startLocationTimer  (→ start_time_registration)
+ *   - stop:  mobileApi.stopLocationTimer   (→ stop_time_registration)
+ *
+ * Två lägen, drivna ENBART av useActiveTimerStatus:
+ *   A) Ingen aktiv timer  → "Tid registreras inte" + [Starta timer]
  *   B) Aktiv timer        → HH:MM:SS + "Registreras på: {label}" + [Ändra] [Stoppa timer]
  *
- * Lokala timer-källor (useWorkSession, location_time_entries, time_reports,
- * workday, activeTimers) får INTE läsas här. Stop går via befintligt
- * 'request-end-day'-event som GlobalActiveTimerBanner lyssnar på i bakgrunden.
+ * Får inte: skapa workday, läsa useWorkSession, läsa location_time_entries,
+ * dispatch:a request-end-day, eller använda useTimerStartFlow/useWorkDay.
  */
 const formatHMS = (totalSeconds: number) => {
   const h = Math.floor(totalSeconds / 3600);
@@ -33,10 +34,8 @@ export const WorkDayPanel: React.FC = () => {
   const { staff } = useMobileAuth();
   const { data: bookings = [] } = useMobileBookings();
   const geo = useGeofencingContextOptional();
-  const { start } = useWorkDay();
-  const { requestStart } = useTimerStartFlow(bookings, staff?.id);
 
-  const { data: timer } = useActiveTimerStatus(!!staff);
+  const { data: timer, refresh } = useActiveTimerStatus(!!staff);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -53,57 +52,82 @@ export const WorkDayPanel: React.FC = () => {
   const handleStartClick = () => setDialogOpen(true);
   const handleSwitchClick = () => setDialogOpen(true);
 
-  const handleStop = () => {
-    if (stopping) return;
+  const notifyChanged = () => {
+    window.dispatchEvent(new Event('timer-state-changed'));
+    refresh?.();
+  };
+
+  const handleStop = async () => {
+    if (stopping || !timer.timerId) return;
     setStopping(true);
-    window.dispatchEvent(new CustomEvent('request-end-day'));
-    setTimeout(() => setStopping(false), 1500);
+    try {
+      const res = await mobileApi.stopLocationTimer({
+        entry_id: timer.timerId,
+        stop_source: 'user_manual',
+      });
+      if (res?.success === false) {
+        toast.error('Kunde inte stoppa timern. Försök igen.');
+      } else {
+        toast.success('Timer stoppad.');
+        notifyChanged();
+      }
+    } catch (err) {
+      console.warn('[WorkDayPanel] stopLocationTimer failed:', err);
+      toast.error('Kunde inte stoppa timern. Försök igen.');
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  const startWithParams = async (
+    params: Parameters<typeof mobileApi.startLocationTimer>[0],
+    label: string,
+  ) => {
+    // If a timer is already running, stop it first to allow switching target.
+    if (timer.timerActive && timer.timerId) {
+      try {
+        await mobileApi.stopLocationTimer({
+          entry_id: timer.timerId,
+          stop_source: 'user_switch',
+        });
+      } catch (err) {
+        console.warn('[WorkDayPanel] stop-before-switch failed:', err);
+      }
+    }
+    const res = await mobileApi.startLocationTimer(params);
+    if (res?.success === false) {
+      toast.error('Kunde inte starta timern.');
+      return false;
+    }
+    toast.success(`Timer startad på ${label}`);
+    notifyChanged();
+    return true;
   };
 
   const handleDialogConfirm = async (selection: StartDaySelection) => {
     setStarting(true);
     try {
-      clearWorkdayEnded();
       if (selection.kind === 'target') {
-        const res = await requestStart(selection.target, {
-          label: selection.label,
-          startedAtIso: selection.startedAtIso,
-        });
-        if (res === 'started' || res === 'already_running') {
-          toast.success(`Timer startad på ${selection.label}`);
-          setDialogOpen(false);
-          window.dispatchEvent(new Event('timer-state-changed'));
-        } else if (res === 'conflict') {
-          setDialogOpen(false);
+        const t = selection.target as any;
+        let params: Parameters<typeof mobileApi.startLocationTimer>[0] = {
+          started_at: selection.startedAtIso,
+        };
+        if (t.kind === 'project' && t.largeProjectId) {
+          params.large_project_id = t.largeProjectId;
+        } else if (t.kind === 'booking' && t.bookingId) {
+          params.booking_id = t.bookingId;
+        } else if (t.kind === 'location' && t.locationId) {
+          params.location_id = t.locationId;
+        } else {
+          toast.error('Ogiltigt mål för timer.');
+          return;
         }
+        const ok = await startWithParams(params, selection.label);
+        if (ok) setDialogOpen(false);
         return;
       }
-      if (selection.kind === 'presence') {
-        const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
-        if (!wd) { toast.error('Kunde inte starta. Försök igen.'); return; }
-        toast.success('Arbetsdag startad. Plats kopplas automatiskt.');
-        setDialogOpen(false);
-        window.dispatchEvent(new Event('timer-state-changed'));
-        return;
-      }
-      const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
-      if (!wd) { toast.error('Kunde inte starta. Försök igen.'); return; }
-      try {
-        await mobileApi.createWorkdayFlag({
-          flag_type: 'unclear_start_target',
-          flag_date: new Date().toISOString().slice(0, 10),
-          title: 'Oklart startprojekt',
-          description: selection.text,
-          severity: 'warning',
-          needs_user_input: false,
-          context: { entered_text: selection.text, source: 'workday_panel_manual', startedAtIso: selection.startedAtIso ?? null },
-        });
-      } catch (err) {
-        console.warn('[WorkDayPanel] createWorkdayFlag failed (non-fatal):', err);
-      }
-      toast.success('Arbetsdag startad.');
-      setDialogOpen(false);
-      window.dispatchEvent(new Event('timer-state-changed'));
+      // 'presence' / 'manual' → workday-relaterade flöden hör inte hemma här.
+      toast.error('Välj projekt eller plats för att starta timer.');
     } finally {
       setStarting(false);
     }
