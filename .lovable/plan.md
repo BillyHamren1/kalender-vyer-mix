@@ -1,88 +1,59 @@
-## Problem
+## Mål
 
-`get-staff-day-status`, `get-staff-month-status` och `get-staff-time-report-period` kräver Supabase JWT (`userClient.auth.getClaims(token)`). Mobilappen autentiserar med ett mobile-token (base64-JSON `{staffId, expiresAt}`) som lagras i `localStorage["eventflow-mobile-token"]`. Hooks anropar `supabase.functions.invoke(...)` som skickar den inloggade Supabase-sessionens JWT — vilket på mobilen är fel/saknas → 401/403, Time-sidan dör.
+`src/pages/mobile/MobileTimeReport.tsx` ska bara vara en tabbskal (Idag / Kalender / Tidrapport). Alla gamla rådata-listor, lokala totalsummor och inline-formuläret tas bort så snapshot blir enda synliga tidssanning.
 
-## Lösning
+## Vad som tas bort
 
-Edge-functions ska acceptera **båda** token-typerna. Hooks ska skicka mobile-tokenen via `fetch` när den finns, annars falla tillbaka på `supabase.functions.invoke` (admin/web).
+Från `MobileTimeReport.tsx` (466 → ~65 rader):
 
-## Ändringar
+- `mobileApi.getTimeReports()` + `fetchReports()` + `useEffect`
+- State: `timeReports`, `loadingReports`, `selectedBookingId`, `reportDate`, `startTime`, `endTime`, `breakTime`, `overtime`, `description`, `validationError`, `showForm`, `isSaving`
+- `calculateHours()`, `getValidationError()`, `isNightShift`, `jobOptions`, `handleSubmit`
+- Hela inline-formuläret "Lägg till manuell korrigering" + "Rådata · mina rapporter"-listan
+- `useStaffDayStatus` import (refresh används bara av borttagen form)
+- `useNavigate`, `mobileApi`, `MobileTimeReportType`, `parseISO`, `Check, Send, Plus, ChevronRight, FileText, Info`, `Button/Input/Label/Textarea/Select*`, `toast`, `formatHoursMinutes`, `useInvalidateMobileData`-imports
 
-### 1. Ny shared helper — `supabase/functions/_shared/staff-auth.ts`
+## Vad som blir kvar
 
-Exporterar `authenticateStaffRequest(req, { requestedStaffId })`:
+```tsx
+const MobileTimeReport = () => {
+  const { t } = useLanguage();
+  const { staff } = useMobileAuth();
+  const { data: bookings = [], isLoading } = useMobileBookings();
+  const { dialogs } = useWorkSession(bookings, staff?.id); // bara för rast/EOD/switch-dialogs
+  const [activeTab, setActiveTab] = useState<TimeTabId>('today');
 
-- Plockar `Authorization: Bearer <token>`
-- Detekterar mobile-token: token saknar `.` och `atob(token)` ger JSON med `staffId` + `expiresAt` → verifierar utgång → returnerar `{ mode: 'mobile', staffId, organizationId, admin }` (org slås upp via `staff_members`). Om `requestedStaffId` skickas och inte matchar → 403.
-- Annars: behandlas som Supabase JWT → `getClaims()` → slår upp `profiles.organization_id` + `user_roles` → returnerar `{ mode: 'jwt', userId, organizationId, isPrivileged, admin }`.
-- Plus `authorizeStaffAccess(auth, requestedStaffId)` som gör self/privileged-kontrollen för JWT-vägen och no-op för mobile (redan gated).
+  if (isLoading) { /* loader */ }
 
-### 2. Uppdatera de tre edge functions
-
-I varje `index.ts` byts auth-blocket (rader ~41–98) ut mot:
-
-```ts
-const authResult = await authenticateStaffRequest(req, { requestedStaffId: body.staffId });
-if (!authResult.ok) return bad(authResult.err.status, authResult.err.error);
-const access = await authorizeStaffAccess(authResult.auth, staffId);
-if (!access.ok) return bad(access.err.status, access.err.error);
-const orgId = access.orgId;
-const admin = authResult.auth.admin;
+  return (
+    <div className="flex flex-col min-h-screen bg-card pb-24">
+      <MobileHeroHeader … />
+      <div className="flex-1 px-5 pt-5 pb-28 space-y-4 …">
+        <MobileTimeTabs value={activeTab} onChange={setActiveTab} />
+        {activeTab === 'today' && <TodayTab />}
+        {activeTab === 'calendar' && <TimeCalendarTab />}
+        {activeTab === 'report' && <TimeReportTab />}
+      </div>
+      {dialogs}
+    </div>
+  );
+};
 ```
 
-Allt nedanför (DB-queries, snapshot-builders) är oförändrat — använder fortfarande `orgId` + `admin`.
+## Manuell korrigering
 
-Functions: `get-staff-day-status`, `get-staff-month-status`, `get-staff-time-report-period`.
+Befintlig redigerings-route `/m/report/:id/edit` finns kvar för befintliga rader. Att **skapa** en ny manuell rapport från Time-sidan är inte längre exponerat — flödet är: timer (auto), eller TimeReportTab/admin för rättning. Om vi senare behöver "ny manuell korrigering utan projekt" → ny separat sub-route (t.ex. `/m/report/new`) som inte kräver booking_id, men det är out-of-scope här (ingen sådan vy finns idag).
 
-### 3. Ny client helper — `src/services/staffSnapshotApi.ts`
+## Filer som ändras
 
-```ts
-export async function callStaffSnapshotFunction<T>(name, body): Promise<T>
-```
+- ✏️ `src/pages/mobile/MobileTimeReport.tsx` (kraftigt nedbantad)
 
-- Försöker först läsa mobile-token (`getToken()` från `mobileApiService`)
-- Om finns → `fetch(${VITE_SUPABASE_URL}/functions/v1/${name}, { method:'POST', headers:{ Authorization:'Bearer '+token, apikey:VITE_SUPABASE_PUBLISHABLE_KEY, 'Content-Type':'application/json' }, body:JSON.stringify(body) })` → throw med körrelevant error vid !ok
-- Om saknas → `supabase.functions.invoke(name, { body })` (admin/web fortsätter precis som idag)
-
-### 4. Uppdatera hooks
-
-`useStaffDaySnapshot.ts`, `useStaffMonthStatus.ts`, `useStaffTimeReportPeriod.ts` — byt:
-
-```ts
-const { data, error } = await supabase.functions.invoke('get-staff-day-status', { body });
-```
-
-mot:
-
-```ts
-const data = await callStaffSnapshotFunction<StaffDaySnapshot>('get-staff-day-status', body);
-```
-
-Felhantering bevaras (`setError(err.message)`).
-
-### 5. Memory-anteckning
-
-Lägg `mem://auth/staff-snapshot-dual-auth-v1` som dokumenterar att de tre snapshot-functions accepterar både mobile-token och Supabase JWT, samt att hooks går via `callStaffSnapshotFunction` (inte direkt `functions.invoke`). Lägg referens i `mem://index.md`.
+Inga andra filer rörs. Inga nya beroenden, ingen DB-ändring.
 
 ## Acceptans
 
-- Inloggad mobile staff på `/m/time` → Idag/Kalender/Tidrapport laddar utan 401/403
-- Admin på `/staff-management/time-reports` (Supabase JWT) fungerar oförändrat
-- Mobile staff kan endast läsa egen `staffId` (server-gated)
-- Befintliga JWT-tester och Time-reporting Quality Gate fortsätter passera
-
-## Filer som ändras/läggs till
-
-- ➕ `supabase/functions/_shared/staff-auth.ts` (ny)
-- ➕ `src/services/staffSnapshotApi.ts` (ny)
-- ✏️ `supabase/functions/get-staff-day-status/index.ts`
-- ✏️ `supabase/functions/get-staff-month-status/index.ts`
-- ✏️ `supabase/functions/get-staff-time-report-period/index.ts`
-- ✏️ `src/hooks/useStaffDaySnapshot.ts`
-- ✏️ `src/hooks/useStaffMonthStatus.ts`
-- ✏️ `src/hooks/useStaffTimeReportPeriod.ts`
-- ➕ `mem://auth/staff-snapshot-dual-auth-v1` + uppdatera `mem://index.md`
-
-## Inga DB-ändringar
-
-Ingen migration. Inga RLS-ändringar (vi går alltid via service-role efter egen auth-check, vilket är samma mönster som `workday`/`mobile-app-api`).
+- Time-sidan renderar utan `mobileApi.getTimeReports()`-anrop
+- Inga `time_reports`-rader visas på sidan
+- Inga lokala summeringar (`calculateHours`, `formatHoursMinutes` på r.hours_worked) finns kvar i filen
+- TodayTab/TimeCalendarTab/TimeReportTab är de enda kortvisningar
+- Dialogs (rast/EOD/switch) renderas fortfarande via `useWorkSession`
