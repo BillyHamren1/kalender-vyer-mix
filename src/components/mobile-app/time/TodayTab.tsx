@@ -125,7 +125,11 @@ function segmentBadge(s: StaffDaySegment): { label: string; tone: string } {
 const LiveStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
   useTick(1000);
   const active = snapshot.active;
+  const workdayOpen = !!snapshot.workday?.isOpen;
   if (!active) {
+    // Workday is running but backend has not yet bound a project/location.
+    // Stay quiet — no "okänd plats" / "plats ej klassad" / "monitorerar" copy.
+    if (workdayOpen) return null;
     return (
       <section className="rounded-2xl border border-dashed border-border bg-muted/20 p-4">
         <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
