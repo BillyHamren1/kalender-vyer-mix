@@ -89,18 +89,14 @@ export type AutoStartDenyReason =
   | 'blocked_not_enough_pings'
   | 'blocked_night_requires_stronger_evidence';
 
-export type AutoStartReason = AutoStartAllowReason | AutoStartDenyReason;
+export type PolicyAutoStartReason = AutoStartAllowReason | AutoStartDenyReason;
 
 /**
  * Policyutfall för en EN GPS-segment-mot-target-bedömning.
  *
- * Detta är policyns interna verdict. Det officiella API:t mot resten
- * av motorn (`AutoStartDecision` i contracts.ts) blockerar fortfarande
- * GPS-skapande av timern i nuvarande fas — policyn är förberedelsen
- * för en framtida öppning, men dess "allowed_valid_geofence" får i
- * denna fas INTE skapa `current_time_registration`.
- *
- * Mappning till `AutoStartBlockReason` finns i `mapDenyToContractReason`.
+ * Detta är policyns interna verdict. Resten av motorn använder
+ * `AutoStartDecision` från contracts.ts. Mappning sker via
+ * `mapDenyToContractReason` (1:1 mot AutoStartBlockedReason).
  */
 export type PolicyDecision =
   | {
@@ -116,26 +112,11 @@ export type PolicyDecision =
       confidence: Confidence;
     };
 
-/** Mappa policy-deny till kontraktets AutoStartBlockReason. */
+/** Mappa policy-deny till kontraktets AutoStartBlockedReason (1:1). */
 export function mapDenyToContractReason(
   reason: AutoStartDenyReason,
-): AutoStartBlockReason {
-  switch (reason) {
-    case 'blocked_movement_only':
-      return 'movement_not_allowed';
-    case 'blocked_unknown_place':
-    case 'blocked_home_or_private':
-    case 'blocked_invalid_target':
-    case 'blocked_test_target':
-    case 'blocked_gps_gap':
-      return 'unknown_place_not_allowed';
-    case 'blocked_low_confidence':
-    case 'blocked_not_enough_dwell':
-    case 'blocked_not_enough_pings':
-      return 'low_confidence';
-    case 'blocked_night_requires_stronger_evidence':
-      return 'blocked_night_auto_start_no_active_timer';
-  }
+): AutoStartBlockedReason {
+  return reason;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
