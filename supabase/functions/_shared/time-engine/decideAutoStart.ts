@@ -1,0 +1,361 @@
+/**
+ * Time Engine — decideAutoStart
+ * =============================
+ *
+ * Pure decision function. Given a current GPS segment, the previous
+ * segment, a candidate target and the local time, decides whether GPS
+ * may auto-start a time registration RIGHT NOW.
+ *
+ * STRICT CONSTRAINTS:
+ *   - This function ONLY decides. It MUST NOT write to the database.
+ *   - It MUST NOT read from workday / time_reports / location_time_entries
+ *     / travel_time_logs / assistant_events / legacy timers.
+ *   - It MUST NOT name unknown places from old timers/reports.
+ *
+ * GPS may auto-start time only when ALL of these hold:
+ *   - currentSegment.kind === 'stay'
+ *   - currentSegment.type === 'known_site'
+ *   - target is provided
+ *   - target.targetValidity === 'valid'
+ *   - target.timeTrackingAllowed === true
+ *   - dwell, ping count and confidence meet day/night policy
+ *   - target is not home/private
+ *   - target is not test/demo/cancelled/archived
+ *
+ * GPS may NEVER auto-start from:
+ *   - travel / transport
+ *   - unknown_place
+ *   - gps_gap
+ *   - low confidence
+ *   - single ping
+ *   - invalid target
+ *   - test/demo target
+ *   - home/private
+ *   - stale/cached/low quality pings
+ *
+ * Night 00:00–05:00 local time:
+ *   - night work IS allowed
+ *   - but requires stronger evidence (more pings, longer dwell,
+ *     higher confidence) AND
+ *   - requirePlannedOrExplicitAllowedTarget === true
+ */
+
+import type { Confidence, ISODateTime, UUID, WorkTarget } from './contracts.ts';
+import {
+  dayPolicy as defaultDayPolicy,
+  nightPolicy as defaultNightPolicy,
+  isNightLocal,
+  localHour,
+  type DwellPolicy,
+  type NightPolicy,
+} from './timePolicy.ts';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AutoStartSegmentKind = 'stay' | 'travel' | 'gps_gap';
+export type AutoStartSegmentType =
+  | 'known_site'
+  | 'unknown_place'
+  | 'transport'
+  | 'gps_gap';
+
+/** Minimum subset of a GpsTimelineSegment that the decision needs. */
+export interface DecideAutoStartSegment {
+  id?: string;
+  startTs: ISODateTime;
+  endTs: ISODateTime;
+  durationMin: number;
+  kind: AutoStartSegmentKind;
+  type: AutoStartSegmentType;
+  pingCount: number;
+  confidence: Confidence;
+  /** True if these pings are stale/cached or otherwise low quality. */
+  isStaleOrCached?: boolean;
+}
+
+export type TargetValidity =
+  | 'valid'
+  | 'missing_coordinates'
+  | 'invalid_radius'
+  | 'test_data'
+  | 'cancelled'
+  | 'archived';
+
+/**
+ * Target shape used by the decision. Compatible with both
+ *   - the canonical contracts.WorkTarget, and
+ *   - the richer ResolvedWorkTarget from resolveWorkTargets.ts
+ *     (extra fields are optional here).
+ */
+export interface DecideAutoStartTarget extends Partial<WorkTarget> {
+  refId: UUID;
+  kind: WorkTarget['kind'];
+  label: string;
+  targetValidity?: TargetValidity;
+  timeTrackingAllowed?: boolean;
+  isHomeOrPrivate?: boolean;
+  isTestOrDemo?: boolean;
+  isCancelled?: boolean;
+  isArchived?: boolean;
+  assignedToUserToday?: boolean;
+  explicitlyAllowed?: boolean;
+}
+
+export interface ExistingActiveRegistration {
+  id: UUID;
+  startedAt: ISODateTime;
+  /** Free-form so we don't pin this to one shape. */
+  source?: string;
+}
+
+export type AutoStartDecisionReason =
+  | 'allowed_valid_geofence'
+  | 'blocked_already_active'
+  | 'blocked_movement_only'
+  | 'blocked_unknown_place'
+  | 'blocked_gps_gap'
+  | 'blocked_low_confidence'
+  | 'blocked_invalid_target'
+  | 'blocked_test_target'
+  | 'blocked_home_or_private'
+  | 'blocked_not_enough_dwell'
+  | 'blocked_not_enough_pings'
+  | 'blocked_night_requires_stronger_evidence';
+
+export interface AutoStartEvidence {
+  isNightLocal: boolean;
+  localHour: number;
+  dwellMinutes: number;
+  requiredDwellMinutes: number;
+  pingCount: number;
+  requiredPingCount: number;
+  confidence: Confidence;
+  requiredConfidence: Confidence;
+  segmentKind: AutoStartSegmentKind;
+  segmentType: AutoStartSegmentType;
+  targetKey?: string | null;
+  targetValidity?: TargetValidity;
+  timeTrackingAllowed?: boolean;
+  assignedToUserToday?: boolean;
+  explicitlyAllowed?: boolean;
+  policyUsed: 'day' | 'night';
+}
+
+export interface DecideAutoStartInput {
+  currentSegment: DecideAutoStartSegment;
+  previousSegment?: DecideAutoStartSegment | null;
+  target?: DecideAutoStartTarget | null;
+  /** ISO timestamp representing local "now" for the decision. */
+  localTime: ISODateTime;
+  policy?: {
+    day?: DwellPolicy;
+    night?: NightPolicy;
+  };
+  existingActiveRegistration?: ExistingActiveRegistration | null;
+}
+
+export type AutoStartSource = 'gps_geofence_auto_start';
+
+export interface AutoStartDecisionResult {
+  allowed: boolean;
+  reason: AutoStartDecisionReason;
+  confidence: Confidence;
+  startAt: ISODateTime | null;
+  targetId: UUID | null;
+  targetType: WorkTarget['kind'] | null;
+  targetName: string | null;
+  source: AutoStartSource | null;
+  evidence: AutoStartEvidence;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TEST_HINTS = ['test', 'demo', 'sandbox', 'playground'];
+const PRIVATE_HINTS = ['home', 'hem', 'privat', 'private'];
+
+function labelHas(label: string | undefined, hints: string[]): boolean {
+  const l = (label ?? '').toLowerCase();
+  return hints.some((h) => l.includes(h));
+}
+
+function isHomeOrPrivate(t: DecideAutoStartTarget): boolean {
+  if (t.isHomeOrPrivate === true) return true;
+  return labelHas(t.label, PRIVATE_HINTS);
+}
+
+function isTestOrDemo(t: DecideAutoStartTarget): boolean {
+  if (t.isTestOrDemo === true) return true;
+  if (t.targetValidity === 'test_data') return true;
+  return labelHas(t.label, TEST_HINTS);
+}
+
+function isInvalidTarget(t: DecideAutoStartTarget): boolean {
+  if (t.targetValidity && t.targetValidity !== 'valid') return true;
+  if (t.isCancelled === true) return true;
+  if (t.isArchived === true) return true;
+  if (t.timeTrackingAllowed === false) return true;
+  return false;
+}
+
+function buildEvidence(args: {
+  segment: DecideAutoStartSegment;
+  target?: DecideAutoStartTarget | null;
+  policy: DwellPolicy;
+  policyUsed: 'day' | 'night';
+  localIso: ISODateTime;
+}): AutoStartEvidence {
+  const { segment, target, policy, policyUsed, localIso } = args;
+  return {
+    isNightLocal: policyUsed === 'night',
+    localHour: localHour(localIso),
+    dwellMinutes: segment.durationMin,
+    requiredDwellMinutes: policy.minDwellSeconds / 60,
+    pingCount: segment.pingCount,
+    requiredPingCount: policy.minArrivalPings,
+    confidence: segment.confidence,
+    requiredConfidence: policy.minConfidence,
+    segmentKind: segment.kind,
+    segmentType: segment.type,
+    targetKey: target?.key ?? null,
+    targetValidity: target?.targetValidity,
+    timeTrackingAllowed: target?.timeTrackingAllowed,
+    assignedToUserToday: target?.assignedToUserToday,
+    explicitlyAllowed: target?.explicitlyAllowed,
+    policyUsed,
+  };
+}
+
+function deny(
+  reason: AutoStartDecisionReason,
+  evidence: AutoStartEvidence,
+  confidence: Confidence,
+): AutoStartDecisionResult {
+  return {
+    allowed: false,
+    reason,
+    confidence,
+    startAt: null,
+    targetId: null,
+    targetType: null,
+    targetName: null,
+    source: null,
+    evidence,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Decision
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function decideAutoStart(input: DecideAutoStartInput): AutoStartDecisionResult {
+  const { currentSegment: seg, target, localTime } = input;
+  const dayP = input.policy?.day ?? defaultDayPolicy;
+  const nightP = input.policy?.night ?? defaultNightPolicy;
+  const night = isNightLocal(localTime, nightP);
+  const activePolicy: DwellPolicy = night ? nightP : dayP;
+  const policyUsed: 'day' | 'night' = night ? 'night' : 'day';
+
+  const evidence = buildEvidence({
+    segment: seg,
+    target,
+    policy: activePolicy,
+    policyUsed,
+    localIso: localTime,
+  });
+
+  // Already active timer → never auto-start.
+  if (input.existingActiveRegistration) {
+    return deny('blocked_already_active', evidence, seg.confidence);
+  }
+
+  // Movement / transport never auto-starts.
+  if (seg.kind === 'travel' || seg.type === 'transport') {
+    return deny('blocked_movement_only', evidence, seg.confidence);
+  }
+
+  // GPS gap never auto-starts (and a gap may never become travel either).
+  if (seg.kind === 'gps_gap' || seg.type === 'gps_gap') {
+    return deny('blocked_gps_gap', evidence, seg.confidence);
+  }
+
+  // Unknown place never auto-starts.
+  if (seg.type === 'unknown_place') {
+    return deny('blocked_unknown_place', evidence, seg.confidence);
+  }
+
+  // Must be a stay at a known site.
+  if (seg.kind !== 'stay' || seg.type !== 'known_site') {
+    return deny('blocked_unknown_place', evidence, seg.confidence);
+  }
+
+  if (!target) {
+    return deny('blocked_invalid_target', evidence, seg.confidence);
+  }
+
+  // Stale / cached pings → treat as low confidence.
+  if (seg.isStaleOrCached) {
+    return deny('blocked_low_confidence', evidence, seg.confidence);
+  }
+
+  // Target classification.
+  if (isTestOrDemo(target)) {
+    return deny('blocked_test_target', evidence, seg.confidence);
+  }
+  if (isHomeOrPrivate(target)) {
+    return deny('blocked_home_or_private', evidence, seg.confidence);
+  }
+  if (isInvalidTarget(target)) {
+    return deny('blocked_invalid_target', evidence, seg.confidence);
+  }
+
+  // Dwell / ping / confidence thresholds.
+  const dwellMin = seg.durationMin;
+  const requiredDwellMin = activePolicy.minDwellSeconds / 60;
+  if (seg.pingCount < activePolicy.minArrivalPings) {
+    return deny(
+      night ? 'blocked_night_requires_stronger_evidence' : 'blocked_not_enough_pings',
+      evidence,
+      seg.confidence,
+    );
+  }
+  if (dwellMin < requiredDwellMin) {
+    return deny(
+      night ? 'blocked_night_requires_stronger_evidence' : 'blocked_not_enough_dwell',
+      evidence,
+      seg.confidence,
+    );
+  }
+  if (seg.confidence < activePolicy.minConfidence) {
+    return deny(
+      night ? 'blocked_night_requires_stronger_evidence' : 'blocked_low_confidence',
+      evidence,
+      seg.confidence,
+    );
+  }
+
+  // Night: require planned or explicitly allowed target.
+  if (night && nightP.requirePlannedOrExplicitAllowedTarget) {
+    const planned = target.assignedToUserToday === true;
+    const explicit = target.explicitlyAllowed === true;
+    if (!planned && !explicit) {
+      return deny('blocked_night_requires_stronger_evidence', evidence, seg.confidence);
+    }
+  }
+
+  // ✓ All checks passed.
+  return {
+    allowed: true,
+    reason: 'allowed_valid_geofence',
+    confidence: seg.confidence,
+    startAt: seg.startTs,
+    targetId: target.refId,
+    targetType: target.kind,
+    targetName: target.label,
+    source: 'gps_geofence_auto_start',
+    evidence,
+  };
+}
