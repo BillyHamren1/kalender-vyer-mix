@@ -44,6 +44,7 @@ import {
   type DecideAutoStartSegment,
   type DecideAutoStartTarget,
 } from './decideAutoStart.ts';
+import { assertNoLegacySources } from './assertNoLegacySources.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs / outputs
