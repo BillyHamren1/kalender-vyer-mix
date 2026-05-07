@@ -2955,7 +2955,15 @@ serve(async (req) => {
           
           // If only product recovery is needed, clear products and reimport
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && needsProductRecovery) {
-            console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting products`);
+            // GUARD: never wipe local products when external payload is empty.
+            const recoveryExternalCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
+            if (recoveryExternalCount === 0) {
+              console.warn(`[Product Recovery GUARD] Skipping recovery for booking ${bookingData.id}: external products array is empty (transient_empty_source). Keeping local products intact.`);
+              await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+              continue;
+            }
+
+            console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting ${recoveryExternalCount} products`);
             
             // Delete packing list items BEFORE products to avoid FK constraint violations
             const { data: packingForRecovery } = await supabase
