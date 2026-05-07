@@ -242,7 +242,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         selectedHeartbeatMs: decision.heartbeatMs,
         selectedDistanceFilter: decision.distanceFilter,
         nearestTargetDistanceMeters: decision.nearestTargetDistanceMeters,
-        hasActiveTimer: readHasActiveTimer(),
+        hasActiveTimer: readHasActiveSession(),
         hasPendingArrival: arrivals.length > 0,
         lastPingAt: lastPingAtRef.current,
         lastUploadAt: lastUploadAtRef.current,
