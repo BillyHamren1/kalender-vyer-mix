@@ -220,6 +220,25 @@ Deno.serve(async (req) => {
     }
     aiResult.confidence = Math.max(0, Math.min(1, Number(aiResult.confidence) || 0));
 
+    // Hard contract: AI får ALDRIG påverka lönegrundande tid.
+    aiResult.affectsPayableTime = false;
+
+    // Om AI är osäker (låg confidence eller needsUserInput) → behåll segment
+    // som "other_place" (default) eller den ursprungliga oklara typen.
+    // Caller får då aldrig ändra segmentet utan att fråga användaren.
+    if (aiResult.confidence < CONFIDENCE_THRESHOLD || aiResult.needsUserInput) {
+      aiResult.needsUserInput = true;
+      aiResult.keepAsType = (seg.kind === "other_place"
+        ? "other_place"
+        : (seg.kind as AiResult["keepAsType"])) ?? "other_place";
+      if (!aiResult.userQuestion) {
+        aiResult.userQuestion = "Vad gjorde du under den här tiden?";
+      }
+    } else {
+      // Hög confidence — behåll fortfarande som other_place tills user attesterar.
+      aiResult.keepAsType = aiResult.keepAsType ?? "other_place";
+    }
+
     // ── Persistera cache ───────────────────────────────────────────────────
     await supabase
       .from("unclear_segment_ai_analyses")
@@ -236,6 +255,8 @@ Deno.serve(async (req) => {
         needs_user_input: aiResult.needsUserInput,
         user_question: aiResult.userQuestion ?? null,
         explanation: aiResult.explanation,
+        keep_as_type: aiResult.keepAsType,
+        tracking_policy_recommendation: aiResult.trackingPolicyRecommendation ?? null,
         model: MODEL,
         input_hash: inputHash,
         updated_at: new Date().toISOString(),
