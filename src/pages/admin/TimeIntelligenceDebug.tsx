@@ -158,7 +158,13 @@ export default function TimeIntelligenceDebug() {
               </Button>
             </div>
           </div>
-          <div className="flex gap-2 pt-2 border-t">
+          <div className="flex flex-wrap items-center gap-4 pt-2 border-t">
+            <div className="flex items-center gap-2">
+              <Switch id="dryrun" checked={dryRun} onCheckedChange={setDryRun} />
+              <Label htmlFor="dryrun" className="cursor-pointer">
+                dryRun {dryRun ? "= true (säkert)" : "= false (LIVE skrivning!)"}
+              </Label>
+            </div>
             <Button variant="outline" size="sm" onClick={runScenarios} disabled={loading}>
               Kör 5 standardscenarion
             </Button>
