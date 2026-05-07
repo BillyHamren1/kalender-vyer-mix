@@ -453,7 +453,7 @@ Deno.serve(async (req) => {
   };
 
   // ── Pure GPS day timeline (no workday/timer/report inputs) ──────────────
-  const gpsResult = buildGpsDayTimelineOnly({
+  const gpsTimeline = buildGpsDayTimelineOnly({
     staffId,
     organizationId,
     date,
@@ -468,8 +468,8 @@ Deno.serve(async (req) => {
     knownTargets: knownPlaces,
   });
 
-  const gpsSegments: GpsTimelineSegment[] = gpsResult.segments;
-  const targetMatches = gpsResult.targetMatches;
+  const gpsSegments: GpsTimelineSegment[] = gpsTimeline.segments;
+  const targetMatches = gpsTimeline.targetMatches;
   let clusterError: string | null = null;
 
   if (rawPings.length === 0) warnings.push("no_pings_for_day");
@@ -480,17 +480,17 @@ Deno.serve(async (req) => {
   const SEGMENT_RETURN_CAP = 200;
   const returnedSegments = gpsSegments.slice(0, SEGMENT_RETURN_CAP);
   const gpsDayTimeline = {
-    count: gpsSegments.length,
-    firstStart: gpsSegments[0]?.startTs ?? null,
-    lastEnd: gpsSegments[gpsSegments.length - 1]?.endTs ?? null,
+    count: gpsTimeline.segments.length,
+    firstStart: gpsTimeline.segments[0]?.startTs ?? null,
+    lastEnd: gpsTimeline.segments[gpsTimeline.segments.length - 1]?.endTs ?? null,
     source: "gps_only" as const,
-    truncated: gpsSegments.length > returnedSegments.length,
-    totalSegments: gpsSegments.length,
+    truncated: gpsTimeline.segments.length > returnedSegments.length,
+    totalSegments: gpsTimeline.segments.length,
     returnedSegments: returnedSegments.length,
     segments: returnedSegments,
   };
 
-  return json(200, {
+  const response = {
     rawPingsCoverage,
     pingClassificationTimeline,
     gpsDayTimeline,
@@ -522,7 +522,15 @@ Deno.serve(async (req) => {
         targetCandidatesWithCoords: targetFetchDiagnostics.candidatesWithCoords,
       },
     },
-  });
+  };
+
+  response.debugMeta.gpsTimelineReturnCheck = {
+    builtSegments: gpsTimeline.segments.length,
+    returnedSegments: response.gpsDayTimeline?.segments?.length ?? 0,
+    returnedAsObject: typeof response.gpsDayTimeline,
+  };
+
+  return json(200, response);
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
