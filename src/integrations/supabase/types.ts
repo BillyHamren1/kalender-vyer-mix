@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      active_time_registrations: {
+        Row: {
+          auto_started: boolean
+          created_at: string
+          current_confidence: number | null
+          current_kind: string | null
+          current_label: string | null
+          current_target_id: string | null
+          current_target_type: string | null
+          id: string
+          manual_override_kind: string | null
+          manual_override_label: string | null
+          manual_override_target_id: string | null
+          manual_override_target_type: string | null
+          metadata: Json
+          needs_user_choice: boolean
+          organization_id: string
+          staff_id: string
+          start_source: string
+          start_target_id: string | null
+          start_target_label: string | null
+          start_target_type: string | null
+          started_at: string
+          started_by: string | null
+          status: string
+          stop_source: string | null
+          stopped_at: string | null
+          stopped_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          auto_started?: boolean
+          created_at?: string
+          current_confidence?: number | null
+          current_kind?: string | null
+          current_label?: string | null
+          current_target_id?: string | null
+          current_target_type?: string | null
+          id?: string
+          manual_override_kind?: string | null
+          manual_override_label?: string | null
+          manual_override_target_id?: string | null
+          manual_override_target_type?: string | null
+          metadata?: Json
+          needs_user_choice?: boolean
+          organization_id: string
+          staff_id: string
+          start_source: string
+          start_target_id?: string | null
+          start_target_label?: string | null
+          start_target_type?: string | null
+          started_at: string
+          started_by?: string | null
+          status: string
+          stop_source?: string | null
+          stopped_at?: string | null
+          stopped_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auto_started?: boolean
+          created_at?: string
+          current_confidence?: number | null
+          current_kind?: string | null
+          current_label?: string | null
+          current_target_id?: string | null
+          current_target_type?: string | null
+          id?: string
+          manual_override_kind?: string | null
+          manual_override_label?: string | null
+          manual_override_target_id?: string | null
+          manual_override_target_type?: string | null
+          metadata?: Json
+          needs_user_choice?: boolean
+          organization_id?: string
+          staff_id?: string
+          start_source?: string
+          start_target_id?: string | null
+          start_target_label?: string | null
+          start_target_type?: string | null
+          started_at?: string
+          started_by?: string | null
+          status?: string
+          stop_source?: string | null
+          stopped_at?: string | null
+          stopped_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       actual_day_event_overrides: {
         Row: {
           action: string
