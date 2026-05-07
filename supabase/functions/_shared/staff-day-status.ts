@@ -538,18 +538,15 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     source: "workday_flag",
   }));
 
-  if (!workdaySnap) {
-    dayFlags.push({
-      id: `missing-workday-${date}`,
-      type: "missing_workday",
-      severity: "warning",
-      title: "Saknad arbetsdag",
-      description: "Ingen workday hittades för denna dag.",
-      needsUserInput: false,
-      resolved: false,
-      source: "computed",
-    });
-  } else if (!workdaySnap.endedAt && new Date(workdaySnap.startedAt).getTime() < now.getTime() - 16 * 60 * MS_PER_MIN) {
+  // NOTE: "missing_workday" is no longer emitted here. The engine now
+  // synthesises a workday from confirmed worksite presence above, so the
+  // only remaining case (no workday AND no confirmed evidence) means
+  // there is genuinely nothing to report — and that is signalled by
+  // workday === null, not by a noisy warning flag.
+  // "early_confirmed_presence" is likewise gone: the engine back-dates
+  // automatically. We still surface a passive info flag if the day is
+  // approved/locked and could not be auto-extended.
+  if (workdaySnap && !workdaySnap.endedAt && new Date(workdaySnap.startedAt).getTime() < now.getTime() - 16 * 60 * MS_PER_MIN) {
     dayFlags.push({
       id: `missing-end-${workdaySnap.id}`,
       type: "missing_end_time",
@@ -579,22 +576,23 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     dayFlags.push({
       id: `unknown-within-workday-${workdaySnap?.id ?? date}`,
       type: "unknown_within_workday",
-      severity: "warning",
-      title: "Okänd vistelse · behöver granskning",
-      description: `${unknownWithinWd} min okänd vistelse ligger inom arbetsdagen.`,
-      needsUserInput: true,
+      severity: "info",
+      title: "Okänd vistelse inom arbetsdagen",
+      description: `${unknownWithinWd} min ligger inom arbetsdagen och väntar på klassning.`,
+      needsUserInput: false,
       resolved: false,
       source: "computed",
     });
   }
 
-  if (workdaySnap && suggestedStartedAt && suggestedStartedAt < workdaySnap.startedAt) {
+  if (workdaySnap && suggestedStartedAt && workdaySnap.approved) {
+    // Day is locked — engine could not auto-extend, surface as passive info.
     dayFlags.push({
       id: `early-confirmed-presence-${workdaySnap.id}`,
       type: "early_confirmed_presence",
       severity: "info",
       title: "Tidigare bekräftat arbete",
-      description: `Bekräftad arbetsplats finns från ${suggestedStartedAt.slice(11, 16)} — arbetsdagen kan tidigareläggas.`,
+      description: `Bekräftad arbetsplats finns från ${suggestedStartedAt.slice(11, 16)} (dagen är låst).`,
       needsUserInput: false,
       resolved: false,
       source: "computed",
