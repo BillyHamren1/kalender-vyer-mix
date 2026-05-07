@@ -363,6 +363,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     // Kick off first scheduling immediately (this also seeds distanceFilter)
     rescheduleHeartbeat();
 
+    // Re-apply heartbeat as soon as a fresh backend policy arrives.
+    const onPolicyUpdated = () => { rescheduleHeartbeat(); };
+    window.addEventListener('tracking-policy-updated', onPolicyUpdated);
+
     const checkBackgroundGeofences = (lat: number, lng: number) => {
       const targets = loadGeofenceTargets();
       if (targets.length === 0) return;
