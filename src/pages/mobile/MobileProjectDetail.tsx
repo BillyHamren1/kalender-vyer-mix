@@ -7,7 +7,7 @@ import { format, parseISO } from 'date-fns';
 import { MapPin, ChevronRight, Loader2, FolderOpen, Phone, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/i18n/LanguageContext';
-import MobileProjectTimerCard from '@/components/mobile-app/project/MobileProjectTimerCard';
+// MobileProjectTimerCard borttagen — single-timer-modell, se WorkDayPanel.
 
 const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }, assignmentDate: string) => {
   if (dates.rigdaydate === assignmentDate) return { label: 'RIG', className: 'bg-planning-rig text-planning-rig-foreground border-planning-rig-border' };
