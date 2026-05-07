@@ -237,6 +237,8 @@ export interface DayTotals {
   transportMinutes: number;
   /** Okänd plats inom arbetsdag (räknas, drar inte av). */
   otherPlaceMinutes: number;
+  /** GPS-glapp inom arbetsdag (kind/type gps_gap / signal_stale). */
+  gpsGapMinutes: number;
 
   // ---- Legacy fields (kept for backward compat with existing UI) ----
   workdayMinutes: number;
