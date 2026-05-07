@@ -936,6 +936,17 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     intelligenceState,
     trackingPolicy,
     assistantEvents: events,
+    attestation: attestation
+      ? {
+          id: attestation.id,
+          breakMinutes: Math.max(0, attestation.break_minutes | 0),
+          comment: attestation.comment,
+          status: attestation.status,
+          attestedAt: attestation.attested_at,
+          attestedBy: attestation.attested_by,
+          locked: attestation.status === "locked",
+        }
+      : null,
     lastUpdatedAt: now.toISOString(),
   };
 }
