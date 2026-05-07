@@ -165,14 +165,41 @@ Deno.serve(async (req) => {
   const sevenDaysAgo = new Date(new Date(date).getTime() - 7 * 86400000).toISOString().slice(0, 10);
   const sevenDaysAhead = new Date(new Date(date).getTime() + 7 * 86400000).toISOString().slice(0, 10);
 
-  // ── Parallel fetches ────────────────────────────────────────────────────
-  const [pingsRes, workdayRes, lteRes, trRes, travelRes, locRes, bookingsRes, largeRes] =
-    await Promise.all([
-      supabase.from("staff_location_history")
+  // Paginated ping fetch — same principle as fetchAllPingsForStaff in
+  // StaffTimeReports.tsx. Never use a single .limit() that can silently
+  // truncate days with thousands of pings.
+  const PING_PAGE_SIZE = 1000;
+  const PER_STAFF_PING_CAP = 20_000;
+  async function fetchAllPings(): Promise<{
+    rows: RawPing[]; truncated: boolean; pageCount: number; error: string | null;
+  }> {
+    const out: RawPing[] = [];
+    let from = 0;
+    let pageCount = 0;
+    while (out.length < PER_STAFF_PING_CAP) {
+      const to = from + PING_PAGE_SIZE - 1;
+      const { data, error } = await supabase
+        .from("staff_location_history")
         .select("recorded_at, lat, lng, accuracy, speed")
         .eq("staff_id", staffId)
         .gte("recorded_at", dayStart).lte("recorded_at", dayEnd)
-        .order("recorded_at", { ascending: true }).limit(5000),
+        .order("recorded_at", { ascending: true })
+        .range(from, to);
+      pageCount += 1;
+      if (error) return { rows: out, truncated: false, pageCount, error: error.message };
+      const batch = (data ?? []) as RawPing[];
+      out.push(...batch);
+      if (batch.length < PING_PAGE_SIZE) {
+        return { rows: out, truncated: false, pageCount, error: null };
+      }
+      from += PING_PAGE_SIZE;
+    }
+    return { rows: out.slice(0, PER_STAFF_PING_CAP), truncated: true, pageCount, error: null };
+  }
+
+  const [pingsAll, workdayRes, lteRes, trRes, travelRes, locRes, bookingsRes, largeRes] =
+    await Promise.all([
+      fetchAllPings(),
       supabase.from("workdays").select("*")
         .eq("staff_id", staffId)
         .gte("started_at", dayStart).lte("started_at", dayEnd)
@@ -207,7 +234,7 @@ Deno.serve(async (req) => {
         : Promise.resolve({ data: [], error: null }),
     ]);
 
-  const pings: RawPing[] = (pingsRes.data ?? []) as any;
+  const pings: RawPing[] = pingsAll.rows;
   const workday = (workdayRes.data ?? [])[0] ?? null;
   const locationEntries = lteRes.data ?? [];
   const timeReports = trRes.data ?? [];
