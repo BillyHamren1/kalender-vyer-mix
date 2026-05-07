@@ -69,7 +69,7 @@ export default function TimeIntelligenceDebug() {
     setResult(null);
     try {
       const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
-        body: { staffId, date, dryRun: true },
+        body: { staffId, date, dryRun },
       });
       if (error) throw error;
       setResult(data);
