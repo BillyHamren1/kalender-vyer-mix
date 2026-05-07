@@ -325,6 +325,10 @@ function rowToResult(row: Record<string, unknown>): AiResult {
     needsUserInput: Boolean(row.needs_user_input),
     userQuestion: (row.user_question as string | null) ?? undefined,
     explanation: String(row.explanation ?? ""),
+    affectsPayableTime: false,
+    keepAsType: ((row.keep_as_type as string | null) ?? "other_place") as AiResult["keepAsType"],
+    trackingPolicyRecommendation:
+      (row.tracking_policy_recommendation as TrackingPolicyRecommendation | null) ?? undefined,
   };
 }
 
@@ -338,13 +342,17 @@ async function callAi(seg: SegmentInput): Promise<AiResult> {
     " - transport: personen är på väg någonstans (bil, gång)",
     " - needs_user_input: går inte att avgöra med rimlig säkerhet — fråga användaren",
     "",
-    "FÖRBJUDET:",
-    " - Du får ALDRIG föreslå rastavdrag.",
-    " - Du får ALDRIG föreslå att tid ska dras bort eller minskas.",
+    "FÖRBJUDET (HÅRDA REGLER):",
+    " - Du får ALDRIG föreslå rastavdrag eller privattid.",
+    " - Du får ALDRIG föreslå att tid ska dras bort, minskas eller flaggas som ej lönegrundande.",
+    " - Du får ALDRIG stoppa eller avsluta arbetsdagen.",
     " - Du får ALDRIG ändra confirmade projekt/lager — du analyserar bara det vi skickar.",
+    " - Du får ALDRIG motsäga en känd arbetsplats.",
     " - Du får ALDRIG hitta på nya kategorier.",
     "",
-    "Om du är osäker → använd needs_user_input och formulera EN kort fråga på svenska.",
+    "Om confidence < 0.6 eller du är osäker → använd needs_user_input.",
+    "Du får valfritt föreslå en trackingPolicyRecommendation (mode + heartbeatMs + reason)",
+    "när du tror att GPS-tätheten bör ändras — detta är RÅDGIVANDE och bindande är endast backend.",
     "Returnera ALLTID via verktygsanropet analyze_segment.",
   ].join("\n");
 
@@ -383,6 +391,15 @@ async function callAi(seg: SegmentInput): Promise<AiResult> {
             needsUserInput: { type: "boolean" },
             userQuestion: { type: "string" },
             explanation: { type: "string" },
+            trackingPolicyRecommendation: {
+              type: "object",
+              properties: {
+                mode: { type: "string", enum: ["low_power", "normal", "high_resolution"] },
+                heartbeatMs: { type: "number", minimum: 30000, maximum: 1800000 },
+                reason: { type: "string" },
+              },
+              additionalProperties: false,
+            },
           },
           required: ["suggestedType", "confidence", "needsUserInput", "explanation"],
           additionalProperties: false,
@@ -418,8 +435,19 @@ async function callAi(seg: SegmentInput): Promise<AiResult> {
       needsUserInput: true,
       userQuestion: "Vad gjorde du under den här tiden?",
       explanation: "AI returnerade inget verktygssvar.",
+      affectsPayableTime: false,
+      keepAsType: "other_place",
     };
   }
-  const parsed = JSON.parse(argsRaw) as AiResult;
-  return parsed;
+  const parsed = JSON.parse(argsRaw) as Partial<AiResult>;
+  return {
+    suggestedType: parsed.suggestedType ?? "needs_user_input",
+    confidence: Number(parsed.confidence ?? 0),
+    needsUserInput: Boolean(parsed.needsUserInput),
+    userQuestion: parsed.userQuestion,
+    explanation: String(parsed.explanation ?? ""),
+    affectsPayableTime: false,
+    keepAsType: "other_place",
+    trackingPolicyRecommendation: parsed.trackingPolicyRecommendation,
+  };
 }
