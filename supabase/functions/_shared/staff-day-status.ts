@@ -845,6 +845,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
         pings: input.pings ?? [],
         now,
       });
+      if (chainGaps.length > 0) gpsChainProducedSegments = true;
       for (const g of chainGaps) {
         segments.push({
           id: g.id,
