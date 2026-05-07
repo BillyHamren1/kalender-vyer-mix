@@ -227,7 +227,7 @@ const WorkdayCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => 
       <div className="grid grid-cols-2 gap-2">
         <Stat
           label="Lönegrundande"
-          value={formatHoursMinutes((t?.workdayMinutes ?? 0) / 60)}
+          value={formatHoursMinutes(liveWorkdayMinutes / 60)}
           strong
         />
         <Stat
