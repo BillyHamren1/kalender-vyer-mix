@@ -985,6 +985,7 @@ Deno.serve(async (req) => {
       input: { staffId, date, dryRun, confirm, organizationId },
       diagnostics,
       snapshotError,
+      rawPingCoverage,
       generatedAt: new Date().toISOString(),
       contractVersion: "v2",
     },
