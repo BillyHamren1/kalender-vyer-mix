@@ -804,6 +804,49 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     isWorkdayOpen: workdaySnap?.isOpen ?? false,
   };
 
+  // ---- Central segment chain: fyll glapp inom workday med
+  // transport / other_place / signal_stale (saknad ping ≠ glapp).
+  // Endast om vi har en workday och pings att basera klassningen på.
+  if (effectivePolicyWorkday) {
+    try {
+      const { buildSegmentChainGaps } = await import("./segmentChain.ts");
+      const chainGaps = buildSegmentChainGaps({
+        workday: { startedAt: effectivePolicyWorkday.startedAt, endedAt: effectivePolicyWorkday.endedAt },
+        segments: segments.map((s) => ({
+          id: s.id, type: s.type, startedAt: s.startedAt, endedAt: s.endedAt,
+          hasConfirmedRef: s.hasConfirmedRef,
+        })),
+        pings: input.pings ?? [],
+        now,
+      });
+      for (const g of chainGaps) {
+        segments.push({
+          id: g.id,
+          kind: g.type === "transport" ? "travel" : "unknown",
+          type: g.type,
+          start: g.startedAt,
+          end: g.endedAt,
+          startedAt: g.startedAt,
+          endedAt: g.endedAt,
+          durationMinutes: g.durationMinutes,
+          isActive: false,
+          label: g.label,
+          source: g.source,
+          confidence: g.confidence,
+          affectsPayableTime: false,
+          requiresUserInput: g.requiresUserInput,
+          metadata: g.metadata,
+          refs: {},
+          hasConfirmedRef: false,
+          classification: null,
+          policyStatus: g.policyStatus as PolicyStatus,
+        });
+      }
+      segments.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    } catch (err) {
+      console.warn("[staff-day-status] segmentChain failed", (err as Error)?.message);
+    }
+  }
 
   // ---- Flags ----
   const dayFlags: DayFlag[] = flags.map((f) => ({
