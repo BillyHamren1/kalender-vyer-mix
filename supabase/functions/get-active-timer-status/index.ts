@@ -59,8 +59,24 @@ interface InactiveResponse {
 }
 
 
+interface CurrentRegistrationPayload {
+  id: string;
+  staff_id: string;
+  organization_id: string;
+  started_at: string;
+  started_by_user: true;
+  status: "active";
+  current_kind: RegistrationKind;
+  current_label: string;
+  source: "user_timer";
+  last_gps_classification_at: string | null;
+}
+
 interface ActiveResponse {
   timerActive: true;
+  timeRegistrationActive: true;
+  currentRegistration: CurrentRegistrationPayload | null;
+  gpsOnly: false;
   timerId: string;
   startedAt: string;
   elapsedSeconds: number;
