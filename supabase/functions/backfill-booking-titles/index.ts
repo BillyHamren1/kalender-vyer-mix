@@ -40,6 +40,11 @@ Deno.serve(async (req) => {
     const payload = await resp.json();
     const list: any[] = Array.isArray(payload) ? payload : (payload.bookings ?? payload.data ?? []);
 
+    const sampleKeys = list[0] ? Object.keys(list[0]) : [];
+    const sample = list[0] ? { id: list[0].id, title: list[0].title, name: list[0].name, project_name: list[0].project_name, event_name: list[0].event_name, client: list[0].client, client_name: list[0].client_name } : null;
+    if ((req.headers.get('x-debug') || '') === '1') {
+      return new Response(JSON.stringify({ totalFromApi: list.length, sampleKeys, sample }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     let updated = 0;
     let missing = 0;
     let unchanged = 0;
