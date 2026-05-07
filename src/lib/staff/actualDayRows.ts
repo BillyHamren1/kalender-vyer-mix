@@ -10,6 +10,8 @@ export type ActualDayRow =
       startIso: string;
       endIso: string;
       hours: number;
+      debugMergeStatus?: 'preserved' | 'merged';
+      debugOriginalSegmentId?: string;
     }
   | {
       source: 'gps';
@@ -19,7 +21,18 @@ export type ActualDayRow =
       startIso: string;
       endIso: string;
       hours: number;
+      debugMergeStatus?: 'preserved' | 'merged';
+      debugOriginalSegmentId?: string;
     };
+
+export interface BuildActualDayRowsOptions {
+  /**
+   * When true, skip all UI smoothing (collapseMicroStops, mergeSamePlaceVisits,
+   * mergeAdjacentTravels). Used by Time Debug / debugMode so the UI shows
+   * exactly what backend sent.
+   */
+  preserveRawSegments?: boolean;
+}
 
 const SHORT_VISIT_MAX_MIN = 10;
 const LOCAL_DETOUR_RADIUS_METERS = 400;
