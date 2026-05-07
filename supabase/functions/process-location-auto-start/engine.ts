@@ -1047,7 +1047,7 @@ export async function processStaff(
       linked_workday_id: workdayId,
       metadata: {
         auto_started: true,
-        auto_start_source: isSwitch ? 'geofence_auto_switch_server' : 'server_background_gps',
+        auto_start_source: isSwitch ? 'geofence_auto_switch_server' : 'gps_geofence_auto_start',
         engine_version: report.engine_version,
         run_id: report.run_id,
         matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
