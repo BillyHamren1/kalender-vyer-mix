@@ -648,6 +648,12 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleToggleEstablishmentTask(supabase, staffId, data, organizationId)
       case 'get_organization_locations':
         return await handleGetOrganizationLocations(supabase, organizationId)
+      // ── Time Engine v2 (active_time_registrations only) ─────────────
+      case 'start_time_registration':
+        return await handleStartTimeRegistration(supabase, staffId, data, organizationId)
+      case 'stop_time_registration':
+        return await handleStopTimeRegistration(supabase, staffId, data, organizationId)
+      // ── LEGACY (LTE-backed; mirrors into active_time_registrations) ──
       case 'start_location_timer':
         return await handleStartLocationTimer(supabase, staffId, data, organizationId)
       case 'stop_location_timer':
