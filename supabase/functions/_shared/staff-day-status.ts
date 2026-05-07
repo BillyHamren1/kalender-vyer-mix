@@ -841,6 +841,13 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
           classification: null,
           policyStatus: g.policyStatus as PolicyStatus,
         });
+        // Räkna in i totals (drar ALDRIG av — bara klassning).
+        if (g.type === "transport") totals.transportMinutes += g.durationMinutes;
+        else if (g.type === "other_place") {
+          totals.otherPlaceMinutes += g.durationMinutes;
+          totals.unknownWithinWorkdayMinutes += g.durationMinutes;
+        }
+        // signal_stale räknas inte som arbete, dras inte heller av — bara visas.
       }
       segments.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
     } catch (err) {
