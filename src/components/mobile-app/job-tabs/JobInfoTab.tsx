@@ -5,6 +5,7 @@ import { mobileApi } from '@/services/mobileApiService';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+import JobAttachmentsSection from './JobAttachmentsSection';
 
 interface EstablishmentTask {
   id: string;
@@ -393,6 +394,7 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
   const products: ProductItem[] = booking.products || [];
   const groups = groupProducts(products);
   const comments = booking.project?.comments || [];
+  const attachments = Array.isArray(booking.attachments) ? booking.attachments : [];
 
   return (
     <div className="space-y-4">
@@ -439,6 +441,8 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
           </div>
         </div>
       )}
+
+      <JobAttachmentsSection attachments={attachments} />
 
       {/* Comments */}
       <CommentsSection bookingId={bookingId} comments={comments} onCommentsUpdated={onCommentsUpdated} />
