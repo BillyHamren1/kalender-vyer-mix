@@ -5438,9 +5438,19 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
   }
 
   // ── GEOFENCE CHECK for organization_locations (polygon-aware) ──
+  //
+  // SAFETY GUARD (Time Engine v2):
+  // update_location is GPS-only. It MUST NOT create/close legacy timer rows
+  // (workday / location_time_entries / time_reports / travel_time_logs).
+  // Geofence may still START tid, but only via the new Time Engine writing to
+  // active_time_registrations (handled by processGpsTimelineForAutoStart on
+  // top of staff_location_history above).
+  //
+  // We still detect "is the user inside an active geofence right now?" so the
+  // response can return `at_location` for the client UI, but no time-side-effects.
+  const LEGACY_GEOFENCE_TIME_WRITES_DISABLED = true
   let atLocation: { id: string; name: string } | null = null
   try {
-    // Inline copy of helper logic — edge runtime can't easily import shared file from this folder layout.
     const ptInRing = (lng: number, lat: number, ring: number[][]) => {
       let inside = false
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -5466,7 +5476,6 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       .eq('organization_id', organizationId)
       .eq('is_active', true)
 
-    // GPS accuracy gate — ignore noisy pings (e.g. night-time drift) for geofence eval.
     const accuracyOk = accuracy == null || accuracy <= 50
 
     for (const loc of (orgLocations || [])) {
@@ -5477,103 +5486,16 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         const dist = haversineMeters(latitude, longitude, loc.latitude, loc.longitude)
         isInside = dist <= loc.radius_meters
       }
-
-      // Without good accuracy we don't auto-enter/exit.
       if (!accuracyOk) continue
-
-      // Check for ANY open entry at this location (gps or manual) — one place, one open entry
-      const { data: openEntry } = await supabase
-        .from('location_time_entries')
-        .select('id, source')
-        .eq('staff_id', staffId)
-        .eq('location_id', loc.id)
-        .is('exited_at', null)
-        .limit(1)
-        .maybeSingle()
-
-      if (isInside && !openEntry) {
-        // Arrived — create GPS entry. Workday-first: ensure an open workday
-        // exists with the same start ts. If that fails we DO NOT create the
-        // GPS entry — no timer without workday.
-        const enteredAtIso = new Date().toISOString()
-
-        // ── Night auto-start guard (00:00–05:00 lokal tid) ───────────────
-        // Auto-start är förbjuden nattetid om ingen aktiv user-startad
-        // timer redan finns. En timer från före midnatt får leva vidare,
-        // men ingen NY timer får skapas av geofence/GPS nattetid.
-        try {
-          const localHour = Number(
-            new Intl.DateTimeFormat('en-GB', {
-              timeZone: 'Europe/Stockholm', hour: '2-digit', hour12: false,
-            }).formatToParts(new Date(enteredAtIso))
-              .find((p) => p.type === 'hour')?.value ?? '0',
-          )
-          if (localHour >= 0 && localHour < 5) {
-            const { data: activeUserTimer } = await supabase
-              .from('active_time_registrations')
-              .select('id').eq('organization_id', organizationId).eq('staff_id', staffId)
-              .eq('status', 'active').eq('auto_started', false)
-              .limit(1).maybeSingle()
-            if (!activeUserTimer) {
-              console.log(
-                `[geofence] BLOCKED night auto-start for staff ${staffId} at ${loc.name}: blocked_night_auto_start_no_active_timer`,
-              )
-              continue
-            }
-          }
-        } catch (nightErr) {
-          console.warn('[geofence] night-guard failed, blocking conservatively:', nightErr)
-          continue
-        }
-
-        try {
-          await ensureOpenWorkdayForTimer(supabase, {
-            staff_id: staffId,
-            organization_id: organizationId,
-            start_at: enteredAtIso,
-            source: 'geofence_enter',
-            target: { kind: 'location', id: loc.id, name: loc.name },
-          })
-        } catch (wdErr) {
-          console.error('[geofence] workday-first failed, skipping GPS entry:', wdErr)
-          continue
-        }
-        await supabase.from('location_time_entries').insert({
-          organization_id: organizationId,
-          staff_id: staffId,
-          location_id: loc.id,
-          entry_date: enteredAtIso.split('T')[0],
-          entered_at: enteredAtIso,
-          source: 'foreground_geofence',
-          metadata: {
-            geofence_source: 'foreground_geofence',
-            geofence_mode: loc.geofence_mode || 'circle',
-            location_id: loc.id,
-            location_name: loc.name,
-            gps_accuracy_m: accuracy ?? null,
-            confidence: accuracyOk ? 'high' : 'medium',
-            entered_via: 'mobile_app_api.update_location',
-            workday_first_guarantee: true,
-          },
-        })
-        atLocation = { id: loc.id, name: loc.name }
-        console.log(`[geofence] Staff ${staffId} entered ${loc.name} (mode=${loc.geofence_mode || 'circle'})`)
-      } else if (!isInside && openEntry && (openEntry.source === 'gps' || openEntry.source === 'foreground_geofence')) {
-        // Left — close GPS entry (never auto-close manual entries)
-        await supabase
-          .from('location_time_entries')
-          .update({
-            exited_at: new Date().toISOString(),
-            stop_source: 'foreground_geofence_exit',
-            stop_reason: 'stable_exit_detected',
-            stopped_by: staffId,
-            stop_metadata: { location_id: loc.id, location_name: loc.name },
-          })
-          .eq('id', openEntry.id)
-        console.log(`[geofence] Staff ${staffId} exited ${loc.name}`)
-      } else if (isInside && openEntry) {
+      if (isInside) {
         atLocation = { id: loc.id, name: loc.name }
       }
+    }
+
+    if (LEGACY_GEOFENCE_TIME_WRITES_DISABLED) {
+      // No-op by design. The new Time Engine consumes staff_location_history
+      // and decides start/stop into active_time_registrations.
+      console.log('[geofence] legacy_geofence_lte_write_disabled_use_time_engine')
     }
   } catch (geoErr) {
     console.warn('[geofence] Error during location check:', geoErr)
