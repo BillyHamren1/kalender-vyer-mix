@@ -148,6 +148,7 @@ const ProjectLayout = () => {
               </h1>
               {booking && (
                 <p className="text-sm text-muted-foreground">
+                  {(booking as any).title ? <><span className="font-medium text-foreground">{(booking as any).title}</span> • </> : null}
                   {booking.client} • {booking.booking_number || booking.id}
                 </p>
               )}
