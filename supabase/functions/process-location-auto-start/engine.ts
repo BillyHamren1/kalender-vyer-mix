@@ -100,6 +100,7 @@ export type AutoStartBlockReason =
   | 'blocked_movement_only'
   | 'blocked_unknown_place'
   | 'blocked_home'
+  | 'blocked_home_or_unknown_night_movement'
   | 'blocked_low_confidence'
   | 'blocked_invalid_target'
   | 'blocked_test_target'
