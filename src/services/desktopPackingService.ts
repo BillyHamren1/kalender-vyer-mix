@@ -37,39 +37,28 @@ export const fetchPackingListItemsForDesktop = async (packingId: string) => {
 
 // ============== TOGGLE / DECREMENT ==============
 
+/**
+ * @deprecated Manual check-off (increment) MUST go through scanner-api
+ * `toggle_item` so WMS / Bundle Builder can accept or reject the scan
+ * BEFORE local `packing_list_items.quantity_packed` is mutated. This
+ * legacy desktop helper bypassed WMS and is no longer used by
+ * DesktopChecklistView. Use `togglePackingItemManually` from
+ * `src/services/scannerService.ts` instead.
+ *
+ * Kept exported only to avoid breaking unrelated imports during the
+ * migration window — DO NOT call from new code.
+ */
 export const togglePackingItemDesktop = async (
-  itemId: string,
-  currentlyPacked: boolean,
-  quantityToPack: number,
-  verifiedBy: string
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    // Get current quantity
-    const { data: item, error: fetchErr } = await supabase
-      .from('packing_list_items')
-      .select('quantity_packed')
-      .eq('id', itemId)
-      .single();
-
-    if (fetchErr || !item) return { success: false, error: 'Kunde inte hämta artikel' };
-
-    const currentQty = item.quantity_packed || 0;
-    const newQty = Math.min(currentQty + 1, quantityToPack);
-
-    const { error } = await supabase
-      .from('packing_list_items')
-      .update({
-        quantity_packed: newQty,
-        verified_by: verifiedBy,
-        verified_at: new Date().toISOString(),
-      })
-      .eq('id', itemId);
-
-    if (error) return { success: false, error: error.message };
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message };
-  }
+  _itemId: string,
+  _currentlyPacked: boolean,
+  _quantityToPack: number,
+  _verifiedBy: string
+): Promise<{ success: false; error: string }> => {
+  return {
+    success: false,
+    error:
+      'togglePackingItemDesktop är borttagen — använd togglePackingItemManually (scanner-api WMS-first) istället.',
+  };
 };
 
 export const decrementPackingItemDesktop = async (
