@@ -602,6 +602,7 @@ async function ensureLteOpenForTarget(
       radius_m: hit.target.geofence.radius_meters,
       avg_accuracy_m: hit.avgAccuracy,
       dwell_ms: hit.dwellMs,
+      nightPolicy: (hit as any)._nightPolicy ?? null,
     },
   }
   if (hit.target.kind === 'location') payload.location_id = hit.target.id
