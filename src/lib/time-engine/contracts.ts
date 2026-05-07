@@ -152,6 +152,7 @@ export type AutoStartBlockedReason =
   | 'blocked_not_enough_dwell'
   | 'blocked_not_enough_pings'
   | 'blocked_night_requires_stronger_evidence'
+  | 'blocked_target_not_autostartable_source'
   | 'blocked_engine_disabled';
 
 /** Reasons GPS auto-start may be allowed. */

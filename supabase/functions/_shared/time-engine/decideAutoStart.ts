@@ -89,6 +89,26 @@ export type TargetValidity =
  *   - the richer ResolvedWorkTarget from resolveWorkTargets.ts
  *     (extra fields are optional here).
  */
+export type AutoStartableTargetSource =
+  | 'planned_today'
+  | 'warehouse'
+  | 'explicit_time_tracking_location';
+
+export type AnyTargetSource =
+  | AutoStartableTargetSource
+  | 'active_project'
+  | 'recent_confirmed'
+  | 'permanent_location'
+  | (string & {});
+
+/**
+ * Only these targetSource values may auto-start time in v1.
+ * `active_project` and `recent_confirmed` are intentionally excluded
+ * until the engine is verified end-to-end.
+ */
+export const AUTOSTARTABLE_TARGET_SOURCES: ReadonlySet<AutoStartableTargetSource> =
+  new Set(['planned_today', 'warehouse', 'explicit_time_tracking_location']);
+
 export interface DecideAutoStartTarget extends Partial<WorkTarget> {
   refId: UUID;
   kind: WorkTarget['kind'];
@@ -101,7 +121,13 @@ export interface DecideAutoStartTarget extends Partial<WorkTarget> {
   isArchived?: boolean;
   assignedToUserToday?: boolean;
   explicitlyAllowed?: boolean;
+  /**
+   * Where this target came from in resolveWorkTargets. Only a subset
+   * is allowed to auto-start (see AUTOSTARTABLE_TARGET_SOURCES).
+   */
+  targetSource?: AnyTargetSource;
 }
+
 
 export interface ExistingActiveRegistration {
   id: UUID;
@@ -122,7 +148,8 @@ export type AutoStartDecisionReason =
   | 'blocked_home_or_private'
   | 'blocked_not_enough_dwell'
   | 'blocked_not_enough_pings'
-  | 'blocked_night_requires_stronger_evidence';
+  | 'blocked_night_requires_stronger_evidence'
+  | 'blocked_target_not_autostartable_source';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
@@ -140,6 +167,7 @@ export interface AutoStartEvidence {
   timeTrackingAllowed?: boolean;
   assignedToUserToday?: boolean;
   explicitlyAllowed?: boolean;
+  targetSource?: AnyTargetSource | null;
   policyUsed: 'day' | 'night';
 }
 
@@ -225,6 +253,7 @@ function buildEvidence(args: {
     timeTrackingAllowed: target?.timeTrackingAllowed,
     assignedToUserToday: target?.assignedToUserToday,
     explicitlyAllowed: target?.explicitlyAllowed,
+    targetSource: target?.targetSource ?? null,
     policyUsed,
   };
 }
@@ -310,6 +339,15 @@ export function decideAutoStart(input: DecideAutoStartInput): AutoStartDecisionR
   }
   if (isInvalidTarget(target)) {
     return deny('blocked_invalid_target', evidence, seg.confidence);
+  }
+
+  // v1 gate: only a subset of target sources may auto-start time.
+  // active_project / recent_confirmed are intentionally excluded until
+  // the engine is verified end-to-end. The target may still appear as
+  // known_site in GPS Day Timeline — it just won't auto-start time.
+  const src = target.targetSource;
+  if (src && !AUTOSTARTABLE_TARGET_SOURCES.has(src as AutoStartableTargetSource)) {
+    return deny('blocked_target_not_autostartable_source', evidence, seg.confidence);
   }
 
   // Dwell / ping / confidence thresholds.
