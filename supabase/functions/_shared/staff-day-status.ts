@@ -977,12 +977,25 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   };
 
   // ---- Tracking policy (server-authoritative; merges DB boosts) ----
+  // Backend owns the heartbeat contract. lastPingAt = senaste GPS-ping vi
+  // sett från enheten (max recorded_at från staff_location_history för dagen).
+  // Backend markerar isSignalStale när silenceMs > maxSilenceMs — men skapar
+  // ALDRIG ett glapp/segment av tystnaden. Tyst telefon ≠ tidsglapp.
+  const pingsForPolicy = input.pings ?? [];
+  let lastPingAtIso: string | null = null;
+  for (const p of pingsForPolicy) {
+    if (!p?.recorded_at) continue;
+    if (!lastPingAtIso || new Date(p.recorded_at).getTime() > new Date(lastPingAtIso).getTime()) {
+      lastPingAtIso = p.recorded_at;
+    }
+  }
   const trackingPolicy: TrackingPolicy = buildTrackingPolicy({
     hasActiveTimer: !!active,
     workdayOpen: !!workdaySnap?.isOpen,
     activeBoosts: input.activeBoosts ?? [],
     batteryPct: input.batteryPct ?? null,
     dismissedCooldownActive: !!input.dismissedCooldownActive,
+    lastPingAt: lastPingAtIso,
     now,
   });
 
