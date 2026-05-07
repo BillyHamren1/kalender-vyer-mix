@@ -345,7 +345,145 @@ function PlaceChangeCheck({ result }: { result: any }) {
   );
 }
 
-function Section({ title, data, empty }: { title: string; data: unknown; empty?: string }) {
+const SOURCE_TONE: Record<string, StatusTone> = {
+  workday: "ok",
+  time_report: "ok",
+  travel_log: "warn",
+  location_entry: "ok",
+  assistant_event: "neutral",
+  flag: "warn",
+  ping: "neutral",
+  snapshot_segment: "neutral",
+};
+
+function EvidenceTimeline({ result }: { result: any }) {
+  const list: any[] = result?.evidenceTimeline ?? [];
+  if (!list.length) {
+    return (
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Evidence timeline</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground">Inga bevis hittade.</p></CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Evidence timeline ({list.length})</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs font-mono">
+            <thead className="text-muted-foreground border-b">
+              <tr className="text-left">
+                <th className="py-2 pr-3">Tid</th>
+                <th className="py-2 pr-3">Källa</th>
+                <th className="py-2 pr-3">Händelse</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((e, i) => {
+                const tone = SOURCE_TONE[e.source] ?? "neutral";
+                const time = e.endAt ? `${fmtTime(e.at)}–${fmtTime(e.endAt)}` : fmtTime(e.at);
+                return (
+                  <tr key={i} className={`border-b ${TONE_CLASS[tone]}`}>
+                    <td className="py-2 pr-3 whitespace-nowrap">{time}</td>
+                    <td className="py-2 pr-3 uppercase text-[10px] opacity-70">{e.source}</td>
+                    <td className="py-2 pr-3">{e.label}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConflictsList({ result }: { result: any }) {
+  const list: any[] = result?.conflicts ?? [];
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-amber-500" /> Conflicts ({list.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {list.length === 0 && <p className="text-sm text-emerald-600">Inga konflikter mellan källor.</p>}
+        {list.map((c, i) => (
+          <div key={i} className={`rounded-md border px-3 py-2 text-sm ${TONE_CLASS[c.severity === "bad" ? "bad" : "warn"]}`}>
+            <div className="font-mono text-xs font-semibold">{c.code}</div>
+            <div className="text-xs mt-1">{c.message}</div>
+            {c.detail && (
+              <pre className="text-[10px] mt-1 opacity-70 whitespace-pre-wrap">{JSON.stringify(c.detail, null, 2)}</pre>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function withinRange(at: string, end: string | null | undefined, t: number): boolean {
+  const s = new Date(at).getTime();
+  const e = end ? new Date(end).getTime() : s;
+  return t >= s && t <= e;
+}
+
+function AtTimeProbe({ result }: { result: any }) {
+  const [time, setTime] = useState<string>("10:00");
+  const raw = result?.rawData ?? {};
+  const date: string = result?.debugMeta?.input?.date ?? new Date().toISOString().slice(0, 10);
+
+  const probe = useMemo(() => {
+    if (!/^\d{2}:\d{2}$/.test(time)) return null;
+    const target = new Date(`${date}T${time}:00.000Z`).getTime();
+    const pings: any[] = raw.pings ?? [];
+    const before = [...pings].reverse().find((p) => new Date(p.recorded_at).getTime() <= target) ?? null;
+    const after = pings.find((p) => new Date(p.recorded_at).getTime() >= target) ?? null;
+    const wd = raw.activeWorkday;
+    const activeWorkday = wd && new Date(wd.started_at).getTime() <= target && (!wd.ended_at || new Date(wd.ended_at).getTime() >= target) ? wd : null;
+    const activeTr = (raw.timeReports ?? []).find((tr: any) => tr.start_time && tr.end_time && withinRange(tr.start_time, tr.end_time, target)) ?? null;
+    const activeTravel = (raw.travelLogs ?? []).find((tl: any) => withinRange(tl.start_time, tl.end_time, target)) ?? null;
+    const activeLte = (raw.locationEntries ?? []).find((e: any) => withinRange(e.entered_at, e.exited_at ?? new Date().toISOString(), target)) ?? null;
+    const segs: any[] = result?.snapshotPreview?.segments ?? result?.segmentPreview ?? [];
+    const activeSegment = segs.find((s: any) => withinRange(s.startTs ?? s.start, s.endTs ?? s.end, target)) ?? null;
+    const conflicts: any[] = (result?.conflicts ?? []).filter((c: any) => {
+      const d = c.detail;
+      if (!d) return false;
+      const at = d.start_time ?? d.from ?? d.at;
+      const end = d.end_time ?? d.to ?? d.endAt;
+      return at && withinRange(at, end, target);
+    });
+    return { before, after, activeWorkday, activeTr, activeTravel, activeLte, activeSegment, conflicts };
+  }, [time, raw, result, date]);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3"><CardTitle className="text-base">At time — var var personen kl…?</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="probe-time">Tid (HH:MM)</Label>
+          <Input id="probe-time" value={time} onChange={(e) => setTime(e.target.value)} className="w-32" />
+        </div>
+        {probe && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-mono">
+            <StatusPill tone={probe.before ? "ok" : "bad"} label="GPS före" detail={probe.before ? fmtTime(probe.before.recorded_at) : "saknas"} />
+            <StatusPill tone={probe.after ? "ok" : "bad"} label="GPS efter" detail={probe.after ? fmtTime(probe.after.recorded_at) : "saknas"} />
+            <StatusPill tone={probe.activeWorkday ? "ok" : "warn"} label="Workday" detail={probe.activeWorkday ? "öppen" : "ingen"} />
+            <StatusPill tone={probe.activeTr ? "ok" : "neutral"} label="Time report" detail={probe.activeTr ? `${probe.activeTr.booking_id ?? probe.activeTr.large_project_id ?? probe.activeTr.location_id ?? ""}` : "ingen"} />
+            <StatusPill tone={probe.activeTravel ? "warn" : "neutral"} label="Travel log" detail={probe.activeTravel ? `${probe.activeTravel.from_address ?? "?"} → ${probe.activeTravel.to_address ?? "?"}` : "ingen"} />
+            <StatusPill tone={probe.activeLte ? "ok" : "warn"} label="Location entry" detail={probe.activeLte ? (probe.activeLte.location_id ?? probe.activeLte.booking_id ?? "öppen") : "ingen"} />
+            <StatusPill tone={probe.activeSegment ? "ok" : "warn"} label="Snapshot segment" detail={probe.activeSegment ? (probe.activeSegment.label ?? probe.activeSegment.type ?? "—") : "saknas"} />
+            <StatusPill tone={probe.conflicts.length ? "bad" : "ok"} label="Konflikter vid tiden" detail={probe.conflicts.length ? `${probe.conflicts.length} st` : "inga"} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
   const isEmpty =
     data == null ||
     (Array.isArray(data) && data.length === 0) ||
