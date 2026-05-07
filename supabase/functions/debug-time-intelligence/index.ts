@@ -33,6 +33,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { clusterPings } from "../_shared/timeline/cluster.ts";
 import { matchSegmentsToPlaces } from "../_shared/timeline/matcher.ts";
+import { distanceMeters as haversineMeters } from "../_shared/timeline/geo.ts";
 import {
   buildGpsDayTimelineOnly,
   type GpsTimelineSegment,
