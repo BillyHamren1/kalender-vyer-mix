@@ -39,6 +39,11 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// CRON_SECRET — required header on every invocation. Set via Supabase secrets
+// and injected by the pg_cron schedule (see migration). Without it the
+// function refuses to run, so a leaked anon key alone cannot trigger
+// service-role processing.
+const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
 const RECENT_WINDOW_MINUTES = 10;
 const MAX_PAIRS_PER_RUN = 200;
@@ -52,6 +57,27 @@ interface Pair {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // ── Auth gate ────────────────────────────────────────────────────────────
+  // Accept either:
+  //   (a) x-cron-secret header matching CRON_SECRET (used by pg_cron), or
+  //   (b) Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY> (manual ops).
+  // The public anon key is NOT accepted — this function performs service-role
+  // mutations and must never be triggerable by unauthenticated callers.
+  const headerSecret = req.headers.get("x-cron-secret") ?? "";
+  const authHeader = req.headers.get("authorization") ?? "";
+  const bearer = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  const okCronSecret = CRON_SECRET.length > 0 && headerSecret === CRON_SECRET;
+  const okServiceRole = SERVICE_ROLE.length > 0 && bearer === SERVICE_ROLE;
+  if (!okCronSecret && !okServiceRole) {
+    console.warn("[location-update-cron] unauthorized invocation rejected");
+    return new Response(
+      JSON.stringify({ error: "unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 
   const startedAt = Date.now();
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
