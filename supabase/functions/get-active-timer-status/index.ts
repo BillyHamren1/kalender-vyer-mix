@@ -43,6 +43,10 @@ type RegistrationSource = "user_started" | "gps_classifier" | "none";
 
 interface InactiveResponse {
   timerActive: false;
+  timeRegistrationActive: false;
+  currentRegistration: null;
+  gpsOnly: true;
+  message: string;
   timerId: null;
   startedAt: null;
   elapsedSeconds: 0;
@@ -53,6 +57,7 @@ interface InactiveResponse {
   needsUserChoice: false;
   canGpsStartTimer: false;
 }
+
 
 interface ActiveResponse {
   timerActive: true;
