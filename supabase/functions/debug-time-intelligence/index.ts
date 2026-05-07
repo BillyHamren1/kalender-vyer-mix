@@ -935,6 +935,8 @@ Deno.serve(async (req) => {
     wouldWrite,
     warnings,
     snapshotPreview,
+    evidenceTimeline: evidence,
+    conflicts,
     debugMeta: {
       ok: true,
       input: { staffId, date, dryRun, confirm, organizationId },
