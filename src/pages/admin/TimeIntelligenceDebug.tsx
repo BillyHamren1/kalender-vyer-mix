@@ -1257,7 +1257,11 @@ export default function TimeIntelligenceDebug() {
             <Badge variant={isDryRun ? "secondary" : "destructive"}>
               {isDryRun ? "DRY-RUN — inga skrivningar" : "LIVE — data har ändrats"}
             </Badge>
-            <Button variant="outline" size="sm" onClick={copyCompactSummary} className="ml-auto">
+            <Button variant="default" size="sm" onClick={copyTimeEngineSummary} className="ml-auto">
+              <Copy className="h-4 w-4 mr-2" />
+              Copy compact Time Engine dry-run summary
+            </Button>
+            <Button variant="outline" size="sm" onClick={copyCompactSummary}>
               <Copy className="h-4 w-4 mr-2" />
               Copy compact debug summary
             </Button>
@@ -1266,6 +1270,8 @@ export default function TimeIntelligenceDebug() {
               Kopiera debug JSON
             </Button>
           </div>
+
+          <TimeEngineDryRunSummary result={result} />
 
           <PingFirstPanel data={pingFirst} />
           <ThreeLayerPanel result={result} />
