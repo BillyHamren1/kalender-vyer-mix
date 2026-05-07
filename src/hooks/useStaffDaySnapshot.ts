@@ -210,6 +210,17 @@ export function useStaffDaySnapshot(date?: string): Result {
         staffId, date: targetDate,
       });
       setSnapshot(data);
+      // Cache backend tracking policy so the location reporter can follow it
+      // without inventing its own heartbeat. Backend is the only authority.
+      try {
+        if (data?.trackingPolicy) {
+          localStorage.setItem(
+            'eventflow-tracking-policy',
+            JSON.stringify({ ...data.trackingPolicy, cachedAt: Date.now() }),
+          );
+          window.dispatchEvent(new CustomEvent('tracking-policy-updated'));
+        }
+      } catch { /* ignore */ }
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Kunde inte ladda dagsstatus');
