@@ -128,10 +128,12 @@ export const deleteQrParcel = async (parcelId: string): Promise<void> => {
 // Always trims the input to handle trailing whitespace/newlines from hardware scanners.
 //
 // Classification:
-//   - packing_id  → URL or bare UUID pointing at a packing list (not a product)
-//   - rfid_tag    → long hex string (>=20 hex chars) — UNIQUE EPC, dedup per session
-//   - serial      → mixed alphanum >=14 chars — UNIQUE physical instance, dedup
-//   - product_sku → everything else — REPEATABLE (e.g. same article scanned N times)
+//   - packing_id  → ONLY explicit packing/verify URL (e.g. /warehouse/packing/{uuid}/verify).
+//                   A bare UUID is NOT a packing_id — WMS must resolve it.
+//   - serial      → bare UUID OR long physical QR/serial (>=14 mixed alphanum) — UNIQUE,
+//                   sent to WMS (scanner-api verify_product) for resolution.
+//   - rfid_tag    → long EPC/hex string (>=20 hex chars) — UNIQUE EPC, dedup per session.
+//   - product_sku → everything else (article codes) — REPEATABLE.
 export const parseScanResult = (scannedValue: string): ScanResult => {
   const trimmed = scannedValue.trim();
 
