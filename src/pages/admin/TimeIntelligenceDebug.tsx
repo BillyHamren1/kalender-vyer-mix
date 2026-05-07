@@ -757,6 +757,9 @@ export default function TimeIntelligenceDebug() {
 
           <StatusGrid result={result} />
           <DayTimeline result={result} />
+          <EvidenceTimeline result={result} />
+          <ConflictsList result={result} />
+          <AtTimeProbe result={result} />
           <PlaceChangeCheck result={result} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
