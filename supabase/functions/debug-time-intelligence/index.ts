@@ -441,6 +441,41 @@ Deno.serve(async (req) => {
     ),
   };
 
+  // Build knownPlaces for gpsDayTimeline matching (from already-fetched data).
+  const knownPlacesForSnapshot: Array<{
+    id: string; type: "booking" | "project" | "location" | "warehouse"; name: string;
+    lat: number; lng: number; radiusM?: number | null;
+  }> = [];
+  for (const l of (orgLocationsRes.data ?? []) as any[]) {
+    if (l.latitude != null && l.longitude != null) {
+      knownPlacesForSnapshot.push({
+        id: l.id,
+        type: l.show_as_project ? "location" : "warehouse",
+        name: l.name ?? "Plats",
+        lat: Number(l.latitude),
+        lng: Number(l.longitude),
+        radiusM: l.radius_meters ?? 100,
+      });
+    }
+  }
+  for (const b of (bookingsRes.data ?? []) as any[]) {
+    if (b.latitude != null && b.longitude != null) {
+      knownPlacesForSnapshot.push({
+        id: b.id, type: "booking",
+        name: b.client || b.booking_number || "Bokning",
+        lat: Number(b.latitude), lng: Number(b.longitude), radiusM: 100,
+      });
+    }
+  }
+  for (const p of (largeProjectsRes.data ?? []) as any[]) {
+    if (p.latitude != null && p.longitude != null) {
+      knownPlacesForSnapshot.push({
+        id: p.id, type: "project", name: p.name ?? "Stort projekt",
+        lat: Number(p.latitude), lng: Number(p.longitude), radiusM: 100,
+      });
+    }
+  }
+
   const snapshotInput: SnapshotInput = {
     staffId,
     date,
@@ -459,6 +494,7 @@ Deno.serve(async (req) => {
       lng: p.lng,
       accuracy: p.accuracy,
     })),
+    knownPlaces: knownPlacesForSnapshot,
   };
 
   let snapshotPreview: any = null;

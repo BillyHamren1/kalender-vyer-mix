@@ -129,6 +129,34 @@ export interface SnapshotInput {
   dismissedCooldownActive?: boolean;
   /** Optional GPS pings för dagen — driver segmentChain (gap-klassning). */
   pings?: Array<{ recorded_at: string; lat: number; lng: number; accuracy?: number | null }>;
+  /** Optional known places (warehouses/locations/bookings/projects) for gpsDayTimeline matching. */
+  knownPlaces?: Array<{
+    id: string;
+    type: "booking" | "project" | "location" | "warehouse" | "home" | "unknown";
+    name: string;
+    lat: number;
+    lng: number;
+    radiusM?: number | null;
+  }>;
+}
+
+export interface GpsDayTimelineSegment {
+  startTs: Iso;
+  endTs: Iso;
+  durationMin: number;
+  /** stay = stationary, travel = movement between stays, gps_gap = silent ping gap. */
+  kind: "stay" | "travel" | "gps_gap";
+  /** Coarse type for UI/debug. */
+  type: "known_target" | "unknown_place" | "transport" | "gps_gap";
+  matchedSiteId: string | null;
+  matchedSiteType: string | null;
+  matchedSiteName: string | null;
+  centerLat: number | null;
+  centerLng: number | null;
+  pingCount: number;
+  insideWorkday: boolean;
+  affectsPayableTime: boolean;
+  outsideWorkdayReason: string | null;
 }
 
 export interface DayAttestationRow {
@@ -270,6 +298,9 @@ export interface IntelligenceState {
 
 import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type TrackingPolicy } from "./trackingPolicy.ts";
 import { buildSegmentChainGaps } from "./segmentChain.ts";
+import { clusterPings } from "./timeline/cluster.ts";
+import { matchSegmentsToPlaces } from "./timeline/matcher.ts";
+import { minutesBetween } from "./timeline/geo.ts";
 export type { TrackingPolicy, TrackingPolicyBoostRow };
 
 export interface StaffDaySnapshot {
@@ -332,6 +363,8 @@ export interface StaffDaySnapshot {
     locked: boolean;
   } | null;
   lastUpdatedAt: Iso;
+  /** Full-day GPS-derived timeline built from ALL pings (not constrained by workday). */
+  gpsDayTimeline: GpsDayTimelineSegment[];
   debugMeta?: {
     totalsSource: "segments";
     legacyTotals: {
@@ -339,6 +372,10 @@ export interface StaffDaySnapshot {
       travelLogsMinutes: number;
       timeReportsBreakMinutes: number;
     };
+    gpsDayTimelineCount: number;
+    gpsDayTimelineFirstStart: string | null;
+    gpsDayTimelineLastEnd: string | null;
+    gpsTimelineSource: "all_pings";
   };
 }
 
@@ -918,6 +955,122 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     isWorkdayOpen: workdaySnap?.isOpen ?? false,
   };
 
+  // ---- GPS Day Timeline (built from ALL pings, independent of workday) ----
+  const gpsDayTimeline: GpsDayTimelineSegment[] = (() => {
+    const allPings = (input.pings ?? [])
+      .filter((p) => p && p.recorded_at && Number.isFinite(p.lat) && Number.isFinite(p.lng))
+      .map((p) => ({
+        ts: p.recorded_at,
+        lat: p.lat,
+        lng: p.lng,
+        accuracy: p.accuracy ?? null,
+      }));
+    if (allPings.length === 0) return [];
+
+    const knownPlaces = (input.knownPlaces ?? []).map((k) => ({
+      id: k.id,
+      // matcher accepts the broader type union; cast for TS.
+      type: (k.type === "warehouse" ? "location" : k.type) as
+        | "booking" | "project" | "location" | "home" | "unknown",
+      name: k.name,
+      lat: k.lat,
+      lng: k.lng,
+      radiusM: k.radiusM ?? 100,
+    }));
+
+    let raw;
+    try {
+      raw = clusterPings(allPings);
+      raw = matchSegmentsToPlaces(raw, knownPlaces);
+    } catch (err) {
+      console.warn("[staff-day-status] gpsDayTimeline build failed", (err as Error)?.message);
+      return [];
+    }
+
+    const wdStart = workdaySnap?.startedAt ?? null;
+    const wdEnd = workdaySnap?.endedAt ?? null;
+
+    const inWorkday = (startTs: string, endTs: string): boolean => {
+      if (!wdStart) return false;
+      const s = new Date(startTs).getTime();
+      const e = new Date(endTs).getTime();
+      const ws = new Date(wdStart).getTime();
+      const we = wdEnd ? new Date(wdEnd).getTime() : now.getTime();
+      return e > ws && s < we;
+    };
+
+    const out: GpsDayTimelineSegment[] = [];
+    for (let i = 0; i < raw.length; i++) {
+      const seg = raw[i];
+      let kind: GpsDayTimelineSegment["kind"];
+      let type: GpsDayTimelineSegment["type"];
+      if (!seg.isStationary) {
+        kind = "travel";
+        type = "transport";
+      } else {
+        kind = "stay";
+        type = seg.matchedPlace ? "known_target" : "unknown_place";
+      }
+      const inside = inWorkday(seg.startTs, seg.endTs);
+      out.push({
+        startTs: seg.startTs,
+        endTs: seg.endTs,
+        durationMin: Math.round(seg.durationMin),
+        kind,
+        type,
+        matchedSiteId: seg.matchedPlace?.id ?? null,
+        matchedSiteType: seg.matchedPlace?.type ?? null,
+        matchedSiteName: seg.matchedPlace?.name ?? null,
+        centerLat: seg.centerLat,
+        centerLng: seg.centerLng,
+        pingCount: seg.pingCount,
+        insideWorkday: inside,
+        affectsPayableTime: false, // gpsDayTimeline never drives totals
+        outsideWorkdayReason: inside
+          ? null
+          : !wdStart
+            ? "no_workday"
+            : new Date(seg.endTs).getTime() <= new Date(wdStart).getTime()
+              ? "before_workday_start"
+              : "after_workday_end",
+      });
+    }
+
+    // Insert gps_gap segments where pings are silent for >10 min between adjacent raw segments
+    const withGaps: GpsDayTimelineSegment[] = [];
+    for (let i = 0; i < out.length; i++) {
+      withGaps.push(out[i]);
+      const next = out[i + 1];
+      if (next) {
+        const gapMin = minutesBetween(out[i].endTs, next.startTs);
+        if (gapMin >= 10) {
+          const inside = inWorkday(out[i].endTs, next.startTs);
+          withGaps.push({
+            startTs: out[i].endTs,
+            endTs: next.startTs,
+            durationMin: Math.round(gapMin),
+            kind: "gps_gap",
+            type: "gps_gap",
+            matchedSiteId: null,
+            matchedSiteType: null,
+            matchedSiteName: null,
+            centerLat: null,
+            centerLng: null,
+            pingCount: 0,
+            insideWorkday: inside,
+            affectsPayableTime: false,
+            outsideWorkdayReason: inside
+              ? null
+              : !wdStart
+                ? "no_workday"
+                : "outside_workday",
+          });
+        }
+      }
+    }
+    return withGaps;
+  })();
+
   const debugMeta = {
     totalsSource: "segments" as const,
     legacyTotals: {
@@ -925,6 +1078,10 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       travelLogsMinutes: legacyTravelMin,
       timeReportsBreakMinutes: trBreakMin,
     },
+    gpsDayTimelineCount: gpsDayTimeline.length,
+    gpsDayTimelineFirstStart: gpsDayTimeline[0]?.startTs ?? null,
+    gpsDayTimelineLastEnd: gpsDayTimeline[gpsDayTimeline.length - 1]?.endTs ?? null,
+    gpsTimelineSource: "all_pings" as const,
   };
 
   // ---- Flags ----
@@ -1097,6 +1254,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
         }
       : null,
     lastUpdatedAt: now.toISOString(),
+    gpsDayTimeline,
     debugMeta,
   };
 }
