@@ -177,11 +177,12 @@ export default function TimeIntelligenceDebug() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Section title="Raw data" data={result.rawData} />
               <Section title="Detected state" data={result.detectedState} />
-              <Section title="Segmentkedja" data={result.segments} />
+              <Section title="Target matches" data={result.targetMatches} />
+              <Section title="Segment preview" data={result.segmentPreview ?? result.segments} />
               <Section title="Would write" data={result.wouldWrite} />
               <Section title="Warnings" data={result.warnings} empty="Inga varningar" />
               <Section title="Snapshot preview" data={result.snapshotPreview} />
-              {result.diagnostics && <Section title="Diagnostics" data={result.diagnostics} />}
+              <Section title="Debug meta" data={result.debugMeta ?? result.diagnostics} />
             </div>
           )}
         </>

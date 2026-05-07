@@ -694,41 +694,80 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── targetMatches: vilka kända targets blev matchade av ngn ping ────────────
+  const matchedById = new Map<string, any>();
+  for (const np of nearestTargetsPerPing) {
+    for (const n of (np.nearest ?? []) as any[]) {
+      if (n.inside) {
+        const key = `${n.kind}:${n.id}`;
+        if (!matchedById.has(key)) {
+          matchedById.set(key, {
+            kind: n.kind,
+            id: n.id,
+            name: n.name,
+            firstMatchAt: np.recorded_at,
+            lastMatchAt: np.recorded_at,
+            distance_m: n.distance_m,
+            radius_m: n.radius_m,
+          });
+        } else {
+          matchedById.get(key).lastMatchAt = np.recorded_at;
+        }
+      }
+    }
+  }
+  const matches = Array.from(matchedById.values());
+  const targetMatches = {
+    warehouse: matches.filter((m) => m.kind === "location" && /lager|warehouse/i.test(m.name ?? "")),
+    booking: matches.filter((m) => m.kind === "booking"),
+    large_project: matches.filter((m) => m.kind === "large_project"),
+    project_location: matches.filter((m) => m.kind === "location" && !/lager|warehouse/i.test(m.name ?? "")),
+    summary: {
+      totalCandidates: candidates.length,
+      candidatesWithCoords: candidates.length,
+      pingsSampled: nearestTargetsPerPing.length,
+      anyPingInside: !!anyPingInsideTarget,
+      anyPingInsideDetail: anyPingInsideTarget,
+    },
+  };
+
   return json(200, {
-    ok: true,
-    input: { staffId, date, dryRun, confirm, organizationId },
     rawData: {
-      workday,
-      workdayCount: (workdayRes.data ?? []).length,
       pingCount: pings.length,
       firstPingAt,
       lastPingAt,
-      lastPingAgeMinutes: lastPingAgeMin,
       lastCoord,
       pingGapsOver10Min,
+      activeWorkday: workday,
+      openLocationTimeEntry: diagnostics.openLocationTimeEntry,
+      travelLogs,
+      // Extra raw context — kept available but not part of the slim contract
       pings,
       locationEntries,
-      openLocationTimeEntry: diagnostics.openLocationTimeEntry,
       timeReports,
-      travelLogs,
       staffLocation: locRes.data ?? null,
       flags: flagsRes.data ?? [],
       assistantEvents: assistantRes.data ?? [],
       attestation: attestRes.data ?? null,
       activeBoosts: boostRes.data ?? [],
       knownTargets,
-      knownTargetsWithCoordsCount: candidates.length,
       nearestTargetsPerPing,
-      anyPingInsideKnownTarget: anyPingInsideTarget,
       existingSnapshot: existingSnapshot ?? null,
     },
-    diagnostics,
     detectedState,
-    segments: snapshotPreview?.segments ?? [],
+    targetMatches,
+    segmentPreview: snapshotPreview?.segments ?? [],
     wouldWrite,
     warnings,
     snapshotPreview,
-    snapshotError,
+    debugMeta: {
+      ok: true,
+      input: { staffId, date, dryRun, confirm, organizationId },
+      diagnostics,
+      snapshotError,
+      generatedAt: new Date().toISOString(),
+      contractVersion: "v2",
+    },
   });
 });
 
