@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     const { data: sm } = await supabase
       .from("staff_members")
       .select("id, organization_id, name, email")
-      .or(`id.eq.${staffIdInput},login_id.eq.${staffIdInput}`)
+      .eq("id", staffIdInput)
       .maybeSingle();
     if (sm) {
       staffId = sm.id;
@@ -161,9 +161,9 @@ Deno.serve(async (req) => {
       .from("location_time_entries")
       .select("*")
       .eq("staff_id", staffId)
-      .or(`started_at.gte.${dayStart},ended_at.gte.${dayStart}`)
-      .lte("started_at", dayEnd)
-      .order("started_at", { ascending: true })
+      .or(`entered_at.gte.${dayStart},exited_at.gte.${dayStart}`)
+      .lte("entered_at", dayEnd)
+      .order("entered_at", { ascending: true })
       .limit(50),
     supabase
       .from("time_reports")
@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
       .from("workday_flags")
       .select("*")
       .eq("staff_id", staffId)
-      .eq("day_date", date)
+      .eq("flag_date", date)
       .limit(50),
     supabase
       .from("assistant_events")
@@ -199,12 +199,14 @@ Deno.serve(async (req) => {
       .eq("staff_id", staffId)
       .eq("date", date)
       .maybeSingle(),
-    supabase
-      .from("tracking_policy_boosts")
-      .select("*")
-      .eq("staff_id", staffId)
-      .gt("expires_at", new Date().toISOString())
-      .limit(20),
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staffId)
+      ? supabase
+          .from("tracking_policy_boosts")
+          .select("*")
+          .eq("staff_id", staffId)
+          .gt("expires_at", new Date().toISOString())
+          .limit(20)
+      : Promise.resolve({ data: [], error: null } as any),
   ]);
 
   for (const [name, res] of [
