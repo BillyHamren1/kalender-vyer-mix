@@ -978,7 +978,11 @@ export default function TimeIntelligenceDebug() {
             <Badge variant={isDryRun ? "secondary" : "destructive"}>
               {isDryRun ? "DRY-RUN — inga skrivningar" : "LIVE — data har ändrats"}
             </Badge>
-            <Button variant="outline" size="sm" onClick={copyJson} className="ml-auto">
+            <Button variant="outline" size="sm" onClick={copyCompactSummary} className="ml-auto">
+              <Copy className="h-4 w-4 mr-2" />
+              Copy compact debug summary
+            </Button>
+            <Button variant="outline" size="sm" onClick={copyJson}>
               {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
               Kopiera debug JSON
             </Button>
