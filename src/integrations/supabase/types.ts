@@ -6241,6 +6241,36 @@ export type Database = {
         }
         Relationships: []
       }
+      tracking_boost_dismissals: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          organization_id: string
+          reason: string | null
+          staff_id: string
+          target_key: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          organization_id: string
+          reason?: string | null
+          staff_id: string
+          target_key: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id?: string
+          reason?: string | null
+          staff_id?: string
+          target_key?: string
+        }
+        Relationships: []
+      }
       tracking_policy_boosts: {
         Row: {
           consumed: boolean
