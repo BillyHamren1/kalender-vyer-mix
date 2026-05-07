@@ -7,6 +7,7 @@
 - Personalkalendern: samma person kan läggas i flera team samma dag. Drag/Add ⇒ lägger till; "remove from team" tar bara bort den teamraden.
 
 ## Memories
+- [Staff Day Audit & Rebuild](.lovable/memory/features/admin/staff-day-audit-and-rebuild-v1.md) — Append-only `staff_day_decision_log` + `rebuild-staff-day` edge function. Låsta dagar ändras aldrig automatiskt; admin-overrides respekteras; alla regel/AI/user/admin/watchdog-beslut loggas med actor/before/after/reason/confidence.
 - [Time Page Snapshot-Only](.lovable/memory/constraints/time-page-snapshot-only-v1.md) — Time-tabbar får ENDAST läsa backend-snapshots; ingen lokal summering av workdays/time_reports/travel/LTE/flags/assistant/GPS i UI.
 - [Work shift multi per day](.lovable/memory/features/field-staff/work-shift-multi-per-day-v1.md) — Flera workday-rader per dag stöds; UI-text bytt till "arbetspass".
 - [Workday timer](.lovable/memory/features/field-staff/workday-timer-v1.md) — Server-anchored dagtimer i headern.
