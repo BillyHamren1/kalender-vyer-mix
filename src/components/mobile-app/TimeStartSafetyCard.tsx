@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
-import { useMobileAuth } from '@/hooks/useMobileAuth';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 
 type Row = { label: string; value: string; tone?: 'ok' | 'warn' | 'bad' | 'muted' };
 
@@ -27,7 +27,7 @@ const toneClass = (t: Row['tone']) => {
 };
 
 export default function TimeStartSafetyCard() {
-  const { staff } = useStaffMember();
+  const { staff } = useMobileAuth();
   const { data: timer } = useActiveTimerStatus(!!staff);
 
   const [now, setNow] = useState(() => new Date());
