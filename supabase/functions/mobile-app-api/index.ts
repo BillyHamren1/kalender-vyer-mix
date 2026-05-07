@@ -5495,9 +5495,9 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
           )
           if (localHour >= 0 && localHour < 5) {
             const { data: activeUserTimer } = await supabase
-              .from('current_time_registration')
-              .select('id').eq('staff_id', staffId)
-              .eq('status', 'active').eq('source', 'user_timer')
+              .from('active_time_registrations')
+              .select('id').eq('organization_id', organizationId).eq('staff_id', staffId)
+              .eq('status', 'active').eq('auto_started', false)
               .limit(1).maybeSingle()
             if (!activeUserTimer) {
               console.log(
