@@ -293,6 +293,19 @@ export interface StaffDaySnapshot {
   active: ActiveActivity | null;
   totals: DayTotals;
   segments: DaySegment[];
+  /**
+   * Where the main `segments` came from in this snapshot build.
+   * - "gps_chain"                       — segmentChain produced gap classification
+   * - "gps_unavailable_or_not_built"    — no GPS-derived segments available; only break / manual_adjustment may exist
+   * Legacy time_reports / travel_logs / location_entries are NEVER used as main segments;
+   * they live in `rawEvidence` for debug/UI only.
+   */
+  segmentSource: "gps_chain" | "gps_unavailable_or_not_built";
+  rawEvidence: {
+    timeReports: Array<Record<string, unknown>>;
+    travelLogs: Array<Record<string, unknown>>;
+    locationEntries: Array<Record<string, unknown>>;
+  };
   flags: DayFlag[];
   actionsNeeded: ActionNeeded[];
   intelligenceState: IntelligenceState;
