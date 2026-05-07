@@ -205,6 +205,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             scannedValue,
             scannedSku: result.scannedSku ?? null,
             scannedName: result.scannedName ?? null,
+            wmsItemTypeId: (result as any).wmsItemTypeId ?? null,
+            wmsSku: (result as any).wmsSku ?? null,
+            wmsInstanceId: (result as any).wmsInstanceId ?? null,
+            wmsSerialNumber: (result as any).wmsSerialNumber ?? null,
           });
           onScanResult({
             value: scannedValue,
