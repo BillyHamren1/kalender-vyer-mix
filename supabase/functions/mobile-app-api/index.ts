@@ -5955,6 +5955,170 @@ async function handleGetOrganizationLocations(supabase: any, organizationId: str
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Time Engine v2 — active_time_registrations only
+// ─────────────────────────────────────────────────────────────────────────────
+// Pure new-engine start/stop. No location_time_entries, no time_reports, no
+// workday writes. The single timer table is `active_time_registrations`.
+// User-started → start_source='user_timer', auto_started=false.
+// GPS-auto-started timers land in the same table (auto_started=true) via the
+// new Time Engine processor.
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleStartTimeRegistration(
+  supabase: any, staffId: string, data: any, organizationId: string,
+) {
+  const { target_type, target_id, started_at } = data || {}
+  const allowedTypes = new Set(['booking', 'large_project', 'project', 'location', null, undefined])
+  if (target_type && !allowedTypes.has(target_type)) {
+    return new Response(
+      JSON.stringify({ error: 'invalid target_type' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  // Resolve label for the chosen target.
+  let currentKind = 'unknown_place'
+  let currentLabel = 'Okänd plats'
+  if (target_type === 'large_project' && target_id) {
+    currentKind = 'project'
+    const { data: lp } = await supabase.from('large_projects')
+      .select('name').eq('id', target_id).maybeSingle()
+    currentLabel = lp?.name ?? 'Projekt'
+  } else if (target_type === 'project' && target_id) {
+    currentKind = 'project'
+    const { data: p } = await supabase.from('projects')
+      .select('name').eq('id', target_id).maybeSingle()
+    currentLabel = p?.name ?? 'Projekt'
+  } else if (target_type === 'booking' && target_id) {
+    currentKind = 'booking'
+    const { data: b } = await supabase.from('bookings')
+      .select('client, title, booking_number')
+      .eq('id', target_id).maybeSingle()
+    currentLabel = b?.client || b?.title || b?.booking_number || 'Bokning'
+  } else if (target_type === 'location' && target_id) {
+    currentKind = 'warehouse'
+    const { data: l } = await supabase.from('organization_locations')
+      .select('name').eq('id', target_id).maybeSingle()
+    currentLabel = l?.name ?? 'Plats'
+  }
+
+  // Resolve start time (within last 24h, not in future).
+  let startedAtIso = new Date().toISOString()
+  if (started_at && typeof started_at === 'string') {
+    const parsed = new Date(started_at)
+    const now = Date.now()
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= now && parsed.getTime() >= now - 24 * 3600 * 1000) {
+      startedAtIso = parsed.toISOString()
+    }
+  }
+
+  // Stop any existing active row for this staff+org (unique index also enforces).
+  await supabase
+    .from('active_time_registrations')
+    .update({
+      status: 'stopped',
+      stopped_at: new Date().toISOString(),
+      stopped_by: staffId,
+      stop_source: 'superseded_by_new_start',
+    })
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .eq('status', 'active')
+
+  const insertPayload: any = {
+    organization_id: organizationId,
+    staff_id: staffId,
+    status: 'active',
+    started_at: startedAtIso,
+    started_by: staffId,
+    start_source: 'user_timer',
+    auto_started: false,
+    start_target_type: target_type ?? null,
+    start_target_id: target_id ?? null,
+    start_target_label: currentLabel,
+    current_kind: currentKind,
+    current_label: currentLabel,
+    current_target_type: target_type ?? null,
+    current_target_id: target_id ?? null,
+    current_confidence: target_id ? 1 : 0,
+    needs_user_choice: !target_id,
+    metadata: {},
+  }
+
+  const { data: row, error } = await supabase
+    .from('active_time_registrations')
+    .insert(insertPayload)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[start_time_registration] insert failed:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to start time registration', detail: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, registration: row }),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
+
+async function handleStopTimeRegistration(
+  supabase: any, staffId: string, data: any, organizationId: string,
+) {
+  const { registration_id, stop_source, stopped_at } = data || {}
+
+  let stoppedAtIso = new Date().toISOString()
+  if (stopped_at && typeof stopped_at === 'string') {
+    const parsed = new Date(stopped_at)
+    if (!isNaN(parsed.getTime()) && parsed.getTime() <= Date.now()) {
+      stoppedAtIso = parsed.toISOString()
+    }
+  }
+
+  let q = supabase
+    .from('active_time_registrations')
+    .update({
+      status: 'stopped',
+      stopped_at: stoppedAtIso,
+      stopped_by: staffId,
+      stop_source: stop_source || 'user_manual',
+    })
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .eq('status', 'active')
+  if (registration_id) q = q.eq('id', registration_id)
+
+  const { data: row, error } = await q
+    .select()
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[stop_time_registration] update failed:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to stop time registration', detail: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, registration: row }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY: handleStartLocationTimer / handleStopLocationTimer (LTE-backed)
+// Keeps location_time_entries + workday + time_reports flow alive for existing
+// clients and admin/payroll readers, BUT mirrors the active timer state into
+// `active_time_registrations` so the new Time Engine sees a single source of
+// truth. Do NOT use these from new code paths — use start_time_registration /
+// stop_time_registration instead.
+// ─────────────────────────────────────────────────────────────────────────────
 async function handleStartLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
   const {
     location_id,
