@@ -164,6 +164,8 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: true,
         pairs: 0,
+        wakes_dispatched: wakesDispatched,
+        wakes_skipped: wakesSkipped,
         elapsed_ms: Date.now() - startedAt,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
