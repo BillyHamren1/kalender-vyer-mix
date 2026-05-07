@@ -88,7 +88,7 @@ const PdfPreviewDialog = ({ fileName, open, pdfUrl, onClose }: PdfPreviewDialogP
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="max-w-5xl h-[85vh] p-0 overflow-hidden">
         <div className="flex h-full flex-col bg-background">
-          <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3 pr-12">
             <p className="min-w-0 truncate text-sm font-medium">{title}</p>
             {pdfUrl ? (
               <Button asChild variant="outline" size="sm">
