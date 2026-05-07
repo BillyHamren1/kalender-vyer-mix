@@ -27,6 +27,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { processStaffLocationUpdate } from "../_shared/processStaffLocationUpdate.ts";
+import { buildTrackingPolicy } from "../_shared/trackingPolicy.ts";
+import { maybeRequestWake } from "../_shared/wakeRequest.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
