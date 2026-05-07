@@ -159,18 +159,18 @@ Deno.serve(async (req) => {
       if (!orgId) return json({ error: "no_org_for_staff" }, 403);
     }
 
-    // ── Skydd: dagen får inte vara godkänd/låst ────────────────────────────
-    const { data: appr } = await supabase
-      .from("staff_day_approvals")
-      .select("status")
+    // ── Skydd: dagen får inte vara attesterad/låst ─────────────────────────
+    const { data: att } = await supabase
+      .from("day_attestations")
+      .select("status, locked_at")
       .eq("staff_id", body.staff_id)
       .eq("date", body.date)
       .maybeSingle();
-    if (appr && (appr.status === "approved" || appr.status === "locked")) {
+    if (att && (att.locked_at || ["attested", "locked", "approved"].includes(String(att.status)))) {
       return json({
         error: "segment_not_analyzable",
-        reason: "day_locked_or_approved",
-        status: appr.status,
+        reason: "day_locked_or_attested",
+        status: att.status,
       }, 422);
     }
 
