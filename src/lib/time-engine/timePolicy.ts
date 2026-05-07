@@ -125,69 +125,11 @@ export interface EvaluateAutoStartInput {
   atIso?: string;
 }
 
-export function evaluateAutoStart(input: EvaluateAutoStartInput): PolicyDecision {
-  const { segment, match } = input;
-  const atIso = input.atIso ?? segment.endedAt ?? segment.startedAt;
-
-  if (segment.kind === 'movement' || match.outcome === 'transport') {
-    return { allowed: false, reason: 'blocked_movement_only', confidence: match.confidence };
-  }
-  if (segment.kind === 'gps_gap' || match.outcome === 'gps_uncertain') {
-    return { allowed: false, reason: 'blocked_gps_gap', confidence: match.confidence };
-  }
-  if (match.outcome === 'unknown_place') {
-    return { allowed: false, reason: 'blocked_unknown_place', confidence: match.confidence };
-  }
-  if (match.outcome !== 'inside_known_target' || !match.target) {
-    return { allowed: false, reason: 'blocked_unknown_place', confidence: match.confidence };
-  }
-
-  const target = match.target;
-
-  if (!isTargetCurrentlyValid(target, atIso)) {
-    return { allowed: false, reason: 'blocked_invalid_target', target, confidence: match.confidence };
-  }
-  if (isTestTarget(target)) {
-    return { allowed: false, reason: 'blocked_test_target', target, confidence: match.confidence };
-  }
-  if (isHomeOrPrivate(target)) {
-    return { allowed: false, reason: 'blocked_home_or_private', target, confidence: match.confidence };
-  }
-
-  const night = isNightLocal(atIso);
-  const policy: DwellPolicy = night ? nightPolicy : dayPolicy;
-
-  const pings = segment.pingCount ?? 0;
-  if (pings < policy.minArrivalPings) {
-    return night
-      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
-      : { allowed: false, reason: 'blocked_not_enough_pings', target, confidence: match.confidence };
-  }
-
-  const dwell = dwellSeconds(segment);
-  if (dwell < policy.minDwellSeconds) {
-    return night
-      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
-      : { allowed: false, reason: 'blocked_not_enough_dwell', target, confidence: match.confidence };
-  }
-
-  if (match.confidence < policy.minConfidence) {
-    return night
-      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
-      : { allowed: false, reason: 'blocked_low_confidence', target, confidence: match.confidence };
-  }
-
-  if (night && nightPolicy.requirePlannedOrExplicitAllowedTarget && !target.assignedToUserToday) {
-    return {
-      allowed: false,
-      reason: 'blocked_night_requires_stronger_evidence',
-      target,
-      confidence: match.confidence,
-    };
-  }
-
-  return { allowed: true, reason: 'allowed_valid_geofence', target, confidence: match.confidence };
-}
+// SINGLE SOURCE OF TRUTH:
+//   `decideAutoStart()` i Deno (`supabase/functions/_shared/time-engine/decideAutoStart.ts`)
+//   är den enda funktionen som avgör om GPS får auto-starta tid.
+//   `evaluateAutoStart` har tagits bort för att inte ha två parallella
+//   verklighetsbilder. Frontend gör inga auto-start-beslut själv.
 
 // ─── Active classification (rule 5) ─────────────────────────────────────────
 
