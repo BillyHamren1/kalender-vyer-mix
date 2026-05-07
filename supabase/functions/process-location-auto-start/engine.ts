@@ -75,6 +75,12 @@ export interface Target {
   organization_id: string
   label: string
   geofence: GeofenceTarget
+  /** "valid" if this target is allowed for auto-start; "invalid" otherwise. */
+  targetValidity: 'valid' | 'invalid'
+  /** Whether time-tracking auto-start is allowed for this target right now. */
+  timeTrackingAllowed: boolean
+  /** Reason (when invalid) — surfaced as block reason. */
+  invalidReason?: 'test_target' | 'cancelled' | 'archived' | 'inactive' | 'no_coords'
 }
 
 export interface StableHit {
@@ -86,6 +92,23 @@ export interface StableHit {
   avgAccuracy: number
   confidence: 'low' | 'medium' | 'high'
 }
+
+/** Regex for test/demo data. Test bookings/projects must never auto-start time. */
+export const TEST_DEMO_RX = /\b(test|demo|sandbox)\b|!!|\?\?/i
+
+export type AutoStartBlockReason =
+  | 'blocked_movement_only'
+  | 'blocked_unknown_place'
+  | 'blocked_home'
+  | 'blocked_low_confidence'
+  | 'blocked_invalid_target'
+  | 'blocked_test_target'
+  | 'blocked_not_enough_dwell'
+  | 'blocked_not_enough_pings'
+  | 'blocked_night_requires_stronger_evidence'
+  | 'blocked_inactive'
+  | 'blocked_cancelled'
+  | 'blocked_archived'
 
 export interface ProcessReport {
   run_id: string
@@ -174,9 +197,11 @@ export async function loadTargets(supabase: any): Promise<Target[]> {
   const { data: locs } = await supabase
     .from('organization_locations')
     .select('id, organization_id, name, latitude, longitude, radius_meters, geofence_mode, geofence_polygon, is_active')
-    .eq('is_active', true)
   for (const l of locs ?? []) {
     if (l.latitude == null || l.longitude == null) continue
+    const isTest = TEST_DEMO_RX.test(l.name ?? '')
+    const isInactive = l.is_active === false
+    const valid = !isTest && !isInactive
     out.push({
       kind: 'location',
       id: l.id,
@@ -189,12 +214,15 @@ export async function loadTargets(supabase: any): Promise<Target[]> {
         geofence_mode: l.geofence_mode ?? 'circle',
         geofence_polygon: l.geofence_polygon ?? null,
       },
+      targetValidity: valid ? 'valid' : 'invalid',
+      timeTrackingAllowed: valid,
+      invalidReason: isTest ? 'test_target' : isInactive ? 'inactive' : undefined,
     })
   }
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, organization_id, client, delivery_latitude, delivery_longitude, rigdaydate, eventdate, rigdowndate, large_project_id')
+    .select('id, organization_id, client, status, delivery_latitude, delivery_longitude, rigdaydate, eventdate, rigdowndate, large_project_id')
     .or(`rigdaydate.gte.${yesterdayIso},eventdate.gte.${yesterdayIso},rigdowndate.gte.${yesterdayIso}`)
     .or(`rigdaydate.lte.${tomorrowIso},eventdate.lte.${tomorrowIso},rigdowndate.lte.${tomorrowIso}`)
     .not('delivery_latitude', 'is', null)
@@ -203,32 +231,47 @@ export async function loadTargets(supabase: any): Promise<Target[]> {
 
   for (const b of bookings ?? []) {
     if (b.large_project_id) continue
+    const label = b.client ?? 'Bokning'
+    const isTest = TEST_DEMO_RX.test(label)
+    const status = String(b.status ?? '').toUpperCase()
+    const isCancelled = status === 'CANCELLED'
+    const isArchived = status === 'ARCHIVED'
+    const valid = !isTest && !isCancelled && !isArchived
     out.push({
       kind: 'booking',
       id: b.id,
       organization_id: b.organization_id,
-      label: b.client ?? 'Bokning',
+      label,
       geofence: {
         latitude: Number(b.delivery_latitude),
         longitude: Number(b.delivery_longitude),
         radius_meters: 100,
         geofence_mode: 'circle',
       },
+      targetValidity: valid ? 'valid' : 'invalid',
+      timeTrackingAllowed: valid,
+      invalidReason: isTest ? 'test_target' : isCancelled ? 'cancelled' : isArchived ? 'archived' : undefined,
     })
   }
 
   const { data: projects } = await supabase
     .from('large_projects')
-    .select('id, organization_id, name, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon')
+    .select('id, organization_id, name, status, deleted_at, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon')
     .not('address_latitude', 'is', null)
     .not('address_longitude', 'is', null)
     .limit(500)
   for (const p of projects ?? []) {
+    const label = p.name ?? 'Projekt'
+    const isTest = TEST_DEMO_RX.test(label)
+    const status = String(p.status ?? '').toLowerCase()
+    const isCancelled = status === 'cancelled' || status === 'avbokat'
+    const isArchived = !!p.deleted_at || status === 'archived' || status === 'closed' || status === 'stängt'
+    const valid = !isTest && !isCancelled && !isArchived
     out.push({
       kind: 'project',
       id: p.id,
       organization_id: p.organization_id,
-      label: p.name ?? 'Projekt',
+      label,
       geofence: {
         latitude: Number(p.address_latitude),
         longitude: Number(p.address_longitude),
@@ -236,6 +279,9 @@ export async function loadTargets(supabase: any): Promise<Target[]> {
         geofence_mode: p.address_geofence_mode ?? 'circle',
         geofence_polygon: p.address_geofence_polygon ?? null,
       },
+      targetValidity: valid ? 'valid' : 'invalid',
+      timeTrackingAllowed: valid,
+      invalidReason: isTest ? 'test_target' : isCancelled ? 'cancelled' : isArchived ? 'archived' : undefined,
     })
   }
 
@@ -533,14 +579,17 @@ async function ensureLteOpenForTarget(
     staff_id: staffId,
     entry_date: arrivalIso.slice(0, 10),
     entered_at: arrivalIso,
-    source: report.mode === 'backfill_day' ? 'auto_geofence_server_backfill' : 'auto_geofence_server',
+    source: 'gps_geofence_auto_start',
     client_dedupe_key: `srv:${staffId}:${hit.target.kind}:${hit.target.id}:${bucketTo5Min(arrivalIso)}`,
     metadata: {
       auto_started: true,
-      auto_start_source: report.source_tag,
+      auto_start_source: 'gps_geofence_auto_start',
+      auto_start_mode: report.mode,
       engine_version: report.engine_version,
       run_id: report.run_id,
       matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+      target_validity: hit.target.targetValidity,
+      time_tracking_allowed: hit.target.timeTrackingAllowed,
       confidence: hit.confidence,
       arrival_pings_count: hit.pings.length,
       first_arrival_ping_at: arrivalIso,
@@ -680,10 +729,88 @@ export async function processStaff(
     console.warn('[auto-start] assignment lookup failed', e?.message ?? e)
   }
 
+  // ── Private zones lookup (home/manual_ignore/recurring_night) ───────────
+  // GPS auto-start får ALDRIG materialisera tid när första stabila ping
+  // ligger inom en privat zon för staff:en.
+  const privateZones: Array<{ lat: number; lng: number; radiusM: number; kind: string }> = []
+  try {
+    const { data: pz } = await supabase
+      .from('staff_private_zones')
+      .select('latitude, longitude, radius_meters, zone_type, is_active')
+      .eq('staff_id', staffId)
+    for (const z of pz ?? []) {
+      if (z.is_active === false) continue
+      if (z.latitude == null || z.longitude == null) continue
+      privateZones.push({
+        lat: Number(z.latitude),
+        lng: Number(z.longitude),
+        radiusM: Number(z.radius_meters || 150),
+        kind: String(z.zone_type ?? 'manual_ignore'),
+      })
+    }
+  } catch {
+    // table may not exist in some envs — treat as no zones
+  }
+  const insidePrivateZone = (lat: number, lng: number) => {
+    for (const z of privateZones) {
+      // Cheap haversine
+      const R = 6371000
+      const dLat = (lat - z.lat) * Math.PI / 180
+      const dLng = (lng - z.lng) * Math.PI / 180
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(z.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2
+      const d = 2 * R * Math.asin(Math.sqrt(a))
+      if (d <= z.radiusM) return z
+    }
+    return null
+  }
+
   report.arrivals += ordered.length
 
   let workdayId: string | null = null
   let prevHit: StableHit | null = null
+
+  const MIN_ARRIVAL_PINGS = ENTRY_PING_MIN_COUNT
+  const NIGHT_MIN_CONFIDENCE: 'high' = 'high'
+  const NIGHT_DWELL_MULTIPLIER = 2
+
+  const emitBlocked = async (hit: StableHit, arrivalIso: string, blockReason: AutoStartBlockReason, extras: Record<string, any>) => {
+    const dk = `${staffId}:blocked:${hit.target.kind}:${hit.target.id}:${blockReason}:${bucketTo5Min(arrivalIso)}`
+    console.log('[auto-start] blocked', { staff_id: staffId, target: hit.target.label, target_kind: hit.target.kind, reason: blockReason, ...extras })
+    await emitAssistantEvent(supabase, {
+      organization_id: orgId,
+      staff_id: staffId,
+      event_type: 'arrival_blocked',
+      target_type: hit.target.kind,
+      target_id: hit.target.id,
+      target_label: hit.target.label,
+      happened_at: arrivalIso,
+      source: 'geofence_background',
+      suggested_action: 'review_blocked_arrival',
+      resolution_status: 'pending',
+      stale_for_prompt: false,
+      still_relevant_for_review: true,
+      linked_workday_id: null,
+      metadata: {
+        auto_started: false,
+        blocked: true,
+        block_reason: blockReason,
+        engine_version: report.engine_version,
+        run_id: report.run_id,
+        matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+        target_validity: hit.target.targetValidity,
+        time_tracking_allowed: hit.target.timeTrackingAllowed,
+        invalid_reason: hit.target.invalidReason ?? null,
+        confidence: hit.confidence,
+        dwell_ms: hit.dwellMs,
+        arrival_pings_count: hit.pings.length,
+        first_arrival_ping_at: arrivalIso,
+        avg_accuracy_m: hit.avgAccuracy,
+        ...extras,
+      },
+    }, dk, report, 'arrival_blocked')
+  }
 
   for (const hit of ordered) {
     const arrivalIso = new Date(hit.firstReliableTs).toISOString()
@@ -691,9 +818,47 @@ export async function processStaff(
     const isAssigned =
       hit.target.kind !== 'location' &&
       assignedSet.has(assignedKey(hit.target.kind, hit.target.id, visitDay))
-    const requiredDwell = requiredDwellMs(hit.target.kind, isAssigned)
+
+    // ── Hard blocks ────────────────────────────────────────────────────────
+    // 1. Invalid target (test/demo, cancelled, archived, inactive)
+    if (hit.target.targetValidity !== 'valid' || !hit.target.timeTrackingAllowed) {
+      const reason: AutoStartBlockReason =
+        hit.target.invalidReason === 'test_target' ? 'blocked_test_target'
+        : hit.target.invalidReason === 'cancelled' ? 'blocked_cancelled'
+        : hit.target.invalidReason === 'archived' ? 'blocked_archived'
+        : hit.target.invalidReason === 'inactive' ? 'blocked_inactive'
+        : 'blocked_invalid_target'
+      await emitBlocked(hit, arrivalIso, reason, {})
+      continue
+    }
+    // 2. Private zone (home / manual_ignore / recurring_night)
+    const firstPing = hit.pings[0]
+    const pz = firstPing ? insidePrivateZone(firstPing.lat, firstPing.lng) : null
+    if (pz) {
+      await emitBlocked(hit, arrivalIso, 'blocked_home', { private_zone_kind: pz.kind })
+      continue
+    }
+    // 3. Not enough arrival pings
+    if (hit.pings.length < MIN_ARRIVAL_PINGS) {
+      await emitBlocked(hit, arrivalIso, 'blocked_not_enough_pings', { min_pings: MIN_ARRIVAL_PINGS })
+      continue
+    }
+
+    const requiredDwellBase = requiredDwellMs(hit.target.kind, isAssigned)
+    // 4. Night-time requires stronger evidence (22:00–05:00 UTC).
+    const arrivalHourUtc = new Date(hit.firstReliableTs).getUTCHours()
+    const isNight = arrivalHourUtc >= 22 || arrivalHourUtc < 5
+    const requiredDwell = isNight ? requiredDwellBase * NIGHT_DWELL_MULTIPLIER : requiredDwellBase
     const meetsDwell = hit.dwellMs >= requiredDwell
     const lowConfidence = hit.confidence === 'low'
+    if (isNight && hit.confidence !== NIGHT_MIN_CONFIDENCE) {
+      await emitBlocked(hit, arrivalIso, 'blocked_night_requires_stronger_evidence', {
+        required_confidence: NIGHT_MIN_CONFIDENCE,
+        required_dwell_ms: requiredDwell,
+      })
+      continue
+    }
+
     const materialise = meetsDwell && !lowConfidence
 
     if (!materialise) {
@@ -734,6 +899,7 @@ export async function processStaff(
           auto_started: false,
           suggestion_only: true,
           reason,
+          block_reason: (lowConfidence ? 'blocked_low_confidence' : 'blocked_not_enough_dwell') as AutoStartBlockReason,
           dwell_ms: hit.dwellMs,
           required_dwell_ms: requiredDwell,
           is_assigned: isAssigned,
@@ -741,6 +907,8 @@ export async function processStaff(
           engine_version: report.engine_version,
           run_id: report.run_id,
           matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+          target_validity: hit.target.targetValidity,
+          time_tracking_allowed: hit.target.timeTrackingAllowed,
           arrival_pings_count: hit.pings.length,
           first_arrival_ping_at: arrivalIso,
         },
