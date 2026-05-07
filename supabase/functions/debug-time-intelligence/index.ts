@@ -256,6 +256,13 @@ Deno.serve(async (req) => {
   const dayEnd = `${date}T23:59:59.999Z`;
 
   // ── Allowed fetches: pings + known targets only ─────────────────────────
+  // Real column shapes (verified against schema):
+  //   bookings:       id (text), client, booking_number, deliveryaddress,
+  //                   delivery_latitude, delivery_longitude, eventdate (date)
+  //   large_projects: id, name, address, address_latitude, address_longitude
+  const dayMinusIso = new Date(new Date(date).getTime() - 14 * 86400000).toISOString().slice(0, 10);
+  const dayPlusIso = new Date(new Date(date).getTime() + 14 * 86400000).toISOString().slice(0, 10);
+
   const [pingsRes, orgLocationsRes, bookingsRes, largeProjectsRes] = await Promise.all([
     fetchAllStaffLocationPings(supabase, staffId, dayStart, dayEnd),
     organizationId
@@ -268,41 +275,50 @@ Deno.serve(async (req) => {
     organizationId
       ? supabase
           .from("bookings")
-          .select("id, client, booking_number, address, latitude, longitude, event_date")
+          .select("id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate")
           .eq("organization_id", organizationId)
-          .not("latitude", "is", null)
-          .not("longitude", "is", null)
-          .gte("event_date", new Date(new Date(date).getTime() - 14 * 86400000).toISOString().slice(0, 10))
-          .lte("event_date", new Date(new Date(date).getTime() + 14 * 86400000).toISOString().slice(0, 10))
+          .gte("eventdate", dayMinusIso)
+          .lte("eventdate", dayPlusIso)
           .limit(1000)
       : Promise.resolve({ data: [], error: null }),
     organizationId
       ? supabase
           .from("large_projects")
-          .select("id, name, address, latitude, longitude")
+          .select("id, name, address, address_latitude, address_longitude")
           .eq("organization_id", organizationId)
-          .not("latitude", "is", null)
-          .not("longitude", "is", null)
           .limit(500)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
-  for (const [name, res] of [
-    ["pings", pingsRes],
-    ["organization_locations", orgLocationsRes],
-    ["bookings", bookingsRes],
-    ["large_projects", largeProjectsRes],
-  ] as const) {
-    if ((res as any)?.error) {
-      warnings.push(`${name} fetch error: ${(res as any).error.message}`);
-    }
+  const targetFetchDiagnostics: any = {
+    warehouses: { ok: !orgLocationsRes.error, count: 0, warnings: [] as string[] },
+    bookings: { ok: !bookingsRes.error, count: 0, warnings: [] as string[], skippedMissingCoordinates: 0 },
+    largeProjects: { ok: !largeProjectsRes.error, count: 0, warnings: [] as string[], skippedMissingCoordinates: 0 },
+    totalCandidates: 0,
+    candidatesWithCoords: 0,
+  };
+
+  if (pingsRes.error) {
+    warnings.push(`pings fetch error: ${(pingsRes.error as any).message}`);
+  }
+  if (orgLocationsRes.error) {
+    targetFetchDiagnostics.warehouses.warnings.push(`fetch_error: ${(orgLocationsRes.error as any).message}`);
+  }
+  if (bookingsRes.error) {
+    targetFetchDiagnostics.bookings.warnings.push(`fetch_error: ${(bookingsRes.error as any).message}`);
+  }
+  if (largeProjectsRes.error) {
+    targetFetchDiagnostics.largeProjects.warnings.push(`fetch_error: ${(largeProjectsRes.error as any).message}`);
   }
 
   const rawPings: any[] = pingsRes.data ?? [];
 
   // ── Build known places (used ONLY for naming when GPS matches) ──────────
   const knownPlaces: KnownPlace[] = [];
-  for (const l of (orgLocationsRes.data ?? []) as any[]) {
+
+  const orgLocations = (orgLocationsRes.data ?? []) as any[];
+  targetFetchDiagnostics.warehouses.count = orgLocations.length;
+  for (const l of orgLocations) {
     if (l.latitude != null && l.longitude != null) {
       knownPlaces.push({
         id: l.id,
@@ -312,32 +328,66 @@ Deno.serve(async (req) => {
         lng: Number(l.longitude),
         radiusM: Number(l.radius_meters ?? 100),
       });
+    } else {
+      targetFetchDiagnostics.warehouses.warnings.push(
+        `missing_coordinates: ${l.id} (${l.name ?? "unnamed"})`,
+      );
     }
   }
-  for (const b of (bookingsRes.data ?? []) as any[]) {
-    if (b.latitude != null && b.longitude != null) {
+
+  const bookingRows = (bookingsRes.data ?? []) as any[];
+  targetFetchDiagnostics.bookings.count = bookingRows.length;
+  for (const b of bookingRows) {
+    const lat = b.delivery_latitude;
+    const lng = b.delivery_longitude;
+    if (lat != null && lng != null) {
       knownPlaces.push({
-        id: b.id,
+        id: String(b.id),
         type: "booking",
         name: b.client || b.booking_number || "Bokning",
-        lat: Number(b.latitude),
-        lng: Number(b.longitude),
+        lat: Number(lat),
+        lng: Number(lng),
         radiusM: 100,
       });
+    } else {
+      targetFetchDiagnostics.bookings.skippedMissingCoordinates++;
+      if (targetFetchDiagnostics.bookings.warnings.length < 20) {
+        targetFetchDiagnostics.bookings.warnings.push(
+          `missing_coordinates: ${b.id} (${b.client || b.booking_number || "no_label"})`,
+        );
+      }
     }
   }
-  for (const p of (largeProjectsRes.data ?? []) as any[]) {
-    if (p.latitude != null && p.longitude != null) {
+
+  const largeProjectRows = (largeProjectsRes.data ?? []) as any[];
+  targetFetchDiagnostics.largeProjects.count = largeProjectRows.length;
+  for (const p of largeProjectRows) {
+    const lat = p.address_latitude;
+    const lng = p.address_longitude;
+    if (lat != null && lng != null) {
       knownPlaces.push({
-        id: p.id,
+        id: String(p.id),
         type: "project",
         name: p.name ?? "Stort projekt",
-        lat: Number(p.latitude),
-        lng: Number(p.longitude),
+        lat: Number(lat),
+        lng: Number(lng),
         radiusM: 100,
       });
+    } else {
+      targetFetchDiagnostics.largeProjects.skippedMissingCoordinates++;
+      if (targetFetchDiagnostics.largeProjects.warnings.length < 20) {
+        targetFetchDiagnostics.largeProjects.warnings.push(
+          `missing_coordinates: ${p.id} (${p.name ?? "unnamed"})`,
+        );
+      }
     }
   }
+
+  targetFetchDiagnostics.totalCandidates =
+    targetFetchDiagnostics.warehouses.count +
+    targetFetchDiagnostics.bookings.count +
+    targetFetchDiagnostics.largeProjects.count;
+  targetFetchDiagnostics.candidatesWithCoords = knownPlaces.length;
 
   // ── Per-ping quality classification ─────────────────────────────────────
   const pingClassificationTimeline = rawPings.map((p: any) => {
