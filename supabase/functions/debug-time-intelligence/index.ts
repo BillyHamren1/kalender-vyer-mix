@@ -750,6 +750,154 @@ Deno.serve(async (req) => {
     },
   };
 
+  // ── Evidence timeline (merged, time-ordered) ────────────────────────────
+  type Ev = {
+    at: string;
+    endAt?: string | null;
+    source: string;          // workday | time_report | travel_log | location_entry | assistant_event | ping | flag | snapshot_segment
+    kind: string;            // started | ended | timer_started | timer_stopped | arrived | left | gap | event | segment
+    label: string;
+    detail?: any;
+  };
+  const evidence: Ev[] = [];
+
+  // workday
+  if (workday?.started_at) {
+    evidence.push({ at: workday.started_at, source: "workday", kind: "started", label: "Workday started", detail: { id: workday.id } });
+  }
+  if (workday?.ended_at) {
+    evidence.push({ at: workday.ended_at, source: "workday", kind: "ended", label: "Workday ended", detail: { id: workday.id } });
+  }
+
+  const labelForBooking = (id: string | null | undefined) =>
+    id ? (nameMaps.bookings[id] ?? `Bokning ${id.slice(0, 8)}`) : "";
+  const labelForLarge = (id: string | null | undefined) =>
+    id ? (nameMaps.largeProjects[id] ?? `Stort projekt ${id.slice(0, 8)}`) : "";
+  const labelForLoc = (id: string | null | undefined) =>
+    id ? (nameMaps.locations[id]?.name ?? `Plats ${id.slice(0, 8)}`) : "";
+  const targetLabel = (r: any) =>
+    labelForLarge(r.large_project_id) || labelForBooking(r.booking_id) || labelForLoc(r.location_id) || "okänt mål";
+
+  // time_reports → timer events
+  for (const tr of timeReports as any[]) {
+    const lbl = targetLabel(tr);
+    if (tr.start_time) evidence.push({ at: tr.start_time, source: "time_report", kind: "timer_started", label: `Timer started: ${lbl}`, detail: { id: tr.id, hours: tr.hours_worked } });
+    if (tr.end_time) evidence.push({ at: tr.end_time, source: "time_report", kind: "timer_stopped", label: `Timer stopped: ${lbl}`, detail: { id: tr.id, hours: tr.hours_worked } });
+  }
+
+  // travel_time_logs
+  for (const tl of travelLogs as any[]) {
+    if (tl.start_time && tl.end_time) {
+      const from = tl.from_address || labelForLoc(tl.origin_location_id) || "okänd start";
+      const to = tl.to_address || labelForLoc(tl.dest_location_id) || labelForBooking(tl.dest_booking_id) || labelForLarge(tl.dest_large_project_id) || "okänt mål";
+      evidence.push({ at: tl.start_time, endAt: tl.end_time, source: "travel_log", kind: "travel", label: `Travel: ${from} → ${to}`, detail: { id: tl.id, hours: tl.hours_worked, classification: tl.classification } });
+    }
+  }
+
+  // location_time_entries
+  for (const lte of locationEntries as any[]) {
+    const lbl = targetLabel(lte);
+    if (lte.entered_at) evidence.push({ at: lte.entered_at, source: "location_entry", kind: "arrived", label: `Arrived ${lbl}`, detail: { id: lte.id, source: lte.source, presence_only: lte.presence_only } });
+    if (lte.exited_at) evidence.push({ at: lte.exited_at, source: "location_entry", kind: "left", label: `Left ${lbl}`, detail: { id: lte.id } });
+  }
+
+  // assistant_events
+  for (const ae of (assistantRes.data ?? []) as any[]) {
+    evidence.push({ at: ae.created_at, source: "assistant_event", kind: ae.event_type ?? "event", label: `Assistant: ${ae.event_type ?? "event"}`, detail: ae });
+  }
+
+  // workday_flags
+  for (const f of (flagsRes.data ?? []) as any[]) {
+    evidence.push({ at: f.created_at ?? f.flag_date, source: "flag", kind: f.flag_type, label: `Flag: ${f.title ?? f.flag_type}`, detail: { id: f.id, resolved: f.resolved } });
+  }
+
+  // GPS gaps as evidence
+  for (const g of pingGapsOver10Min) {
+    evidence.push({ at: g.from, endAt: g.to, source: "ping", kind: "gap", label: `GPS gap (${g.gapMinutes} min)`, detail: g });
+  }
+
+  // first/last ping bookends
+  if (firstPingAt) evidence.push({ at: firstPingAt, source: "ping", kind: "first", label: "First GPS ping" });
+  if (lastPingAt && lastPingAt !== firstPingAt) evidence.push({ at: lastPingAt, source: "ping", kind: "last", label: "Last GPS ping" });
+
+  // snapshot segments
+  for (const s of (snapshotPreview?.segments ?? []) as any[]) {
+    const start = s.startTs ?? s.start;
+    const end = s.endTs ?? s.end;
+    if (start) evidence.push({ at: start, endAt: end, source: "snapshot_segment", kind: s.type ?? s.kind ?? "segment", label: `Segment: ${s.label ?? s.type ?? "—"}`, detail: { confidence: s.confidence, source: s.source } });
+  }
+
+  evidence.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
+  // ── Conflicts (cross-source disagreements) ──────────────────────────────
+  const conflicts: Array<{ code: string; severity: "warn" | "bad"; message: string; detail?: any }> = [];
+
+  // Multiple open LTEs
+  const openLtes = (locationEntries as any[]).filter((e) => !e.exited_at);
+  if (openLtes.length > 1) {
+    conflicts.push({ code: "multiple_open_ltes", severity: "bad", message: `Flera öppna location_time_entries (${openLtes.length})`, detail: openLtes.map((e) => ({ id: e.id, started: e.entered_at, target: targetLabel(e) })) });
+  }
+
+  // Travel log without GPS coverage
+  for (const tl of travelLogs as any[]) {
+    const s = new Date(tl.start_time).getTime();
+    const e = new Date(tl.end_time).getTime();
+    const inWindow = pings.filter((p: any) => {
+      const t = new Date(p.recorded_at).getTime();
+      return t >= s && t <= e;
+    });
+    if (inWindow.length === 0 && (e - s) > 5 * 60_000) {
+      conflicts.push({ code: "travel_without_gps", severity: "warn", message: `travel_log ${fmtRange(tl.start_time, tl.end_time)} men inga GPS-pings i fönstret`, detail: { id: tl.id } });
+    }
+  }
+
+  // time_report target ≠ overlapping location_entry target
+  for (const tr of timeReports as any[]) {
+    if (!tr.start_time || !tr.end_time) continue;
+    const trTarget = tr.large_project_id || tr.booking_id || tr.location_id;
+    if (!trTarget) continue;
+    for (const lte of locationEntries as any[]) {
+      if (!lte.entered_at) continue;
+      const lteEnd = lte.exited_at ?? new Date().toISOString();
+      const overlap = !(new Date(lte.entered_at) > new Date(tr.end_time) || new Date(lteEnd) < new Date(tr.start_time));
+      if (!overlap) continue;
+      const lteTarget = lte.large_project_id || lte.booking_id || lte.location_id;
+      if (lteTarget && lteTarget !== trTarget) {
+        conflicts.push({
+          code: "time_report_vs_location_entry_target_mismatch",
+          severity: "warn",
+          message: `time_report (${targetLabel(tr)}) krockar med location_entry (${targetLabel(lte)})`,
+          detail: { time_report_id: tr.id, location_entry_id: lte.id },
+        });
+      }
+    }
+  }
+
+  // Snapshot active vs newest open LTE
+  if (openLte && snapshotPreview?.active) {
+    const snapTarget = (snapshotPreview.active as any).bookingId || (snapshotPreview.active as any).largeProjectId || (snapshotPreview.active as any).locationId;
+    const lteTarget = openLte.large_project_id || openLte.booking_id || openLte.location_id;
+    if (snapTarget && lteTarget && snapTarget !== lteTarget) {
+      conflicts.push({
+        code: "snapshot_active_vs_open_lte_mismatch",
+        severity: "bad",
+        message: `snapshot.active (${snapshotPreview.active.label}) ≠ öppen LTE (${targetLabel(openLte)})`,
+        detail: { snapshot: snapshotPreview.active, open_lte: openLte },
+      });
+    }
+  }
+
+  // engine sees a matched_target but targetMatches summary says no
+  const engineMatched = (engineReport as any)?.report?.matched_target ?? (engineReport as any)?.matched_target;
+  if (engineMatched && !anyPingInsideTarget) {
+    conflicts.push({ code: "engine_match_vs_debug_no_match", severity: "warn", message: "Engine rapporterar matched_target men debug hittade ingen ping i radie", detail: { engineMatched } });
+  }
+
+  // GPS missing but other evidence present
+  if (pings.length === 0 && (timeReports.length > 0 || travelLogs.length > 0 || locationEntries.length > 0)) {
+    conflicts.push({ code: "no_gps_but_other_evidence", severity: "warn", message: "Inga GPS-pings men time_reports/travel_logs/location_entries finns", detail: { time_reports: timeReports.length, travel_logs: travelLogs.length, location_entries: locationEntries.length } });
+  }
+
   return json(200, {
     rawData: {
       pingCount: pings.length,
