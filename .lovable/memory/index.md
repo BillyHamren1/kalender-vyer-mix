@@ -1,6 +1,7 @@
 # Project Memory
 
 ## Core
+- **Time-sidan = snapshot-only**: tabbarna Idag/Kalender/Tidrapport läser ENDAST `get-staff-day-status` / `get-staff-month-status` / `get-staff-time-report-period`. Appen får aldrig summera workdays/time_reports/travel_time_logs/location_time_entries/workday_flags/assistant_events/GPS lokalt. Saknas fält → bygg ut Edge Function. Se [Time Page Snapshot-Only](.lovable/memory/constraints/time-page-snapshot-only-v1.md).
 - "Arbetsdag" heter **arbetspass** i UI:n. Knappen i mobilheadern är "Starta arbetspass" / "Avsluta arbetspass". Personalen får köra flera pass per kalenderdag (verkstad/event-kvällar). Tabellnamnet `workdays` behålls i DB.
 - Starta arbetspass: snabb GPS auto-start vid träff; annars obligatorisk dialog.
 - Personalkalendern: samma person kan läggas i flera team samma dag. Drag/Add ⇒ lägger till; "remove from team" tar bara bort den teamraden.
