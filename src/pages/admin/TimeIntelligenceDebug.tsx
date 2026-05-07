@@ -114,6 +114,189 @@ function StatusGrid({ result }: { result: any }) {
   );
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+ * Time Engine Dry-Run Summary (kompakt vy + readiness-status)
+ * Läser endast nya engine-fält. Ingen workday/time_report/LTE.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+function buildTimeEngineSummary(result: any) {
+  const r = result ?? {};
+  const cov = r.rawPingsCoverage ?? {};
+  const tl = r.gpsDayTimeline ?? {};
+  const segs: any[] = Array.isArray(tl.segments) ? tl.segments : [];
+  const stays = segs.filter((s) => s?.kind === "stay");
+  const knownStays = stays.filter((s) => s?.type === "known_site");
+  const unknownStays = stays.filter((s) => s?.type === "unknown_place");
+  const travels = segs.filter((s) => s?.kind === "travel");
+  const gaps = segs.filter((s) => s?.kind === "gps_gap");
+
+  const decisions: any[] = Array.isArray(r.autoStartDecisions) ? r.autoStartDecisions : [];
+  const allowed = decisions.filter((d) => d?.allowed);
+  const blocked = decisions.filter((d) => !d?.allowed);
+
+  const warnings: string[] = Array.isArray(r.warnings) ? r.warnings : [];
+  const leak = r.legacyLeakCheck ?? {};
+  const legacyLeakDetected =
+    !!leak.inputLegacySourceLeakDetected || !!leak.forbiddenTableLeakDetected;
+
+  const preview = r.activeTimeRegistrationPreview ?? null;
+
+  const ready =
+    warnings.length === 0 &&
+    !legacyLeakDetected &&
+    (cov.pingCount ?? 0) > 0 &&
+    segs.length > 0 &&
+    decisions.length > 0;
+
+  return {
+    status: ready ? "READY_TO_CONFIRM" : "NOT_READY",
+    rawPingsCoverage: {
+      rawPingCount: cov.pingCount ?? 0,
+      firstPingAt: cov.firstPingAt ?? null,
+      lastPingAt: cov.lastPingAt ?? null,
+    },
+    gpsSummary: {
+      gpsDayTimelineCount: segs.length,
+      stayCount: stays.length,
+      knownStayCount: knownStays.length,
+      unknownStayCount: unknownStays.length,
+      travelCount: travels.length,
+      gpsGapCount: gaps.length,
+      sampleSegments: segs.slice(0, 10).map((s) => ({
+        id: s.id, kind: s.kind, type: s.type,
+        startTs: s.startTs, endTs: s.endTs,
+        durationMin: s.durationMin, label: s.label,
+      })),
+    },
+    targetSummary: r.targetDiagnostics ? {
+      totalCandidates: r.targetDiagnostics.totalCandidates ?? null,
+      validCount: r.targetDiagnostics.validCount ?? null,
+      invalidCount: r.targetDiagnostics.invalidCount ?? null,
+    } : null,
+    autoStartSummary: {
+      total: decisions.length,
+      allowedCount: allowed.length,
+      blockedCount: blocked.length,
+      allowedDecisions: allowed.map((d) => ({
+        segmentLabel: d.segmentLabel,
+        targetLabel: d.matchedTarget?.name ?? null,
+        reason: d.reason,
+        confidence: d.confidence,
+      })),
+      blockedExamples: blocked.slice(0, 10).map((d) => ({
+        segmentLabel: d.segmentLabel,
+        targetLabel: d.matchedTarget?.name ?? null,
+        reason: d.reason,
+        confidence: d.confidence,
+      })),
+    },
+    activeTimeRegistrationPreview: preview ? {
+      wouldCreateActiveRegistration: !!preview.wouldCreate,
+      startAt: preview.startAt ?? null,
+      startSource: preview.startSource ?? null,
+      targetLabel: preview.targetLabel ?? null,
+      reason: preview.reason ?? null,
+    } : null,
+    warnings,
+    legacyLeakCheck: {
+      legacyLeakDetected,
+      forbiddenTableReads: Array.isArray(leak.forbiddenTableReadsObserved)
+        ? leak.forbiddenTableReadsObserved.map((x: any) => x.table)
+        : [],
+      inputLegacySources: leak.inputLegacySources ?? [],
+    },
+  };
+}
+
+function TimeEngineDryRunSummary({ result }: { result: any }) {
+  const s = useMemo(() => buildTimeEngineSummary(result), [result]);
+  const ready = s.status === "READY_TO_CONFIRM";
+  const tone: StatusTone = ready ? "ok" : "bad";
+  const Icon = ready ? CheckCircle2 : XCircle;
+  const cov = s.rawPingsCoverage;
+  const gps = s.gpsSummary;
+  const auto = s.autoStartSummary;
+  const preview = s.activeTimeRegistrationPreview;
+
+  return (
+    <Card className="border-2">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-base">Time Engine — torrkörningssammanfattning</CardTitle>
+        <div className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-semibold ${TONE_CLASS[tone]}`}>
+          <Icon className="h-4 w-4" />
+          {s.status}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <section>
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">1. Data in</h4>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+            <div><div className="text-muted-foreground">rawPingCount</div><div className="font-mono">{cov.rawPingCount}</div></div>
+            <div><div className="text-muted-foreground">firstPingAt</div><div className="font-mono">{fmtTime(cov.firstPingAt)}</div></div>
+            <div><div className="text-muted-foreground">lastPingAt</div><div className="font-mono">{fmtTime(cov.lastPingAt)}</div></div>
+            <div><div className="text-muted-foreground">warnings</div><div className="font-mono">{s.warnings.length}</div></div>
+            <div><div className="text-muted-foreground">legacyLeak</div><div className={`font-mono ${s.legacyLeakCheck.legacyLeakDetected ? "text-destructive" : ""}`}>{String(s.legacyLeakCheck.legacyLeakDetected)}</div></div>
+          </div>
+          {s.warnings.length > 0 && (
+            <ul className="mt-2 text-xs text-amber-700 dark:text-amber-400 list-disc list-inside">
+              {s.warnings.slice(0, 8).map((w, i) => <li key={i} className="font-mono">{w}</li>)}
+            </ul>
+          )}
+        </section>
+
+        <section>
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">2. GPS-tidslinje</h4>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+            <div><div className="text-muted-foreground">total</div><div className="font-mono">{gps.gpsDayTimelineCount}</div></div>
+            <div><div className="text-muted-foreground">stay</div><div className="font-mono">{gps.stayCount}</div></div>
+            <div><div className="text-muted-foreground">known</div><div className="font-mono">{gps.knownStayCount}</div></div>
+            <div><div className="text-muted-foreground">unknown</div><div className="font-mono">{gps.unknownStayCount}</div></div>
+            <div><div className="text-muted-foreground">travel</div><div className="font-mono">{gps.travelCount}</div></div>
+            <div><div className="text-muted-foreground">gps_gap</div><div className="font-mono">{gps.gpsGapCount}</div></div>
+          </div>
+        </section>
+
+        <section>
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+            3. Auto-start ({auto.allowedCount} allowed / {auto.blockedCount} blocked)
+          </h4>
+          {auto.allowedDecisions.length === 0 && auto.blockedExamples.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Inga relevanta beslut.</p>
+          ) : (
+            <div className="space-y-1 text-xs">
+              {auto.allowedDecisions.map((d, i) => (
+                <div key={`a${i}`} className={`rounded border px-2 py-1 ${TONE_CLASS.ok}`}>
+                  <span className="font-semibold">ALLOWED</span> · {d.segmentLabel} → {d.targetLabel ?? "—"} · <span className="font-mono">{d.reason}</span> · conf {typeof d.confidence === "number" ? d.confidence.toFixed(2) : d.confidence}
+                </div>
+              ))}
+              {auto.blockedExamples.map((d, i) => (
+                <div key={`b${i}`} className={`rounded border px-2 py-1 ${TONE_CLASS.warn}`}>
+                  <span className="font-semibold">BLOCKED</span> · {d.segmentLabel} → {d.targetLabel ?? "—"} · <span className="font-mono">{d.reason}</span> · conf {typeof d.confidence === "number" ? d.confidence.toFixed(2) : d.confidence}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">4. active_time_registration preview</h4>
+          {preview ? (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+              <div><div className="text-muted-foreground">wouldCreate</div><div className={`font-mono ${preview.wouldCreateActiveRegistration ? "text-emerald-600" : ""}`}>{String(preview.wouldCreateActiveRegistration)}</div></div>
+              <div><div className="text-muted-foreground">startAt</div><div className="font-mono">{fmtTime(preview.startAt)}</div></div>
+              <div><div className="text-muted-foreground">startSource</div><div className="font-mono">{preview.startSource ?? "—"}</div></div>
+              <div><div className="text-muted-foreground">targetLabel</div><div className="font-mono truncate">{preview.targetLabel ?? "—"}</div></div>
+              <div className="col-span-2 md:col-span-5"><div className="text-muted-foreground">reason</div><div className="font-mono">{preview.reason ?? "—"}</div></div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Ingen preview.</p>
+          )}
+        </section>
+      </CardContent>
+    </Card>
+  );
+}
+
 function actionIcon(action: string) {
   if (/close/i.test(action)) return <X className="h-4 w-4" />;
   if (/transport|travel/i.test(action)) return <ArrowRight className="h-4 w-4" />;
