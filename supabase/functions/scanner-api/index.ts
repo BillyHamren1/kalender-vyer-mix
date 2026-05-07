@@ -556,6 +556,29 @@ Deno.serve(async (req) => {
 
         let allocateData = (() => { try { return JSON.parse(responseText) } catch { return {} } })()
 
+        // ===== Ambiguous scan code (WMS duplicate) — handle FIRST, never recover =====
+        // En dublett är inte samma sak som "already allocated". Vi får aldrig
+        // försöka recovera eller packa lokalt — vi måste stoppa scanflödet helt.
+        const isAmbiguous =
+          (allocateResponse.status === 409 && allocateData?.code === 'ambiguous_scan_code') ||
+          (allocateData?.success === false && allocateData?.code === 'ambiguous_scan_code')
+        if (isAmbiguous) {
+          console.warn('[verify_product] ambiguous_scan_code_from_wms', {
+            packingId,
+            bookingNumber,
+            serialNumber,
+            matches: allocateData?.matches,
+          })
+          return json({
+            success: false,
+            code: 'ambiguous_scan_code',
+            error: allocateData?.error || 'Dublett QR/serial hittad i WMS',
+            matches: Array.isArray(allocateData?.matches) ? allocateData.matches : [],
+            scannedValue: serialNumber,
+            debugCode: 'WMS_AMBIGUOUS_SCAN_CODE',
+          })
+        }
+
         // WMS-fel: HTTP-fel ELLER 200+success:false → skicka WMS error rakt av
         const wmsBlocked = !allocateResponse.ok || allocateData?.success === false
         if (wmsBlocked) {
