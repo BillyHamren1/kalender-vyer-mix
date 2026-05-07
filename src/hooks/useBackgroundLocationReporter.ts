@@ -250,6 +250,19 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       });
     };
 
+    const readBackendPolicy = (): { heartbeatMs: number; distanceFilter: number; mode: string } | null => {
+      try {
+        const raw = localStorage.getItem('eventflow-tracking-policy');
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (typeof p?.heartbeatMs !== 'number' || typeof p?.distanceFilter !== 'number') return null;
+        // Backend cache is considered fresh for 10 min — beyond that fall back
+        // to the local mode engine until next snapshot poll arrives.
+        if (typeof p?.cachedAt === 'number' && Date.now() - p.cachedAt > 10 * 60_000) return null;
+        return { heartbeatMs: p.heartbeatMs, distanceFilter: p.distanceFilter, mode: String(p.mode ?? '') };
+      } catch { return null; }
+    };
+
     const computeMode = (): LocationModeDecision => {
       const targets = loadGeofenceTargets();
       const pos = lastKnownPosRef.current;
@@ -273,6 +286,20 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       });
       logModeChange(currentModeRef.current, decision);
       currentModeRef.current = decision.mode;
+
+      // Backend trackingPolicy is the single source of truth for heartbeat
+      // and distanceFilter when present. The local mode engine still runs to
+      // detect approach/inside transitions, but its cadence is overridden so
+      // the app cannot invent a denser tracking intensity than the server.
+      const backend = readBackendPolicy();
+      if (backend) {
+        return {
+          ...decision,
+          heartbeatMs: backend.heartbeatMs,
+          distanceFilter: backend.distanceFilter,
+          reasonForModeChange: `${decision.reasonForModeChange} (backend:${backend.mode})`,
+        };
+      }
       return decision;
     };
 
@@ -335,6 +362,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
     // Kick off first scheduling immediately (this also seeds distanceFilter)
     rescheduleHeartbeat();
+
+    // Re-apply heartbeat as soon as a fresh backend policy arrives.
+    const onPolicyUpdated = () => { rescheduleHeartbeat(); };
+    window.addEventListener('tracking-policy-updated', onPolicyUpdated);
 
     const checkBackgroundGeofences = (lat: number, lng: number) => {
       const targets = loadGeofenceTargets();
