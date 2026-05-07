@@ -658,16 +658,34 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   // ---- Active activity ----
   const openLoc = locationEntries.find((l) => !l.exited_at);
   const active: ActiveActivity | null = openLoc
-    ? {
-        kind: openLoc.location_id ? "location" : openLoc.large_project_id ? "project" : "booking",
-        startedAt: openLoc.entered_at,
-        durationMinutes: diffMinutes(openLoc.entered_at, null, now),
-        label: openLoc.location_id ? "Plats" : openLoc.large_project_id ? "Projekt" : "Bokning",
-        locationEntryId: openLoc.id,
-        bookingId: openLoc.booking_id,
-        largeProjectId: openLoc.large_project_id,
-        locationId: openLoc.location_id,
-      }
+    ? (() => {
+        const isWh = isWarehouseLocation(openLoc.location_id, nameMaps);
+        const kind: ActiveActivity["kind"] = openLoc.location_id
+          ? (isWh ? "location" : "location")
+          : openLoc.large_project_id
+            ? "project"
+            : "booking";
+        // Use the same resolver as segments. Fallback "Annan plats" — never
+        // generic "Plats" / "Projekt" / "Bokning" / "Pågående aktivitet".
+        const label = resolveLabel({
+          bookingId: openLoc.booking_id,
+          largeProjectId: openLoc.large_project_id,
+          locationId: openLoc.location_id,
+          description: null,
+          fallback: "Annan plats",
+          nameMaps,
+        });
+        return {
+          kind,
+          startedAt: openLoc.entered_at,
+          durationMinutes: diffMinutes(openLoc.entered_at, null, now),
+          label,
+          locationEntryId: openLoc.id,
+          bookingId: openLoc.booking_id,
+          largeProjectId: openLoc.large_project_id,
+          locationId: openLoc.location_id,
+        };
+      })()
     : null;
 
   // ---- Workday back-date / synth from confirmed presence ----
