@@ -163,14 +163,7 @@ Deno.serve(async (req) => {
     attestRes,
     boostRes,
   ] = await Promise.all([
-    supabase
-      .from("staff_location_history")
-      .select("recorded_at, lat, lng, accuracy, speed")
-      .eq("staff_id", staffId)
-      .gte("recorded_at", dayStart)
-      .lte("recorded_at", dayEnd)
-      .order("recorded_at", { ascending: true })
-      .limit(2000),
+    fetchAllStaffLocationPings(supabase, staffId, dayStart, dayEnd),
     supabase
       .from("staff_locations")
       .select("*")
