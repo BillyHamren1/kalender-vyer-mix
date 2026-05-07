@@ -138,6 +138,15 @@ Deno.serve(async (req) => {
       .gt("expires_at", new Date().toISOString())
       .order("expires_at", { ascending: false })
       .limit(5),
+    admin
+      .from("staff_location_history")
+      .select("recorded_at, latitude, longitude, accuracy")
+      .eq("organization_id", orgId)
+      .eq("staff_id", staffId)
+      .gte("recorded_at", padStart)
+      .lte("recorded_at", padEnd)
+      .order("recorded_at", { ascending: true })
+      .limit(2000),
   ]);
 
   const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error, boostsRes.error].filter(Boolean);
