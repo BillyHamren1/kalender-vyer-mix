@@ -135,14 +135,19 @@ export const deleteQrParcel = async (parcelId: string): Promise<void> => {
 export const parseScanResult = (scannedValue: string): ScanResult => {
   const trimmed = scannedValue.trim();
 
-  const packingUrlMatch = trimmed.match(/\/warehouse\/packing\/([a-f0-9-]+)\/verify/);
+  // Packing list URL: explicit warehouse/packing path with verify
+  // Example: /warehouse/packing/{uuid}/verify
+  const packingUrlMatch = trimmed.match(/\/(?:warehouse\/)?packing\/([a-f0-9-]+)\/verify/);
   if (packingUrlMatch) {
     return { type: 'packing_id', value: packingUrlMatch[1], packingId: packingUrlMatch[1], unique: false };
   }
 
+  // Bare UUID can be either a physical WMS item_instance id or a packing id.
+  // In scanner verify mode we must let WMS resolve it, so only explicit
+  // packing URLs are treated as packing_id.
   const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
   if (uuidPattern.test(trimmed)) {
-    return { type: 'packing_id', value: trimmed, packingId: trimmed, unique: false };
+    return { type: 'serial', value: trimmed, unique: true };
   }
 
   // RFID EPC: long pure-hex string (typical Zebra EPC = 24 hex chars)
