@@ -496,7 +496,7 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
         : presenceKind === 'location'
         ? 'confirmed_work'
         : overlapsWorkday
-        ? 'unclassified_within_workday'
+        ? 'other_place'
         : 'unknown_needs_review',
     });
 

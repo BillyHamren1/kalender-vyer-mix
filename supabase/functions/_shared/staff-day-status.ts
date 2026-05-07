@@ -386,7 +386,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       },
       hasConfirmedRef,
       classification,
-      policyStatus: "unclassified_within_workday",
+      policyStatus: "other_place",
       _policy: {
         kind, startedAt: le.entered_at, endedAt: le.exited_at,
         hasConfirmedRef, classification,
