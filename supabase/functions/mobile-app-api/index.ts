@@ -6934,6 +6934,17 @@ async function handleStopOpenEntry(supabase: any, staffId: string, data: any, or
     )
   }
 
+  // Mirror stop into current_time_registration (single source of truth).
+  try {
+    await supabase
+      .from('current_time_registration')
+      .update({ status: 'stopped', stopped_at: stopIso })
+      .eq('staff_id', staffId)
+      .eq('status', 'active')
+  } catch (regErr) {
+    console.warn('[stop_open_entry] current_time_registration mirror failed (non-fatal):', regErr)
+  }
+
   // 4) Return refreshed active_day_state for instant UI rehydrate.
   const stateRes = await handleGetActiveDayState(supabase, staffId, organizationId)
   const stateBody = await stateRes.json().catch(() => ({}))
