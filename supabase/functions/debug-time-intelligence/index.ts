@@ -1023,6 +1023,7 @@ Deno.serve(async (req) => {
       activeBoosts: boostRes.data ?? [],
       knownTargets,
       nearestTargetsPerPing,
+      pingClassificationTimeline,
       existingSnapshot: existingSnapshot ?? null,
     },
     detectedState,
