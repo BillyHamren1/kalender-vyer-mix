@@ -644,7 +644,6 @@ Deno.serve(async (req) => {
   });
 
   // Enrich each segment with target meta + geometry-based match diagnostics.
-  const { distanceMeters: distM } = await import("../_shared/timeline/geo.ts");
   const enrichedSegments = gpsTimeline.segments.map((seg) => {
     const meta = seg.matchedSiteId && seg.matchedSiteType
       ? targetMeta.get(`${seg.matchedSiteType}:${seg.matchedSiteId}`)
