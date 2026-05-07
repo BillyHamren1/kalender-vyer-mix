@@ -6140,12 +6140,17 @@ async function handleStopTimeRegistration(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LEGACY: handleStartLocationTimerLegacyDisabled / handleStopLocationTimerLegacyDisabled (LTE-backed)
-// Keeps location_time_entries + workday + time_reports flow alive for existing
-// clients and admin/payroll readers, BUT mirrors the active timer state into
-// `active_time_registrations` so the new Time Engine sees a single source of
-// truth. Do NOT use these from new code paths — use start_time_registration /
-// stop_time_registration instead.
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
+//
+// handleStartLocationTimerLegacyDisabled / handleStopLocationTimerLegacyDisabled
+// remain in the file ONLY so the legacy LTE/workday/time_report rows can still
+// be inspected and admin/payroll readers keep working. The case branches for
+// 'start_location_timer' / 'stop_location_timer' forward to
+// handleStart/StopTimeRegistration via handleLegacy*Forward and never call
+// these functions. No new Time Engine v2 action invokes them.
 // ─────────────────────────────────────────────────────────────────────────────
 async function handleStartLocationTimerLegacyDisabled(supabase: any, staffId: string, data: any, organizationId: string) {
   const {
