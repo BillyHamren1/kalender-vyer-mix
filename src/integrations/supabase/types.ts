@@ -5050,6 +5050,99 @@ export type Database = {
           },
         ]
       }
+      staff_day_decision_log: {
+        Row: {
+          action: string
+          actor: string
+          after: Json | null
+          before: Json | null
+          confidence: number | null
+          created_at: string
+          day_date: string
+          id: string
+          organization_id: string
+          reason: string | null
+          segment_id: string | null
+          source_function: string | null
+          staff_id: string
+        }
+        Insert: {
+          action: string
+          actor: string
+          after?: Json | null
+          before?: Json | null
+          confidence?: number | null
+          created_at?: string
+          day_date: string
+          id?: string
+          organization_id: string
+          reason?: string | null
+          segment_id?: string | null
+          source_function?: string | null
+          staff_id: string
+        }
+        Update: {
+          action?: string
+          actor?: string
+          after?: Json | null
+          before?: Json | null
+          confidence?: number | null
+          created_at?: string
+          day_date?: string
+          id?: string
+          organization_id?: string
+          reason?: string | null
+          segment_id?: string | null
+          source_function?: string | null
+          staff_id?: string
+        }
+        Relationships: []
+      }
+      staff_day_rebuild_queue: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          day_date: string
+          id: string
+          last_error: string | null
+          organization_id: string
+          reason: string
+          requested_at: string
+          requested_by: string | null
+          staff_id: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          day_date: string
+          id?: string
+          last_error?: string | null
+          organization_id: string
+          reason: string
+          requested_at?: string
+          requested_by?: string | null
+          staff_id: string
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          day_date?: string
+          id?: string
+          last_error?: string | null
+          organization_id?: string
+          reason?: string
+          requested_at?: string
+          requested_by?: string | null
+          staff_id?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       staff_home_observations: {
         Row: {
           cluster_key: string
