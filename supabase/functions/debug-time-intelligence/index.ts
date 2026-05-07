@@ -19,12 +19,6 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-// Scenario suite (synthetic) — bara aktivt när mode==="scenarios".
-import {
-  buildStaffDaySnapshot,
-  type SnapshotInput,
-} from "../_shared/staff-day-status.ts";
-import { buildTrackingPolicy } from "../_shared/trackingPolicy.ts";
 
 // ─── New Time Engine ────────────────────────────────────────────────────────
 import {
