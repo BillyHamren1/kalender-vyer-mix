@@ -237,6 +237,7 @@ const ProjectProductsList = ({
 
       {groupedView ? (
         <div className="space-y-2">
+          {headerRow}
           {groupedView.map((g) => {
             const isCollapsed = collapsed.has(g.id);
             return (
@@ -266,8 +267,11 @@ const ProjectProductsList = ({
           })}
         </div>
       ) : (
-        <div className="divide-y divide-border/40">
-          {mainProducts.map((p) => renderProductLine(p, false))}
+        <div>
+          {headerRow}
+          <div className="divide-y divide-border/40">
+            {mainProducts.map((p) => renderProductLine(p, false))}
+          </div>
         </div>
       )}
 
