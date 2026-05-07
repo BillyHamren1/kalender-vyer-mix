@@ -71,31 +71,52 @@ async function fetchAllStaffLocationPings(
   const all: any[] = [];
   let from = 0;
   let pageCount = 0;
+  // Primary select: only columns that exist in staff_location_history.
+  // Do NOT include latitude/longitude — that table uses lat/lng.
+  const primarySelect =
+    "id, recorded_at, lat, lng, accuracy, speed, source, created_at, app_state, activity_type";
+  const fallbackSelect = "id, recorded_at, lat, lng, accuracy, speed";
+  let selectCols = primarySelect;
+  let usedFallback = false;
   while (true) {
-    const { data, error } = await admin
+    let { data, error } = await admin
       .from("staff_location_history")
-      .select(
-        "id, recorded_at, lat, lng, latitude, longitude, accuracy, speed, source, created_at, app_state, activity_type",
-      )
+      .select(selectCols)
       .eq("staff_id", staffId)
       .gte("recorded_at", dayStart)
       .lte("recorded_at", dayEnd)
       .order("recorded_at", { ascending: true })
       .range(from, from + pageSize - 1);
+    if (error && selectCols === primarySelect) {
+      // Some optional column missing — retry this page with minimal select.
+      selectCols = fallbackSelect;
+      usedFallback = true;
+      const retry = await admin
+        .from("staff_location_history")
+        .select(selectCols)
+        .eq("staff_id", staffId)
+        .gte("recorded_at", dayStart)
+        .lte("recorded_at", dayEnd)
+        .order("recorded_at", { ascending: true })
+        .range(from, from + pageSize - 1);
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) {
-      return { data: all, error, pageCount, pageSize } as any;
+      return { data: all, error, pageCount, pageSize, usedFallback } as any;
     }
     const batch = data ?? [];
     pageCount++;
     for (const p of batch) {
-      if (p.lat == null && p.latitude != null) p.lat = p.latitude;
-      if (p.lng == null && p.longitude != null) p.lng = p.longitude;
+      // Normalize: downstream may read latitude/longitude.
+      p.latitude = p.lat;
+      p.longitude = p.lng;
     }
     all.push(...batch);
     if (batch.length < pageSize) break;
     from += pageSize;
   }
-  return { data: all, error: null, pageCount, pageSize } as any;
+  return { data: all, error: null, pageCount, pageSize, usedFallback } as any;
 }
 
 function fmtHM(iso: string | null | undefined): string {
