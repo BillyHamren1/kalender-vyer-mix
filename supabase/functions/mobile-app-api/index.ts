@@ -666,16 +666,16 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         // LEGACY admin/banner action — operates on legacy LTE rows only.
         // MUST NOT be used as a timer-control action from the new Time app.
         console.warn('[mobile-app-api] LEGACY stop_open_entry invoked — Time app should use stop_time_registration instead')
-        return await handleStopOpenEntry(supabase, staffId, data, organizationId)
+        return await handleStopOpenEntryLegacyOnly(supabase, staffId, data, organizationId)
       case 'dismiss_location_entry':
         console.warn('[mobile-app-api] LEGACY dismiss_location_entry invoked — Time app should not use this')
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
         console.warn('[mobile-app-api] LEGACY get_location_time_entries invoked — Time app must read from active_time_registrations / get-timer-time-segments instead')
-        return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
+        return await handleGetLocationTimeEntriesLegacyOnly(supabase, staffId, data, organizationId)
       case 'get_active_day_state':
         console.warn('[mobile-app-api] LEGACY get_active_day_state invoked — Time app must use get-current-time-registration / get-active-time-registration-status instead')
-        return await handleGetActiveDayState(supabase, staffId, organizationId)
+        return await handleGetActiveDayStateLegacyOnly(supabase, staffId, organizationId)
       case 'get_lager_tasks':
         return await handleGetLagerTasks(supabase, staffId, organizationId)
       case 'get_lager_assignments':
@@ -6140,14 +6140,19 @@ async function handleStopTimeRegistration(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LEGACY: handleStartLocationTimer / handleStopLocationTimer (LTE-backed)
-// Keeps location_time_entries + workday + time_reports flow alive for existing
-// clients and admin/payroll readers, BUT mirrors the active timer state into
-// `active_time_registrations` so the new Time Engine sees a single source of
-// truth. Do NOT use these from new code paths — use start_time_registration /
-// stop_time_registration instead.
 // ─────────────────────────────────────────────────────────────────────────────
-async function handleStartLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
+//
+// handleStartLocationTimerLegacyDisabled / handleStopLocationTimerLegacyDisabled
+// remain in the file ONLY so the legacy LTE/workday/time_report rows can still
+// be inspected and admin/payroll readers keep working. The case branches for
+// 'start_location_timer' / 'stop_location_timer' forward to
+// handleStart/StopTimeRegistration via handleLegacy*Forward and never call
+// these functions. No new Time Engine v2 action invokes them.
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleStartLocationTimerLegacyDisabled(supabase: any, staffId: string, data: any, organizationId: string) {
   const {
     location_id,
     booking_id,
@@ -7019,7 +7024,10 @@ async function handleUploadLagerFile(supabase: any, staffId: string, data: any, 
   }
 }
 
-async function handleStopLocationTimer(supabase: any, staffId: string, data: any, organizationId: string) {
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
+async function handleStopLocationTimerLegacyDisabled(supabase: any, staffId: string, data: any, organizationId: string) {
   const { location_id, booking_id, large_project_id, entry_id, stop_source, stop_reason, stop_metadata } = data || {}
 
   let query = supabase
@@ -7097,7 +7105,10 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
 //
 // Body: { entry_id: string, stop_at?: ISO, stop_source?, stop_reason?,
 //         skip_time_report?: boolean, break_time?: number }
-async function handleStopOpenEntry(supabase: any, staffId: string, data: any, organizationId: string) {
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
+async function handleStopOpenEntryLegacyOnly(supabase: any, staffId: string, data: any, organizationId: string) {
   const {
     entry_id,
     stop_at,
@@ -7138,7 +7149,7 @@ async function handleStopOpenEntry(supabase: any, staffId: string, data: any, or
   }
   if (entry.exited_at) {
     // Idempotent — already closed. Return current state so the UI clears.
-    const stateRes = await handleGetActiveDayState(supabase, staffId, organizationId)
+    const stateRes = await handleGetActiveDayStateLegacyOnly(supabase, staffId, organizationId)
     const stateBody = await stateRes.json().catch(() => ({}))
     return new Response(
       JSON.stringify({ success: true, already_closed: true, entry, active_day_state: stateBody }),
@@ -7246,7 +7257,7 @@ async function handleStopOpenEntry(supabase: any, staffId: string, data: any, or
   }
 
   // 4) Return refreshed active_day_state for instant UI rehydrate.
-  const stateRes = await handleGetActiveDayState(supabase, staffId, organizationId)
+  const stateRes = await handleGetActiveDayStateLegacyOnly(supabase, staffId, organizationId)
   const stateBody = await stateRes.json().catch(() => ({}))
 
   return new Response(
@@ -7294,7 +7305,10 @@ async function handleDismissLocationEntry(supabase: any, staffId: string, data: 
   )
 }
 
-async function handleGetLocationTimeEntries(supabase: any, staffId: string, data: any, organizationId: string) {
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
+async function handleGetLocationTimeEntriesLegacyOnly(supabase: any, staffId: string, data: any, organizationId: string) {
   const { date_from, date_to, limit: queryLimit } = data || {}
 
   let query = supabase
@@ -12076,7 +12090,10 @@ async function handleGetStaffDayReality(supabase: any, callerStaffId: string, da
 //   { workday, open_entries, latest_ping, latest_ping_age_ms, stale_ping,
 //     anomalies }
 // =========================================================================
-async function handleGetActiveDayState(supabase: any, staffId: string, organizationId: string) {
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
+async function handleGetActiveDayStateLegacyOnly(supabase: any, staffId: string, organizationId: string) {
   const STALE_PING_MS = 5 * 60 * 1000
 
   // Use a 2-day window so a workday/LTE that started late yesterday is still
