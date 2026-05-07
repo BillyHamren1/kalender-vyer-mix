@@ -755,7 +755,7 @@ export const mobileApi = {
   uploadLagerFile: (data: { file_name: string; file_data: string; file_type: string }) =>
     callApi<{ success: boolean; file: any }>('upload_lager_file', data),
 
-  // Unified timer stop (Time Engine v2). Forwards to `stop_time_registration`.
+  // LEGACY COMPATIBILITY ONLY. Use `stopTimeRegistration` in new Time app code.
   stopLocationTimer: async (data: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string; stop_source?: string; stopped_at?: string }) => {
     const res = await callApi<{ success?: boolean; registration: any }>('stop_time_registration', {
       registration_id: data.entry_id ?? null,
