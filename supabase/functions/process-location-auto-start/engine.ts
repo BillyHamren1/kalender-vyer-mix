@@ -773,8 +773,6 @@ export async function processStaff(
   let prevHit: StableHit | null = null
 
   const MIN_ARRIVAL_PINGS = ENTRY_PING_MIN_COUNT
-  const NIGHT_MIN_CONFIDENCE: 'high' = 'high'
-  const NIGHT_DWELL_MULTIPLIER = 2
 
   const emitBlocked = async (hit: StableHit, arrivalIso: string, blockReason: AutoStartBlockReason, extras: Record<string, any>) => {
     const dk = `${staffId}:blocked:${hit.target.kind}:${hit.target.id}:${blockReason}:${bucketTo5Min(arrivalIso)}`
