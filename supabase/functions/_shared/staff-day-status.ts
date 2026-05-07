@@ -259,6 +259,9 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents } = input;
 
   // ---- Workday ----
+  // We may auto-extend the started_at downward (back-date) when confirmed
+  // worksite presence exists earlier — this is a hard rule, not a suggestion.
+  // The auto-extended value below is computed AFTER raw segments are built.
   const workdaySnapBase = workday
     ? {
         id: workday.id,
@@ -270,6 +273,8 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
         approved: !!workday.approved_at,
         adminNote: workday.admin_note,
         durationMinutes: diffMinutes(workday.started_at, workday.ended_at, now),
+        autoExtendedFrom: null as Iso | null,
+        synthesizedFromEvidence: false,
       }
     : null;
 
