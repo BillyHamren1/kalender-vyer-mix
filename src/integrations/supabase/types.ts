@@ -735,6 +735,7 @@ export type Database = {
           rigdown_start_time: string | null
           rigdowndate: string | null
           status: string | null
+          title: string | null
           updated_at: string
           version: number
           viewed: boolean
@@ -779,6 +780,7 @@ export type Database = {
           rigdown_start_time?: string | null
           rigdowndate?: string | null
           status?: string | null
+          title?: string | null
           updated_at?: string
           version?: number
           viewed?: boolean
@@ -823,6 +825,7 @@ export type Database = {
           rigdown_start_time?: string | null
           rigdowndate?: string | null
           status?: string | null
+          title?: string | null
           updated_at?: string
           version?: number
           viewed?: boolean

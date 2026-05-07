@@ -758,7 +758,10 @@ const LargeProjectLayout = () => {
                   <div key={booking.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{booking.client}</span>
+                        <span className="font-medium">{(booking as any).title || booking.client}</span>
+                        {(booking as any).title && (
+                          <span className="text-xs text-muted-foreground">{booking.client}</span>
+                        )}
                         {booking.booking_number && (
                           <Badge variant="outline" className="text-xs">#{booking.booking_number}</Badge>
                         )}
