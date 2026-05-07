@@ -298,8 +298,8 @@ export interface IntelligenceState {
 
 import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type TrackingPolicy } from "./trackingPolicy.ts";
 import { buildSegmentChainGaps } from "./segmentChain.ts";
-import { clusterPings } from "./timeline/cluster.ts";
-import { matchSegmentsToPlaces } from "./timeline/matcher.ts";
+// Legacy clusterPings/matchSegmentsToPlaces removed — gpsDayTimeline now uses
+// the canonical Time Engine builder (see import below).
 import {
   buildGpsDayTimeline as buildEngineGpsDayTimeline,
   type GpsPing as EngineGpsPing,
