@@ -13,8 +13,8 @@ import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
  *
  * Frikopplad från workday/useWorkSession. Styr ENBART
  * `active_time_registrations` via Time Engine v2:
- *   - start: mobileApi.startLocationTimer  (→ start_time_registration)
- *   - stop:  mobileApi.stopTimeRegistration (→ stop_time_registration)
+ *   - start: mobileApi.startTimeRegistration (→ start_time_registration)
+ *   - stop:  mobileApi.stopTimeRegistration  (→ stop_time_registration)
  *
  * Två lägen, drivna ENBART av useActiveTimerStatus:
  *   A) Ingen aktiv timer  → "Tid registreras inte" + [Starta timer]
@@ -80,7 +80,7 @@ export const WorkDayPanel: React.FC = () => {
   };
 
   const startWithParams = async (
-    params: Parameters<typeof mobileApi.startLocationTimer>[0],
+    params: Parameters<typeof mobileApi.startTimeRegistration>[0],
     label: string,
   ) => {
     // If a timer is already running, stop it first to allow switching target.
@@ -94,7 +94,7 @@ export const WorkDayPanel: React.FC = () => {
         console.warn('[WorkDayPanel] stop-before-switch failed:', err);
       }
     }
-    const res = await mobileApi.startLocationTimer(params);
+    const res = await mobileApi.startTimeRegistration(params);
     if (res?.success === false) {
       toast.error('Kunde inte starta timern.');
       return false;
@@ -129,7 +129,7 @@ export const WorkDayPanel: React.FC = () => {
           toast.error('Ogiltigt mål för timer.');
           return;
         }
-        const params: Parameters<typeof mobileApi.startLocationTimer>[0] = {
+        const params: Parameters<typeof mobileApi.startTimeRegistration>[0] = {
           started_at: selection.startedAtIso,
           ...(target_type === 'booking'       ? { booking_id: target_id } : {}),
           ...(target_type === 'large_project' ? { large_project_id: target_id } : {}),
