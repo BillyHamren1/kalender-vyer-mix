@@ -406,7 +406,7 @@ function deriveConfidence(type: SegmentType, hasConfirmedRef: boolean): "high" |
 }
 
 export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date()): StaffDaySnapshot {
-  const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents, nameMaps } = input;
+  const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents, nameMaps, attestation } = input;
 
   // ---- Workday ----
   const workdaySnapBase = workday
