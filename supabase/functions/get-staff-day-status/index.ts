@@ -230,6 +230,8 @@ Deno.serve(async (req) => {
     activeBoosts: (boostsRes.data ?? []) as never,
     batteryPct,
     dismissedCooldownActive,
+    pings: ((pingsRes.data ?? []) as Array<{ recorded_at: string; latitude: number; longitude: number; accuracy: number | null }>)
+      .map((p) => ({ recorded_at: p.recorded_at, lat: Number(p.latitude), lng: Number(p.longitude), accuracy: p.accuracy })),
   });
 
   return new Response(JSON.stringify(snapshot), {
