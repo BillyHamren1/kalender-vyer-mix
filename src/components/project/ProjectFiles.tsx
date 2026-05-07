@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon } from "lucide-react";
+import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon, ExternalLink } from "lucide-react";
+import { openFileExternally } from "@/lib/files/openFileExternally";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -29,7 +30,7 @@ interface ProjectFilesProps {
 const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachments = [], className }: ProjectFilesProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string | null } | null>(null);
-  const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string | null } | null>(null);
+  
 
   const isPdfFile = (file: { file_type?: string | null; file_name?: string | null; url: string }) =>
     file.file_type?.includes('pdf') || /\.pdf($|\?)/i.test(file.file_name || file.url);
@@ -110,9 +111,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                     onClick={
                       isImage
                         ? () => setPreviewImage({ url: file.url, name: file.file_name })
-                        : isPdf
-                        ? () => setPreviewPdf({ url: file.url, name: file.file_name })
-                        : undefined
+                        : () => openFileExternally(file.url, file.file_name || undefined)
                     }
                   >
                     {isImage ? (
@@ -142,9 +141,10 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={(e) => { e.stopPropagation(); window.open(file.url, '_blank'); }}
+                        onClick={(e) => { e.stopPropagation(); openFileExternally(file.url, file.file_name || undefined); }}
+                        title={isPdf ? 'Öppna PDF' : 'Öppna fil'}
                       >
-                        <Download className="h-4 w-4" />
+                        <ExternalLink className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -206,29 +206,6 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!previewPdf} onOpenChange={(open) => !open && setPreviewPdf(null)}>
-        <DialogContent className="max-w-5xl p-2 h-[85vh] flex flex-col">
-          {previewPdf && (
-            <>
-              <iframe
-                src={previewPdf.url}
-                title={previewPdf.name || 'PDF'}
-                className="w-full flex-1 rounded-lg border border-border/40"
-              />
-              <div className="flex items-center justify-between gap-2 px-2 py-1">
-                <p className="text-xs text-muted-foreground truncate">{previewPdf.name}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(previewPdf.url, '_blank')}
-                >
-                  Öppna i ny flik
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 };

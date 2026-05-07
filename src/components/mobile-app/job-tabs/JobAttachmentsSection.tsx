@@ -1,4 +1,5 @@
 import { FileImage, FileText, ExternalLink } from 'lucide-react';
+import { openFileExternally } from '@/lib/files/openFileExternally';
 
 interface BookingAttachment {
   id?: string;
@@ -50,12 +51,11 @@ const JobAttachmentsSection = ({ attachments }: JobAttachmentsSectionProps) => {
           {imageAttachments.map((attachment) => {
             const name = attachment.file_name || attachment.name || 'Bild';
             return (
-              <a
+              <button
+                type="button"
                 key={attachment.id || attachment.url}
-                href={attachment.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group overflow-hidden rounded-xl border bg-muted aspect-video"
+                onClick={() => openFileExternally(attachment.url, name)}
+                className="group overflow-hidden rounded-xl border bg-muted aspect-video text-left"
                 aria-label={`Öppna ${name}`}
               >
                 <img
@@ -64,7 +64,7 @@ const JobAttachmentsSection = ({ attachments }: JobAttachmentsSectionProps) => {
                   className="h-full w-full object-cover transition-transform duration-200 group-active:scale-[0.98]"
                   loading="lazy"
                 />
-              </a>
+              </button>
             );
           })}
         </div>
@@ -75,12 +75,11 @@ const JobAttachmentsSection = ({ attachments }: JobAttachmentsSectionProps) => {
           {documentAttachments.map((attachment) => {
             const name = attachment.file_name || attachment.name || 'Fil';
             return (
-              <a
+              <button
+                type="button"
                 key={attachment.id || attachment.url}
-                href={attachment.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 rounded-xl border bg-background px-3 py-2.5 active:scale-[0.98] transition-transform"
+                onClick={() => openFileExternally(attachment.url, name)}
+                className="w-full flex items-center gap-3 rounded-xl border bg-background px-3 py-2.5 active:scale-[0.98] transition-transform text-left"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground shrink-0">
                   {isImageFile(attachment) ? <FileImage className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
@@ -90,7 +89,7 @@ const JobAttachmentsSection = ({ attachments }: JobAttachmentsSectionProps) => {
                   <p className="text-[11px] text-muted-foreground">Öppna fil</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-muted-foreground shrink-0" />
-              </a>
+              </button>
             );
           })}
         </div>
