@@ -745,9 +745,10 @@ function makeWorkday(start: string, end?: string | null) {
 function makeLte(args: { id: string; start: string; end?: string | null; location_id?: string; booking_id?: string; large_project_id?: string }) {
   return {
     id: args.id, staff_id: STAFF_ID,
-    started_at: ts(args.start), ended_at: args.end ? ts(args.end) : null,
+    entered_at: ts(args.start), exited_at: args.end ? ts(args.end) : null,
     location_id: args.location_id ?? null, booking_id: args.booking_id ?? null,
     large_project_id: args.large_project_id ?? null,
+    total_minutes: null, source: "test",
   } as any;
 }
 function makeTravel(args: { id: string; start: string; end: string; from?: string; to?: string }) {
