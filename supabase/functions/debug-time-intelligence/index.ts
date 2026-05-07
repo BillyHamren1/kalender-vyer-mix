@@ -392,8 +392,9 @@ Deno.serve(async (req) => {
   const travelsCreated = Number(engineCounters.travels_created ?? 0);
   const skippedExisting = Number(engineCounters.skipped_existing ?? 0);
 
-  const tenMinAgoIso = new Date(nowMs - 10 * 60_000).toISOString();
-  const oneHourAgoIso = new Date(nowMs - 60 * 60_000).toISOString();
+  const _nowMsW = Date.now();
+  const tenMinAgoIso = new Date(_nowMsW - 10 * 60_000).toISOString();
+  const oneHourAgoIso = new Date(_nowMsW - 60 * 60_000).toISOString();
   const { data: recentWakes } = await supabase
     .from("staff_wake_requests")
     .select("id, requested_at, reason")
