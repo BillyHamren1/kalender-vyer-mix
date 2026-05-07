@@ -193,6 +193,10 @@ export interface StaffDaySnapshot {
     durationMinutes: number;
     /** ISO of an earlier confirmed worksite presence (back-date suggestion). */
     suggestedStartedAt: Iso | null;
+    /** Set when started_at was auto-back-dated from confirmed presence. */
+    autoExtendedFrom: Iso | null;
+    /** True if no DB workday existed but confirmed presence synthesised one. */
+    synthesizedFromEvidence: boolean;
   } | null;
   active: ActiveActivity | null;
   totals: DayTotals;
