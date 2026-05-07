@@ -127,6 +127,8 @@ export interface SnapshotInput {
   /** Optional client hints to suppress boost (low battery / dismissed cooldown). */
   batteryPct?: number | null;
   dismissedCooldownActive?: boolean;
+  /** Optional GPS pings för dagen — driver segmentChain (gap-klassning). */
+  pings?: Array<{ recorded_at: string; lat: number; lng: number; accuracy?: number | null }>;
 }
 
 export interface DayAttestationRow {
@@ -152,7 +154,8 @@ export type SegmentType =
   | "transport"
   | "other_place"
   | "break"
-  | "manual_adjustment";
+  | "manual_adjustment"
+  | "signal_stale";
 
 export interface DaySegment {
   /** Stable id (db row id when available, else synthesized). */
@@ -264,6 +267,7 @@ export interface IntelligenceState {
 }
 
 import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type TrackingPolicy } from "./trackingPolicy.ts";
+import { buildSegmentChainGaps } from "./segmentChain.ts";
 export type { TrackingPolicy, TrackingPolicyBoostRow };
 
 export interface StaffDaySnapshot {
@@ -801,6 +805,55 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     isWorkdayOpen: workdaySnap?.isOpen ?? false,
   };
 
+  // ---- Central segment chain: fyll glapp inom workday med
+  // transport / other_place / signal_stale (saknad ping ≠ glapp).
+  // Endast om vi har en workday och pings att basera klassningen på.
+  if (effectivePolicyWorkday) {
+    try {
+      const chainGaps = buildSegmentChainGaps({
+        workday: { startedAt: effectivePolicyWorkday.startedAt, endedAt: effectivePolicyWorkday.endedAt },
+        segments: segments.map((s) => ({
+          id: s.id, type: s.type, startedAt: s.startedAt, endedAt: s.endedAt,
+          hasConfirmedRef: s.hasConfirmedRef,
+        })),
+        pings: input.pings ?? [],
+        now,
+      });
+      for (const g of chainGaps) {
+        segments.push({
+          id: g.id,
+          kind: g.type === "transport" ? "travel" : "unknown",
+          type: g.type,
+          start: g.startedAt,
+          end: g.endedAt,
+          startedAt: g.startedAt,
+          endedAt: g.endedAt,
+          durationMinutes: g.durationMinutes,
+          isActive: false,
+          label: g.label,
+          source: g.source,
+          confidence: g.confidence,
+          affectsPayableTime: false,
+          requiresUserInput: g.requiresUserInput,
+          metadata: g.metadata,
+          refs: {},
+          hasConfirmedRef: false,
+          classification: null,
+          policyStatus: g.policyStatus as PolicyStatus,
+        });
+        // Räkna in i totals (drar ALDRIG av — bara klassning).
+        if (g.type === "transport") totals.transportMinutes += g.durationMinutes;
+        else if (g.type === "other_place") {
+          totals.otherPlaceMinutes += g.durationMinutes;
+          totals.unknownWithinWorkdayMinutes += g.durationMinutes;
+        }
+        // signal_stale räknas inte som arbete, dras inte heller av — bara visas.
+      }
+      segments.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    } catch (err) {
+      console.warn("[staff-day-status] segmentChain failed", (err as Error)?.message);
+    }
+  }
 
   // ---- Flags ----
   const dayFlags: DayFlag[] = flags.map((f) => ({

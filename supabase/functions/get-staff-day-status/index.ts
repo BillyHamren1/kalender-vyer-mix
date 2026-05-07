@@ -79,6 +79,7 @@ Deno.serve(async (req) => {
     eventsRes,
     attestationRes,
     boostsRes,
+    pingsRes,
   ] = await Promise.all([
     admin
       .from("workdays")
@@ -137,9 +138,18 @@ Deno.serve(async (req) => {
       .gt("expires_at", new Date().toISOString())
       .order("expires_at", { ascending: false })
       .limit(5),
+    admin
+      .from("staff_location_history")
+      .select("recorded_at, latitude, longitude, accuracy")
+      .eq("organization_id", orgId)
+      .eq("staff_id", staffId)
+      .gte("recorded_at", padStart)
+      .lte("recorded_at", padEnd)
+      .order("recorded_at", { ascending: true })
+      .limit(2000),
   ]);
 
-  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error, boostsRes.error].filter(Boolean);
+  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error, boostsRes.error, pingsRes.error].filter(Boolean);
   if (errors.length) {
     console.error("[get-staff-day-status] db errors", errors);
     return bad(500, "Database error", { details: errors.map((e) => e?.message) });
@@ -220,6 +230,8 @@ Deno.serve(async (req) => {
     activeBoosts: (boostsRes.data ?? []) as never,
     batteryPct,
     dismissedCooldownActive,
+    pings: ((pingsRes.data ?? []) as Array<{ recorded_at: string; latitude: number; longitude: number; accuracy: number | null }>)
+      .map((p) => ({ recorded_at: p.recorded_at, lat: Number(p.latitude), lng: Number(p.longitude), accuracy: p.accuracy })),
   });
 
   return new Response(JSON.stringify(snapshot), {
