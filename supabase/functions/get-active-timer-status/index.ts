@@ -43,6 +43,10 @@ type RegistrationSource = "user_started" | "gps_classifier" | "none";
 
 interface InactiveResponse {
   timerActive: false;
+  timeRegistrationActive: false;
+  currentRegistration: null;
+  gpsOnly: true;
+  message: string;
   timerId: null;
   startedAt: null;
   elapsedSeconds: 0;
@@ -53,6 +57,7 @@ interface InactiveResponse {
   needsUserChoice: false;
   canGpsStartTimer: false;
 }
+
 
 interface ActiveResponse {
   timerActive: true;
@@ -110,6 +115,10 @@ Deno.serve(async (req) => {
   if (!active) {
     const body: InactiveResponse = {
       timerActive: false,
+      timeRegistrationActive: false,
+      currentRegistration: null,
+      gpsOnly: true,
+      message: "Ingen tid registreras. Starta timern för att börja registrera tid.",
       timerId: null,
       startedAt: null,
       elapsedSeconds: 0,
@@ -122,6 +131,7 @@ Deno.serve(async (req) => {
     };
     return json(200, body);
   }
+
 
   const startedAt = active.entered_at as string;
   const elapsedSeconds = Math.max(

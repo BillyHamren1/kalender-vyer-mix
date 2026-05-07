@@ -672,6 +672,13 @@ async function ensureTravelLog(
   else report.travels_created++
 }
 
+// ── HARD KILL-SWITCH (2026-05) ──────────────────────────────────────────────
+// GPS får ALDRIG starta tid automatiskt. Engine får läsa pings och klassa
+// arrivals för debug/audit, men aldrig skriva location_time_entries,
+// workdays, time_reports eller travel_time_logs utan en aktiv user-startad
+// timer. Denna konstant blockerar alla materialiseringsvägar i processStaff.
+export const GPS_MAY_START_TIME = false
+
 export async function processStaff(
   supabase: any,
   staffId: string,
@@ -682,6 +689,19 @@ export async function processStaff(
   if (pings.length === 0) return
   const orgId = pings[0].organization_id
 
+  // Kill-switch: räkna arrivals för rapport men gör inga writes.
+  if (!GPS_MAY_START_TIME) {
+    let arrivalsSeen = 0
+    for (const t of targets) {
+      if (t.organization_id !== orgId) continue
+      for (const _h of evaluateStableSegments(t, pings)) arrivalsSeen++
+    }
+    report.arrivals += arrivalsSeen
+    ;(report as any).gps_may_start_time = false
+    ;(report as any).skipped_reason = 'gps_auto_start_disabled'
+    return
+  }
+
   const allHits: StableHit[] = []
   for (const t of targets) {
     if (t.organization_id !== orgId) continue
@@ -690,6 +710,7 @@ export async function processStaff(
   if (allHits.length === 0) return
 
   allHits.sort((a, b) => a.firstReliableTs - b.firstReliableTs)
+
 
   const ordered: StableHit[] = []
   for (const h of allHits) {
