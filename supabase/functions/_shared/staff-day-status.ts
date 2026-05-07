@@ -267,6 +267,7 @@ export interface IntelligenceState {
 }
 
 import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type TrackingPolicy } from "./trackingPolicy.ts";
+import { buildSegmentChainGaps } from "./segmentChain.ts";
 export type { TrackingPolicy, TrackingPolicyBoostRow };
 
 export interface StaffDaySnapshot {
