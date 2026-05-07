@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
       .maybeSingle(),
   ]);
 
-  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error].filter(Boolean);
+  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error].filter(Boolean);
   if (errors.length) {
     console.error("[get-staff-day-status] db errors", errors);
     return bad(500, "Database error", { details: errors.map((e) => e?.message) });
