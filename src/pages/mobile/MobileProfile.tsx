@@ -7,6 +7,7 @@ import { MobileProfileHeader } from '@/components/mobile-app/MobileHeader';
 import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
 import LocationSyncDebugCard from '@/components/mobile-app/LocationSyncDebugCard';
+import TimeStartSafetyCard from '@/components/mobile-app/TimeStartSafetyCard';
 import { format, parseISO } from 'date-fns';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv, enUS } from 'date-fns/locale';
@@ -190,6 +191,9 @@ const MobileProfile = () => {
           )}
         </div>
 
+
+        {/* Time start safety — internal debug */}
+        <TimeStartSafetyCard />
 
         {/* GPS sync — internal debug */}
         <LocationSyncDebugCard />
