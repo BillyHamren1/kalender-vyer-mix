@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 
 export type StaffDaySegmentKind =
@@ -133,12 +134,10 @@ export function useStaffDaySnapshot(date?: string): Result {
     inFlight.current = true;
     setIsLoading(true);
     try {
-      const { data, error: invokeErr } = await supabase.functions.invoke('get-staff-day-status', {
-        body: { staffId, date: targetDate },
+      const data = await callStaffSnapshotFunction<StaffDaySnapshot>('get-staff-day-status', {
+        staffId, date: targetDate,
       });
-      if (invokeErr) throw invokeErr;
-      if (data?.error) throw new Error(data.error);
-      setSnapshot(data as StaffDaySnapshot);
+      setSnapshot(data);
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Kunde inte ladda dagsstatus');

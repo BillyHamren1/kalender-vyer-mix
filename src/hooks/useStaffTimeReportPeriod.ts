@@ -21,6 +21,7 @@ import {
   endOfMonth,
 } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 
 export type StaffPeriodKind = 'week' | 'month';
@@ -121,12 +122,10 @@ export function useStaffTimeReportPeriod(
     inFlight.current = true;
     setIsLoading(true);
     try {
-      const { data, error: invokeErr } = await supabase.functions.invoke(
+      const data: any = await callStaffSnapshotFunction(
         'get-staff-time-report-period',
-        { body: { staffId, kind: input.kind, startDate, endDate } },
+        { staffId, kind: input.kind, startDate, endDate },
       );
-      if (invokeErr) throw invokeErr;
-      if (data?.error) throw new Error(data.error);
       // Backend returns { period:{kind,startDate,endDate}, staffId, totals, days, blockers, status, lastUpdatedAt }.
       // Flatten into the consumer shape — UI must NOT recompute totals.
       setPeriod({
