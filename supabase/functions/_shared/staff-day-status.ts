@@ -546,21 +546,46 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   const unallocated = Math.max(0, wdMin - allocated - travelMin);
 
   let unknownWithinWd = 0;
+  let warehouseMin = 0;
+  let projectMin = 0;
   for (const seg of segments) {
-    if (
-      (seg.kind === "unknown" || (seg.kind === "location" && !seg.hasConfirmedRef)) &&
-      countsAsPayableUnallocated(
-        { kind: seg.kind, startedAt: seg.startedAt, endedAt: seg.endedAt, classification: seg.classification, hasConfirmedRef: seg.hasConfirmedRef },
-        policyWorkday,
-        now,
-      )
-    ) {
+    const inside = countsWithinActiveWorkday(
+      { kind: seg.kind, startedAt: seg.startedAt, endedAt: seg.endedAt, classification: seg.classification, hasConfirmedRef: seg.hasConfirmedRef },
+      effectivePolicyWorkday,
+      now,
+    );
+    if (!inside) continue;
+    if (seg.policyStatus === "other_place") {
       unknownWithinWd += seg.durationMinutes;
+    } else if (seg.kind === "location" && seg.hasConfirmedRef) {
+      warehouseMin += seg.durationMinutes;
+    } else if ((seg.kind === "project" || seg.kind === "booking") && seg.hasConfirmedRef) {
+      projectMin += seg.durationMinutes;
     }
   }
+  // Project minutes default to allocated time-reports total (truth source).
+  if (projectMin === 0) projectMin = allocated;
+
+  // ---- Canonical totals: bruttotid → rast → manuellt avdrag → lönegrundande ----
+  // Rast = endast användar-/admin-attest (time_reports.break_time, i timmar).
+  // Other_place + transport drar ALDRIG av lönegrundande tid.
+  const breakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
+  const meta = (workday?.metadata ?? {}) as Record<string, unknown>;
+  const manualDeductionMin = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
+  const grossWorkdayMin = wdMin;
+  const payableMin = Math.max(0, grossWorkdayMin - breakMin - manualDeductionMin);
 
   const liveMinutes = active?.durationMinutes ?? 0;
   const totals: DayTotals = {
+    grossWorkdayMinutes: grossWorkdayMin,
+    breakMinutes: breakMin,
+    manualDeductionMinutes: manualDeductionMin,
+    payableMinutes: payableMin,
+    projectMinutes: projectMin,
+    warehouseMinutes: warehouseMin,
+    transportMinutes: travelMin,
+    otherPlaceMinutes: unknownWithinWd,
+    // Legacy
     workdayMinutes: wdMin,
     allocatedProjectMinutes: allocated,
     travelMinutes: travelMin,
