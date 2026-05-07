@@ -726,10 +726,88 @@ export async function processStaff(
     console.warn('[auto-start] assignment lookup failed', e?.message ?? e)
   }
 
+  // ── Private zones lookup (home/manual_ignore/recurring_night) ───────────
+  // GPS auto-start får ALDRIG materialisera tid när första stabila ping
+  // ligger inom en privat zon för staff:en.
+  const privateZones: Array<{ lat: number; lng: number; radiusM: number; kind: string }> = []
+  try {
+    const { data: pz } = await supabase
+      .from('staff_private_zones')
+      .select('latitude, longitude, radius_meters, zone_type, is_active')
+      .eq('staff_id', staffId)
+    for (const z of pz ?? []) {
+      if (z.is_active === false) continue
+      if (z.latitude == null || z.longitude == null) continue
+      privateZones.push({
+        lat: Number(z.latitude),
+        lng: Number(z.longitude),
+        radiusM: Number(z.radius_meters || 150),
+        kind: String(z.zone_type ?? 'manual_ignore'),
+      })
+    }
+  } catch {
+    // table may not exist in some envs — treat as no zones
+  }
+  const insidePrivateZone = (lat: number, lng: number) => {
+    for (const z of privateZones) {
+      // Cheap haversine
+      const R = 6371000
+      const dLat = (lat - z.lat) * Math.PI / 180
+      const dLng = (lng - z.lng) * Math.PI / 180
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(z.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2
+      const d = 2 * R * Math.asin(Math.sqrt(a))
+      if (d <= z.radiusM) return z
+    }
+    return null
+  }
+
   report.arrivals += ordered.length
 
   let workdayId: string | null = null
   let prevHit: StableHit | null = null
+
+  const MIN_ARRIVAL_PINGS = ENTRY_PING_MIN_COUNT
+  const NIGHT_MIN_CONFIDENCE: 'high' = 'high'
+  const NIGHT_DWELL_MULTIPLIER = 2
+
+  const emitBlocked = async (hit: StableHit, arrivalIso: string, blockReason: AutoStartBlockReason, extras: Record<string, any>) => {
+    const dk = `${staffId}:blocked:${hit.target.kind}:${hit.target.id}:${blockReason}:${bucketTo5Min(arrivalIso)}`
+    console.log('[auto-start] blocked', { staff_id: staffId, target: hit.target.label, target_kind: hit.target.kind, reason: blockReason, ...extras })
+    await emitAssistantEvent(supabase, {
+      organization_id: orgId,
+      staff_id: staffId,
+      event_type: 'arrival_blocked',
+      target_type: hit.target.kind,
+      target_id: hit.target.id,
+      target_label: hit.target.label,
+      happened_at: arrivalIso,
+      source: 'geofence_background',
+      suggested_action: 'review_blocked_arrival',
+      resolution_status: 'pending',
+      stale_for_prompt: false,
+      still_relevant_for_review: true,
+      linked_workday_id: null,
+      metadata: {
+        auto_started: false,
+        blocked: true,
+        block_reason: blockReason,
+        engine_version: report.engine_version,
+        run_id: report.run_id,
+        matched_target: { kind: hit.target.kind, id: hit.target.id, label: hit.target.label },
+        target_validity: hit.target.targetValidity,
+        time_tracking_allowed: hit.target.timeTrackingAllowed,
+        invalid_reason: hit.target.invalidReason ?? null,
+        confidence: hit.confidence,
+        dwell_ms: hit.dwellMs,
+        arrival_pings_count: hit.pings.length,
+        first_arrival_ping_at: arrivalIso,
+        avg_accuracy_m: hit.avgAccuracy,
+        ...extras,
+      },
+    }, dk, report, 'arrival_blocked')
+  }
 
   for (const hit of ordered) {
     const arrivalIso = new Date(hit.firstReliableTs).toISOString()
@@ -737,9 +815,47 @@ export async function processStaff(
     const isAssigned =
       hit.target.kind !== 'location' &&
       assignedSet.has(assignedKey(hit.target.kind, hit.target.id, visitDay))
-    const requiredDwell = requiredDwellMs(hit.target.kind, isAssigned)
+
+    // ── Hard blocks ────────────────────────────────────────────────────────
+    // 1. Invalid target (test/demo, cancelled, archived, inactive)
+    if (hit.target.targetValidity !== 'valid' || !hit.target.timeTrackingAllowed) {
+      const reason: AutoStartBlockReason =
+        hit.target.invalidReason === 'test_target' ? 'blocked_test_target'
+        : hit.target.invalidReason === 'cancelled' ? 'blocked_cancelled'
+        : hit.target.invalidReason === 'archived' ? 'blocked_archived'
+        : hit.target.invalidReason === 'inactive' ? 'blocked_inactive'
+        : 'blocked_invalid_target'
+      await emitBlocked(hit, arrivalIso, reason, {})
+      continue
+    }
+    // 2. Private zone (home / manual_ignore / recurring_night)
+    const firstPing = hit.pings[0]
+    const pz = firstPing ? insidePrivateZone(firstPing.lat, firstPing.lng) : null
+    if (pz) {
+      await emitBlocked(hit, arrivalIso, 'blocked_home', { private_zone_kind: pz.kind })
+      continue
+    }
+    // 3. Not enough arrival pings
+    if (hit.pings.length < MIN_ARRIVAL_PINGS) {
+      await emitBlocked(hit, arrivalIso, 'blocked_not_enough_pings', { min_pings: MIN_ARRIVAL_PINGS })
+      continue
+    }
+
+    const requiredDwellBase = requiredDwellMs(hit.target.kind, isAssigned)
+    // 4. Night-time requires stronger evidence (22:00–05:00 UTC).
+    const arrivalHourUtc = new Date(hit.firstReliableTs).getUTCHours()
+    const isNight = arrivalHourUtc >= 22 || arrivalHourUtc < 5
+    const requiredDwell = isNight ? requiredDwellBase * NIGHT_DWELL_MULTIPLIER : requiredDwellBase
     const meetsDwell = hit.dwellMs >= requiredDwell
     const lowConfidence = hit.confidence === 'low'
+    if (isNight && hit.confidence !== NIGHT_MIN_CONFIDENCE) {
+      await emitBlocked(hit, arrivalIso, 'blocked_night_requires_stronger_evidence', {
+        required_confidence: NIGHT_MIN_CONFIDENCE,
+        required_dwell_ms: requiredDwell,
+      })
+      continue
+    }
+
     const materialise = meetsDwell && !lowConfidence
 
     if (!materialise) {
