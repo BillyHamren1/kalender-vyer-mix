@@ -1016,6 +1016,7 @@ export default function TimeIntelligenceDebug() {
           </div>
 
           <PingFirstPanel data={pingFirst} />
+          <ThreeLayerPanel result={result} />
           <StatusGrid result={result} />
           <DayTimeline result={result} />
           <EvidenceTimeline result={result} />
