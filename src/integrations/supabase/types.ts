@@ -5599,6 +5599,42 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_wake_requests: {
+        Row: {
+          context: Json | null
+          dispatch_status: string | null
+          id: string
+          organization_id: string
+          reason: string
+          requested_at: string
+          silence_ms: number | null
+          source: string
+          staff_id: string
+        }
+        Insert: {
+          context?: Json | null
+          dispatch_status?: string | null
+          id?: string
+          organization_id: string
+          reason: string
+          requested_at?: string
+          silence_ms?: number | null
+          source?: string
+          staff_id: string
+        }
+        Update: {
+          context?: Json | null
+          dispatch_status?: string | null
+          id?: string
+          organization_id?: string
+          reason?: string
+          requested_at?: string
+          silence_ms?: number | null
+          source?: string
+          staff_id?: string
+        }
+        Relationships: []
+      }
       suppliers: {
         Row: {
           address_line1: string | null

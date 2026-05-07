@@ -27,6 +27,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { processStaffLocationUpdate } from "../_shared/processStaffLocationUpdate.ts";
+import { buildTrackingPolicy } from "../_shared/trackingPolicy.ts";
+import { maybeRequestWake } from "../_shared/wakeRequest.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,6 +87,7 @@ Deno.serve(async (req) => {
   }
 
   // ── 2) Open workdays (force-process today even if ping batcher is silent) ─
+  const openWorkdayStaff: Array<{ staffId: string; organizationId: string }> = [];
   try {
     const { data: openWds } = await supabase
       .from("workdays")
@@ -94,9 +97,66 @@ Deno.serve(async (req) => {
     const today = new Date().toISOString().slice(0, 10);
     for (const w of openWds ?? []) {
       addPair(w.staff_id, w.organization_id, today, "open_workday");
+      openWorkdayStaff.push({ staffId: w.staff_id, organizationId: w.organization_id });
     }
   } catch (err) {
     console.warn("[location-update-cron] open workday scan failed:", err);
+  }
+
+  // ── 2b) Auto wake-request for stale signal during open workday ───────────
+  // Per policy (mem://features/field-staff/...): a silent phone may NEVER
+  // close a workday or deduct time, but the backend MAY ask the device to
+  // send a fresh sample. The wake helper enforces:
+  //   • max 1 wake / 10 min / staff
+  //   • max 3 wakes /  60 min / staff
+  //   • silent FCM data payload (no user-visible alert)
+  //   • full audit trail in staff_wake_requests
+  // If the app doesn't respond, the snapshot keeps showing "Signal saknas"
+  // — the workday stays open.
+  let wakesDispatched = 0;
+  let wakesSkipped = 0;
+  if (openWorkdayStaff.length > 0) {
+    const nowMs = Date.now();
+    // Latest ping per staff in one query (filter by recent superset to keep small).
+    const lookbackIso = new Date(nowMs - 60 * 60_000).toISOString();
+    const { data: latestPings } = await supabase
+      .from("staff_location_history")
+      .select("staff_id, recorded_at")
+      .in("staff_id", openWorkdayStaff.map((s) => s.staffId))
+      .gte("recorded_at", lookbackIso)
+      .order("recorded_at", { ascending: false })
+      .limit(2000);
+    const latestByStaff = new Map<string, string>();
+    for (const p of latestPings ?? []) {
+      if (!latestByStaff.has(p.staff_id)) latestByStaff.set(p.staff_id, p.recorded_at);
+    }
+
+    for (const { staffId, organizationId } of openWorkdayStaff) {
+      const lastPingAt = latestByStaff.get(staffId) ?? null;
+      const policy = buildTrackingPolicy({
+        hasActiveTimer: false, // unknown here; "normal" maxSilenceMs is the lower bound
+        workdayOpen: true,
+        activeBoosts: [],
+        lastPingAt,
+        now: new Date(nowMs),
+      });
+      if (!policy.isSignalStale) continue;
+
+      const result = await maybeRequestWake({
+        supabase,
+        staffId,
+        organizationId,
+        reason: "signal_stale_workday_open",
+        silenceMs: policy.silenceMs ?? null,
+        context: {
+          last_ping_at: lastPingAt,
+          max_silence_ms: policy.maxSilenceMs,
+        },
+        now: new Date(nowMs),
+      });
+      if (result.dispatched) wakesDispatched++;
+      else wakesSkipped++;
+    }
   }
 
   if (pairs.size === 0) {
@@ -104,6 +164,8 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: true,
         pairs: 0,
+        wakes_dispatched: wakesDispatched,
+        wakes_skipped: wakesSkipped,
         elapsed_ms: Date.now() - startedAt,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -161,6 +223,8 @@ Deno.serve(async (req) => {
       processed,
       locked,
       errors,
+      wakes_dispatched: wakesDispatched,
+      wakes_skipped: wakesSkipped,
       elapsed_ms: Date.now() - startedAt,
       summaries: summaries.slice(0, 50),
     }),
