@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
       .limit(2000),
   ]);
 
-  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error, boostsRes.error].filter(Boolean);
+  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error, boostsRes.error, pingsRes.error].filter(Boolean);
   if (errors.length) {
     console.error("[get-staff-day-status] db errors", errors);
     return bad(500, "Database error", { details: errors.map((e) => e?.message) });
