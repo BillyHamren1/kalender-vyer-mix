@@ -18,14 +18,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Building2, MapPin, Search, Pencil, Calendar } from 'lucide-react';
+import { Building2, MapPin, Search, Pencil, Calendar, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { MobileBooking } from '@/services/mobileApiService';
 import type { WorkTarget } from '@/hooks/useWorkSession';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 export type StartDaySelection =
-  | { kind: 'target'; target: WorkTarget; label: string }
-  | { kind: 'manual'; text: string };
+  | { kind: 'target'; target: WorkTarget; label: string; startedAtIso?: string }
+  | { kind: 'manual'; text: string; startedAtIso?: string };
 
 export interface StartDayLocation {
   id: string;
@@ -112,6 +113,31 @@ function buildTargets(bookings: MobileBooking[]): Array<{ key: string; label: st
   return out;
 }
 
+type StartOffset = 'now' | 'm15' | 'm30' | 'custom';
+
+function pad(n: number) { return String(n).padStart(2, '0'); }
+function nowHHMM(): string {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** Returns ISO for a chosen offset, or undefined if "now". Custom HH:MM is
+ *  resolved against today; if it's in the future we fall back to now. */
+function resolveStartedAtIso(offset: StartOffset, customHHMM: string): string | undefined {
+  if (offset === 'now') return undefined;
+  const now = new Date();
+  if (offset === 'm15') return new Date(now.getTime() - 15 * 60_000).toISOString();
+  if (offset === 'm30') return new Date(now.getTime() - 30 * 60_000).toISOString();
+  // custom
+  const m = /^(\d{1,2}):(\d{2})$/.exec(customHHMM.trim());
+  if (!m) return undefined;
+  const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+  const min = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+  const candidate = new Date(now);
+  candidate.setHours(h, min, 0, 0);
+  if (candidate.getTime() > now.getTime()) return undefined; // never in future
+  return candidate.toISOString();
+}
+
 export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   open, onClose, onConfirm, bookings, locations = [], starting,
 }) => {
@@ -119,6 +145,8 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   const [search, setSearch] = useState('');
   const [manualText, setManualText] = useState('');
   const [showManual, setShowManual] = useState(false);
+  const [startOffset, setStartOffset] = useState<StartOffset>('now');
+  const [customHHMM, setCustomHHMM] = useState<string>(nowHHMM);
 
   const allTargets = useMemo(() => buildTargets(bookings), [bookings]);
 
@@ -156,15 +184,22 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   const nearby = filtered.filter(t => t.nearby);
   const others = filtered.filter(t => !t.nearby);
 
+  const currentStartedAtIso = () => resolveStartedAtIso(startOffset, customHHMM);
+
   const handlePick = (item: { target: WorkTarget; label: string }) => {
     if (starting) return;
-    void onConfirm({ kind: 'target', target: item.target, label: item.label });
+    void onConfirm({
+      kind: 'target',
+      target: item.target,
+      label: item.label,
+      startedAtIso: currentStartedAtIso(),
+    });
   };
 
   const handleManualSubmit = () => {
     const txt = manualText.trim();
     if (!txt || starting) return;
-    void onConfirm({ kind: 'manual', text: txt });
+    void onConfirm({ kind: 'manual', text: txt, startedAtIso: currentStartedAtIso() });
   };
 
   return (
@@ -176,6 +211,47 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
             {t('startDay.description')}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Start-time picker — applies to both target and manual flows. */}
+        <div className="rounded-xl border border-border bg-muted/30 p-2.5 space-y-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Clock className="w-3.5 h-3.5" />
+            Starttid
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {([
+              { key: 'now', label: 'Nu' },
+              { key: 'm15', label: '−15 min' },
+              { key: 'm30', label: '−30 min' },
+              { key: 'custom', label: 'Välj tid' },
+            ] as Array<{ key: StartOffset; label: string }>).map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                disabled={starting}
+                onClick={() => setStartOffset(opt.key)}
+                className={cn(
+                  'h-9 rounded-lg text-xs font-semibold border transition-colors',
+                  startOffset === opt.key
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background border-border hover:bg-accent',
+                  starting && 'opacity-50',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {startOffset === 'custom' && (
+            <Input
+              type="time"
+              value={customHHMM}
+              onChange={(e) => setCustomHHMM(e.target.value)}
+              disabled={starting}
+              className="h-9"
+            />
+          )}
+        </div>
 
         {!showManual && (
           <>

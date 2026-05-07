@@ -147,7 +147,10 @@ export const WorkDayPanel: React.FC = () => {
     try {
       clearWorkdayEnded();
       if (selection.kind === 'target') {
-        const result = await requestStart(selection.target, { label: selection.label });
+        const result = await requestStart(selection.target, {
+          label: selection.label,
+          startedAtIso: selection.startedAtIso,
+        });
         if (result === 'started' || result === 'already_running') {
           toast.success(`Arbetsdag startad på ${selection.label}`);
           setDialogOpen(false);
@@ -157,7 +160,7 @@ export const WorkDayPanel: React.FC = () => {
         return;
       }
       // Manual text → start workday only + flag.
-      const wd = await start();
+      const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
       if (!wd) {
         toast.error('Kunde inte starta arbetsdagen. Försök igen.');
         return;
@@ -170,7 +173,7 @@ export const WorkDayPanel: React.FC = () => {
           description: selection.text,
           severity: 'warning',
           needs_user_input: false,
-          context: { entered_text: selection.text, source: 'workday_panel_manual' },
+          context: { entered_text: selection.text, source: 'workday_panel_manual', startedAtIso: selection.startedAtIso ?? null },
         });
       } catch (err) {
         console.warn('[WorkDayPanel] createWorkdayFlag failed (non-fatal):', err);

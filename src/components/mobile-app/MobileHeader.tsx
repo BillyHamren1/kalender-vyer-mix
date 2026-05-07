@@ -179,7 +179,10 @@ export const HeaderStartEndDayButton: React.FC = () => {
       if (selection.kind === 'target') {
         // requestStart() ansvarar ensamt för ensureWorkDayActive +
         // konflikt/distance/startSession. Ingen separat ensureActive() här.
-        const result = await requestStart(selection.target, { label: selection.label });
+        const result = await requestStart(selection.target, {
+          label: selection.label,
+          startedAtIso: selection.startedAtIso,
+        });
         if (result === 'started' || result === 'already_running') {
           toast.success(`Arbetspass startat på ${selection.label}`);
           setDialogOpen(false);
@@ -191,7 +194,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
       }
 
       // Manuell text: workday-first, sedan flagga.
-      const wd = await start();
+      const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
       if (!wd) {
         toast.error('Kunde inte starta arbetspasset. Försök igen.');
         return;
@@ -204,7 +207,7 @@ export const HeaderStartEndDayButton: React.FC = () => {
           description: selection.text,
           severity: 'warning',
           needs_user_input: false,
-          context: { entered_text: selection.text, source: 'start_day_manual' },
+          context: { entered_text: selection.text, source: 'start_day_manual', startedAtIso: selection.startedAtIso ?? null },
         });
       } catch (err) {
         console.warn('[StartDay] createWorkdayFlag failed (non-fatal):', err);

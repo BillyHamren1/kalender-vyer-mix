@@ -177,9 +177,21 @@ const LiveStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) 
 // ────────────────────────────────────────────────────────────────────
 
 const WorkdayCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
-  useTick(60_000);
   const wd = snapshot.workday;
   const t = snapshot.totals;
+  const isOpen = !!wd?.isOpen;
+  // Tick every second while the workday is open so the "Lönegrundande" cell
+  // reflects live elapsed time without waiting for the next snapshot refetch.
+  useTick(isOpen ? 1000 : 60_000);
+
+  // Live workday minutes when open: max of server snapshot and (now - start).
+  // When closed, trust the locked snapshot value.
+  const liveWorkdayMinutes = React.useMemo(() => {
+    const base = t?.workdayMinutes ?? 0;
+    if (!isOpen || !wd?.startedAt) return base;
+    const elapsed = Math.max(0, (Date.now() - new Date(wd.startedAt).getTime()) / 60_000);
+    return Math.max(base, elapsed);
+  }, [isOpen, wd?.startedAt, t?.workdayMinutes]);
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
@@ -215,7 +227,7 @@ const WorkdayCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => 
       <div className="grid grid-cols-2 gap-2">
         <Stat
           label="Lönegrundande"
-          value={formatHoursMinutes((t?.workdayMinutes ?? 0) / 60)}
+          value={formatHoursMinutes(liveWorkdayMinutes / 60)}
           strong
         />
         <Stat
