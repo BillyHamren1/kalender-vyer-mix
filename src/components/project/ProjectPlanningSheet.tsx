@@ -210,16 +210,15 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
               .eq('id', existing.id);
             if (updErr) throw updErr;
           } else {
-            await addCalendarEvent({
-              title: payload.title,
-              start: payload.start_time,
-              end: payload.end_time,
-              resourceId: day.teamId,
-              bookingId: b.id,
-              eventType: day.kind as any,
-              delivery_address: payload.delivery_address,
-              booking_number: payload.booking_number,
-            } as any);
+            // Vi har redan select:at ovan — kör ren insert istället för upsert
+            // för att undvika ON CONFLICT-inferens mot partiellt unikt index
+            // (uq_calendar_event_identity inkluderar organization_id som vi
+            // inte sätter här, vilket fick PostgREST att fela med
+            // "no unique or exclusion constraint matching the ON CONFLICT specification").
+            const { error: insErr } = await supabase
+              .from('calendar_events')
+              .insert(payload);
+            if (insErr) throw insErr;
           }
         }
       }
