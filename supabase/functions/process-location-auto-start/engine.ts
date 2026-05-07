@@ -197,9 +197,11 @@ export async function loadTargets(supabase: any): Promise<Target[]> {
   const { data: locs } = await supabase
     .from('organization_locations')
     .select('id, organization_id, name, latitude, longitude, radius_meters, geofence_mode, geofence_polygon, is_active')
-    .eq('is_active', true)
   for (const l of locs ?? []) {
     if (l.latitude == null || l.longitude == null) continue
+    const isTest = TEST_DEMO_RX.test(l.name ?? '')
+    const isInactive = l.is_active === false
+    const valid = !isTest && !isInactive
     out.push({
       kind: 'location',
       id: l.id,
@@ -212,12 +214,15 @@ export async function loadTargets(supabase: any): Promise<Target[]> {
         geofence_mode: l.geofence_mode ?? 'circle',
         geofence_polygon: l.geofence_polygon ?? null,
       },
+      targetValidity: valid ? 'valid' : 'invalid',
+      timeTrackingAllowed: valid,
+      invalidReason: isTest ? 'test_target' : isInactive ? 'inactive' : undefined,
     })
   }
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, organization_id, client, delivery_latitude, delivery_longitude, rigdaydate, eventdate, rigdowndate, large_project_id')
+    .select('id, organization_id, client, status, delivery_latitude, delivery_longitude, rigdaydate, eventdate, rigdowndate, large_project_id')
     .or(`rigdaydate.gte.${yesterdayIso},eventdate.gte.${yesterdayIso},rigdowndate.gte.${yesterdayIso}`)
     .or(`rigdaydate.lte.${tomorrowIso},eventdate.lte.${tomorrowIso},rigdowndate.lte.${tomorrowIso}`)
     .not('delivery_latitude', 'is', null)
@@ -226,32 +231,47 @@ export async function loadTargets(supabase: any): Promise<Target[]> {
 
   for (const b of bookings ?? []) {
     if (b.large_project_id) continue
+    const label = b.client ?? 'Bokning'
+    const isTest = TEST_DEMO_RX.test(label)
+    const status = String(b.status ?? '').toUpperCase()
+    const isCancelled = status === 'CANCELLED'
+    const isArchived = status === 'ARCHIVED'
+    const valid = !isTest && !isCancelled && !isArchived
     out.push({
       kind: 'booking',
       id: b.id,
       organization_id: b.organization_id,
-      label: b.client ?? 'Bokning',
+      label,
       geofence: {
         latitude: Number(b.delivery_latitude),
         longitude: Number(b.delivery_longitude),
         radius_meters: 100,
         geofence_mode: 'circle',
       },
+      targetValidity: valid ? 'valid' : 'invalid',
+      timeTrackingAllowed: valid,
+      invalidReason: isTest ? 'test_target' : isCancelled ? 'cancelled' : isArchived ? 'archived' : undefined,
     })
   }
 
   const { data: projects } = await supabase
     .from('large_projects')
-    .select('id, organization_id, name, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon')
+    .select('id, organization_id, name, status, deleted_at, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon')
     .not('address_latitude', 'is', null)
     .not('address_longitude', 'is', null)
     .limit(500)
   for (const p of projects ?? []) {
+    const label = p.name ?? 'Projekt'
+    const isTest = TEST_DEMO_RX.test(label)
+    const status = String(p.status ?? '').toLowerCase()
+    const isCancelled = status === 'cancelled' || status === 'avbokat'
+    const isArchived = !!p.deleted_at || status === 'archived' || status === 'closed' || status === 'stängt'
+    const valid = !isTest && !isCancelled && !isArchived
     out.push({
       kind: 'project',
       id: p.id,
       organization_id: p.organization_id,
-      label: p.name ?? 'Projekt',
+      label,
       geofence: {
         latitude: Number(p.address_latitude),
         longitude: Number(p.address_longitude),
@@ -259,6 +279,9 @@ export async function loadTargets(supabase: any): Promise<Target[]> {
         geofence_mode: p.address_geofence_mode ?? 'circle',
         geofence_polygon: p.address_geofence_polygon ?? null,
       },
+      targetValidity: valid ? 'valid' : 'invalid',
+      timeTrackingAllowed: valid,
+      invalidReason: isTest ? 'test_target' : isCancelled ? 'cancelled' : isArchived ? 'archived' : undefined,
     })
   }
 
