@@ -167,15 +167,57 @@ export interface ActiveActivity {
 }
 
 export interface DayTotals {
-  workdayMinutes: number;          // total payable workday duration
-  allocatedProjectMinutes: number; // sum of time_reports
-  travelMinutes: number;           // sum of travel logs
-  /** workday - allocated - travel (>=0). Includes unknown-inside-workday. */
+  // ---- Canonical v2 model ----
+  /** Workday start → end (or now if open). Bruttotid. */
+  grossWorkdayMinutes: number;
+  /** Endast användar-/admin-attesterad rast (time_reports.break_time + ev. workday-attest). */
+  breakMinutes: number;
+  /** Endast admin/manuell korrigering (workday.metadata.manual_deduction_minutes). */
+  manualDeductionMinutes: number;
+  /** gross - break - manual deduction. Other_place + transport drar INTE av. */
+  payableMinutes: number;
+  /** Tid på bekräftade projekt/bookings (time_reports + project/booking-LTE). */
+  projectMinutes: number;
+  /** Tid på lager / arbetsrelaterad location. */
+  warehouseMinutes: number;
+  /** Transport inom arbetsdag (räknas, drar inte av). */
+  transportMinutes: number;
+  /** Okänd plats inom arbetsdag (räknas, drar inte av). */
+  otherPlaceMinutes: number;
+
+  // ---- Legacy fields (kept for backward compat with existing UI) ----
+  workdayMinutes: number;
+  allocatedProjectMinutes: number;
+  travelMinutes: number;
   unallocatedMinutes: number;
-  /** Subset of unallocated: unknown vistelser inom arbetsdagen. */
   unknownWithinWorkdayMinutes: number;
-  liveMinutes: number;             // current active location duration
+  liveMinutes: number;
   isWorkdayOpen: boolean;
+}
+
+export interface ActionNeeded {
+  id: string;
+  type: string;
+  severity: "info" | "warning" | "error";
+  title: string;
+  description: string | null;
+  needsUserInput: boolean;
+}
+
+export interface IntelligenceState {
+  /** Hard rules only — AI not used in this step. */
+  mode: "hard_rules_only";
+  workdayBackdated: boolean;
+  workdaySynthesized: boolean;
+  hasOtherPlace: boolean;
+  hasTransport: boolean;
+}
+
+export interface TrackingPolicy {
+  /** Hint for client adaptive location mode. */
+  recommendedMode: "active_timer" | "workday_active" | "idle";
+  hasActiveTimer: boolean;
+  workdayOpen: boolean;
 }
 
 export interface StaffDaySnapshot {
@@ -202,6 +244,9 @@ export interface StaffDaySnapshot {
   totals: DayTotals;
   segments: DaySegment[];
   flags: DayFlag[];
+  actionsNeeded: ActionNeeded[];
+  intelligenceState: IntelligenceState;
+  trackingPolicy: TrackingPolicy;
   assistantEvents: Array<{
     id: string;
     type: string;
@@ -501,21 +546,46 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   const unallocated = Math.max(0, wdMin - allocated - travelMin);
 
   let unknownWithinWd = 0;
+  let warehouseMin = 0;
+  let projectMin = 0;
   for (const seg of segments) {
-    if (
-      (seg.kind === "unknown" || (seg.kind === "location" && !seg.hasConfirmedRef)) &&
-      countsAsPayableUnallocated(
-        { kind: seg.kind, startedAt: seg.startedAt, endedAt: seg.endedAt, classification: seg.classification, hasConfirmedRef: seg.hasConfirmedRef },
-        policyWorkday,
-        now,
-      )
-    ) {
+    const inside = countsWithinActiveWorkday(
+      { kind: seg.kind, startedAt: seg.startedAt, endedAt: seg.endedAt, classification: seg.classification, hasConfirmedRef: seg.hasConfirmedRef },
+      effectivePolicyWorkday,
+      now,
+    );
+    if (!inside) continue;
+    if (seg.policyStatus === "other_place") {
       unknownWithinWd += seg.durationMinutes;
+    } else if (seg.kind === "location" && seg.hasConfirmedRef) {
+      warehouseMin += seg.durationMinutes;
+    } else if ((seg.kind === "project" || seg.kind === "booking") && seg.hasConfirmedRef) {
+      projectMin += seg.durationMinutes;
     }
   }
+  // Project minutes default to allocated time-reports total (truth source).
+  if (projectMin === 0) projectMin = allocated;
+
+  // ---- Canonical totals: bruttotid → rast → manuellt avdrag → lönegrundande ----
+  // Rast = endast användar-/admin-attest (time_reports.break_time, i timmar).
+  // Other_place + transport drar ALDRIG av lönegrundande tid.
+  const breakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
+  const meta = (workday?.metadata ?? {}) as Record<string, unknown>;
+  const manualDeductionMin = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
+  const grossWorkdayMin = wdMin;
+  const payableMin = Math.max(0, grossWorkdayMin - breakMin - manualDeductionMin);
 
   const liveMinutes = active?.durationMinutes ?? 0;
   const totals: DayTotals = {
+    grossWorkdayMinutes: grossWorkdayMin,
+    breakMinutes: breakMin,
+    manualDeductionMinutes: manualDeductionMin,
+    payableMinutes: payableMin,
+    projectMinutes: projectMin,
+    warehouseMinutes: warehouseMin,
+    transportMinutes: travelMin,
+    otherPlaceMinutes: unknownWithinWd,
+    // Legacy
     workdayMinutes: wdMin,
     allocatedProjectMinutes: allocated,
     travelMinutes: travelMin,
@@ -626,6 +696,38 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     stale: !!e.stale_for_prompt,
   }));
 
+  // ---- Actions needed (subset of flags requiring user/admin attention) ----
+  const actionsNeeded: ActionNeeded[] = dayFlags
+    .filter((f) => f.needsUserInput && !f.resolved)
+    .map((f) => ({
+      id: f.id,
+      type: f.type,
+      severity: f.severity,
+      title: f.title,
+      description: f.description,
+      needsUserInput: true,
+    }));
+
+  // ---- Intelligence state (hard rules only — AI not used in this step) ----
+  const intelligenceState: IntelligenceState = {
+    mode: "hard_rules_only",
+    workdayBackdated: !!workdaySnap?.autoExtendedFrom,
+    workdaySynthesized: !!workdaySnap?.synthesizedFromEvidence,
+    hasOtherPlace: totals.otherPlaceMinutes > 0,
+    hasTransport: totals.transportMinutes > 0,
+  };
+
+  // ---- Tracking policy hint (for adaptive client location mode) ----
+  const trackingPolicy: TrackingPolicy = {
+    recommendedMode: active
+      ? "active_timer"
+      : workdaySnap?.isOpen
+      ? "workday_active"
+      : "idle",
+    hasActiveTimer: !!active,
+    workdayOpen: !!workdaySnap?.isOpen,
+  };
+
   return {
     date,
     staffId,
@@ -634,7 +736,11 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     totals,
     segments,
     flags: dayFlags,
+    actionsNeeded,
+    intelligenceState,
+    trackingPolicy,
     assistantEvents: events,
     lastUpdatedAt: now.toISOString(),
   };
 }
+
