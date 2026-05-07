@@ -5648,12 +5648,16 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
 //   3. Returns `{ accepted: [ids] }` so the client can drop confirmed points
 //      from its local queue. Points that fail individually are reported in
 //      `rejected: [{ id, reason }]`.
-//   4. Backend chain (NEW): when the batch contains at least one fresh ping
-//      (<= 30 min old) we run the shared `processStaffLocationUpdate` here —
-//      the same processor used by `location-update-cron`. It owns arrival/
-//      exit/switch/travel/workday-state derivation and queues snapshot
-//      rebuilds. The mobile app no longer interprets location/time on its
-//      own; it just uploads pings and lets the backend decide.
+//   4. Backend chain (NEW): after all pings are saved, every distinct date
+//      in the batch is passed to `processGpsTimelineForAutoStart` — the
+//      same processor used by `location-update-cron`. It builds a GPS day
+//      timeline, evaluates the auto-start policy per date, and may create
+//      `active_time_registrations` when a valid geofence-policy is satisfied.
+//
+//      Flow:  Batch GPS
+//             → staff_location_history
+//             → processGpsTimelineForAutoStart
+//             → active_time_registrations
 //
 //      Failures in the processor are logged but MUST NOT fail the upload —
 //      saving GPS history is the non-negotiable contract of this endpoint.
