@@ -33,6 +33,7 @@ const corsHeaders = {
 interface BookingData {
   id: string;
   client: string;
+  title?: string | null;
   rigdaydate?: string;
   eventdate?: string;
   rigdowndate?: string;
@@ -1062,7 +1063,9 @@ async function reconcileCalendarEvents(
   }
   // ────────────────────────────────────────────────────────────────────────
 
-  const desiredTitle = bookingData.client || 'Bokning';
+  const bookingTitle = (bookingData.title || '').trim();
+  const clientLabel = bookingData.client || 'Bokning';
+  const desiredTitle = bookingTitle ? `${bookingTitle} – ${clientLabel}` : clientLabel;
 
   for (const date of rigDates) {
     const start = buildDateTimeFromPartsEx(date, bookingData.rig_start_time);
@@ -2677,6 +2680,7 @@ serve(async (req) => {
         const bookingData: BookingData = {
           id: externalBooking.id,
           client: clientName,
+          title: externalBooking.title ?? externalBooking.name ?? null,
           rigdaydate: rigdaydate,
           eventdate: eventdate,
           rigdowndate: rigdowndate,
