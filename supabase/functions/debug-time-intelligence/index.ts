@@ -847,6 +847,10 @@ Deno.serve(async (req) => {
       pingsSampled: nearestTargetsPerPing.length,
       anyPingInside: !!anyPingInsideTarget,
       anyPingInsideDetail: anyPingInsideTarget,
+      matchingMode: "full",
+      fullCount: pings.length,
+      sampledCount: nearestTargetsPerPing.length,
+      wasSampledForPreview: nearestTargetsPerPing.length < pings.length,
     },
   };
 
