@@ -12090,6 +12090,9 @@ async function handleGetStaffDayReality(supabase: any, callerStaffId: string, da
 //   { workday, open_entries, latest_ping, latest_ping_age_ms, stale_ping,
 //     anomalies }
 // =========================================================================
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
 async function handleGetActiveDayStateLegacyOnly(supabase: any, staffId: string, organizationId: string) {
   const STALE_PING_MS = 5 * 60 * 1000
 
