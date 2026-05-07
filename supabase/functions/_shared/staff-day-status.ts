@@ -120,6 +120,21 @@ export interface SnapshotInput {
     largeProjects?: Record<string, string>;
     locations?: Record<string, { name: string; isWork: boolean }>;
   };
+  /** User/admin day attestation (per staff_id+date). When present, its break_minutes overrides time_reports.break_time sum. */
+  attestation?: DayAttestationRow | null;
+}
+
+export interface DayAttestationRow {
+  id: string;
+  staff_id: string;
+  date: string;
+  break_minutes: number;
+  comment: string | null;
+  status: "attested" | "locked" | "revoked" | string;
+  attested_at: string;
+  attested_by: string | null;
+  locked_at: string | null;
+  locked_by: string | null;
 }
 
 export type SegmentKind = "project" | "booking" | "travel" | "location" | "unknown" | "active";
@@ -287,6 +302,15 @@ export interface StaffDaySnapshot {
     resolutionStatus: string | null;
     stale: boolean;
   }>;
+  attestation: {
+    id: string;
+    breakMinutes: number;
+    comment: string | null;
+    status: string;
+    attestedAt: Iso;
+    attestedBy: string | null;
+    locked: boolean;
+  } | null;
   lastUpdatedAt: Iso;
 }
 
@@ -391,7 +415,7 @@ function deriveConfidence(type: SegmentType, hasConfirmedRef: boolean): "high" |
 }
 
 export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date()): StaffDaySnapshot {
-  const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents, nameMaps } = input;
+  const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents, nameMaps, attestation } = input;
 
   // ---- Workday ----
   const workdaySnapBase = workday
@@ -745,9 +769,12 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   if (projectMin === 0) projectMin = allocated;
 
   // ---- Canonical totals: bruttotid → rast → manuellt avdrag → lönegrundande ----
-  // Rast = endast användar-/admin-attest (time_reports.break_time, i timmar).
+  // Rast = användar-/admin-attest.
+  // Prio 1: day_attestations.break_minutes (om rad finns).
+  // Prio 2: time_reports.break_time (legacy).
   // Other_place + transport drar ALDRIG av lönegrundande tid.
-  const breakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
+  const trBreakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
+  const breakMin = attestation ? Math.max(0, attestation.break_minutes | 0) : trBreakMin;
   const meta = (workday?.metadata ?? {}) as Record<string, unknown>;
   const manualDeductionMin = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
   const grossWorkdayMin = wdMin;
@@ -918,6 +945,17 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     intelligenceState,
     trackingPolicy,
     assistantEvents: events,
+    attestation: attestation
+      ? {
+          id: attestation.id,
+          breakMinutes: Math.max(0, attestation.break_minutes | 0),
+          comment: attestation.comment,
+          status: attestation.status,
+          attestedAt: attestation.attested_at,
+          attestedBy: attestation.attested_by,
+          locked: attestation.status === "locked",
+        }
+      : null,
     lastUpdatedAt: now.toISOString(),
   };
 }

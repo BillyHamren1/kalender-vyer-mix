@@ -1182,6 +1182,54 @@ export type Database = {
           },
         ]
       }
+      day_attestations: {
+        Row: {
+          attested_at: string
+          attested_by: string | null
+          break_minutes: number
+          comment: string | null
+          created_at: string
+          date: string
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          organization_id: string
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attested_at?: string
+          attested_by?: string | null
+          break_minutes?: number
+          comment?: string | null
+          created_at?: string
+          date: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          organization_id: string
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attested_at?: string
+          attested_by?: string | null
+          break_minutes?: number
+          comment?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          organization_id?: string
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       day_timeline_events: {
         Row: {
           accuracy: number | null
