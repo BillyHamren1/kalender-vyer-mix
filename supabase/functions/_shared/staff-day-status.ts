@@ -127,6 +127,7 @@ export interface SnapshotInput {
   /** Optional client hints to suppress boost (low battery / dismissed cooldown). */
   batteryPct?: number | null;
   dismissedCooldownActive?: boolean;
+}
 
 export interface DayAttestationRow {
   id: string;
