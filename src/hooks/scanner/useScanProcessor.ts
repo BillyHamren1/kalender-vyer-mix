@@ -26,6 +26,12 @@ export interface PendingUnknownProductState {
   scannedValue: string;
   scannedSku: string | null;
   scannedName: string | null;
+  // WMS identity preserved so a WMS-known product that's missing from the
+  // packing list keeps its inventory linkage when added locally.
+  wmsItemTypeId?: string | null;
+  wmsSku?: string | null;
+  wmsInstanceId?: string | null;
+  wmsSerialNumber?: string | null;
 }
 
 interface UseScanProcessorOptions {
