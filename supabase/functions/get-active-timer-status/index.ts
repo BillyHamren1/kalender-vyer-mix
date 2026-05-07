@@ -101,8 +101,22 @@ Deno.serve(async (req) => {
     organizationId = prof.organization_id;
   }
 
-  // ── 1. Aktiv user-startad timer? ──────────────────────────────────────
-  const { data: openEntries } = await admin
+  // ── 1. SINGLE SOURCE OF TRUTH: current_time_registration ──────────────
+  // The app's timer may ONLY run when an active row exists here.
+  // GPS may NEVER insert/start this row.
+  const { data: currentReg } = await admin
+    .from("current_time_registration")
+    .select("id, staff_id, organization_id, started_at, started_by_user, status, current_kind, current_label, source, confidence, needs_user_choice, last_gps_classification_at, linked_location_time_entry_id")
+    .eq("staff_id", staffId)
+    .eq("status", "active")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Backward-compat: if no current_time_registration row exists yet (legacy
+  // sessions started before this migration), fall back to the most recent
+  // open user-started LTE so existing timers don't appear dead.
+  const { data: openEntries } = currentReg ? { data: null } : await admin
     .from("location_time_entries")
     .select("id, entered_at, booking_id, large_project_id, location_id, source")
     .eq("staff_id", staffId)
@@ -110,7 +124,31 @@ Deno.serve(async (req) => {
     .order("entered_at", { ascending: false })
     .limit(1);
 
-  const active = openEntries?.[0] ?? null;
+  const active = currentReg
+    ? {
+        id: currentReg.linked_location_time_entry_id ?? currentReg.id,
+        entered_at: currentReg.started_at,
+        booking_id: null as string | null,
+        large_project_id: null as string | null,
+        location_id: null as string | null,
+        source: currentReg.source,
+      }
+    : (openEntries?.[0] ?? null);
+
+  // If we matched via current_time_registration but it carries a linked LTE,
+  // hydrate target ids from that LTE so label resolution still works below.
+  if (currentReg?.linked_location_time_entry_id) {
+    const { data: lte } = await admin
+      .from("location_time_entries")
+      .select("id, entered_at, booking_id, large_project_id, location_id, source")
+      .eq("id", currentReg.linked_location_time_entry_id)
+      .maybeSingle();
+    if (lte) {
+      active!.booking_id = lte.booking_id;
+      active!.large_project_id = lte.large_project_id;
+      active!.location_id = lte.location_id;
+    }
+  }
 
   if (!active) {
     const body: InactiveResponse = {
