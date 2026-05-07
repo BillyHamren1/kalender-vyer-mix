@@ -152,7 +152,8 @@ export type SegmentType =
   | "transport"
   | "other_place"
   | "break"
-  | "manual_adjustment";
+  | "manual_adjustment"
+  | "signal_stale";
 
 export interface DaySegment {
   /** Stable id (db row id when available, else synthesized). */
