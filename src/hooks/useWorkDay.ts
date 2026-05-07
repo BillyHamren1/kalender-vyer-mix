@@ -46,6 +46,7 @@ import {
   type StartWorkdayInput,
   type EndWorkdayInput,
 } from '@/services/workdayApi';
+import { setWorkdayActive } from '@/lib/workday/workdayActiveSignal';
 
 export interface UseWorkDayResult {
   current: WorkdayRecord | null;
@@ -76,6 +77,7 @@ export function useWorkDay(): UseWorkDayResult {
 
   useEffect(() => {
     currentRef.current = current;
+    setWorkdayActive(!!current && !current.ended_at);
   }, [current]);
 
   const refresh = useCallback(async () => {

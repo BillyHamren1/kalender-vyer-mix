@@ -10,6 +10,7 @@ import {
   type LocationModeDecision,
 } from '@/lib/geofence/locationMode';
 import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
+import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
@@ -107,6 +108,17 @@ function readHasActiveTimer(): boolean {
   }
 }
 
+/**
+ * Combined "i jobbet"-signal. Workday öppen ELLER aktivitetstimer igång
+ * → adaptiv mode ska välja active_timer (tät tracking). Workday-signalen
+ * kommer från backend via useWorkDay som speglar in i workdayActiveSignal;
+ * timer-cachen från useGeofencing. Båda är localStorage-fallbacks; sann
+ * authority är backend, men dessa är cheap reads för heartbeat-loopen.
+ */
+function readHasActiveSession(): boolean {
+  return isWorkdayActive() || readHasActiveTimer();
+}
+
 export interface BackgroundLocationDebugInfo {
   currentLocationMode: LocationMode | null;
   selectedHeartbeatMs: number;
@@ -141,7 +153,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     selectedHeartbeatMs: DEFAULT_HEARTBEAT_MS,
     selectedDistanceFilter: DEFAULT_DISTANCE_FILTER,
     nearestTargetDistanceMeters: null,
-    hasActiveTimer: false,
+    hasActiveTimer: readHasActiveSession(),
     hasPendingArrival: false,
     lastPingAt: null,
     lastUploadAt: null,
@@ -230,7 +242,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         selectedHeartbeatMs: decision.heartbeatMs,
         selectedDistanceFilter: decision.distanceFilter,
         nearestTargetDistanceMeters: decision.nearestTargetDistanceMeters,
-        hasActiveTimer: readHasActiveTimer(),
+        hasActiveTimer: readHasActiveSession(),
         hasPendingArrival: arrivals.length > 0,
         lastPingAt: lastPingAtRef.current,
         lastUploadAt: lastUploadAtRef.current,
@@ -252,9 +264,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const decision = decideLocationMode({
         position: pos ? { lat: pos.lat, lng: pos.lng } : null,
         targets: decoratedTargets,
-        // Read live timer state from the localStorage cache that
-        // useGeofencing keeps in sync — decoupled from React tree.
-        hasActiveTimer: readHasActiveTimer(),
+        // Workday öppen ELLER aktivitetstimer igång → "i jobbet".
+        // Authority = backend; cachen är hint för icke-React loop.
+        hasActiveTimer: readHasActiveSession(),
         hasPendingArrival: arrivals.length > 0,
         insideKeys: insideRef.current,
         previousMode: currentModeRef.current,

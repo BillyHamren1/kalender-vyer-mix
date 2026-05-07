@@ -1,59 +1,54 @@
 ## Mål
 
-`src/pages/mobile/MobileTimeReport.tsx` ska bara vara en tabbskal (Idag / Kalender / Tidrapport). Alla gamla rådata-listor, lokala totalsummor och inline-formuläret tas bort så snapshot blir enda synliga tidssanning.
+Ta bort hårdkodad `hasActiveTimer: false` i `useBackgroundLocationReporter.ts` så att `active_timer`-mode i `locationMode.ts` kan väljas på riktigt. Använd backend-driven workday-signal som primär källa, localStorage som fallback.
 
-## Vad som tas bort
+## Bakgrund
 
-Från `MobileTimeReport.tsx` (466 → ~65 rader):
+`computeMode()` (rad 257) anropar redan `readHasActiveTimer()` korrekt, men `setDebug()`-objektet på rad 144 (initial state) och rad 233 är frikopplade från den verkliga signalen. Mer kritiskt: själva timer-cachen `eventflow-mobile-timers` skrivs av `useGeofencing.ts`, men det finns ingen workday-signal — så `idle` → `active_timer`-övergång missar fall där workday är öppen utan en aktivitetstimer.
 
-- `mobileApi.getTimeReports()` + `fetchReports()` + `useEffect`
-- State: `timeReports`, `loadingReports`, `selectedBookingId`, `reportDate`, `startTime`, `endTime`, `breakTime`, `overtime`, `description`, `validationError`, `showForm`, `isSaving`
-- `calculateHours()`, `getValidationError()`, `isNightShift`, `jobOptions`, `handleSubmit`
-- Hela inline-formuläret "Lägg till manuell korrigering" + "Rådata · mina rapporter"-listan
-- `useStaffDayStatus` import (refresh används bara av borttagen form)
-- `useNavigate`, `mobileApi`, `MobileTimeReportType`, `parseISO`, `Check, Send, Plus, ChevronRight, FileText, Info`, `Button/Input/Label/Textarea/Select*`, `toast`, `formatHoursMinutes`, `useInvalidateMobileData`-imports
+## Plan
 
-## Vad som blir kvar
+### 1. Ny lättviktig store — `src/lib/workday/workdayActiveSignal.ts`
 
-```tsx
-const MobileTimeReport = () => {
-  const { t } = useLanguage();
-  const { staff } = useMobileAuth();
-  const { data: bookings = [], isLoading } = useMobileBookings();
-  const { dialogs } = useWorkSession(bookings, staff?.id); // bara för rast/EOD/switch-dialogs
-  const [activeTab, setActiveTab] = useState<TimeTabId>('today');
-
-  if (isLoading) { /* loader */ }
-
-  return (
-    <div className="flex flex-col min-h-screen bg-card pb-24">
-      <MobileHeroHeader … />
-      <div className="flex-1 px-5 pt-5 pb-28 space-y-4 …">
-        <MobileTimeTabs value={activeTab} onChange={setActiveTab} />
-        {activeTab === 'today' && <TodayTab />}
-        {activeTab === 'calendar' && <TimeCalendarTab />}
-        {activeTab === 'report' && <TimeReportTab />}
-      </div>
-      {dialogs}
-    </div>
-  );
-};
+Ren localStorage-spegel av "är workday öppen just nu?":
+```ts
+const WORKDAY_ACTIVE_KEY = 'eventflow-workday-active';
+export function setWorkdayActive(active: boolean): void { … }
+export function isWorkdayActive(): boolean { … }
 ```
 
-## Manuell korrigering
+Authority = backend `workday/current` via `useWorkDay`. Cachen är bara hint.
 
-Befintlig redigerings-route `/m/report/:id/edit` finns kvar för befintliga rader. Att **skapa** en ny manuell rapport från Time-sidan är inte längre exponerat — flödet är: timer (auto), eller TimeReportTab/admin för rättning. Om vi senare behöver "ny manuell korrigering utan projekt" → ny separat sub-route (t.ex. `/m/report/new`) som inte kräver booking_id, men det är out-of-scope här (ingen sådan vy finns idag).
+### 2. `src/hooks/useWorkDay.ts` skriver till storen
 
-## Filer som ändras
+I `setCurrent`-vägarna (refresh, realtime, optimistic start/end-events, `start`/`end`/`ensureActive`) → `setWorkdayActive(!!workday && !workday.ended_at)`. Plus en `useEffect` som speglar `current`-state till storen (en rad).
 
-- ✏️ `src/pages/mobile/MobileTimeReport.tsx` (kraftigt nedbantad)
+### 3. `src/hooks/useBackgroundLocationReporter.ts` använder kombinerad signal
 
-Inga andra filer rörs. Inga nya beroenden, ingen DB-ändring.
+```ts
+import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
+
+function readHasActiveSession(): boolean {
+  // Workday öppen ELLER aktivitetstimer igång → vi är "i jobbet" → active_timer mode
+  return isWorkdayActive() || readHasActiveTimer();
+}
+```
+
+- Initial `setDebug({ hasActiveTimer: false })` på rad 144 → `hasActiveTimer: readHasActiveSession()`
+- Anropet på rad 233 (`hasActiveTimer: readHasActiveTimer()`) → `readHasActiveSession()`
+- `decideLocationMode`-anropet på rad 257 → `hasActiveTimer: readHasActiveSession()`
+
+`hasActiveTimer: false` försvinner som hårdkodning. Falsk endast när både workday och timer-cache verkligen är tomma.
+
+## Filer som ändras/skapas
+
+- ✅ Ny: `src/lib/workday/workdayActiveSignal.ts`
+- ✏️ `src/hooks/useWorkDay.ts` — spegla `current` till `setWorkdayActive` (4–5 platser eller en useEffect)
+- ✏️ `src/hooks/useBackgroundLocationReporter.ts` — `readHasActiveSession` + 3 ersättningar
 
 ## Acceptans
 
-- Time-sidan renderar utan `mobileApi.getTimeReports()`-anrop
-- Inga `time_reports`-rader visas på sidan
-- Inga lokala summeringar (`calculateHours`, `formatHoursMinutes` på r.hours_worked) finns kvar i filen
-- TodayTab/TimeCalendarTab/TimeReportTab är de enda kortvisningar
-- Dialogs (rast/EOD/switch) renderas fortfarande via `useWorkSession`
+- `rg "hasActiveTimer: false" src/` returnerar inga träffar i `useBackgroundLocationReporter.ts`
+- Aktiv workday → `decideLocationMode` får `hasActiveTimer: true` → `active_timer` mode (12s/10m i foreground-varianten, 60s/50m i normalt active_timer)
+- Stängd workday + tom timer-cache + långt från target → fortfarande `idle`/`workday_far` low-power tracking
+- Cold-boot innan `useWorkDay.refresh()` hunnit svara → fallback till localStorage-cachen från senaste sessionen
