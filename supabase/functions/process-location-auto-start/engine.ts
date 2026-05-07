@@ -719,6 +719,13 @@ export async function processStaff(
   if (pings.length === 0) return
   const orgId = pings[0].organization_id
 
+  // Hård legacy-spärr: gamla motorn får inte skapa workday/LTE/travel/time_report.
+  if (LEGACY_TIME_WRITES_DISABLED) {
+    ;(report as any).legacy_time_writes_disabled = true
+    ;(report as any).skipped_reason = 'legacy_time_engine_disabled_use_new_time_engine'
+    return
+  }
+
   // Kill-switch: räkna arrivals för rapport men gör inga writes.
   if (!GPS_MAY_START_TIME) {
     let arrivalsSeen = 0
