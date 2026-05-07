@@ -5585,10 +5585,18 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
 //   3. Returns `{ accepted: [ids] }` so the client can drop confirmed points
 //      from its local queue. Points that fail individually are reported in
 //      `rejected: [{ id, reason }]`.
-//   4. Geofence side-effects are intentionally NOT run here — the foreground
-//      `report_location` path remains the single source for arrival prompts.
-//      Replaying a 4-hour-old GPS trail must not retroactively trigger
-//      arrival/exit logic.
+//   4. Backend chain (NEW): when the batch contains at least one fresh ping
+//      (<= 30 min old) we run the shared `processStaffLocationUpdate` here —
+//      the same processor used by `location-update-cron`. It owns arrival/
+//      exit/switch/travel/workday-state derivation and queues snapshot
+//      rebuilds. The mobile app no longer interprets location/time on its
+//      own; it just uploads pings and lets the backend decide.
+//
+//      Failures in the processor are logged but MUST NOT fail the upload —
+//      saving GPS history is the non-negotiable contract of this endpoint.
+//      The next ping (or the cron) will retry the chain. Pure backfill of
+//      historic logs (>30 min old) intentionally skips the chain so old
+//      pings can't retroactively mutate today's reality.
 async function handleUploadLocationBatch(
   supabase: any,
   staffId: string,
