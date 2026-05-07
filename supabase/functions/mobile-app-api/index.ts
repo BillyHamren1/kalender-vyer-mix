@@ -6093,6 +6093,55 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     )
   }
 
+  // 5. Mirror into current_time_registration — the EXPLICIT single source
+  // of truth for "is a user-started timer running right now?".
+  // GPS may NEVER insert into this table; only this user-driven path does.
+  try {
+    // Resolve current_kind/current_label from the bound target.
+    let currentKind: string = 'unknown_place'
+    let currentLabel: string = 'Okänd plats'
+    if (large_project_id) {
+      currentKind = 'project'
+      const { data: lp } = await supabase.from('large_projects')
+        .select('name').eq('id', large_project_id).maybeSingle()
+      currentLabel = lp?.name ?? 'Projekt'
+    } else if (booking_id) {
+      currentKind = 'booking'
+      const { data: b } = await supabase.from('bookings')
+        .select('client, title, booking_number')
+        .eq('id', booking_id).maybeSingle()
+      currentLabel = b?.client || b?.title || b?.booking_number || 'Bokning'
+    } else if (location_id) {
+      currentKind = 'warehouse'
+      const { data: l } = await supabase.from('organization_locations')
+        .select('name').eq('id', location_id).maybeSingle()
+      currentLabel = l?.name ?? 'Plats'
+    }
+
+    // Stop any other active row for this staff (defensive — unique index also enforces).
+    await supabase
+      .from('current_time_registration')
+      .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+      .eq('staff_id', staffId)
+      .eq('status', 'active')
+
+    await supabase.from('current_time_registration').insert({
+      staff_id: staffId,
+      organization_id: organizationId,
+      started_at: enteredAtIso,
+      started_by_user: true,
+      status: 'active',
+      current_kind: currentKind,
+      current_label: currentLabel,
+      source: 'user_timer',
+      confidence: 0.95,
+      needs_user_choice: false,
+      linked_location_time_entry_id: entry.id,
+    })
+  } catch (regErr) {
+    console.warn('[start_location_timer] current_time_registration mirror failed (non-fatal):', regErr)
+  }
+
   return new Response(
     JSON.stringify({ success: true, entry }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -6723,6 +6772,17 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
     )
   }
 
+  // Mirror stop into current_time_registration (single source of truth).
+  try {
+    await supabase
+      .from('current_time_registration')
+      .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+      .eq('staff_id', staffId)
+      .eq('status', 'active')
+  } catch (regErr) {
+    console.warn('[stop_location_timer] current_time_registration mirror failed (non-fatal):', regErr)
+  }
+
   return new Response(
     JSON.stringify({ success: true, entry: updated }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -6872,6 +6932,17 @@ async function handleStopOpenEntry(supabase: any, staffId: string, data: any, or
       JSON.stringify({ error: 'Failed to close entry', detail: closeErr.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  }
+
+  // Mirror stop into current_time_registration (single source of truth).
+  try {
+    await supabase
+      .from('current_time_registration')
+      .update({ status: 'stopped', stopped_at: stopIso })
+      .eq('staff_id', staffId)
+      .eq('status', 'active')
+  } catch (regErr) {
+    console.warn('[stop_open_entry] current_time_registration mirror failed (non-fatal):', regErr)
   }
 
   // 4) Return refreshed active_day_state for instant UI rehydrate.

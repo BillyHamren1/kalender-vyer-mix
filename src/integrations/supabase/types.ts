@@ -1185,6 +1185,63 @@ export type Database = {
           },
         ]
       }
+      current_time_registration: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          current_kind: string | null
+          current_label: string | null
+          id: string
+          last_gps_classification_at: string | null
+          linked_location_time_entry_id: string | null
+          needs_user_choice: boolean
+          organization_id: string
+          source: string
+          staff_id: string
+          started_at: string
+          started_by_user: boolean
+          status: string
+          stopped_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          current_kind?: string | null
+          current_label?: string | null
+          id?: string
+          last_gps_classification_at?: string | null
+          linked_location_time_entry_id?: string | null
+          needs_user_choice?: boolean
+          organization_id: string
+          source?: string
+          staff_id: string
+          started_at?: string
+          started_by_user?: boolean
+          status?: string
+          stopped_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          current_kind?: string | null
+          current_label?: string | null
+          id?: string
+          last_gps_classification_at?: string | null
+          linked_location_time_entry_id?: string | null
+          needs_user_choice?: boolean
+          organization_id?: string
+          source?: string
+          staff_id?: string
+          started_at?: string
+          started_by_user?: boolean
+          status?: string
+          stopped_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       day_attestations: {
         Row: {
           attested_at: string
