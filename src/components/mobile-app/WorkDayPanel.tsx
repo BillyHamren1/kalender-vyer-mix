@@ -109,10 +109,7 @@ export const WorkDayPanel: React.FC = () => {
     try {
       if (selection.kind === 'target') {
         const t = selection.target as any;
-        // Mappa selektion → Time Engine target_type/target_id.
-        // booking_id        → target_type:'booking',       target_id: booking_id
-        // large_project_id  → target_type:'large_project', target_id: large_project_id
-        // location_id       → target_type:'location',      target_id: location_id
+        // Mappa selektion → Time Engine v2 start params.
         let target_type: 'booking' | 'large_project' | 'location' | null = null;
         let target_id: string | null = null;
         if (t.kind === 'project' && t.largeProjectId) {
@@ -131,9 +128,8 @@ export const WorkDayPanel: React.FC = () => {
         }
         const params: Parameters<typeof mobileApi.startTimeRegistration>[0] = {
           started_at: selection.startedAtIso,
-          ...(target_type === 'booking'       ? { booking_id: target_id } : {}),
-          ...(target_type === 'large_project' ? { large_project_id: target_id } : {}),
-          ...(target_type === 'location'      ? { location_id: target_id } : {}),
+          target_type,
+          target_id,
         };
         const ok = await startWithParams(params, selection.label);
         if (ok) setDialogOpen(false);
