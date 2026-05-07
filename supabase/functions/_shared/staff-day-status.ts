@@ -696,6 +696,38 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     stale: !!e.stale_for_prompt,
   }));
 
+  // ---- Actions needed (subset of flags requiring user/admin attention) ----
+  const actionsNeeded: ActionNeeded[] = dayFlags
+    .filter((f) => f.needsUserInput && !f.resolved)
+    .map((f) => ({
+      id: f.id,
+      type: f.type,
+      severity: f.severity,
+      title: f.title,
+      description: f.description,
+      needsUserInput: true,
+    }));
+
+  // ---- Intelligence state (hard rules only — AI not used in this step) ----
+  const intelligenceState: IntelligenceState = {
+    mode: "hard_rules_only",
+    workdayBackdated: !!workdaySnap?.autoExtendedFrom,
+    workdaySynthesized: !!workdaySnap?.synthesizedFromEvidence,
+    hasOtherPlace: totals.otherPlaceMinutes > 0,
+    hasTransport: totals.transportMinutes > 0,
+  };
+
+  // ---- Tracking policy hint (for adaptive client location mode) ----
+  const trackingPolicy: TrackingPolicy = {
+    recommendedMode: active
+      ? "active_timer"
+      : workdaySnap?.isOpen
+      ? "workday_active"
+      : "idle",
+    hasActiveTimer: !!active,
+    workdayOpen: !!workdaySnap?.isOpen,
+  };
+
   return {
     date,
     staffId,
@@ -704,7 +736,11 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     totals,
     segments,
     flags: dayFlags,
+    actionsNeeded,
+    intelligenceState,
+    trackingPolicy,
     assistantEvents: events,
     lastUpdatedAt: now.toISOString(),
   };
 }
+
