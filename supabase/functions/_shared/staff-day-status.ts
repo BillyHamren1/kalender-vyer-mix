@@ -127,6 +127,8 @@ export interface SnapshotInput {
   /** Optional client hints to suppress boost (low battery / dismissed cooldown). */
   batteryPct?: number | null;
   dismissedCooldownActive?: boolean;
+  /** Optional GPS pings för dagen — driver segmentChain (gap-klassning). */
+  pings?: Array<{ recorded_at: string; lat: number; lng: number; accuracy?: number | null }>;
 }
 
 export interface DayAttestationRow {
