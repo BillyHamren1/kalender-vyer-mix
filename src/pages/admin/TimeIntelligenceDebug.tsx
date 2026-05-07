@@ -484,6 +484,8 @@ function AtTimeProbe({ result }: { result: any }) {
     </Card>
   );
 }
+
+function Section({ title, data, empty }: { title: string; data: unknown; empty?: string }) {
   const isEmpty =
     data == null ||
     (Array.isArray(data) && data.length === 0) ||
