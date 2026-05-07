@@ -205,23 +205,32 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     setTimeout(() => setTappedItemId(null), 200);
 
     const result = await togglePackingItemManually(itemId, false, quantityToPack, verifierName);
-    if (result.success) {
-      if (isKolliMode && activeParcel) {
-        await assignItemToParcel(itemId, activeParcel.id);
-        setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
-      }
-      // Optimistic local update
-      setItems(prev => {
-        const updated = prev.map(i =>
-          i.id === itemId
-            ? { ...i, quantity_packed: Math.min((i.quantity_packed || 0) + 1, i.quantity_to_pack) }
-            : i
-        );
-        recalcProgress(updated);
-        return updated;
+    if (!result.success) {
+      console.warn('[manual-checkoff] bundle_sync_failed', {
+        itemId,
+        bundleErrorCode: (result as any).bundleErrorCode,
+        warning: result.warning,
+        error: result.error,
       });
-    } else {
-      toast.error(result.error || 'Could not update');
+      toast.error(result.error || result.warning || 'WMS nekade manuell avbockning');
+      return;
+    }
+    if (isKolliMode && activeParcel) {
+      await assignItemToParcel(itemId, activeParcel.id);
+      setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
+    }
+    // Optimistic local update (only after WMS accepted)
+    setItems(prev => {
+      const updated = prev.map(i =>
+        i.id === itemId
+          ? { ...i, quantity_packed: Math.min((i.quantity_packed || 0) + 1, i.quantity_to_pack) }
+          : i
+      );
+      recalcProgress(updated);
+      return updated;
+    });
+    if (result.bundleSynced === false) {
+      toast.warning(result.warning || 'Packad lokalt men inte synkad till WMS');
     }
   }, [verifierName, isKolliMode, activeParcel, recalcProgress]);
 

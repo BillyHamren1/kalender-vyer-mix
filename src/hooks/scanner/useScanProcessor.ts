@@ -403,7 +403,13 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       }
       onTriggerSync();
     } else {
-      toast.error(result.error || 'Could not update');
+      console.warn('[manual-checkoff] bundle_sync_failed', {
+        itemId,
+        bundleErrorCode: (result as any).bundleErrorCode,
+        warning: result.warning,
+        error: result.error,
+      });
+      toast.error(result.error || result.warning || 'WMS nekade manuell avbockning');
     }
   }, [addRecentScan]); // reads rest from optRef
 

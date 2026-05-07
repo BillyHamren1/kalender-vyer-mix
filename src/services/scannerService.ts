@@ -378,6 +378,11 @@ export const togglePackingItemManually = async (
   warning?: string;
   productName?: string;
   newQuantity?: number;
+  // WMS rejection details — surfaced so UIs can show a clear, specific error
+  // and skip optimistic updates when the manual check-off was refused.
+  bundleErrorCode?: string | null;
+  bundleError?: string | null;
+  hardWmsError?: boolean;
 }> => {
   return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null });
 };
