@@ -7305,6 +7305,9 @@ async function handleDismissLocationEntry(supabase: any, staffId: string, data: 
   )
 }
 
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
 async function handleGetLocationTimeEntriesLegacyOnly(supabase: any, staffId: string, data: any, organizationId: string) {
   const { date_from, date_to, limit: queryLimit } = data || {}
 
