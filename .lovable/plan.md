@@ -1,37 +1,84 @@
-Problemet verkar inte vara att PDF:erna saknas. De finns i databasen och fil-URL:erna svarar korrekt med `content-type: application/pdf`. Det som fallerar är sannolikt öppningssättet i appen: projektvyn försöker visa PDF via dialog + `<iframe>` eller `window.open(..., '_blank')`, vilket ofta bryter i mobilapp/webview och i vissa inbäddade miljöer. Därför syns filerna men går inte att öppna pålitligt från projektet.
+# Verifierad rotorsak
 
-Plan
+Det är nu tydligt vad som bestämmer att produkterna ”försvinner”:
 
-1. Byt öppningsstrategi för PDF i projektets filsida
-- Uppdatera `src/components/project/ProjectFiles.tsx` så att PDF-rader inte förlitar sig på inbäddad `<iframe>` som primärt visningssätt.
-- Inför ett säkrare flöde för PDF:
-  - på klick: öppna filen via vanlig länk / explicit nedladdning i stället för intern preview
-  - använd samma robusta mönster för både radklick och knapp
-- Behåll bild-preview för bilder, men separera PDF-hanteringen från bildlogiken.
+## Kedjan som orsakar felet
 
-2. Lägg till app-säkert hjälpbeteende för externa filer
-- Inför en liten återanvändbar helper för att öppna filer externt på ett sätt som fungerar bättre i mobil/webview.
-- Prioritera beteende som inte kräver ny flik om miljön blockerar det.
-- Om extern öppning inte stöds, fall back till direkt navigation till fil-URL.
+1. I `eventflow-booking` exporteras produkter från `booking_products` i `export_bookings`.
+   - Där står uttryckligen att produkter skickas exakt som de ligger i databasen.
+   - `export_bookings` hämtar bokningar först och gör sedan en separat query mot `booking_products` för dessa `booking_id`.
 
-3. Gör projektets fil-UI tydligt för PDF
-- Visa PDF som “Öppna / Ladda ner” i stället för att antyda inline-preview om den inte är pålitlig.
-- Säkerställ att hela raden och åtgärdsknappen använder samma logik.
+2. Men i samma projekt (`eventflow-booking`) finns en importväg som först raderar alla produkt­rader för en bokning och sedan lägger in dem igen.
+   - Fil: `eventflow-booking/supabase/functions/import-bookings/index.ts`
+   - Den gör:
+     - `delete().eq('booking_id', booking.id)`
+     - därefter loopar den och `insert()` produkterna igen
 
-4. Verifiera liknande ytor
-- Gå igenom närliggande filvisningar för att se om samma mönster används där också, särskilt i mobilens bilagor.
-- Om samma risk finns där, applicera samma helper så att beteendet blir konsekvent.
+3. Under det korta fönstret mellan `delete` och sista `insert` kan `export_bookings` svara med bokningen men med `products: []`.
+   - Alltså: i Booking-systemet ”finns produkterna” före och efter,
+   - men just när Planning läser kan källan tillfälligt se tom ut.
 
-5. Kontroll
-- Verifiera i preview att projektets PDF-länkar triggar rätt öppningsflöde.
-- Bekräfta att bilder fortfarande previewas korrekt och att uppladdning/radering inte påverkas.
+4. I detta projekt (`Planning`) tolkar `supabase/functions/import-bookings/index.ts` en tom array som sanningen.
+   - `checkProductChanges(...)` ser då alla lokala produkter som “removed”
+   - sedan kör merge-logiken:
+     - uppdaterar/infogar inget (för att arrayen är tom)
+     - och därefter raderas alla gamla lokala produkter som inte blev “seen”
+   - resultat: `booking_products` blir 0 lokalt
 
-Tekniska detaljer
-- Berörda filer, minst:
-  - `src/components/project/ProjectFiles.tsx`
-- Troliga kompletterande filer:
-  - eventuell ny helper under `src/lib/` eller `src/utils/`
-  - `src/components/mobile-app/job-tabs/JobAttachmentsSection.tsx` om samma öppningsproblem ska tätas där också
-- Ingen backend- eller databasändring behövs för själva PDF-felet; datat och storage-svaret ser korrekt ut.
+## Slutsats
 
-När du godkänner planen implementerar jag fixen direkt.
+Det som faktiskt bestämmer att de försvinner är alltså:
+
+```text
+Booking-projektet skapar ett tillfälligt tomt produktfönster
+        +
+Planning-importen litar destruktivt på tom array
+        =
+alla lokala produkter raderas
+```
+
+Det är därför det kan se helt orimligt ut:
+- ”I Booking finns ju alla produkter” — ja, före/efter syncen
+- men Planning råkar läsa precis när Booking-kopian är tillfälligt tom
+- och Plannings importer tar då beslutet att radera allt lokalt
+
+# Vad jag har verifierat
+
+- GOPA-projektets UI läser direkt från lokala `booking_products`
+- nätverksanropet för GOPA gav `[]`
+- databasen i Planning har just nu `0` rader för GOPA-bokningen
+- det finns många genomförda `booking_sync_jobs` för samma bokning idag
+- Booking-projektets kod har en verklig `delete all -> reinsert all`-sekvens för produkter
+- Planning-projektets kod har en verklig `empty external products -> delete unseen local products`-sekvens
+
+# Plan för fix
+
+## I detta projekt (kan fixas här först)
+1. Hårdna `supabase/functions/import-bookings/index.ts`
+   - Om extern payload kommer med `products: []` och lokalt redan finns produkter:
+   - behandla det som `transient_empty_source`, inte som “delete all”
+   - hoppa över destruktiv delete i både merge- och recovery-flödet
+
+2. Lägg till tydlig audit/logg för produktbeslut
+   - booking id
+   - external product count
+   - local product count
+   - delete skipped / delete allowed
+   - orsak
+
+3. Gör GOPA-säker återställning
+   - efter skyddet är på plats kan bokningen synkas om utan risk att ännu en tom upstream-snapshot rensar allt igen
+
+## I källprojektet `eventflow-booking` (separat åtgärd i den koden)
+4. Byt bort `delete + insert` för produkter
+   - helst merge/upsert
+   - alternativt gör hela produktbytet atomiskt så `export_bookings` aldrig ser ett tomt mellanläge
+
+# Viktig slutsats
+
+Den primära buggen är inte att exporten ”glömmer” produkter permanent.
+Den verkliga buggen är att:
+- källsystemet exponerar ett tomt mellanläge,
+- och Planning-systemet behandlar det tomma mellanläget som auktoritativ sanning.
+
+Godkänn så går jag vidare med skyddet i Planning-importen först, vilket stoppar att GOPA och liknande bokningar töms igen.

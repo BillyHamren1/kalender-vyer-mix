@@ -1556,7 +1556,32 @@ const checkProductChanges = async (
     console.error(`Error fetching existing products for ${bookingId}:`, error);
     return { changed: false, added: [], removed: [], updated: [], existingProducts: [] };
   }
-  
+
+  // GUARD: Treat empty external payload as transient/missing source, NOT as deletion intent.
+  // The upstream booking system can momentarily return products: [] during its own
+  // delete+reinsert cycle. We must NEVER wipe local products in that window.
+  const externalCount = Array.isArray(externalProducts) ? externalProducts.length : 0;
+  const localCount = (existingProducts || []).length;
+  if (externalCount === 0 && localCount > 0) {
+    console.warn(`[Product Sync GUARD] booking ${bookingId}: external products is empty but ${localCount} exist locally — treating as transient_empty_source, skipping all product mutations`);
+    try {
+      await supabase.from('sync_audit_log').insert({
+        booking_id: bookingId,
+        sync_action: 'product_sync_skipped',
+        booking_status: 'unknown',
+        booking_dates: {},
+        expected_events: { external_count: 0, local_count: localCount, reason: 'transient_empty_source' },
+        actual_events: {},
+        events_created: 0,
+        events_updated: 0,
+        events_deleted: 0,
+        has_mismatch: true,
+        mismatch_details: 'external products empty while local has rows — destructive sync skipped',
+      });
+    } catch (_) { /* audit best-effort */ }
+    return { changed: false, added: [], removed: [], updated: [], existingProducts: existingProducts || [] };
+  }
+
   const existingMap = new Map((existingProducts || []).map((p: any) => [(p.name || '').trim().toLowerCase(), p]));
   const externalMap = new Map((externalProducts || []).map(p => [(p.name || p.product_name || '').trim().toLowerCase(), p]));
   
@@ -2930,7 +2955,15 @@ serve(async (req) => {
           
           // If only product recovery is needed, clear products and reimport
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && needsProductRecovery) {
-            console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting products`);
+            // GUARD: never wipe local products when external payload is empty.
+            const recoveryExternalCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
+            if (recoveryExternalCount === 0) {
+              console.warn(`[Product Recovery GUARD] Skipping recovery for booking ${bookingData.id}: external products array is empty (transient_empty_source). Keeping local products intact.`);
+              await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+              continue;
+            }
+
+            console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting ${recoveryExternalCount} products`);
             
             // Delete packing list items BEFORE products to avoid FK constraint violations
             const { data: packingForRecovery } = await supabase
@@ -3668,13 +3701,18 @@ serve(async (req) => {
           }
 
           // ── DELETE products no longer in the external API ─────────────────────
-          if (oldProducts && oldProducts.length > 0) {
+          // GUARD: never delete based on an empty external payload — that's the upstream
+          // delete+reinsert race window, not a real deletion intent.
+          const externalProductCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
+          if (oldProducts && oldProducts.length > 0 && externalProductCount > 0) {
             const toDelete = oldProducts.filter((p: any) => !seenExistingIds.has(p.id));
             if (toDelete.length > 0) {
               const idsToDelete = toDelete.map((p: any) => p.id);
-              console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API`);
+              console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API (external had ${externalProductCount})`);
               await supabase.from('booking_products').delete().in('id', idsToDelete);
             }
+          } else if (oldProducts && oldProducts.length > 0 && externalProductCount === 0) {
+            console.warn(`[Merge GUARD] Skipping delete of ${oldProducts.length} local products for booking ${bookingData.id}: external products array is empty (transient_empty_source)`);
           }
           // ─────────────────────────────────────────────────────────────────────
           
