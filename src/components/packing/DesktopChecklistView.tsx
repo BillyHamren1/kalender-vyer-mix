@@ -284,20 +284,29 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
   const handleIncrement = useCallback(async (itemId: string, quantityToPack: number, isParent: boolean) => {
     if (isParent) return;
     const result = await togglePackingItemManually(itemId, false, quantityToPack, verifierName);
-    if (result.success) {
-      if (isKolliMode && activeParcel) {
-        await assignItemToParcel(itemId, activeParcel.id);
-        setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
-      }
-      setItems(prev => {
-        const updated = prev.map(i =>
-          i.id === itemId ? { ...i, quantity_packed: Math.min((i.quantity_packed || 0) + 1, i.quantity_to_pack) } : i
-        );
-        recalcProgress(updated);
-        return updated;
+    if (!result.success) {
+      console.warn('[manual-checkoff] bundle_sync_failed', {
+        itemId,
+        bundleErrorCode: (result as any).bundleErrorCode,
+        warning: (result as any).warning,
+        error: result.error,
       });
-    } else {
-      toast.error(result.error || 'Kunde inte uppdatera');
+      toast.error(result.error || (result as any).warning || 'WMS nekade manuell avbockning');
+      return;
+    }
+    if (isKolliMode && activeParcel) {
+      await assignItemToParcel(itemId, activeParcel.id);
+      setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
+    }
+    setItems(prev => {
+      const updated = prev.map(i =>
+        i.id === itemId ? { ...i, quantity_packed: Math.min((i.quantity_packed || 0) + 1, i.quantity_to_pack) } : i
+      );
+      recalcProgress(updated);
+      return updated;
+    });
+    if ((result as any).bundleSynced === false) {
+      toast.warning((result as any).warning || 'Packad lokalt men inte synkad till WMS');
     }
   }, [isKolliMode, activeParcel, recalcProgress]);
 
