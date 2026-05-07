@@ -197,6 +197,7 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
                 </a>
               );
             })}
+          </div>
         </div>
       )}
 
