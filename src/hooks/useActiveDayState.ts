@@ -66,7 +66,7 @@ export function useActiveDayState(): UseActiveDayStateResult {
     inFlight.current = true;
     setIsLoading(true);
     try {
-      const res = await mobileApi.getActiveDayState();
+      const res = await mobileApi.getActiveDayStateLegacy();
       setState(res as ActiveDayState);
       setError(null);
     } catch (err: any) {

@@ -453,7 +453,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         const today = new Date();
         const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
         const dateFrom = yesterday.toISOString().split('T')[0];
-        const entriesRes = await mobileApi.getLocationTimeEntries({ date_from: dateFrom, limit: 50 });
+        const entriesRes = await mobileApi.getLocationTimeEntriesLegacy({ date_from: dateFrom, limit: 50 });
         if (cancelled) return;
         const openEntries = (entriesRes.entries || []).filter((e: any) => !e.exited_at);
 
