@@ -1118,6 +1118,16 @@ export default function TimeIntelligenceDebug() {
     }
   };
 
+  const copyTimeEngineSummary = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(buildTimeEngineSummary(result), null, 2));
+      toast.success("Time Engine dry-run summary kopierad");
+    } catch (e: any) {
+      toast.error("Kunde inte kopiera: " + (e?.message ?? String(e)));
+    }
+  };
+
   const isDryRun = result?.dryRun !== false;
   const datePreset = useMemo(() =>
     date === todayIso() ? "today" : date === yesterdayIso() ? "yesterday" : "custom",
