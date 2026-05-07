@@ -255,15 +255,8 @@ Deno.serve(async (req) => {
     for (const r of (bsaRows ?? []) as any[]) {
       if (r.booking_id) assignedBookingIds.add(r.booking_id);
     }
-    const { data: lpta } = await supabase
-      .from("large_project_team_assignments")
-      .select("large_project_id, assignment_date")
-      .eq("staff_id", staffId)
-      .eq("assignment_date", date)
-      .limit(50);
-    for (const r of (lpta ?? []) as any[]) {
-      if (r.large_project_id) assignedLargeIds.add(r.large_project_id);
-    }
+    // large_project_team_assignments är team-baserat (inget staff_id) — hoppar
+    // över här; nearbyLarge-fetchen täcker upp.
   }
 
   const allBookingIds = new Set<string>([...refBookingIds, ...assignedBookingIds]);
