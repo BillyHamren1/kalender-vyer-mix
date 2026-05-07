@@ -97,6 +97,18 @@ export default function TimeIntelligenceDebug() {
     }
   };
 
+  const copyJson = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+      setCopied(true);
+      toast.success("Debug JSON kopierad");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e: any) {
+      toast.error("Kunde inte kopiera: " + (e?.message ?? String(e)));
+    }
+  };
+
   const isDryRun = result?.dryRun !== false;
 
   return (
