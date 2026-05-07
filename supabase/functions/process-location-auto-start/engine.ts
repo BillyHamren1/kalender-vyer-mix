@@ -812,12 +812,61 @@ export async function processStaff(
     }, dk, report, 'arrival_blocked')
   }
 
+  // ── Night policy helper (00:00–05:00 local Europe/Stockholm) ─────────────
+  // Stronger evidence required, but real night jobs at valid worksites are
+  // still allowed.
+  const NIGHT_DWELL_BOOKING_MS = 30 * 60_000
+  const NIGHT_DWELL_LOCATION_MS = 15 * 60_000
+  const NIGHT_MIN_PINGS = 5
+  const stockholmHour = (ts: number): number => {
+    try {
+      const fmt = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Stockholm', hour: '2-digit', hour12: false,
+      })
+      return Number(fmt.format(new Date(ts)))
+    } catch {
+      return new Date(ts).getUTCHours()
+    }
+  }
+  const buildNightPolicy = (hit: StableHit, isAssigned: boolean) => {
+    const hourLocal = stockholmHour(hit.firstReliableTs)
+    const isNightLocal = hourLocal >= 0 && hourLocal < 5
+    const requiredDwellMsBase = requiredDwellMs(hit.target.kind, isAssigned)
+    const requiredDwellMsNight = hit.target.kind === 'location'
+      ? NIGHT_DWELL_LOCATION_MS
+      : NIGHT_DWELL_BOOKING_MS
+    const requiredDwell = isNightLocal
+      ? Math.max(requiredDwellMsBase, requiredDwellMsNight)
+      : requiredDwellMsBase
+    const requiredArrivalPings = isNightLocal ? NIGHT_MIN_PINGS : MIN_ARRIVAL_PINGS
+    const requiredConfidence: 'high' | 'medium' = isNightLocal ? 'high' : 'medium'
+    return {
+      isNightLocal,
+      hourLocal,
+      requiredDwellSeconds: Math.round(requiredDwell / 1000),
+      requiredDwellMs: requiredDwell,
+      requiredArrivalPings,
+      requiredConfidence,
+    }
+  }
+
   for (const hit of ordered) {
     const arrivalIso = new Date(hit.firstReliableTs).toISOString()
     const visitDay = arrivalIso.slice(0, 10)
     const isAssigned =
       hit.target.kind !== 'location' &&
       assignedSet.has(assignedKey(hit.target.kind, hit.target.id, visitDay))
+
+    const np = buildNightPolicy(hit, isAssigned)
+    const nightPolicyMeta = (allowed: boolean, blockReason: AutoStartBlockReason | null) => ({
+      isNightLocal: np.isNightLocal,
+      hourLocal: np.hourLocal,
+      requiredDwellSeconds: np.requiredDwellSeconds,
+      requiredArrivalPings: np.requiredArrivalPings,
+      requiredConfidence: np.requiredConfidence,
+      allowed,
+      blockReason,
+    })
 
     // ── Hard blocks ────────────────────────────────────────────────────────
     // 1. Invalid target (test/demo, cancelled, archived, inactive)
@@ -828,38 +877,48 @@ export async function processStaff(
         : hit.target.invalidReason === 'archived' ? 'blocked_archived'
         : hit.target.invalidReason === 'inactive' ? 'blocked_inactive'
         : 'blocked_invalid_target'
-      await emitBlocked(hit, arrivalIso, reason, {})
+      await emitBlocked(hit, arrivalIso, reason, { nightPolicy: nightPolicyMeta(false, reason) })
       continue
     }
     // 2. Private zone (home / manual_ignore / recurring_night)
     const firstPing = hit.pings[0]
     const pz = firstPing ? insidePrivateZone(firstPing.lat, firstPing.lng) : null
     if (pz) {
-      await emitBlocked(hit, arrivalIso, 'blocked_home', { private_zone_kind: pz.kind })
+      // Special-case at night: surface as combined "home or unknown night movement"
+      const reason: AutoStartBlockReason = np.isNightLocal
+        ? 'blocked_home_or_unknown_night_movement'
+        : 'blocked_home'
+      await emitBlocked(hit, arrivalIso, reason, {
+        private_zone_kind: pz.kind,
+        nightPolicy: nightPolicyMeta(false, reason),
+      })
       continue
     }
-    // 3. Not enough arrival pings
-    if (hit.pings.length < MIN_ARRIVAL_PINGS) {
-      await emitBlocked(hit, arrivalIso, 'blocked_not_enough_pings', { min_pings: MIN_ARRIVAL_PINGS })
+    // 3. Not enough arrival pings (night requires more)
+    if (hit.pings.length < np.requiredArrivalPings) {
+      await emitBlocked(hit, arrivalIso, 'blocked_not_enough_pings', {
+        min_pings: np.requiredArrivalPings,
+        nightPolicy: nightPolicyMeta(false, 'blocked_not_enough_pings'),
+      })
       continue
     }
-
-    const requiredDwellBase = requiredDwellMs(hit.target.kind, isAssigned)
-    // 4. Night-time requires stronger evidence (22:00–05:00 UTC).
-    const arrivalHourUtc = new Date(hit.firstReliableTs).getUTCHours()
-    const isNight = arrivalHourUtc >= 22 || arrivalHourUtc < 5
-    const requiredDwell = isNight ? requiredDwellBase * NIGHT_DWELL_MULTIPLIER : requiredDwellBase
-    const meetsDwell = hit.dwellMs >= requiredDwell
-    const lowConfidence = hit.confidence === 'low'
-    if (isNight && hit.confidence !== NIGHT_MIN_CONFIDENCE) {
+    // 4. Night requires high confidence (real night-jobs do produce stable
+    //    high-confidence dwell; spurious noise gets blocked).
+    if (np.isNightLocal && hit.confidence !== np.requiredConfidence) {
       await emitBlocked(hit, arrivalIso, 'blocked_night_requires_stronger_evidence', {
-        required_confidence: NIGHT_MIN_CONFIDENCE,
-        required_dwell_ms: requiredDwell,
+        required_confidence: np.requiredConfidence,
+        required_dwell_ms: np.requiredDwellMs,
+        nightPolicy: nightPolicyMeta(false, 'blocked_night_requires_stronger_evidence'),
       })
       continue
     }
 
+    const requiredDwell = np.requiredDwellMs
+    const meetsDwell = hit.dwellMs >= requiredDwell
+    const lowConfidence = hit.confidence === 'low'
     const materialise = meetsDwell && !lowConfidence
+    // Stash for downstream metadata
+    ;(hit as any)._nightPolicy = nightPolicyMeta(materialise, materialise ? null : (lowConfidence ? 'blocked_low_confidence' : 'blocked_not_enough_dwell'))
 
     if (!materialise) {
       // Suggestion-only path: emit a review event, do NOT open workday/LTE,
