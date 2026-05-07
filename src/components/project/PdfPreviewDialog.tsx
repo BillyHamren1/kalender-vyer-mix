@@ -50,7 +50,7 @@ const PdfPreviewDialog = ({ fileName, open, pdfUrl, onClose }: PdfPreviewDialogP
           canvas.width = Math.ceil(viewport.width);
           canvas.height = Math.ceil(viewport.height);
 
-          await page.render({ canvasContext: context, viewport }).promise;
+          await page.render({ canvas, canvasContext: context, viewport }).promise;
 
           const imageUrl = canvas.toDataURL("image/png");
           renderedPages.push(imageUrl);
