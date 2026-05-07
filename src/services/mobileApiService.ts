@@ -674,10 +674,10 @@ export const mobileApi = {
   getOrganizationLocations: () =>
     callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number; show_as_project?: boolean }[] }>('get_organization_locations'),
 
-  // Unified timer start (Time Engine v2). Forwards to action
-  // `start_time_registration`, which writes ONLY to `active_time_registrations`.
-  // The response is remapped from `{ registration }` to `{ entry }` to keep
-  // existing callers (timerSyncQueue, useWorkSession, useGeofencing) working.
+  // LEGACY COMPATIBILITY ONLY.
+  // New Time app code MUST use `startTimeRegistration` (below) — these
+  // wrappers exist solely so legacy callers (timerSyncQueue, useWorkSession,
+  // useGeofencing) keep working while they are migrated.
   startLocationTimer: async (params: {
     location_id?: string;
     booking_id?: string;
