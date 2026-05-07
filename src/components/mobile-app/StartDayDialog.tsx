@@ -212,6 +212,47 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Start-time picker — applies to both target and manual flows. */}
+        <div className="rounded-xl border border-border bg-muted/30 p-2.5 space-y-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Clock className="w-3.5 h-3.5" />
+            Starttid
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {([
+              { key: 'now', label: 'Nu' },
+              { key: 'm15', label: '−15 min' },
+              { key: 'm30', label: '−30 min' },
+              { key: 'custom', label: 'Välj tid' },
+            ] as Array<{ key: StartOffset; label: string }>).map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                disabled={starting}
+                onClick={() => setStartOffset(opt.key)}
+                className={cn(
+                  'h-9 rounded-lg text-xs font-semibold border transition-colors',
+                  startOffset === opt.key
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background border-border hover:bg-accent',
+                  starting && 'opacity-50',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {startOffset === 'custom' && (
+            <Input
+              type="time"
+              value={customHHMM}
+              onChange={(e) => setCustomHHMM(e.target.value)}
+              disabled={starting}
+              className="h-9"
+            />
+          )}
+        </div>
+
         {!showManual && (
           <>
             <div className="relative">
