@@ -200,6 +200,24 @@ function journeyToSegment(b: JourneyBlock): StaffDaySegment {
 }
 
 function gapToSegment(b: GapBlock): StaffDaySegment {
+  // REGEL: ingen ping ≠ glapp. no_signal blir teknisk signal-status,
+  // inte review-krävande "Ej fördelat".
+  if (b.reason === 'no_signal') {
+    const lastSignal = b.startIso.slice(11, 16);
+    return {
+      id: b.id,
+      kind: 'signal_stale',
+      startIso: b.startIso,
+      endIso: b.endIso,
+      durationMin: b.durationMin,
+      label: 'Signal saknas',
+      subtitle: `Senaste signal ${lastSignal} · arbetsdag pågår`,
+      ongoing: false,
+      reviewRequired: false,
+      sourceBlockId: b.id,
+      payable: false,
+    };
+  }
   return {
     id: b.id,
     kind: 'unknown',
