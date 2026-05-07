@@ -60,12 +60,18 @@ async function mirrorDismissToServer(targetKey: string, ttlMs: number): Promise<
     if (!userId) return;
     const { data: profile } = await supabase
       .from('profiles')
-      .select('organization_id, staff_member_id')
+      .select('organization_id')
       .eq('user_id', userId)
       .maybeSingle();
     const orgId = (profile as any)?.organization_id;
-    const staffId = (profile as any)?.staff_member_id;
-    if (!orgId || !staffId) return;
+    if (!orgId) return;
+    const { data: staff } = await supabase
+      .from('staff_members')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const staffId = (staff as any)?.id;
+    if (!staffId) return;
     const expiresAt = new Date(Date.now() + Math.min(ttlMs, 8 * 60 * 60 * 1000)).toISOString();
     await supabase.from('tracking_boost_dismissals').insert({
       organization_id: orgId,
