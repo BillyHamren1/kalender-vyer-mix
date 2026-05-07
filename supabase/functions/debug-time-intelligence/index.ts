@@ -655,7 +655,7 @@ Deno.serve(async (req) => {
         (kp) => kp.id === seg.matchedSiteId && kp.type === seg.matchedSiteType,
       );
       if (place) {
-        distanceToTargetMeters = Math.round(distM(seg.centerLat, seg.centerLng, place.lat, place.lng));
+        distanceToTargetMeters = Math.round(haversineMeters(seg.centerLat, seg.centerLng, place.lat, place.lng));
         targetRadiusMeters = place.radiusM;
       }
     }
