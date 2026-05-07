@@ -566,6 +566,7 @@ export default function TimeIntelligenceDebug() {
           ) : (
             <>
               <StatusGrid result={result} />
+              {showWarehouseCheck && <WarehouseJosefinasCheck result={result} />}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Section title="Raw data" data={result.rawData} />
                 <Section title="Target matches" data={result.targetMatches} />
