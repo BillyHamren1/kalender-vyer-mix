@@ -594,6 +594,55 @@ Deno.serve(async (req) => {
       return { recorded_at: p.recorded_at, lat: p.lat, lng: p.lng, nearest: ranked };
     });
 
+  // ── Full per-ping classification timeline (every ping, not sampled) ──────
+  const pingClassificationTimeline = pings.map((p: any) => {
+    const hasCoord = p.lat != null && p.lng != null;
+    let nearest: any = null;
+    let nearestDist = Infinity;
+    if (hasCoord) {
+      for (const c of candidates) {
+        const d = haversineM(p.lat, p.lng, c.lat, c.lng);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = c;
+        }
+      }
+    }
+    const inside = nearest && nearest.radius_m != null
+      ? nearestDist <= nearest.radius_m
+      : false;
+    const accuracy = p.accuracy != null ? Number(p.accuracy) : null;
+    const lowQuality = accuracy != null && accuracy > 200;
+    const includedInTargetMatching = hasCoord && !lowQuality && candidates.length > 0;
+    let excludedReason: string | null = null;
+    if (!hasCoord) excludedReason = "missing_coord";
+    else if (lowQuality) excludedReason = `low_accuracy_${Math.round(accuracy!)}m`;
+    else if (candidates.length === 0) excludedReason = "no_known_targets";
+    return {
+      id: p.id ?? null,
+      recorded_at: p.recorded_at,
+      lat: p.lat ?? null,
+      lng: p.lng ?? null,
+      accuracy,
+      speed: p.speed ?? null,
+      included_in_engine: true,
+      included_in_target_matching: includedInTargetMatching,
+      excluded_reason: excludedReason,
+      nearest_target_kind: nearest?.kind ?? null,
+      nearest_target_id: nearest?.id ?? null,
+      nearest_target_label: nearest?.name ?? null,
+      nearest_target_distance_m: nearest ? Math.round(nearestDist) : null,
+      nearest_target_radius_m: nearest?.radius_m ?? null,
+      inside_nearest_target: inside,
+      matched_target_kind: inside ? nearest!.kind : null,
+      matched_target_id: inside ? nearest!.id : null,
+      matched_target_label: inside ? nearest!.name : null,
+      ping_state: inside ? "inside_target" : (hasCoord ? "outside_targets" : "no_coord"),
+      quality_status: lowQuality ? "low" : (hasCoord ? "ok" : "invalid"),
+      quality_reason: excludedReason,
+    };
+  });
+
   const nowMs = Date.now();
   const lastPingAgeMin = lastPingAt ? Math.round((nowMs - new Date(lastPingAt).getTime()) / 60000) : null;
 
