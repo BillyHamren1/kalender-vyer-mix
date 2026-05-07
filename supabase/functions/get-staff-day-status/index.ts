@@ -128,9 +128,18 @@ Deno.serve(async (req) => {
       .eq("staff_id", staffId)
       .eq("date", date)
       .maybeSingle(),
+    admin
+      .from("tracking_policy_boosts")
+      .select("mode, reason, target_id, target_type, expires_at, consumed")
+      .eq("organization_id", orgId)
+      .eq("staff_id", staffId)
+      .eq("consumed", false)
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(5),
   ]);
 
-  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error].filter(Boolean);
+  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error, boostsRes.error].filter(Boolean);
   if (errors.length) {
     console.error("[get-staff-day-status] db errors", errors);
     return bad(500, "Database error", { details: errors.map((e) => e?.message) });
