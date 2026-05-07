@@ -28,6 +28,22 @@ export const corsHeaders = {
 
 export const ENGINE_VERSION = 'auto-start@1.0.0'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY TIME WRITES DISABLED
+// ----------------------------------------------------------------------------
+// Denna gamla motor får inte längre skapa aktiv tid via:
+//   - workdays
+//   - location_time_entries
+//   - travel_time_logs
+//   - time_reports
+//   - assistant_events (start_activity)
+//
+// All ny aktiv tidskälla går genom nya Time Engine
+// (supabase/functions/_shared/time-engine/*) och active_time_registrations.
+// När flaggan är true kortsluts runEngine/processStaff direkt — inga writes.
+// ─────────────────────────────────────────────────────────────────────────────
+export const LEGACY_TIME_WRITES_DISABLED = true
+
 // ── Tuning constants (mirror src/lib/geofence/stableEntry.ts) ───────────────
 export const ENTRY_PING_MIN_COUNT = 3
 export const ENTRY_PING_MIN_DWELL_MS = 2 * 60 * 1000
@@ -703,6 +719,13 @@ export async function processStaff(
   if (pings.length === 0) return
   const orgId = pings[0].organization_id
 
+  // Hård legacy-spärr: gamla motorn får inte skapa workday/LTE/travel/time_report.
+  if (LEGACY_TIME_WRITES_DISABLED) {
+    ;(report as any).legacy_time_writes_disabled = true
+    ;(report as any).skipped_reason = 'legacy_time_engine_disabled_use_new_time_engine'
+    return
+  }
+
   // Kill-switch: räkna arrivals för rapport men gör inga writes.
   if (!GPS_MAY_START_TIME) {
     let arrivalsSeen = 0
@@ -1135,6 +1158,13 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     workdays_opened: 0, ltes_opened: 0, ltes_closed: 0,
     travels_created: 0, events_emitted: 0, skipped_existing: 0, errors: [],
     plan: [],
+  }
+
+  if (LEGACY_TIME_WRITES_DISABLED) {
+    ;(report as any).ok = false
+    ;(report as any).disabled = true
+    ;(report as any).reason = 'legacy_time_engine_disabled_use_new_time_engine'
+    return report
   }
 
   let fromIso: string
