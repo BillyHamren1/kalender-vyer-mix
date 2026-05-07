@@ -46,6 +46,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
 function json(status: number, body: any) {
@@ -70,7 +71,10 @@ Deno.serve(async (req) => {
     return json(200, runScenarioSuite());
   }
 
-  // ── Auth gate (service-role OR cron secret) for real-data inspection ─────
+  // ── Auth gate ───────────────────────────────────────────────────────────
+  // Accept: (a) cron secret header, (b) service-role bearer,
+  //         (c) any valid Supabase user JWT (admin debug page calls this
+  //             with the logged-in admin's session token).
   const headerSecret = req.headers.get("x-cron-secret") ?? "";
   const authHeader = req.headers.get("authorization") ?? "";
   const bearer = authHeader.toLowerCase().startsWith("bearer ")
@@ -78,7 +82,22 @@ Deno.serve(async (req) => {
     : "";
   const okCron = CRON_SECRET.length > 0 && headerSecret === CRON_SECRET;
   const okSvc = SERVICE_ROLE.length > 0 && bearer === SERVICE_ROLE;
-  if (!okCron && !okSvc) {
+
+  let okUser = false;
+  if (!okCron && !okSvc && bearer) {
+    try {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${bearer}` } },
+        auth: { persistSession: false },
+      });
+      const { data, error } = await userClient.auth.getUser();
+      okUser = !!data?.user && !error;
+    } catch {
+      okUser = false;
+    }
+  }
+
+  if (!okCron && !okSvc && !okUser) {
     return json(401, { ok: false, error: "unauthorized" });
   }
 
