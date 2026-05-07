@@ -683,7 +683,12 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   // there is no workday at all but confirmed presence exists, synthesise
   // one from the earliest confirmed presence so UI never shows
   // "Saknar arbetsdag" while there is real work evidence.
-  const policySegments: PolicySegment[] = rawSegments.map((r) => r._policy);
+  // Use legacy evidence rows (NOT main segments) to detect earliest
+  // confirmed presence for workday back-date / synth.
+  const policySegments: PolicySegment[] = [
+    ...legacyPolicySegments,
+    ...rawSegments.map((r) => r._policy),
+  ];
   const earliestConfirmed = suggestedWorkdayStart(policySegments, policyWorkday);
 
   let workdaySnap = workdaySnapBase;
