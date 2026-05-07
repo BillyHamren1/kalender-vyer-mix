@@ -1058,6 +1058,7 @@ export async function processStaff(
         arrival_pings_count: hit.pings.length,
         first_arrival_ping_at: arrivalIso,
         linked_lte_id: lteId,
+        nightPolicy: (hit as any)._nightPolicy ?? null,
       },
     }, arrDk, report, isSwitch ? 'arrival(switch)' : 'arrival')
 
