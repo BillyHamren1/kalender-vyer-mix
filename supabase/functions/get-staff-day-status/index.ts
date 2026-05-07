@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
     locRes,
     flagsRes,
     eventsRes,
+    attestationRes,
   ] = await Promise.all([
     admin
       .from("workdays")
@@ -114,6 +115,13 @@ Deno.serve(async (req) => {
       .gte("happened_at", padStart)
       .lte("happened_at", padEnd)
       .order("happened_at", { ascending: true }),
+    admin
+      .from("day_attestations")
+      .select("id, staff_id, date, break_minutes, comment, status, attested_at, attested_by, locked_at, locked_by")
+      .eq("organization_id", orgId)
+      .eq("staff_id", staffId)
+      .eq("date", date)
+      .maybeSingle(),
   ]);
 
   const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error].filter(Boolean);
