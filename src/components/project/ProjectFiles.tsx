@@ -1,12 +1,14 @@
-import { useRef, useState } from "react";
-import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon, ExternalLink } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon, ExternalLink, Eye } from "lucide-react";
 import { openFileExternally } from "@/lib/files/openFileExternally";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProjectFile } from "@/types/project";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { toast } from "sonner";
 import { ImageThumbnail } from "./ImageThumbnail";
 
 interface BookingAttachment {
@@ -30,10 +32,62 @@ interface ProjectFilesProps {
 const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachments = [], className }: ProjectFilesProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string | null } | null>(null);
+  const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string | null } | null>(null);
+  const [openingPdfId, setOpeningPdfId] = useState<string | null>(null);
   
 
   const isPdfFile = (file: { file_type?: string | null; file_name?: string | null; url: string }) =>
     file.file_type?.includes('pdf') || /\.pdf($|\?)/i.test(file.file_name || file.url);
+
+  useEffect(() => {
+    return () => {
+      if (previewPdf?.url) {
+        URL.revokeObjectURL(previewPdf.url);
+      }
+    };
+  }, [previewPdf]);
+
+  const closePdfPreview = () => {
+    if (previewPdf?.url) {
+      URL.revokeObjectURL(previewPdf.url);
+    }
+    setPreviewPdf(null);
+  };
+
+  const downloadUrl = (url: string, fileName?: string | null) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'fil';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const handlePdfOpen = async (file: { id: string; url: string; file_name: string | null }) => {
+    setOpeningPdfId(file.id);
+
+    try {
+      const res = await fetch(file.url, { credentials: 'omit' });
+      if (!res.ok) throw new Error(`http_${res.status}`);
+
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      setPreviewPdf((current) => {
+        if (current?.url) {
+          URL.revokeObjectURL(current.url);
+        }
+        return { url: blobUrl, name: file.file_name };
+      });
+    } catch (error) {
+      console.error('Failed to open PDF preview', error);
+      toast.error('Kunde inte öppna PDF-filen');
+      await openFileExternally(file.url, file.file_name || undefined);
+    } finally {
+      setOpeningPdfId(null);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -109,9 +163,11 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                     key={file.id}
                     className={`flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group ${clickable ? 'cursor-pointer' : ''}`}
                     onClick={
-                      isImage
-                        ? () => setPreviewImage({ url: file.url, name: file.file_name })
-                        : () => openFileExternally(file.url, file.file_name || undefined)
+                        isImage
+                          ? () => setPreviewImage({ url: file.url, name: file.file_name })
+                          : isPdf
+                            ? () => void handlePdfOpen(file)
+                            : () => openFileExternally(file.url, file.file_name || undefined)
                     }
                   >
                     {isImage ? (
@@ -141,10 +197,18 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={(e) => { e.stopPropagation(); openFileExternally(file.url, file.file_name || undefined); }}
-                        title={isPdf ? 'Öppna PDF' : 'Öppna fil'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isPdf) {
+                            void handlePdfOpen(file);
+                            return;
+                          }
+                          openFileExternally(file.url, file.file_name || undefined);
+                        }}
+                        title={isPdf ? 'Visa PDF' : 'Öppna fil'}
+                        disabled={openingPdfId === file.id}
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        {openingPdfId === file.id ? <Loader2 className="h-4 w-4 animate-spin" /> : isPdf ? <Eye className="h-4 w-4" /> : <ExternalLink className="h-4 w-4" />}
                       </Button>
                       <Button
                         variant="ghost"
@@ -202,6 +266,33 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                 </Button>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!previewPdf} onOpenChange={(open) => !open && closePdfPreview()}>
+        <DialogContent className="max-w-5xl h-[85vh] p-0 overflow-hidden">
+          {previewPdf && (
+            <div className="flex h-full flex-col bg-background">
+              <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
+                <p className="min-w-0 truncate text-sm font-medium">{previewPdf.name || 'PDF'}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadUrl(previewPdf.url, previewPdf.name)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Ladda ner
+                </Button>
+              </div>
+              <ScrollArea className="flex-1">
+                <iframe
+                  src={previewPdf.url}
+                  title={previewPdf.name || 'PDF-preview'}
+                  className="h-[72vh] w-full"
+                />
+              </ScrollArea>
+            </div>
           )}
         </DialogContent>
       </Dialog>
