@@ -298,8 +298,13 @@ export interface IntelligenceState {
 
 import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type TrackingPolicy } from "./trackingPolicy.ts";
 import { buildSegmentChainGaps } from "./segmentChain.ts";
-import { clusterPings } from "./timeline/cluster.ts";
-import { matchSegmentsToPlaces } from "./timeline/matcher.ts";
+// Legacy clusterPings/matchSegmentsToPlaces removed — gpsDayTimeline now uses
+// the canonical Time Engine builder (see import below).
+import {
+  buildGpsDayTimeline as buildEngineGpsDayTimeline,
+  type GpsPing as EngineGpsPing,
+} from "./time-engine/buildGpsDayTimeline.ts";
+import type { WorkTarget as EngineWorkTarget } from "./time-engine/contracts.ts";
 import { minutesBetween } from "./timeline/geo.ts";
 export type { TrackingPolicy, TrackingPolicyBoostRow };
 
@@ -956,32 +961,46 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   };
 
   // ---- GPS Day Timeline (built from ALL pings, independent of workday) ----
+  // Uses the canonical Time Engine builder so 1000+ pings spread across the
+  // day produce a true full-day timeline (stay / travel / gps_gap), not a
+  // single collapsed cluster. Workday is only consulted afterwards to mark
+  // insideWorkday / outsideWorkdayReason.
   const gpsDayTimeline: GpsDayTimelineSegment[] = (() => {
-    const allPings = (input.pings ?? [])
+    const allPings: EngineGpsPing[] = (input.pings ?? [])
       .filter((p) => p && p.recorded_at && Number.isFinite(p.lat) && Number.isFinite(p.lng))
       .map((p) => ({
         ts: p.recorded_at,
         lat: p.lat,
         lng: p.lng,
-        accuracy: p.accuracy ?? null,
+        accuracyM: p.accuracy ?? null,
       }));
     if (allPings.length === 0) return [];
 
-    const knownPlaces = (input.knownPlaces ?? []).map((k) => ({
-      id: k.id,
-      // matcher accepts the broader type union; cast for TS.
-      type: (k.type === "warehouse" ? "location" : k.type) as
-        | "booking" | "project" | "location" | "home" | "unknown",
-      name: k.name,
-      lat: k.lat,
-      lng: k.lng,
-      radiusM: k.radiusM ?? 100,
-    }));
+    const targets: EngineWorkTarget[] = (input.knownPlaces ?? [])
+      .filter((k) => Number.isFinite(k.lat) && Number.isFinite(k.lng))
+      .map((k) => {
+        const kind = (k.type === "warehouse" ? "location" : k.type) as EngineWorkTarget["kind"];
+        return {
+          key: `${kind}:${k.id}`,
+          kind,
+          refId: k.id,
+          label: k.name,
+          center: { lat: k.lat, lng: k.lng },
+          radiusM: k.radiusM ?? 100,
+          validFrom: null,
+          validUntil: null,
+        } as EngineWorkTarget;
+      });
 
-    let raw;
+    let timeline;
     try {
-      raw = clusterPings(allPings);
-      raw = matchSegmentsToPlaces(raw, knownPlaces);
+      timeline = buildEngineGpsDayTimeline({
+        staffId: input.staffId,
+        organizationId: "00000000-0000-0000-0000-000000000000",
+        date: input.date,
+        pings: allPings,
+        targets,
+      });
     } catch (err) {
       console.warn("[staff-day-status] gpsDayTimeline build failed", (err as Error)?.message);
       return [];
@@ -989,7 +1008,6 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
 
     const wdStart = workdaySnap?.startedAt ?? null;
     const wdEnd = workdaySnap?.endedAt ?? null;
-
     const inWorkday = (startTs: string, endTs: string): boolean => {
       if (!wdStart) return false;
       const s = new Date(startTs).getTime();
@@ -999,28 +1017,24 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       return e > ws && s < we;
     };
 
-    const out: GpsDayTimelineSegment[] = [];
-    for (let i = 0; i < raw.length; i++) {
-      const seg = raw[i];
-      let kind: GpsDayTimelineSegment["kind"];
-      let type: GpsDayTimelineSegment["type"];
-      if (!seg.isStationary) {
-        kind = "travel";
-        type = "transport";
-      } else {
-        kind = "stay";
-        type = seg.matchedPlace ? "known_target" : "unknown_place";
-      }
+    return timeline.segments.map((seg) => {
       const inside = inWorkday(seg.startTs, seg.endTs);
-      out.push({
+      const kind: GpsDayTimelineSegment["kind"] =
+        seg.kind === "stay" ? "stay" : seg.kind === "travel" ? "travel" : "gps_gap";
+      const type: GpsDayTimelineSegment["type"] =
+        seg.type === "known_site" ? "known_target"
+        : seg.type === "transport" ? "transport"
+        : seg.type === "gps_gap" ? "gps_gap"
+        : "unknown_place";
+      return {
         startTs: seg.startTs,
         endTs: seg.endTs,
         durationMin: Math.round(seg.durationMin),
         kind,
         type,
-        matchedSiteId: seg.matchedPlace?.id ?? null,
-        matchedSiteType: seg.matchedPlace?.type ?? null,
-        matchedSiteName: seg.matchedPlace?.name ?? null,
+        matchedSiteId: seg.matchedTargetId,
+        matchedSiteType: seg.matchedTargetType as GpsDayTimelineSegment["matchedSiteType"],
+        matchedSiteName: seg.matchedTargetName,
         centerLat: seg.centerLat,
         centerLng: seg.centerLng,
         pingCount: seg.pingCount,
@@ -1032,43 +1046,11 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
             ? "no_workday"
             : new Date(seg.endTs).getTime() <= new Date(wdStart).getTime()
               ? "before_workday_start"
-              : "after_workday_end",
-      });
-    }
-
-    // Insert gps_gap segments where pings are silent for >10 min between adjacent raw segments
-    const withGaps: GpsDayTimelineSegment[] = [];
-    for (let i = 0; i < out.length; i++) {
-      withGaps.push(out[i]);
-      const next = out[i + 1];
-      if (next) {
-        const gapMin = minutesBetween(out[i].endTs, next.startTs);
-        if (gapMin >= 10) {
-          const inside = inWorkday(out[i].endTs, next.startTs);
-          withGaps.push({
-            startTs: out[i].endTs,
-            endTs: next.startTs,
-            durationMin: Math.round(gapMin),
-            kind: "gps_gap",
-            type: "gps_gap",
-            matchedSiteId: null,
-            matchedSiteType: null,
-            matchedSiteName: null,
-            centerLat: null,
-            centerLng: null,
-            pingCount: 0,
-            insideWorkday: inside,
-            affectsPayableTime: false,
-            outsideWorkdayReason: inside
-              ? null
-              : !wdStart
-                ? "no_workday"
+              : new Date(seg.startTs).getTime() >= (wdEnd ? new Date(wdEnd).getTime() : now.getTime())
+                ? "after_workday_end"
                 : "outside_workday",
-          });
-        }
-      }
-    }
-    return withGaps;
+      };
+    });
   })();
 
   const debugMeta = {
