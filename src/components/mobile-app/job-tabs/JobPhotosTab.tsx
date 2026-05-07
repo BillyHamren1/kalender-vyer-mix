@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
-import { Image, Camera, Loader2, X } from 'lucide-react';
+import { Image, Camera, Loader2, X, FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { takePhotoBase64 } from '@/utils/capacitorCamera';
@@ -89,10 +89,10 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
     );
   }
 
-  const uploadedPhotos = files.filter(f => f.source === 'project' && isImageFile(f));
-  const bookingImages = files
-    .filter(f => f.source === 'booking' && isImageFile(f))
-    .filter((f, idx, arr) => arr.findIndex((x: any) => x.url === f.url) === idx);
+  const dedupe = (arr: any[]) => arr.filter((f, idx, a) => a.findIndex((x: any) => x.url === f.url) === idx);
+  const uploadedPhotos = dedupe(files.filter(f => f.source === 'project' && isImageFile(f)));
+  const bookingImages = dedupe(files.filter(f => f.source === 'booking' && isImageFile(f)));
+  const otherFiles = dedupe(files.filter(f => !isImageFile(f)));
 
   return (
     <div className="space-y-6">
@@ -161,6 +161,42 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
                 />
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {otherFiles.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Documents & files
+          </p>
+          <div className="space-y-1.5">
+            {otherFiles.map((file: any) => {
+              const isPdf = file.file_type === 'application/pdf' || /\.pdf$/i.test(file.url || '');
+              return (
+                <a
+                  key={file.id || file.url}
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-xl border bg-card p-3 active:scale-[0.98] transition-transform"
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isPdf ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {file.file_name || file.name || 'File'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {file.source === 'booking' ? 'From booking' : 'From project'}
+                      {isPdf ? ' · PDF' : ''}
+                    </p>
+                  </div>
+                  <Download className="w-4 h-4 text-muted-foreground shrink-0" />
+                </a>
+              );
+            })}
           </div>
         </div>
       )}
