@@ -5792,6 +5792,10 @@ async function handleUploadLocationBatch(
         console.warn('[mobile-app-api] upload_location_batch staff_locations upsert error:', upsertErr)
       }
     }
+  } catch (presenceErr) {
+    console.warn('[mobile-app-api] upload_location_batch presence update failed:', presenceErr)
+  }
+
   // ── 3. Drive the backend chain (NEW) ──
   // GPS-upload is no longer passive: as soon as fresh pings land we run the
   // server-side processStaffLocationUpdate so arrival/exit/switch/travel/
