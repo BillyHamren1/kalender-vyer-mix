@@ -284,6 +284,14 @@ Deno.serve(async (req) => {
   }
 
   const pings = pingsRes.data ?? [];
+  const rawPingCoverage = {
+    totalFetched: pings.length,
+    firstPingAt: pings[0]?.recorded_at ?? null,
+    lastPingAt: pings[pings.length - 1]?.recorded_at ?? null,
+    pageCount: (pingsRes as any).pageCount ?? null,
+    pageSize: (pingsRes as any).pageSize ?? 1000,
+    truncated: false,
+  };
   const workday = (workdayRes.data ?? [])[0] ?? null;
   const locationEntries = lteRes.data ?? [];
   const timeReports = trRes.data ?? [];
