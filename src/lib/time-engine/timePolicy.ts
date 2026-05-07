@@ -65,25 +65,18 @@ export type AutoStartDenyReason =
   | 'blocked_not_enough_pings'
   | 'blocked_night_requires_stronger_evidence';
 
-export type AutoStartReason = AutoStartAllowReason | AutoStartDenyReason;
+export type PolicyAutoStartReason = AutoStartAllowReason | AutoStartDenyReason;
 
 export type PolicyDecision =
   | { allowed: true; reason: AutoStartAllowReason; target: WorkTarget; confidence: Confidence }
   | { allowed: false; reason: AutoStartDenyReason; target?: WorkTarget; confidence: Confidence };
 
-export function mapDenyToContractReason(reason: AutoStartDenyReason): AutoStartBlockReason {
-  switch (reason) {
-    case 'blocked_movement_only': return 'movement_not_allowed';
-    case 'blocked_unknown_place':
-    case 'blocked_home_or_private':
-    case 'blocked_invalid_target':
-    case 'blocked_test_target':
-    case 'blocked_gps_gap': return 'unknown_place_not_allowed';
-    case 'blocked_low_confidence':
-    case 'blocked_not_enough_dwell':
-    case 'blocked_not_enough_pings': return 'low_confidence';
-    case 'blocked_night_requires_stronger_evidence': return 'blocked_night_auto_start_no_active_timer';
-  }
+/**
+ * Policy deny reasons map 1:1 onto the contract's AutoStartBlockedReason set.
+ * Kept as a function for forward-compat in case the two diverge.
+ */
+export function mapDenyToContractReason(reason: AutoStartDenyReason): AutoStartBlockedReason {
+  return reason;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
