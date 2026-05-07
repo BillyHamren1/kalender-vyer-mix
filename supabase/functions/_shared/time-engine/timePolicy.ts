@@ -181,10 +181,12 @@ export interface EvaluateAutoStartInput {
 /**
  * Avgör om en GPS-segment-match får auto-starta tid enligt policyn.
  *
- * OBS: Även när detta returnerar `allowed: true` är det INTE tillåtet att
- * faktiskt skapa `current_time_registration` i nuvarande fas — kontraktet
- * `ActiveTimeRegistration.source` är låst till `'user_timer'`. Funktionen
- * är förberedelse + policy-sanity för framtida öppning.
+ * Detta är den enda sanningen för auto-start-beslut på segmentnivå.
+ * `decideAutoStart` (i decideAutoStart.ts) bygger ovanpå denna funktion
+ * för att producera kontraktets `AutoStartDecision`.
+ *
+ * Om resultatet är `allowed: true` får motorn skapa en
+ * `active_time_registration` med `startSource = 'gps_geofence_auto_start'`.
  */
 export function evaluateAutoStart(input: EvaluateAutoStartInput): PolicyDecision {
   const { segment, match } = input;
