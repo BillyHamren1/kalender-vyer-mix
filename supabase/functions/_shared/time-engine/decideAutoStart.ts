@@ -341,6 +341,15 @@ export function decideAutoStart(input: DecideAutoStartInput): AutoStartDecisionR
     return deny('blocked_invalid_target', evidence, seg.confidence);
   }
 
+  // v1 gate: only a subset of target sources may auto-start time.
+  // active_project / recent_confirmed are intentionally excluded until
+  // the engine is verified end-to-end. The target may still appear as
+  // known_site in GPS Day Timeline — it just won't auto-start time.
+  const src = target.targetSource;
+  if (src && !AUTOSTARTABLE_TARGET_SOURCES.has(src as AutoStartableTargetSource)) {
+    return deny('blocked_target_not_autostartable_source', evidence, seg.confidence);
+  }
+
   // Dwell / ping / confidence thresholds.
   const dwellMin = seg.durationMin;
   const requiredDwellMin = activePolicy.minDwellSeconds / 60;
