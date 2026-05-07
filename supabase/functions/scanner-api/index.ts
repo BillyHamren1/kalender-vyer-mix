@@ -1013,6 +1013,7 @@ Deno.serve(async (req) => {
 
         let bundleSynced = false
         let bundleError: string | null = null
+        let bundleErrorCode: string | null = null
         try {
           const resp = await fetch(
             'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/manual-pack-scan',
@@ -1024,13 +1025,16 @@ Deno.serve(async (req) => {
                 'x-organization-id': ORG_ID,
               },
               body: JSON.stringify({
-                reservation_id: bookingNumber,
+                // Primary keys per WMS contract
+                item_type_id: itemTypeId,        // primary match key
+                sku,                              // fallback only
                 booking_number: bookingNumber,
-                sku,
-                item_type_id: itemTypeId,
-                product_name: productName || null,
+                reservation_id: bookingNumber,
                 quantity: 1,
-                source: 'planning_scanner_manual_checkoff',
+                source: 'manual-pack-scan',
+                performed_by_label: verifiedBy || null,
+                // Extra context
+                product_name: productName || null,
                 packing_list_item_id: itemId,
                 verified_by: verifiedBy || null,
               }),
@@ -1041,15 +1045,21 @@ Deno.serve(async (req) => {
           try { body = JSON.parse(text) } catch { /* ignore */ }
           if (resp.ok && body?.success !== false) {
             bundleSynced = true
-            console.log('[manual-pack-scan] OK', { itemId, sku, bookingNumber })
+            console.log('[manual-pack-scan] OK', { itemId, itemTypeId, sku, bookingNumber })
           } else {
             bundleError = body?.error || `HTTP ${resp.status}`
-            console.warn('[manual-pack-scan] failed', { itemId, status: resp.status, body: text })
+            bundleErrorCode = body?.code || null
+            console.warn('[manual-pack-scan] failed', { itemId, status: resp.status, code: bundleErrorCode, body: text })
           }
         } catch (err) {
           bundleError = (err as any)?.message || 'network_error'
           console.warn('[manual-pack-scan] network error', { itemId, err })
         }
+
+        // Friendly UI message for line_already_fully_packed
+        const friendlyWarning = bundleErrorCode === 'line_already_fully_packed'
+          ? 'Redan fullpackad i WMS'
+          : 'Packad lokalt men kunde inte synka till Bundle'
 
         return json({
           success: true,
@@ -1057,7 +1067,7 @@ Deno.serve(async (req) => {
           bundleSynced,
           productName,
           newQuantity: newQty,
-          ...(bundleSynced ? {} : { warning: 'Packad lokalt men kunde inte synka till Bundle', bundleError }),
+          ...(bundleSynced ? {} : { warning: friendlyWarning, bundleError, bundleErrorCode }),
         })
       }
 
