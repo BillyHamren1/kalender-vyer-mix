@@ -18,7 +18,7 @@
  * ingen UI-tolkning av råa tabellrader sker här.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   AlertTriangle,
@@ -138,6 +138,20 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
   const [showRaw, setShowRaw] = useState(false);
   const { approveMutation } = useApproveTimeReport();
 
+  // 1Hz tick so any pågående arbetsdag/segment räknar upp i realtid utan
+  // att vänta på nästa server-refetch. Pausas till 60s när inget är öppet.
+  const hasOngoing =
+    !model.reportState.workday?.ended_at
+    || model.reportState.timeReports.some((r) => !r.end_iso)
+    || model.reportState.travelLogs.some((t) => !t.end_iso)
+    || model.reportState.locationEntries.some((l) => !l.exited_at);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = hasOngoing ? 1000 : 60_000;
+    const id = window.setInterval(() => setNowMs(Date.now()), interval);
+    return () => window.clearInterval(id);
+  }, [hasOngoing]);
+
   const timeline = useMemo(() => {
     const wd = model.reportState.workday;
 
@@ -221,8 +235,9 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
       timeReports,
       travelLogs,
       locationEntries,
+      now: new Date(nowMs),
     });
-  }, [model, props.staffId, staffName, date]);
+  }, [model, props.staffId, staffName, date, nowMs]);
 
   return (
     <section className="space-y-3 rounded-lg border bg-card p-4">
