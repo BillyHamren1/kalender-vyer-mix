@@ -485,11 +485,73 @@ Deno.serve(async (req) => {
     summary[k].minutes += s.duration_min;
   }
 
+  // ── Råa ping-kluster (FÖRE all tolkning) ─────────────────────────────────
+  // Inga collapseMicroStops, mergeSamePlaceVisits eller mergeAdjacentTravels.
+  // Vi grupperar bara närliggande pings (≤75m centroid-drift, ≤10 min gap)
+  // så att man kan se den faktiska GPS-bilden råt — innan klassning.
+  const RAW_CLUSTER_MAX_DRIFT_M = 75;
+  const RAW_CLUSTER_MAX_GAP_MIN = 10;
+  type RawCluster = {
+    index: number;
+    start_at: string;
+    end_at: string;
+    duration_min: number;
+    ping_count: number;
+    centroid_lat: number;
+    centroid_lng: number;
+    avg_accuracy: number | null;
+  };
+  const rawClusters: RawCluster[] = [];
+  let rc: RawPing[] = [];
+  let rcLat = 0, rcLng = 0;
+  function flushRaw() {
+    if (!rc.length) return;
+    const accs = rc.map((p) => p.accuracy ?? 0).filter((a) => a > 0);
+    rawClusters.push({
+      index: rawClusters.length,
+      start_at: rc[0].recorded_at,
+      end_at: rc[rc.length - 1].recorded_at,
+      duration_min: Math.max(0, Math.round(
+        (new Date(rc[rc.length - 1].recorded_at).getTime()
+          - new Date(rc[0].recorded_at).getTime()) / 60000)),
+      ping_count: rc.length,
+      centroid_lat: Number((rcLat / rc.length).toFixed(6)),
+      centroid_lng: Number((rcLng / rc.length).toFixed(6)),
+      avg_accuracy: accs.length ? Math.round(accs.reduce((s, a) => s + a, 0) / accs.length) : null,
+    });
+    rc = []; rcLat = 0; rcLng = 0;
+  }
+  for (let i = 0; i < pings.length; i++) {
+    const p = pings[i];
+    if (!rc.length) { rc = [p]; rcLat = p.lat; rcLng = p.lng; continue; }
+    const cLat = rcLat / rc.length, cLng = rcLng / rc.length;
+    const drift = haversineM(p.lat, p.lng, cLat, cLng);
+    const gapMin = (new Date(p.recorded_at).getTime()
+      - new Date(rc[rc.length - 1].recorded_at).getTime()) / 60000;
+    if (drift <= RAW_CLUSTER_MAX_DRIFT_M && gapMin <= RAW_CLUSTER_MAX_GAP_MIN) {
+      rc.push(p); rcLat += p.lat; rcLng += p.lng;
+    } else {
+      flushRaw();
+      rc = [p]; rcLat = p.lat; rcLng = p.lng;
+    }
+  }
+  flushRaw();
+
+  const rawPingCoverage = {
+    totalFetched: pings.length,
+    firstPingAt: pings.length ? pings[0].recorded_at : null,
+    lastPingAt: pings.length ? pings[pings.length - 1].recorded_at : null,
+    truncated: pingsAll.truncated,
+    pageCount: pingsAll.pageCount,
+  };
+
   return json(200, {
     ok: true,
     input: { staffId, date, organizationId, staffName: sm?.name ?? null },
     pingFirst: true,
     rawPingCount: pings.length,
+    rawPingCoverage,
+    rawClusters,
     classifiedPings: classified,
     gpsGaps: gaps,
     candidateCount: candidates.length,
@@ -504,6 +566,7 @@ Deno.serve(async (req) => {
     },
     notes: [
       "Ping är primär. Timers/TR/LTE rörs aldrig — endast länkade som context per segment.",
+      "Inga collapseMicroStops / mergeSamePlaceVisits / mergeAdjacentTravels — råa kluster visas som rawClusters.",
       `Geofence-källa: org locations + bookings/projekt med koordinater inom ±7 dagar.`,
     ],
     generatedAt: new Date().toISOString(),
