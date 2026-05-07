@@ -799,15 +799,15 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   const trBreakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
   const breakMin = attestation ? Math.max(0, attestation.break_minutes | 0) : trBreakMin;
   const meta = (workday?.metadata ?? {}) as Record<string, unknown>;
-  const manualDeductionMin = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
+  const manualDeductionMinTotal = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
   const grossWorkdayMin = wdMin;
-  const payableMin = Math.max(0, grossWorkdayMin - breakMin - manualDeductionMin);
+  const payableMin = Math.max(0, grossWorkdayMin - breakMin - manualDeductionMinTotal);
 
   const liveMinutes = active?.durationMinutes ?? 0;
   const totals: DayTotals = {
     grossWorkdayMinutes: grossWorkdayMin,
     breakMinutes: breakMin,
-    manualDeductionMinutes: manualDeductionMin,
+    manualDeductionMinutes: manualDeductionMinTotal,
     payableMinutes: payableMin,
     projectMinutes: projectMin,
     warehouseMinutes: warehouseMin,
