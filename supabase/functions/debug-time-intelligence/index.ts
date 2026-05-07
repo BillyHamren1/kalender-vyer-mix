@@ -33,6 +33,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { clusterPings } from "../_shared/timeline/cluster.ts";
 import { matchSegmentsToPlaces } from "../_shared/timeline/matcher.ts";
+import { distanceMeters as haversineMeters } from "../_shared/timeline/geo.ts";
 import {
   buildGpsDayTimelineOnly,
   type GpsTimelineSegment,
@@ -256,10 +257,23 @@ Deno.serve(async (req) => {
   const dayEnd = `${date}T23:59:59.999Z`;
 
   // ── Allowed fetches: pings + known targets only ─────────────────────────
-  // GPS-only debug: use minimal selects that can NEVER crash on missing
-  // coordinate columns. Coordinates are fetched in a SEPARATE non-blocking
-  // query — if those columns don't exist, targets are simply marked as
-  // missing_coordinates in targetWarnings instead of failing the whole fetch.
+  // Hard-filtered known targets. A booking/project may only become a matchable
+  // target if it passes ALL validity gates (org, coords, radius, status,
+  // not test/demo, date-window). Excluded rows are reported in diagnostics
+  // with explicit reasons but never injected into knownPlaces.
+
+  type TargetSource = "planned_today" | "recent_confirmed" | "permanent_location" | "manual_debug" | "excluded";
+  type TargetValidity = "valid" | "missing_coordinates" | "invalid_radius" | "test_data" | "cancelled" | "outside_date_window" | "excluded_by_status";
+
+  interface TargetMeta {
+    source: TargetSource;
+    validity: TargetValidity;
+    reason: string;
+    radiusMeters: number | null;
+  }
+  const targetMeta = new Map<string, TargetMeta>(); // key = `${type}:${id}`
+
+  const excluded: Array<{ targetType: string; targetId: string; label: string; validity: TargetValidity; reason: string }> = [];
   const targetWarnings: Array<{ targetType: string; targetId: string; reason: string; label?: string }> = [];
 
   const [pingsRes, orgLocationsRes, bookingsRes, largeProjectsRes] = await Promise.all([
@@ -274,14 +288,14 @@ Deno.serve(async (req) => {
     organizationId
       ? supabase
           .from("bookings")
-          .select("id, booking_number, title, client, organization_id")
+          .select("id, booking_number, title, client, organization_id, status, eventdate, rigdaydate, rigdowndate")
           .eq("organization_id", organizationId)
           .limit(1000)
       : Promise.resolve({ data: [], error: null }),
     organizationId
       ? supabase
           .from("large_projects")
-          .select("id, name, organization_id")
+          .select("id, name, organization_id, status, start_date, end_date, event_date, deleted_at")
           .eq("organization_id", organizationId)
           .limit(500)
       : Promise.resolve({ data: [], error: null }),
@@ -289,17 +303,17 @@ Deno.serve(async (req) => {
 
   // Optional coordinate enrichment — runs separately so a column-missing
   // error here is logged as targetWarnings only, never as a fetch error.
-  let bookingCoordsMap = new Map<string, { lat: number; lng: number }>();
-  let largeProjectCoordsMap = new Map<string, { lat: number; lng: number }>();
+  const bookingCoordsMap = new Map<string, { lat: number; lng: number }>();
+  const largeProjectCoordsMap = new Map<string, { lat: number; lng: number }>();
 
   if (organizationId) {
     try {
-      const { data: bCoords, error: bCoordsErr } = await supabase
+      const { data: bCoords } = await supabase
         .from("bookings")
         .select("id, delivery_latitude, delivery_longitude")
         .eq("organization_id", organizationId)
         .limit(1000);
-      if (!bCoordsErr && Array.isArray(bCoords)) {
+      if (Array.isArray(bCoords)) {
         for (const r of bCoords) {
           if (r.delivery_latitude != null && r.delivery_longitude != null) {
             bookingCoordsMap.set(String(r.id), {
@@ -309,16 +323,14 @@ Deno.serve(async (req) => {
           }
         }
       }
-    } catch {
-      // swallow — handled via targetWarnings below
-    }
+    } catch { /* tolerated */ }
     try {
-      const { data: lpCoords, error: lpCoordsErr } = await supabase
+      const { data: lpCoords } = await supabase
         .from("large_projects")
         .select("id, address_latitude, address_longitude")
         .eq("organization_id", organizationId)
         .limit(500);
-      if (!lpCoordsErr && Array.isArray(lpCoords)) {
+      if (Array.isArray(lpCoords)) {
         for (const r of lpCoords) {
           if (r.address_latitude != null && r.address_longitude != null) {
             largeProjectCoordsMap.set(String(r.id), {
@@ -328,114 +340,229 @@ Deno.serve(async (req) => {
           }
         }
       }
-    } catch {
-      // swallow — handled via targetWarnings below
-    }
+    } catch { /* tolerated */ }
   }
 
   const targetFetchDiagnostics: any = {
-    warehouses: { attempted: true, ok: !orgLocationsRes.error, count: 0, warnings: [] as string[], skippedMissingCoordinates: 0 },
-    bookings: { attempted: true, ok: !bookingsRes.error, count: 0, skippedMissingCoordinates: 0 },
-    largeProjects: { attempted: true, ok: !largeProjectsRes.error, count: 0, skippedMissingCoordinates: 0 },
+    warehouses: { attempted: true, ok: !orgLocationsRes.error, totalFetched: 0, valid: 0, excluded: 0 },
+    bookings: { attempted: true, ok: !bookingsRes.error, totalFetched: 0, valid: 0, excluded: 0 },
+    largeProjects: { attempted: true, ok: !largeProjectsRes.error, totalFetched: 0, valid: 0, excluded: 0 },
+    totalFetched: 0,
     totalCandidates: 0,
     candidatesWithCoords: 0,
+    validTargets: 0,
+    excludedTargets: 0,
+    excludedByReason: {} as Record<string, number>,
+    sampleTargets: [] as any[],
+    sampleExcluded: [] as any[],
     warnings: targetWarnings,
   };
 
-  if (pingsRes.error) {
-    warnings.push(`pings fetch error: ${(pingsRes.error as any).message}`);
-  }
-  if (orgLocationsRes.error) {
-    targetFetchDiagnostics.warehouses.warnings.push(`fetch_error: ${(orgLocationsRes.error as any).message}`);
-  }
+  if (pingsRes.error) warnings.push(`pings fetch error: ${(pingsRes.error as any).message}`);
 
   const rawPings: any[] = pingsRes.data ?? [];
 
-  // ── Build known places (used ONLY for naming when GPS matches) ──────────
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  const TEST_RX = /\b(test|demo)\b|!!|\?\?/i;
+  const isTestLabel = (label: string | null | undefined) =>
+    !!label && TEST_RX.test(String(label));
+
+  const targetDateMs = new Date(`${date}T12:00:00.000Z`).getTime();
+  const DAY_MS = 86_400_000;
+  const DATE_WINDOW_DAYS = 14;
+  const dayDelta = (iso: string | null | undefined): number | null => {
+    if (!iso) return null;
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return null;
+    return Math.round((t - targetDateMs) / DAY_MS);
+  };
+  const insideWindow = (iso: string | null | undefined): boolean => {
+    const d = dayDelta(iso);
+    return d !== null && Math.abs(d) <= DATE_WINDOW_DAYS;
+  };
+
+  const bumpReason = (r: TargetValidity) => {
+    targetFetchDiagnostics.excludedByReason[r] = (targetFetchDiagnostics.excludedByReason[r] || 0) + 1;
+  };
+  const recordExcluded = (kind: string, id: string, label: string, validity: TargetValidity, reason: string) => {
+    excluded.push({ targetType: kind, targetId: id, label, validity, reason });
+    bumpReason(validity);
+    if (targetFetchDiagnostics.sampleExcluded.length < 25) {
+      targetFetchDiagnostics.sampleExcluded.push({ targetType: kind, targetId: id, label, validity, reason });
+    }
+  };
+
+  // ── Build known places (only valid, non-test, in-window targets) ────────
   const knownPlaces: KnownPlace[] = [];
 
   const orgLocations = (orgLocationsRes.data ?? []) as any[];
-  targetFetchDiagnostics.warehouses.count = orgLocations.length;
+  targetFetchDiagnostics.warehouses.totalFetched = orgLocations.length;
+  if (orgLocationsRes.error) {
+    warnings.push(`warehouses fetch_error: ${(orgLocationsRes.error as any).message}`);
+  }
   for (const l of orgLocations) {
-    if (l.latitude != null && l.longitude != null) {
-      knownPlaces.push({
-        id: l.id,
-        type: "location",
-        name: l.name ?? "Plats",
-        lat: Number(l.latitude),
-        lng: Number(l.longitude),
-        radiusM: Number(l.radius_meters ?? 100),
-      });
-    } else {
-      targetFetchDiagnostics.warehouses.skippedMissingCoordinates++;
-      targetWarnings.push({
-        targetType: "warehouse",
-        targetId: String(l.id),
-        reason: "missing_coordinates",
-        label: l.name ?? "unnamed",
-      });
+    const label = l.name ?? "Plats";
+    const id = String(l.id);
+    if (isTestLabel(label)) {
+      recordExcluded("warehouse", id, label, "test_data", "label_matches_test_or_demo");
+      targetFetchDiagnostics.warehouses.excluded++;
+      continue;
     }
+    if (l.latitude == null || l.longitude == null) {
+      recordExcluded("warehouse", id, label, "missing_coordinates", "lat_or_lng_null");
+      targetFetchDiagnostics.warehouses.excluded++;
+      continue;
+    }
+    const radius = Number(l.radius_meters ?? 100);
+    if (!Number.isFinite(radius) || radius <= 0 || radius > 5000) {
+      recordExcluded("warehouse", id, label, "invalid_radius", `radius=${l.radius_meters}`);
+      targetFetchDiagnostics.warehouses.excluded++;
+      continue;
+    }
+    knownPlaces.push({
+      id, type: "location", name: label,
+      lat: Number(l.latitude), lng: Number(l.longitude), radiusM: radius,
+    });
+    targetMeta.set(`location:${id}`, {
+      source: "permanent_location", validity: "valid",
+      reason: "warehouse_with_coords", radiusMeters: radius,
+    });
+    targetFetchDiagnostics.warehouses.valid++;
   }
 
   const bookingRows = (bookingsRes.data ?? []) as any[];
-  targetFetchDiagnostics.bookings.count = bookingRows.length;
+  targetFetchDiagnostics.bookings.totalFetched = bookingRows.length;
+  if (bookingsRes.error) {
+    warnings.push(`bookings fetch_error: ${(bookingsRes.error as any).message}`);
+  }
   for (const b of bookingRows) {
-    const coords = bookingCoordsMap.get(String(b.id));
+    const id = String(b.id);
     const label = b.client || b.title || b.booking_number || "Bokning";
-    if (coords) {
-      knownPlaces.push({
-        id: String(b.id),
-        type: "booking",
-        name: label,
-        lat: coords.lat,
-        lng: coords.lng,
-        radiusM: 100,
-      });
-    } else {
-      targetFetchDiagnostics.bookings.skippedMissingCoordinates++;
-      if (targetWarnings.length < 100) {
-        targetWarnings.push({
-          targetType: "booking",
-          targetId: String(b.id),
-          reason: "missing_coordinates",
-          label,
-        });
-      }
+    const status = String(b.status ?? "").toUpperCase();
+
+    if (isTestLabel(label) || isTestLabel(b.booking_number) || isTestLabel(b.title)) {
+      recordExcluded("booking", id, label, "test_data", `label="${label}"`);
+      targetFetchDiagnostics.bookings.excluded++;
+      continue;
     }
+    if (status === "CANCELLED") {
+      recordExcluded("booking", id, label, "cancelled", "status=CANCELLED");
+      targetFetchDiagnostics.bookings.excluded++;
+      continue;
+    }
+    if (status && status !== "CONFIRMED" && status !== "OFFER") {
+      recordExcluded("booking", id, label, "excluded_by_status", `status=${status}`);
+      targetFetchDiagnostics.bookings.excluded++;
+      continue;
+    }
+
+    // Date relevance: any of rigday/event/rigdown within ±14d of the debug date
+    const relevantToday =
+      insideWindow(b.rigdaydate) || insideWindow(b.eventdate) || insideWindow(b.rigdowndate);
+    if (!relevantToday) {
+      recordExcluded("booking", id, label, "outside_date_window",
+        `rig=${b.rigdaydate ?? "-"} event=${b.eventdate ?? "-"} down=${b.rigdowndate ?? "-"}`);
+      targetFetchDiagnostics.bookings.excluded++;
+      continue;
+    }
+
+    const coords = bookingCoordsMap.get(id);
+    if (!coords) {
+      recordExcluded("booking", id, label, "missing_coordinates", "no_delivery_lat_lng");
+      targetFetchDiagnostics.bookings.excluded++;
+      continue;
+    }
+
+    // Source classification
+    const hitToday =
+      dayDelta(b.rigdaydate) === 0 || dayDelta(b.eventdate) === 0 || dayDelta(b.rigdowndate) === 0;
+    const source: TargetSource = hitToday ? "planned_today" : "recent_confirmed";
+
+    knownPlaces.push({
+      id, type: "booking", name: label,
+      lat: coords.lat, lng: coords.lng, radiusM: 100,
+    });
+    targetMeta.set(`booking:${id}`, {
+      source, validity: "valid",
+      reason: hitToday ? "rig_or_event_or_down_date_is_today" : "within_14d_window",
+      radiusMeters: 100,
+    });
+    targetFetchDiagnostics.bookings.valid++;
   }
 
   const largeProjectRows = (largeProjectsRes.data ?? []) as any[];
-  targetFetchDiagnostics.largeProjects.count = largeProjectRows.length;
+  targetFetchDiagnostics.largeProjects.totalFetched = largeProjectRows.length;
+  if (largeProjectsRes.error) {
+    warnings.push(`large_projects fetch_error: ${(largeProjectsRes.error as any).message}`);
+  }
   for (const p of largeProjectRows) {
-    const coords = largeProjectCoordsMap.get(String(p.id));
+    const id = String(p.id);
     const label = p.name ?? "Stort projekt";
-    if (coords) {
-      knownPlaces.push({
-        id: String(p.id),
-        type: "project",
-        name: label,
-        lat: coords.lat,
-        lng: coords.lng,
-        radiusM: 100,
-      });
-    } else {
-      targetFetchDiagnostics.largeProjects.skippedMissingCoordinates++;
-      if (targetWarnings.length < 100) {
-        targetWarnings.push({
-          targetType: "large_project",
-          targetId: String(p.id),
-          reason: "missing_coordinates",
-          label,
-        });
-      }
+
+    if (p.deleted_at != null) {
+      recordExcluded("large_project", id, label, "excluded_by_status", "deleted_at_set");
+      targetFetchDiagnostics.largeProjects.excluded++;
+      continue;
     }
+    if (isTestLabel(label)) {
+      recordExcluded("large_project", id, label, "test_data", `label="${label}"`);
+      targetFetchDiagnostics.largeProjects.excluded++;
+      continue;
+    }
+
+    const relevantToday =
+      insideWindow(p.start_date) || insideWindow(p.end_date) || insideWindow(p.event_date);
+    if (!relevantToday) {
+      recordExcluded("large_project", id, label, "outside_date_window",
+        `start=${p.start_date ?? "-"} end=${p.end_date ?? "-"} event=${p.event_date ?? "-"}`);
+      targetFetchDiagnostics.largeProjects.excluded++;
+      continue;
+    }
+
+    const coords = largeProjectCoordsMap.get(id);
+    if (!coords) {
+      recordExcluded("large_project", id, label, "missing_coordinates", "no_address_lat_lng");
+      targetFetchDiagnostics.largeProjects.excluded++;
+      continue;
+    }
+
+    const hitToday =
+      dayDelta(p.start_date) === 0 || dayDelta(p.end_date) === 0 || dayDelta(p.event_date) === 0 ||
+      (insideWindow(p.start_date) && insideWindow(p.end_date) &&
+        new Date(p.start_date).getTime() <= targetDateMs &&
+        new Date(p.end_date).getTime() >= targetDateMs);
+    const source: TargetSource = hitToday ? "planned_today" : "recent_confirmed";
+
+    knownPlaces.push({
+      id, type: "project", name: label,
+      lat: coords.lat, lng: coords.lng, radiusM: 100,
+    });
+    targetMeta.set(`project:${id}`, {
+      source, validity: "valid",
+      reason: hitToday ? "project_active_on_date" : "within_14d_window",
+      radiusMeters: 100,
+    });
+    targetFetchDiagnostics.largeProjects.valid++;
   }
 
-  targetFetchDiagnostics.totalCandidates =
-    targetFetchDiagnostics.warehouses.count +
-    targetFetchDiagnostics.bookings.count +
-    targetFetchDiagnostics.largeProjects.count;
+  targetFetchDiagnostics.totalFetched =
+    targetFetchDiagnostics.warehouses.totalFetched +
+    targetFetchDiagnostics.bookings.totalFetched +
+    targetFetchDiagnostics.largeProjects.totalFetched;
+  targetFetchDiagnostics.totalCandidates = targetFetchDiagnostics.totalFetched;
   targetFetchDiagnostics.candidatesWithCoords = knownPlaces.length;
+  targetFetchDiagnostics.validTargets = knownPlaces.length;
+  targetFetchDiagnostics.excludedTargets = excluded.length;
+  targetFetchDiagnostics.sampleTargets = knownPlaces.slice(0, 25).map((kp) => {
+    const meta = targetMeta.get(`${kp.type}:${kp.id}`);
+    return {
+      targetType: kp.type, targetId: kp.id, label: kp.name,
+      lat: kp.lat, lng: kp.lng, radiusMeters: kp.radiusM,
+      targetSource: meta?.source ?? "excluded",
+      targetValidity: meta?.validity ?? "valid",
+      reason: meta?.reason ?? "",
+    };
+  });
 
   // ── Per-ping quality classification ─────────────────────────────────────
   const pingClassificationTimeline = rawPings.map((p: any) => {
@@ -516,7 +643,33 @@ Deno.serve(async (req) => {
     knownTargets: knownPlaces,
   });
 
-  const gpsSegments: GpsTimelineSegment[] = gpsTimeline.segments;
+  // Enrich each segment with target meta + geometry-based match diagnostics.
+  const enrichedSegments = gpsTimeline.segments.map((seg) => {
+    const meta = seg.matchedSiteId && seg.matchedSiteType
+      ? targetMeta.get(`${seg.matchedSiteType}:${seg.matchedSiteId}`)
+      : null;
+    let distanceToTargetMeters: number | null = null;
+    let targetRadiusMeters: number | null = meta?.radiusMeters ?? null;
+    if (seg.matchedSiteId && seg.centerLat != null && seg.centerLng != null) {
+      const place = knownPlaces.find(
+        (kp) => kp.id === seg.matchedSiteId && kp.type === seg.matchedSiteType,
+      );
+      if (place) {
+        distanceToTargetMeters = Math.round(haversineMeters(seg.centerLat, seg.centerLng, place.lat, place.lng));
+        targetRadiusMeters = place.radiusM;
+      }
+    }
+    return {
+      ...seg,
+      targetSource: meta?.source ?? (seg.type === "known_site" ? "excluded" : null),
+      targetValidity: meta?.validity ?? null,
+      distanceToTargetMeters,
+      targetRadiusMeters,
+      matchConfidence: seg.confidence,
+    };
+  });
+
+  const gpsSegments: GpsTimelineSegment[] = enrichedSegments as any;
   const targetMatches = gpsTimeline.targetMatches;
   let clusterError: string | null = null;
 
@@ -528,12 +681,12 @@ Deno.serve(async (req) => {
   const SEGMENT_RETURN_CAP = 200;
   const returnedSegments = gpsSegments.slice(0, SEGMENT_RETURN_CAP);
   const gpsDayTimeline = {
-    count: gpsTimeline.segments.length,
-    firstStart: gpsTimeline.segments[0]?.startTs ?? null,
-    lastEnd: gpsTimeline.segments[gpsTimeline.segments.length - 1]?.endTs ?? null,
+    count: gpsSegments.length,
+    firstStart: gpsSegments[0]?.startTs ?? null,
+    lastEnd: gpsSegments[gpsSegments.length - 1]?.endTs ?? null,
     source: "gps_only" as const,
-    truncated: gpsTimeline.segments.length > returnedSegments.length,
-    totalSegments: gpsTimeline.segments.length,
+    truncated: gpsSegments.length > returnedSegments.length,
+    totalSegments: gpsSegments.length,
     returnedSegments: returnedSegments.length,
     segments: returnedSegments,
   };
