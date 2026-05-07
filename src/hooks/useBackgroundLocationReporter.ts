@@ -264,9 +264,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const decision = decideLocationMode({
         position: pos ? { lat: pos.lat, lng: pos.lng } : null,
         targets: decoratedTargets,
-        // Read live timer state from the localStorage cache that
-        // useGeofencing keeps in sync — decoupled from React tree.
-        hasActiveTimer: readHasActiveTimer(),
+        // Workday öppen ELLER aktivitetstimer igång → "i jobbet".
+        // Authority = backend; cachen är hint för icke-React loop.
+        hasActiveTimer: readHasActiveSession(),
         hasPendingArrival: arrivals.length > 0,
         insideKeys: insideRef.current,
         previousMode: currentModeRef.current,
