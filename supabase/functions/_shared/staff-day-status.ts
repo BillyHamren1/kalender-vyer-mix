@@ -114,33 +114,63 @@ export interface SnapshotInput {
   locationEntries: LocationEntryRow[];
   flags: WorkdayFlagRow[];
   assistantEvents: AssistantEventRow[];
+  /** Optional name lookup maps so segments get real labels. */
+  nameMaps?: {
+    bookings?: Record<string, string>;
+    largeProjects?: Record<string, string>;
+    locations?: Record<string, { name: string; isWork: boolean }>;
+  };
 }
 
 export type SegmentKind = "project" | "booking" | "travel" | "location" | "unknown" | "active";
 
+/** Canonical normalized segment type used by UI/timeline. */
+export type SegmentType =
+  | "confirmed_work"
+  | "active_work"
+  | "warehouse"
+  | "transport"
+  | "other_place"
+  | "break"
+  | "manual_adjustment";
+
 export interface DaySegment {
+  /** Stable id (db row id when available, else synthesized). */
+  id: string;
   kind: SegmentKind;
+  /** Canonical type — preferred field for UI. */
+  type: SegmentType;
+  /** ISO start (alias of startedAt). */
+  start: Iso;
+  /** ISO end or null (alias of endedAt). */
+  end: Iso | null;
   startedAt: Iso;
   endedAt: Iso | null;
   durationMinutes: number;
   isActive: boolean;
   label: string;
   source: string;
+  /** 'high' = bekräftad ref, 'medium' = travel/manuell, 'low' = okänd plats. */
+  confidence: "high" | "medium" | "low";
+  /** True only when the segment reduces payableMinutes (break / manual_adjustment). */
+  affectsPayableTime: boolean;
+  /** True when admin/user must classify or attest. */
+  requiresUserInput: boolean;
+  /** Free-form context (kept stable). */
+  metadata: Record<string, unknown>;
   refs: {
     timeReportId?: string;
     travelLogId?: string;
     locationEntryId?: string;
+    workdayId?: string;
     bookingId?: string | null;
     largeProjectId?: string | null;
     locationId?: string | null;
     taskId?: string | null;
   };
   approved?: boolean | null;
-  /** True when ref points at a real booking/large_project/location_id. */
   hasConfirmedRef?: boolean;
-  /** Backend-known classification: 'private' | 'break' | null. */
   classification?: string | null;
-  /** Canonical status from workdayPolicy.classifySegment. */
   policyStatus: PolicyStatus;
 }
 
