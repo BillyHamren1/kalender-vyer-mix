@@ -418,10 +418,17 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     try {
       const result = await addUnknownProduct(
         packingId,
-        pendingUnknownProduct.scannedSku || pendingUnknownProduct.scannedValue,
+        pendingUnknownProduct.wmsSku || pendingUnknownProduct.scannedSku || pendingUnknownProduct.scannedValue,
         productName,
         quantity,
         verifierName,
+        undefined,
+        {
+          wmsItemTypeId: pendingUnknownProduct.wmsItemTypeId ?? null,
+          wmsSku: pendingUnknownProduct.wmsSku ?? null,
+          wmsInstanceId: pendingUnknownProduct.wmsInstanceId ?? null,
+          wmsSerialNumber: pendingUnknownProduct.wmsSerialNumber ?? null,
+        },
       );
       if (!result.success) {
         toast.error(result.error || 'Kunde inte lägga till produkten');
