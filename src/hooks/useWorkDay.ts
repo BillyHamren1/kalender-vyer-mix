@@ -77,6 +77,7 @@ export function useWorkDay(): UseWorkDayResult {
 
   useEffect(() => {
     currentRef.current = current;
+    setWorkdayActive(!!current && !current.ended_at);
   }, [current]);
 
   const refresh = useCallback(async () => {
