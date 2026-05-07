@@ -17,7 +17,16 @@ import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 
 export type StaffDaySegmentKind =
-  | 'project' | 'booking' | 'travel' | 'location' | 'unknown' | 'active';
+  | 'project'
+  | 'booking'
+  | 'travel'
+  | 'location'
+  | 'warehouse'
+  | 'other_place'
+  | 'break'
+  | 'manual_adjustment'
+  | 'unknown'
+  | 'active';
 
 export interface StaffDaySegment {
   kind: StaffDaySegmentKind;
@@ -27,6 +36,8 @@ export interface StaffDaySegment {
   isActive: boolean;
   label: string;
   source: string;
+  /** Optional backend-provided status badge (e.g. "Bekräftad arbetsplats"). */
+  statusLabel?: string | null;
   refs: {
     timeReportId?: string;
     travelLogId?: string;
@@ -44,6 +55,10 @@ export interface StaffDayActive {
   startedAt: string;
   durationMinutes: number;
   label: string;
+  /** Optional backend-provided status text (e.g. "Bekräftad arbetsplats"). */
+  statusLabel?: string | null;
+  /** Optional backend confidence (0..1). UI must NOT compute this. */
+  confidence?: number | null;
   locationEntryId: string;
   bookingId: string | null;
   largeProjectId: string | null;
@@ -57,6 +72,11 @@ export interface StaffDayTotals {
   unallocatedMinutes: number;
   liveMinutes: number;
   isWorkdayOpen: boolean;
+  /** Optional new totals that backend may send. UI never derives them. */
+  breakMinutes?: number | null;
+  payableMinutes?: number | null;
+  otherPlaceMinutes?: number | null;
+  warehouseMinutes?: number | null;
 }
 
 export interface StaffDayFlag {
@@ -70,6 +90,27 @@ export interface StaffDayFlag {
   source: 'workday_flag' | 'computed';
 }
 
+/**
+ * Backend-provided action card. UI must NOT invent or hide actions based on
+ * its own logic — render exactly what the snapshot says.
+ */
+export interface StaffDayActionNeeded {
+  id: string;
+  title: string;
+  description?: string | null;
+  severity?: 'info' | 'warning' | 'error';
+}
+
+/**
+ * Optional tracking metadata. Used to show a discreet "Senaste signal HH:MM"
+ * — never to render scary "glapp" warnings for missing pings.
+ */
+export interface StaffDayTrackingPolicy {
+  lastSignalAt?: string | null;
+  isSignalStale?: boolean;
+  signalStaleSinceMin?: number | null;
+}
+
 export interface StaffDaySnapshot {
   date: string;
   staffId: string;
@@ -78,6 +119,8 @@ export interface StaffDaySnapshot {
     startedAt: string;
     endedAt: string | null;
     isOpen: boolean;
+    /** Optional backend status string ("Arbetsdag igång" / "Avslutad" / etc). */
+    statusLabel?: string | null;
     reviewStatus: string | null;
     reviewReasons: string[];
     approved: boolean;
@@ -88,6 +131,10 @@ export interface StaffDaySnapshot {
   totals: StaffDayTotals;
   segments: StaffDaySegment[];
   flags: StaffDayFlag[];
+  /** New: backend tells us what the user must do. UI must not invent. */
+  actionsNeeded?: StaffDayActionNeeded[];
+  /** New: optional tracking/signal policy. */
+  trackingPolicy?: StaffDayTrackingPolicy | null;
   assistantEvents: Array<{
     id: string;
     type: string;
