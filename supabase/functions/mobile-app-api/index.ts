@@ -6165,53 +6165,71 @@ async function handleStartLocationTimer(supabase: any, staffId: string, data: an
     )
   }
 
-  // 5. Mirror into current_time_registration — the EXPLICIT single source
-  // of truth for "is a user-started timer running right now?".
-  // GPS may NEVER insert into this table; only this user-driven path does.
+  // 5. LEGACY MIRROR → active_time_registrations.
+  // The new Time Engine treats `active_time_registrations` as the SINGLE
+  // source of truth for "is a timer active right now?". This handler is
+  // legacy (LTE-backed) — it still creates a workday + LTE for backward
+  // compatibility with reports/payroll, but it MUST NOT create a parallel
+  // active row in any other timer table. We mirror into active_time_registrations
+  // with start_source='user_timer', auto_started=false.
   try {
-    // Resolve current_kind/current_label from the bound target.
     let currentKind: string = 'unknown_place'
     let currentLabel: string = 'Okänd plats'
+    let currentTargetType: string | null = null
+    let currentTargetId: string | null = null
     if (large_project_id) {
       currentKind = 'project'
+      currentTargetType = 'large_project'
+      currentTargetId = large_project_id
       const { data: lp } = await supabase.from('large_projects')
         .select('name').eq('id', large_project_id).maybeSingle()
       currentLabel = lp?.name ?? 'Projekt'
     } else if (booking_id) {
       currentKind = 'booking'
+      currentTargetType = 'booking'
+      currentTargetId = booking_id
       const { data: b } = await supabase.from('bookings')
         .select('client, title, booking_number')
         .eq('id', booking_id).maybeSingle()
       currentLabel = b?.client || b?.title || b?.booking_number || 'Bokning'
     } else if (location_id) {
       currentKind = 'warehouse'
+      currentTargetType = 'location'
+      currentTargetId = location_id
       const { data: l } = await supabase.from('organization_locations')
         .select('name').eq('id', location_id).maybeSingle()
       currentLabel = l?.name ?? 'Plats'
     }
 
-    // Stop any other active row for this staff (defensive — unique index also enforces).
+    // Stop any other active row for this staff (unique index also enforces).
     await supabase
-      .from('current_time_registration')
-      .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+      .from('active_time_registrations')
+      .update({ status: 'stopped', stopped_at: new Date().toISOString(), stop_source: 'superseded_by_new_start' })
+      .eq('organization_id', organizationId)
       .eq('staff_id', staffId)
       .eq('status', 'active')
 
-    await supabase.from('current_time_registration').insert({
-      staff_id: staffId,
+    await supabase.from('active_time_registrations').insert({
       organization_id: organizationId,
-      started_at: enteredAtIso,
-      started_by_user: true,
+      staff_id: staffId,
       status: 'active',
+      started_at: enteredAtIso,
+      started_by: staffId,
+      start_source: 'user_timer',
+      auto_started: false,
+      start_target_type: currentTargetType,
+      start_target_id: currentTargetId,
+      start_target_label: currentLabel,
       current_kind: currentKind,
       current_label: currentLabel,
-      source: 'user_timer',
-      confidence: 0.95,
+      current_target_type: currentTargetType,
+      current_target_id: currentTargetId,
+      current_confidence: 1,
       needs_user_choice: false,
-      linked_location_time_entry_id: entry.id,
+      metadata: { linked_location_time_entry_id: entry.id, legacy_lte_mirror: true },
     })
   } catch (regErr) {
-    console.warn('[start_location_timer] current_time_registration mirror failed (non-fatal):', regErr)
+    console.warn('[start_location_timer] active_time_registrations mirror failed (non-fatal):', regErr)
   }
 
   return new Response(
