@@ -182,30 +182,52 @@ export default function TimeIntelligenceDebug() {
 
       {result && (
         <>
-          <div className="flex items-center gap-2">
-            <Badge variant={isDryRun ? "secondary" : "default"}>
-              {isDryRun ? "DRY-RUN — inga skrivningar utförda" : "LIVE"}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant={isDryRun ? "secondary" : "destructive"}>
+              {isDryRun ? "DRY-RUN — inga skrivningar utförda" : "LIVE — data har ändrats"}
             </Badge>
             {result.summary && (
               <Badge variant="outline">
                 Scenarios: {result.summary.passed}/{result.summary.total}
               </Badge>
             )}
+            <Button variant="outline" size="sm" onClick={copyJson} className="ml-auto">
+              {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+              Kopiera debug JSON
+            </Button>
           </div>
 
           {result.scenarios ? (
             <Section title="Scenarioresultat" data={result.scenarios} />
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Section title="Raw data" data={result.rawData} />
-              <Section title="Detected state" data={result.detectedState} />
-              <Section title="Target matches" data={result.targetMatches} />
-              <Section title="Segment preview" data={result.segmentPreview ?? result.segments} />
-              <Section title="Would write" data={result.wouldWrite} />
-              <Section title="Warnings" data={result.warnings} empty="Inga varningar" />
-              <Section title="Snapshot preview" data={result.snapshotPreview} />
-              <Section title="Debug meta" data={result.debugMeta ?? result.diagnostics} />
-            </div>
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Section title="Raw data" data={result.rawData} />
+                <Section title="Target matches" data={result.targetMatches} />
+                <Section title="Detected state" data={result.detectedState} />
+                <Section title="Segment preview" data={result.segmentPreview ?? result.segments} />
+                <Section title="Would write" data={result.wouldWrite} />
+                <Section title="Warnings" data={result.warnings} empty="Inga varningar" />
+                <Section title="Snapshot preview" data={result.snapshotPreview} />
+                <Section title="Debug meta" data={result.debugMeta ?? result.diagnostics} />
+              </div>
+              <Card>
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">Full JSON</CardTitle>
+                  <Button variant="outline" size="sm" onClick={copyJson}>
+                    {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                    Kopiera
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="max-h-[500px]">
+                    <pre className="text-xs whitespace-pre-wrap break-words font-mono bg-muted p-3 rounded">
+                      {JSON.stringify(result, null, 2)}
+                    </pre>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </>
           )}
         </>
       )}
