@@ -1,4 +1,5 @@
 import { FileImage, FileText, ExternalLink } from 'lucide-react';
+import { openFileExternally } from '@/lib/files/openFileExternally';
 
 interface BookingAttachment {
   id?: string;
