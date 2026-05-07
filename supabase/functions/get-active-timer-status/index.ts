@@ -326,8 +326,51 @@ Deno.serve(async (req) => {
     }
   }
 
+  // If we ran the GPS classifier on an unbound timer, write the latest
+  // classification back to current_time_registration. GPS may update
+  // current_kind/current_label/confidence/needs_user_choice, but never
+  // create the row.
+  if (currentReg && registrationSource === "gps_classifier") {
+    try {
+      await admin
+        .from("current_time_registration")
+        .update({
+          current_kind: registrationKind,
+          current_label: registrationLabel,
+          confidence,
+          needs_user_choice: needsUserChoice,
+          last_gps_classification_at: new Date().toISOString(),
+        })
+        .eq("id", currentReg.id)
+        .eq("status", "active");
+    } catch (_e) {
+      // non-fatal — read path stays correct from in-memory values
+    }
+  }
+
+  const currentRegistrationPayload: CurrentRegistrationPayload | null = currentReg
+    ? {
+        id: currentReg.id,
+        staff_id: currentReg.staff_id,
+        organization_id: currentReg.organization_id,
+        started_at: currentReg.started_at,
+        started_by_user: true,
+        status: "active",
+        current_kind: registrationKind,
+        current_label: registrationLabel,
+        source: "user_timer",
+        last_gps_classification_at:
+          registrationSource === "gps_classifier"
+            ? new Date().toISOString()
+            : (currentReg.last_gps_classification_at ?? null),
+      }
+    : null;
+
   const body: ActiveResponse = {
     timerActive: true,
+    timeRegistrationActive: true,
+    currentRegistration: currentRegistrationPayload,
+    gpsOnly: false,
     timerId: String(active.id),
     startedAt,
     elapsedSeconds,
