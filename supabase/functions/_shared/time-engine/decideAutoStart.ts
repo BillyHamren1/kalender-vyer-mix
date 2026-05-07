@@ -252,6 +252,7 @@ function buildEvidence(args: {
     timeTrackingAllowed: target?.timeTrackingAllowed,
     assignedToUserToday: target?.assignedToUserToday,
     explicitlyAllowed: target?.explicitlyAllowed,
+    targetSource: target?.targetSource ?? null,
     policyUsed,
   };
 }
