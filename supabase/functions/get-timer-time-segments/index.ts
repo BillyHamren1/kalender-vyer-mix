@@ -1,25 +1,30 @@
 // get-timer-time-segments
 // ─────────────────────────────────────────────────────────────────────────────
-// Slices the pure GPS-only timeline by an active (or recently closed) timer
-// window so the segments become time-report / attest underlay.
+// Slices the Time Engine's GPS day timeline by an active (or recently closed)
+// `active_time_registrations` window so the segments become time-report /
+// attest underlay.
 //
-// Flow this implements:
-//   1. GPS auto-start (or user-start) creates a location_time_entries row.
-//   2. While that row is open (exited_at IS NULL) — or for a closed row when
-//      `timer_id` is supplied — every GPS segment that overlaps the window is
-//      mapped to a TimeSegment:
-//         known_site  → project | booking | warehouse
-//         travel      → transport
-//         unknown stay→ unknown_place
-//         gps_gap     → gps_uncertain
-//   3. When the timer is stopped, this same call returns the final cut.
+// Single source of truth for active timer: `active_time_registrations`.
+//   - Active timer       → status='active', stopped_at IS NULL
+//   - Closed timer       → status!='active', stopped_at NOT NULL
+// GPS classification    → new Time Engine (`buildGpsDayTimeline` +
+//                          `resolveWorkTargets`).
+//
+// NEVER reads from `current_time_registration` or `location_time_entries`.
 //
 // Auth: dual (mobile token or Supabase JWT) via _shared/staff-auth.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
-import { buildGpsDayTimelineOnly } from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
-import type { KnownPlace } from "../_shared/timeline/types.ts";
+import {
+  buildGpsDayTimeline,
+  type GpsPing,
+} from "../_shared/time-engine/buildGpsDayTimeline.ts";
+import {
+  resolveWorkTargets,
+  toWorkTarget,
+} from "../_shared/time-engine/resolveWorkTargets.ts";
+import type { WorkTarget } from "../_shared/time-engine/contracts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,8 +49,8 @@ interface TimeSegment {
   durationMin: number;
   kind: TimeSegmentKind;
   label: string;
-  matchedSiteId: string | null;
-  matchedSiteType: "project" | "booking" | "location" | null;
+  matchedTargetId: string | null;
+  matchedTargetType: WorkTarget["kind"] | null;
   confidence: number;
   reason: string;
   pingCount: number;
@@ -110,14 +115,24 @@ Deno.serve(async (req) => {
     organizationId = prof.organization_id;
   }
 
-  // Resolve timer row: explicit id, or latest open row for staff.
-  let timerQ = admin.from("location_time_entries")
-    .select("id, entered_at, exited_at, booking_id, large_project_id, location_id, source")
+  // Resolve timer row from active_time_registrations: explicit id, or latest
+  // active row for staff.
+  let timerQ = admin.from("active_time_registrations")
+    .select(
+      "id, started_at, stopped_at, status, start_target_type, start_target_id, start_target_label, current_kind, current_label",
+    )
+    .eq("organization_id", organizationId)
     .eq("staff_id", staffId);
-  if (timerId) timerQ = timerQ.eq("id", timerId);
-  else timerQ = timerQ.is("exited_at", null);
-  const { data: rows } = await timerQ.order("entered_at", { ascending: false }).limit(1);
+  if (timerId) {
+    timerQ = timerQ.eq("id", timerId);
+  } else {
+    timerQ = timerQ.eq("status", "active");
+  }
+  const { data: rows } = await timerQ
+    .order("started_at", { ascending: false })
+    .limit(1);
   const timer = rows?.[0] ?? null;
+
   if (!timer) {
     return json(200, {
       timerActive: false,
@@ -129,90 +144,52 @@ Deno.serve(async (req) => {
     });
   }
 
-  const startedAt: string = timer.entered_at;
-  const endedAt: string = timer.exited_at ?? new Date().toISOString();
+  const startedAt: string = timer.started_at;
+  const endedAt: string = timer.stopped_at ?? new Date().toISOString();
   const dateStr = startedAt.slice(0, 10);
 
-  // Load pings overlapping window (extend a bit for edge clustering)
+  // Pings overlapping the window (small pad for clustering edges)
   const pad = 5 * 60_000;
   const fromTs = new Date(new Date(startedAt).getTime() - pad).toISOString();
   const toTs = new Date(new Date(endedAt).getTime() + pad).toISOString();
 
-  const [pingsRes, locsRes, bookingsRes, projectsRes, projCoordsRes, bookingCoordsRes] = await Promise.all([
-    admin.from("staff_location_history")
-      .select("recorded_at, lat, lng, accuracy")
-      .eq("staff_id", staffId)
-      .gte("recorded_at", fromTs).lte("recorded_at", toTs)
-      .order("recorded_at", { ascending: true }).limit(2000),
-    admin.from("organization_locations")
-      .select("id, name, latitude, longitude, radius_meters")
-      .eq("organization_id", organizationId).limit(500),
-    admin.from("bookings")
-      .select("id, client, title, booking_number, status")
-      .eq("organization_id", organizationId).neq("status", "CANCELLED").limit(500),
-    admin.from("large_projects")
-      .select("id, name, status")
-      .eq("organization_id", organizationId).is("deleted_at", null).limit(300),
-    admin.from("large_projects")
-      .select("id, address_latitude, address_longitude")
-      .eq("organization_id", organizationId).limit(300),
-    admin.from("bookings")
-      .select("id, delivery_latitude, delivery_longitude")
-      .eq("organization_id", organizationId).limit(500),
-  ]);
+  const { data: pingsData } = await admin
+    .from("staff_location_history")
+    .select("recorded_at, lat, lng, accuracy, speed")
+    .eq("organization_id", organizationId)
+    .eq("staff_id", staffId)
+    .gte("recorded_at", fromTs)
+    .lte("recorded_at", toTs)
+    .order("recorded_at", { ascending: true })
+    .limit(2000);
 
-  const TEST_RX = /\b(test|demo)\b|!!|\?\?/i;
-  const bookingCoords = new Map<string, { lat: number; lng: number }>();
-  for (const r of (bookingCoordsRes.data ?? []) as any[]) {
-    if (r.delivery_latitude != null && r.delivery_longitude != null) {
-      bookingCoords.set(String(r.id), {
-        lat: Number(r.delivery_latitude), lng: Number(r.delivery_longitude),
-      });
-    }
-  }
-  const projCoords = new Map<string, { lat: number; lng: number }>();
-  for (const r of (projCoordsRes.data ?? []) as any[]) {
-    if (r.address_latitude != null && r.address_longitude != null) {
-      projCoords.set(String(r.id), {
-        lat: Number(r.address_latitude), lng: Number(r.address_longitude),
-      });
-    }
-  }
-  const knownTargets: KnownPlace[] = [];
-  for (const l of (locsRes.data ?? []) as any[]) {
-    if (l.latitude == null || l.longitude == null) continue;
-    if (TEST_RX.test(l.name ?? "")) continue;
-    knownTargets.push({
-      id: String(l.id), type: "location", name: l.name ?? "Plats",
-      lat: Number(l.latitude), lng: Number(l.longitude),
-      radiusM: Number(l.radius_meters ?? 100),
-    });
-  }
-  for (const b of (bookingsRes.data ?? []) as any[]) {
-    const c = bookingCoords.get(String(b.id));
-    if (!c) continue;
-    const label = b.client || b.title || b.booking_number || "Bokning";
-    if (TEST_RX.test(label)) continue;
-    knownTargets.push({ id: String(b.id), type: "booking", name: label, lat: c.lat, lng: c.lng, radiusM: 100 });
-  }
-  for (const p of (projectsRes.data ?? []) as any[]) {
-    const c = projCoords.get(String(p.id));
-    if (!c) continue;
-    const label = p.name ?? "Projekt";
-    if (TEST_RX.test(label)) continue;
-    knownTargets.push({ id: String(p.id), type: "project", name: label, lat: c.lat, lng: c.lng, radiusM: 100 });
-  }
+  const pings: GpsPing[] = (pingsData ?? []).map((p: any) => ({
+    ts: p.recorded_at,
+    lat: Number(p.lat),
+    lng: Number(p.lng),
+    accuracyM: p.accuracy != null ? Number(p.accuracy) : null,
+    speedMps: p.speed != null ? Number(p.speed) : null,
+  }));
 
-  const pings = (pingsRes.data ?? []) as any[];
-  const gps = buildGpsDayTimelineOnly({
-    staffId, organizationId, date: dateStr,
-    pings: pings.map((p) => ({
-      recorded_at: p.recorded_at, lat: p.lat, lng: p.lng, accuracy: p.accuracy,
-    })),
-    knownTargets,
+  // Resolve targets via new Time Engine resolver.
+  const { targets: resolved } = await resolveWorkTargets({
+    organizationId,
+    staffId,
+    date: dateStr,
+    supabaseAdmin: admin,
+  });
+  const workTargets: WorkTarget[] = resolved
+    .map(toWorkTarget)
+    .filter((t): t is WorkTarget => !!t);
+
+  const gps = buildGpsDayTimeline({
+    staffId,
+    organizationId,
+    date: dateStr,
+    pings,
+    targets: workTargets,
   });
 
-  // Map GPS segments → TimeSegments clipped to [startedAt, endedAt]
   const segments: TimeSegment[] = [];
   for (const seg of gps.segments) {
     const clip = clipToWindow(seg.startTs, seg.endTs, startedAt, endedAt);
@@ -220,9 +197,9 @@ Deno.serve(async (req) => {
 
     let kind: TimeSegmentKind;
     if (seg.kind === "stay" && seg.type === "known_site") {
-      if (seg.matchedSiteType === "project") kind = "project";
-      else if (seg.matchedSiteType === "booking") kind = "booking";
-      else if (seg.matchedSiteType === "location") kind = "warehouse";
+      if (seg.matchedTargetType === "project") kind = "project";
+      else if (seg.matchedTargetType === "booking") kind = "booking";
+      else if (seg.matchedTargetType === "location") kind = "warehouse";
       else kind = "unknown_place";
     } else if (seg.kind === "travel") {
       kind = "transport";
@@ -238,8 +215,8 @@ Deno.serve(async (req) => {
       durationMin: clip.durationMin,
       kind,
       label: seg.label,
-      matchedSiteId: seg.matchedSiteId,
-      matchedSiteType: seg.matchedSiteType,
+      matchedTargetId: seg.matchedTargetId,
+      matchedTargetType: seg.matchedTargetType,
       confidence: seg.confidence,
       reason: seg.reason,
       pingCount: seg.pingCount,
@@ -249,7 +226,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Summary
   const byKind: Record<string, number> = {};
   let total = 0;
   for (const s of segments) {
@@ -258,15 +234,14 @@ Deno.serve(async (req) => {
   }
 
   return json(200, {
-    timerActive: !timer.exited_at,
+    timerActive: timer.status === "active",
     timerId: String(timer.id),
     startedAt,
-    endedAt: timer.exited_at ?? null,
+    endedAt: timer.stopped_at ?? null,
     boundTarget: {
-      bookingId: timer.booking_id ?? null,
-      largeProjectId: timer.large_project_id ?? null,
-      locationId: timer.location_id ?? null,
-      source: timer.source ?? null,
+      targetType: timer.start_target_type ?? null,
+      targetId: timer.start_target_id ?? null,
+      label: timer.start_target_label ?? null,
     },
     segments,
     summary: { totalMinutes: total, byKind },
