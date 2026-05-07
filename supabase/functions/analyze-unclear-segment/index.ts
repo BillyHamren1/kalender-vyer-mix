@@ -28,6 +28,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { corsHeaders } from "../_shared/cors.ts";
+import { logDayDecision, enqueueDayRebuild } from "../_shared/day-decision-audit.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -225,6 +226,32 @@ Deno.serve(async (req) => {
         input_hash: inputHash,
         updated_at: new Date().toISOString(),
       }, { onConflict: "staff_id,segment_id" });
+
+    // ── Audit + rebuild ────────────────────────────────────────────────────
+    await logDayDecision(supabase, {
+      organizationId: orgId!,
+      staffId: body.staff_id,
+      dayDate: body.date,
+      segmentId: seg.segment_id,
+      actor: "ai",
+      action: "ai_segment_analysis",
+      before: { segment_kind: seg.kind },
+      after: {
+        suggestedType: aiResult.suggestedType,
+        needsUserInput: aiResult.needsUserInput,
+        userQuestion: aiResult.userQuestion ?? null,
+      },
+      reason: aiResult.explanation,
+      confidence: aiResult.confidence,
+      sourceFunction: "analyze-unclear-segment",
+    });
+    await enqueueDayRebuild(supabase, {
+      organizationId: orgId!,
+      staffId: body.staff_id,
+      dayDate: body.date,
+      reason: "ai_analysis",
+      requestedBy: "analyze-unclear-segment",
+    });
 
     return json({ cached: false, result: aiResult });
   } catch (err) {
