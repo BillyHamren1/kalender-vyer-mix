@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon } from "lucide-react";
+import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon, ExternalLink } from "lucide-react";
+import { openFileExternally } from "@/lib/files/openFileExternally";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
