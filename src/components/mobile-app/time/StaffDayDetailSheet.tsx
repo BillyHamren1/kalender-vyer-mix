@@ -132,7 +132,7 @@ export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
                 </p>
                 <div className="space-y-1.5">
                   {snapshot.segments.map((seg, idx) => {
-                    const Icon = SEG_ICON[seg.kind] ?? Clock;
+                    const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
                     return (
                       <div
                         key={`${seg.startedAt}-${idx}`}
