@@ -54,16 +54,6 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
     setPreviewPdf(null);
   };
 
-  const downloadUrl = (url: string, fileName?: string | null) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName || 'fil';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-
   const handlePdfOpen = async (file: { id: string; url: string; file_name: string | null }) => {
     setOpeningPdfId(file.id);
 
