@@ -767,9 +767,13 @@ export const mobileApi = {
   },
 
 
-  /** Stoppa en server-öppen LTE direkt (banner: server-only timer). Skapar
-   * time_report om target kräver det och returnerar uppdaterad active_day_state. */
-  stopOpenEntry: (data: {
+  /**
+   * LEGACY ONLY (admin / historik / banner-cleanup).
+   * Do not use as active timer logic in the new Time app — use
+   * `stopLocationTimer` (→ stop_time_registration) instead. Operates on legacy
+   * `location_time_entries` rows.
+   */
+  stopOpenEntryLegacy: (data: {
     entry_id: string;
     stop_at?: string;
     stop_source?: string;
@@ -788,10 +792,22 @@ export const mobileApi = {
   dismissLocationEntry: (locationId: string) =>
     callApi<{ success?: boolean }>('dismiss_location_entry', { location_id: locationId }),
 
-  getLocationTimeEntries: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
+  /**
+   * LEGACY ONLY (admin / historik). Reads `location_time_entries`.
+   * Do not use for active timer state — use the get-current-time-registration /
+   * get-active-time-registration-status / get-timer-time-segments edge
+   * functions instead.
+   */
+  getLocationTimeEntriesLegacy: (data?: { date_from?: string; date_to?: string; limit?: number }) =>
     callApi<{ entries: any[] }>('get_location_time_entries', data),
 
-  getActiveDayState: () =>
+  /**
+   * LEGACY ONLY (admin / historik / day reconciliation banner).
+   * Do not use as the active timer source in the new Time app — use the
+   * get-current-time-registration / get-active-time-registration-status
+   * edge functions instead.
+   */
+  getActiveDayStateLegacy: () =>
     callApi<{
       workday: { id: string; started_at: string; ended_at: string | null; review_status: string | null } | null;
       open_entries: Array<{
