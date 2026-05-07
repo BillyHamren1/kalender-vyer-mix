@@ -653,18 +653,27 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleStartTimeRegistration(supabase, staffId, data, organizationId)
       case 'stop_time_registration':
         return await handleStopTimeRegistration(supabase, staffId, data, organizationId)
-      // ── LEGACY (LTE-backed; mirrors into active_time_registrations) ──
+      // ── LEGACY action names — now FORWARDED to Time Engine v2.
+      // The legacy LTE/workday/time_report writers are NOT invoked from these
+      // case branches anymore. Frontend may still call these names, but they
+      // resolve to active_time_registrations only. See handleLegacy*Forward.
       case 'start_location_timer':
-        return await handleStartLocationTimer(supabase, staffId, data, organizationId)
+        return await handleLegacyStartLocationTimerForward(supabase, staffId, data, organizationId)
       case 'stop_location_timer':
-        return await handleStopLocationTimer(supabase, staffId, data, organizationId)
+        return await handleLegacyStopLocationTimerForward(supabase, staffId, data, organizationId)
       case 'stop_open_entry':
+        // LEGACY admin/banner action — operates on legacy LTE rows only.
+        // MUST NOT be used as a timer-control action from the new Time app.
+        console.warn('[mobile-app-api] LEGACY stop_open_entry invoked — Time app should use stop_time_registration instead')
         return await handleStopOpenEntry(supabase, staffId, data, organizationId)
       case 'dismiss_location_entry':
+        console.warn('[mobile-app-api] LEGACY dismiss_location_entry invoked — Time app should not use this')
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
+        console.warn('[mobile-app-api] LEGACY get_location_time_entries invoked — Time app must read from active_time_registrations / get-timer-time-segments instead')
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
       case 'get_active_day_state':
+        console.warn('[mobile-app-api] LEGACY get_active_day_state invoked — Time app must use get-current-time-registration / get-active-time-registration-status instead')
         return await handleGetActiveDayState(supabase, staffId, organizationId)
       case 'get_lager_tasks':
         return await handleGetLagerTasks(supabase, staffId, organizationId)
@@ -5964,6 +5973,49 @@ async function handleGetOrganizationLocations(supabase: any, organizationId: str
 // GPS-auto-started timers land in the same table (auto_started=true) via the
 // new Time Engine processor.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY action forwarders → Time Engine v2 (active_time_registrations only).
+//
+// The legacy 'start_location_timer' / 'stop_location_timer' actions are still
+// called from older frontend code paths and queued offline payloads. To avoid
+// creating parallel timer state in workdays / location_time_entries /
+// time_reports, we translate the legacy payload shape into the Time Engine v2
+// payload shape and forward to handleStart/StopTimeRegistration.
+//
+// This means a user-started timer and a GPS-auto-started timer always end up
+// in exactly one table: active_time_registrations.
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleLegacyStartLocationTimerForward(
+  supabase: any, staffId: string, data: any, organizationId: string,
+) {
+  const d = data || {}
+  let target_type: 'location' | 'booking' | 'large_project' | 'project' | null = null
+  let target_id: string | null = null
+  if (d.large_project_id) { target_type = 'large_project'; target_id = d.large_project_id }
+  else if (d.booking_id)  { target_type = 'booking';       target_id = d.booking_id }
+  else if (d.project_id)  { target_type = 'project';       target_id = d.project_id }
+  else if (d.location_id) { target_type = 'location';      target_id = d.location_id }
+
+  console.warn('[mobile-app-api] LEGACY start_location_timer forwarded → start_time_registration', { target_type, target_id })
+  return await handleStartTimeRegistration(
+    supabase, staffId,
+    { target_type, target_id, started_at: d.started_at },
+    organizationId,
+  )
+}
+
+async function handleLegacyStopLocationTimerForward(
+  supabase: any, staffId: string, data: any, organizationId: string,
+) {
+  const d = data || {}
+  console.warn('[mobile-app-api] LEGACY stop_location_timer forwarded → stop_time_registration', { entry_id: d.entry_id })
+  return await handleStopTimeRegistration(
+    supabase, staffId,
+    { registration_id: d.registration_id ?? null, stop_source: 'legacy_stop_location_timer', stopped_at: d.stopped_at },
+    organizationId,
+  )
+}
+
 async function handleStartTimeRegistration(
   supabase: any, staffId: string, data: any, organizationId: string,
 ) {
