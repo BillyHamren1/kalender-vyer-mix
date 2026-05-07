@@ -10,6 +10,7 @@ import {
   type LocationModeDecision,
 } from '@/lib/geofence/locationMode';
 import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
+import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
