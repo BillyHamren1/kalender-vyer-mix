@@ -832,9 +832,36 @@ export default function TimeIntelligenceDebug() {
       },
       warnings: cap(r.warnings),
       conflicts: cap(r.conflicts),
+      rawPingsCoverage: r.rawPingsCoverage,
+      gpsDayTimeline: r.gpsDayTimeline ? {
+        count: r.gpsDayTimeline.count,
+        firstStart: r.gpsDayTimeline.firstStart,
+        lastEnd: r.gpsDayTimeline.lastEnd,
+        source: r.gpsDayTimeline.source,
+        segments: cap(r.gpsDayTimeline.segments),
+      } : null,
+      payableSnapshot: r.payableSnapshot ? {
+        workdayStart: r.payableSnapshot.workdayStart,
+        workdayEnd: r.payableSnapshot.workdayEnd,
+        workdayDurationMinutes: r.payableSnapshot.workdayDurationMinutes,
+        workdayIsOpen: r.payableSnapshot.workdayIsOpen,
+        workdayApproved: r.payableSnapshot.workdayApproved,
+        totals: r.payableSnapshot.totals,
+        segmentSource: r.payableSnapshot.segmentSource,
+        segmentsCount: Array.isArray(r.payableSnapshot.segments) ? r.payableSnapshot.segments.length : null,
+      } : null,
+      compactCounts: dm.compactCounts ?? {
+        rawPingCount: raw.pingCount,
+        gpsDayTimelineCount: r.gpsDayTimeline?.count ?? null,
+        snapshotSegmentsCount: Array.isArray(snap.segments) ? snap.segments.length : null,
+        workdayStart: snap.workday?.startedAt ?? null,
+        workdayEnd: snap.workday?.endedAt ?? null,
+        workdayDurationMinutes: snap.workday?.durationMinutes ?? null,
+      },
       debugMeta: {
         diagnostics: dm.diagnostics,
         rawPingCoverage: dm.rawPingCoverage,
+        warnings: dm.warnings,
       },
     };
   };
