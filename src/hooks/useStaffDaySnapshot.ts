@@ -102,10 +102,30 @@ export interface StaffDayActionNeeded {
 }
 
 /**
- * Optional tracking metadata. Used to show a discreet "Senaste signal HH:MM"
- * — never to render scary "glapp" warnings for missing pings.
+ * Server-authoritative GPS tracking policy. The app must follow it as-is —
+ * never invent its own AI-driven boost.
  */
+export type StaffDayTrackingMode =
+  | 'battery_saver'
+  | 'normal'
+  | 'approaching_target'
+  | 'near_target'
+  | 'clarification_boost'
+  | 'active_work';
+
 export interface StaffDayTrackingPolicy {
+  mode: StaffDayTrackingMode;
+  heartbeatMs: number;
+  distanceFilter: number;
+  expiresAt?: string | null;
+  reason?: string | null;
+  targetId?: string | null;
+  targetType?: string | null;
+  // Legacy fields kept for older clients
+  recommendedMode?: 'active_timer' | 'workday_active' | 'idle';
+  hasActiveTimer?: boolean;
+  workdayOpen?: boolean;
+  // Optional discreet signal hints (kept from previous version)
   lastSignalAt?: string | null;
   isSignalStale?: boolean;
   signalStaleSinceMin?: number | null;

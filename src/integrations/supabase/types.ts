@@ -6241,6 +6241,48 @@ export type Database = {
         }
         Relationships: []
       }
+      tracking_policy_boosts: {
+        Row: {
+          consumed: boolean
+          created_at: string
+          expires_at: string
+          id: string
+          mode: string
+          organization_id: string
+          reason: string
+          requested_by: string
+          staff_id: string
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          consumed?: boolean
+          created_at?: string
+          expires_at: string
+          id?: string
+          mode: string
+          organization_id: string
+          reason: string
+          requested_by: string
+          staff_id: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          consumed?: boolean
+          created_at?: string
+          expires_at?: string
+          id?: string
+          mode?: string
+          organization_id?: string
+          reason?: string
+          requested_by?: string
+          staff_id?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: []
+      }
       transport_assignments: {
         Row: {
           actual_arrival: string | null

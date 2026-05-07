@@ -140,6 +140,28 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
           Senaste signal {lastSignalLabel}
         </p>
       )}
+
+      {/* Backend-driven tracking-policy debug pill (mode/reason/expires) */}
+      {tracking?.mode && (
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+          <span className="rounded-full bg-muted px-2 py-0.5 font-mono uppercase tracking-wide">
+            GPS: {tracking.mode}
+          </span>
+          {typeof tracking.heartbeatMs === 'number' && (
+            <span className="font-mono tabular-nums">
+              {Math.round(tracking.heartbeatMs / 1000)}s · {tracking.distanceFilter}m
+            </span>
+          )}
+          {tracking.expiresAt && (
+            <span className="font-mono tabular-nums">
+              t/m {extractUTCTime(tracking.expiresAt)}
+            </span>
+          )}
+          {tracking.reason && (
+            <span className="italic truncate max-w-[160px]">{tracking.reason}</span>
+          )}
+        </div>
+      )}
     </section>
   );
 };

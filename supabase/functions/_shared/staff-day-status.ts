@@ -122,6 +122,11 @@ export interface SnapshotInput {
   };
   /** User/admin day attestation (per staff_id+date). When present, its break_minutes overrides time_reports.break_time sum. */
   attestation?: DayAttestationRow | null;
+  /** Active (non-expired, non-consumed) tracking-policy boost rows from DB. */
+  activeBoosts?: TrackingPolicyBoostRow[];
+  /** Optional client hints to suppress boost (low battery / dismissed cooldown). */
+  batteryPct?: number | null;
+  dismissedCooldownActive?: boolean;
 }
 
 export interface DayAttestationRow {
@@ -258,12 +263,8 @@ export interface IntelligenceState {
   hasTransport: boolean;
 }
 
-export interface TrackingPolicy {
-  /** Hint for client adaptive location mode. */
-  recommendedMode: "active_timer" | "workday_active" | "idle";
-  hasActiveTimer: boolean;
-  workdayOpen: boolean;
-}
+import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type TrackingPolicy } from "./trackingPolicy.ts";
+export type { TrackingPolicy, TrackingPolicyBoostRow };
 
 export interface StaffDaySnapshot {
   date: string;
@@ -922,16 +923,15 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     hasTransport: totals.transportMinutes > 0,
   };
 
-  // ---- Tracking policy hint (for adaptive client location mode) ----
-  const trackingPolicy: TrackingPolicy = {
-    recommendedMode: active
-      ? "active_timer"
-      : workdaySnap?.isOpen
-      ? "workday_active"
-      : "idle",
+  // ---- Tracking policy (server-authoritative; merges DB boosts) ----
+  const trackingPolicy: TrackingPolicy = buildTrackingPolicy({
     hasActiveTimer: !!active,
     workdayOpen: !!workdaySnap?.isOpen,
-  };
+    activeBoosts: input.activeBoosts ?? [],
+    batteryPct: input.batteryPct ?? null,
+    dismissedCooldownActive: !!input.dismissedCooldownActive,
+    now,
+  });
 
   return {
     date,

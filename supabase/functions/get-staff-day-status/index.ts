@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return bad(405, "Method not allowed");
 
-  let body: { staffId?: string; date?: string };
+  let body: { staffId?: string; date?: string; batteryPct?: number; dismissedCooldownActive?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -44,6 +44,11 @@ Deno.serve(async (req) => {
   if (!staffId) return bad(400, "staffId is required");
   const date = (body.date ?? todayInStockholm()).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad(400, "date must be YYYY-MM-DD");
+  const batteryPct =
+    typeof body.batteryPct === "number" && body.batteryPct >= 0 && body.batteryPct <= 1
+      ? body.batteryPct
+      : null;
+  const dismissedCooldownActive = !!body.dismissedCooldownActive;
 
   const authResult = await authenticateStaffRequest(req, { requestedStaffId: staffId });
   if (!authResult.ok) return bad(authResult.err.status, authResult.err.error);
@@ -73,6 +78,7 @@ Deno.serve(async (req) => {
     flagsRes,
     eventsRes,
     attestationRes,
+    boostsRes,
   ] = await Promise.all([
     admin
       .from("workdays")
@@ -122,9 +128,18 @@ Deno.serve(async (req) => {
       .eq("staff_id", staffId)
       .eq("date", date)
       .maybeSingle(),
+    admin
+      .from("tracking_policy_boosts")
+      .select("mode, reason, target_id, target_type, expires_at, consumed")
+      .eq("organization_id", orgId)
+      .eq("staff_id", staffId)
+      .eq("consumed", false)
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(5),
   ]);
 
-  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error].filter(Boolean);
+  const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error, boostsRes.error].filter(Boolean);
   if (errors.length) {
     console.error("[get-staff-day-status] db errors", errors);
     return bad(500, "Database error", { details: errors.map((e) => e?.message) });
@@ -202,6 +217,9 @@ Deno.serve(async (req) => {
       ),
     },
     attestation: (attestationRes.data ?? null) as never,
+    activeBoosts: (boostsRes.data ?? []) as never,
+    batteryPct,
+    dismissedCooldownActive,
   });
 
   return new Response(JSON.stringify(snapshot), {
