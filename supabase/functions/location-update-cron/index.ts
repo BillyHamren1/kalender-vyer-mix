@@ -223,6 +223,8 @@ Deno.serve(async (req) => {
       processed,
       locked,
       errors,
+      wakes_dispatched: wakesDispatched,
+      wakes_skipped: wakesSkipped,
       elapsed_ms: Date.now() - startedAt,
       summaries: summaries.slice(0, 50),
     }),
