@@ -679,6 +679,20 @@ async function ensureTravelLog(
 // timer. Denna konstant blockerar alla materialiseringsvägar i processStaff.
 export const GPS_MAY_START_TIME = false
 
+// Night auto-start guard helper (00:00–05:00 lokal tid).
+function isNightLocalStockholm(nowIso = new Date().toISOString()): boolean {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Stockholm', hour: '2-digit', hour12: false,
+    })
+    const h = Number(fmt.formatToParts(new Date(nowIso))
+      .find((p) => p.type === 'hour')?.value ?? '0')
+    return Number.isFinite(h) && h >= 0 && h < 5
+  } catch {
+    return false
+  }
+}
+
 export async function processStaff(
   supabase: any,
   staffId: string,
@@ -700,6 +714,22 @@ export async function processStaff(
     ;(report as any).gps_may_start_time = false
     ;(report as any).skipped_reason = 'gps_auto_start_disabled'
     return
+  }
+
+  // Defensiv nattspärr (extra säkerhet ovanpå kill-switchen ovan):
+  // Mellan 00:00 och 05:00 lokal tid får INGEN auto-start ske utan en
+  // aktiv user-startad timer. Vi nekar hela processStaff-vägen.
+  if (isNightLocalStockholm()) {
+    const { data: activeUserTimer } = await supabase
+      .from('current_time_registration')
+      .select('id').eq('staff_id', staffId)
+      .eq('status', 'active').eq('source', 'user_timer')
+      .limit(1).maybeSingle()
+    if (!activeUserTimer) {
+      ;(report as any).skipped_reason = 'blocked_night_auto_start_no_active_timer'
+      ;(report as any).night_guard = { isNightLocal: true, hasActiveUserTimer: false }
+      return
+    }
   }
 
   const allHits: StableHit[] = []
