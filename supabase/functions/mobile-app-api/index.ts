@@ -7105,6 +7105,9 @@ async function handleStopLocationTimerLegacyDisabled(supabase: any, staffId: str
 //
 // Body: { entry_id: string, stop_at?: ISO, stop_source?, stop_reason?,
 //         skip_time_report?: boolean, break_time?: number }
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
 async function handleStopOpenEntryLegacyOnly(supabase: any, staffId: string, data: any, organizationId: string) {
   const {
     entry_id,
