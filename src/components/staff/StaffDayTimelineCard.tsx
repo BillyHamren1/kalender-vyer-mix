@@ -99,6 +99,7 @@ const KIND_META: Record<
   break:     { Icon: Clock,     tone: 'text-muted-foreground', bg: 'bg-muted/30 border-border' },
   other:     { Icon: Clock,     tone: 'text-muted-foreground', bg: 'bg-muted/30 border-border' },
   unknown:   { Icon: HelpCircle, tone: 'text-muted-foreground', bg: 'bg-muted/20 border-dashed border-border' },
+  signal_stale: { Icon: HelpCircle, tone: 'text-muted-foreground', bg: 'bg-muted/10 border-dashed border-border' },
 };
 
 function SegmentRow({ seg }: { seg: StaffDaySegment }) {
