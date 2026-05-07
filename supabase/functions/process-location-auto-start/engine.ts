@@ -29,18 +29,20 @@ export const corsHeaders = {
 export const ENGINE_VERSION = 'auto-start@1.0.0'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LEGACY TIME WRITES DISABLED
+// LEGACY ENGINE — DISABLED
 // ----------------------------------------------------------------------------
-// Denna gamla motor får inte längre skapa aktiv tid via:
-//   - workdays
-//   - location_time_entries
-//   - travel_time_logs
-//   - time_reports
-//   - assistant_events (start_activity)
+// Denna legacy-motor får inte längre skriva tid. All GPS-auto-start sker
+// numera endast i nya Time Engine via:
+//   supabase/functions/_shared/time-engine/processGpsTimelineForAutoStart
+// och skriver endast till tabellen `active_time_registrations`.
 //
-// All ny aktiv tidskälla går genom nya Time Engine
-// (supabase/functions/_shared/time-engine/*) och active_time_registrations.
-// När flaggan är true kortsluts runEngine/processStaff direkt — inga writes.
+// Policyn för OM GPS överhuvudtaget får starta tid finns nu i:
+//   supabase/functions/_shared/time-engine/decideAutoStart.ts
+// Denna fil får inte ha en egen GPS-start-policy.
+//
+// När flaggan är true kortsluts runEngine/processStaff direkt — inga writes
+// till workdays / location_time_entries / travel_time_logs / time_reports /
+// assistant_events sker från denna motor.
 // ─────────────────────────────────────────────────────────────────────────────
 export const LEGACY_TIME_WRITES_DISABLED = true
 
@@ -688,14 +690,8 @@ async function ensureTravelLog(
   else report.travels_created++
 }
 
-// ── HARD KILL-SWITCH (2026-05) ──────────────────────────────────────────────
-// GPS får ALDRIG starta tid automatiskt. Engine får läsa pings och klassa
-// arrivals för debug/audit, men aldrig skriva location_time_entries,
-// workdays, time_reports eller travel_time_logs utan en aktiv user-startad
-// timer. Denna konstant blockerar alla materialiseringsvägar i processStaff.
-export const GPS_MAY_START_TIME = false
-
 // Night auto-start guard helper (00:00–05:00 lokal tid).
+// Behålls för dead-code nedanför LEGACY_TIME_WRITES_DISABLED-spärren.
 function isNightLocalStockholm(nowIso = new Date().toISOString()): boolean {
   try {
     const fmt = new Intl.DateTimeFormat('en-GB', {
@@ -719,23 +715,13 @@ export async function processStaff(
   if (pings.length === 0) return
   const orgId = pings[0].organization_id
 
-  // Hård legacy-spärr: gamla motorn får inte skapa workday/LTE/travel/time_report.
+  // Hård legacy-spärr: legacy-motorn får inte skriva tid eller fatta beslut
+  // om GPS-auto-start. Den policyn ligger i nya Time Engine
+  // (_shared/time-engine/decideAutoStart.ts) och skriver endast till
+  // active_time_registrations via processGpsTimelineForAutoStart.
   if (LEGACY_TIME_WRITES_DISABLED) {
     ;(report as any).legacy_time_writes_disabled = true
     ;(report as any).skipped_reason = 'legacy_time_engine_disabled_use_new_time_engine'
-    return
-  }
-
-  // Kill-switch: räkna arrivals för rapport men gör inga writes.
-  if (!GPS_MAY_START_TIME) {
-    let arrivalsSeen = 0
-    for (const t of targets) {
-      if (t.organization_id !== orgId) continue
-      for (const _h of evaluateStableSegments(t, pings)) arrivalsSeen++
-    }
-    report.arrivals += arrivalsSeen
-    ;(report as any).gps_may_start_time = false
-    ;(report as any).skipped_reason = 'gps_auto_start_disabled'
     return
   }
 
