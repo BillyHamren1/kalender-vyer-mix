@@ -637,6 +637,7 @@ export default function TimeIntelligenceDebug() {
   const [copied, setCopied] = useState(false);
   const [batch, setBatch] = useState<BatchRow[] | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
+  const [pingFirst, setPingFirst] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
