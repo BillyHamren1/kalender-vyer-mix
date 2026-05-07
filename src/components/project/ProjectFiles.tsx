@@ -206,29 +206,6 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!previewPdf} onOpenChange={(open) => !open && setPreviewPdf(null)}>
-        <DialogContent className="max-w-5xl p-2 h-[85vh] flex flex-col">
-          {previewPdf && (
-            <>
-              <iframe
-                src={previewPdf.url}
-                title={previewPdf.name || 'PDF'}
-                className="w-full flex-1 rounded-lg border border-border/40"
-              />
-              <div className="flex items-center justify-between gap-2 px-2 py-1">
-                <p className="text-xs text-muted-foreground truncate">{previewPdf.name}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(previewPdf.url, '_blank')}
-                >
-                  Öppna i ny flik
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 };
