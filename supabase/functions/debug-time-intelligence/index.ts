@@ -796,7 +796,10 @@ function evaluate(name: string, expected: string[], input: SnapshotInput) {
     wouldWrite.inactionReasons.push("workday_must_not_be_closed_by_silence");
   }
   if (name.startsWith("3.")) {
-    if (!input.workday) warnings.push("expected engine to open/rewind workday to project arrival");
+    // Pure snapshot can't open workdays (that's the engine's job). We assert
+    // the planned-write set instead and that snapshot stays empty/quiet.
+    if (input.workday) warnings.push("test setup invalid: workday should start null for scenario 3");
+    if (segmentTypes.includes("transport")) warnings.push("no transport expected without prior workday");
     wouldWrite.plannedActions.push(
       { source: "engine", action: "workday_open", target: "Josefinas", note: "rewound to earliest stable project arrival" },
       { source: "engine", action: "lte_open", target: "Josefinas" },
