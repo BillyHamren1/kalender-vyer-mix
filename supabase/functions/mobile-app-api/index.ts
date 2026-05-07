@@ -256,7 +256,16 @@ async function ensureOpenWorkdayForTimer(
     .maybeSingle()
   if (!staffRow) return null
 
-  // Existing open workday?
+  // Existing open workday? Must be from the SAME UTC date as the requested
+  // start_at — otherwise the new timer would be parented to a stale workday
+  // from a previous day (orphan that was never closed) and per-date readers
+  // ("Saknar arbetsdag" på Tidrapport) would never see a workday for today.
+  const targetStartIso =
+    start_at && !isNaN(new Date(start_at).getTime())
+      ? new Date(start_at).toISOString()
+      : new Date().toISOString()
+  const targetDate = targetStartIso.slice(0, 10)
+
   const { data: openRows, error: openErr } = await supabase
     .from('workdays')
     .select('id, started_at, ended_at')
@@ -264,12 +273,40 @@ async function ensureOpenWorkdayForTimer(
     .eq('organization_id', organizationId)
     .is('ended_at', null)
     .order('started_at', { ascending: false })
-    .limit(1)
+    .limit(5)
   if (openErr) {
     console.warn('[ensureOpenWorkdayForTimer] lookup failed:', openErr)
   }
-  if (openRows && openRows.length > 0) {
-    return { id: openRows[0].id, started_at: openRows[0].started_at, created: false }
+
+  const sameDayOpen = (openRows || []).find(r => String(r.started_at).slice(0, 10) === targetDate)
+  if (sameDayOpen) {
+    return { id: sameDayOpen.id, started_at: sameDayOpen.started_at, created: false }
+  }
+
+  // Auto-close any orphan open workdays from previous days so they don't
+  // keep blocking workday-first for future days, and so the stale-cron's
+  // job is taken care of inline. Cap ended_at = started_at + 10h.
+  const orphans = (openRows || []).filter(r => String(r.started_at).slice(0, 10) !== targetDate)
+  for (const orphan of orphans) {
+    const startedMs = new Date(orphan.started_at).getTime()
+    const cap = new Date(startedMs + 10 * 60 * 60 * 1000).toISOString()
+    const { error: closeErr } = await supabase
+      .from('workdays')
+      .update({
+        ended_at: cap,
+        ended_by: 'system_workday_first_orphan_cleanup',
+        review_status: 'needs_review',
+        notes: `[auto-closed: orphan blocking workday-first for ${targetDate}]`,
+      })
+      .eq('id', orphan.id)
+      .is('ended_at', null)
+    if (closeErr) {
+      console.warn('[ensureOpenWorkdayForTimer] orphan close failed:', closeErr)
+    } else {
+      console.log(
+        `[ensureOpenWorkdayForTimer] auto-closed orphan workday ${orphan.id} (started ${orphan.started_at}) blocking ${targetDate}`,
+      )
+    }
   }
 
   const startedAt =
