@@ -258,12 +258,8 @@ export interface IntelligenceState {
   hasTransport: boolean;
 }
 
-export interface TrackingPolicy {
-  /** Hint for client adaptive location mode. */
-  recommendedMode: "active_timer" | "workday_active" | "idle";
-  hasActiveTimer: boolean;
-  workdayOpen: boolean;
-}
+export type { TrackingPolicy, BoostRow as TrackingPolicyBoostRow } from "./trackingPolicy.ts";
+import { buildTrackingPolicy, type BoostRow as _BoostRow, type TrackingPolicy as _TP } from "./trackingPolicy.ts";
 
 export interface StaffDaySnapshot {
   date: string;
