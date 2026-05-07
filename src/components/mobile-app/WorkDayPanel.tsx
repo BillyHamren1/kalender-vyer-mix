@@ -80,7 +80,7 @@ export const WorkDayPanel: React.FC = () => {
   };
 
   const startWithParams = async (
-    params: Parameters<typeof mobileApi.startLocationTimer>[0],
+    params: Parameters<typeof mobileApi.startTimeRegistration>[0],
     label: string,
   ) => {
     // If a timer is already running, stop it first to allow switching target.
@@ -94,7 +94,7 @@ export const WorkDayPanel: React.FC = () => {
         console.warn('[WorkDayPanel] stop-before-switch failed:', err);
       }
     }
-    const res = await mobileApi.startLocationTimer(params);
+    const res = await mobileApi.startTimeRegistration(params);
     if (res?.success === false) {
       toast.error('Kunde inte starta timern.');
       return false;
