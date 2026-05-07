@@ -1,29 +1,214 @@
 /**
- * Time Engine — Policy (frontend mirror)
+ * Time Engine — Policy (frontend mirror of Deno timePolicy.ts)
  *
- * Speglar supabase/functions/_shared/time-engine/timePolicy.ts.
- * Håll filerna i synk för hand.
+ * Speglar `supabase/functions/_shared/time-engine/timePolicy.ts` 1:1.
+ * Håll filerna i synk för hand — ingen cross-import över Deno/Vite-gränsen.
  *
- * Frontend behöver dessa värden för debug-paneler och förklaringstexter.
- * UI får INTE använda detta för att skapa tid — kontraktet
- * ActiveTimeRegistration.source = 'user_timer' gäller fortfarande.
+ * UI får använda detta för debug-paneler och förklaringstexter, men
+ * INTE för att skapa tid: kontraktet ActiveTimeRegistration.source
+ * är fortsatt låst till 'user_timer'.
+ *
+ * Se Deno-filens header för fullständiga huvudregler.
  */
-export {
-  dayPolicy,
-  nightPolicy,
-  mapDenyToContractReason,
-  evaluateAutoStart,
-  classifyActiveSegment,
-  isNightLocal,
-  localHour,
-} from '../../../supabase/functions/_shared/time-engine/timePolicy';
 
-export type {
-  DwellPolicy,
-  NightPolicy,
-  PolicyDecision,
-  AutoStartAllowReason,
-  AutoStartDenyReason,
-  AutoStartReason,
-  EvaluateAutoStartInput,
-} from '../../../supabase/functions/_shared/time-engine/timePolicy';
+import type {
+  AutoStartBlockReason,
+  Confidence,
+  GpsSegment,
+  TargetMatch,
+  TimeRegistrationSegmentKind,
+  WorkTarget,
+} from './contracts';
+
+// ─── Policy values ──────────────────────────────────────────────────────────
+
+export interface DwellPolicy {
+  minDwellSeconds: number;
+  minArrivalPings: number;
+  minConfidence: Confidence;
+}
+
+export const dayPolicy: DwellPolicy = {
+  minDwellSeconds: 5 * 60,
+  minArrivalPings: 3,
+  minConfidence: 0.7,
+};
+
+export interface NightPolicy extends DwellPolicy {
+  localStartHour: 0;
+  localEndHour: 5;
+  requirePlannedOrExplicitAllowedTarget: true;
+}
+
+export const nightPolicy: NightPolicy = {
+  localStartHour: 0,
+  localEndHour: 5,
+  minDwellSeconds: 15 * 60,
+  minArrivalPings: 6,
+  minConfidence: 0.85,
+  requirePlannedOrExplicitAllowedTarget: true,
+};
+
+// ─── Decision reasons ───────────────────────────────────────────────────────
+
+export type AutoStartAllowReason = 'allowed_valid_geofence';
+
+export type AutoStartDenyReason =
+  | 'blocked_movement_only'
+  | 'blocked_unknown_place'
+  | 'blocked_gps_gap'
+  | 'blocked_low_confidence'
+  | 'blocked_invalid_target'
+  | 'blocked_test_target'
+  | 'blocked_home_or_private'
+  | 'blocked_not_enough_dwell'
+  | 'blocked_not_enough_pings'
+  | 'blocked_night_requires_stronger_evidence';
+
+export type AutoStartReason = AutoStartAllowReason | AutoStartDenyReason;
+
+export type PolicyDecision =
+  | { allowed: true; reason: AutoStartAllowReason; target: WorkTarget; confidence: Confidence }
+  | { allowed: false; reason: AutoStartDenyReason; target?: WorkTarget; confidence: Confidence };
+
+export function mapDenyToContractReason(reason: AutoStartDenyReason): AutoStartBlockReason {
+  switch (reason) {
+    case 'blocked_movement_only': return 'movement_not_allowed';
+    case 'blocked_unknown_place':
+    case 'blocked_home_or_private':
+    case 'blocked_invalid_target':
+    case 'blocked_test_target':
+    case 'blocked_gps_gap': return 'unknown_place_not_allowed';
+    case 'blocked_low_confidence':
+    case 'blocked_not_enough_dwell':
+    case 'blocked_not_enough_pings': return 'low_confidence';
+    case 'blocked_night_requires_stronger_evidence': return 'blocked_night_auto_start_no_active_timer';
+  }
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const TEST_TARGET_HINTS = ['test', 'demo', 'sandbox', 'playground'];
+const PRIVATE_TARGET_HINTS = ['home', 'hem', 'privat', 'private'];
+
+const isTestTarget = (t: WorkTarget) =>
+  TEST_TARGET_HINTS.some((h) => (t.label || '').toLowerCase().includes(h));
+
+const isHomeOrPrivate = (t: WorkTarget) =>
+  PRIVATE_TARGET_HINTS.some((h) => (t.label || '').toLowerCase().includes(h));
+
+function isTargetCurrentlyValid(t: WorkTarget, atIso: string): boolean {
+  const at = Date.parse(atIso);
+  if (Number.isNaN(at)) return false;
+  if (t.validFrom && Date.parse(t.validFrom) > at) return false;
+  if (t.validUntil && Date.parse(t.validUntil) < at) return false;
+  return true;
+}
+
+function dwellSeconds(seg: GpsSegment): number {
+  if (!seg.endedAt) return 0;
+  return Math.max(0, Math.floor((Date.parse(seg.endedAt) - Date.parse(seg.startedAt)) / 1000));
+}
+
+export function isNightLocal(atIso: string, np: NightPolicy = nightPolicy): boolean {
+  const hour = new Date(atIso).getHours();
+  return hour >= np.localStartHour && hour < np.localEndHour;
+}
+
+export const localHour = (atIso: string): number => new Date(atIso).getHours();
+
+// ─── Auto-start evaluation ──────────────────────────────────────────────────
+
+export interface EvaluateAutoStartInput {
+  segment: GpsSegment;
+  match: TargetMatch;
+  atIso?: string;
+}
+
+export function evaluateAutoStart(input: EvaluateAutoStartInput): PolicyDecision {
+  const { segment, match } = input;
+  const atIso = input.atIso ?? segment.endedAt ?? segment.startedAt;
+
+  if (segment.kind === 'movement' || match.outcome === 'transport') {
+    return { allowed: false, reason: 'blocked_movement_only', confidence: match.confidence };
+  }
+  if (segment.kind === 'gps_gap' || match.outcome === 'gps_uncertain') {
+    return { allowed: false, reason: 'blocked_gps_gap', confidence: match.confidence };
+  }
+  if (match.outcome === 'unknown_place') {
+    return { allowed: false, reason: 'blocked_unknown_place', confidence: match.confidence };
+  }
+  if (match.outcome !== 'inside_known_target' || !match.target) {
+    return { allowed: false, reason: 'blocked_unknown_place', confidence: match.confidence };
+  }
+
+  const target = match.target;
+
+  if (!isTargetCurrentlyValid(target, atIso)) {
+    return { allowed: false, reason: 'blocked_invalid_target', target, confidence: match.confidence };
+  }
+  if (isTestTarget(target)) {
+    return { allowed: false, reason: 'blocked_test_target', target, confidence: match.confidence };
+  }
+  if (isHomeOrPrivate(target)) {
+    return { allowed: false, reason: 'blocked_home_or_private', target, confidence: match.confidence };
+  }
+
+  const night = isNightLocal(atIso);
+  const policy: DwellPolicy = night ? nightPolicy : dayPolicy;
+
+  const pings = segment.pingCount ?? 0;
+  if (pings < policy.minArrivalPings) {
+    return night
+      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
+      : { allowed: false, reason: 'blocked_not_enough_pings', target, confidence: match.confidence };
+  }
+
+  const dwell = dwellSeconds(segment);
+  if (dwell < policy.minDwellSeconds) {
+    return night
+      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
+      : { allowed: false, reason: 'blocked_not_enough_dwell', target, confidence: match.confidence };
+  }
+
+  if (match.confidence < policy.minConfidence) {
+    return night
+      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
+      : { allowed: false, reason: 'blocked_low_confidence', target, confidence: match.confidence };
+  }
+
+  if (night && nightPolicy.requirePlannedOrExplicitAllowedTarget && !target.assignedToUserToday) {
+    return {
+      allowed: false,
+      reason: 'blocked_night_requires_stronger_evidence',
+      target,
+      confidence: match.confidence,
+    };
+  }
+
+  return { allowed: true, reason: 'allowed_valid_geofence', target, confidence: match.confidence };
+}
+
+// ─── Active classification (rule 5) ─────────────────────────────────────────
+
+export function classifyActiveSegment(
+  segment: GpsSegment,
+  match: TargetMatch,
+): { kind: TimeRegistrationSegmentKind; targetKey: string | null; label: string } {
+  if (segment.kind === 'movement' || match.outcome === 'transport') {
+    return { kind: 'transport', targetKey: null, label: 'Transport' };
+  }
+  if (segment.kind === 'gps_gap' || match.outcome === 'gps_uncertain' || match.outcome === 'insufficient_signal') {
+    return { kind: 'gps_uncertain', targetKey: null, label: 'GPS-osäkerhet' };
+  }
+  if (match.outcome === 'inside_known_target' && match.target) {
+    const t = match.target;
+    const kind: TimeRegistrationSegmentKind =
+      t.kind === 'project' ? 'project'
+      : t.kind === 'booking' ? 'booking'
+      : t.kind === 'warehouse' ? 'warehouse'
+      : 'unknown_place';
+    return { kind, targetKey: t.key, label: t.label };
+  }
+  return { kind: 'unknown_place', targetKey: null, label: 'Okänd plats' };
+}
