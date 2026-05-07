@@ -312,6 +312,12 @@ export const verifyProductBySku = async (
   scannedName?: string | null;
   bookingId?: string;
   alreadyScanned?: boolean;
+  // WMS debug fields (source of truth for the scanned QR)
+  matchedBy?: 'item_type_id' | 'sku' | 'name_fallback' | null;
+  wmsInstanceId?: string | null;
+  wmsItemTypeId?: string | null;
+  wmsSerialNumber?: string | null;
+  wmsSku?: string | null;
 }> => {
   return callScannerApi('verify_product', { packingId, sku, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null });
 };
