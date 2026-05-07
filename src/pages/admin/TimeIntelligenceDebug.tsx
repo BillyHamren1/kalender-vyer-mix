@@ -412,6 +412,17 @@ export default function TimeIntelligenceDebug() {
             <Button variant="outline" size="sm" onClick={runScenarios} disabled={loading}>
               Kör 5 standardscenarion
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                setShowWarehouseCheck(true);
+                await runDryRun();
+              }}
+              disabled={!staffId || !date || loading}
+            >
+              Kör Lager → Josefinas-kontroll
+            </Button>
           </div>
         </CardContent>
       </Card>
