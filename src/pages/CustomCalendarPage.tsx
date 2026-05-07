@@ -347,7 +347,7 @@ const CustomCalendarPage = () => {
           {!isMobile && <UnplannedProjectsBanner />}
 
           {/* Content - flex-1 to fill remaining space */}
-          <div className="flex-1 min-h-0 pt-4 px-4 pb-0 overflow-hidden bg-card rounded-2xl mx-2 mb-0 shadow-sm">
+          <div className="flex-1 min-h-0 pt-4 px-4 pb-2 overflow-hidden bg-card rounded-2xl mx-2 mb-3 shadow-sm">
             {viewMode === 'day' ? (
               // Day View - 3D Carousel with single focused day and side cards
               isMobile ? (
@@ -418,32 +418,34 @@ const CustomCalendarPage = () => {
                   onWeekSelect={handleWeekSelect}
                 />
               ) : (
-                <>
-                  <CustomCalendar
-                    events={mergedEvents}
-                    setEvents={setEvents}
-                    resources={teamResources}
-                    isLoading={isLoading}
-                    isMounted={isMounted}
-                    currentDate={currentWeekStart}
-                    onDateSet={handleDatesSet}
-                    refreshEvents={refreshEvents}
-                    onStaffDrop={staffOps.handleStaffDrop}
-                    onOpenStaffSelection={handleOpenStaffSelection}
-                    viewMode="monthly"
-                    weeklyStaffOperations={staffOps}
-                    getVisibleTeamsForDay={getVisibleTeamsForDay}
-                    onToggleTeamForDay={handleToggleTeamForDay}
-                    allTeams={teamResources}
-                    onEventClick={handleEventClick}
-                    isEventReadOnly={isEventReadOnly}
-                  />
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <CustomCalendar
+                      events={mergedEvents}
+                      setEvents={setEvents}
+                      resources={teamResources}
+                      isLoading={isLoading}
+                      isMounted={isMounted}
+                      currentDate={currentWeekStart}
+                      onDateSet={handleDatesSet}
+                      refreshEvents={refreshEvents}
+                      onStaffDrop={staffOps.handleStaffDrop}
+                      onOpenStaffSelection={handleOpenStaffSelection}
+                      viewMode="monthly"
+                      weeklyStaffOperations={staffOps}
+                      getVisibleTeamsForDay={getVisibleTeamsForDay}
+                      onToggleTeamForDay={handleToggleTeamForDay}
+                      allTeams={teamResources}
+                      onEventClick={handleEventClick}
+                      isEventReadOnly={isEventReadOnly}
+                    />
+                  </div>
                   <WeekTabsNavigation
                     currentMonth={monthlyDate}
                     currentWeekStart={currentWeekStart}
                     onWeekSelect={handleWeekSelect}
                   />
-                </>
+                </div>
               )
             ) : (
               // List View
