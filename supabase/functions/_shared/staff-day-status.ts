@@ -360,6 +360,8 @@ export interface StaffDaySnapshot {
     locked: boolean;
   } | null;
   lastUpdatedAt: Iso;
+  /** Full-day GPS-derived timeline built from ALL pings (not constrained by workday). */
+  gpsDayTimeline: GpsDayTimelineSegment[];
   debugMeta?: {
     totalsSource: "segments";
     legacyTotals: {
@@ -367,6 +369,10 @@ export interface StaffDaySnapshot {
       travelLogsMinutes: number;
       timeReportsBreakMinutes: number;
     };
+    gpsDayTimelineCount: number;
+    gpsDayTimelineFirstStart: string | null;
+    gpsDayTimelineLastEnd: string | null;
+    gpsTimelineSource: "all_pings";
   };
 }
 
