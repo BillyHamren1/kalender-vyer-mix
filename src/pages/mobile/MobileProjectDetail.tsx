@@ -132,13 +132,9 @@ const MobileProjectDetail = () => {
           </div>
         </div>
 
-        {/* Project timer — start/stop tid på hela projektet */}
-        {projectId && (
-          <MobileProjectTimerCard
-            largeProjectId={projectId}
-            projectName={projectName}
-          />
-        )}
+        {/* Projekt-egen timer borttagen — huvudtimern i WorkDayPanel
+            (driven av get-active-timer-status) är enda synliga timern. */}
+
 
         {sorted.length > 0 && (
           <div className="space-y-2">
