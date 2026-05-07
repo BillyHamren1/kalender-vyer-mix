@@ -1176,11 +1176,15 @@ Deno.serve(async (req) => {
         }
 
         // 2. WMS accepted the checkin. Mirror it locally.
-        // Use SKU/item-type from the WMS response to find the local row.
-        const returnedSku: string | null =
-          checkinData?.sku || checkinData?.item_type_id || checkinData?.serial_number || null
-        const returnedItemType: string | null =
-          checkinData?.item_type || checkinData?.item_type_name || checkinData?.product_name || checkinData?.name || null
+        // Strict ID-first matching (A) item_type_id → (B) sku → (C) name fallback (warn).
+        const pickFirst = (...vals: any[]) => vals.find((v) => typeof v === 'string' && v.length > 0) || null
+        const wmsItemTypeId: string | null = pickFirst(checkinData?.item_type_id)
+        const wmsInstanceId: string | null = pickFirst(checkinData?.instance_id)
+        const wmsSerialNumber: string | null = pickFirst(checkinData?.serial_number, serial)
+        const wmsSku: string | null = pickFirst(checkinData?.sku)
+        const wmsItemTypeName: string | null = pickFirst(
+          checkinData?.item_type_name, checkinData?.item_type, checkinData?.product_name, checkinData?.name,
+        )
 
         const { data: packingItems } = await supabase
           .from('packing_list_items')
@@ -1192,37 +1196,57 @@ Deno.serve(async (req) => {
         const normalizeItemTypeName = (value: string): string =>
           value.toLowerCase().replace(/^[↳└⦿\s,\-–—]+/, '').replace(/\s+/g, ' ').trim()
 
-        const normalizedSku = returnedSku?.toLowerCase()
-        const normalizedItemType = returnedItemType ? normalizeItemTypeName(returnedItemType) : null
+        const itemTypeIdLower = wmsItemTypeId?.toLowerCase() || null
+        const skuLower = wmsSku?.toLowerCase() || null
+        const nameNorm = wmsItemTypeName ? normalizeItemTypeName(wmsItemTypeName) : null
 
-        let matched = (packingItems || []).filter((item: any) => {
-          if (!normalizedSku) return false
-          const bp = item.booking_products
-          return bp?.sku?.toLowerCase() === normalizedSku || bp?.inventory_item_type_id?.toLowerCase() === normalizedSku
-        })
-        if (matched.length === 0 && normalizedItemType) {
+        let matchedBy: 'item_type_id' | 'sku' | 'name_fallback' | null = null
+        let matched: any[] = []
+
+        if (itemTypeIdLower) {
+          matched = (packingItems || []).filter((item: any) =>
+            item.booking_products?.inventory_item_type_id?.toLowerCase() === itemTypeIdLower)
+          if (matched.length > 0) matchedBy = 'item_type_id'
+        }
+        if (matched.length === 0 && skuLower) {
+          matched = (packingItems || []).filter((item: any) =>
+            item.booking_products?.sku?.toLowerCase() === skuLower)
+          if (matched.length > 0) matchedBy = 'sku'
+        }
+        if (matched.length === 0 && nameNorm) {
           matched = (packingItems || []).filter((item: any) => {
             const name = item.booking_products?.name
-            return name ? normalizeItemTypeName(name) === normalizedItemType : false
+            return name ? normalizeItemTypeName(name) === nameNorm : false
           })
+          if (matched.length > 0) {
+            matchedBy = 'name_fallback'
+            console.warn('[decrement_by_serial] name_fallback_match_used', {
+              packingId, wmsItemTypeId, wmsSku, wmsItemTypeName, wmsInstanceId, wmsSerialNumber,
+              candidates: matched.map((m: any) => m.id),
+            })
+          }
         }
 
+        const debug = { matchedBy, wmsInstanceId, wmsItemTypeId, wmsSerialNumber, wmsSku, scannedValue: serial }
+
         // WMS accepted the checkin even if we can't find a matching local row.
-        // Report success — local mirror just has nothing to decrement.
         if (matched.length === 0) {
           await checkIfAllPacked(supabase, packingId, ORG_ID)
+          console.log('[scanner-api] decrement_by_serial no_local_row', debug)
           return json({
             success: true,
             itemId: null,
             newQuantity: 0,
-            productName: returnedItemType || returnedSku || serial,
+            productName: wmsItemTypeName || wmsSku || serial,
             note: 'WMS checkin OK, no local packing row to decrement',
+            ...debug,
           })
         }
 
         const target = [...matched].sort((a: any, b: any) =>
           (b.quantity_packed || 0) - (a.quantity_packed || 0) || String(a.id).localeCompare(String(b.id))
         )[0] as any
+        console.log('[scanner-api] decrement_by_serial matched', { ...debug, localPackingItemId: target.id })
 
         const newQty = Math.max(0, (target.quantity_packed || 0) - 1)
         await supabase.from('packing_list_items').update({
