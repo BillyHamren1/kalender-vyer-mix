@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Play, AlertTriangle } from "lucide-react";
+import { Loader2, Play, AlertTriangle, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 
 interface StaffOption {
   id: string;
@@ -43,9 +45,11 @@ export default function TimeIntelligenceDebug() {
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [staffId, setStaffId] = useState<string>("");
   const [date, setDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [dryRun, setDryRun] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -65,7 +69,7 @@ export default function TimeIntelligenceDebug() {
     setResult(null);
     try {
       const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
-        body: { staffId, date, dryRun: true },
+        body: { staffId, date, dryRun },
       });
       if (error) throw error;
       setResult(data);
@@ -90,6 +94,18 @@ export default function TimeIntelligenceDebug() {
       setError(e?.message ?? String(e));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const copyJson = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+      setCopied(true);
+      toast.success("Debug JSON kopierad");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e: any) {
+      toast.error("Kunde inte kopiera: " + (e?.message ?? String(e)));
     }
   };
 
@@ -142,7 +158,13 @@ export default function TimeIntelligenceDebug() {
               </Button>
             </div>
           </div>
-          <div className="flex gap-2 pt-2 border-t">
+          <div className="flex flex-wrap items-center gap-4 pt-2 border-t">
+            <div className="flex items-center gap-2">
+              <Switch id="dryrun" checked={dryRun} onCheckedChange={setDryRun} />
+              <Label htmlFor="dryrun" className="cursor-pointer">
+                dryRun {dryRun ? "= true (säkert)" : "= false (LIVE skrivning!)"}
+              </Label>
+            </div>
             <Button variant="outline" size="sm" onClick={runScenarios} disabled={loading}>
               Kör 5 standardscenarion
             </Button>
@@ -160,30 +182,52 @@ export default function TimeIntelligenceDebug() {
 
       {result && (
         <>
-          <div className="flex items-center gap-2">
-            <Badge variant={isDryRun ? "secondary" : "default"}>
-              {isDryRun ? "DRY-RUN — inga skrivningar utförda" : "LIVE"}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant={isDryRun ? "secondary" : "destructive"}>
+              {isDryRun ? "DRY-RUN — inga skrivningar utförda" : "LIVE — data har ändrats"}
             </Badge>
             {result.summary && (
               <Badge variant="outline">
                 Scenarios: {result.summary.passed}/{result.summary.total}
               </Badge>
             )}
+            <Button variant="outline" size="sm" onClick={copyJson} className="ml-auto">
+              {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+              Kopiera debug JSON
+            </Button>
           </div>
 
           {result.scenarios ? (
             <Section title="Scenarioresultat" data={result.scenarios} />
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Section title="Raw data" data={result.rawData} />
-              <Section title="Detected state" data={result.detectedState} />
-              <Section title="Target matches" data={result.targetMatches} />
-              <Section title="Segment preview" data={result.segmentPreview ?? result.segments} />
-              <Section title="Would write" data={result.wouldWrite} />
-              <Section title="Warnings" data={result.warnings} empty="Inga varningar" />
-              <Section title="Snapshot preview" data={result.snapshotPreview} />
-              <Section title="Debug meta" data={result.debugMeta ?? result.diagnostics} />
-            </div>
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Section title="Raw data" data={result.rawData} />
+                <Section title="Target matches" data={result.targetMatches} />
+                <Section title="Detected state" data={result.detectedState} />
+                <Section title="Segment preview" data={result.segmentPreview ?? result.segments} />
+                <Section title="Would write" data={result.wouldWrite} />
+                <Section title="Warnings" data={result.warnings} empty="Inga varningar" />
+                <Section title="Snapshot preview" data={result.snapshotPreview} />
+                <Section title="Debug meta" data={result.debugMeta ?? result.diagnostics} />
+              </div>
+              <Card>
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">Full JSON</CardTitle>
+                  <Button variant="outline" size="sm" onClick={copyJson}>
+                    {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                    Kopiera
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="max-h-[500px]">
+                    <pre className="text-xs whitespace-pre-wrap break-words font-mono bg-muted p-3 rounded">
+                      {JSON.stringify(result, null, 2)}
+                    </pre>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </>
           )}
         </>
       )}
