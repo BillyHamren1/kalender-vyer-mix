@@ -418,32 +418,34 @@ const CustomCalendarPage = () => {
                   onWeekSelect={handleWeekSelect}
                 />
               ) : (
-                <>
-                  <CustomCalendar
-                    events={mergedEvents}
-                    setEvents={setEvents}
-                    resources={teamResources}
-                    isLoading={isLoading}
-                    isMounted={isMounted}
-                    currentDate={currentWeekStart}
-                    onDateSet={handleDatesSet}
-                    refreshEvents={refreshEvents}
-                    onStaffDrop={staffOps.handleStaffDrop}
-                    onOpenStaffSelection={handleOpenStaffSelection}
-                    viewMode="monthly"
-                    weeklyStaffOperations={staffOps}
-                    getVisibleTeamsForDay={getVisibleTeamsForDay}
-                    onToggleTeamForDay={handleToggleTeamForDay}
-                    allTeams={teamResources}
-                    onEventClick={handleEventClick}
-                    isEventReadOnly={isEventReadOnly}
-                  />
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <CustomCalendar
+                      events={mergedEvents}
+                      setEvents={setEvents}
+                      resources={teamResources}
+                      isLoading={isLoading}
+                      isMounted={isMounted}
+                      currentDate={currentWeekStart}
+                      onDateSet={handleDatesSet}
+                      refreshEvents={refreshEvents}
+                      onStaffDrop={staffOps.handleStaffDrop}
+                      onOpenStaffSelection={handleOpenStaffSelection}
+                      viewMode="monthly"
+                      weeklyStaffOperations={staffOps}
+                      getVisibleTeamsForDay={getVisibleTeamsForDay}
+                      onToggleTeamForDay={handleToggleTeamForDay}
+                      allTeams={teamResources}
+                      onEventClick={handleEventClick}
+                      isEventReadOnly={isEventReadOnly}
+                    />
+                  </div>
                   <WeekTabsNavigation
                     currentMonth={monthlyDate}
                     currentWeekStart={currentWeekStart}
                     onWeekSelect={handleWeekSelect}
                   />
-                </>
+                </div>
               )
             ) : (
               // List View
