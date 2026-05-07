@@ -468,7 +468,7 @@ const StaffBlockRows: React.FC<{
  *   Rad 3: Sub-header (Projekt | Timerstart | Geo (start) | Varaktighet | Timerslut | Geo (slut) | Åtgärder)
  *   Rad 4+: en rad per session
  */
-export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSelectStaff }) => {
+export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSelectStaff, debugMode }) => {
   const [editTarget, setEditTarget] = useState<EditTargetPayload | null>(null);
   const [stopTarget, setStopTarget] = useState<StopTargetPayload | null>(null);
 
@@ -494,6 +494,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
               onSelectStaff={onSelectStaff}
               onEditTimeReport={setEditTarget}
               onStopSession={setStopTarget}
+              debugMode={debugMode}
             />
           ))}
 
