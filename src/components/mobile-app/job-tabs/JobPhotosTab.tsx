@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
-import { Image, Camera, Loader2, X } from 'lucide-react';
+import { Image, Camera, Loader2, X, FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { takePhotoBase64 } from '@/utils/capacitorCamera';
