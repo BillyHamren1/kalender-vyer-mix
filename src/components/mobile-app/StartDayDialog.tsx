@@ -113,6 +113,31 @@ function buildTargets(bookings: MobileBooking[]): Array<{ key: string; label: st
   return out;
 }
 
+type StartOffset = 'now' | 'm15' | 'm30' | 'custom';
+
+function pad(n: number) { return String(n).padStart(2, '0'); }
+function nowHHMM(): string {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** Returns ISO for a chosen offset, or undefined if "now". Custom HH:MM is
+ *  resolved against today; if it's in the future we fall back to now. */
+function resolveStartedAtIso(offset: StartOffset, customHHMM: string): string | undefined {
+  if (offset === 'now') return undefined;
+  const now = new Date();
+  if (offset === 'm15') return new Date(now.getTime() - 15 * 60_000).toISOString();
+  if (offset === 'm30') return new Date(now.getTime() - 30 * 60_000).toISOString();
+  // custom
+  const m = /^(\d{1,2}):(\d{2})$/.exec(customHHMM.trim());
+  if (!m) return undefined;
+  const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+  const min = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+  const candidate = new Date(now);
+  candidate.setHours(h, min, 0, 0);
+  if (candidate.getTime() > now.getTime()) return undefined; // never in future
+  return candidate.toISOString();
+}
+
 export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   open, onClose, onConfirm, bookings, locations = [], starting,
 }) => {
@@ -120,6 +145,8 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   const [search, setSearch] = useState('');
   const [manualText, setManualText] = useState('');
   const [showManual, setShowManual] = useState(false);
+  const [startOffset, setStartOffset] = useState<StartOffset>('now');
+  const [customHHMM, setCustomHHMM] = useState<string>(nowHHMM);
 
   const allTargets = useMemo(() => buildTargets(bookings), [bookings]);
 
@@ -157,15 +184,22 @@ export const StartDayDialog: React.FC<StartDayDialogProps> = ({
   const nearby = filtered.filter(t => t.nearby);
   const others = filtered.filter(t => !t.nearby);
 
+  const currentStartedAtIso = () => resolveStartedAtIso(startOffset, customHHMM);
+
   const handlePick = (item: { target: WorkTarget; label: string }) => {
     if (starting) return;
-    void onConfirm({ kind: 'target', target: item.target, label: item.label });
+    void onConfirm({
+      kind: 'target',
+      target: item.target,
+      label: item.label,
+      startedAtIso: currentStartedAtIso(),
+    });
   };
 
   const handleManualSubmit = () => {
     const txt = manualText.trim();
     if (!txt || starting) return;
-    void onConfirm({ kind: 'manual', text: txt });
+    void onConfirm({ kind: 'manual', text: txt, startedAtIso: currentStartedAtIso() });
   };
 
   return (
