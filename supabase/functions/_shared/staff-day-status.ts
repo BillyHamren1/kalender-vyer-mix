@@ -448,9 +448,127 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     : null;
 
   // ---- Segments ----
+  // HARD RULE (step 3): time_reports / travel_logs / location_entries are
+  // legacy evidence rows. They MUST NOT create main segments in the snapshot
+  // because they can describe long timespans that disagree with the actual
+  // GPS pings. They are surfaced under `rawEvidence` for debug/UI only.
+  // Main segments in this step come from:
+  //   - user-attested break (time_reports.break_time)
+  //   - manual workday adjustment (workday.metadata)
+  //   - GPS-derived chain gaps (segmentChain) added further below
   const rawSegments: Array<DaySegment & { _policy: PolicySegment }> = [];
 
+  // Legacy policy rows — used ONLY for workday back-date / synth detection
+  // (suggestedWorkdayStart). They are NOT pushed as segments.
+  const legacyPolicySegments: PolicySegment[] = [];
+
+  // Debug evidence (kept verbatim so admins can still see the old rows).
+  const rawEvidence = {
+    timeReports: [] as Array<{
+      id: string; startedAt: Iso; endedAt: Iso | null; minutes: number;
+      kind: SegmentKind; hasConfirmedRef: boolean; label: string;
+      bookingId: string | null; largeProjectId: string | null;
+      approved: boolean; source: string;
+    }>,
+    travelLogs: [] as Array<{
+      id: string; startedAt: Iso; endedAt: Iso | null; minutes: number;
+      label: string; from: string | null; to: string | null;
+      destinationBookingId: string | null; classification: string | null;
+      approved: boolean; needsReview: boolean; source: string;
+    }>,
+    locationEntries: [] as Array<{
+      id: string; enteredAt: Iso; exitedAt: Iso | null; minutes: number;
+      kind: SegmentKind; hasConfirmedRef: boolean; label: string;
+      bookingId: string | null; largeProjectId: string | null;
+      locationId: string | null; taskId: string | null;
+      isWarehouse: boolean; classification: string | null; source: string;
+      isActive: boolean;
+    }>,
+  };
+
   for (const tr of timeReports) {
+    const startedAt = combineDateTime(tr.report_date, tr.start_time) ?? `${date}T00:00:00`;
+    const endedAt = combineDateTime(tr.report_date, tr.end_time);
+    const minutes = hoursToMin(tr.hours_worked) || diffMinutes(startedAt, endedAt, now);
+    const kind: SegmentKind = tr.large_project_id ? "project" : "booking";
+    const hasConfirmedRef = !!(tr.large_project_id || tr.booking_id);
+    const label = resolveLabel({
+      bookingId: tr.booking_id,
+      largeProjectId: tr.large_project_id,
+      description: tr.description,
+      fallback: "Tidrapport",
+      nameMaps,
+    });
+    legacyPolicySegments.push({ kind, startedAt, endedAt, approved: tr.approved, hasConfirmedRef });
+    rawEvidence.timeReports.push({
+      id: tr.id, startedAt, endedAt, minutes, kind, hasConfirmedRef, label,
+      bookingId: tr.booking_id, largeProjectId: tr.large_project_id,
+      approved: !!tr.approved, source: tr.source ?? "time_report",
+    });
+  }
+
+  for (const tl of travelLogs) {
+    const minutes = hoursToMin(tl.hours_worked) || diffMinutes(tl.start_time, tl.end_time, now);
+    const destLabel = tl.destination_booking_id
+      ? (nameMaps?.bookings?.[tl.destination_booking_id] ?? tl.to_address ?? tl.manual_project_name ?? "?")
+      : (tl.to_address ?? tl.manual_project_name ?? "?");
+    const label = (tl.description?.trim()) || `Resa ${tl.from_address ?? "?"} → ${destLabel}`;
+    legacyPolicySegments.push({
+      kind: "travel",
+      startedAt: tl.start_time,
+      endedAt: tl.end_time,
+      approved: tl.approved,
+      classification: tl.classification ?? null,
+    });
+    rawEvidence.travelLogs.push({
+      id: tl.id, startedAt: tl.start_time, endedAt: tl.end_time, minutes, label,
+      from: tl.from_address ?? null, to: tl.to_address ?? null,
+      destinationBookingId: tl.destination_booking_id ?? null,
+      classification: tl.classification ?? null,
+      approved: !!tl.approved, needsReview: !!tl.needs_review,
+      source: (tl as { source?: string }).source ?? "travel_log",
+    });
+  }
+
+  for (const le of locationEntries) {
+    const minutes = le.total_minutes ?? diffMinutes(le.entered_at, le.exited_at, now);
+    const isActive = !le.exited_at;
+    const kind: SegmentKind = isActive
+      ? "active"
+      : le.location_id
+      ? "location"
+      : le.booking_id || le.large_project_id
+      ? le.large_project_id ? "project" : "booking"
+      : "unknown";
+    const hasConfirmedRef = !!(le.location_id || le.booking_id || le.large_project_id);
+    const meta = (le.metadata ?? {}) as Record<string, unknown>;
+    const classification = (meta.classification as string | undefined) ?? null;
+    const isWarehouse = isWarehouseLocation(le.location_id, nameMaps);
+    const fallback = isActive ? "Pågående aktivitet" : isWarehouse ? "Lager" : "Okänd plats";
+    const label = resolveLabel({
+      bookingId: le.booking_id,
+      largeProjectId: le.large_project_id,
+      locationId: le.location_id,
+      fallback,
+      nameMaps,
+    });
+    legacyPolicySegments.push({
+      kind, startedAt: le.entered_at, endedAt: le.exited_at,
+      hasConfirmedRef, classification,
+    });
+    rawEvidence.locationEntries.push({
+      id: le.id, enteredAt: le.entered_at, exitedAt: le.exited_at, minutes,
+      kind, hasConfirmedRef, label,
+      bookingId: le.booking_id, largeProjectId: le.large_project_id,
+      locationId: le.location_id, taskId: le.task_id,
+      isWarehouse, classification, source: le.source ?? "location_entry",
+      isActive,
+    });
+  }
+
+  // (legacy block below retained for reference is now removed; only break +
+  // manual_adjustment + segmentChain produce main segments.)
+  for (const _skip of [] as TimeReportRow[]) {
     const startedAt = combineDateTime(tr.report_date, tr.start_time) ?? `${date}T00:00:00`;
     const endedAt = combineDateTime(tr.report_date, tr.end_time);
     const minutes = hoursToMin(tr.hours_worked) || diffMinutes(startedAt, endedAt, now);
