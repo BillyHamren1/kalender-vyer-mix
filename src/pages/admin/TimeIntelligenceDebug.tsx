@@ -506,6 +506,112 @@ function Section({ title, data, empty }: { title: string; data: unknown; empty?:
   );
 }
 
+const PING_KLASS_TONE: Record<string, StatusTone> = {
+  project: "ok",
+  booking: "ok",
+  warehouse: "ok",
+  travel: "warn",
+  other_place: "neutral",
+  unknown: "neutral",
+  bad_accuracy: "bad",
+  gps_gap_marker: "warn",
+};
+
+const PING_KLASS_LABEL: Record<string, string> = {
+  project: "Projekt",
+  booking: "Bokning",
+  warehouse: "Lager",
+  travel: "Förflyttning",
+  other_place: "Annan plats",
+  unknown: "Okänt",
+  bad_accuracy: "Osäker GPS",
+  gps_gap_marker: "GPS-gap",
+};
+
+function PingFirstPanel({ data }: { data: any }) {
+  if (!data) return null;
+  if (!data.ok) {
+    return (
+      <Card className="border-destructive">
+        <CardHeader className="pb-3"><CardTitle className="text-base">Ping-first pipeline</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-destructive font-mono">{data.error ?? "Okänt fel"}</p></CardContent>
+      </Card>
+    );
+  }
+  const segs: any[] = data.segments ?? [];
+  const summary: Record<string, { count: number; minutes: number }> = data.summary ?? {};
+  const ctx = data.context ?? {};
+  return (
+    <Card className="border-primary/40">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">
+          Ping-first pipeline ({data.rawPingCount} pings → {segs.length} segment)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2 text-xs">
+          {Object.entries(summary).map(([k, v]) => (
+            <Badge key={k} variant="outline" className={TONE_CLASS[PING_KLASS_TONE[k] ?? "neutral"]}>
+              {PING_KLASS_LABEL[k] ?? k}: {v.count} st · {v.minutes} min
+            </Badge>
+          ))}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Workday aktiv: {ctx.workdayActive ? "ja" : "nej"} · Öppna LTE: {ctx.openLteCount ?? 0} ·
+          Time reports: {ctx.timeReportsCount ?? 0} · Travel logs: {ctx.travelLogsCount ?? 0} ·
+          Geofence-kandidater: {data.candidateCount}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs font-mono">
+            <thead className="text-muted-foreground border-b">
+              <tr className="text-left">
+                <th className="py-2 pr-3">Tid</th>
+                <th className="py-2 pr-3">Klass</th>
+                <th className="py-2 pr-3">Plats</th>
+                <th className="py-2 pr-3">Min</th>
+                <th className="py-2 pr-3">Pings</th>
+                <th className="py-2 pr-3">Conf.</th>
+                <th className="py-2 pr-3">Kontext</th>
+              </tr>
+            </thead>
+            <tbody>
+              {segs.map((s, i) => {
+                const tone = PING_KLASS_TONE[s.klass] ?? "neutral";
+                const ctxBits: string[] = [];
+                if (s.context?.overlapping_time_report_id) ctxBits.push("TR");
+                if (s.context?.overlapping_lte_id) ctxBits.push("LTE");
+                if (s.context?.overlapping_travel_log_id) ctxBits.push("TRAVEL");
+                if (s.context?.workday_active_during) ctxBits.push("WD");
+                return (
+                  <tr key={i} className={`border-b ${TONE_CLASS[tone]}`}>
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {fmtTime(s.start_at)}–{fmtTime(s.end_at)}
+                    </td>
+                    <td className="py-2 pr-3 uppercase text-[10px]">{PING_KLASS_LABEL[s.klass] ?? s.klass}</td>
+                    <td className="py-2 pr-3 font-semibold">{s.label}</td>
+                    <td className="py-2 pr-3">{s.duration_min}</td>
+                    <td className="py-2 pr-3">{s.ping_count}</td>
+                    <td className="py-2 pr-3">{Math.round((s.confidence ?? 0) * 100)}%</td>
+                    <td className="py-2 pr-3 opacity-80">{ctxBits.join(" · ") || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <details className="text-xs">
+          <summary className="cursor-pointer text-muted-foreground">Full JSON (ping-first)</summary>
+          <ScrollArea className="max-h-96 mt-2">
+            <pre className="text-[10px] whitespace-pre-wrap break-words font-mono bg-muted p-2 rounded">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </ScrollArea>
+        </details>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface StaffOption { id: string; name: string; }
 
 interface BatchRow {
@@ -531,6 +637,7 @@ export default function TimeIntelligenceDebug() {
   const [copied, setCopied] = useState(false);
   const [batch, setBatch] = useState<BatchRow[] | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
+  const [pingFirst, setPingFirst] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -544,14 +651,24 @@ export default function TimeIntelligenceDebug() {
     const sId = overrideStaffId ?? staffId;
     const d = overrideDate ?? date;
     if (!sId || !d) return null;
-    setLoading(true); setError(null); setResult(null); setBatch(null);
+    setLoading(true); setError(null); setResult(null); setBatch(null); setPingFirst(null);
     try {
-      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
-        body: { staffId: sId, date: d, dryRun },
-      });
-      if (error) throw error;
-      setResult(data);
-      return data;
+      const [debugRes, pingRes] = await Promise.all([
+        supabase.functions.invoke("debug-time-intelligence", {
+          body: { staffId: sId, date: d, dryRun },
+        }),
+        supabase.functions.invoke("ping-day-pipeline", {
+          body: { staffId: sId, date: d },
+        }),
+      ]);
+      if (debugRes.error) throw debugRes.error;
+      setResult(debugRes.data);
+      if (pingRes.error) {
+        setPingFirst({ ok: false, error: pingRes.error?.message ?? String(pingRes.error) });
+      } else {
+        setPingFirst(pingRes.data);
+      }
+      return debugRes.data;
     } catch (e: any) {
       setError(e?.message ?? String(e));
       return null;
@@ -755,6 +872,7 @@ export default function TimeIntelligenceDebug() {
             </Button>
           </div>
 
+          <PingFirstPanel data={pingFirst} />
           <StatusGrid result={result} />
           <DayTimeline result={result} />
           <EvidenceTimeline result={result} />
