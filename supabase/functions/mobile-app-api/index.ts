@@ -5830,8 +5830,14 @@ async function handleUploadLocationBatch(
       })
       chainSummary = summary
     } catch (chainErr) {
-      // Never fail the upload because the downstream chain hiccupped.
-      console.warn('[mobile-app-api] processStaffLocationUpdate failed:', chainErr)
+      // Never fail the upload because the downstream chain hiccupped — GPS
+      // history is already persisted above. Log loudly so the failure is
+      // visible in edge-function logs; the next ping or `location-update-cron`
+      // tick will retry through the same shared processor.
+      console.error(
+        '[mobile-app-api] upload_location_batch: processStaffLocationUpdate failed (GPS still saved, returning success):',
+        chainErr,
+      )
     }
   }
 
