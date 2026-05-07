@@ -70,6 +70,43 @@ Deno.serve(async (req) => {
   const padStart = new Date(new Date(startIso).getTime() - 24 * 3600 * 1000).toISOString();
   const padEnd = new Date(new Date(endIso).getTime() + 24 * 3600 * 1000).toISOString();
 
+  // Paginated ping fetch — no global limit. Same principle as
+  // StaffTimeReports.fetchAllPingsForStaff: page in 1000-row batches up to
+  // a per-staff cap, never let .limit() silently truncate the day.
+  const PING_PAGE_SIZE = 1000;
+  const PER_STAFF_PING_CAP = 20_000;
+  async function fetchAllPings(): Promise<{
+    rows: Array<{ recorded_at: string; latitude: number; longitude: number; accuracy: number | null }>;
+    truncated: boolean;
+    pageCount: number;
+    error: string | null;
+  }> {
+    const out: any[] = [];
+    let from = 0;
+    let pageCount = 0;
+    while (out.length < PER_STAFF_PING_CAP) {
+      const to = from + PING_PAGE_SIZE - 1;
+      const { data, error } = await admin
+        .from("staff_location_history")
+        .select("recorded_at, latitude, longitude, accuracy")
+        .eq("organization_id", orgId)
+        .eq("staff_id", staffId)
+        .gte("recorded_at", padStart)
+        .lte("recorded_at", padEnd)
+        .order("recorded_at", { ascending: true })
+        .range(from, to);
+      pageCount += 1;
+      if (error) return { rows: out, truncated: false, pageCount, error: error.message };
+      const batch = data ?? [];
+      out.push(...batch);
+      if (batch.length < PING_PAGE_SIZE) {
+        return { rows: out, truncated: false, pageCount, error: null };
+      }
+      from += PING_PAGE_SIZE;
+    }
+    return { rows: out.slice(0, PER_STAFF_PING_CAP), truncated: true, pageCount, error: null };
+  }
+
   const [
     workdayRes,
     timeReportsRes,
@@ -79,7 +116,7 @@ Deno.serve(async (req) => {
     eventsRes,
     attestationRes,
     boostsRes,
-    pingsRes,
+    pingsAll,
   ] = await Promise.all([
     admin
       .from("workdays")
@@ -138,17 +175,10 @@ Deno.serve(async (req) => {
       .gt("expires_at", new Date().toISOString())
       .order("expires_at", { ascending: false })
       .limit(5),
-    admin
-      .from("staff_location_history")
-      .select("recorded_at, latitude, longitude, accuracy")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .gte("recorded_at", padStart)
-      .lte("recorded_at", padEnd)
-      .order("recorded_at", { ascending: true })
-      .limit(2000),
+    fetchAllPings(),
   ]);
 
+  const pingsRes = { data: pingsAll.rows, error: pingsAll.error ? new Error(pingsAll.error) : null } as const;
   const errors = [workdayRes.error, timeReportsRes.error, travelRes.error, locRes.error, flagsRes.error, eventsRes.error, attestationRes.error, boostsRes.error, pingsRes.error].filter(Boolean);
   if (errors.length) {
     console.error("[get-staff-day-status] db errors", errors);
@@ -234,7 +264,18 @@ Deno.serve(async (req) => {
       .map((p) => ({ recorded_at: p.recorded_at, lat: Number(p.latitude), lng: Number(p.longitude), accuracy: p.accuracy })),
   });
 
-  return new Response(JSON.stringify(snapshot), {
+  // Pure ping coverage diagnostics — lets the client/debug see whether the
+  // entire day was loaded or if pagination ran into the cap.
+  const pingRows = pingsRes.data ?? [];
+  const rawPingCoverage = {
+    totalFetched: pingRows.length,
+    firstPingAt: pingRows.length ? (pingRows[0] as any).recorded_at : null,
+    lastPingAt: pingRows.length ? (pingRows[pingRows.length - 1] as any).recorded_at : null,
+    truncated: pingsAll.truncated,
+    pageCount: pingsAll.pageCount,
+  };
+
+  return new Response(JSON.stringify({ ...snapshot, rawPingCoverage }), {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
