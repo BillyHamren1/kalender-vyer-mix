@@ -173,23 +173,43 @@ function buildTimeEngineSummary(result: any) {
       validCount: r.targetDiagnostics.validCount ?? null,
       invalidCount: r.targetDiagnostics.invalidCount ?? null,
     } : null,
-    autoStartSummary: {
-      total: decisions.length,
-      allowedCount: allowed.length,
-      blockedCount: blocked.length,
-      allowedDecisions: allowed.map((d) => ({
-        segmentLabel: d.segmentLabel,
-        targetLabel: d.matchedTarget?.name ?? null,
-        reason: d.reason,
-        confidence: d.confidence,
-      })),
-      blockedExamples: blocked.slice(0, 10).map((d) => ({
-        segmentLabel: d.segmentLabel,
-        targetLabel: d.matchedTarget?.name ?? null,
-        reason: d.reason,
-        confidence: d.confidence,
-      })),
-    },
+    autoStartSummary: (() => {
+      const blockedByReason: Record<string, number> = {};
+      for (const d of blocked) {
+        const k = String(d?.reason ?? "unknown");
+        blockedByReason[k] = (blockedByReason[k] ?? 0) + 1;
+      }
+      const cnt = (re: RegExp) =>
+        Object.entries(blockedByReason).reduce((sum, [k, v]) => sum + (re.test(k) ? v : 0), 0);
+      return {
+        total: decisions.length,
+        allowedCount: allowed.length,
+        blockedCount: blocked.length,
+        blockedUnknownPlaceCount: cnt(/unknown_place/i),
+        blockedTransportCount: cnt(/transport/i),
+        blockedGpsGapCount: cnt(/gps_gap/i),
+        blockedInvalidTargetCount: cnt(/invalid_target|missing_coordinates|invalid_radius|test_data|cancelled|archived/i),
+        blockedNightPolicyCount: cnt(/night/i),
+        blockedByReason,
+        allowedDecisions: allowed.map((d) => ({
+          startAt: d.startAt ?? d.segmentStartTs ?? null,
+          targetName: d.matchedTarget?.name ?? null,
+          targetType: d.matchedTarget?.type ?? d.matchedTarget?.kind ?? null,
+          segmentLabel: d.segmentLabel,
+          targetLabel: d.matchedTarget?.name ?? null,
+          reason: d.reason,
+          confidence: d.confidence,
+          dwellSeconds: d.dwellSeconds ?? d.dwellSec ?? null,
+          arrivalPingsCount: d.arrivalPingsCount ?? d.arrivalPings?.length ?? null,
+        })),
+        blockedExamples: blocked.slice(0, 10).map((d) => ({
+          segmentLabel: d.segmentLabel,
+          targetLabel: d.matchedTarget?.name ?? null,
+          reason: d.reason,
+          confidence: d.confidence,
+        })),
+      };
+    })(),
     activeTimeRegistrationPreview: preview ? {
       wouldCreateActiveRegistration: !!preview.wouldCreate,
       startAt: preview.startAt ?? null,
