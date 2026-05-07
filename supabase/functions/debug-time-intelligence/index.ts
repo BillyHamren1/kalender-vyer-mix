@@ -58,7 +58,19 @@ function json(status: number, body: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  // ── Auth gate (service-role OR cron secret) ──────────────────────────────
+  // Read body first so we can short-circuit synthetic scenarios without auth
+  let body: any = {};
+  try { body = await req.json(); } catch { body = {}; }
+
+  // ── Scenario test mode (pure, no DB / no secrets required) ───────────────
+  // Usage: { "mode": "scenarios" }  → runs 5 synthetic SnapshotInputs through
+  // buildStaffDaySnapshot + buildTrackingPolicy. Safe to expose without auth
+  // because it touches NO real data.
+  if (String(body.mode ?? "").toLowerCase() === "scenarios") {
+    return json(200, runScenarioSuite());
+  }
+
+  // ── Auth gate (service-role OR cron secret) for real-data inspection ─────
   const headerSecret = req.headers.get("x-cron-secret") ?? "";
   const authHeader = req.headers.get("authorization") ?? "";
   const bearer = authHeader.toLowerCase().startsWith("bearer ")
@@ -70,17 +82,6 @@ Deno.serve(async (req) => {
     return json(401, { ok: false, error: "unauthorized" });
   }
 
-  let body: any = {};
-  try { body = await req.json(); } catch { body = {}; }
-
-  // ── Scenario test mode (no DB required) ──────────────────────────────────
-  // Usage: { "mode": "scenarios" }  → runs 5 synthetic SnapshotInputs through
-  // the pure buildStaffDaySnapshot engine and reports expected vs actual
-  // classification. Used by `bash scripts/test-debug-time-intelligence.sh`
-  // and as ad-hoc smoke check after any tracking-rule change.
-  if (String(body.mode ?? "").toLowerCase() === "scenarios") {
-    return json(200, runScenarioSuite());
-  }
 
   const staffIdInput = String(body.staffId ?? "").trim();
   const date = String(body.date ?? "").trim();
