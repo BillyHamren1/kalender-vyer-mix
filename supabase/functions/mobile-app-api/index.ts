@@ -5867,39 +5867,70 @@ async function handleUploadLocationBatch(
     console.warn('[mobile-app-api] upload_location_batch presence update failed:', presenceErr)
   }
 
-  // ── 3. Drive the backend chain (NEW) ──
-  // GPS-upload is no longer passive: as soon as fresh pings land we run the
-  // server-side processStaffLocationUpdate so arrival/exit/switch/travel/
-  // workday-state all reflect the new reality. The app never decides this
-  // anymore — it just uploads pings.
+  // ── 3. Drive the new Time Engine ──
+  // Batch-upload feeds GPS pings into the Time Engine, which is the only
+  // component allowed to write `active_time_registrations`. We run it per
+  // distinct date present in the batch so backfill across day boundaries
+  // is handled correctly.
   //
-  // Only fire when the batch contains at least one *fresh* ping (<= 30 min old)
-  // so that pure backfill of historic logs doesn't trigger live mutations.
-  const FRESH_WINDOW_MS = 30 * 60 * 1000
-  const nowMs = Date.now()
-  const freshDates = new Set<string>()
+  // The engine MUST NOT touch workdays / location_time_entries / time_reports /
+  // travel_time_logs — only `active_time_registrations`.
+  const batchDates = new Set<string>()
   for (const p of valid) {
-    if (nowMs - p.recordedMs > FRESH_WINDOW_MS) continue
-    freshDates.add(new Date(p.recordedMs).toISOString().slice(0, 10))
+    batchDates.add(new Date(p.recordedMs).toISOString().slice(0, 10))
   }
-  let chainSummary: any = null
-  if (freshDates.size > 0) {
+  const chainSummary: { dates: Array<{ date: string; createdRegistrationId: string | null }> } = { dates: [] }
+  for (const date of batchDates) {
     try {
-      const summary = await processStaffLocationUpdate(supabase, {
-        staffId,
+      const dayStartIso = `${date}T00:00:00.000Z`
+      const dayEndIso = `${date}T23:59:59.999Z`
+      const { data: dayPings } = await supabase
+        .from('staff_location_history')
+        .select('recorded_at, lat, lng, accuracy, speed')
+        .eq('organization_id', organizationId)
+        .eq('staff_id', staffId)
+        .gte('recorded_at', dayStartIso)
+        .lte('recorded_at', dayEndIso)
+        .order('recorded_at', { ascending: true })
+        .limit(2000)
+
+      const pings = (dayPings || [])
+        .filter((p: any) => p.lat != null && p.lng != null && p.recorded_at)
+        .map((p: any) => ({
+          ts: p.recorded_at,
+          lat: Number(p.lat),
+          lng: Number(p.lng),
+          accuracyM: p.accuracy != null ? Number(p.accuracy) : null,
+          speedMs: p.speed != null ? Number(p.speed) : null,
+        }))
+
+      if (pings.length < 2) {
+        chainSummary.dates.push({ date, createdRegistrationId: null })
+        continue
+      }
+
+      const result = await processGpsTimelineForAutoStart({
         organizationId,
-        dates: Array.from(freshDates),
-        source: 'upload_location_batch',
+        staffId,
+        date,
+        pings,
+        supabaseAdmin: supabase,
       })
-      chainSummary = summary
-    } catch (chainErr) {
-      // Never fail the upload because the downstream chain hiccupped — GPS
-      // history is already persisted above. Log loudly so the failure is
-      // visible in edge-function logs; the next ping or `location-update-cron`
-      // tick will retry through the same shared processor.
-      console.error(
-        '[mobile-app-api] upload_location_batch: processStaffLocationUpdate failed (GPS still saved, returning success):',
-        chainErr,
+      chainSummary.dates.push({ date, createdRegistrationId: result.createdRegistrationId ?? null })
+      if (result.createdRegistrationId) {
+        console.log(
+          '[time-engine] upload_location_batch auto-started active_time_registration',
+          result.createdRegistrationId,
+          'staff=', staffId,
+          'date=', date,
+        )
+      }
+    } catch (engineErr) {
+      // Never fail the upload because the engine hiccupped — GPS history is
+      // already persisted above.
+      console.warn(
+        '[time-engine] upload_location_batch processGpsTimelineForAutoStart failed (non-fatal):',
+        engineErr,
       )
     }
   }
