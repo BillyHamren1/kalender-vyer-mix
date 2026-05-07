@@ -11,7 +11,7 @@ export type PolicyStatus =
   | "confirmed_work"             // bekräftat projekt/booking/lager-location, avslutad
   | "active_work"                // pågående bekräftad aktivitet
   | "travel_within_workday"      // resa inom arbetsdagen
-  | "unclassified_within_workday"// okänd vistelse inom arbetsdagen — räknas, behöver granskning
+  | "other_place"                // okänd plats inom arbetsdagen — räknas som arbetstid, väntar på klassning
   | "unknown_needs_review"       // okänd plats utanför arbetsdagen
   | "travel_outside_workday"     // förflyttning utanför arbetsdagen — räknas inte
   | "break"                      // klassad rast
@@ -111,7 +111,7 @@ export function classifySegment(
   }
   if (isConfirmedWorksitePresence(seg)) return "confirmed_work";
   // Unknown / unclassified
-  return inside ? "unclassified_within_workday" : "unknown_needs_review";
+  return inside ? "other_place" : "unknown_needs_review";
 }
 
 /**

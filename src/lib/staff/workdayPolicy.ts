@@ -17,7 +17,7 @@ export type PolicyStatus =
   | 'confirmed_work'
   | 'active_work'
   | 'travel_within_workday'
-  | 'unclassified_within_workday'
+  | 'other_place'
   | 'unknown_needs_review'
   | 'travel_outside_workday'
   | 'break'
@@ -86,7 +86,7 @@ export function classifySegment(
     return inside ? 'travel_within_workday' : 'travel_outside_workday';
   }
   if (isConfirmedWorksitePresence(seg)) return 'confirmed_work';
-  return inside ? 'unclassified_within_workday' : 'unknown_needs_review';
+  return inside ? 'other_place' : 'unknown_needs_review';
 }
 
 export function suggestedWorkdayStart(
@@ -120,7 +120,7 @@ export function policyLabel(s: PolicyStatus): string {
     case 'confirmed_work': return 'Bekräftat arbete';
     case 'active_work': return 'Pågående aktivitet';
     case 'travel_within_workday': return 'Förflyttning · ingår i arbetsdagen';
-    case 'unclassified_within_workday': return 'Okänd vistelse · behöver granskning';
+    case 'other_place': return 'Annan plats · inom arbetsdagen';
     case 'unknown_needs_review': return 'Okänd vistelse · behöver granskning';
     case 'travel_outside_workday': return 'Förflyttning utanför arbetsdag';
     case 'break': return 'Rast';

@@ -386,7 +386,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       },
       hasConfirmedRef,
       classification,
-      policyStatus: "unclassified_within_workday",
+      policyStatus: "other_place",
       _policy: {
         kind, startedAt: le.entered_at, endedAt: le.exited_at,
         hasConfirmedRef, classification,
@@ -574,11 +574,11 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
 
   if (unknownWithinWd > 0 && !workdaySnap?.approved) {
     dayFlags.push({
-      id: `unknown-within-workday-${workdaySnap?.id ?? date}`,
-      type: "unknown_within_workday",
+      id: `other-place-${workdaySnap?.id ?? date}`,
+      type: "other_place_within_workday",
       severity: "info",
-      title: "Okänd vistelse inom arbetsdagen",
-      description: `${unknownWithinWd} min ligger inom arbetsdagen och väntar på klassning.`,
+      title: "Annan plats inom arbetsdagen",
+      description: `${unknownWithinWd} min ligger inom arbetsdagen som annan plats.`,
       needsUserInput: false,
       resolved: false,
       source: "computed",
