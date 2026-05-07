@@ -392,6 +392,142 @@ Deno.serve(async (req) => {
       : "n/a (debug endpoint never applies; use process-location-auto-start with dry_run=false+confirm=true to write)",
   };
 
+  // ── Ping summary + gaps + nearest targets ────────────────────────────────
+  const firstPingAt = pings.length > 0 ? pings[0].recorded_at : null;
+  const lastCoord = pings.length > 0
+    ? { lat: pings[pings.length - 1].lat, lng: pings[pings.length - 1].lng, accuracy: pings[pings.length - 1].accuracy ?? null }
+    : null;
+
+  const GAP_MS = 10 * 60 * 1000;
+  const pingGapsOver10Min: Array<{ from: string; to: string; gapMinutes: number }> = [];
+  for (let i = 1; i < pings.length; i++) {
+    const a = new Date(pings[i - 1].recorded_at).getTime();
+    const b = new Date(pings[i].recorded_at).getTime();
+    if (b - a > GAP_MS) {
+      pingGapsOver10Min.push({
+        from: pings[i - 1].recorded_at,
+        to: pings[i].recorded_at,
+        gapMinutes: Math.round((b - a) / 60000),
+      });
+    }
+  }
+
+  // Build candidate targets list w/ coords for nearest-lookup
+  type Cand = { kind: "warehouse" | "location" | "booking" | "large_project"; id: string; name: string; lat: number; lng: number; radius_m?: number | null };
+  const candidates: Cand[] = [];
+  for (const l of (orgLocationsRes.data ?? []) as any[]) {
+    if (l.latitude != null && l.longitude != null) {
+      candidates.push({
+        kind: l.show_as_project ? "location" : "warehouse",
+        id: l.id, name: l.name ?? "Plats",
+        lat: Number(l.latitude), lng: Number(l.longitude),
+        radius_m: l.radius_meters ?? null,
+      });
+    }
+  }
+  for (const b of (bookingsRes.data ?? []) as any[]) {
+    if (b.latitude != null && b.longitude != null) {
+      candidates.push({
+        kind: "booking", id: b.id,
+        name: b.client || b.booking_number || "Bokning",
+        lat: Number(b.latitude), lng: Number(b.longitude),
+      });
+    }
+  }
+  for (const p of (largeProjectsRes.data ?? []) as any[]) {
+    if (p.latitude != null && p.longitude != null) {
+      candidates.push({
+        kind: "large_project", id: p.id, name: p.name ?? "Stort projekt",
+        lat: Number(p.latitude), lng: Number(p.longitude),
+      });
+    }
+  }
+
+  const haversineM = (la1: number, lo1: number, la2: number, lo2: number) => {
+    const R = 6371000, toR = (d: number) => (d * Math.PI) / 180;
+    const dLa = toR(la2 - la1), dLo = toR(lo2 - lo1);
+    const a = Math.sin(dLa / 2) ** 2 + Math.cos(toR(la1)) * Math.cos(toR(la2)) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  };
+
+  // Sample pings to inspect: first, last, every ~10th to keep payload small
+  const sampleIdx = new Set<number>();
+  if (pings.length > 0) {
+    sampleIdx.add(0);
+    sampleIdx.add(pings.length - 1);
+    const step = Math.max(1, Math.floor(pings.length / 12));
+    for (let i = 0; i < pings.length; i += step) sampleIdx.add(i);
+  }
+  const nearestTargetsPerPing = Array.from(sampleIdx)
+    .sort((a, b) => a - b)
+    .map((i) => {
+      const p = pings[i];
+      const ranked = candidates
+        .map((c) => ({
+          kind: c.kind, id: c.id, name: c.name,
+          distance_m: Math.round(haversineM(p.lat, p.lng, c.lat, c.lng)),
+          radius_m: c.radius_m ?? null,
+          inside: c.radius_m != null ? haversineM(p.lat, p.lng, c.lat, c.lng) <= c.radius_m : null,
+        }))
+        .sort((x, y) => x.distance_m - y.distance_m)
+        .slice(0, 3);
+      return { recorded_at: p.recorded_at, lat: p.lat, lng: p.lng, nearest: ranked };
+    });
+
+  const nowMs = Date.now();
+  const lastPingAgeMin = lastPingAt ? Math.round((nowMs - new Date(lastPingAt).getTime()) / 60000) : null;
+
+  // Did *any* ping land inside a candidate's radius?
+  let anyPingInsideTarget: { kind: string; id: string; name: string; recorded_at: string; distance_m: number } | null = null;
+  outer: for (const p of pings) {
+    for (const c of candidates) {
+      if (c.radius_m == null) continue;
+      const d = haversineM(p.lat, p.lng, c.lat, c.lng);
+      if (d <= c.radius_m) {
+        anyPingInsideTarget = { kind: c.kind, id: c.id, name: c.name, recorded_at: p.recorded_at, distance_m: Math.round(d) };
+        break outer;
+      }
+    }
+  }
+
+  const diagnostics = {
+    pingsReceived: pings.length > 0,
+    pingCount: pings.length,
+    firstPingAt,
+    lastPingAt,
+    lastPingAgeMinutes: lastPingAgeMin,
+    lastCoord,
+    pingsTooOld: policy.isSignalStale,
+    isSignalStale: policy.isSignalStale,
+    silenceMs: policy.silenceMs,
+    maxSilenceMs: policy.maxSilenceMs,
+    pingGapsOver10MinCount: pingGapsOver10Min.length,
+    pingGapsOver10Min,
+    hasOpenWorkday: !!workday && !workday.ended_at,
+    openLocationTimeEntry: openLte
+      ? {
+          id: openLte.id,
+          started_at: openLte.started_at,
+          booking_id: openLte.booking_id,
+          large_project_id: openLte.large_project_id,
+          location_id: openLte.location_id,
+        }
+      : null,
+    travelLogsCount: travelLogs.length,
+    knownTargetsWithCoords: candidates.length,
+    anyPingInsideKnownTarget: anyPingInsideTarget,
+    targetFound: !!anyPingInsideTarget,
+    likelyRootCause: (() => {
+      if (pings.length === 0) return "no_pings_received";
+      if (candidates.length === 0) return "no_known_targets_with_coords";
+      if (!anyPingInsideTarget) return "pings_exist_but_no_target_match";
+      if (anyPingInsideTarget && !openLte && timeReports.length === 0)
+        return "pings_match_target_but_processor_did_nothing";
+      if (policy.isSignalStale) return "pings_too_old_signal_stale";
+      return "looks_ok";
+    })(),
+  };
+
   // ── Sanity warnings ──────────────────────────────────────────────────────
   if (workday && !workday.ended_at && pings.length === 0) {
     warnings.push("open workday but no pings for the day — check if device uploaded any GPS");
