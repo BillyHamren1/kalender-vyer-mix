@@ -7,6 +7,7 @@
 - Personalkalendern: samma person kan läggas i flera team samma dag. Drag/Add ⇒ lägger till; "remove from team" tar bara bort den teamraden.
 
 ## Memories
+- [Time Page Snapshot-Only](.lovable/memory/constraints/time-page-snapshot-only-v1.md) — Time-tabbar får ENDAST läsa backend-snapshots; ingen lokal summering av workdays/time_reports/travel/LTE/flags/assistant/GPS i UI.
 - [Work shift multi per day](.lovable/memory/features/field-staff/work-shift-multi-per-day-v1.md) — Flera workday-rader per dag stöds; UI-text bytt till "arbetspass".
 - [Workday timer](.lovable/memory/features/field-staff/workday-timer-v1.md) — Server-anchored dagtimer i headern.
 - [Start day flow](.lovable/memory/features/field-staff/start-day-flow-v1.md) — GPS auto-start, fallback-dialog, fri text-flagga och off-site-förklaring.
