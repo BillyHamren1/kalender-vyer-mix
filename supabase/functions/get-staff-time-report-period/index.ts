@@ -1,10 +1,17 @@
 // Edge Function: get-staff-time-report-period
-// Returns the staff member's time-report summary for a period (week/month).
-// Auth: JWT required. Self OR admin/manager-ish roles. Strict org-isolation.
-// Backend owns the truth — UI must not re-aggregate raw tables.
+// Summarizes the SAME day-engine snapshots used by get-staff-day-status.
+// Returns period totals + per-day summaries + blockers + status.
+// Never re-aggregates raw tables on its own.
 
-import { buildPeriodPayload, type PeriodKind } from "../_shared/staff-time-report-period.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
+import { fetchRangeRows } from "../_shared/staff-range-fetch.ts";
+import {
+  buildDayRangeSnapshots,
+  eachDayInRange,
+  summarizeSnapshots,
+  toDaySummary,
+  type DaySummary,
+} from "../_shared/day-snapshot-range.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,28 +26,48 @@ function bad(status: number, error: string, extra: Record<string, unknown> = {})
   });
 }
 
-function todayInStockholm(): string {
-  return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Europe/Stockholm",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+interface PeriodBlocker {
+  date: string;
+  type: "open_workday" | "needs_attest" | "needs_action";
+  message: string;
+}
+
+function buildBlockers(days: DaySummary[]): PeriodBlocker[] {
+  const out: PeriodBlocker[] = [];
+  for (const d of days) {
+    if (d.isWorkdayOpen) {
+      out.push({ date: d.date, type: "open_workday", message: "Arbetsdag pågår fortfarande" });
+    }
+    if (d.actionsCount > 0) {
+      out.push({ date: d.date, type: "needs_action", message: "Dagen behöver åtgärd" });
+    }
+    if (!d.approved && !d.attested && d.grossWorkdayMinutes > 0 && !d.isWorkdayOpen) {
+      out.push({ date: d.date, type: "needs_attest", message: "Saknar attest" });
+    }
+  }
+  return out;
+}
+
+type PeriodStatus = "empty" | "draft" | "submitted" | "approved";
+
+function derivePeriodStatus(days: DaySummary[], blockers: PeriodBlocker[]): PeriodStatus {
+  const hasAny = days.some((d) => d.grossWorkdayMinutes > 0 || d.isWorkdayOpen);
+  if (!hasAny) return "empty";
+  if (days.every((d) => d.grossWorkdayMinutes === 0 || d.approved)) return "approved";
+  if (blockers.length > 0) return "draft";
+  return "submitted";
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return bad(405, "Method not allowed");
 
-  let body: { staffId?: string; kind?: PeriodKind; startDate?: string; endDate?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return bad(400, "Invalid JSON body");
-  }
+  let body: { staffId?: string; kind?: "week" | "month"; startDate?: string; endDate?: string };
+  try { body = await req.json(); } catch { return bad(400, "Invalid JSON body"); }
+
   const staffId = (body.staffId ?? "").trim();
   if (!staffId) return bad(400, "staffId is required");
-  const kind: PeriodKind = body.kind === "month" ? "month" : "week";
+  const kind: "week" | "month" = body.kind === "month" ? "month" : "week";
   const startDate = (body.startDate ?? "").trim();
   const endDate = (body.endDate ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
@@ -55,60 +82,29 @@ Deno.serve(async (req) => {
   const orgId = access.orgId;
   const admin = authResult.auth.admin;
 
-  const padStart = new Date(new Date(`${startDate}T00:00:00Z`).getTime() - 24 * 3600 * 1000).toISOString();
-  const padEnd = new Date(new Date(`${endDate}T23:59:59Z`).getTime() + 24 * 3600 * 1000).toISOString();
-
-  const [workdayRes, trRes, travelRes, flagRes] = await Promise.all([
-    admin
-      .from("workdays")
-      .select("started_at, ended_at, review_status, approved_at")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .gte("started_at", padStart)
-      .lte("started_at", padEnd),
-    admin
-      .from("time_reports")
-      .select("report_date, hours_worked, overtime_hours")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .gte("report_date", startDate)
-      .lte("report_date", endDate),
-    admin
-      .from("travel_time_logs")
-      .select("start_time, end_time, hours_worked, report_date")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .gte("start_time", padStart)
-      .lte("start_time", padEnd),
-    admin
-      .from("workday_flags")
-      .select("flag_date, severity, resolved")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .gte("flag_date", startDate)
-      .lte("flag_date", endDate),
-  ]);
-
-  const errs = [workdayRes.error, trRes.error, travelRes.error, flagRes.error].filter(Boolean);
-  if (errs.length) {
-    console.error("[get-staff-time-report-period] db errors", errs);
-    return bad(500, "Database error", { details: errs.map((e) => e?.message) });
+  const fetched = await fetchRangeRows(admin, orgId, staffId, startDate, endDate);
+  if (!fetched.ok) {
+    console.error("[get-staff-time-report-period] db errors", fetched.error);
+    return bad(500, "Database error", { details: fetched.error });
   }
 
-  const payload = buildPeriodPayload({
-    kind,
-    startDate,
-    endDate,
-    staffId,
-    todayYmd: todayInStockholm(),
-    workdays: (workdayRes.data ?? []) as never,
-    timeReports: (trRes.data ?? []) as never,
-    travelLogs: (travelRes.data ?? []) as never,
-    flags: (flagRes.data ?? []) as never,
-  });
+  const dates = eachDayInRange(startDate, endDate);
+  const snapshots = buildDayRangeSnapshots(staffId, dates, fetched.rows);
+  const totals = summarizeSnapshots(snapshots);
+  const days = snapshots.map(toDaySummary);
+  const blockers = buildBlockers(days);
+  const status = derivePeriodStatus(days, blockers);
 
-  return new Response(JSON.stringify(payload), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({
+      period: { kind, startDate, endDate },
+      staffId,
+      totals,
+      days,
+      blockers,
+      status,
+      lastUpdatedAt: new Date().toISOString(),
+    }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 });
