@@ -109,19 +109,32 @@ export const WorkDayPanel: React.FC = () => {
     try {
       if (selection.kind === 'target') {
         const t = selection.target as any;
-        let params: Parameters<typeof mobileApi.startLocationTimer>[0] = {
-          started_at: selection.startedAtIso,
-        };
+        // Mappa selektion → Time Engine target_type/target_id.
+        // booking_id        → target_type:'booking',       target_id: booking_id
+        // large_project_id  → target_type:'large_project', target_id: large_project_id
+        // location_id       → target_type:'location',      target_id: location_id
+        let target_type: 'booking' | 'large_project' | 'location' | null = null;
+        let target_id: string | null = null;
         if (t.kind === 'project' && t.largeProjectId) {
-          params.large_project_id = t.largeProjectId;
+          target_type = 'large_project';
+          target_id = t.largeProjectId;
         } else if (t.kind === 'booking' && t.bookingId) {
-          params.booking_id = t.bookingId;
+          target_type = 'booking';
+          target_id = t.bookingId;
         } else if (t.kind === 'location' && t.locationId) {
-          params.location_id = t.locationId;
-        } else {
+          target_type = 'location';
+          target_id = t.locationId;
+        }
+        if (!target_type || !target_id) {
           toast.error('Ogiltigt mål för timer.');
           return;
         }
+        const params: Parameters<typeof mobileApi.startLocationTimer>[0] = {
+          started_at: selection.startedAtIso,
+          ...(target_type === 'booking'       ? { booking_id: target_id } : {}),
+          ...(target_type === 'large_project' ? { large_project_id: target_id } : {}),
+          ...(target_type === 'location'      ? { location_id: target_id } : {}),
+        };
         const ok = await startWithParams(params, selection.label);
         if (ok) setDialogOpen(false);
         return;
