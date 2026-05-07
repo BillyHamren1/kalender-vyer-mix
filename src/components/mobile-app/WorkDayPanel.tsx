@@ -113,17 +113,22 @@ export const WorkDayPanel: React.FC = () => {
   if (!timer.timerActive) {
     return (
       <>
-        <div className="rounded-3xl border border-border/60 bg-card p-6 shadow-md text-center">
-          <div className="flex items-center justify-center w-12 h-12 mx-auto rounded-2xl bg-muted mb-3">
-            <Clock className="w-6 h-6 text-muted-foreground" />
+        <div className="rounded-3xl border border-border/60 bg-card p-8 shadow-md text-center">
+          <div className="flex items-center justify-center w-14 h-14 mx-auto rounded-2xl bg-muted mb-4">
+            <Clock className="w-7 h-7 text-muted-foreground" />
           </div>
-          <p className="text-base font-bold text-foreground">Tid registreras inte</p>
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">
+            Tid registreras inte
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Starta timern när du börjar jobba.
+          </p>
           <button
             onClick={handleStartClick}
             disabled={starting}
-            className="mt-5 w-full h-14 rounded-2xl bg-primary text-primary-foreground font-bold text-base flex items-center justify-center gap-2 shadow-md active:scale-[0.99] transition-all disabled:opacity-60"
+            className="mt-6 w-full h-16 rounded-2xl bg-primary text-primary-foreground font-extrabold text-lg flex items-center justify-center gap-2 shadow-lg active:scale-[0.99] transition-all disabled:opacity-60"
           >
-            {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
+            {starting ? <Loader2 className="w-6 h-6 animate-spin" /> : <Play className="w-6 h-6 fill-current" />}
             {starting ? 'Startar…' : 'Starta timer'}
           </button>
         </div>
