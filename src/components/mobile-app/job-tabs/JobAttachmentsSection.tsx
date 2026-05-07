@@ -51,12 +51,11 @@ const JobAttachmentsSection = ({ attachments }: JobAttachmentsSectionProps) => {
           {imageAttachments.map((attachment) => {
             const name = attachment.file_name || attachment.name || 'Bild';
             return (
-              <a
+              <button
+                type="button"
                 key={attachment.id || attachment.url}
-                href={attachment.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group overflow-hidden rounded-xl border bg-muted aspect-video"
+                onClick={() => openFileExternally(attachment.url, name)}
+                className="group overflow-hidden rounded-xl border bg-muted aspect-video text-left"
                 aria-label={`Öppna ${name}`}
               >
                 <img
@@ -65,7 +64,7 @@ const JobAttachmentsSection = ({ attachments }: JobAttachmentsSectionProps) => {
                   className="h-full w-full object-cover transition-transform duration-200 group-active:scale-[0.98]"
                   loading="lazy"
                 />
-              </a>
+              </button>
             );
           })}
         </div>
