@@ -697,31 +697,47 @@ const GAP_REASON_LABEL: Record<GapReason, string> = {
 
 const GapRow: React.FC<{ block: GapBlock }> = ({ block }) => {
   const [open, setOpen] = useState(false);
+  // Saknad GPS-signal är INTE ett tidsglapp — visas som passiv signal-status
+  // utan "GRANSKA"-badge och utan amber accent.
+  const isSignalOnly = block.reason === 'no_signal';
+  const lastSignal = block.startIso.slice(11, 16);
   return (
     <>
       <RowShell
-        accent="gap"
+        accent={isSignalOnly ? 'location' : 'gap'}
         expandable={block.innerEvents.length > 0}
         expanded={open}
         onToggle={() => setOpen(o => !o)}
-        trashSlot={<RowExcludeButton blockId={block.id} label={block.expectedLabel ?? 'Glapp'} />}
+        trashSlot={isSignalOnly ? null : <RowExcludeButton blockId={block.id} label={block.expectedLabel ?? 'Glapp'} />}
       >
         <TimeCell startIso={block.startIso} endIso={block.endIso} durationMin={block.durationMin} />
 
         <div className="flex items-center gap-2 min-w-0 text-xs whitespace-nowrap">
-          <span className={`h-2 w-2 rounded-full shrink-0 ${accentDot.gap}`} />
-          <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg.gap}`}>
+          <span className={`h-2 w-2 rounded-full shrink-0 ${isSignalOnly ? 'bg-muted-foreground/40' : accentDot.gap}`} />
+          <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${isSignalOnly ? 'bg-muted text-muted-foreground' : accentIconBg.gap}`}>
             <HelpCircle className="h-3.5 w-3.5" />
           </span>
-          <span className="font-medium text-foreground truncate">{block.expectedLabel ?? 'Plats okänd'}</span>
-          <span className="text-muted-foreground shrink-0">·</span>
-          <span className="text-muted-foreground truncate">{GAP_REASON_LABEL[block.reason]}</span>
+          {isSignalOnly ? (
+            <>
+              <span className="font-medium text-muted-foreground truncate">Signal saknas</span>
+              <span className="text-muted-foreground shrink-0">·</span>
+              <span className="text-muted-foreground truncate">Senaste signal {lastSignal} · arbetsdag pågår</span>
+            </>
+          ) : (
+            <>
+              <span className="font-medium text-foreground truncate">{block.expectedLabel ?? 'Plats okänd'}</span>
+              <span className="text-muted-foreground shrink-0">·</span>
+              <span className="text-muted-foreground truncate">{GAP_REASON_LABEL[block.reason]}</span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center justify-end overflow-hidden">
-          <span className={`text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${badgeClass('review')}`}>
-            GRANSKA
-          </span>
+          {!isSignalOnly && (
+            <span className={`text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${badgeClass('review')}`}>
+              GRANSKA
+            </span>
+          )}
         </div>
       </RowShell>
       {open && <InnerEvents block={block} />}
