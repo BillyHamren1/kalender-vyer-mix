@@ -332,6 +332,14 @@ export interface StaffDaySnapshot {
     locked: boolean;
   } | null;
   lastUpdatedAt: Iso;
+  debugMeta?: {
+    totalsSource: "segments";
+    legacyTotals: {
+      timeReportsAllocatedMinutes: number;
+      travelLogsMinutes: number;
+      timeReportsBreakMinutes: number;
+    };
+  };
 }
 
 const MS_PER_MIN = 60_000;
