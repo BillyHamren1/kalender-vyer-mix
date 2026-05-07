@@ -278,10 +278,13 @@ async function ensureOpenWorkdayForTimer(
           .find((p) => p.type === 'hour')?.value ?? '0',
       )
       if (localHour >= 0 && localHour < 5) {
+        // New Time Engine source of truth: active_time_registrations.
+        // User-driven start_source values are treated as user timers.
         const { data: activeUserTimer } = await supabase
-          .from('current_time_registration')
-          .select('id').eq('staff_id', staffId)
-          .eq('status', 'active').eq('source', 'user_timer')
+          .from('active_time_registrations')
+          .select('id, start_source, auto_started').eq('staff_id', staffId)
+          .eq('status', 'active')
+          .eq('auto_started', false)
           .limit(1).maybeSingle()
         if (!activeUserTimer) {
           console.log(
