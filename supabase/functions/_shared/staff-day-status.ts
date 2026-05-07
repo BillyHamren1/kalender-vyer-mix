@@ -258,8 +258,8 @@ export interface IntelligenceState {
   hasTransport: boolean;
 }
 
-export type { TrackingPolicy, BoostRow as TrackingPolicyBoostRow } from "./trackingPolicy.ts";
-import { buildTrackingPolicy, type BoostRow as _BoostRow, type TrackingPolicy as _TP } from "./trackingPolicy.ts";
+import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type TrackingPolicy } from "./trackingPolicy.ts";
+export type { TrackingPolicy, TrackingPolicyBoostRow };
 
 export interface StaffDaySnapshot {
   date: string;
