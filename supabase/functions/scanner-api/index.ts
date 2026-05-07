@@ -585,12 +585,42 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Extract SKU/item_type from various response formats
-        let returnedSku = allocateData.sku || allocateData.data?.sku || allocateData.data?.item_type_id
-        let returnedItemType = allocateData.item_type || allocateData.data?.item_type
+        // Extract stable identifiers from WMS response.
+        // WMS = source of truth for what physical item this QR is.
+        // Field shapes seen: top-level, .data.*, batch .results[].data.*
+        const pickFirst = (...vals: any[]) => vals.find((v) => typeof v === 'string' && v.length > 0) || null
+        let wmsItemTypeId: string | null = pickFirst(
+          allocateData.data?.item_type_id, allocateData.item_type_id,
+        )
+        let wmsInstanceId: string | null = pickFirst(
+          allocateData.data?.instance_id, allocateData.instance_id,
+        )
+        let wmsSerialNumber: string | null = pickFirst(
+          allocateData.data?.serial_number, allocateData.serial_number, serialNumber,
+        )
+        let wmsSku: string | null = pickFirst(
+          allocateData.data?.sku, allocateData.sku,
+        )
+        let wmsItemTypeName: string | null = pickFirst(
+          allocateData.data?.item_type_name, allocateData.item_type_name,
+          allocateData.data?.item_type, allocateData.item_type,
+        )
+
         const alreadyAllocatedSerials: string[] = []
         const failedSerials: string[] = []
         let successfulAllocations = 0
+
+        const absorbWmsFields = (src: any) => {
+          if (!src) return
+          wmsItemTypeId = wmsItemTypeId || pickFirst(src.data?.item_type_id, src.item_type_id)
+          wmsInstanceId = wmsInstanceId || pickFirst(src.data?.instance_id, src.instance_id)
+          wmsSerialNumber = wmsSerialNumber || pickFirst(src.data?.serial_number, src.serial_number)
+          wmsSku = wmsSku || pickFirst(src.data?.sku, src.sku)
+          wmsItemTypeName = wmsItemTypeName || pickFirst(
+            src.data?.item_type_name, src.item_type_name,
+            src.data?.item_type, src.item_type,
+          )
+        }
 
         // Format A: Batch response with results array
         if (Array.isArray(allocateData.results)) {
@@ -599,8 +629,7 @@ Deno.serve(async (req) => {
 
             if (r.data?.already_allocated || r.data?.over_allocated) {
               alreadyAllocatedSerials.push(r.serial_number)
-              if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id || r.sku || r.item_type_id
-              if (!returnedItemType) returnedItemType = r.data?.item_type || r.item_type
+              absorbWmsFields(r)
               continue
             }
 
@@ -608,8 +637,7 @@ Deno.serve(async (req) => {
               const isAlreadyAllocated = (r.error || '').toLowerCase().includes('fully allocated')
               if (isAlreadyAllocated) {
                 alreadyAllocatedSerials.push(r.serial_number)
-                if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id || r.sku || r.item_type_id
-                if (!returnedItemType) returnedItemType = r.data?.item_type || r.item_type
+                absorbWmsFields(r)
               } else {
                 failedSerials.push(r.serial_number)
               }
@@ -617,30 +645,30 @@ Deno.serve(async (req) => {
             }
 
             successfulAllocations += 1
-            if (!returnedSku) returnedSku = r.data?.sku || r.data?.item_type_id || r.sku || r.item_type_id
-            if (!returnedItemType) returnedItemType = r.data?.item_type || r.item_type
+            absorbWmsFields(r)
           }
 
-          // If ALL were already allocated and no identifiers found, we cannot local-match
-          if (!returnedSku && !returnedItemType && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
+          // If ALL were already allocated and no identifiers found, recover via lookup
+          if (!wmsItemTypeId && !wmsSku && !wmsItemTypeName && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
             const recovered = await recoverAlreadyAllocatedIdentifiers(alreadyAllocatedSerials)
             if (recovered) {
-              returnedSku = recovered.returnedSku || returnedSku
-              returnedItemType = recovered.returnedItemType || returnedItemType
+              // recovered.returnedSku historically may be either sku or item_type_id
+              wmsSku = wmsSku || recovered.returnedSku || null
+              wmsItemTypeName = wmsItemTypeName || recovered.returnedItemType || null
             }
           }
 
-          if (!returnedSku && !returnedItemType && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
+          if (!wmsItemTypeId && !wmsSku && !wmsItemTypeName && alreadyAllocatedSerials.length > 0 && failedSerials.length === 0) {
             const shortNrs = alreadyAllocatedSerials.map((s: string) => s.replace(/^FACE\d{16}/, '').replace(/^0+/, '') || s)
             console.warn('[allocate-instance] Alla redan allokerade utan artikelinfo:', shortNrs)
             return json({
               success: false,
               error: `Nr ${shortNrs.join(', ')} är redan scannad/allokerad`,
-              alreadyScanned: true
+              alreadyScanned: true,
             })
           }
 
-          if (!returnedSku && !returnedItemType && failedSerials.length > 0 && alreadyAllocatedSerials.length === 0) {
+          if (!wmsItemTypeId && !wmsSku && !wmsItemTypeName && failedSerials.length > 0 && alreadyAllocatedSerials.length === 0) {
             console.warn('[allocate-instance] Allokering misslyckades för:', failedSerials)
             return json({ success: false, error: 'Allokering misslyckades i lagersystemet' })
           }
@@ -654,15 +682,14 @@ Deno.serve(async (req) => {
               console.warn('[allocate-instance] Redan allokerad (single, flagga):', serialNumber)
               return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
             }
-            returnedSku = recovered.returnedSku || returnedSku
-            returnedItemType = recovered.returnedItemType || returnedItemType
+            wmsSku = wmsSku || recovered.returnedSku || null
+            wmsItemTypeName = wmsItemTypeName || recovered.returnedItemType || null
           }
 
           const isFullyAllocated = (allocateData.error || '').toLowerCase().includes('fully allocated')
           if (isFullyAllocated) {
-            returnedSku = returnedSku || allocateData.data?.item_type_id || allocateData.data?.sku
-            returnedItemType = returnedItemType || allocateData.data?.item_type
-            if (!returnedSku && !returnedItemType) {
+            absorbWmsFields(allocateData)
+            if (!wmsItemTypeId && !wmsSku && !wmsItemTypeName) {
               return json({ success: false, error: `Nr ${serialNumber} är redan scannad/allokerad`, alreadyScanned: true })
             }
           } else if (allocateData.success) {
@@ -670,12 +697,13 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (!returnedSku && !returnedItemType) {
-          console.error('Inventory API returned no SKU/item_type:', allocateData)
+        if (!wmsItemTypeId && !wmsSku && !wmsItemTypeName) {
+          console.error('Inventory API returned no item_type_id/sku/name:', allocateData)
           return json({ success: false, error: 'Lagersystemet returnerade ingen artikeltyp' })
         }
 
-        // 3. Match returned SKU or item_type against local packing_list_items
+        // 3. Match WMS identifiers against local packing_list_items in strict priority:
+        //    (A) inventory_item_type_id  (B) sku  (C) name fallback (warn only)
         const { data: packingItems, error: fetchError } = await supabase
           .from('packing_list_items')
           .select(`id, quantity_to_pack, quantity_packed, verified_at, booking_products (id, name, sku, inventory_item_type_id)`)
@@ -691,48 +719,105 @@ Deno.serve(async (req) => {
             .replace(/\s+/g, ' ')
             .trim()
 
-        const normalizedSku = returnedSku?.toLowerCase()
-        const normalizedItemType = returnedItemType ? normalizeItemTypeName(returnedItemType) : null
+        const itemTypeIdLower = wmsItemTypeId?.toLowerCase() || null
+        const skuLower = wmsSku?.toLowerCase() || null
+        const nameNorm = wmsItemTypeName ? normalizeItemTypeName(wmsItemTypeName) : null
 
-        let matchedItems = (packingItems || []).filter((item: any) => {
-          if (!normalizedSku) return false
-          const bp = item.booking_products
-          return bp?.sku?.toLowerCase() === normalizedSku || bp?.inventory_item_type_id?.toLowerCase() === normalizedSku
-        })
+        let matchedBy: 'item_type_id' | 'sku' | 'name_fallback' | null = null
+        let matchedItems: any[] = []
 
-        if (matchedItems.length === 0 && normalizedItemType) {
+        // (A) item_type_id
+        if (itemTypeIdLower) {
+          matchedItems = (packingItems || []).filter((item: any) =>
+            item.booking_products?.inventory_item_type_id?.toLowerCase() === itemTypeIdLower)
+          if (matchedItems.length > 0) matchedBy = 'item_type_id'
+        }
+        // (B) sku
+        if (matchedItems.length === 0 && skuLower) {
+          matchedItems = (packingItems || []).filter((item: any) =>
+            item.booking_products?.sku?.toLowerCase() === skuLower)
+          if (matchedItems.length > 0) matchedBy = 'sku'
+        }
+        // (C) name fallback — last resort, log warning
+        if (matchedItems.length === 0 && nameNorm) {
           matchedItems = (packingItems || []).filter((item: any) => {
             const name = item.booking_products?.name
-            if (!name) return false
-            return normalizeItemTypeName(name) === normalizedItemType
+            return name ? normalizeItemTypeName(name) === nameNorm : false
           })
+          if (matchedItems.length > 0) {
+            matchedBy = 'name_fallback'
+            console.warn('[verify_product] name_fallback_match_used', {
+              packingId,
+              wmsItemTypeId,
+              wmsSku,
+              wmsItemTypeName,
+              wmsInstanceId,
+              wmsSerialNumber,
+              candidates: matchedItems.map((m: any) => m.id),
+            })
+          }
         }
 
         if (matchedItems.length === 0) {
-          // Return distinct flag so the UI can prompt to add the product
           return json({
             success: false,
             notInPackingList: true,
-            scannedSku: returnedSku || null,
-            scannedName: returnedItemType || null,
+            wmsItemTypeId,
+            wmsSku,
+            wmsInstanceId,
+            wmsSerialNumber,
+            scannedSku: wmsSku || wmsItemTypeId || null, // legacy field
+            scannedName: wmsItemTypeName || null,        // legacy field
             bookingId: packing.booking_id,
-            error: `Artikeltyp "${returnedSku || returnedItemType}" finns inte i packlistan`
+            error: `Artikeln ${wmsItemTypeName || wmsSku || wmsItemTypeId} finns i WMS men inte i packlistan`,
           })
         }
 
-        // Deterministic order + pick first not-full row
-        const sortedMatchedItems = [...matchedItems].sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))
-        const selectedItem = sortedMatchedItems.find((item: any) => (item.quantity_packed || 0) < item.quantity_to_pack) || sortedMatchedItems[0]
+        if (matchedItems.length > 1) {
+          console.warn('[verify_product] multiple_local_rows_matched', {
+            packingId,
+            matchedBy,
+            wmsItemTypeId,
+            wmsSku,
+            candidates: matchedItems.map((m: any) => ({
+              id: m.id,
+              packed: m.quantity_packed,
+              toPack: m.quantity_to_pack,
+            })),
+          })
+        }
+
+        // Pick row with lowest remaining first (i.e. quantity_packed < quantity_to_pack).
+        // If multiple still possible, sort deterministically by id.
+        const remaining = (it: any) => Math.max(0, (it.quantity_to_pack || 0) - (it.quantity_packed || 0))
+        const sortedMatchedItems = [...matchedItems].sort((a: any, b: any) => {
+          const aHas = remaining(a) > 0 ? 0 : 1
+          const bHas = remaining(b) > 0 ? 0 : 1
+          if (aHas !== bHas) return aHas - bHas
+          // Both have-remaining or both full → lowest remaining first, then id
+          const ra = remaining(a)
+          const rb = remaining(b)
+          if (ra !== rb) return ra - rb
+          return String(a.id).localeCompare(String(b.id))
+        })
+        const selectedItem = sortedMatchedItems[0]
 
         const currentPacked = (selectedItem as any).quantity_packed || 0
         const quantityToPack = (selectedItem as any).quantity_to_pack
         // WMS = source of truth. quantity_packed may only grow by NEW
-        // successful allocations confirmed by WMS. already_allocated /
-        // fully_allocated must NOT bump local count.
+        // successful allocations confirmed by WMS.
         const incrementBy = successfulAllocations
         const isAlreadyFull = currentPacked >= quantityToPack
         const productName = (selectedItem as any).booking_products?.name
         const now = new Date().toISOString()
+
+        const debug = {
+          matchedBy,
+          wmsInstanceId,
+          wmsItemTypeId,
+          wmsSerialNumber,
+          wmsSku,
+        }
 
         if (incrementBy <= 0) {
           console.log('[scanner-api] duplicate_scan_blocked_no_local_increment', {
@@ -742,6 +827,7 @@ Deno.serve(async (req) => {
             alreadyAllocatedSerials,
             currentPacked,
             quantityToPack,
+            ...debug,
           })
           return json({
             success: true,
@@ -751,6 +837,7 @@ Deno.serve(async (req) => {
             newQuantity: currentPacked,
             quantityToPack,
             productName: `${productName} (${currentPacked}/${quantityToPack})`,
+            ...debug,
           })
         }
 
@@ -773,9 +860,10 @@ Deno.serve(async (req) => {
           to: newQuantity,
           incrementBy,
           source: 'wms_allocations',
+          ...debug,
         })
 
-        // PARCEL ALLOCATION: log how many units of this scan went into the active parcel
+        // PARCEL ALLOCATION
         if (activeParcelId && !isAlreadyFull) {
           const allocQty = Math.min(incrementBy, quantityToPack - currentPacked)
           if (allocQty > 0) {
@@ -790,7 +878,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // STATUS FLOW: Check if all items are now packed
         await checkIfAllPacked(supabase, packingId, ORG_ID)
 
         return json({
@@ -799,7 +886,8 @@ Deno.serve(async (req) => {
           itemId: (selectedItem as any).id,
           newQuantity,
           quantityToPack,
-          productName: `${productName} (${newQuantity}/${quantityToPack})`
+          productName: `${productName} (${newQuantity}/${quantityToPack})`,
+          ...debug,
         })
       }
 
