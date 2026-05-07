@@ -122,7 +122,11 @@ export interface SnapshotInput {
   };
   /** User/admin day attestation (per staff_id+date). When present, its break_minutes overrides time_reports.break_time sum. */
   attestation?: DayAttestationRow | null;
-}
+  /** Active (non-expired, non-consumed) tracking-policy boost rows from DB. */
+  activeBoosts?: TrackingPolicyBoostRow[];
+  /** Optional client hints to suppress boost (low battery / dismissed cooldown). */
+  batteryPct?: number | null;
+  dismissedCooldownActive?: boolean;
 
 export interface DayAttestationRow {
   id: string;
