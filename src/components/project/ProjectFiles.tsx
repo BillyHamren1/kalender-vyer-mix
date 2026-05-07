@@ -111,9 +111,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                     onClick={
                       isImage
                         ? () => setPreviewImage({ url: file.url, name: file.file_name })
-                        : isPdf
-                        ? () => setPreviewPdf({ url: file.url, name: file.file_name })
-                        : undefined
+                        : () => openFileExternally(file.url, file.file_name || undefined)
                     }
                   >
                     {isImage ? (
