@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
     flagsRes,
     eventsRes,
     attestationRes,
+    boostsRes,
   ] = await Promise.all([
     admin
       .from("workdays")
