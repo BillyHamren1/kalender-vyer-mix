@@ -674,10 +674,10 @@ export const mobileApi = {
   getOrganizationLocations: () =>
     callApi<{ locations: { id: string; name: string; address: string | null; latitude: number; longitude: number; radius_meters: number; show_as_project?: boolean }[] }>('get_organization_locations'),
 
-  // Unified timer start (Time Engine v2). Forwards to action
-  // `start_time_registration`, which writes ONLY to `active_time_registrations`.
-  // The response is remapped from `{ registration }` to `{ entry }` to keep
-  // existing callers (timerSyncQueue, useWorkSession, useGeofencing) working.
+  // LEGACY COMPATIBILITY ONLY.
+  // New Time app code MUST use `startTimeRegistration` (below) — these
+  // wrappers exist solely so legacy callers (timerSyncQueue, useWorkSession,
+  // useGeofencing) keep working while they are migrated.
   startLocationTimer: async (params: {
     location_id?: string;
     booking_id?: string;
@@ -755,7 +755,7 @@ export const mobileApi = {
   uploadLagerFile: (data: { file_name: string; file_data: string; file_type: string }) =>
     callApi<{ success: boolean; file: any }>('upload_lager_file', data),
 
-  // Unified timer stop (Time Engine v2). Forwards to `stop_time_registration`.
+  // LEGACY COMPATIBILITY ONLY. Use `stopTimeRegistration` in new Time app code.
   stopLocationTimer: async (data: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string; stop_source?: string; stopped_at?: string }) => {
     const res = await callApi<{ success?: boolean; registration: any }>('stop_time_registration', {
       registration_id: data.entry_id ?? null,
@@ -766,6 +766,54 @@ export const mobileApi = {
     return { success: res?.success, entry: reg };
   },
 
+  // ===================================================================
+  // Time Engine v2 — canonical timer API. New Time app code MUST use these.
+  // ===================================================================
+
+  /**
+   * Start an active time registration (Time Engine v2). Writes ONLY to
+   * `active_time_registrations` — never workday / LTE / time_reports / travel.
+   */
+  startTimeRegistration: async (data?: {
+    target_type?: 'booking' | 'large_project' | 'project' | 'location';
+    target_id?: string;
+    started_at?: string;
+  }) =>
+    callApi<{ success?: boolean; registration: any }>('start_time_registration', {
+      target_type: data?.target_type ?? null,
+      target_id: data?.target_id ?? null,
+      started_at: data?.started_at,
+    }),
+
+  /** Stop the current active time registration (Time Engine v2). */
+  stopTimeRegistration: async (data?: {
+    registration_id?: string;
+    stopped_at?: string;
+    stop_source?: string;
+  }) =>
+    callApi<{ success?: boolean; registration: any }>('stop_time_registration', {
+      registration_id: data?.registration_id ?? null,
+      stopped_at: data?.stopped_at,
+      stop_source: data?.stop_source ?? 'user_manual',
+    }),
+
+  /**
+   * Canonical timer status read. Uses callStaffSnapshotFunction so mobile-
+   * token auth works the same as get-staff-day-status.
+   */
+  getActiveTimeRegistrationStatus: async () => {
+    const { callStaffSnapshotFunction } = await import('@/services/staffSnapshotApi');
+    return callStaffSnapshotFunction<any>('get-active-time-registration-status', {});
+  },
+
+  /** Per-target time segments for a registration / day. */
+  getTimerTimeSegments: async (data?: { registration_id?: string; date?: string }) => {
+    const { callStaffSnapshotFunction } = await import('@/services/staffSnapshotApi');
+    return callStaffSnapshotFunction<any>('get-timer-time-segments', {
+      registration_id: data?.registration_id ?? null,
+      date: data?.date ?? null,
+    });
+  },
 
   /**
    * LEGACY ONLY (admin / historik / banner-cleanup).

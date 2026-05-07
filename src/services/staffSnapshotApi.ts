@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getToken } from '@/services/mobileApiService';
 
 export async function callStaffSnapshotFunction<T>(
-  name: 'get-staff-day-status' | 'get-staff-month-status' | 'get-staff-time-report-period' | 'get-current-time-registration' | 'get-active-timer-status' | 'get-timer-time-segments',
+  name: 'get-staff-day-status' | 'get-staff-month-status' | 'get-staff-time-report-period' | 'get-current-time-registration' | 'get-active-timer-status' | 'get-active-time-registration-status' | 'get-timer-time-segments',
   body: Record<string, unknown>,
 ): Promise<T> {
   const mobileToken = getToken();
