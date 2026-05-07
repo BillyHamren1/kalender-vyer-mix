@@ -309,17 +309,12 @@ async function ensureOpenWorkdayForTimer(
     }
   }
 
-  const startedAt =
-    start_at && !isNaN(new Date(start_at).getTime())
-      ? new Date(start_at).toISOString()
-      : new Date().toISOString()
-
   const { data: ins, error: insErr } = await supabase
     .from('workdays')
     .insert({
       organization_id: organizationId,
       staff_id: staffId,
-      started_at: startedAt,
+      started_at: targetStartIso,
       started_by: 'server_workday_first',
       notes: `Auto-skapad av server (workday-first guarantee, source=${source})`,
       metadata: {
