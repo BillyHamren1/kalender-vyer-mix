@@ -129,6 +129,34 @@ export interface SnapshotInput {
   dismissedCooldownActive?: boolean;
   /** Optional GPS pings för dagen — driver segmentChain (gap-klassning). */
   pings?: Array<{ recorded_at: string; lat: number; lng: number; accuracy?: number | null }>;
+  /** Optional known places (warehouses/locations/bookings/projects) for gpsDayTimeline matching. */
+  knownPlaces?: Array<{
+    id: string;
+    type: "booking" | "project" | "location" | "warehouse" | "home" | "unknown";
+    name: string;
+    lat: number;
+    lng: number;
+    radiusM?: number | null;
+  }>;
+}
+
+export interface GpsDayTimelineSegment {
+  startTs: Iso;
+  endTs: Iso;
+  durationMin: number;
+  /** stay = stationary, travel = movement between stays, gps_gap = silent ping gap. */
+  kind: "stay" | "travel" | "gps_gap";
+  /** Coarse type for UI/debug. */
+  type: "known_target" | "unknown_place" | "transport" | "gps_gap";
+  matchedSiteId: string | null;
+  matchedSiteType: string | null;
+  matchedSiteName: string | null;
+  centerLat: number | null;
+  centerLng: number | null;
+  pingCount: number;
+  insideWorkday: boolean;
+  affectsPayableTime: boolean;
+  outsideWorkdayReason: string | null;
 }
 
 export interface DayAttestationRow {
