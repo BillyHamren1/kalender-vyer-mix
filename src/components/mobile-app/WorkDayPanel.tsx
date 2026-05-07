@@ -13,8 +13,8 @@ import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
  *
  * Frikopplad från workday/useWorkSession. Styr ENBART
  * `active_time_registrations` via Time Engine v2:
- *   - start: mobileApi.startLocationTimer  (→ start_time_registration)
- *   - stop:  mobileApi.stopTimeRegistration (→ stop_time_registration)
+ *   - start: mobileApi.startTimeRegistration (→ start_time_registration)
+ *   - stop:  mobileApi.stopTimeRegistration  (→ stop_time_registration)
  *
  * Två lägen, drivna ENBART av useActiveTimerStatus:
  *   A) Ingen aktiv timer  → "Tid registreras inte" + [Starta timer]
