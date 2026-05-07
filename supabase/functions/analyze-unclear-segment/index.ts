@@ -81,13 +81,27 @@ interface AnalyzeRequest {
   force?: boolean;
 }
 
+interface TrackingPolicyRecommendation {
+  mode?: "low_power" | "normal" | "high_resolution";
+  heartbeatMs?: number;
+  reason?: string;
+}
+
 interface AiResult {
   suggestedType: "other_place" | "transport" | "needs_user_input";
   confidence: number;
   needsUserInput: boolean;
   userQuestion?: string;
   explanation: string;
+  // Hard rule contract — never reduces payable time, never overrides rule engine.
+  affectsPayableTime: false;
+  // What the segment should remain as if AI is unsure / low confidence.
+  // Defaults to "other_place" so that nothing is silently changed.
+  keepAsType: "other_place" | "unclear_transport" | "unclear_movement" | "gps_gap_in_workday";
+  trackingPolicyRecommendation?: TrackingPolicyRecommendation;
 }
+
+const CONFIDENCE_THRESHOLD = 0.6;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -206,6 +220,25 @@ Deno.serve(async (req) => {
     }
     aiResult.confidence = Math.max(0, Math.min(1, Number(aiResult.confidence) || 0));
 
+    // Hard contract: AI får ALDRIG påverka lönegrundande tid.
+    aiResult.affectsPayableTime = false;
+
+    // Om AI är osäker (låg confidence eller needsUserInput) → behåll segment
+    // som "other_place" (default) eller den ursprungliga oklara typen.
+    // Caller får då aldrig ändra segmentet utan att fråga användaren.
+    if (aiResult.confidence < CONFIDENCE_THRESHOLD || aiResult.needsUserInput) {
+      aiResult.needsUserInput = true;
+      aiResult.keepAsType = (seg.kind === "other_place"
+        ? "other_place"
+        : (seg.kind as AiResult["keepAsType"])) ?? "other_place";
+      if (!aiResult.userQuestion) {
+        aiResult.userQuestion = "Vad gjorde du under den här tiden?";
+      }
+    } else {
+      // Hög confidence — behåll fortfarande som other_place tills user attesterar.
+      aiResult.keepAsType = aiResult.keepAsType ?? "other_place";
+    }
+
     // ── Persistera cache ───────────────────────────────────────────────────
     await supabase
       .from("unclear_segment_ai_analyses")
@@ -222,6 +255,8 @@ Deno.serve(async (req) => {
         needs_user_input: aiResult.needsUserInput,
         user_question: aiResult.userQuestion ?? null,
         explanation: aiResult.explanation,
+        keep_as_type: aiResult.keepAsType,
+        tracking_policy_recommendation: aiResult.trackingPolicyRecommendation ?? null,
         model: MODEL,
         input_hash: inputHash,
         updated_at: new Date().toISOString(),
@@ -290,6 +325,10 @@ function rowToResult(row: Record<string, unknown>): AiResult {
     needsUserInput: Boolean(row.needs_user_input),
     userQuestion: (row.user_question as string | null) ?? undefined,
     explanation: String(row.explanation ?? ""),
+    affectsPayableTime: false,
+    keepAsType: ((row.keep_as_type as string | null) ?? "other_place") as AiResult["keepAsType"],
+    trackingPolicyRecommendation:
+      (row.tracking_policy_recommendation as TrackingPolicyRecommendation | null) ?? undefined,
   };
 }
 
@@ -303,13 +342,17 @@ async function callAi(seg: SegmentInput): Promise<AiResult> {
     " - transport: personen är på väg någonstans (bil, gång)",
     " - needs_user_input: går inte att avgöra med rimlig säkerhet — fråga användaren",
     "",
-    "FÖRBJUDET:",
-    " - Du får ALDRIG föreslå rastavdrag.",
-    " - Du får ALDRIG föreslå att tid ska dras bort eller minskas.",
+    "FÖRBJUDET (HÅRDA REGLER):",
+    " - Du får ALDRIG föreslå rastavdrag eller privattid.",
+    " - Du får ALDRIG föreslå att tid ska dras bort, minskas eller flaggas som ej lönegrundande.",
+    " - Du får ALDRIG stoppa eller avsluta arbetsdagen.",
     " - Du får ALDRIG ändra confirmade projekt/lager — du analyserar bara det vi skickar.",
+    " - Du får ALDRIG motsäga en känd arbetsplats.",
     " - Du får ALDRIG hitta på nya kategorier.",
     "",
-    "Om du är osäker → använd needs_user_input och formulera EN kort fråga på svenska.",
+    "Om confidence < 0.6 eller du är osäker → använd needs_user_input.",
+    "Du får valfritt föreslå en trackingPolicyRecommendation (mode + heartbeatMs + reason)",
+    "när du tror att GPS-tätheten bör ändras — detta är RÅDGIVANDE och bindande är endast backend.",
     "Returnera ALLTID via verktygsanropet analyze_segment.",
   ].join("\n");
 
@@ -348,6 +391,15 @@ async function callAi(seg: SegmentInput): Promise<AiResult> {
             needsUserInput: { type: "boolean" },
             userQuestion: { type: "string" },
             explanation: { type: "string" },
+            trackingPolicyRecommendation: {
+              type: "object",
+              properties: {
+                mode: { type: "string", enum: ["low_power", "normal", "high_resolution"] },
+                heartbeatMs: { type: "number", minimum: 30000, maximum: 1800000 },
+                reason: { type: "string" },
+              },
+              additionalProperties: false,
+            },
           },
           required: ["suggestedType", "confidence", "needsUserInput", "explanation"],
           additionalProperties: false,
@@ -383,8 +435,19 @@ async function callAi(seg: SegmentInput): Promise<AiResult> {
       needsUserInput: true,
       userQuestion: "Vad gjorde du under den här tiden?",
       explanation: "AI returnerade inget verktygssvar.",
+      affectsPayableTime: false,
+      keepAsType: "other_place",
     };
   }
-  const parsed = JSON.parse(argsRaw) as AiResult;
-  return parsed;
+  const parsed = JSON.parse(argsRaw) as Partial<AiResult>;
+  return {
+    suggestedType: parsed.suggestedType ?? "needs_user_input",
+    confidence: Number(parsed.confidence ?? 0),
+    needsUserInput: Boolean(parsed.needsUserInput),
+    userQuestion: parsed.userQuestion,
+    explanation: String(parsed.explanation ?? ""),
+    affectsPayableTime: false,
+    keepAsType: "other_place",
+    trackingPolicyRecommendation: parsed.trackingPolicyRecommendation,
+  };
 }

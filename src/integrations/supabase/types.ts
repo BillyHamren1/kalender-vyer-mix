@@ -6619,6 +6619,7 @@ export type Database = {
           explanation: string
           id: string
           input_hash: string
+          keep_as_type: string | null
           model: string
           needs_user_input: boolean
           organization_id: string
@@ -6629,6 +6630,7 @@ export type Database = {
           segment_start_ts: string
           staff_id: string
           suggested_type: string
+          tracking_policy_recommendation: Json | null
           updated_at: string
           user_question: string | null
         }
@@ -6638,6 +6640,7 @@ export type Database = {
           explanation: string
           id?: string
           input_hash: string
+          keep_as_type?: string | null
           model: string
           needs_user_input?: boolean
           organization_id: string
@@ -6648,6 +6651,7 @@ export type Database = {
           segment_start_ts: string
           staff_id: string
           suggested_type: string
+          tracking_policy_recommendation?: Json | null
           updated_at?: string
           user_question?: string | null
         }
@@ -6657,6 +6661,7 @@ export type Database = {
           explanation?: string
           id?: string
           input_hash?: string
+          keep_as_type?: string | null
           model?: string
           needs_user_input?: boolean
           organization_id?: string
@@ -6667,6 +6672,7 @@ export type Database = {
           segment_start_ts?: string
           staff_id?: string
           suggested_type?: string
+          tracking_policy_recommendation?: Json | null
           updated_at?: string
           user_question?: string | null
         }
