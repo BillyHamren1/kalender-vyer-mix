@@ -4,12 +4,12 @@ import { openFileExternally } from "@/lib/files/openFileExternally";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProjectFile } from "@/types/project";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
 import { ImageThumbnail } from "./ImageThumbnail";
+import PdfPreviewDialog from "./PdfPreviewDialog";
 
 interface BookingAttachment {
   id: string;
@@ -270,32 +270,12 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!previewPdf} onOpenChange={(open) => !open && closePdfPreview()}>
-        <DialogContent className="max-w-5xl h-[85vh] p-0 overflow-hidden">
-          {previewPdf && (
-            <div className="flex h-full flex-col bg-background">
-              <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
-                <p className="min-w-0 truncate text-sm font-medium">{previewPdf.name || 'PDF'}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => downloadUrl(previewPdf.url, previewPdf.name)}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Ladda ner
-                </Button>
-              </div>
-              <ScrollArea className="flex-1">
-                <iframe
-                  src={previewPdf.url}
-                  title={previewPdf.name || 'PDF-preview'}
-                  className="h-[72vh] w-full"
-                />
-              </ScrollArea>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <PdfPreviewDialog
+        open={!!previewPdf}
+        pdfUrl={previewPdf?.url || null}
+        fileName={previewPdf?.name || null}
+        onClose={closePdfPreview}
+      />
 
     </Card>
   );
