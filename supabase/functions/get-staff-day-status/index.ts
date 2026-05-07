@@ -201,6 +201,7 @@ Deno.serve(async (req) => {
         Array.from(locationNames.entries()).map(([k, v]) => [k, v]),
       ),
     },
+    attestation: (attestationRes.data ?? null) as never,
   });
 
   return new Response(JSON.stringify(snapshot), {
