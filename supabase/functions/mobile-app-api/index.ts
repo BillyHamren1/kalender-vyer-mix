@@ -7024,6 +7024,9 @@ async function handleUploadLagerFile(supabase: any, staffId: string, data: any, 
   }
 }
 
+// LEGACY ONLY.
+// Do not use for Time Engine v2.
+// New active timer source is active_time_registrations.
 async function handleStopLocationTimerLegacyDisabled(supabase: any, staffId: string, data: any, organizationId: string) {
   const { location_id, booking_id, large_project_id, entry_id, stop_source, stop_reason, stop_metadata } = data || {}
 
