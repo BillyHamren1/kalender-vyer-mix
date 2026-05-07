@@ -159,6 +159,114 @@ function formatActionLine(a: any): string {
   return `${act}${label ? `: ${label}` : ""}${t1 ? ` at ${fmtTime(t1)}` : ""}`;
 }
 
+function CheckRow({ ok, label, detail }: { ok: boolean | null; label: string; detail?: string }) {
+  const tone: StatusTone = ok === true ? "ok" : ok === false ? "bad" : "neutral";
+  const Icon = ok === true ? CheckCircle2 : ok === false ? XCircle : AlertCircle;
+  return (
+    <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${TONE_CLASS[tone]}`}>
+      <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="font-medium">{label}</div>
+        {detail && <div className="text-xs opacity-80 mt-0.5 break-words">{detail}</div>}
+      </div>
+    </div>
+  );
+}
+
+function WarehouseJosefinasCheck({ result }: { result: any }) {
+  const raw = result?.rawData ?? {};
+  const tm = result?.targetMatches ?? {};
+  const ww: any[] = Array.isArray(result?.wouldWrite) ? result.wouldWrite : (result?.wouldWrite?.actions ?? []);
+  const snap = result?.snapshotPreview ?? {};
+
+  const pings = raw?.pings ?? {};
+  const pingCount = pings?.count ?? 0;
+  const firstPing = pings?.first ?? null;
+
+  const warehouseMatch = tm?.warehouse;
+  const startedAtWarehouse =
+    warehouseMatch?.firstMatchAt &&
+    firstPing &&
+    new Date(warehouseMatch.firstMatchAt).getTime() - new Date(firstPing).getTime() < 30 * 60_000;
+
+  const warehouseLastSeen = warehouseMatch?.lastMatchAt ? new Date(warehouseMatch.lastMatchAt).getTime() : null;
+  const pingsAfterWarehouse = warehouseLastSeen
+    ? (raw?.pings?.timestamps ?? []).filter?.((t: string) => new Date(t).getTime() > warehouseLastSeen).length ?? null
+    : null;
+
+  const hasTransport = (raw?.travelLogs ?? raw?.existingTravelLogs ?? []).length > 0 ||
+    ww.some((a: any) => /transport|travel/i.test(a?.action ?? a?.type ?? ""));
+
+  const projectMatch = tm?.booking || tm?.large_project || tm?.project_location;
+  const matchedProjectLabel = projectMatch?.label ?? projectMatch?.targetKey ?? projectMatch?.firstMatchAt;
+
+  const hasClose = ww.some((a) => /close/i.test(a?.action ?? a?.type ?? ""));
+  const closeAction = ww.find((a) => /close/i.test(a?.action ?? a?.type ?? ""));
+  const hasTransportWrite = ww.some((a) => /transport|travel/i.test(a?.action ?? a?.type ?? ""));
+  const transportAction = ww.find((a) => /transport|travel/i.test(a?.action ?? a?.type ?? ""));
+  const hasOpen = ww.some((a) => /open|start_lte|create_lte/i.test(a?.action ?? a?.type ?? ""));
+  const openAction = ww.find((a) => /open|start_lte|create_lte/i.test(a?.action ?? a?.type ?? ""));
+
+  const snapActive = snap?.activeLabel ?? snap?.active?.label ?? snap?.activeKey ?? null;
+  const snapShowsProject = projectMatch && snapActive
+    ? String(snapActive).toLowerCase().includes(String(matchedProjectLabel ?? "").toLowerCase().slice(0, 6))
+    : null;
+
+  return (
+    <Card className="border-primary/40">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Lager → Josefinas-kontroll</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <CheckRow ok={pingCount > 0} label={pingCount > 0 ? `Pings finns (${pingCount})` : "Inga pings"} />
+        <CheckRow ok={!!raw?.activeWorkday || !!raw?.workday} label="Workday aktiv" />
+        <CheckRow
+          ok={!!startedAtWarehouse}
+          label={startedAtWarehouse ? "Startade på FA Warehouse" : "Startade INTE på FA Warehouse"}
+          detail={warehouseMatch?.firstMatchAt ? `Första warehouse-träff ${fmtTime(warehouseMatch.firstMatchAt)}` : undefined}
+        />
+        <CheckRow
+          ok={pingsAfterWarehouse == null ? null : pingsAfterWarehouse > 0}
+          label={pingsAfterWarehouse == null ? "Pings efter warehouse: okänt" : `Pings efter warehouse: ${pingsAfterWarehouse}`}
+        />
+        <CheckRow ok={hasTransport} label={hasTransport ? "Rörelse/transport upptäckt" : "Ingen rörelse/transport"} />
+        <CheckRow
+          ok={!!projectMatch}
+          label={projectMatch ? "Projekt-target matchad" : "Josefinas/projekt-target SAKNAS"}
+          detail={matchedProjectLabel ? String(matchedProjectLabel) : undefined}
+        />
+        <div className="pt-2 mt-2 border-t">
+          <p className="text-xs font-semibold text-muted-foreground mb-2">Planerade skrivningar:</p>
+          <div className="space-y-2">
+            <CheckRow
+              ok={hasClose}
+              label={hasClose ? `CLOSE ${closeAction?.label ?? "FA Warehouse"}${closeAction?.at ? ` at ${fmtTime(closeAction.at)}` : ""}` : "Ingen CLOSE av warehouse"}
+            />
+            <CheckRow
+              ok={hasTransportWrite}
+              label={hasTransportWrite ? `CREATE TRANSPORT ${fmtTime(transportAction?.at ?? transportAction?.start)}–${fmtTime(transportAction?.end)}` : "Ingen CREATE transport"}
+            />
+            <CheckRow
+              ok={hasOpen}
+              label={hasOpen ? `OPEN ${openAction?.label ?? "—"}${openAction?.at ? ` at ${fmtTime(openAction.at)}` : ""}` : "Ingen OPEN av ny plats"}
+            />
+          </div>
+        </div>
+        <CheckRow
+          ok={snapShowsProject}
+          label={
+            snapShowsProject === true
+              ? `snapshot.active = ${snapActive}`
+              : snapShowsProject === false
+              ? `snapshot.active visar FEL: ${snapActive}`
+              : `snapshot.active: ${snapActive ?? "okänt"}`
+          }
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 function WouldWriteList({ data }: { data: any }) {
   const actions: any[] = Array.isArray(data) ? data : data?.actions ?? [];
   const reasons: string[] = data?.reasons ?? data?.skipped ?? [];
