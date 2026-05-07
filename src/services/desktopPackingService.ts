@@ -38,17 +38,19 @@ export const fetchPackingListItemsForDesktop = async (packingId: string) => {
 // ============== TOGGLE / DECREMENT ==============
 
 /**
- * @deprecated Manual check-off (increment) MUST go through scanner-api
- * `toggle_item` so WMS / Bundle Builder can accept or reject the scan
- * BEFORE local `packing_list_items.quantity_packed` is mutated. This
- * legacy desktop helper bypassed WMS and is no longer used by
- * DesktopChecklistView. Use `togglePackingItemManually` from
- * `src/services/scannerService.ts` instead.
+ * ⚠️ LEGACY ONLY — DO NOT USE for manual packing/checkoff.
  *
- * Kept exported only to avoid breaking unrelated imports during the
- * migration window — DO NOT call from new code.
+ * Manual packing must go through scanner-api `toggle_item`
+ * (see `togglePackingItemManually` in `src/services/scannerService.ts`)
+ * so Bundle Builder / WMS is the source of truth and must accept
+ * the scan BEFORE local `packing_list_items.quantity_packed` is mutated.
+ *
+ * This helper previously did a local-first Supabase update which is
+ * unsafe. It is kept exported under an explicit `legacy*LocalOnly`
+ * name only so any forgotten import fails loudly instead of silently
+ * bypassing WMS.
  */
-export const togglePackingItemDesktop = async (
+export const legacyTogglePackingItemDesktopLocalOnly = async (
   _itemId: string,
   _currentlyPacked: boolean,
   _quantityToPack: number,
@@ -57,9 +59,15 @@ export const togglePackingItemDesktop = async (
   return {
     success: false,
     error:
-      'togglePackingItemDesktop är borttagen — använd togglePackingItemManually (scanner-api WMS-first) istället.',
+      'Desktop manual checkoff must use scanner-api toggle_item (togglePackingItemManually). Local-first packning är förbjuden.',
   };
 };
+
+/**
+ * @deprecated Renamed to `legacyTogglePackingItemDesktopLocalOnly` and
+ * neutralised. Always returns an error. Do not call.
+ */
+export const togglePackingItemDesktop = legacyTogglePackingItemDesktopLocalOnly;
 
 export const decrementPackingItemDesktop = async (
   itemId: string
