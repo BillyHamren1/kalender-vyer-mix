@@ -56,6 +56,14 @@ function json(status: number, body: any) {
   });
 }
 
+function fmtHM(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try { return new Date(iso).toISOString().slice(11, 16); } catch { return String(iso); }
+}
+function fmtRange(a: string, b: string): string {
+  return `${fmtHM(a)}–${fmtHM(b)}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
