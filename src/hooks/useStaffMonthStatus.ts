@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, startOfMonth } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 
 export type StaffMonthDayKind =
@@ -94,13 +95,11 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     inFlight.current = true;
     setIsLoading(true);
     try {
-      const { data, error: invokeErr } = await supabase.functions.invoke(
+      const data = await callStaffSnapshotFunction<StaffMonthStatus>(
         'get-staff-month-status',
-        { body: { staffId, month: monthKey } },
+        { staffId, month: monthKey },
       );
-      if (invokeErr) throw invokeErr;
-      if (data?.error) throw new Error(data.error);
-      setStatus(data as StaffMonthStatus);
+      setStatus(data);
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Kunde inte ladda månadsstatus');

@@ -3,18 +3,14 @@
 // Auth: JWT required. Self OR admin/manager-ish roles. Strict org-isolation.
 // Backend owns the truth — UI must not re-aggregate raw tables.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildMonthDays, eachDayOfMonth } from "../_shared/staff-month-status.ts";
+import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 function bad(status: number, error: string, extra: Record<string, unknown> = {}) {
   return new Response(JSON.stringify({ error, ...extra }), {
@@ -44,19 +40,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return bad(405, "Method not allowed");
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return bad(401, "Unauthorized");
-
-  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-  const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
-  if (claimsErr || !claimsData?.claims) return bad(401, "Unauthorized");
-  const userId = claimsData.claims.sub as string;
-
   let body: { staffId?: string; month?: string };
   try {
     body = await req.json();
@@ -68,34 +51,12 @@ Deno.serve(async (req) => {
   const month = (body.month ?? thisMonthInStockholm()).trim();
   if (!/^\d{4}-\d{2}$/.test(month)) return bad(400, "month must be YYYY-MM");
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("organization_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-  const orgId = profile?.organization_id as string | undefined;
-  if (!orgId) return bad(403, "No organization for caller");
-
-  const { data: targetStaff } = await admin
-    .from("staff_members")
-    .select("id, user_id, organization_id")
-    .eq("id", staffId)
-    .maybeSingle();
-  if (!targetStaff || targetStaff.organization_id !== orgId) {
-    return bad(404, "Staff not found in your organization");
-  }
-
-  const isSelf = targetStaff.user_id === userId;
-  let isPrivileged = false;
-  if (!isSelf) {
-    const { data: roles } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    const allowed = new Set(["admin", "projekt", "lager"]);
-    isPrivileged = (roles ?? []).some((r) => allowed.has(r.role as string));
-  }
-  if (!isSelf && !isPrivileged) return bad(403, "Forbidden");
+  const authResult = await authenticateStaffRequest(req, { requestedStaffId: staffId });
+  if (!authResult.ok) return bad(authResult.err.status, authResult.err.error);
+  const access = await authorizeStaffAccess(authResult.auth, staffId);
+  if (!access.ok) return bad(access.err.status, access.err.error);
+  const orgId = access.orgId;
+  const admin = authResult.auth.admin;
 
   const monthStart = `${month}-01`;
   const [y, m] = month.split("-").map(Number);

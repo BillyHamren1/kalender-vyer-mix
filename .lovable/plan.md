@@ -1,60 +1,88 @@
-## Mål
+## Problem
 
-Göra det snabbt att flytta och justera kalender-events. Ersätt nuvarande hover-info med en klickbar **action popover** som samlar de vanligaste operationerna på ett ställe.
+`get-staff-day-status`, `get-staff-month-status` och `get-staff-time-report-period` kräver Supabase JWT (`userClient.auth.getClaims(token)`). Mobilappen autentiserar med ett mobile-token (base64-JSON `{staffId, expiresAt}`) som lagras i `localStorage["eventflow-mobile-token"]`. Hooks anropar `supabase.functions.invoke(...)` som skickar den inloggade Supabase-sessionens JWT — vilket på mobilen är fel/saknas → 401/403, Time-sidan dör.
+
+## Lösning
+
+Edge-functions ska acceptera **båda** token-typerna. Hooks ska skicka mobile-tokenen via `fetch` när den finns, annars falla tillbaka på `supabase.functions.invoke` (admin/web).
 
 ## Ändringar
 
-### 1. Ny komponent: `src/components/Calendar/EventActionPopover.tsx`
-En enda Radix `Popover` som triggas genom **enkelklick** på eventet (ersätter dagens hover-flöde för planning-events). Innehåll uppifrån och ner:
+### 1. Ny shared helper — `supabase/functions/_shared/staff-auth.ts`
 
-**a) Team-rad (flytta team)**
-- Hämtar `teamResources` via `useTeamResources` (filtrerar bort `team-11` och `transport`, samma logik som `MoveDayPopover`).
-- Renderar varje team som liten `Button` (visar t.ex. "T1", "T2"…). Aktivt team markeras (variant `default`), övriga `outline`.
-- Klick → samma flytt-pipeline som `MoveDayPopover.moveOneDay(newTeamId)` (consolidated event-ids för LP, recompute_booking_staff_for_day RPC, optimistic `setEvents`). Vi extraherar den logiken till en hook `useMoveEventToTeam(event, setEvents, onUpdate)` så både popovern och befintliga ←/→-pilar (om vi behåller dem) använder samma kod.
+Exporterar `authenticateStaffRequest(req, { requestedStaffId })`:
 
-**b) Rigg-datum-rad (lägg till / ta bort dagar)**
-- Lista bokningens `rig` / `event` / `rigDown`-datum (hämtas från `calendar_events` filtrerat på `booking_id` — eller, för LP, `consolidatedBookingIds`). Rendera som chip per datum + typ, sorterat kronologiskt.
-- Varje chip: klickbar → bekräftelse → `deleteCalendarEvent(id)` (samma path som `DeleteDayButton`).
-- Sista chip: "+ Lägg till dag" → öppnar befintlig `AddRiggDayDialog`.
+- Plockar `Authorization: Bearer <token>`
+- Detekterar mobile-token: token saknar `.` och `atob(token)` ger JSON med `staffId` + `expiresAt` → verifierar utgång → returnerar `{ mode: 'mobile', staffId, organizationId, admin }` (org slås upp via `staff_members`). Om `requestedStaffId` skickas och inte matchar → 403.
+- Annars: behandlas som Supabase JWT → `getClaims()` → slår upp `profiles.organization_id` + `user_roles` → returnerar `{ mode: 'jwt', userId, organizationId, isPrivileged, admin }`.
+- Plus `authorizeStaffAccess(auth, requestedStaffId)` som gör self/privileged-kontrollen för JWT-vägen och no-op för mobile (redan gated).
 
-**c) Tid-rad (snabbjustera start/slut)**
-- Två kompakta Select-dropdowns (timme + minut, 30-min-steg) för start och slut, prefyllda från `event.start`/`event.end`.
-- "Spara"-knapp → kallar `updateCalendarEvent` (eller `moveLargeProjectDay` för LP) — samma helpers som `QuickTimeEditPopover` redan använder. Vi återanvänder den logiken (extraherar i `useQuickTimeUpdate` om nödvändigt) istället för att duplicera.
+### 2. Uppdatera de tre edge functions
 
-**d) Footer**
-- "Öppna bokning" → `handleViewDetails()` (befintlig).
-- "Flytta datum…" → öppnar `MoveEventDateDialog` (befintlig).
+I varje `index.ts` byts auth-blocket (rader ~41–98) ut mot:
 
-### 2. `src/components/Calendar/CustomEvent.tsx`
-- Ta bort `EventHoverCard`-omslaget för planning-events (behåll det för project-activity och read-only/warehouse-event där relevant — eller ersätt även där om vi bestämmer oss; default: bara planning-events får nya popovern).
-- Wrappa `eventCardContent` i `<EventActionPopover event={event} setEvents={setEvents} onUpdate={onEventResize}>` så enkelklick öppnar action-popovern.
-- Behåll `onContextMenu` (öppnar `MoveEventDateDialog`) och dubbelklick (`handleViewDetails`).
-- Ta bort de små in-card-ikonerna `AddDayButton` / `MoveDayPopover` / `DeleteDayButton` från eventytan eftersom funktionaliteten nu finns i popovern (renare kort, mindre felklick). `DeleteDayButton`-knappen bevaras för cancelled events.
+```ts
+const authResult = await authenticateStaffRequest(req, { requestedStaffId: body.staffId });
+if (!authResult.ok) return bad(authResult.err.status, authResult.err.error);
+const access = await authorizeStaffAccess(authResult.auth, staffId);
+if (!access.ok) return bad(access.err.status, access.err.error);
+const orgId = access.orgId;
+const admin = authResult.auth.admin;
+```
 
-### 3. Drag-n-drop påverkas inte
-`TimeGridEventLayer.EventWrapper` är fortsatt `draggable` — popovern öppnas på klick (mouseup utan drag), inte på dragstart.
+Allt nedanför (DB-queries, snapshot-builders) är oförändrat — använder fortfarande `orgId` + `admin`.
 
-### 4. Hover-kortet
-`EventHoverCard` används kvar för project-activity-rendering och read-only-vy. Inom planning-vyn slutar det att renderas.
+Functions: `get-staff-day-status`, `get-staff-month-status`, `get-staff-time-report-period`.
 
-## Tekniska detaljer
+### 3. Ny client helper — `src/services/staffSnapshotApi.ts`
 
-- Återanvänd existerande services — vi skapar inga nya DB-anrop:
-  - Team-flytt: samma kod som `MoveDayPopover.moveOneDay`.
-  - Tid-edit: samma som `QuickTimeEditPopover` (vanlig + LP-gren).
-  - Add day: `AddRiggDayDialog`.
-  - Delete day: `deleteCalendarEvent` + last-row-warning från `DeleteDayButton`.
-- Datumlistan i avsnitt b) hämtas via en lättviktig query `useEventBookingDays(event)` (single `select id, event_type, start_time, end_time from calendar_events where booking_id = ? OR id in (consolidatedEventIds)`).
-- Popovern sätter `data-state="open"` så `EventHoverCard`-detekteringen redan är konsistent med övriga dialoger.
+```ts
+export async function callStaffSnapshotFunction<T>(name, body): Promise<T>
+```
 
-## Filer
+- Försöker först läsa mobile-token (`getToken()` från `mobileApiService`)
+- Om finns → `fetch(${VITE_SUPABASE_URL}/functions/v1/${name}, { method:'POST', headers:{ Authorization:'Bearer '+token, apikey:VITE_SUPABASE_PUBLISHABLE_KEY, 'Content-Type':'application/json' }, body:JSON.stringify(body) })` → throw med körrelevant error vid !ok
+- Om saknas → `supabase.functions.invoke(name, { body })` (admin/web fortsätter precis som idag)
 
-- ny: `src/components/Calendar/EventActionPopover.tsx`
-- ny: `src/hooks/useMoveEventToTeam.ts` (extraherad från `MoveDayPopover`)
-- ny: `src/hooks/useEventBookingDays.ts`
-- edit: `src/components/Calendar/CustomEvent.tsx` (byt wrapper, ta bort in-card-knappar)
-- edit: `src/components/Calendar/MoveDayPopover.tsx` (refaktoreras att använda `useMoveEventToTeam`, alternativt bli intern del av popovern)
+### 4. Uppdatera hooks
 
-## Out of scope
-- Ändringar i warehouse-events (de behåller dagens beteende).
-- Ändringar i project-activity-rendering.
+`useStaffDaySnapshot.ts`, `useStaffMonthStatus.ts`, `useStaffTimeReportPeriod.ts` — byt:
+
+```ts
+const { data, error } = await supabase.functions.invoke('get-staff-day-status', { body });
+```
+
+mot:
+
+```ts
+const data = await callStaffSnapshotFunction<StaffDaySnapshot>('get-staff-day-status', body);
+```
+
+Felhantering bevaras (`setError(err.message)`).
+
+### 5. Memory-anteckning
+
+Lägg `mem://auth/staff-snapshot-dual-auth-v1` som dokumenterar att de tre snapshot-functions accepterar både mobile-token och Supabase JWT, samt att hooks går via `callStaffSnapshotFunction` (inte direkt `functions.invoke`). Lägg referens i `mem://index.md`.
+
+## Acceptans
+
+- Inloggad mobile staff på `/m/time` → Idag/Kalender/Tidrapport laddar utan 401/403
+- Admin på `/staff-management/time-reports` (Supabase JWT) fungerar oförändrat
+- Mobile staff kan endast läsa egen `staffId` (server-gated)
+- Befintliga JWT-tester och Time-reporting Quality Gate fortsätter passera
+
+## Filer som ändras/läggs till
+
+- ➕ `supabase/functions/_shared/staff-auth.ts` (ny)
+- ➕ `src/services/staffSnapshotApi.ts` (ny)
+- ✏️ `supabase/functions/get-staff-day-status/index.ts`
+- ✏️ `supabase/functions/get-staff-month-status/index.ts`
+- ✏️ `supabase/functions/get-staff-time-report-period/index.ts`
+- ✏️ `src/hooks/useStaffDaySnapshot.ts`
+- ✏️ `src/hooks/useStaffMonthStatus.ts`
+- ✏️ `src/hooks/useStaffTimeReportPeriod.ts`
+- ➕ `mem://auth/staff-snapshot-dual-auth-v1` + uppdatera `mem://index.md`
+
+## Inga DB-ändringar
+
+Ingen migration. Inga RLS-ändringar (vi går alltid via service-role efter egen auth-check, vilket är samma mönster som `workday`/`mobile-app-api`).

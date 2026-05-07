@@ -1,0 +1,98 @@
+// Shared dual-auth for staff snapshot edge functions.
+// Accepts:
+//   1. Mobile token (base64 JSON `{ staffId, expiresAt }`) — same as workday/mobile-app-api
+//   2. Supabase JWT — admin/web flow with self/privileged check
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+export interface MobileAuthResult {
+  mode: "mobile";
+  staffId: string;
+  organizationId: string;
+  admin: SupabaseClient;
+}
+export interface JwtAuthResult {
+  mode: "jwt";
+  userId: string;
+  organizationId: string;
+  isPrivileged: boolean;
+  admin: SupabaseClient;
+}
+export type AuthResult = MobileAuthResult | JwtAuthResult;
+export interface AuthError { status: number; error: string }
+
+function tryParseMobileToken(token: string): { staffId?: string; expiresAt?: number } | null {
+  try {
+    if (token.includes(".")) return null; // JWTs contain dots
+    const payload = JSON.parse(atob(token));
+    if (typeof payload?.staffId === "string" && typeof payload?.expiresAt === "number") return payload;
+    return null;
+  } catch { return null; }
+}
+
+const PRIVILEGED_ROLES = new Set(["admin", "projekt", "lager"]);
+
+export async function authenticateStaffRequest(
+  req: Request,
+  opts: { requestedStaffId?: string | null } = {},
+): Promise<{ ok: true; auth: AuthResult } | { ok: false; err: AuthError }> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return { ok: false, err: { status: 401, error: "Unauthorized" } };
+  const token = authHeader.slice(7).trim();
+  if (!token) return { ok: false, err: { status: 401, error: "Missing token" } };
+
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  // Mobile token
+  const mobile = tryParseMobileToken(token);
+  if (mobile) {
+    if (!mobile.expiresAt || Date.now() > mobile.expiresAt) return { ok: false, err: { status: 401, error: "Mobile token expired" } };
+    if (!mobile.staffId) return { ok: false, err: { status: 401, error: "Invalid mobile token" } };
+    if (opts.requestedStaffId && opts.requestedStaffId !== mobile.staffId) {
+      return { ok: false, err: { status: 403, error: "Staff may only read self" } };
+    }
+    const { data: staffRow, error: staffErr } = await admin
+      .from("staff_members").select("id, organization_id").eq("id", mobile.staffId).maybeSingle();
+    if (staffErr) return { ok: false, err: { status: 500, error: `Staff lookup failed: ${staffErr.message}` } };
+    if (!staffRow?.organization_id) return { ok: false, err: { status: 404, error: "Staff not found" } };
+    return { ok: true, auth: { mode: "mobile", staffId: mobile.staffId, organizationId: staffRow.organization_id as string, admin } };
+  }
+
+  // Supabase JWT
+  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+  if (claimsErr || !claimsData?.claims?.sub) return { ok: false, err: { status: 401, error: "Unauthorized" } };
+  const userId = claimsData.claims.sub as string;
+
+  const { data: profile } = await admin
+    .from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
+  const orgId = profile?.organization_id as string | undefined;
+  if (!orgId) return { ok: false, err: { status: 403, error: "No organization for caller" } };
+
+  const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
+  const isPrivileged = (roles ?? []).some((r) => PRIVILEGED_ROLES.has(r.role as string));
+
+  return { ok: true, auth: { mode: "jwt", userId, organizationId: orgId, isPrivileged, admin } };
+}
+
+export async function authorizeStaffAccess(
+  auth: AuthResult,
+  requestedStaffId: string,
+): Promise<{ ok: true; orgId: string } | { ok: false; err: AuthError }> {
+  if (auth.mode === "mobile") {
+    if (requestedStaffId !== auth.staffId) return { ok: false, err: { status: 403, error: "Staff may only read self" } };
+    return { ok: true, orgId: auth.organizationId };
+  }
+  const { data: targetStaff } = await auth.admin
+    .from("staff_members").select("id, user_id, organization_id").eq("id", requestedStaffId).maybeSingle();
+  if (!targetStaff || targetStaff.organization_id !== auth.organizationId) {
+    return { ok: false, err: { status: 404, error: "Staff not found in your organization" } };
+  }
+  const isSelf = targetStaff.user_id === auth.userId;
+  if (!isSelf && !auth.isPrivileged) return { ok: false, err: { status: 403, error: "Forbidden" } };
+  return { ok: true, orgId: auth.organizationId };
+}
