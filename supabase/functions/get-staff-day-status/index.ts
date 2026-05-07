@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return bad(405, "Method not allowed");
 
-  let body: { staffId?: string; date?: string };
+  let body: { staffId?: string; date?: string; batteryPct?: number; dismissedCooldownActive?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -44,6 +44,11 @@ Deno.serve(async (req) => {
   if (!staffId) return bad(400, "staffId is required");
   const date = (body.date ?? todayInStockholm()).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad(400, "date must be YYYY-MM-DD");
+  const batteryPct =
+    typeof body.batteryPct === "number" && body.batteryPct >= 0 && body.batteryPct <= 1
+      ? body.batteryPct
+      : null;
+  const dismissedCooldownActive = !!body.dismissedCooldownActive;
 
   const authResult = await authenticateStaffRequest(req, { requestedStaffId: staffId });
   if (!authResult.ok) return bad(authResult.err.status, authResult.err.error);
