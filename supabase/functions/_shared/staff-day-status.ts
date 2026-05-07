@@ -810,7 +810,6 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   // Endast om vi har en workday och pings att basera klassningen på.
   if (effectivePolicyWorkday) {
     try {
-      const { buildSegmentChainGaps } = await import("./segmentChain.ts");
       const chainGaps = buildSegmentChainGaps({
         workday: { startedAt: effectivePolicyWorkday.startedAt, endedAt: effectivePolicyWorkday.endedAt },
         segments: segments.map((s) => ({
