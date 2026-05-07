@@ -8,4 +8,5 @@ export * from './timePolicy.ts';
 export * from './buildGpsDayTimeline.ts';
 export * from './resolveWorkTargets.ts';
 export * from './decideAutoStart.ts';
+export * from './processGpsTimelineForAutoStart.ts';
 
