@@ -9,16 +9,19 @@ import { Check, RefreshCw, AlertCircle, Package, ChevronRight, ChevronDown, X, P
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  fetchPackingListItemsForDesktop as fetchPackingListItems, 
-  togglePackingItemDesktop as togglePackingItemManually,
+import {
+  fetchPackingListItemsForDesktop as fetchPackingListItems,
   decrementPackingItemDesktop as decrementPackingItem,
   createParcelDesktop as createParcel,
   assignItemToParcelDesktop as assignItemToParcel,
   getItemParcelsDesktop as getItemParcels,
   fetchPackingForDesktop as fetchPackingForScanner,
-  signPackingDesktop as signPacking
+  signPackingDesktop as signPacking,
 } from '@/services/desktopPackingService';
+// Manual check-off MUST be WMS-first — same scanner-api `toggle_item` flow as
+// the mobile scanner. See scanner-api: increment goes via WMS manual-pack-scan
+// and only updates packing_list_items locally if WMS accepts.
+import { togglePackingItemManually } from '@/services/scannerService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
 import { computePackingProgress } from '@/lib/packing/progress';
@@ -312,6 +315,9 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
 
   const handleDecrement = useCallback(async (itemId: string, isParent: boolean) => {
     if (isParent) return;
+    // TODO: decrement bör senare kopplas till WMS return/minus-flöde om den
+    // ska påverka fysisk allokering. För nu uppdaterar den endast lokal
+    // packing_list_items via desktopPackingService (samma som tidigare).
     const result = await decrementPackingItem(itemId);
     if (result.success) {
       setItems(prev => {
