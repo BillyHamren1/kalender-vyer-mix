@@ -256,12 +256,11 @@ Deno.serve(async (req) => {
   const dayEnd = `${date}T23:59:59.999Z`;
 
   // ── Allowed fetches: pings + known targets only ─────────────────────────
-  // Real column shapes (verified against schema):
-  //   bookings:       id (text), client, booking_number, deliveryaddress,
-  //                   delivery_latitude, delivery_longitude, eventdate (date)
-  //   large_projects: id, name, address, address_latitude, address_longitude
-  const dayMinusIso = new Date(new Date(date).getTime() - 14 * 86400000).toISOString().slice(0, 10);
-  const dayPlusIso = new Date(new Date(date).getTime() + 14 * 86400000).toISOString().slice(0, 10);
+  // GPS-only debug: use minimal selects that can NEVER crash on missing
+  // coordinate columns. Coordinates are fetched in a SEPARATE non-blocking
+  // query — if those columns don't exist, targets are simply marked as
+  // missing_coordinates in targetWarnings instead of failing the whole fetch.
+  const targetWarnings: Array<{ targetType: string; targetId: string; reason: string; label?: string }> = [];
 
   const [pingsRes, orgLocationsRes, bookingsRes, largeProjectsRes] = await Promise.all([
     fetchAllStaffLocationPings(supabase, staffId, dayStart, dayEnd),
@@ -275,27 +274,72 @@ Deno.serve(async (req) => {
     organizationId
       ? supabase
           .from("bookings")
-          .select("id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, eventdate")
+          .select("id, booking_number, title, client, organization_id")
           .eq("organization_id", organizationId)
-          .gte("eventdate", dayMinusIso)
-          .lte("eventdate", dayPlusIso)
           .limit(1000)
       : Promise.resolve({ data: [], error: null }),
     organizationId
       ? supabase
           .from("large_projects")
-          .select("id, name, address, address_latitude, address_longitude")
+          .select("id, name, organization_id")
           .eq("organization_id", organizationId)
           .limit(500)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
+  // Optional coordinate enrichment — runs separately so a column-missing
+  // error here is logged as targetWarnings only, never as a fetch error.
+  let bookingCoordsMap = new Map<string, { lat: number; lng: number }>();
+  let largeProjectCoordsMap = new Map<string, { lat: number; lng: number }>();
+
+  if (organizationId) {
+    try {
+      const { data: bCoords, error: bCoordsErr } = await supabase
+        .from("bookings")
+        .select("id, delivery_latitude, delivery_longitude")
+        .eq("organization_id", organizationId)
+        .limit(1000);
+      if (!bCoordsErr && Array.isArray(bCoords)) {
+        for (const r of bCoords) {
+          if (r.delivery_latitude != null && r.delivery_longitude != null) {
+            bookingCoordsMap.set(String(r.id), {
+              lat: Number(r.delivery_latitude),
+              lng: Number(r.delivery_longitude),
+            });
+          }
+        }
+      }
+    } catch {
+      // swallow — handled via targetWarnings below
+    }
+    try {
+      const { data: lpCoords, error: lpCoordsErr } = await supabase
+        .from("large_projects")
+        .select("id, address_latitude, address_longitude")
+        .eq("organization_id", organizationId)
+        .limit(500);
+      if (!lpCoordsErr && Array.isArray(lpCoords)) {
+        for (const r of lpCoords) {
+          if (r.address_latitude != null && r.address_longitude != null) {
+            largeProjectCoordsMap.set(String(r.id), {
+              lat: Number(r.address_latitude),
+              lng: Number(r.address_longitude),
+            });
+          }
+        }
+      }
+    } catch {
+      // swallow — handled via targetWarnings below
+    }
+  }
+
   const targetFetchDiagnostics: any = {
-    warehouses: { ok: !orgLocationsRes.error, count: 0, warnings: [] as string[] },
-    bookings: { ok: !bookingsRes.error, count: 0, warnings: [] as string[], skippedMissingCoordinates: 0 },
-    largeProjects: { ok: !largeProjectsRes.error, count: 0, warnings: [] as string[], skippedMissingCoordinates: 0 },
+    warehouses: { attempted: true, ok: !orgLocationsRes.error, count: 0, warnings: [] as string[], skippedMissingCoordinates: 0 },
+    bookings: { attempted: true, ok: !bookingsRes.error, count: 0, skippedMissingCoordinates: 0 },
+    largeProjects: { attempted: true, ok: !largeProjectsRes.error, count: 0, skippedMissingCoordinates: 0 },
     totalCandidates: 0,
     candidatesWithCoords: 0,
+    warnings: targetWarnings,
   };
 
   if (pingsRes.error) {
@@ -303,12 +347,6 @@ Deno.serve(async (req) => {
   }
   if (orgLocationsRes.error) {
     targetFetchDiagnostics.warehouses.warnings.push(`fetch_error: ${(orgLocationsRes.error as any).message}`);
-  }
-  if (bookingsRes.error) {
-    targetFetchDiagnostics.bookings.warnings.push(`fetch_error: ${(bookingsRes.error as any).message}`);
-  }
-  if (largeProjectsRes.error) {
-    targetFetchDiagnostics.largeProjects.warnings.push(`fetch_error: ${(largeProjectsRes.error as any).message}`);
   }
 
   const rawPings: any[] = pingsRes.data ?? [];
@@ -329,32 +367,39 @@ Deno.serve(async (req) => {
         radiusM: Number(l.radius_meters ?? 100),
       });
     } else {
-      targetFetchDiagnostics.warehouses.warnings.push(
-        `missing_coordinates: ${l.id} (${l.name ?? "unnamed"})`,
-      );
+      targetFetchDiagnostics.warehouses.skippedMissingCoordinates++;
+      targetWarnings.push({
+        targetType: "warehouse",
+        targetId: String(l.id),
+        reason: "missing_coordinates",
+        label: l.name ?? "unnamed",
+      });
     }
   }
 
   const bookingRows = (bookingsRes.data ?? []) as any[];
   targetFetchDiagnostics.bookings.count = bookingRows.length;
   for (const b of bookingRows) {
-    const lat = b.delivery_latitude;
-    const lng = b.delivery_longitude;
-    if (lat != null && lng != null) {
+    const coords = bookingCoordsMap.get(String(b.id));
+    const label = b.client || b.title || b.booking_number || "Bokning";
+    if (coords) {
       knownPlaces.push({
         id: String(b.id),
         type: "booking",
-        name: b.client || b.booking_number || "Bokning",
-        lat: Number(lat),
-        lng: Number(lng),
+        name: label,
+        lat: coords.lat,
+        lng: coords.lng,
         radiusM: 100,
       });
     } else {
       targetFetchDiagnostics.bookings.skippedMissingCoordinates++;
-      if (targetFetchDiagnostics.bookings.warnings.length < 20) {
-        targetFetchDiagnostics.bookings.warnings.push(
-          `missing_coordinates: ${b.id} (${b.client || b.booking_number || "no_label"})`,
-        );
+      if (targetWarnings.length < 100) {
+        targetWarnings.push({
+          targetType: "booking",
+          targetId: String(b.id),
+          reason: "missing_coordinates",
+          label,
+        });
       }
     }
   }
@@ -362,23 +407,26 @@ Deno.serve(async (req) => {
   const largeProjectRows = (largeProjectsRes.data ?? []) as any[];
   targetFetchDiagnostics.largeProjects.count = largeProjectRows.length;
   for (const p of largeProjectRows) {
-    const lat = p.address_latitude;
-    const lng = p.address_longitude;
-    if (lat != null && lng != null) {
+    const coords = largeProjectCoordsMap.get(String(p.id));
+    const label = p.name ?? "Stort projekt";
+    if (coords) {
       knownPlaces.push({
         id: String(p.id),
         type: "project",
-        name: p.name ?? "Stort projekt",
-        lat: Number(lat),
-        lng: Number(lng),
+        name: label,
+        lat: coords.lat,
+        lng: coords.lng,
         radiusM: 100,
       });
     } else {
       targetFetchDiagnostics.largeProjects.skippedMissingCoordinates++;
-      if (targetFetchDiagnostics.largeProjects.warnings.length < 20) {
-        targetFetchDiagnostics.largeProjects.warnings.push(
-          `missing_coordinates: ${p.id} (${p.name ?? "unnamed"})`,
-        );
+      if (targetWarnings.length < 100) {
+        targetWarnings.push({
+          targetType: "large_project",
+          targetId: String(p.id),
+          reason: "missing_coordinates",
+          label,
+        });
       }
     }
   }
