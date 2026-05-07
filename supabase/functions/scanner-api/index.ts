@@ -918,7 +918,7 @@ Deno.serve(async (req) => {
         const { itemId, currentlyPacked, quantityToPack, verifiedBy, verifiedByStaffId } = params
         const now = new Date().toISOString()
 
-        // Get the packing_id + product info for status flow + Bundle sync
+        // Get the packing_id + product info for status flow + WMS sync
         const { data: itemData } = await supabase
           .from('packing_list_items')
           .select(`
@@ -932,78 +932,47 @@ Deno.serve(async (req) => {
 
         const packingId = (itemData as any)?.packing_id
         const product = (itemData as any)?.booking_products || null
-        const isParentRow = !!product?.parent_product_id ? false : false
-        // booking_products.parent_product_id !== null means THIS row IS a child;
-        // a "parent row" in our UI is one that HAS children. We only block sync
-        // when the row has no WMS coupling at all (sku + item_type both null).
+        const productName: string | undefined = product?.name
 
         let newQty = (itemData as any)?.quantity_packed || 0
-        let didIncrement = false
 
+        // ── DECREMENT / RESET PATH (currentlyPacked === true) ──
+        // Local-first is fine here per spec; only increments require WMS-first.
         if (currentlyPacked) {
           await supabase.from('packing_list_items').update({
             quantity_packed: 0, packed_at: null, packed_by: null, packed_by_staff_id: null, verified_at: null, verified_by: null, verified_by_staff_id: null, parcel_id: null
           }).eq('id', itemId).eq('organization_id', ORG_ID)
-          // Clear all parcel allocations on full reset
           await supabase.from('packing_list_item_allocations').delete().eq('packing_list_item_id', itemId).eq('organization_id', ORG_ID)
           newQty = 0
-        } else {
-          // STATUS FLOW: First manual toggle → set to in_progress
-          if (packingId) await transitionToInProgress(supabase, packingId, ORG_ID)
-
-          const currentQty = (itemData as any)?.quantity_packed || 0
-          newQty = Math.min(currentQty + 1, quantityToPack)
-          const isFull = newQty >= quantityToPack
-          const activeParcelId = (params as any).activeParcelId
-          didIncrement = newQty > currentQty
-
-          await supabase.from('packing_list_items').update({
-            quantity_packed: newQty,
-            packed_at: now,
-            packed_by: verifiedBy,
-            packed_by_staff_id: verifiedByStaffId || null,
-            ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
-            ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
-          }).eq('id', itemId).eq('organization_id', ORG_ID)
-
-          if (activeParcelId && newQty > currentQty) {
-            await supabase.from('packing_list_item_allocations').insert({
-              packing_list_item_id: itemId,
-              parcel_id: activeParcelId,
-              quantity: newQty - currentQty,
-              scanned_by: verifiedBy || null,
-              scanned_by_staff_id: verifiedByStaffId || null,
-              organization_id: ORG_ID,
-            })
-          }
-        }
-
-        // STATUS FLOW: Check if all items are now packed (or reverted)
-        if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
-
-        // === Bundle Builder sync — only on actual increments ===
-        const productName: string | undefined = product?.name
-        if (!didIncrement) {
+          if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
           return json({ success: true, manualScan: false, bundleSynced: false, productName, newQuantity: newQty })
         }
 
-        // Defensive: parent (composite) rows should not be toggled and never
-        // pushed to Bundle. UI already blocks this; mirror the rule here.
+        // ── INCREMENT PATH — WMS-FIRST ──
+        const currentQty = (itemData as any)?.quantity_packed || 0
+        if (currentQty >= quantityToPack) {
+          // Nothing to add — preserve existing semantics, no WMS call.
+          return json({ success: true, manualScan: false, bundleSynced: false, productName, newQuantity: currentQty })
+        }
+
         const sku = product?.sku || null
         const itemTypeId = product?.inventory_item_type_id || null
+
+        // 1) Block rows without any WMS coupling — never tyst lokalt
         if (!sku && !itemTypeId) {
-          console.warn('[toggle_item] manual scan blocked — no WMS coupling', { itemId })
+          console.warn('[toggle_item] increment blocked — no WMS coupling', { itemId })
           return json({
-            success: true,
+            success: false,
             manualScan: true,
             bundleSynced: false,
             productName,
-            newQuantity: newQty,
-            warning: 'Kan inte skicka manuell scan till Bundle eftersom artikeln saknar WMS-koppling.',
+            newQuantity: currentQty,
+            error: 'Artikeln saknar WMS-koppling och kan inte bockas av som godkänd scan',
+            bundleErrorCode: 'no_wms_coupling',
           })
         }
 
-        // Lookup booking_number for the WMS reservation_id
+        // 2) Resolve booking_number (required for reservation_id)
         const { data: packingMeta } = await supabase
           .from('packing_projects')
           .select('booking_id')
@@ -1024,19 +993,31 @@ Deno.serve(async (req) => {
 
         const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
         if (!PRICELIST_API_KEY || !bookingNumber) {
+          console.warn('[toggle_item] increment blocked — missing reservation/key', { itemId, hasKey: !!PRICELIST_API_KEY, bookingNumber })
           return json({
-            success: true,
+            success: false,
             manualScan: true,
             bundleSynced: false,
             productName,
-            newQuantity: newQty,
-            warning: 'Packad lokalt men kunde inte synka till Bundle (saknar reservation/nyckel).',
+            newQuantity: currentQty,
+            error: 'Kunde inte synka manuell avbockning till WMS (saknar reservation eller nyckel)',
+            bundleErrorCode: 'missing_reservation',
           })
         }
 
-        let bundleSynced = false
+        // 3) Call WMS manual-pack-scan FIRST
+        const HARD_ERROR_CODES = new Set([
+          'line_not_in_reservation',
+          'line_already_fully_packed',
+          'manual_quantity_exceeds_remaining',
+          'ambiguous_scan_code',
+        ])
+
+        let wmsOk = false
         let bundleError: string | null = null
         let bundleErrorCode: string | null = null
+        let networkError = false
+
         try {
           const resp = await fetch(
             'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/manual-pack-scan',
@@ -1048,15 +1029,13 @@ Deno.serve(async (req) => {
                 'x-organization-id': ORG_ID,
               },
               body: JSON.stringify({
-                // Primary keys per WMS contract
-                item_type_id: itemTypeId,        // primary match key
-                sku,                              // fallback only
+                item_type_id: itemTypeId,
+                sku,
                 booking_number: bookingNumber,
                 reservation_id: bookingNumber,
                 quantity: 1,
                 source: 'manual-pack-scan',
                 performed_by_label: verifiedBy || null,
-                // Extra context
                 product_name: productName || null,
                 packing_list_item_id: itemId,
                 verified_by: verifiedBy || null,
@@ -1067,7 +1046,7 @@ Deno.serve(async (req) => {
           let body: any = {}
           try { body = JSON.parse(text) } catch { /* ignore */ }
           if (resp.ok && body?.success !== false) {
-            bundleSynced = true
+            wmsOk = true
             console.log('[manual-pack-scan] OK', { itemId, itemTypeId, sku, bookingNumber })
           } else {
             bundleError = body?.error || `HTTP ${resp.status}`
@@ -1075,22 +1054,69 @@ Deno.serve(async (req) => {
             console.warn('[manual-pack-scan] failed', { itemId, status: resp.status, code: bundleErrorCode, body: text })
           }
         } catch (err) {
+          networkError = true
           bundleError = (err as any)?.message || 'network_error'
           console.warn('[manual-pack-scan] network error', { itemId, err })
         }
 
-        // Friendly UI message for line_already_fully_packed
-        const friendlyWarning = bundleErrorCode === 'line_already_fully_packed'
-          ? 'Redan fullpackad i WMS'
-          : 'Packad lokalt men kunde inte synka till Bundle'
+        // 4) Hard error or network error → DO NOT touch local quantity_packed
+        if (!wmsOk) {
+          const isHard = bundleErrorCode && HARD_ERROR_CODES.has(bundleErrorCode)
+          const friendly = networkError
+            ? 'Kunde inte synka manuell avbockning till WMS'
+            : (bundleErrorCode === 'line_already_fully_packed' ? 'Redan fullpackad i WMS'
+              : bundleErrorCode === 'ambiguous_scan_code' ? 'Dublett QR/serial i WMS'
+              : bundleErrorCode === 'line_not_in_reservation' ? 'Artikeln finns inte i WMS-reservationen'
+              : bundleErrorCode === 'manual_quantity_exceeds_remaining' ? 'Antal överstiger kvarvarande i WMS'
+              : (bundleError || 'WMS nekade scan'))
+          return json({
+            success: false,
+            manualScan: true,
+            bundleSynced: false,
+            productName,
+            newQuantity: currentQty,
+            error: friendly,
+            bundleError,
+            bundleErrorCode,
+            ...(isHard ? { hardWmsError: true } : {}),
+          })
+        }
+
+        // 5) WMS accepted → now persist local increment
+        if (packingId) await transitionToInProgress(supabase, packingId, ORG_ID)
+
+        newQty = Math.min(currentQty + 1, quantityToPack)
+        const isFull = newQty >= quantityToPack
+        const activeParcelId = (params as any).activeParcelId
+
+        await supabase.from('packing_list_items').update({
+          quantity_packed: newQty,
+          packed_at: now,
+          packed_by: verifiedBy,
+          packed_by_staff_id: verifiedByStaffId || null,
+          ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
+          ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
+        }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        if (activeParcelId && newQty > currentQty) {
+          await supabase.from('packing_list_item_allocations').insert({
+            packing_list_item_id: itemId,
+            parcel_id: activeParcelId,
+            quantity: newQty - currentQty,
+            scanned_by: verifiedBy || null,
+            scanned_by_staff_id: verifiedByStaffId || null,
+            organization_id: ORG_ID,
+          })
+        }
+
+        if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
 
         return json({
           success: true,
           manualScan: true,
-          bundleSynced,
+          bundleSynced: true,
           productName,
           newQuantity: newQty,
-          ...(bundleSynced ? {} : { warning: friendlyWarning, bundleError, bundleErrorCode }),
         })
       }
 
