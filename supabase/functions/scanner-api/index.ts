@@ -1676,9 +1676,32 @@ Deno.serve(async (req) => {
       }
 
       case 'add_unknown_product': {
-        const { packingId, sku, name, quantityToPack, verifiedBy, verifiedByStaffId } = params
+        const {
+          packingId, sku, name, quantityToPack, verifiedBy, verifiedByStaffId,
+          // WMS identity (any of these may arrive depending on caller version)
+          inventory_item_type_id, inventoryItemTypeId,
+          item_type_id, itemTypeId,
+          wms_item_type_id, wmsItemTypeId,
+          wms_sku, wmsSku,
+          wms_instance_id, wmsInstanceId,
+          wms_serial_number, wmsSerialNumber,
+        } = params
+
         const qty = Math.max(1, parseInt(quantityToPack, 10) || 1)
-        const productName = (name && String(name).trim()) || (sku ? `Okänd: ${sku}` : 'Okänd produkt')
+
+        // Resolve WMS identity from any accepted alias
+        const resolvedItemTypeId: string | null =
+          inventory_item_type_id || inventoryItemTypeId ||
+          item_type_id || itemTypeId ||
+          wms_item_type_id || wmsItemTypeId || null
+        const resolvedWmsSku: string | null = wms_sku || wmsSku || null
+        const resolvedWmsInstanceId: string | null = wms_instance_id || wmsInstanceId || null
+        const resolvedWmsSerialNumber: string | null = wms_serial_number || wmsSerialNumber || null
+
+        // Prefer the user-entered name, then WMS name (passed in name), then sku-fallback
+        const finalSku: string | null = (resolvedWmsSku || sku || null)
+        const productName = (name && String(name).trim())
+          || (finalSku ? `Okänd: ${finalSku}` : 'Okänd produkt')
 
         // 1. Resolve booking_id from packing
         const { data: packing, error: packErr } = await supabase
@@ -1692,23 +1715,41 @@ Deno.serve(async (req) => {
           return json({ success: false, error: 'Packlistan saknar kopplad bokning' })
         }
 
-        // 2. Insert into booking_products so the project/booking is updated
+        // 2. Insert into booking_products so the project/booking is updated.
+        //    If WMS knew the item_type_id we MUST persist it — otherwise the
+        //    product becomes a frikopplad lokal produkt with no inventory link.
+        const bookingProductInsert: Record<string, any> = {
+          booking_id: packing.booking_id,
+          organization_id: ORG_ID,
+          name: productName,
+          sku: finalSku,
+          quantity: qty,
+        }
+        if (resolvedItemTypeId) {
+          bookingProductInsert.inventory_item_type_id = resolvedItemTypeId
+        }
+
         const { data: bookingProduct, error: bpErr } = await supabase
           .from('booking_products')
-          .insert({
-            booking_id: packing.booking_id,
-            organization_id: ORG_ID,
-            name: productName,
-            sku: sku || null,
-            quantity: qty,
-          })
+          .insert(bookingProductInsert)
           .select('id')
           .single()
 
         if (bpErr || !bookingProduct) {
-          console.error('[add_unknown_product] booking_products insert failed:', bpErr)
+          console.error('[add_unknown_product] booking_products insert failed:', bpErr, {
+            hadItemTypeId: !!resolvedItemTypeId,
+          })
           return json({ success: false, error: 'Kunde inte lägga till produkten i bokningen' })
         }
+
+        console.log('[add_unknown_product] booking_product_created', {
+          bookingProductId: bookingProduct.id,
+          source: 'scanner_unknown_wms_product',
+          inventory_item_type_id: resolvedItemTypeId,
+          wms_sku: resolvedWmsSku,
+          wms_instance_id: resolvedWmsInstanceId,
+          wms_serial_number: resolvedWmsSerialNumber,
+        })
 
         // 3. Insert matching packing_list_items row with quantity_packed = 1
         const now = new Date().toISOString()

@@ -329,15 +329,36 @@ export const verifyProductBySku = async (
 
 // Add an unknown product (scanned but not in packing list) to both
 // the booking_products and packing_list_items, with 1 already packed.
+export interface UnknownProductWmsContext {
+  wmsItemTypeId?: string | null;
+  wmsSku?: string | null;
+  wmsInstanceId?: string | null;
+  wmsSerialNumber?: string | null;
+}
+
 export const addUnknownProduct = async (
   packingId: string,
   sku: string | null,
   name: string,
   quantityToPack: number,
   verifiedBy: string,
-  verifiedByStaffId?: string | null
+  verifiedByStaffId?: string | null,
+  wms?: UnknownProductWmsContext,
 ): Promise<{ success: boolean; itemId?: string; bookingProductId?: string; productName?: string; error?: string }> => {
-  return callScannerApi('add_unknown_product', { packingId, sku, name, quantityToPack, verifiedBy, verifiedByStaffId: verifiedByStaffId || null });
+  return callScannerApi('add_unknown_product', {
+    packingId,
+    sku,
+    name,
+    quantityToPack,
+    verifiedBy,
+    verifiedByStaffId: verifiedByStaffId || null,
+    // Preserve WMS identity so the new booking_products row stays linked to inventory.
+    inventoryItemTypeId: wms?.wmsItemTypeId || null,
+    wmsItemTypeId: wms?.wmsItemTypeId || null,
+    wmsSku: wms?.wmsSku || null,
+    wmsInstanceId: wms?.wmsInstanceId || null,
+    wmsSerialNumber: wms?.wmsSerialNumber || null,
+  });
 };
 
 // Toggle a packing item manually (optionally allocate the increment to an active parcel).

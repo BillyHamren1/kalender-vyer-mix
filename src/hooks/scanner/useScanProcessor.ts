@@ -26,6 +26,12 @@ export interface PendingUnknownProductState {
   scannedValue: string;
   scannedSku: string | null;
   scannedName: string | null;
+  // WMS identity preserved so a WMS-known product that's missing from the
+  // packing list keeps its inventory linkage when added locally.
+  wmsItemTypeId?: string | null;
+  wmsSku?: string | null;
+  wmsInstanceId?: string | null;
+  wmsSerialNumber?: string | null;
 }
 
 interface UseScanProcessorOptions {
@@ -199,6 +205,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             scannedValue,
             scannedSku: result.scannedSku ?? null,
             scannedName: result.scannedName ?? null,
+            wmsItemTypeId: (result as any).wmsItemTypeId ?? null,
+            wmsSku: (result as any).wmsSku ?? null,
+            wmsInstanceId: (result as any).wmsInstanceId ?? null,
+            wmsSerialNumber: (result as any).wmsSerialNumber ?? null,
           });
           onScanResult({
             value: scannedValue,
@@ -408,10 +418,17 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     try {
       const result = await addUnknownProduct(
         packingId,
-        pendingUnknownProduct.scannedSku || pendingUnknownProduct.scannedValue,
+        pendingUnknownProduct.wmsSku || pendingUnknownProduct.scannedSku || pendingUnknownProduct.scannedValue,
         productName,
         quantity,
         verifierName,
+        undefined,
+        {
+          wmsItemTypeId: pendingUnknownProduct.wmsItemTypeId ?? null,
+          wmsSku: pendingUnknownProduct.wmsSku ?? null,
+          wmsInstanceId: pendingUnknownProduct.wmsInstanceId ?? null,
+          wmsSerialNumber: pendingUnknownProduct.wmsSerialNumber ?? null,
+        },
       );
       if (!result.success) {
         toast.error(result.error || 'Kunde inte lägga till produkten');
