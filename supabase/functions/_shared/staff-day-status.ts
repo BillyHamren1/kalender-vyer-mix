@@ -293,6 +293,19 @@ export interface StaffDaySnapshot {
   active: ActiveActivity | null;
   totals: DayTotals;
   segments: DaySegment[];
+  /**
+   * Where the main `segments` came from in this snapshot build.
+   * - "gps_chain"                       — segmentChain produced gap classification
+   * - "gps_unavailable_or_not_built"    — no GPS-derived segments available; only break / manual_adjustment may exist
+   * Legacy time_reports / travel_logs / location_entries are NEVER used as main segments;
+   * they live in `rawEvidence` for debug/UI only.
+   */
+  segmentSource: "gps_chain" | "gps_unavailable_or_not_built";
+  rawEvidence: {
+    timeReports: Array<Record<string, unknown>>;
+    travelLogs: Array<Record<string, unknown>>;
+    locationEntries: Array<Record<string, unknown>>;
+  };
   flags: DayFlag[];
   actionsNeeded: ActionNeeded[];
   intelligenceState: IntelligenceState;
@@ -448,7 +461,43 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     : null;
 
   // ---- Segments ----
+  // HARD RULE (step 3): time_reports / travel_logs / location_entries are
+  // legacy evidence rows. They MUST NOT create main segments in the snapshot
+  // because they can describe long timespans that disagree with the actual
+  // GPS pings. They are surfaced under `rawEvidence` for debug/UI only.
+  // Main segments in this step come from:
+  //   - user-attested break (time_reports.break_time)
+  //   - manual workday adjustment (workday.metadata)
+  //   - GPS-derived chain gaps (segmentChain) added further below
   const rawSegments: Array<DaySegment & { _policy: PolicySegment }> = [];
+
+  // Legacy policy rows — used ONLY for workday back-date / synth detection
+  // (suggestedWorkdayStart). They are NOT pushed as segments.
+  const legacyPolicySegments: PolicySegment[] = [];
+
+  // Debug evidence (kept verbatim so admins can still see the old rows).
+  const rawEvidence = {
+    timeReports: [] as Array<{
+      id: string; startedAt: Iso; endedAt: Iso | null; minutes: number;
+      kind: SegmentKind; hasConfirmedRef: boolean; label: string;
+      bookingId: string | null; largeProjectId: string | null;
+      approved: boolean; source: string;
+    }>,
+    travelLogs: [] as Array<{
+      id: string; startedAt: Iso; endedAt: Iso | null; minutes: number;
+      label: string; from: string | null; to: string | null;
+      destinationBookingId: string | null; classification: string | null;
+      approved: boolean; needsReview: boolean; source: string;
+    }>,
+    locationEntries: [] as Array<{
+      id: string; enteredAt: Iso; exitedAt: Iso | null; minutes: number;
+      kind: SegmentKind; hasConfirmedRef: boolean; label: string;
+      bookingId: string | null; largeProjectId: string | null;
+      locationId: string | null; taskId: string | null;
+      isWarehouse: boolean; classification: string | null; source: string;
+      isActive: boolean;
+    }>,
+  };
 
   for (const tr of timeReports) {
     const startedAt = combineDateTime(tr.report_date, tr.start_time) ?? `${date}T00:00:00`;
@@ -463,28 +512,11 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       fallback: "Tidrapport",
       nameMaps,
     });
-    rawSegments.push({
-      id: `tr-${tr.id}`,
-      kind,
-      type: "confirmed_work",
-      start: startedAt,
-      end: endedAt,
-      startedAt,
-      endedAt,
-      durationMinutes: minutes,
-      isActive: false,
-      label,
-      source: tr.source ?? "time_report",
-      confidence: "high",
-      affectsPayableTime: false,
-      requiresUserInput: false,
-      metadata: { hours_worked: tr.hours_worked, break_time: tr.break_time },
-      refs: { timeReportId: tr.id, bookingId: tr.booking_id, largeProjectId: tr.large_project_id },
-      approved: tr.approved,
-      hasConfirmedRef,
-      classification: null,
-      policyStatus: "confirmed_work",
-      _policy: { kind, startedAt, endedAt, approved: tr.approved, hasConfirmedRef },
+    legacyPolicySegments.push({ kind, startedAt, endedAt, approved: tr.approved, hasConfirmedRef });
+    rawEvidence.timeReports.push({
+      id: tr.id, startedAt, endedAt, minutes, kind, hasConfirmedRef, label,
+      bookingId: tr.booking_id, largeProjectId: tr.large_project_id,
+      approved: !!tr.approved, source: tr.source ?? "time_report",
     });
   }
 
@@ -494,34 +526,20 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       ? (nameMaps?.bookings?.[tl.destination_booking_id] ?? tl.to_address ?? tl.manual_project_name ?? "?")
       : (tl.to_address ?? tl.manual_project_name ?? "?");
     const label = (tl.description?.trim()) || `Resa ${tl.from_address ?? "?"} → ${destLabel}`;
-    rawSegments.push({
-      id: `tl-${tl.id}`,
+    legacyPolicySegments.push({
       kind: "travel",
-      type: "transport",
-      start: tl.start_time,
-      end: tl.end_time,
       startedAt: tl.start_time,
       endedAt: tl.end_time,
-      durationMinutes: minutes,
-      isActive: !tl.end_time,
-      label,
-      source: (tl as { source?: string }).source ?? "travel_log",
-      confidence: "medium",
-      affectsPayableTime: false,
-      requiresUserInput: !!tl.needs_review,
-      metadata: { from: tl.from_address, to: tl.to_address, classification: tl.classification },
-      refs: { travelLogId: tl.id, bookingId: tl.destination_booking_id ?? null },
       approved: tl.approved,
-      hasConfirmedRef: !!tl.destination_booking_id,
       classification: tl.classification ?? null,
-      policyStatus: "travel_within_workday",
-      _policy: {
-        kind: "travel",
-        startedAt: tl.start_time,
-        endedAt: tl.end_time,
-        approved: tl.approved,
-        classification: tl.classification ?? null,
-      },
+    });
+    rawEvidence.travelLogs.push({
+      id: tl.id, startedAt: tl.start_time, endedAt: tl.end_time, minutes, label,
+      from: tl.from_address ?? null, to: tl.to_address ?? null,
+      destinationBookingId: tl.destination_booking_id ?? null,
+      classification: tl.classification ?? null,
+      approved: !!tl.approved, needsReview: !!tl.needs_review,
+      source: (tl as { source?: string }).source ?? "travel_log",
     });
   }
 
@@ -547,38 +565,22 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       fallback,
       nameMaps,
     });
-    rawSegments.push({
-      id: `le-${le.id}`,
-      kind,
-      type: "other_place",
-      start: le.entered_at,
-      end: le.exited_at,
-      startedAt: le.entered_at,
-      endedAt: le.exited_at,
-      durationMinutes: minutes,
+    legacyPolicySegments.push({
+      kind, startedAt: le.entered_at, endedAt: le.exited_at,
+      hasConfirmedRef, classification,
+    });
+    rawEvidence.locationEntries.push({
+      id: le.id, enteredAt: le.entered_at, exitedAt: le.exited_at, minutes,
+      kind, hasConfirmedRef, label,
+      bookingId: le.booking_id, largeProjectId: le.large_project_id,
+      locationId: le.location_id, taskId: le.task_id,
+      isWarehouse, classification, source: le.source ?? "location_entry",
       isActive,
-      label,
-      source: le.source ?? "location_entry",
-      confidence: hasConfirmedRef ? "high" : "low",
-      affectsPayableTime: false,
-      requiresUserInput: !hasConfirmedRef,
-      metadata: { ...meta, isWarehouse },
-      refs: {
-        locationEntryId: le.id,
-        bookingId: le.booking_id,
-        largeProjectId: le.large_project_id,
-        locationId: le.location_id,
-        taskId: le.task_id,
-      },
-      hasConfirmedRef,
-      classification,
-      policyStatus: "other_place",
-      _policy: {
-        kind, startedAt: le.entered_at, endedAt: le.exited_at,
-        hasConfirmedRef, classification,
-      },
     });
   }
+
+  // (Legacy push-to-rawSegments removed in step 3 — see rawEvidence above.)
+
 
   // ---- Manual adjustment from workday metadata (admin/user only) ----
   const wdMeta = (workday?.metadata ?? {}) as Record<string, unknown>;
@@ -694,7 +696,12 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   // there is no workday at all but confirmed presence exists, synthesise
   // one from the earliest confirmed presence so UI never shows
   // "Saknar arbetsdag" while there is real work evidence.
-  const policySegments: PolicySegment[] = rawSegments.map((r) => r._policy);
+  // Use legacy evidence rows (NOT main segments) to detect earliest
+  // confirmed presence for workday back-date / synth.
+  const policySegments: PolicySegment[] = [
+    ...legacyPolicySegments,
+    ...rawSegments.map((r) => r._policy),
+  ];
   const earliestConfirmed = suggestedWorkdayStart(policySegments, policyWorkday);
 
   let workdaySnap = workdaySnapBase;
@@ -826,6 +833,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   // ---- Central segment chain: fyll glapp inom workday med
   // transport / other_place / signal_stale (saknad ping ≠ glapp).
   // Endast om vi har en workday och pings att basera klassningen på.
+  let gpsChainProducedSegments = false;
   if (effectivePolicyWorkday) {
     try {
       const chainGaps = buildSegmentChainGaps({
@@ -837,6 +845,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
         pings: input.pings ?? [],
         now,
       });
+      if (chainGaps.length > 0) gpsChainProducedSegments = true;
       for (const g of chainGaps) {
         segments.push({
           id: g.id,
@@ -1024,6 +1033,8 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     active,
     totals,
     segments,
+    segmentSource: gpsChainProducedSegments ? "gps_chain" : "gps_unavailable_or_not_built",
+    rawEvidence,
     flags: dayFlags,
     actionsNeeded,
     intelligenceState,
