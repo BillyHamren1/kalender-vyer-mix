@@ -760,9 +760,12 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   if (projectMin === 0) projectMin = allocated;
 
   // ---- Canonical totals: bruttotid → rast → manuellt avdrag → lönegrundande ----
-  // Rast = endast användar-/admin-attest (time_reports.break_time, i timmar).
+  // Rast = användar-/admin-attest.
+  // Prio 1: day_attestations.break_minutes (om rad finns).
+  // Prio 2: time_reports.break_time (legacy).
   // Other_place + transport drar ALDRIG av lönegrundande tid.
-  const breakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
+  const trBreakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
+  const breakMin = attestation ? Math.max(0, attestation.break_minutes | 0) : trBreakMin;
   const meta = (workday?.metadata ?? {}) as Record<string, unknown>;
   const manualDeductionMin = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
   const grossWorkdayMin = wdMin;
