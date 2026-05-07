@@ -193,6 +193,19 @@ export const HeaderStartEndDayButton: React.FC = () => {
         return;
       }
 
+      // Presence-only start (utan projektkoppling) — workday startar och
+      // geofence/backend kopplar projekt/plats automatiskt på arbetsplats.
+      if (selection.kind === 'presence') {
+        const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
+        if (!wd) {
+          toast.error('Kunde inte starta arbetspasset. Försök igen.');
+          return;
+        }
+        toast.success('Arbetsdag startad. Plats moniteras.');
+        setDialogOpen(false);
+        return;
+      }
+
       // Manuell text: workday-first, sedan flagga.
       const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
       if (!wd) {
