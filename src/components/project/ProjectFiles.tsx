@@ -141,9 +141,10 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={(e) => { e.stopPropagation(); window.open(file.url, '_blank'); }}
+                        onClick={(e) => { e.stopPropagation(); openFileExternally(file.url, file.file_name || undefined); }}
+                        title={isPdf ? 'Öppna PDF' : 'Öppna fil'}
                       >
-                        <Download className="h-4 w-4" />
+                        <ExternalLink className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
