@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     // Update only title — minimal write
     for (const b of list) {
       const externalId = b.id;
-      const title = (b.title ?? b.name ?? null);
+      const title = (b.title ?? b.name ?? b.location ?? null);
       if (!externalId) { missing++; continue; }
       if (!title) { unchanged++; continue; }
       const { error, count } = await supabase
