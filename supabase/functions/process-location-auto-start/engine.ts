@@ -1153,6 +1153,13 @@ export async function runEngine(supabase: any, body: any): Promise<ProcessReport
     plan: [],
   }
 
+  if (LEGACY_TIME_WRITES_DISABLED) {
+    ;(report as any).ok = false
+    ;(report as any).disabled = true
+    ;(report as any).reason = 'legacy_time_engine_disabled_use_new_time_engine'
+    return report
+  }
+
   let fromIso: string
   let toIso: string
   let staffFilter: string | null = null
