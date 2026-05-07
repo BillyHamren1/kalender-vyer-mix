@@ -114,33 +114,63 @@ export interface SnapshotInput {
   locationEntries: LocationEntryRow[];
   flags: WorkdayFlagRow[];
   assistantEvents: AssistantEventRow[];
+  /** Optional name lookup maps so segments get real labels. */
+  nameMaps?: {
+    bookings?: Record<string, string>;
+    largeProjects?: Record<string, string>;
+    locations?: Record<string, { name: string; isWork: boolean }>;
+  };
 }
 
 export type SegmentKind = "project" | "booking" | "travel" | "location" | "unknown" | "active";
 
+/** Canonical normalized segment type used by UI/timeline. */
+export type SegmentType =
+  | "confirmed_work"
+  | "active_work"
+  | "warehouse"
+  | "transport"
+  | "other_place"
+  | "break"
+  | "manual_adjustment";
+
 export interface DaySegment {
+  /** Stable id (db row id when available, else synthesized). */
+  id: string;
   kind: SegmentKind;
+  /** Canonical type — preferred field for UI. */
+  type: SegmentType;
+  /** ISO start (alias of startedAt). */
+  start: Iso;
+  /** ISO end or null (alias of endedAt). */
+  end: Iso | null;
   startedAt: Iso;
   endedAt: Iso | null;
   durationMinutes: number;
   isActive: boolean;
   label: string;
   source: string;
+  /** 'high' = bekräftad ref, 'medium' = travel/manuell, 'low' = okänd plats. */
+  confidence: "high" | "medium" | "low";
+  /** True only when the segment reduces payableMinutes (break / manual_adjustment). */
+  affectsPayableTime: boolean;
+  /** True when admin/user must classify or attest. */
+  requiresUserInput: boolean;
+  /** Free-form context (kept stable). */
+  metadata: Record<string, unknown>;
   refs: {
     timeReportId?: string;
     travelLogId?: string;
     locationEntryId?: string;
+    workdayId?: string;
     bookingId?: string | null;
     largeProjectId?: string | null;
     locationId?: string | null;
     taskId?: string | null;
   };
   approved?: boolean | null;
-  /** True when ref points at a real booking/large_project/location_id. */
   hasConfirmedRef?: boolean;
-  /** Backend-known classification: 'private' | 'break' | null. */
   classification?: string | null;
-  /** Canonical status from workdayPolicy.classifySegment. */
   policyStatus: PolicyStatus;
 }
 
@@ -304,13 +334,66 @@ function detectOverlaps(segments: DaySegment[]): DayFlag[] {
   return flags;
 }
 
+// Helpers for label resolution and normalization
+function resolveLabel(opts: {
+  bookingId?: string | null;
+  largeProjectId?: string | null;
+  locationId?: string | null;
+  description?: string | null;
+  fallback: string;
+  nameMaps?: SnapshotInput["nameMaps"];
+}): string {
+  const m = opts.nameMaps ?? {};
+  if (opts.largeProjectId && m.largeProjects?.[opts.largeProjectId]) {
+    return m.largeProjects[opts.largeProjectId];
+  }
+  if (opts.bookingId && m.bookings?.[opts.bookingId]) {
+    return m.bookings[opts.bookingId];
+  }
+  if (opts.locationId && m.locations?.[opts.locationId]?.name) {
+    return m.locations[opts.locationId].name;
+  }
+  if (opts.description && opts.description.trim()) return opts.description.trim();
+  return opts.fallback;
+}
+
+function isWarehouseLocation(locationId: string | null | undefined, nameMaps?: SnapshotInput["nameMaps"]): boolean {
+  if (!locationId) return false;
+  return nameMaps?.locations?.[locationId]?.isWork === true;
+}
+
+function deriveSegmentType(
+  policyStatus: PolicyStatus,
+  kind: SegmentKind,
+  hasConfirmedRef: boolean,
+  classification: string | null,
+  isWarehouse: boolean,
+): SegmentType {
+  if (classification === "break") return "break";
+  if (kind === "active") return "active_work";
+  if (kind === "travel") return "transport";
+  if (isWarehouse && hasConfirmedRef) return "warehouse";
+  if (kind === "project" || kind === "booking") {
+    return hasConfirmedRef ? "confirmed_work" : "other_place";
+  }
+  if (kind === "location") {
+    return hasConfirmedRef ? (isWarehouse ? "warehouse" : "confirmed_work") : "other_place";
+  }
+  if (policyStatus === "other_place") return "other_place";
+  return "other_place";
+}
+
+function deriveConfidence(type: SegmentType, hasConfirmedRef: boolean): "high" | "medium" | "low" {
+  if (type === "confirmed_work" || type === "active_work" || type === "warehouse") return "high";
+  if (type === "transport" || type === "break" || type === "manual_adjustment") return "medium";
+  if (hasConfirmedRef) return "medium";
+  return "low";
+}
+
 export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date()): StaffDaySnapshot {
-  const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents } = input;
+  const { staffId, date, workday, timeReports, travelLogs, locationEntries, flags, assistantEvents, nameMaps } = input;
 
   // ---- Workday ----
-  // We may auto-extend the started_at downward (back-date) when confirmed
-  // worksite presence exists earlier — this is a hard rule, not a suggestion.
-  // The auto-extended value below is computed AFTER raw segments are built.
   const workdaySnapBase = workday
     ? {
         id: workday.id,
@@ -327,7 +410,6 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       }
     : null;
 
-  // PolicyWorkday is the lightweight context the policy module reads.
   const policyWorkday: PolicyWorkday | null = workdaySnapBase
     ? {
         startedAt: workdaySnapBase.startedAt,
@@ -336,53 +418,70 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
       }
     : null;
 
-  // ---- Segments (no policyStatus yet — we tag after sort) ----
+  // ---- Segments ----
   const rawSegments: Array<DaySegment & { _policy: PolicySegment }> = [];
 
   for (const tr of timeReports) {
     const startedAt = combineDateTime(tr.report_date, tr.start_time) ?? `${date}T00:00:00`;
     const endedAt = combineDateTime(tr.report_date, tr.end_time);
     const minutes = hoursToMin(tr.hours_worked) || diffMinutes(startedAt, endedAt, now);
-    const kind = tr.large_project_id ? "project" : "booking";
+    const kind: SegmentKind = tr.large_project_id ? "project" : "booking";
     const hasConfirmedRef = !!(tr.large_project_id || tr.booking_id);
+    const label = resolveLabel({
+      bookingId: tr.booking_id,
+      largeProjectId: tr.large_project_id,
+      description: tr.description,
+      fallback: "Tidrapport",
+      nameMaps,
+    });
     rawSegments.push({
+      id: `tr-${tr.id}`,
       kind,
+      type: "confirmed_work",
+      start: startedAt,
+      end: endedAt,
       startedAt,
       endedAt,
       durationMinutes: minutes,
       isActive: false,
-      label: tr.description || (tr.large_project_id ? "Projekt" : tr.booking_id ? `Bokning ${tr.booking_id}` : "Tid"),
+      label,
       source: tr.source ?? "time_report",
-      refs: {
-        timeReportId: tr.id,
-        bookingId: tr.booking_id,
-        largeProjectId: tr.large_project_id,
-      },
+      confidence: "high",
+      affectsPayableTime: false,
+      requiresUserInput: false,
+      metadata: { hours_worked: tr.hours_worked, break_time: tr.break_time },
+      refs: { timeReportId: tr.id, bookingId: tr.booking_id, largeProjectId: tr.large_project_id },
       approved: tr.approved,
       hasConfirmedRef,
       classification: null,
       policyStatus: "confirmed_work",
-      _policy: {
-        kind, startedAt, endedAt, approved: tr.approved, hasConfirmedRef,
-      },
+      _policy: { kind, startedAt, endedAt, approved: tr.approved, hasConfirmedRef },
     });
   }
 
   for (const tl of travelLogs) {
     const minutes = hoursToMin(tl.hours_worked) || diffMinutes(tl.start_time, tl.end_time, now);
+    const destLabel = tl.destination_booking_id
+      ? (nameMaps?.bookings?.[tl.destination_booking_id] ?? tl.to_address ?? tl.manual_project_name ?? "?")
+      : (tl.to_address ?? tl.manual_project_name ?? "?");
+    const label = (tl.description?.trim()) || `Resa ${tl.from_address ?? "?"} → ${destLabel}`;
     rawSegments.push({
+      id: `tl-${tl.id}`,
       kind: "travel",
+      type: "transport",
+      start: tl.start_time,
+      end: tl.end_time,
       startedAt: tl.start_time,
       endedAt: tl.end_time,
       durationMinutes: minutes,
       isActive: !tl.end_time,
-      label: tl.description ||
-        `Resa ${tl.from_address ?? "?"} → ${tl.to_address ?? tl.manual_project_name ?? "?"}`,
+      label,
       source: (tl as { source?: string }).source ?? "travel_log",
-      refs: {
-        travelLogId: tl.id,
-        bookingId: tl.destination_booking_id ?? null,
-      },
+      confidence: "medium",
+      affectsPayableTime: false,
+      requiresUserInput: !!tl.needs_review,
+      metadata: { from: tl.from_address, to: tl.to_address, classification: tl.classification },
+      refs: { travelLogId: tl.id, bookingId: tl.destination_booking_id ?? null },
       approved: tl.approved,
       hasConfirmedRef: !!tl.destination_booking_id,
       classification: tl.classification ?? null,
@@ -410,18 +509,31 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     const hasConfirmedRef = !!(le.location_id || le.booking_id || le.large_project_id);
     const meta = (le.metadata ?? {}) as Record<string, unknown>;
     const classification = (meta.classification as string | undefined) ?? null;
+    const isWarehouse = isWarehouseLocation(le.location_id, nameMaps);
+    const fallback = isActive ? "Pågående aktivitet" : isWarehouse ? "Lager" : "Okänd plats";
+    const label = resolveLabel({
+      bookingId: le.booking_id,
+      largeProjectId: le.large_project_id,
+      locationId: le.location_id,
+      fallback,
+      nameMaps,
+    });
     rawSegments.push({
+      id: `le-${le.id}`,
       kind,
+      type: "other_place",
+      start: le.entered_at,
+      end: le.exited_at,
       startedAt: le.entered_at,
       endedAt: le.exited_at,
       durationMinutes: minutes,
       isActive,
-      label: isActive
-        ? "Pågående aktivitet"
-        : kind === "location" ? "Plats"
-        : kind === "unknown" ? "Okänd vistelse"
-        : "Vistelse",
+      label,
       source: le.source ?? "location_entry",
+      confidence: hasConfirmedRef ? "high" : "low",
+      affectsPayableTime: false,
+      requiresUserInput: !hasConfirmedRef,
+      metadata: { ...meta, isWarehouse },
       refs: {
         locationEntryId: le.id,
         bookingId: le.booking_id,
@@ -439,14 +551,80 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     });
   }
 
-  // Tag every segment with its canonical policy status now that we have
-  // the workday context.
+  // ---- Manual adjustment from workday metadata (admin/user only) ----
+  const wdMeta = (workday?.metadata ?? {}) as Record<string, unknown>;
+  const manualDeductionMin = Math.max(0, Number(wdMeta.manual_deduction_minutes ?? 0) | 0);
+  if (manualDeductionMin > 0 && workday) {
+    rawSegments.push({
+      id: `manual-${workday.id}`,
+      kind: "unknown",
+      type: "manual_adjustment",
+      start: workday.started_at,
+      end: workday.started_at,
+      startedAt: workday.started_at,
+      endedAt: workday.started_at,
+      durationMinutes: manualDeductionMin,
+      isActive: false,
+      label: typeof wdMeta.manual_deduction_label === "string"
+        ? (wdMeta.manual_deduction_label as string)
+        : "Manuellt avdrag",
+      source: "workday_metadata",
+      confidence: "high",
+      affectsPayableTime: true,
+      requiresUserInput: false,
+      metadata: { reason: wdMeta.manual_deduction_reason ?? null },
+      refs: { workdayId: workday.id },
+      hasConfirmedRef: false,
+      classification: null,
+      policyStatus: "approved",
+      _policy: { kind: "unknown", startedAt: workday.started_at, endedAt: workday.started_at },
+    } as DaySegment & { _policy: PolicySegment });
+  }
+
+  // ---- Break segments from time_reports.break_time (user-attested) ----
+  for (const tr of timeReports) {
+    const breakMin = hoursToMin(tr.break_time);
+    if (breakMin <= 0) continue;
+    const trStart = combineDateTime(tr.report_date, tr.start_time) ?? `${date}T00:00:00`;
+    rawSegments.push({
+      id: `break-${tr.id}`,
+      kind: "unknown",
+      type: "break",
+      start: trStart,
+      end: trStart,
+      startedAt: trStart,
+      endedAt: trStart,
+      durationMinutes: breakMin,
+      isActive: false,
+      label: "Rast",
+      source: "time_report.break_time",
+      confidence: "high",
+      affectsPayableTime: true,
+      requiresUserInput: false,
+      metadata: { timeReportId: tr.id },
+      refs: { timeReportId: tr.id },
+      hasConfirmedRef: false,
+      classification: "break",
+      policyStatus: "break",
+      _policy: { kind: "unknown", startedAt: trStart, endedAt: trStart, classification: "break" },
+    } as DaySegment & { _policy: PolicySegment });
+  }
+
+  // Tag every segment with its canonical policy status + normalized type/confidence.
   const segments: DaySegment[] = rawSegments
     .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
-    .map(({ _policy, ...rest }) => ({
-      ...rest,
-      policyStatus: classifySegment(_policy, policyWorkday, now),
-    }));
+    .map(({ _policy, ...rest }) => {
+      const policyStatus = classifySegment(_policy, policyWorkday, now);
+      const isBreakOrAdj = rest.type === "break" || rest.type === "manual_adjustment";
+      const isWh = !!(rest.metadata as Record<string, unknown>)?.isWarehouse;
+      const type: SegmentType = isBreakOrAdj
+        ? rest.type
+        : deriveSegmentType(policyStatus, rest.kind, !!rest.hasConfirmedRef, rest.classification ?? null, isWh);
+      const confidence = isBreakOrAdj ? rest.confidence : deriveConfidence(type, !!rest.hasConfirmedRef);
+      const affectsPayableTime = type === "break" || type === "manual_adjustment";
+      const requiresUserInput = rest.requiresUserInput || (type === "other_place" && !rest.hasConfirmedRef);
+      return { ...rest, policyStatus, type, confidence, affectsPayableTime, requiresUserInput };
+    });
 
   // ---- Active activity ----
   const openLoc = locationEntries.find((l) => !l.exited_at);

@@ -126,15 +126,73 @@ Deno.serve(async (req) => {
   const workdayRows = workdayRes.data ?? [];
   const workday = workdayRows.find((w) => (w.started_at as string).slice(0, 10) === date) ?? workdayRows[0] ?? null;
 
+  // ---- Resolve human-readable labels for refs ----
+  const trRows = timeReportsRes.data ?? [];
+  const tlRows = travelRes.data ?? [];
+  const leRows = locRes.data ?? [];
+
+  const bookingIds = new Set<string>();
+  const largeIds = new Set<string>();
+  const locationIds = new Set<string>();
+  for (const r of [...trRows, ...leRows]) {
+    if (r.booking_id) bookingIds.add(r.booking_id);
+    if (r.large_project_id) largeIds.add(r.large_project_id);
+  }
+  for (const r of tlRows) {
+    if (r.destination_booking_id) bookingIds.add(r.destination_booking_id);
+  }
+  for (const r of leRows) {
+    if (r.location_id) locationIds.add(r.location_id);
+  }
+
+  const [bookingNamesRes, largeNamesRes, locationNamesRes] = await Promise.all([
+    bookingIds.size
+      ? admin.from("bookings").select("id, booking_number, project_name, customer_name").in("id", Array.from(bookingIds))
+      : Promise.resolve({ data: [], error: null }),
+    largeIds.size
+      ? admin.from("large_projects").select("id, project_name, project_number").in("id", Array.from(largeIds))
+      : Promise.resolve({ data: [], error: null }),
+    locationIds.size
+      ? admin.from("organization_locations").select("id, name, is_work_location").in("id", Array.from(locationIds))
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const bookingNames = new Map<string, string>();
+  for (const b of bookingNamesRes.data ?? []) {
+    const label = (b as { project_name?: string; customer_name?: string; booking_number?: string }).project_name
+      ?? (b as { customer_name?: string }).customer_name
+      ?? (b as { booking_number?: string }).booking_number
+      ?? "";
+    if (label) bookingNames.set((b as { id: string }).id, label);
+  }
+  const largeNames = new Map<string, string>();
+  for (const lp of largeNamesRes.data ?? []) {
+    const r = lp as { id: string; project_name?: string; project_number?: string };
+    const label = r.project_name || r.project_number || "";
+    if (label) largeNames.set(r.id, label);
+  }
+  const locationNames = new Map<string, { name: string; isWork: boolean }>();
+  for (const l of locationNamesRes.data ?? []) {
+    const r = l as { id: string; name?: string; is_work_location?: boolean };
+    locationNames.set(r.id, { name: r.name ?? "", isWork: !!r.is_work_location });
+  }
+
   const snapshot = buildStaffDaySnapshot({
     staffId,
     date,
     workday: workday as never,
-    timeReports: (timeReportsRes.data ?? []) as never,
-    travelLogs: (travelRes.data ?? []) as never,
-    locationEntries: (locRes.data ?? []) as never,
+    timeReports: trRows as never,
+    travelLogs: tlRows as never,
+    locationEntries: leRows as never,
     flags: (flagsRes.data ?? []) as never,
     assistantEvents: (eventsRes.data ?? []) as never,
+    nameMaps: {
+      bookings: Object.fromEntries(bookingNames),
+      largeProjects: Object.fromEntries(largeNames),
+      locations: Object.fromEntries(
+        Array.from(locationNames.entries()).map(([k, v]) => [k, v]),
+      ),
+    },
   });
 
   return new Response(JSON.stringify(snapshot), {
@@ -142,3 +200,4 @@ Deno.serve(async (req) => {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
+
