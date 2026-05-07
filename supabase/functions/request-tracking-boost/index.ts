@@ -7,11 +7,16 @@
  *   { staffId, mode, reason, targetId?, targetType?, requestedBy, durationSeconds? }
  *
  * Rules:
- *   - durationSeconds is clamped to [60, 300] (1–5 min). DB trigger also caps.
+ *   - durationSeconds is clamped to [60, 300] (1–5 min). DB trigger also caps at 5 min.
  *   - mode must be one of: clarification_boost | near_target | approaching_target
  *   - requestedBy ∈ rule_engine | ai | admin | system
+ *   - Rate limit: max 5 boosts per staff per rolling hour → 429.
+ *   - Per-target dismissed cooldown (tracking_boost_dismissals) blocks new boosts
+ *     for that target. Returns { ok:false, skipped:'dismissed_cooldown_active' }.
+ *   - Per-target dedupe: if a non-expired boost already exists for the same
+ *     (staff, target), we return it instead of stacking.
  *   - Locked days (day_attestations) accept the boost — boost only changes
- *     adaptive GPS, never time data.
+ *     adaptive GPS, never time data / pay.
  *
  * Audit: writes one staff_day_decision_log row (actor=rule_engine/ai/admin).
  */
