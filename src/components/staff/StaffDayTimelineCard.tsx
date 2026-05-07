@@ -235,8 +235,9 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
       timeReports,
       travelLogs,
       locationEntries,
+      now: new Date(nowMs),
     });
-  }, [model, props.staffId, staffName, date]);
+  }, [model, props.staffId, staffName, date, nowMs]);
 
   return (
     <section className="space-y-3 rounded-lg border bg-card p-4">
