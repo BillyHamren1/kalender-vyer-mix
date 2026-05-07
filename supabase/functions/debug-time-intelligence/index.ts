@@ -642,7 +642,34 @@ Deno.serve(async (req) => {
     knownTargets: knownPlaces,
   });
 
-  const gpsSegments: GpsTimelineSegment[] = gpsTimeline.segments;
+  // Enrich each segment with target meta + geometry-based match diagnostics.
+  const { distanceMeters: distM } = await import("../_shared/timeline/geo.ts");
+  const enrichedSegments = gpsTimeline.segments.map((seg) => {
+    const meta = seg.matchedSiteId && seg.matchedSiteType
+      ? targetMeta.get(`${seg.matchedSiteType}:${seg.matchedSiteId}`)
+      : null;
+    let distanceToTargetMeters: number | null = null;
+    let targetRadiusMeters: number | null = meta?.radiusMeters ?? null;
+    if (seg.matchedSiteId && seg.centerLat != null && seg.centerLng != null) {
+      const place = knownPlaces.find(
+        (kp) => kp.id === seg.matchedSiteId && kp.type === seg.matchedSiteType,
+      );
+      if (place) {
+        distanceToTargetMeters = Math.round(distM(seg.centerLat, seg.centerLng, place.lat, place.lng));
+        targetRadiusMeters = place.radiusM;
+      }
+    }
+    return {
+      ...seg,
+      targetSource: meta?.source ?? (seg.type === "known_site" ? "excluded" : null),
+      targetValidity: meta?.validity ?? null,
+      distanceToTargetMeters,
+      targetRadiusMeters,
+      matchConfidence: seg.confidence,
+    };
+  });
+
+  const gpsSegments: GpsTimelineSegment[] = enrichedSegments as any;
   const targetMatches = gpsTimeline.targetMatches;
   let clusterError: string | null = null;
 
@@ -654,12 +681,12 @@ Deno.serve(async (req) => {
   const SEGMENT_RETURN_CAP = 200;
   const returnedSegments = gpsSegments.slice(0, SEGMENT_RETURN_CAP);
   const gpsDayTimeline = {
-    count: gpsTimeline.segments.length,
-    firstStart: gpsTimeline.segments[0]?.startTs ?? null,
-    lastEnd: gpsTimeline.segments[gpsTimeline.segments.length - 1]?.endTs ?? null,
+    count: gpsSegments.length,
+    firstStart: gpsSegments[0]?.startTs ?? null,
+    lastEnd: gpsSegments[gpsSegments.length - 1]?.endTs ?? null,
     source: "gps_only" as const,
-    truncated: gpsTimeline.segments.length > returnedSegments.length,
-    totalSegments: gpsTimeline.segments.length,
+    truncated: gpsSegments.length > returnedSegments.length,
+    totalSegments: gpsSegments.length,
     returnedSegments: returnedSegments.length,
     segments: returnedSegments,
   };
