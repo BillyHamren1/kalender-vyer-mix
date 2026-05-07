@@ -45,9 +45,11 @@ export default function TimeIntelligenceDebug() {
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [staffId, setStaffId] = useState<string>("");
   const [date, setDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [dryRun, setDryRun] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
