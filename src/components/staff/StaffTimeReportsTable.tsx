@@ -190,7 +190,8 @@ const StaffBlockRows: React.FC<{
   onSelectStaff: (id: string, name: string) => void;
   onEditTimeReport: (target: EditTargetPayload) => void;
   onStopSession: (target: StopTargetPayload) => void;
-}> = ({ block: b, date, onSelectStaff, onEditTimeReport, onStopSession }) => {
+  debugMode?: boolean;
+}> = ({ block: b, date, onSelectStaff, onEditTimeReport, onStopSession, debugMode }) => {
   const { visits, travels } = useDayPlaceVisits(b.staffId, date, true);
 
   const geocodeTargets = useMemo(
@@ -200,8 +201,8 @@ const StaffBlockRows: React.FC<{
   const visitLabels = useReverseGeocode(geocodeTargets);
 
   const actualRows = useMemo<ActualDayRow[]>(() => {
-    return buildActualDayRows(visits, travels, visitLabels);
-  }, [travels, visitLabels, visits]);
+    return buildActualDayRows(visits, travels, visitLabels, { preserveRawSegments: !!debugMode });
+  }, [travels, visitLabels, visits, debugMode]);
 
   const useActualRows = actualRows.length > 0;
   const blockRowSpan = 4 + Math.max(useActualRows ? actualRows.length : b.sessions.length, 1);
