@@ -1059,6 +1059,59 @@ Deno.serve(async (req) => {
     conflicts.push({ code: "no_gps_but_other_evidence", severity: "warn", message: "Inga GPS-pings men time_reports/travel_logs/location_entries finns", detail: { time_reports: timeReports.length, travel_logs: travelLogs.length, location_entries: locationEntries.length } });
   }
 
+  // ── Three explicit debug layers ─────────────────────────────────────────
+  const rawPingsCoverage = {
+    pingCount: pings.length,
+    firstPingAt,
+    lastPingAt,
+    pingGapsOver10MinCount: pingGapsOver10Min?.length ?? 0,
+    pageCount: rawPingCoverage.pageCount,
+    pageSize: rawPingCoverage.pageSize,
+    truncated: rawPingCoverage.truncated,
+  };
+
+  const gpsDayTimelineFull = (snapshotPreview?.gpsDayTimeline ?? []) as any[];
+  const gpsDayTimelineLayer = {
+    count: gpsDayTimelineFull.length,
+    firstStart: gpsDayTimelineFull[0]?.startTs ?? null,
+    lastEnd: gpsDayTimelineFull[gpsDayTimelineFull.length - 1]?.endTs ?? null,
+    source: "all_pings" as const,
+    segments: gpsDayTimelineFull,
+  };
+
+  const wdStartIso = snapshotPreview?.workday?.startedAt ?? null;
+  const wdEndIso = snapshotPreview?.workday?.endedAt ?? null;
+  const wdDurationMin = snapshotPreview?.workday?.durationMinutes ?? 0;
+  const payableSnapshot = {
+    workdayStart: wdStartIso,
+    workdayEnd: wdEndIso,
+    workdayDurationMinutes: wdDurationMin,
+    workdayIsOpen: !!snapshotPreview?.workday?.isOpen,
+    workdayApproved: !!snapshotPreview?.workday?.approved,
+    totals: snapshotPreview?.totals ?? null,
+    segments: snapshotPreview?.segments ?? [],
+    segmentSource: snapshotPreview?.segmentSource ?? null,
+    attestation: snapshotPreview?.attestation ?? null,
+  };
+
+  const debugWarnings: string[] = [];
+  if (rawPingsCoverage.pingCount > 0 && gpsDayTimelineFull.length > 0 && wdStartIso && wdEndIso) {
+    const wdS = new Date(wdStartIso).getTime();
+    const wdE = new Date(wdEndIso).getTime();
+    const tlS = new Date(gpsDayTimelineLayer.firstStart!).getTime();
+    const tlE = new Date(gpsDayTimelineLayer.lastEnd!).getTime();
+    const tolMs = 60_000;
+    const clippedToWorkday = tlS >= wdS - tolMs && tlE <= wdE + tolMs;
+    const firstPingMs = rawPingsCoverage.firstPingAt ? new Date(rawPingsCoverage.firstPingAt).getTime() : null;
+    const lastPingMs = rawPingsCoverage.lastPingAt ? new Date(rawPingsCoverage.lastPingAt).getTime() : null;
+    const pingsExtendBeyond =
+      (firstPingMs !== null && firstPingMs < wdS - tolMs) ||
+      (lastPingMs !== null && lastPingMs > wdE + tolMs);
+    if (clippedToWorkday && pingsExtendBeyond) {
+      debugWarnings.push("gps_day_timeline_is_clipped_to_workday");
+    }
+  }
+
   return json(200, {
     rawData: {
       pingCount: pings.length,
@@ -1069,7 +1122,6 @@ Deno.serve(async (req) => {
       activeWorkday: workday,
       openLocationTimeEntry: diagnostics.openLocationTimeEntry,
       travelLogs,
-      // Extra raw context — kept available but not part of the slim contract
       pings,
       locationEntries,
       timeReports,
@@ -1083,11 +1135,14 @@ Deno.serve(async (req) => {
       pingClassificationTimeline,
       existingSnapshot: existingSnapshot ?? null,
     },
+    rawPingsCoverage,
+    gpsDayTimeline: gpsDayTimelineLayer,
+    payableSnapshot,
     detectedState,
     targetMatches,
     segmentPreview: snapshotPreview?.segments ?? [],
     wouldWrite,
-    warnings,
+    warnings: [...warnings, ...debugWarnings],
     snapshotPreview,
     evidenceTimeline: evidence,
     conflicts,
@@ -1097,6 +1152,15 @@ Deno.serve(async (req) => {
       diagnostics,
       snapshotError,
       rawPingCoverage,
+      warnings: debugWarnings,
+      compactCounts: {
+        rawPingCount: rawPingsCoverage.pingCount,
+        gpsDayTimelineCount: gpsDayTimelineLayer.count,
+        snapshotSegmentsCount: (snapshotPreview?.segments ?? []).length,
+        workdayStart: wdStartIso,
+        workdayEnd: wdEndIso,
+        workdayDurationMinutes: wdDurationMin,
+      },
       generatedAt: new Date().toISOString(),
       contractVersion: "v2",
     },
