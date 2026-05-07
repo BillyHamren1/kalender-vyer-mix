@@ -264,7 +264,18 @@ Deno.serve(async (req) => {
       .map((p) => ({ recorded_at: p.recorded_at, lat: Number(p.latitude), lng: Number(p.longitude), accuracy: p.accuracy })),
   });
 
-  return new Response(JSON.stringify(snapshot), {
+  // Pure ping coverage diagnostics — lets the client/debug see whether the
+  // entire day was loaded or if pagination ran into the cap.
+  const pingRows = pingsRes.data ?? [];
+  const rawPingCoverage = {
+    totalFetched: pingRows.length,
+    firstPingAt: pingRows.length ? (pingRows[0] as any).recorded_at : null,
+    lastPingAt: pingRows.length ? (pingRows[pingRows.length - 1] as any).recorded_at : null,
+    truncated: pingsAll.truncated,
+    pageCount: pingsAll.pageCount,
+  };
+
+  return new Response(JSON.stringify({ ...snapshot, rawPingCoverage }), {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
