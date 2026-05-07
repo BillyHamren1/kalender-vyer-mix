@@ -777,72 +777,9 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     workdaySnap = { ...workdaySnap, suggestedStartedAt } as typeof workdaySnap;
   }
 
-  // ---- Totals ----
-  // Allocated/travel are summed from their tables. Unknown vistelser
-  // INSIDE the workday must NOT shrink the workday total — they show up
-  // as part of unallocatedMinutes (and separately as
-  // unknownWithinWorkdayMinutes for UI).
-  const allocated = timeReports.reduce((s, t) => s + (hoursToMin(t.hours_worked) || 0), 0);
-  const travelMin = travelLogs.reduce((s, t) => s + (hoursToMin(t.hours_worked) || diffMinutes(t.start_time, t.end_time, now)), 0);
-  const wdMin = workdaySnap?.durationMinutes ?? 0;
-  const unallocated = Math.max(0, wdMin - allocated - travelMin);
-
-  let unknownWithinWd = 0;
-  let warehouseMin = 0;
-  let projectMin = 0;
-  for (const seg of segments) {
-    const inside = countsWithinActiveWorkday(
-      { kind: seg.kind, startedAt: seg.startedAt, endedAt: seg.endedAt, classification: seg.classification, hasConfirmedRef: seg.hasConfirmedRef },
-      effectivePolicyWorkday,
-      now,
-    );
-    if (!inside) continue;
-    if (seg.policyStatus === "other_place") {
-      unknownWithinWd += seg.durationMinutes;
-    } else if (seg.kind === "location" && seg.hasConfirmedRef) {
-      warehouseMin += seg.durationMinutes;
-    } else if ((seg.kind === "project" || seg.kind === "booking") && seg.hasConfirmedRef) {
-      projectMin += seg.durationMinutes;
-    }
-  }
-  // Project minutes default to allocated time-reports total (truth source).
-  if (projectMin === 0) projectMin = allocated;
-
-  // ---- Canonical totals: bruttotid → rast → manuellt avdrag → lönegrundande ----
-  // Rast = användar-/admin-attest.
-  // Prio 1: day_attestations.break_minutes (om rad finns).
-  // Prio 2: time_reports.break_time (legacy).
-  // Other_place + transport drar ALDRIG av lönegrundande tid.
-  const trBreakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
-  const breakMin = attestation ? Math.max(0, attestation.break_minutes | 0) : trBreakMin;
-  const meta = (workday?.metadata ?? {}) as Record<string, unknown>;
-  const manualDeductionMinTotal = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
-  const grossWorkdayMin = wdMin;
-  const payableMin = Math.max(0, grossWorkdayMin - breakMin - manualDeductionMinTotal);
-
-  const liveMinutes = active?.durationMinutes ?? 0;
-  const totals: DayTotals = {
-    grossWorkdayMinutes: grossWorkdayMin,
-    breakMinutes: breakMin,
-    manualDeductionMinutes: manualDeductionMinTotal,
-    payableMinutes: payableMin,
-    projectMinutes: projectMin,
-    warehouseMinutes: warehouseMin,
-    transportMinutes: travelMin,
-    otherPlaceMinutes: unknownWithinWd,
-    // Legacy
-    workdayMinutes: wdMin,
-    allocatedProjectMinutes: allocated,
-    travelMinutes: travelMin,
-    unallocatedMinutes: unallocated,
-    unknownWithinWorkdayMinutes: unknownWithinWd,
-    liveMinutes,
-    isWorkdayOpen: workdaySnap?.isOpen ?? false,
-  };
-
-  // ---- Central segment chain: fyll glapp inom workday med
-  // transport / other_place / signal_stale (saknad ping ≠ glapp).
-  // Endast om vi har en workday och pings att basera klassningen på.
+  // ---- Central segment chain (run BEFORE totals so segments are final) ----
+  // Fyll glapp inom workday med transport / other_place / signal_stale
+  // (saknad ping ≠ glapp). Endast om vi har en workday och pings.
   let gpsChainProducedSegments = false;
   if (effectivePolicyWorkday) {
     try {
@@ -878,19 +815,117 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
           classification: null,
           policyStatus: g.policyStatus as PolicyStatus,
         });
-        // Räkna in i totals (drar ALDRIG av — bara klassning).
-        if (g.type === "transport") totals.transportMinutes += g.durationMinutes;
-        else if (g.type === "other_place") {
-          totals.otherPlaceMinutes += g.durationMinutes;
-          totals.unknownWithinWorkdayMinutes += g.durationMinutes;
-        }
-        // signal_stale räknas inte som arbete, dras inte heller av — bara visas.
       }
       segments.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
     } catch (err) {
       console.warn("[staff-day-status] segmentChain failed", (err as Error)?.message);
     }
   }
+
+  // ---- Totals (canonical source: snapshot.segments) ----
+  // Step 4: totals are derived from segments only. timeReports/travelLogs
+  // are NEVER the source of truth for totals — they live in `rawEvidence`
+  // and `debugMeta.legacyTotals` for visibility/debug.
+  // Rules:
+  //   - workdayMinutes from workday session
+  //   - projectMinutes  : segments project|booking|warehouse / type confirmed_work|active_work|warehouse
+  //   - travelMinutes   : segments kind=travel / type=transport
+  //   - otherPlaceMinutes: type=other_place (or kind=unknown without confirmed ref)
+  //   - gpsGapMinutes   : type=signal_stale (gps gap)
+  //   - payableMinutes does NOT auto-deduct break (only manual_adjustment)
+  const wdMin = workdaySnap?.durationMinutes ?? 0;
+
+  let projectMin = 0;
+  let warehouseMin = 0;
+  let travelMin = 0;
+  let unknownWithinWd = 0;
+  let gpsGapMin = 0;
+
+  for (const seg of segments) {
+    const inside = countsWithinActiveWorkday(
+      { kind: seg.kind, startedAt: seg.startedAt, endedAt: seg.endedAt, classification: seg.classification, hasConfirmedRef: seg.hasConfirmedRef },
+      effectivePolicyWorkday,
+      now,
+    );
+    if (!inside) continue;
+    const dur = seg.durationMinutes;
+    // gps gap / signal stale
+    if (seg.type === "signal_stale") {
+      gpsGapMin += dur;
+      continue;
+    }
+    // travel / transport
+    if (seg.kind === "travel" || seg.type === "transport") {
+      travelMin += dur;
+      continue;
+    }
+    // warehouse
+    if (seg.type === "warehouse" || (seg.kind === "location" && seg.hasConfirmedRef)) {
+      warehouseMin += dur;
+      continue;
+    }
+    // confirmed project / booking work
+    if (
+      seg.type === "confirmed_work" ||
+      seg.type === "active_work" ||
+      ((seg.kind === "project" || seg.kind === "booking") && seg.hasConfirmedRef)
+    ) {
+      projectMin += dur;
+      continue;
+    }
+    // other place / unknown
+    if (seg.type === "other_place" || seg.policyStatus === "other_place" || seg.kind === "unknown") {
+      unknownWithinWd += dur;
+      continue;
+    }
+  }
+
+  // ---- Canonical payable model: bruttotid → manuellt avdrag → lönegrundande ----
+  // Rast (attestation/time_reports.break_time) räknas separat och dras INTE
+  // automatiskt av här (step 4 — payable should not auto-deduct break).
+  // Other_place + transport drar ALDRIG av lönegrundande tid.
+  const trBreakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
+  const breakMin = attestation ? Math.max(0, attestation.break_minutes | 0) : trBreakMin;
+  const meta = (workday?.metadata ?? {}) as Record<string, unknown>;
+  const manualDeductionMinTotal = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
+  const grossWorkdayMin = wdMin;
+  const payableMin = Math.max(0, grossWorkdayMin - manualDeductionMinTotal);
+
+  const unallocated = Math.max(0, wdMin - projectMin - warehouseMin - travelMin);
+
+  // Legacy totals from old tables — for debug only.
+  const legacyAllocated = timeReports.reduce((s, t) => s + (hoursToMin(t.hours_worked) || 0), 0);
+  const legacyTravelMin = travelLogs.reduce((s, t) => s + (hoursToMin(t.hours_worked) || diffMinutes(t.start_time, t.end_time, now)), 0);
+
+  const liveMinutes = active?.durationMinutes ?? 0;
+  const totals: DayTotals = {
+    grossWorkdayMinutes: grossWorkdayMin,
+    breakMinutes: breakMin,
+    manualDeductionMinutes: manualDeductionMinTotal,
+    payableMinutes: payableMin,
+    projectMinutes: projectMin,
+    warehouseMinutes: warehouseMin,
+    transportMinutes: travelMin,
+    otherPlaceMinutes: unknownWithinWd,
+    gpsGapMinutes: gpsGapMin,
+    // Legacy
+    workdayMinutes: wdMin,
+    allocatedProjectMinutes: projectMin,
+    travelMinutes: travelMin,
+    unallocatedMinutes: unallocated,
+    unknownWithinWorkdayMinutes: unknownWithinWd,
+    liveMinutes,
+    isWorkdayOpen: workdaySnap?.isOpen ?? false,
+  };
+
+  const debugMeta = {
+    totalsSource: "segments" as const,
+    legacyTotals: {
+      timeReportsAllocatedMinutes: legacyAllocated,
+      travelLogsMinutes: legacyTravelMin,
+      timeReportsBreakMinutes: trBreakMin,
+    },
+  };
 
   // ---- Flags ----
   const dayFlags: DayFlag[] = flags.map((f) => ({
