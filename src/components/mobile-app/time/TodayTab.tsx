@@ -31,6 +31,12 @@ import {
   type StaffDayFlag,
 } from '@/hooks/useStaffDayStatus';
 import { useWorkDay } from '@/hooks/useWorkDay';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useMobileBookings } from '@/hooks/useMobileData';
+import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
+import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
+import { mobileApi } from '@/services/mobileApiService';
+import StartDayDialog, { type StartDaySelection } from '../StartDayDialog';
 import { useNavigate } from 'react-router-dom';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
@@ -386,29 +392,70 @@ const DayTimelineSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot
 // ────────────────────────────────────────────────────────────────────
 
 const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapshot }) => {
-  const navigate = useNavigate();
   const { start, isLoading } = useWorkDay();
+  const { staff } = useMobileAuth();
+  const { data: bookings = [] } = useMobileBookings();
+  const geo = useGeofencingContextOptional();
+  const { requestStart } = useTimerStartFlow(bookings, staff?.id);
   const [busy, setBusy] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const isOpen = snapshot?.workday?.isOpen ?? false;
 
-  const handleStart = async () => {
-    if (busy) return;
+  const startDayLocations = useMemo(
+    () => (geo?.orgLocations ?? [])
+      .filter((loc: any) => loc.show_as_project === true)
+      .map((loc: any) => ({ id: loc.id, name: loc.name, address: loc.address ?? null })),
+    [geo?.orgLocations],
+  );
+
+  const handleEnd = () => {
+    window.dispatchEvent(new CustomEvent('request-end-day'));
+  };
+
+  const handleConfirm = async (selection: StartDaySelection) => {
     setBusy(true);
     try {
-      const wd = await start();
-      if (wd) toast.success('Arbetsdag startad');
-      else toast.error('Kunde inte starta arbetsdagen');
-    } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte starta arbetsdagen');
+      if (selection.kind === 'target') {
+        const result = await requestStart(selection.target, {
+          label: selection.label,
+          startedAtIso: selection.startedAtIso,
+        });
+        if (result === 'started' || result === 'already_running') {
+          toast.success(`Arbetsdag startad på ${selection.label}`);
+          setDialogOpen(false);
+        } else if (result === 'conflict') {
+          setDialogOpen(false);
+        }
+        return;
+      }
+      if (selection.kind === 'presence') {
+        const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
+        if (!wd) { toast.error('Kunde inte starta arbetsdagen'); return; }
+        toast.success('Arbetsdag startad. Plats moniteras.');
+        setDialogOpen(false);
+        return;
+      }
+      // manual
+      const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
+      if (!wd) { toast.error('Kunde inte starta arbetsdagen'); return; }
+      try {
+        await mobileApi.createWorkdayFlag({
+          flag_type: 'unclear_start_target',
+          flag_date: new Date().toISOString().slice(0, 10),
+          title: 'Oklart startprojekt',
+          description: selection.text,
+          severity: 'warning',
+          needs_user_input: false,
+          context: { entered_text: selection.text, source: 'today_tab_manual', startedAtIso: selection.startedAtIso ?? null },
+        });
+      } catch (err) {
+        console.warn('[TodayTab] createWorkdayFlag failed (non-fatal):', err);
+      }
+      toast.success('Arbetsdag startad. Arbetsledare kopplar projekt åt dig.');
+      setDialogOpen(false);
     } finally {
       setBusy(false);
     }
-  };
-
-  const handleEnd = () => {
-    // Reuses the existing global EOD flow — banner/assistant pick this up
-    // and run the same reconciliation dialog as the header pill does.
-    window.dispatchEvent(new CustomEvent('request-end-day'));
   };
 
   if (isOpen) {
@@ -426,15 +473,25 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
   }
 
   return (
-    <Button
-      size="lg"
-      className="w-full h-12 rounded-2xl text-sm font-bold gap-2"
-      onClick={handleStart}
-      disabled={busy || isLoading}
-    >
-      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-      Starta arbetsdag
-    </Button>
+    <>
+      <Button
+        size="lg"
+        className="w-full h-12 rounded-2xl text-sm font-bold gap-2"
+        onClick={() => setDialogOpen(true)}
+        disabled={busy || isLoading}
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+        Starta arbetsdag
+      </Button>
+      <StartDayDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onConfirm={handleConfirm}
+        bookings={bookings}
+        locations={startDayLocations}
+        starting={busy}
+      />
+    </>
   );
 };
 
