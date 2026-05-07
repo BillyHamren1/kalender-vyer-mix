@@ -333,6 +333,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/admin/sync" element={<SyncReconciliation />} />
               <Route path="/admin/staff-live" element={<StaffLiveDebug />} />
               <Route path="/admin/time-intelligence-debug" element={<TimeIntelligenceDebug />} />
+              <Route path="/admin/time-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/legacy-incoming-packing" element={<LegacyIncomingPackingDebug />} />
             </Route>
 
