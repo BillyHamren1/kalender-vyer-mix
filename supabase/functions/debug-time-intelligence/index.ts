@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     const { data: sm } = await supabase
       .from("staff_members")
       .select("id, organization_id, name, email")
-      .or(`id.eq.${staffIdInput},login_id.eq.${staffIdInput}`)
+      .eq("id", staffIdInput)
       .maybeSingle();
     if (sm) {
       staffId = sm.id;
@@ -161,9 +161,9 @@ Deno.serve(async (req) => {
       .from("location_time_entries")
       .select("*")
       .eq("staff_id", staffId)
-      .or(`started_at.gte.${dayStart},ended_at.gte.${dayStart}`)
-      .lte("started_at", dayEnd)
-      .order("started_at", { ascending: true })
+      .or(`entered_at.gte.${dayStart},exited_at.gte.${dayStart}`)
+      .lte("entered_at", dayEnd)
+      .order("entered_at", { ascending: true })
       .limit(50),
     supabase
       .from("time_reports")
@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
       .from("workday_flags")
       .select("*")
       .eq("staff_id", staffId)
-      .eq("day_date", date)
+      .eq("flag_date", date)
       .limit(50),
     supabase
       .from("assistant_events")
@@ -199,12 +199,14 @@ Deno.serve(async (req) => {
       .eq("staff_id", staffId)
       .eq("date", date)
       .maybeSingle(),
-    supabase
-      .from("tracking_policy_boosts")
-      .select("*")
-      .eq("staff_id", staffId)
-      .gt("expires_at", new Date().toISOString())
-      .limit(20),
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staffId)
+      ? supabase
+          .from("tracking_policy_boosts")
+          .select("*")
+          .eq("staff_id", staffId)
+          .gt("expires_at", new Date().toISOString())
+          .limit(20)
+      : Promise.resolve({ data: [], error: null } as any),
   ]);
 
   for (const [name, res] of [
@@ -239,7 +241,28 @@ Deno.serve(async (req) => {
     if (r.dest_large_project_id) refLargeIds.add(r.dest_large_project_id);
   }
 
-  const [orgLocationsRes, bookingsRes, largeProjectsRes] = await Promise.all([
+  // Find bookings assigned to this staff on this date (BSA),
+  // so candidate set isn't limited to records that already produced TR/LTE.
+  const assignedBookingIds = new Set<string>();
+  const assignedLargeIds = new Set<string>();
+  if (organizationId) {
+    const { data: bsaRows } = await supabase
+      .from("booking_staff_assignments")
+      .select("booking_id")
+      .eq("staff_id", staffId)
+      .eq("assignment_date", date)
+      .limit(200);
+    for (const r of (bsaRows ?? []) as any[]) {
+      if (r.booking_id) assignedBookingIds.add(r.booking_id);
+    }
+    // large_project_team_assignments är team-baserat (inget staff_id) — hoppar
+    // över här; nearbyLarge-fetchen täcker upp.
+  }
+
+  const allBookingIds = new Set<string>([...refBookingIds, ...assignedBookingIds]);
+  const allLargeIds = new Set<string>([...refLargeIds, ...assignedLargeIds]);
+
+  const [orgLocationsRes, bookingsRes, largeProjectsRes, nearbyBookingsRes, nearbyLargeRes] = await Promise.all([
     organizationId
       ? supabase
           .from("organization_locations")
@@ -247,19 +270,52 @@ Deno.serve(async (req) => {
           .eq("organization_id", organizationId)
           .limit(500)
       : Promise.resolve({ data: [], error: null }),
-    refBookingIds.size > 0
+    allBookingIds.size > 0
       ? supabase
           .from("bookings")
           .select("id, client, booking_number, address, latitude, longitude")
-          .in("id", Array.from(refBookingIds))
+          .in("id", Array.from(allBookingIds))
       : Promise.resolve({ data: [], error: null }),
-    refLargeIds.size > 0
+    allLargeIds.size > 0
       ? supabase
           .from("large_projects")
           .select("id, name, address, latitude, longitude")
-          .in("id", Array.from(refLargeIds))
+          .in("id", Array.from(allLargeIds))
+      : Promise.resolve({ data: [], error: null }),
+    // Fallback: all org bookings with coords in a +/-7 day window — broad net so
+    // we can answer "did pings ever land inside Josefinas" even without BSA.
+    organizationId
+      ? supabase
+          .from("bookings")
+          .select("id, client, booking_number, address, latitude, longitude, event_date")
+          .eq("organization_id", organizationId)
+          .not("latitude", "is", null)
+          .not("longitude", "is", null)
+          .gte("event_date", new Date(new Date(date).getTime() - 7 * 86400000).toISOString().slice(0, 10))
+          .lte("event_date", new Date(new Date(date).getTime() + 7 * 86400000).toISOString().slice(0, 10))
+          .limit(500)
+      : Promise.resolve({ data: [], error: null }),
+    organizationId
+      ? supabase
+          .from("large_projects")
+          .select("id, name, address, latitude, longitude")
+          .eq("organization_id", organizationId)
+          .not("latitude", "is", null)
+          .not("longitude", "is", null)
+          .limit(200)
       : Promise.resolve({ data: [], error: null }),
   ]);
+
+  // Merge primary + nearby into a single deduped list per kind
+  const mergeBy = (rows: any[][]) => {
+    const m = new Map<string, any>();
+    for (const set of rows) for (const r of set || []) if (r?.id) m.set(r.id, r);
+    return Array.from(m.values());
+  };
+  const mergedBookings = mergeBy([bookingsRes.data ?? [], nearbyBookingsRes.data ?? []]);
+  const mergedLarge = mergeBy([largeProjectsRes.data ?? [], nearbyLargeRes.data ?? []]);
+  (bookingsRes as any).data = mergedBookings;
+  (largeProjectsRes as any).data = mergedLarge;
 
   const knownTargets = {
     warehouses_and_locations: orgLocationsRes.data ?? [],
