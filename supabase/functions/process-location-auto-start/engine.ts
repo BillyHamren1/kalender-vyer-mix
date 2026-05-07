@@ -75,6 +75,12 @@ export interface Target {
   organization_id: string
   label: string
   geofence: GeofenceTarget
+  /** "valid" if this target is allowed for auto-start; "invalid" otherwise. */
+  targetValidity: 'valid' | 'invalid'
+  /** Whether time-tracking auto-start is allowed for this target right now. */
+  timeTrackingAllowed: boolean
+  /** Reason (when invalid) — surfaced as block reason. */
+  invalidReason?: 'test_target' | 'cancelled' | 'archived' | 'inactive' | 'no_coords'
 }
 
 export interface StableHit {
@@ -86,6 +92,23 @@ export interface StableHit {
   avgAccuracy: number
   confidence: 'low' | 'medium' | 'high'
 }
+
+/** Regex for test/demo data. Test bookings/projects must never auto-start time. */
+export const TEST_DEMO_RX = /\b(test|demo|sandbox)\b|!!|\?\?/i
+
+export type AutoStartBlockReason =
+  | 'blocked_movement_only'
+  | 'blocked_unknown_place'
+  | 'blocked_home'
+  | 'blocked_low_confidence'
+  | 'blocked_invalid_target'
+  | 'blocked_test_target'
+  | 'blocked_not_enough_dwell'
+  | 'blocked_not_enough_pings'
+  | 'blocked_night_requires_stronger_evidence'
+  | 'blocked_inactive'
+  | 'blocked_cancelled'
+  | 'blocked_archived'
 
 export interface ProcessReport {
   run_id: string
