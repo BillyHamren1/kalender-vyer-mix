@@ -33,6 +33,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { clusterPings } from "../_shared/timeline/cluster.ts";
 import { matchSegmentsToPlaces } from "../_shared/timeline/matcher.ts";
+import {
+  buildGpsDayTimelineOnly,
+  type GpsTimelineSegment,
+} from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
 import type { KnownPlace, Ping, Segment } from "../_shared/timeline/types.ts";
 // Scenario suite (synthetic) still imports the legacy snapshot builder; that
 // only runs when mode === "scenarios" and never touches real workday data.
@@ -398,117 +402,25 @@ Deno.serve(async (req) => {
     },
   };
 
-  // ── Cluster + match → gpsDayTimeline ────────────────────────────────────
-  const clusterInput: Ping[] = rawPings
-    .filter((p: any) => p.lat != null && p.lng != null)
-    .filter((p: any) => p.accuracy == null || Number(p.accuracy) <= 200)
-    .map((p: any) => ({
-      ts: p.recorded_at,
-      lat: Number(p.lat),
-      lng: Number(p.lng),
-      accuracy: p.accuracy != null ? Number(p.accuracy) : null,
-    }));
+  // ── Pure GPS day timeline (no workday/timer/report inputs) ──────────────
+  const gpsResult = buildGpsDayTimelineOnly({
+    staffId,
+    organizationId,
+    date,
+    pings: rawPings.map((p: any) => ({
+      recorded_at: p.recorded_at,
+      lat: p.lat ?? null,
+      lng: p.lng ?? null,
+      accuracy: p.accuracy ?? null,
+      speed: p.speed ?? null,
+      app_state: p.app_state ?? null,
+    })),
+    knownTargets: knownPlaces,
+  });
 
-  let clusteredSegments: Segment[] = [];
+  const gpsDayTimeline: GpsTimelineSegment[] = gpsResult.segments;
+  const targetMatches = gpsResult.targetMatches;
   let clusterError: string | null = null;
-  try {
-    clusteredSegments = clusterPings(clusterInput, {
-      stationaryRadiusM: 80,
-      minStopMin: 5,
-      maxGapMin: 15,
-    });
-    clusteredSegments = matchSegmentsToPlaces(clusteredSegments, knownPlaces);
-  } catch (e: any) {
-    clusterError = e?.message ?? String(e);
-    warnings.push(`cluster/match threw: ${clusterError}`);
-  }
-
-  const gpsDayTimeline: any[] = [];
-  for (let i = 0; i < clusteredSegments.length; i++) {
-    const s = clusteredSegments[i];
-    const matched = s.matchedPlace;
-    let kind: "stay" | "travel";
-    let type: "known_target" | "unknown_place" | "transport";
-    if (s.isStationary) {
-      kind = "stay";
-      type = matched ? "known_target" : "unknown_place";
-    } else {
-      kind = "travel";
-      type = "transport";
-    }
-    gpsDayTimeline.push({
-      startTs: s.startTs,
-      endTs: s.endTs,
-      durationMin: Math.round(s.durationMin),
-      kind,
-      type,
-      matchedSiteId: matched?.id ?? null,
-      matchedSiteType: matched?.type ?? null,
-      matchedSiteName: matched?.name ?? null,
-      centerLat: s.centerLat,
-      centerLng: s.centerLng,
-      pingCount: s.pingCount,
-    });
-    const next = clusteredSegments[i + 1];
-    if (next) {
-      const gapMin = Math.round(
-        (new Date(next.startTs).getTime() - new Date(s.endTs).getTime()) / 60000,
-      );
-      if (gapMin >= 10) {
-        gpsDayTimeline.push({
-          startTs: s.endTs,
-          endTs: next.startTs,
-          durationMin: gapMin,
-          kind: "gps_gap",
-          type: "gps_gap",
-          matchedSiteId: null,
-          matchedSiteType: null,
-          matchedSiteName: null,
-          centerLat: null,
-          centerLng: null,
-          pingCount: 0,
-        });
-      }
-    }
-  }
-
-  // ── targetMatches summary ───────────────────────────────────────────────
-  const matchedById = new Map<string, any>();
-  for (const seg of gpsDayTimeline) {
-    if (seg.kind !== "stay" || seg.type !== "known_target" || !seg.matchedSiteId) continue;
-    const key = `${seg.matchedSiteType}:${seg.matchedSiteId}`;
-    const existing = matchedById.get(key);
-    if (!existing) {
-      matchedById.set(key, {
-        kind: seg.matchedSiteType,
-        id: seg.matchedSiteId,
-        name: seg.matchedSiteName,
-        firstMatchAt: seg.startTs,
-        lastMatchAt: seg.endTs,
-        totalMinutes: seg.durationMin,
-        visitCount: 1,
-      });
-    } else {
-      existing.lastMatchAt = seg.endTs;
-      existing.totalMinutes += seg.durationMin;
-      existing.visitCount += 1;
-    }
-  }
-  const matches = Array.from(matchedById.values());
-  const targetMatches = {
-    booking: matches.filter((m) => m.kind === "booking"),
-    project: matches.filter((m) => m.kind === "project"),
-    location: matches.filter((m) => m.kind === "location"),
-    summary: {
-      totalCandidates: knownPlaces.length,
-      matchedCount: matches.length,
-      stayCount: gpsDayTimeline.filter((s) => s.kind === "stay").length,
-      knownStayCount: gpsDayTimeline.filter((s) => s.kind === "stay" && s.type === "known_target").length,
-      unknownStayCount: gpsDayTimeline.filter((s) => s.kind === "stay" && s.type === "unknown_place").length,
-      travelCount: gpsDayTimeline.filter((s) => s.kind === "travel").length,
-      gpsGapCount: gpsDayTimeline.filter((s) => s.kind === "gps_gap").length,
-    },
-  };
 
   if (rawPings.length === 0) warnings.push("no_pings_for_day");
   if (rawPings.length > 0 && knownPlaces.length === 0) warnings.push("no_known_targets_with_coords_in_org");
