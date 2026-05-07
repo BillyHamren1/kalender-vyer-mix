@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Play, AlertTriangle } from "lucide-react";
+import { Loader2, Play, AlertTriangle, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 
 interface StaffOption {
   id: string;
