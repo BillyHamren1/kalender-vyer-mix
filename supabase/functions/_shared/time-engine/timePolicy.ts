@@ -170,100 +170,17 @@ export function localHour(atIso: string): number {
 // ─────────────────────────────────────────────────────────────────────────────
 // Auto-start evaluation
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// SINGLE SOURCE OF TRUTH:
+//   `decideAutoStart()` i `./decideAutoStart.ts` är den enda funktionen
+//   som avgör om GPS får auto-starta tid. Den producerar kontraktets
+//   `AutoStartDecision` (allowed | blocked) och använder dayPolicy/
+//   nightPolicy + isNightLocal från denna fil.
+//
+//   Den tidigare `evaluateAutoStart(segment, match)`-varianten är
+//   borttagen för att inte ha två parallella verklighetsbilder av
+//   samma beslut. Använd `decideAutoStart` direkt.
 
-export interface EvaluateAutoStartInput {
-  segment: GpsSegment;
-  match: TargetMatch;
-  /** Tidpunkten beslutet gäller, default = segment.endedAt eller startedAt. */
-  atIso?: string;
-}
-
-/**
- * Avgör om en GPS-segment-match får auto-starta tid enligt policyn.
- *
- * Detta är den enda sanningen för auto-start-beslut på segmentnivå.
- * `decideAutoStart` (i decideAutoStart.ts) bygger ovanpå denna funktion
- * för att producera kontraktets `AutoStartDecision`.
- *
- * Om resultatet är `allowed: true` får motorn skapa en
- * `active_time_registration` med `startSource = 'gps_geofence_auto_start'`.
- */
-export function evaluateAutoStart(input: EvaluateAutoStartInput): PolicyDecision {
-  const { segment, match } = input;
-  const atIso = input.atIso ?? segment.endedAt ?? segment.startedAt;
-
-  // 4. GPS får ALDRIG auto-starta från rörelse / glapp / okänd plats.
-  if (segment.kind === 'movement' || match.outcome === 'transport') {
-    return { allowed: false, reason: 'blocked_movement_only', confidence: match.confidence };
-  }
-  if (segment.kind === 'gps_gap' || match.outcome === 'gps_uncertain') {
-    return { allowed: false, reason: 'blocked_gps_gap', confidence: match.confidence };
-  }
-  if (match.outcome === 'unknown_place') {
-    return { allowed: false, reason: 'blocked_unknown_place', confidence: match.confidence };
-  }
-  if (match.outcome !== 'inside_known_target' || !match.target) {
-    return { allowed: false, reason: 'blocked_unknown_place', confidence: match.confidence };
-  }
-
-  const target = match.target;
-
-  // 4. Test/demo, cancelled/archived, home/private.
-  if (!isTargetCurrentlyValid(target, atIso)) {
-    return { allowed: false, reason: 'blocked_invalid_target', target, confidence: match.confidence };
-  }
-  if (isTestTarget(target)) {
-    return { allowed: false, reason: 'blocked_test_target', target, confidence: match.confidence };
-  }
-  if (isHomeOrPrivate(target)) {
-    return { allowed: false, reason: 'blocked_home_or_private', target, confidence: match.confidence };
-  }
-
-  // 6. Välj day vs night-policy.
-  const night = isNightLocal(atIso);
-  const policy: DwellPolicy = night ? nightPolicy : dayPolicy;
-
-  // 4. Singleton-ping / dwell.
-  const pings = segment.pingCount ?? 0;
-  if (pings < policy.minArrivalPings) {
-    return night
-      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
-      : { allowed: false, reason: 'blocked_not_enough_pings', target, confidence: match.confidence };
-  }
-
-  const dwell = dwellSeconds(segment);
-  if (dwell < policy.minDwellSeconds) {
-    return night
-      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
-      : { allowed: false, reason: 'blocked_not_enough_dwell', target, confidence: match.confidence };
-  }
-
-  if (match.confidence < policy.minConfidence) {
-    return night
-      ? { allowed: false, reason: 'blocked_night_requires_stronger_evidence', target, confidence: match.confidence }
-      : { allowed: false, reason: 'blocked_low_confidence', target, confidence: match.confidence };
-  }
-
-  // 6. Natt: kräv planerad/explicit tillåten target.
-  if (night && nightPolicy.requirePlannedOrExplicitAllowedTarget) {
-    if (!target.assignedToUserToday) {
-      return {
-        allowed: false,
-        reason: 'blocked_night_requires_stronger_evidence',
-        target,
-        confidence: match.confidence,
-      };
-    }
-  }
-
-  // 3. Allt OK → giltig geofence.
-  return {
-    allowed: true,
-    reason: 'allowed_valid_geofence',
-    target,
-    confidence: match.confidence,
-  };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Klassificeringspolicy under aktiv tidsregistrering (regel 5)
