@@ -302,6 +302,15 @@ export interface StaffDaySnapshot {
     resolutionStatus: string | null;
     stale: boolean;
   }>;
+  attestation: {
+    id: string;
+    breakMinutes: number;
+    comment: string | null;
+    status: string;
+    attestedAt: Iso;
+    attestedBy: string | null;
+    locked: boolean;
+  } | null;
   lastUpdatedAt: Iso;
 }
 
