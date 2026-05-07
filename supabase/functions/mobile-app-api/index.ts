@@ -653,18 +653,27 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleStartTimeRegistration(supabase, staffId, data, organizationId)
       case 'stop_time_registration':
         return await handleStopTimeRegistration(supabase, staffId, data, organizationId)
-      // ── LEGACY (LTE-backed; mirrors into active_time_registrations) ──
+      // ── LEGACY action names — now FORWARDED to Time Engine v2.
+      // The legacy LTE/workday/time_report writers are NOT invoked from these
+      // case branches anymore. Frontend may still call these names, but they
+      // resolve to active_time_registrations only. See handleLegacy*Forward.
       case 'start_location_timer':
-        return await handleStartLocationTimer(supabase, staffId, data, organizationId)
+        return await handleLegacyStartLocationTimerForward(supabase, staffId, data, organizationId)
       case 'stop_location_timer':
-        return await handleStopLocationTimer(supabase, staffId, data, organizationId)
+        return await handleLegacyStopLocationTimerForward(supabase, staffId, data, organizationId)
       case 'stop_open_entry':
+        // LEGACY admin/banner action — operates on legacy LTE rows only.
+        // MUST NOT be used as a timer-control action from the new Time app.
+        console.warn('[mobile-app-api] LEGACY stop_open_entry invoked — Time app should use stop_time_registration instead')
         return await handleStopOpenEntry(supabase, staffId, data, organizationId)
       case 'dismiss_location_entry':
+        console.warn('[mobile-app-api] LEGACY dismiss_location_entry invoked — Time app should not use this')
         return await handleDismissLocationEntry(supabase, staffId, data, organizationId)
       case 'get_location_time_entries':
+        console.warn('[mobile-app-api] LEGACY get_location_time_entries invoked — Time app must read from active_time_registrations / get-timer-time-segments instead')
         return await handleGetLocationTimeEntries(supabase, staffId, data, organizationId)
       case 'get_active_day_state':
+        console.warn('[mobile-app-api] LEGACY get_active_day_state invoked — Time app must use get-current-time-registration / get-active-time-registration-status instead')
         return await handleGetActiveDayState(supabase, staffId, organizationId)
       case 'get_lager_tasks':
         return await handleGetLagerTasks(supabase, staffId, organizationId)
