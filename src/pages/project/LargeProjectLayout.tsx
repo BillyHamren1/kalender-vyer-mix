@@ -343,7 +343,7 @@ const LargeProjectLayout = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate("/projects")}
+                onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/projects"))}
                 className="rounded-lg h-8 w-8 -ml-1"
                 aria-label="Tillbaka"
               >
