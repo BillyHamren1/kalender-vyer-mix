@@ -173,6 +173,18 @@ export async function processGpsTimelineForAutoStart(
 ): Promise<ProcessAutoStartResult> {
   const { organizationId, staffId, date, supabaseAdmin } = input;
 
+  // Legacy-leak guard: the new Time Engine must never consume legacy sources
+  // (workday / time_reports / location_time_entries / travel_time_logs /
+  // assistant_events / workday_flags / old snapshots / legacy active timers)
+  // as ground truth. We inspect the input shallowly and warn in debug mode.
+  const leak = assertNoLegacySources(input, { debug: true, label: 'processGpsTimelineForAutoStart' });
+  if (leak.legacySourceLeakDetected) {
+    // Non-fatal by design — surfaced via console + returned diagnostics so
+    // callers can decide. The new engine simply ignores those fields.
+    // eslint-disable-next-line no-console
+    console.warn('[time-engine] legacy source leak in input', leak);
+  }
+
   // 1) Timeline
   let timeline = input.gpsDayTimeline;
   if (!timeline) {
