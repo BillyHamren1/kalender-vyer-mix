@@ -5973,6 +5973,49 @@ async function handleGetOrganizationLocations(supabase: any, organizationId: str
 // GPS-auto-started timers land in the same table (auto_started=true) via the
 // new Time Engine processor.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY action forwarders → Time Engine v2 (active_time_registrations only).
+//
+// The legacy 'start_location_timer' / 'stop_location_timer' actions are still
+// called from older frontend code paths and queued offline payloads. To avoid
+// creating parallel timer state in workdays / location_time_entries /
+// time_reports, we translate the legacy payload shape into the Time Engine v2
+// payload shape and forward to handleStart/StopTimeRegistration.
+//
+// This means a user-started timer and a GPS-auto-started timer always end up
+// in exactly one table: active_time_registrations.
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleLegacyStartLocationTimerForward(
+  supabase: any, staffId: string, data: any, organizationId: string,
+) {
+  const d = data || {}
+  let target_type: 'location' | 'booking' | 'large_project' | 'project' | null = null
+  let target_id: string | null = null
+  if (d.large_project_id) { target_type = 'large_project'; target_id = d.large_project_id }
+  else if (d.booking_id)  { target_type = 'booking';       target_id = d.booking_id }
+  else if (d.project_id)  { target_type = 'project';       target_id = d.project_id }
+  else if (d.location_id) { target_type = 'location';      target_id = d.location_id }
+
+  console.warn('[mobile-app-api] LEGACY start_location_timer forwarded → start_time_registration', { target_type, target_id })
+  return await handleStartTimeRegistration(
+    supabase, staffId,
+    { target_type, target_id, started_at: d.started_at },
+    organizationId,
+  )
+}
+
+async function handleLegacyStopLocationTimerForward(
+  supabase: any, staffId: string, data: any, organizationId: string,
+) {
+  const d = data || {}
+  console.warn('[mobile-app-api] LEGACY stop_location_timer forwarded → stop_time_registration', { entry_id: d.entry_id })
+  return await handleStopTimeRegistration(
+    supabase, staffId,
+    { registration_id: d.registration_id ?? null, stop_source: 'legacy_stop_location_timer', stopped_at: d.stopped_at },
+    organizationId,
+  )
+}
+
 async function handleStartTimeRegistration(
   supabase: any, staffId: string, data: any, organizationId: string,
 ) {
