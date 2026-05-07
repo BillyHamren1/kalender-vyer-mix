@@ -173,23 +173,43 @@ function buildTimeEngineSummary(result: any) {
       validCount: r.targetDiagnostics.validCount ?? null,
       invalidCount: r.targetDiagnostics.invalidCount ?? null,
     } : null,
-    autoStartSummary: {
-      total: decisions.length,
-      allowedCount: allowed.length,
-      blockedCount: blocked.length,
-      allowedDecisions: allowed.map((d) => ({
-        segmentLabel: d.segmentLabel,
-        targetLabel: d.matchedTarget?.name ?? null,
-        reason: d.reason,
-        confidence: d.confidence,
-      })),
-      blockedExamples: blocked.slice(0, 10).map((d) => ({
-        segmentLabel: d.segmentLabel,
-        targetLabel: d.matchedTarget?.name ?? null,
-        reason: d.reason,
-        confidence: d.confidence,
-      })),
-    },
+    autoStartSummary: (() => {
+      const blockedByReason: Record<string, number> = {};
+      for (const d of blocked) {
+        const k = String(d?.reason ?? "unknown");
+        blockedByReason[k] = (blockedByReason[k] ?? 0) + 1;
+      }
+      const cnt = (re: RegExp) =>
+        Object.entries(blockedByReason).reduce((sum, [k, v]) => sum + (re.test(k) ? v : 0), 0);
+      return {
+        total: decisions.length,
+        allowedCount: allowed.length,
+        blockedCount: blocked.length,
+        blockedUnknownPlaceCount: cnt(/unknown_place/i),
+        blockedTransportCount: cnt(/transport/i),
+        blockedGpsGapCount: cnt(/gps_gap/i),
+        blockedInvalidTargetCount: cnt(/invalid_target|missing_coordinates|invalid_radius|test_data|cancelled|archived/i),
+        blockedNightPolicyCount: cnt(/night/i),
+        blockedByReason,
+        allowedDecisions: allowed.map((d) => ({
+          startAt: d.startAt ?? d.segmentStartTs ?? null,
+          targetName: d.matchedTarget?.name ?? null,
+          targetType: d.matchedTarget?.type ?? d.matchedTarget?.kind ?? null,
+          segmentLabel: d.segmentLabel,
+          targetLabel: d.matchedTarget?.name ?? null,
+          reason: d.reason,
+          confidence: d.confidence,
+          dwellSeconds: d.dwellSeconds ?? d.dwellSec ?? null,
+          arrivalPingsCount: d.arrivalPingsCount ?? d.arrivalPings?.length ?? null,
+        })),
+        blockedExamples: blocked.slice(0, 10).map((d) => ({
+          segmentLabel: d.segmentLabel,
+          targetLabel: d.matchedTarget?.name ?? null,
+          reason: d.reason,
+          confidence: d.confidence,
+        })),
+      };
+    })(),
     activeTimeRegistrationPreview: preview ? {
       wouldCreateActiveRegistration: !!preview.wouldCreate,
       startAt: preview.startAt ?? null,
@@ -258,22 +278,48 @@ function TimeEngineDryRunSummary({ result }: { result: any }) {
 
         <section>
           <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-            3. Auto-start ({auto.allowedCount} allowed / {auto.blockedCount} blocked)
+            3. Auto-start check ({auto.allowedCount} allowed / {auto.blockedCount} blocked)
           </h4>
-          {auto.allowedDecisions.length === 0 && auto.blockedExamples.length === 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs mb-2">
+            <div><div className="text-muted-foreground">allowed</div><div className="font-mono">{auto.allowedCount}</div></div>
+            <div><div className="text-muted-foreground">unknown_place</div><div className="font-mono">{auto.blockedUnknownPlaceCount}</div></div>
+            <div><div className="text-muted-foreground">transport</div><div className="font-mono">{auto.blockedTransportCount}</div></div>
+            <div><div className="text-muted-foreground">gps_gap</div><div className="font-mono">{auto.blockedGpsGapCount}</div></div>
+            <div><div className="text-muted-foreground">invalid_target</div><div className="font-mono">{auto.blockedInvalidTargetCount}</div></div>
+            <div><div className="text-muted-foreground">night_policy</div><div className="font-mono">{auto.blockedNightPolicyCount}</div></div>
+          </div>
+          <p className={`text-xs mb-2 font-medium ${auto.allowedCount > 0 ? "text-emerald-600" : "text-amber-700 dark:text-amber-400"}`}>
+            {auto.allowedCount > 0
+              ? "GPS får starta tid på giltig arbetsplats."
+              : "Ingen giltig geofence-start hittades."}
+          </p>
+          {auto.allowedDecisions.length === 0 && auto.blockedCount === 0 ? (
             <p className="text-xs text-muted-foreground">Inga relevanta beslut.</p>
           ) : (
             <div className="space-y-1 text-xs">
-              {auto.allowedDecisions.map((d, i) => (
+              {auto.allowedDecisions.map((d: any, i: number) => (
                 <div key={`a${i}`} className={`rounded border px-2 py-1 ${TONE_CLASS.ok}`}>
-                  <span className="font-semibold">ALLOWED</span> · {d.segmentLabel} → {d.targetLabel ?? "—"} · <span className="font-mono">{d.reason}</span> · conf {typeof d.confidence === "number" ? d.confidence.toFixed(2) : d.confidence}
+                  <div className="font-semibold">
+                    ALLOWED · {d.targetName ?? d.targetLabel ?? "—"}{" "}
+                    <span className="font-normal text-muted-foreground">({d.targetType ?? "—"})</span>
+                  </div>
+                  <div className="font-mono text-[11px]">
+                    startAt={fmtTime(d.startAt)} · reason={d.reason} · conf={typeof d.confidence === "number" ? d.confidence.toFixed(2) : d.confidence} · dwell={d.dwellSeconds ?? "—"}s · arrivalPings={d.arrivalPingsCount ?? "—"}
+                  </div>
                 </div>
               ))}
-              {auto.blockedExamples.map((d, i) => (
-                <div key={`b${i}`} className={`rounded border px-2 py-1 ${TONE_CLASS.warn}`}>
-                  <span className="font-semibold">BLOCKED</span> · {d.segmentLabel} → {d.targetLabel ?? "—"} · <span className="font-mono">{d.reason}</span> · conf {typeof d.confidence === "number" ? d.confidence.toFixed(2) : d.confidence}
+              {Object.entries(auto.blockedByReason ?? {}).length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-muted-foreground">Blocked grupperat per reason:</div>
+                  {Object.entries(auto.blockedByReason ?? {})
+                    .sort((a, b) => (b[1] as number) - (a[1] as number))
+                    .map(([reason, count]) => (
+                      <div key={reason} className={`rounded border px-2 py-1 ${TONE_CLASS.warn}`}>
+                        <span className="font-semibold">BLOCKED</span> · <span className="font-mono">{reason}</span> · <span className="font-mono">{count as number}st</span>
+                      </div>
+                    ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </section>
