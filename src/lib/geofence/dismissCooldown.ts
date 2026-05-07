@@ -43,6 +43,40 @@ export function recordDismissCooldown(targetKey: string, ttlMs: number = DEFAULT
   write(map);
   // eslint-disable-next-line no-console
   console.info('[dismiss-cooldown] recorded', { targetKey, ttlMs });
+
+  // Best-effort server mirror so backend's request-tracking-boost respects
+  // the same cooldown (rule engine / AI cannot bypass via server path).
+  void mirrorDismissToServer(targetKey, ttlMs).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.warn('[dismiss-cooldown] server mirror failed', err);
+  });
+}
+
+async function mirrorDismissToServer(targetKey: string, ttlMs: number): Promise<void> {
+  try {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth?.user?.id;
+    if (!userId) return;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id, staff_member_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const orgId = (profile as any)?.organization_id;
+    const staffId = (profile as any)?.staff_member_id;
+    if (!orgId || !staffId) return;
+    const expiresAt = new Date(Date.now() + Math.min(ttlMs, 8 * 60 * 60 * 1000)).toISOString();
+    await supabase.from('tracking_boost_dismissals').insert({
+      organization_id: orgId,
+      staff_id: staffId,
+      target_key: targetKey,
+      reason: 'user_dismissed',
+      expires_at: expiresAt,
+    });
+  } catch {
+    /* noop — dismissal still active locally */
+  }
 }
 
 export function isInDismissCooldown(targetKey: string): boolean {
