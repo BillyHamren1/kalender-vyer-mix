@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import { processStaffLocationUpdate } from '../_shared/processStaffLocationUpdate.ts'
+import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
