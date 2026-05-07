@@ -89,6 +89,26 @@ export type TargetValidity =
  *   - the richer ResolvedWorkTarget from resolveWorkTargets.ts
  *     (extra fields are optional here).
  */
+export type AutoStartableTargetSource =
+  | 'planned_today'
+  | 'warehouse'
+  | 'explicit_time_tracking_location';
+
+export type AnyTargetSource =
+  | AutoStartableTargetSource
+  | 'active_project'
+  | 'recent_confirmed'
+  | 'permanent_location'
+  | (string & {});
+
+/**
+ * Only these targetSource values may auto-start time in v1.
+ * `active_project` and `recent_confirmed` are intentionally excluded
+ * until the engine is verified end-to-end.
+ */
+export const AUTOSTARTABLE_TARGET_SOURCES: ReadonlySet<AutoStartableTargetSource> =
+  new Set(['planned_today', 'warehouse', 'explicit_time_tracking_location']);
+
 export interface DecideAutoStartTarget extends Partial<WorkTarget> {
   refId: UUID;
   kind: WorkTarget['kind'];
@@ -101,7 +121,13 @@ export interface DecideAutoStartTarget extends Partial<WorkTarget> {
   isArchived?: boolean;
   assignedToUserToday?: boolean;
   explicitlyAllowed?: boolean;
+  /**
+   * Where this target came from in resolveWorkTargets. Only a subset
+   * is allowed to auto-start (see AUTOSTARTABLE_TARGET_SOURCES).
+   */
+  targetSource?: AnyTargetSource;
 }
+
 
 export interface ExistingActiveRegistration {
   id: UUID;
