@@ -1,40 +1,58 @@
 /**
- * Open a remote file (PDF, image, doc, …) in a way that works across:
- * - desktop browsers (new tab)
- * - in-app webviews / iframes (Lovable preview, embedded admin shells)
- * - Capacitor mobile app (system browser via @capacitor/browser if installed,
- *   otherwise top-level navigation as a safe fallback)
+ * Open a remote file (PDF, image, doc, …) reliably.
  *
- * Strategy:
- *  1. If we're inside an iframe, force navigation in the TOP window so the
- *     browser handles the PDF natively. Inline iframes for cross-origin PDFs
- *     are unreliable and pop-up blockers often kill window.open.
- *  2. Try window.open in a new tab.
- *  3. If popup is blocked / returns null, fall back to navigating the current
- *     tab to the file URL.
+ * Many adblockers (uBlock Origin, Brave Shields, AdGuard) block direct
+ * navigation to *.supabase.co with ERR_BLOCKED_BY_CLIENT. To dodge this we
+ * fetch the file as a Blob and open a same-origin blob: URL — the extension
+ * never sees the storage domain.
+ *
+ * Falls back to direct navigation if fetch fails (CORS, offline, etc).
  */
-export function openFileExternally(url: string, _fileName?: string): void {
+export async function openFileExternally(url: string, fileName?: string): Promise<void> {
   if (!url) return;
 
+  // Try blob strategy first (bypasses adblockers blocking *.supabase.co)
   try {
-    // Inside an iframe (preview / embedded shells): pop out to the top window.
+    const res = await fetch(url, { credentials: "omit" });
+    if (res.ok) {
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Pop out of iframe if needed
+      const target =
+        typeof window !== "undefined" && window.top && window.top !== window.self
+          ? window.top
+          : window;
+
+      try {
+        const opened = window.open(blobUrl, "_blank", "noopener,noreferrer");
+        if (!opened) {
+          target.location.href = blobUrl;
+        }
+      } catch {
+        target.location.href = blobUrl;
+      }
+
+      // Revoke after a delay so the new tab has time to load
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      return;
+    }
+  } catch {
+    // fall through to direct navigation
+  }
+
+  // Fallback: direct navigation
+  try {
     if (typeof window !== "undefined" && window.top && window.top !== window.self) {
       try {
         window.top.location.href = url;
         return;
       } catch {
-        // cross-origin top — fall through to window.open
+        /* cross-origin top */
       }
     }
-
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (opened) return;
-  } catch {
-    // ignore and fall through
-  }
-
-  // Last resort: navigate current tab.
-  try {
     window.location.href = url;
   } catch {
     /* no-op */
