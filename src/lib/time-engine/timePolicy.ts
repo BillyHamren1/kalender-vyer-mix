@@ -118,17 +118,11 @@ export function isNightLocal(atIso: string, np: NightPolicy = nightPolicy): bool
 export const localHour = (atIso: string): number => new Date(atIso).getHours();
 
 // ─── Auto-start evaluation ──────────────────────────────────────────────────
-
-export interface EvaluateAutoStartInput {
-  segment: GpsSegment;
-  match: TargetMatch;
-  atIso?: string;
-}
-
+//
 // SINGLE SOURCE OF TRUTH:
 //   `decideAutoStart()` i Deno (`supabase/functions/_shared/time-engine/decideAutoStart.ts`)
 //   är den enda funktionen som avgör om GPS får auto-starta tid.
-//   `evaluateAutoStart` har tagits bort för att inte ha två parallella
+//   `evaluateAutoStart` är borttagen för att inte ha två parallella
 //   verklighetsbilder. Frontend gör inga auto-start-beslut själv.
 
 // ─── Active classification (rule 5) ─────────────────────────────────────────
