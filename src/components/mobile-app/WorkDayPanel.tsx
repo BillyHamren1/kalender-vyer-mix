@@ -61,8 +61,8 @@ export const WorkDayPanel: React.FC = () => {
     if (stopping || !timer.timerId) return;
     setStopping(true);
     try {
-      const res = await mobileApi.stopLocationTimer({
-        entry_id: timer.timerId,
+      const res = await mobileApi.stopTimeRegistration({
+        registration_id: timer.timerId,
         stop_source: 'user_manual',
       });
       if (res?.success === false) {
@@ -72,7 +72,7 @@ export const WorkDayPanel: React.FC = () => {
         notifyChanged();
       }
     } catch (err) {
-      console.warn('[WorkDayPanel] stopLocationTimer failed:', err);
+      console.warn('[WorkDayPanel] stopTimeRegistration failed:', err);
       toast.error('Kunde inte stoppa timern. Försök igen.');
     } finally {
       setStopping(false);
@@ -86,8 +86,8 @@ export const WorkDayPanel: React.FC = () => {
     // If a timer is already running, stop it first to allow switching target.
     if (timer.timerActive && timer.timerId) {
       try {
-        await mobileApi.stopLocationTimer({
-          entry_id: timer.timerId,
+        await mobileApi.stopTimeRegistration({
+          registration_id: timer.timerId,
           stop_source: 'user_switch',
         });
       } catch (err) {
