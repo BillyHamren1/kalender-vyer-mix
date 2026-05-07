@@ -18,7 +18,7 @@
  * ingen UI-tolkning av råa tabellrader sker här.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   AlertTriangle,
