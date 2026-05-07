@@ -30,7 +30,7 @@ interface ProjectFilesProps {
 const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachments = [], className }: ProjectFilesProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string | null } | null>(null);
-  const [previewPdf, setPreviewPdf] = useState<{ url: string; name: string | null } | null>(null);
+  
 
   const isPdfFile = (file: { file_type?: string | null; file_name?: string | null; url: string }) =>
     file.file_type?.includes('pdf') || /\.pdf($|\?)/i.test(file.file_name || file.url);
