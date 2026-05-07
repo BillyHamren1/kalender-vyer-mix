@@ -1033,6 +1033,8 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     active,
     totals,
     segments,
+    segmentSource: gpsChainProducedSegments ? "gps_chain" : "gps_unavailable_or_not_built",
+    rawEvidence,
     flags: dayFlags,
     actionsNeeded,
     intelligenceState,
