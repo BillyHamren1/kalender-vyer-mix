@@ -488,54 +488,15 @@ const GlobalActiveTimerBanner: React.FC = () => {
   const hasSyncWarning =
     stalePing || serverOnlyEntries.length > 0 || localOnlyKeys.length > 0;
 
+  // SINGLE-TIMER UI MODEL: WorkDayPanel är den enda synliga timern. Denna
+  // komponent renderar inte längre timer-rader, sync-warnings eller
+  // server-only-rader — den lever kvar för EOD/stop-flödet (request-end-day
+  // event + EndOfDayStopDialog). All visuell information om aktiv timer
+  // kommer från useActiveTimerStatus i WorkDayPanel.
   return (
     <>
-      {(stalePing || serverOnlyEntries.length > 0 || (showActivityRows && timers.size > 0) || (onJobsPage && hasSyncWarning)) && (
-        <div className="relative z-20 px-5 pt-3 space-y-2">
-          {stalePing && (
-            <div className="flex items-center gap-2 p-2 rounded-xl border border-warning/40 bg-warning/10 text-xs">
-              <WifiOff className="w-3.5 h-3.5 text-warning shrink-0" />
-              <span className="flex-1">
-                {'Signal tappad — arbetsdagen fortsätter, kontrollera status.'}
-              </span>
-            </div>
-          )}
-          {serverOnlyEntries.map((e) => (
-            <ServerEntryRow
-              key={`server-only-${e.id}`}
-              entry={e}
-              onStop={handleStopServerEntry}
-              onCorrect={() => navigate('/m/report')}
-              onRehydrate={() => { void refreshActiveDayState(); }}
-            />
-          ))}
-          {showActivityRows && Array.from(timers.entries()).map(([key, timer]) => (
-            <TimerRow
-              key={key}
-              timerKey={key}
-              timer={timer}
-              isSaving={savingKeys.has(key)}
-              onStop={handleStop}
-              syncProblem={localOnlyKeys.includes(key)}
-            />
-          ))}
-          {/* På /m/jobs visar vi bara TimerRow när det är ett synkproblem som
-              WorkDayPanel inte kan kommunicera (server-only finns ovan, men
-              local-only måste också synas). */}
-          {!showActivityRows && Array.from(timers.entries())
-            .filter(([key]) => localOnlyKeys.includes(key))
-            .map(([key, timer]) => (
-              <TimerRow
-                key={key}
-                timerKey={key}
-                timer={timer}
-                isSaving={savingKeys.has(key)}
-                onStop={handleStop}
-                syncProblem
-              />
-            ))}
-        </div>
-      )}
+      {/* (timer-rader och sync-warnings borttagna — visas i WorkDayPanel) */}
+
       {/* Start/End day CTA moved into centered MobileHeader controls so the
           day clock and the primary action live in one obvious place. */}
       {pendingStop && (

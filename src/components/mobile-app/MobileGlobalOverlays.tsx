@@ -651,11 +651,13 @@ const MobileGlobalOverlays: React.FC = () => {
 
   return (
     <>
-      {/* Visual banners — render at mount position in the JSX tree */}
+      {/* SINGLE-TIMER UI: GlobalActiveTimerBanner och AutoArrivalNotice
+          renderar ingen synlig banner längre. Banner-komponenten är kvar
+          mountad eftersom den driver request-end-day / EOD-dialog-flödet. */}
       <GlobalActiveTimerBanner />
-      <AutoArrivalNotice />
       <TravelBanner travelState={travelState} elapsedSeconds={elapsedSeconds} onStop={manualStopTravel} />
       {unplannedVisit && <UnplannedVisitBanner visit={unplannedVisit} onEnd={endUnplannedVisit} />}
+
 
       {/* Portaled dialogs */}
       {completedTravel && !completedTravel.autoFlow && (
