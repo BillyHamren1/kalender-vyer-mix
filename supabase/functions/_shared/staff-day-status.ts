@@ -298,6 +298,9 @@ export interface IntelligenceState {
 
 import { buildTrackingPolicy, type BoostRow as TrackingPolicyBoostRow, type TrackingPolicy } from "./trackingPolicy.ts";
 import { buildSegmentChainGaps } from "./segmentChain.ts";
+import { clusterPings } from "./timeline/cluster.ts";
+import { matchSegmentsToPlaces } from "./timeline/matcher.ts";
+import { minutesBetween } from "./timeline/geo.ts";
 export type { TrackingPolicy, TrackingPolicyBoostRow };
 
 export interface StaffDaySnapshot {
