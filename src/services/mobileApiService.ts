@@ -755,8 +755,17 @@ export const mobileApi = {
   uploadLagerFile: (data: { file_name: string; file_data: string; file_type: string }) =>
     callApi<{ success: boolean; file: any }>('upload_lager_file', data),
 
-  stopLocationTimer: (data: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string }) =>
-    callApi<{ success?: boolean; entry: any }>('stop_location_timer', data),
+  // Unified timer stop (Time Engine v2). Forwards to `stop_time_registration`.
+  stopLocationTimer: async (data: { location_id?: string; booking_id?: string; large_project_id?: string; entry_id?: string; stop_source?: string; stopped_at?: string }) => {
+    const res = await callApi<{ success?: boolean; registration: any }>('stop_time_registration', {
+      registration_id: data.entry_id ?? null,
+      stop_source: data.stop_source ?? 'user_manual',
+      stopped_at: data.stopped_at,
+    });
+    const reg = res?.registration ?? null;
+    return { success: res?.success, entry: reg };
+  },
+
 
   /** Stoppa en server-öppen LTE direkt (banner: server-only timer). Skapar
    * time_report om target kräver det och returnerar uppdaterad active_day_state. */
