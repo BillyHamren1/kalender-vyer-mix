@@ -294,6 +294,7 @@ export default function TimeIntelligenceDebug() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showWarehouseCheck, setShowWarehouseCheck] = useState(false);
 
   useEffect(() => {
     (async () => {
