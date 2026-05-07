@@ -117,6 +117,12 @@ export interface StaffDayTrackingPolicy {
   mode: StaffDayTrackingMode;
   heartbeatMs: number;
   distanceFilter: number;
+  // Heartbeat contract (backend-owned)
+  expectedHeartbeatMs: number;
+  maxSilenceMs: number;
+  lastPingAt: string | null;
+  isSignalStale: boolean;
+  silenceMs?: number | null;
   expiresAt?: string | null;
   reason?: string | null;
   targetId?: string | null;
@@ -125,9 +131,8 @@ export interface StaffDayTrackingPolicy {
   recommendedMode?: 'active_timer' | 'workday_active' | 'idle';
   hasActiveTimer?: boolean;
   workdayOpen?: boolean;
-  // Optional discreet signal hints (kept from previous version)
+  // Backwards-compat alias (older UI used lastSignalAt / signalStaleSinceMin)
   lastSignalAt?: string | null;
-  isSignalStale?: boolean;
   signalStaleSinceMin?: number | null;
 }
 
