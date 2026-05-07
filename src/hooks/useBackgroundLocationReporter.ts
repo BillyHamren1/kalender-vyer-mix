@@ -153,7 +153,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     selectedHeartbeatMs: DEFAULT_HEARTBEAT_MS,
     selectedDistanceFilter: DEFAULT_DISTANCE_FILTER,
     nearestTargetDistanceMeters: null,
-    hasActiveTimer: false,
+    hasActiveTimer: readHasActiveSession(),
     hasPendingArrival: false,
     lastPingAt: null,
     lastUploadAt: null,
