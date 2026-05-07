@@ -167,15 +167,57 @@ export interface ActiveActivity {
 }
 
 export interface DayTotals {
-  workdayMinutes: number;          // total payable workday duration
-  allocatedProjectMinutes: number; // sum of time_reports
-  travelMinutes: number;           // sum of travel logs
-  /** workday - allocated - travel (>=0). Includes unknown-inside-workday. */
+  // ---- Canonical v2 model ----
+  /** Workday start → end (or now if open). Bruttotid. */
+  grossWorkdayMinutes: number;
+  /** Endast användar-/admin-attesterad rast (time_reports.break_time + ev. workday-attest). */
+  breakMinutes: number;
+  /** Endast admin/manuell korrigering (workday.metadata.manual_deduction_minutes). */
+  manualDeductionMinutes: number;
+  /** gross - break - manual deduction. Other_place + transport drar INTE av. */
+  payableMinutes: number;
+  /** Tid på bekräftade projekt/bookings (time_reports + project/booking-LTE). */
+  projectMinutes: number;
+  /** Tid på lager / arbetsrelaterad location. */
+  warehouseMinutes: number;
+  /** Transport inom arbetsdag (räknas, drar inte av). */
+  transportMinutes: number;
+  /** Okänd plats inom arbetsdag (räknas, drar inte av). */
+  otherPlaceMinutes: number;
+
+  // ---- Legacy fields (kept for backward compat with existing UI) ----
+  workdayMinutes: number;
+  allocatedProjectMinutes: number;
+  travelMinutes: number;
   unallocatedMinutes: number;
-  /** Subset of unallocated: unknown vistelser inom arbetsdagen. */
   unknownWithinWorkdayMinutes: number;
-  liveMinutes: number;             // current active location duration
+  liveMinutes: number;
   isWorkdayOpen: boolean;
+}
+
+export interface ActionNeeded {
+  id: string;
+  type: string;
+  severity: "info" | "warning" | "error";
+  title: string;
+  description: string | null;
+  needsUserInput: boolean;
+}
+
+export interface IntelligenceState {
+  /** Hard rules only — AI not used in this step. */
+  mode: "hard_rules_only";
+  workdayBackdated: boolean;
+  workdaySynthesized: boolean;
+  hasOtherPlace: boolean;
+  hasTransport: boolean;
+}
+
+export interface TrackingPolicy {
+  /** Hint for client adaptive location mode. */
+  recommendedMode: "active_timer" | "workday_active" | "idle";
+  hasActiveTimer: boolean;
+  workdayOpen: boolean;
 }
 
 export interface StaffDaySnapshot {
@@ -202,6 +244,9 @@ export interface StaffDaySnapshot {
   totals: DayTotals;
   segments: DaySegment[];
   flags: DayFlag[];
+  actionsNeeded: ActionNeeded[];
+  intelligenceState: IntelligenceState;
+  trackingPolicy: TrackingPolicy;
   assistantEvents: Array<{
     id: string;
     type: string;
