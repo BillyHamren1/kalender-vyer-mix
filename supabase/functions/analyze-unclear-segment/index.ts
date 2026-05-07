@@ -227,6 +227,32 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "staff_id,segment_id" });
 
+    // ── Audit + rebuild ────────────────────────────────────────────────────
+    await logDayDecision(supabase, {
+      organizationId: orgId!,
+      staffId: body.staff_id,
+      dayDate: body.date,
+      segmentId: seg.segment_id,
+      actor: "ai",
+      action: "ai_segment_analysis",
+      before: { segment_kind: seg.kind },
+      after: {
+        suggestedType: aiResult.suggestedType,
+        needsUserInput: aiResult.needsUserInput,
+        userQuestion: aiResult.userQuestion ?? null,
+      },
+      reason: aiResult.explanation,
+      confidence: aiResult.confidence,
+      sourceFunction: "analyze-unclear-segment",
+    });
+    await enqueueDayRebuild(supabase, {
+      organizationId: orgId!,
+      staffId: body.staff_id,
+      dayDate: body.date,
+      reason: "ai_analysis",
+      requestedBy: "analyze-unclear-segment",
+    });
+
     return json({ cached: false, result: aiResult });
   } catch (err) {
     console.error("[analyze-unclear-segment] error", err);
