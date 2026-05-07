@@ -656,6 +656,65 @@ function PingFirstPanel({ data }: { data: any }) {
   );
 }
 
+function ThreeLayerPanel({ result }: { result: any }) {
+  const raw = result?.rawPingsCoverage ?? null;
+  const gps = result?.gpsDayTimeline ?? null;
+  const pay = result?.payableSnapshot ?? null;
+  const cc = result?.compactCounts ?? {};
+  const warnings: string[] = Array.isArray(result?.warnings) ? result.warnings : [];
+  const clipped = warnings.includes("gps_day_timeline_is_clipped_to_workday");
+
+  return (
+    <Card className="border-primary/40">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">GPS-tidslinje vs Arbetstidssnapshot (3 lager)</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {clipped && (
+          <div className={`rounded-md border px-3 py-2 text-xs font-mono ${TONE_CLASS.bad}`}>
+            ⚠ gps_day_timeline_is_clipped_to_workday — pings finns utanför workday-fönstret men GPS-timelinen täcker bara workday.
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+          <StatusPill tone={cc.rawPingCount > 0 ? "ok" : "bad"} label="rawPingCount" detail={String(cc.rawPingCount ?? "—")} />
+          <StatusPill tone={cc.gpsDayTimelineCount > 0 ? "ok" : "warn"} label="gpsDayTimelineCount" detail={String(cc.gpsDayTimelineCount ?? "—")} />
+          <StatusPill tone={cc.snapshotSegmentsCount > 0 ? "ok" : "warn"} label="snapshotSegmentsCount" detail={String(cc.snapshotSegmentsCount ?? "—")} />
+          <StatusPill tone={cc.workdayStart ? "ok" : "warn"} label="workdayStart" detail={fmtTime(cc.workdayStart)} />
+          <StatusPill tone={cc.workdayEnd ? "ok" : "warn"} label="workdayEnd" detail={fmtTime(cc.workdayEnd)} />
+          <StatusPill tone={cc.workdayDurationMinutes != null ? "ok" : "neutral"} label="workdayDurationMin" detail={cc.workdayDurationMinutes != null ? `${cc.workdayDurationMinutes} min` : "—"} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className="rounded-md border p-3 space-y-1">
+            <div className="text-xs font-semibold uppercase opacity-70">1. rawPingsCoverage</div>
+            <div className="text-xs font-mono">Pings: {raw?.pingCount ?? 0}</div>
+            <div className="text-xs font-mono">Första: {fmtTime(raw?.firstPingAt)}</div>
+            <div className="text-xs font-mono">Sista: {fmtTime(raw?.lastPingAt)}</div>
+            <div className="text-xs font-mono opacity-70">Gaps &gt;10min: {raw?.pingGapsOver10MinCount ?? 0}</div>
+          </div>
+          <div className="rounded-md border p-3 space-y-1">
+            <div className="text-xs font-semibold uppercase opacity-70">2. gpsDayTimeline (all_pings)</div>
+            <div className="text-xs font-mono">Segments: {gps?.count ?? gps?.totalSegments ?? 0}</div>
+            <div className="text-xs font-mono">Första start: {fmtTime(gps?.firstStart)}</div>
+            <div className="text-xs font-mono">Sista slut: {fmtTime(gps?.lastEnd)}</div>
+            <div className="text-xs font-mono opacity-70">Source: {gps?.source ?? "—"}</div>
+          </div>
+          <div className={`rounded-md border p-3 space-y-1 ${clipped ? TONE_CLASS.warn : ""}`}>
+            <div className="text-xs font-semibold uppercase opacity-70">3. payableSnapshot (workday)</div>
+            <div className="text-xs font-mono">Workday: {fmtTime(pay?.workdayStart)}–{fmtTime(pay?.workdayEnd)}</div>
+            <div className="text-xs font-mono">Längd: {pay?.workdayDurationMinutes != null ? `${pay.workdayDurationMinutes} min` : "—"}</div>
+            <div className="text-xs font-mono">Segments: {pay?.segmentsCount ?? 0}</div>
+            <div className="text-xs font-mono opacity-70">
+              {pay?.workdayApproved ? "approved" : pay?.workdayIsOpen ? "open" : pay?.workdayStart ? "closed" : "no workday"}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface StaffOption { id: string; name: string; }
 
 interface BatchRow {
@@ -1016,6 +1075,7 @@ export default function TimeIntelligenceDebug() {
           </div>
 
           <PingFirstPanel data={pingFirst} />
+          <ThreeLayerPanel result={result} />
           <StatusGrid result={result} />
           <DayTimeline result={result} />
           <EvidenceTimeline result={result} />

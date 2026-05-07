@@ -301,7 +301,15 @@ Deno.serve(async (req) => {
 
   const SEGMENT_RETURN_CAP = 200;
   const returnedSegments = timeline.segments.slice(0, SEGMENT_RETURN_CAP);
+  const gpsFirstStart = timeline.segments.length > 0 ? timeline.segments[0].startTs : null;
+  const gpsLastEnd = timeline.segments.length > 0 ? timeline.segments[timeline.segments.length - 1].endTs : null;
   const gpsDayTimeline = {
+    // Canonical field names (aliases for visibility)
+    count: timeline.segments.length,
+    firstStart: gpsFirstStart,
+    lastEnd: gpsLastEnd,
+    source: "all_pings" as const,
+    // Legacy/extended fields
     rawPingCount: timeline.rawPingCount,
     firstPingAt: timeline.firstPingAt,
     lastPingAt: timeline.lastPingAt,
@@ -312,6 +320,83 @@ Deno.serve(async (req) => {
     returnedSegments: returnedSegments.length,
     truncated: timeline.segments.length > returnedSegments.length,
     segments: returnedSegments,
+  };
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 3b) payableSnapshot — visibility-only read of workday/attest
+  //     Bypasses the legacy-leak proxy intentionally; this is debug, not engine.
+  // ════════════════════════════════════════════════════════════════════════
+  let payableSnapshot: any = null;
+  try {
+    const { data: wdRows } = await realClient
+      .from("workdays")
+      .select("id, started_at, ended_at, approved_at, status")
+      .eq("staff_id", staffId)
+      .gte("started_at", dayStart)
+      .lte("started_at", dayEnd)
+      .order("started_at", { ascending: true });
+    const wd = (wdRows ?? [])[0] ?? null;
+    const wdStart = wd?.started_at ?? null;
+    const wdEnd = wd?.ended_at ?? null;
+    const wdDurationMinutes = wdStart && wdEnd
+      ? Math.round((new Date(wdEnd).getTime() - new Date(wdStart).getTime()) / 60000)
+      : null;
+    // Filter GPS segments to workday window for payable visibility
+    let snapshotSegments: GpsTimelineSegment[] = [];
+    if (wdStart) {
+      const wsMs = new Date(wdStart).getTime();
+      const weMs = wdEnd ? new Date(wdEnd).getTime() : Date.now();
+      snapshotSegments = timeline.segments.filter((s) => {
+        const sMs = new Date(s.startTs).getTime();
+        const eMs = new Date(s.endTs).getTime();
+        return eMs >= wsMs && sMs <= weMs;
+      });
+    }
+    payableSnapshot = {
+      workdayStart: wdStart,
+      workdayEnd: wdEnd,
+      workdayDurationMinutes: wdDurationMinutes,
+      workdayIsOpen: !!wd && !wdEnd,
+      workdayApproved: !!wd?.approved_at,
+      workdayStatus: wd?.status ?? null,
+      workdayCount: (wdRows ?? []).length,
+      segmentSource: "gps_day_timeline_clipped_to_workday",
+      segmentsCount: snapshotSegments.length,
+      segments: snapshotSegments.slice(0, SEGMENT_RETURN_CAP),
+    };
+  } catch (e) {
+    payableSnapshot = { error: String((e as any)?.message ?? e) };
+  }
+
+  // Clipping detector: did pings exist outside the workday window but our
+  // GPS timeline appears to only span it?
+  if (
+    rawPings.length > 0 &&
+    payableSnapshot?.workdayStart &&
+    payableSnapshot?.workdayEnd &&
+    gpsFirstStart &&
+    gpsLastEnd
+  ) {
+    const firstPingMs = new Date(rawPings[0].recorded_at).getTime();
+    const lastPingMs = new Date(rawPings[rawPings.length - 1].recorded_at).getTime();
+    const wsMs = new Date(payableSnapshot.workdayStart).getTime();
+    const weMs = new Date(payableSnapshot.workdayEnd).getTime();
+    const tlStartMs = new Date(gpsFirstStart).getTime();
+    const tlEndMs = new Date(gpsLastEnd).getTime();
+    const pingsExtendOutside = firstPingMs < wsMs - 60_000 || lastPingMs > weMs + 60_000;
+    const timelineHugsWorkday = tlStartMs >= wsMs - 60_000 && tlEndMs <= weMs + 60_000;
+    if (pingsExtendOutside && timelineHugsWorkday) {
+      warnings.push("gps_day_timeline_is_clipped_to_workday");
+    }
+  }
+
+  const compactCounts = {
+    rawPingCount: rawPings.length,
+    gpsDayTimelineCount: gpsDayTimeline.count,
+    snapshotSegmentsCount: payableSnapshot?.segmentsCount ?? 0,
+    workdayStart: payableSnapshot?.workdayStart ?? null,
+    workdayEnd: payableSnapshot?.workdayEnd ?? null,
+    workdayDurationMinutes: payableSnapshot?.workdayDurationMinutes ?? null,
   };
 
   if (rawPings.length === 0) warnings.push("no_pings_for_day");
@@ -466,6 +551,8 @@ Deno.serve(async (req) => {
     rawPingsCoverage,
     targetDiagnostics: targetDiagnosticsBlock,
     gpsDayTimeline,
+    payableSnapshot,
+    compactCounts,
     autoStartDecisions,
     activeTimeRegistrationPreview,
     legacyLeakCheck,
