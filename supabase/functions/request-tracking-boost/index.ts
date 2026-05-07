@@ -80,6 +80,62 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (staffErr || !staff) return bad(404, "staff_not_found");
 
+  // ── Rate limit: max 5 boosts per staff per rolling hour ────────────
+  const oneHourAgo = new Date(Date.now() - 60 * 60_000).toISOString();
+  const { count: recentCount } = await admin
+    .from("tracking_policy_boosts")
+    .select("id", { count: "exact", head: true })
+    .eq("staff_id", staffId)
+    .gte("created_at", oneHourAgo);
+  if ((recentCount ?? 0) >= 5) {
+    return bad(429, "rate_limited_max_5_per_hour");
+  }
+
+  // ── Per-target cooldown: refuse if user dismissed this target ──────
+  if (targetType && targetId) {
+    const targetKey = `${targetType}:${targetId}`;
+    const { data: dismiss } = await admin
+      .from("tracking_boost_dismissals")
+      .select("id, expires_at")
+      .eq("staff_id", staffId)
+      .eq("target_key", targetKey)
+      .gt("expires_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+    if (dismiss) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          skipped: "dismissed_cooldown_active",
+          targetKey,
+          cooldownUntil: dismiss.expires_at,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
+
+  // ── Per-target boost cooldown: don't stack on top of a still-active boost ──
+  if (targetType && targetId) {
+    const { data: existing } = await admin
+      .from("tracking_policy_boosts")
+      .select("id, expires_at")
+      .eq("staff_id", staffId)
+      .eq("target_id", targetId)
+      .eq("target_type", targetType)
+      .eq("consumed", false)
+      .gt("expires_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      return new Response(
+        JSON.stringify({ ok: true, boost: existing, deduped: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
+
+  // expiresAt is also clamped server-side by clamp_tracking_boost_expiry trigger (max 5 min).
   const expiresAt = new Date(Date.now() + durationSeconds * 1000).toISOString();
 
   const { data: ins, error: insErr } = await admin
