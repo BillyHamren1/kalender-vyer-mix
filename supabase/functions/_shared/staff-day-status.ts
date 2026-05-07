@@ -923,16 +923,15 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     hasTransport: totals.transportMinutes > 0,
   };
 
-  // ---- Tracking policy hint (for adaptive client location mode) ----
-  const trackingPolicy: TrackingPolicy = {
-    recommendedMode: active
-      ? "active_timer"
-      : workdaySnap?.isOpen
-      ? "workday_active"
-      : "idle",
+  // ---- Tracking policy (server-authoritative; merges DB boosts) ----
+  const trackingPolicy: TrackingPolicy = buildTrackingPolicy({
     hasActiveTimer: !!active,
     workdayOpen: !!workdaySnap?.isOpen,
-  };
+    activeBoosts: input.activeBoosts ?? [],
+    batteryPct: input.batteryPct ?? null,
+    dismissedCooldownActive: !!input.dismissedCooldownActive,
+    now,
+  });
 
   return {
     date,
