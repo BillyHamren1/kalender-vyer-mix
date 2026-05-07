@@ -833,6 +833,7 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
   // ---- Central segment chain: fyll glapp inom workday med
   // transport / other_place / signal_stale (saknad ping ≠ glapp).
   // Endast om vi har en workday och pings att basera klassningen på.
+  let gpsChainProducedSegments = false;
   if (effectivePolicyWorkday) {
     try {
       const chainGaps = buildSegmentChainGaps({
