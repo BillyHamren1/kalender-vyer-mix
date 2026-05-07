@@ -167,6 +167,7 @@ export interface AutoStartEvidence {
   timeTrackingAllowed?: boolean;
   assignedToUserToday?: boolean;
   explicitlyAllowed?: boolean;
+  targetSource?: AnyTargetSource | null;
   policyUsed: 'day' | 'night';
 }
 
