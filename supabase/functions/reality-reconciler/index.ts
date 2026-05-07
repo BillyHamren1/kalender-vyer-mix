@@ -163,7 +163,15 @@ async function tryDeterministicRules(
     }
   }
 
-  // Rule 3: stale_workday — no activity, no recent GPS
+  // Rule 3: stale_workday — DISABLED (2026-05-07)
+  //
+  // POLICY: Saknad GPS / tyst telefon / "ingen aktivitet" får ALDRIG ensam
+  // stänga arbetsdagen. Tidigare stängde denna regel `workdays.ended_at`
+  // automatiskt på senaste ping, vilket drog av tid utan användarens
+  // medverkan. Det är inte godkänt.
+  //
+  // Vi loggar fortfarande situationen som `signal_stale` (suggested, ej
+  // applied) så admin kan se det, men ingen mutation av workday görs.
   if (sit.open_workday && !sit.open_travel && sit.open_location_entries.length === 0) {
     const idleHours = sit.latest_ping
       ? hoursBetween(sit.latest_ping.recorded_at, sit.now_iso)
@@ -173,25 +181,19 @@ async function tryDeterministicRules(
       workdayHours >= STALE_WORKDAY_MIN_IDLE_HOURS &&
       idleHours >= STALE_WORKDAY_MIN_GPS_GAP_HOURS
     ) {
-      const closeIso = sit.latest_ping?.recorded_at || sit.open_workday.started_at;
-      const r = await applyCloseStaleWorkday(supabase, {
-        workdayId: sit.open_workday.id,
-        atIso: closeIso,
-      });
-      results.push({ action: 'close_stale_workday', at: closeIso, ...r });
       await logCorrection(supabase, {
         organization_id: sit.organization_id,
         staff_id: sit.staff_id,
-        situation_kind: 'stale_workday',
-        confidence: 0.88,
-        ai_reasoning: `Arbetsdag öppen sedan ${sit.open_workday.started_at}. Ingen aktivitet senaste ${STALE_WORKDAY_MIN_IDLE_HOURS}h och senaste GPS-ping ${idleHours.toFixed(1)}h gammal.`,
+        situation_kind: 'signal_stale',
+        confidence: 0.5,
+        ai_reasoning: `Arbetsdag öppen sedan ${sit.open_workday.started_at}. Ingen GPS-signal senaste ${idleHours.toFixed(1)}h. Endast informativt — workday stängs INTE automatiskt (policy: tyst telefon ≠ stängd dag).`,
         ai_model: 'deterministic_rules',
         situation_snapshot: sit,
-        suggested_actions: [{ kind: 'close_stale_workday', workday_id: sit.open_workday.id, at: closeIso }],
-        applied_actions: results,
-        status: 'applied',
+        suggested_actions: [],
+        applied_actions: [],
+        status: 'suggested',
       });
-      return { applied: true, results };
+      // Do NOT return — fall through to other rules; nothing was applied.
     }
   }
 

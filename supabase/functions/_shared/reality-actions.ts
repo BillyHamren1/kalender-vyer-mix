@@ -131,27 +131,27 @@ export async function applyCloseStaleLocation(
 }
 
 /**
- * Close an open workday at `atIso` (typically last activity timestamp).
+ * DEPRECATED / DISABLED (2026-05-07).
+ *
+ * POLICY: Saknad GPS, tyst telefon eller "ingen aktivitet" får ALDRIG ensam
+ * stänga arbetsdagen. Den här funktionen användes av reality-reconciler för
+ * att auto-stänga workday baserat på gammal ping — det är inte godkänt
+ * längre. Vi behåller signaturen som no-op så att eventuella externa
+ * anrop inte kraschar, men workday muteras INTE.
  */
 export async function applyCloseStaleWorkday(
-  supabase: any,
+  _supabase: any,
   args: { workdayId: string; atIso: string },
 ): Promise<ActionResult> {
-  const { data: wd, error: gErr } = await supabase
-    .from('workdays')
-    .select('id, ended_at')
-    .eq('id', args.workdayId)
-    .single();
-  if (gErr || !wd) return { ok: false, changed: false, error: 'workday_not_found' };
-  if (wd.ended_at) return { ok: true, changed: false, detail: { reason: 'already_ended' } };
-
-  const { error: uErr } = await supabase
-    .from('workdays')
-    .update({ ended_at: args.atIso, ended_by: 'ai_reconciled' })
-    .eq('id', args.workdayId)
-    .is('ended_at', null);
-  if (uErr) return { ok: false, changed: false, error: uErr.message };
-  return { ok: true, changed: true, detail: { closed_workday_id: args.workdayId } };
+  return {
+    ok: true,
+    changed: false,
+    detail: {
+      reason: 'auto_close_disabled_policy',
+      workday_id: args.workdayId,
+      requested_at: args.atIso,
+    },
+  };
 }
 
 /**
