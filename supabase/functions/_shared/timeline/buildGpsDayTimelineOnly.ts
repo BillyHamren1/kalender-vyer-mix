@@ -45,6 +45,7 @@ export type GpsSegmentType =
   | "known_site"
   | "unknown_place"
   | "transport"
+  | "single_ping_movement"
   | "gps_gap";
 
 export interface GpsTimelineSegment {
