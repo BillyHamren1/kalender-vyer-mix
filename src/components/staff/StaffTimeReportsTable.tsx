@@ -86,6 +86,8 @@ interface JournalTableProps {
   blocks: StaffBlock[];
   date: string;
   onSelectStaff: (id: string, name: string) => void;
+  /** When true, skip UI smoothing of GPS rows (for Time Debug). */
+  debugMode?: boolean;
 }
 
 interface EditTargetPayload {
@@ -188,7 +190,8 @@ const StaffBlockRows: React.FC<{
   onSelectStaff: (id: string, name: string) => void;
   onEditTimeReport: (target: EditTargetPayload) => void;
   onStopSession: (target: StopTargetPayload) => void;
-}> = ({ block: b, date, onSelectStaff, onEditTimeReport, onStopSession }) => {
+  debugMode?: boolean;
+}> = ({ block: b, date, onSelectStaff, onEditTimeReport, onStopSession, debugMode }) => {
   const { visits, travels } = useDayPlaceVisits(b.staffId, date, true);
 
   const geocodeTargets = useMemo(
@@ -198,8 +201,8 @@ const StaffBlockRows: React.FC<{
   const visitLabels = useReverseGeocode(geocodeTargets);
 
   const actualRows = useMemo<ActualDayRow[]>(() => {
-    return buildActualDayRows(visits, travels, visitLabels);
-  }, [travels, visitLabels, visits]);
+    return buildActualDayRows(visits, travels, visitLabels, { preserveRawSegments: !!debugMode });
+  }, [travels, visitLabels, visits, debugMode]);
 
   const useActualRows = actualRows.length > 0;
   const blockRowSpan = 4 + Math.max(useActualRows ? actualRows.length : b.sessions.length, 1);
@@ -465,7 +468,7 @@ const StaffBlockRows: React.FC<{
  *   Rad 3: Sub-header (Projekt | Timerstart | Geo (start) | Varaktighet | Timerslut | Geo (slut) | Åtgärder)
  *   Rad 4+: en rad per session
  */
-export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSelectStaff }) => {
+export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSelectStaff, debugMode }) => {
   const [editTarget, setEditTarget] = useState<EditTargetPayload | null>(null);
   const [stopTarget, setStopTarget] = useState<StopTargetPayload | null>(null);
 
@@ -491,6 +494,7 @@ export const JournalTable: React.FC<JournalTableProps> = ({ blocks, date, onSele
               onSelectStaff={onSelectStaff}
               onEditTimeReport={setEditTarget}
               onStopSession={setStopTarget}
+              debugMode={debugMode}
             />
           ))}
 
