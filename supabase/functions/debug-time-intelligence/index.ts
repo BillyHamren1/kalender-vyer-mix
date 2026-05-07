@@ -241,19 +241,27 @@ Deno.serve(async (req) => {
     if (r.dest_large_project_id) refLargeIds.add(r.dest_large_project_id);
   }
 
-  // Find bookings/large_projects assigned to this staff on this date (BSA),
+  // Find bookings assigned to this staff on this date (BSA),
   // so candidate set isn't limited to records that already produced TR/LTE.
   const assignedBookingIds = new Set<string>();
   const assignedLargeIds = new Set<string>();
   if (organizationId) {
     const { data: bsaRows } = await supabase
       .from("booking_staff_assignments")
-      .select("booking_id, large_project_id")
+      .select("booking_id")
       .eq("staff_id", staffId)
-      .eq("date", date)
+      .eq("assignment_date", date)
       .limit(200);
     for (const r of (bsaRows ?? []) as any[]) {
       if (r.booking_id) assignedBookingIds.add(r.booking_id);
+    }
+    const { data: lpta } = await supabase
+      .from("large_project_team_assignments")
+      .select("large_project_id, assignment_date")
+      .eq("staff_id", staffId)
+      .eq("assignment_date", date)
+      .limit(50);
+    for (const r of (lpta ?? []) as any[]) {
       if (r.large_project_id) assignedLargeIds.add(r.large_project_id);
     }
   }
