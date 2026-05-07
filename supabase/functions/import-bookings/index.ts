@@ -1556,7 +1556,32 @@ const checkProductChanges = async (
     console.error(`Error fetching existing products for ${bookingId}:`, error);
     return { changed: false, added: [], removed: [], updated: [], existingProducts: [] };
   }
-  
+
+  // GUARD: Treat empty external payload as transient/missing source, NOT as deletion intent.
+  // The upstream booking system can momentarily return products: [] during its own
+  // delete+reinsert cycle. We must NEVER wipe local products in that window.
+  const externalCount = Array.isArray(externalProducts) ? externalProducts.length : 0;
+  const localCount = (existingProducts || []).length;
+  if (externalCount === 0 && localCount > 0) {
+    console.warn(`[Product Sync GUARD] booking ${bookingId}: external products is empty but ${localCount} exist locally — treating as transient_empty_source, skipping all product mutations`);
+    try {
+      await supabase.from('sync_audit_log').insert({
+        booking_id: bookingId,
+        sync_action: 'product_sync_skipped',
+        booking_status: 'unknown',
+        booking_dates: {},
+        expected_events: { external_count: 0, local_count: localCount, reason: 'transient_empty_source' },
+        actual_events: {},
+        events_created: 0,
+        events_updated: 0,
+        events_deleted: 0,
+        has_mismatch: true,
+        mismatch_details: 'external products empty while local has rows — destructive sync skipped',
+      });
+    } catch (_) { /* audit best-effort */ }
+    return { changed: false, added: [], removed: [], updated: [], existingProducts: existingProducts || [] };
+  }
+
   const existingMap = new Map((existingProducts || []).map((p: any) => [(p.name || '').trim().toLowerCase(), p]));
   const externalMap = new Map((externalProducts || []).map(p => [(p.name || p.product_name || '').trim().toLowerCase(), p]));
   
