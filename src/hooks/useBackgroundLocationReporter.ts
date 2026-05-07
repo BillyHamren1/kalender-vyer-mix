@@ -108,6 +108,17 @@ function readHasActiveTimer(): boolean {
   }
 }
 
+/**
+ * Combined "i jobbet"-signal. Workday öppen ELLER aktivitetstimer igång
+ * → adaptiv mode ska välja active_timer (tät tracking). Workday-signalen
+ * kommer från backend via useWorkDay som speglar in i workdayActiveSignal;
+ * timer-cachen från useGeofencing. Båda är localStorage-fallbacks; sann
+ * authority är backend, men dessa är cheap reads för heartbeat-loopen.
+ */
+function readHasActiveSession(): boolean {
+  return isWorkdayActive() || readHasActiveTimer();
+}
+
 export interface BackgroundLocationDebugInfo {
   currentLocationMode: LocationMode | null;
   selectedHeartbeatMs: number;
