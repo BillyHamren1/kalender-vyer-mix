@@ -5792,8 +5792,35 @@ async function handleUploadLocationBatch(
         console.warn('[mobile-app-api] upload_location_batch staff_locations upsert error:', upsertErr)
       }
     }
-  } catch (presenceErr) {
-    console.warn('[mobile-app-api] upload_location_batch presence update failed:', presenceErr)
+  // ── 3. Drive the backend chain (NEW) ──
+  // GPS-upload is no longer passive: as soon as fresh pings land we run the
+  // server-side processStaffLocationUpdate so arrival/exit/switch/travel/
+  // workday-state all reflect the new reality. The app never decides this
+  // anymore — it just uploads pings.
+  //
+  // Only fire when the batch contains at least one *fresh* ping (<= 30 min old)
+  // so that pure backfill of historic logs doesn't trigger live mutations.
+  const FRESH_WINDOW_MS = 30 * 60 * 1000
+  const nowMs = Date.now()
+  const freshDates = new Set<string>()
+  for (const p of valid) {
+    if (nowMs - p.recordedMs > FRESH_WINDOW_MS) continue
+    freshDates.add(new Date(p.recordedMs).toISOString().slice(0, 10))
+  }
+  let chainSummary: any = null
+  if (freshDates.size > 0) {
+    try {
+      const summary = await processStaffLocationUpdate(supabase, {
+        staffId,
+        organizationId,
+        dates: Array.from(freshDates),
+        source: 'upload_location_batch',
+      })
+      chainSummary = summary
+    } catch (chainErr) {
+      // Never fail the upload because the downstream chain hiccupped.
+      console.warn('[mobile-app-api] processStaffLocationUpdate failed:', chainErr)
+    }
   }
 
   return new Response(
@@ -5802,6 +5829,7 @@ async function handleUploadLocationBatch(
       accepted,
       rejected,
       received: accepted.length,
+      chain: chainSummary,
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
