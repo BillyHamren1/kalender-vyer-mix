@@ -33,6 +33,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { clusterPings } from "../_shared/timeline/cluster.ts";
 import { matchSegmentsToPlaces } from "../_shared/timeline/matcher.ts";
+import {
+  buildGpsDayTimelineOnly,
+  type GpsTimelineSegment,
+} from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
 import type { KnownPlace, Ping, Segment } from "../_shared/timeline/types.ts";
 // Scenario suite (synthetic) still imports the legacy snapshot builder; that
 // only runs when mode === "scenarios" and never touches real workday data.
