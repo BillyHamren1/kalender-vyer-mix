@@ -4,11 +4,18 @@
  * Speglar `supabase/functions/_shared/time-engine/timePolicy.ts` 1:1.
  * Håll filerna i synk för hand — ingen cross-import över Deno/Vite-gränsen.
  *
- * UI får använda detta för debug-paneler och förklaringstexter, men
- * INTE för att skapa tid: kontraktet ActiveTimeRegistration.source
- * är fortsatt låst till 'user_timer'.
+ * HUVUDREGLER (samma som Deno-filen):
+ *   - GpsDayTimeline beskriver fysisk verklighet, inte arbetstid.
+ *   - AutoStartPolicy avgör om GPS får starta tid.
+ *   - GPS får starta tid när segmentet är stay + known_site + valid target +
+ *     dwell/pings/confidence uppfylls (dayPolicy/nightPolicy).
+ *   - GPS får INTE starta tid från movement, unknown_place, gps_gap,
+ *     low confidence, home/private eller test/demo.
+ *   - Under aktiv registration får GPS klassa segment som
+ *     project | booking | warehouse | transport | unknown_place | gps_uncertain.
  *
- * Se Deno-filens header för fullständiga huvudregler.
+ * Det officiella beslutet sker i `decideAutoStart()` (Deno). UI får
+ * använda denna fil för debug-paneler och förklaringstexter.
  */
 
 import type {
