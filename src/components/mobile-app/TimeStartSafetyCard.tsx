@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
-import { useStaffMember } from '@/hooks/useStaffMember';
+import { useMobileAuth } from '@/hooks/useMobileAuth';
 
 type Row = { label: string; value: string; tone?: 'ok' | 'warn' | 'bad' | 'muted' };
 
