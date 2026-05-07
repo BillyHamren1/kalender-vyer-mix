@@ -181,20 +181,139 @@ export function buildGpsDayTimelineOnly(
     clustered = [];
   }
 
-  // Build segment list and inject gps_gap entries between distant stops
-  const segments: GpsTimelineSegment[] = [];
-  for (let i = 0; i < clustered.length; i++) {
-    const s = clustered[i];
-    segments.push(toTimelineSegment(s));
+  // Keep only stationary clusters as "stays". Travels are rebuilt from raw
+  // pings between stays so we get continuous movement segments instead of
+  // dozens of micro-clusters.
+  const stays = clustered.filter((c) => c.isStationary);
 
-    const next = clustered[i + 1];
+  const segments: GpsTimelineSegment[] = [];
+  const stayWindows = stays.map((s) => ({
+    start: new Date(s.startTs).getTime(),
+    end: new Date(s.endTs).getTime(),
+  }));
+  const inAnyStay = (tMs: number) =>
+    stayWindows.some((w) => tMs >= w.start && tMs <= w.end);
+
+  // Helper: build travel segments from a list of consecutive movement pings.
+  const TRAVEL_MAX_GAP_MS = 3 * 60_000;
+  const buildTravelChains = (chunk: Ping[]): GpsTimelineSegment[] => {
+    if (chunk.length === 0) return [];
+    const out: GpsTimelineSegment[] = [];
+    let chain: Ping[] = [chunk[0]];
+    const flushChain = () => {
+      if (chain.length === 0) return;
+      if (chain.length === 1) {
+        const p = chain[0];
+        out.push({
+          startTs: p.ts,
+          endTs: p.ts,
+          durationMin: 0,
+          kind: "travel",
+          type: "single_ping_movement" as any,
+          label: "Enstaka rörelseping",
+          matchedSiteId: null,
+          matchedSiteType: null,
+          matchedSiteName: null,
+          centerLat: p.lat,
+          centerLng: p.lng,
+          startLat: p.lat,
+          startLng: p.lng,
+          endLat: p.lat,
+          endLng: p.lng,
+          pingCount: 1,
+          distanceMeters: 0,
+          avgKmh: null,
+          confidence: 0.3,
+          reason: "isolated_movement_ping",
+        });
+      } else {
+        let dist = 0;
+        for (let i = 1; i < chain.length; i++) {
+          dist += distanceMeters(chain[i - 1].lat, chain[i - 1].lng, chain[i].lat, chain[i].lng);
+        }
+        const startTs = chain[0].ts;
+        const endTs = chain[chain.length - 1].ts;
+        const durationMin = (new Date(endTs).getTime() - new Date(startTs).getTime()) / 60000;
+        const avgKmh = durationMin > 0 ? (dist / 1000) / (durationMin / 60) : null;
+        const cLat = chain.reduce((s, p) => s + p.lat, 0) / chain.length;
+        const cLng = chain.reduce((s, p) => s + p.lng, 0) / chain.length;
+        out.push({
+          startTs,
+          endTs,
+          durationMin: Math.max(1, Math.round(durationMin)),
+          kind: "travel",
+          type: "transport",
+          label: "Förflyttning",
+          matchedSiteId: null,
+          matchedSiteType: null,
+          matchedSiteName: null,
+          centerLat: cLat,
+          centerLng: cLng,
+          startLat: chain[0].lat,
+          startLng: chain[0].lng,
+          endLat: chain[chain.length - 1].lat,
+          endLng: chain[chain.length - 1].lng,
+          pingCount: chain.length,
+          distanceMeters: Math.round(dist),
+          avgKmh: avgKmh != null ? Math.round(avgKmh * 10) / 10 : null,
+          confidence: 0.7,
+          reason: "continuous_movement",
+        });
+      }
+      chain = [];
+    };
+    for (let i = 1; i < chunk.length; i++) {
+      const prev = chunk[i - 1];
+      const cur = chunk[i];
+      const gapMs = new Date(cur.ts).getTime() - new Date(prev.ts).getTime();
+      if (gapMs > TRAVEL_MAX_GAP_MS) {
+        flushChain();
+      }
+      chain.push(cur);
+    }
+    flushChain();
+    return out;
+  };
+
+  // Movement pings = pings outside any stay window
+  const movementPings = clusterInput.filter((p) => !inAnyStay(new Date(p.ts).getTime()));
+
+  // Walk in chronological order, interleaving stays + travel chains between them
+  const sortedStays = [...stays].sort((a, b) => a.startTs.localeCompare(b.startTs));
+  let mvIdx = 0;
+  const pushTravelBefore = (boundaryMs: number) => {
+    const slice: Ping[] = [];
+    while (mvIdx < movementPings.length) {
+      const t = new Date(movementPings[mvIdx].ts).getTime();
+      if (t >= boundaryMs) break;
+      slice.push(movementPings[mvIdx]);
+      mvIdx++;
+    }
+    if (slice.length > 0) segments.push(...buildTravelChains(slice));
+  };
+  for (const stay of sortedStays) {
+    pushTravelBefore(new Date(stay.startTs).getTime());
+    segments.push(toTimelineSegment(stay));
+  }
+  // Trailing movement after last stay
+  if (mvIdx < movementPings.length) {
+    segments.push(...buildTravelChains(movementPings.slice(mvIdx)));
+  }
+
+  // Inject gps_gap entries between segments separated by long silence
+  const final: GpsTimelineSegment[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    final.push(segments[i]);
+    const next = segments[i + 1];
     if (next) {
-      const gapMin = (new Date(next.startTs).getTime() - new Date(s.endTs).getTime()) / 60000;
+      const gapMin = (new Date(next.startTs).getTime() - new Date(segments[i].endTs).getTime()) / 60000;
       if (gapMin >= GAP_THRESHOLD_MIN) {
-        segments.push(makeGapSegment(s.endTs, next.startTs, Math.round(gapMin)));
+        final.push(makeGapSegment(segments[i].endTs, next.startTs, Math.round(gapMin)));
       }
     }
   }
+  segments.length = 0;
+  segments.push(...final);
 
   // Target match summary
   const matchedById = new Map<string, TargetMatchSummary>();
