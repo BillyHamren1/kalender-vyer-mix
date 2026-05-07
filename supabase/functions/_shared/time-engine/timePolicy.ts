@@ -32,7 +32,7 @@
  */
 
 import type {
-  AutoStartBlockReason,
+  AutoStartBlockedReason,
   Confidence,
   GpsSegment,
   TargetMatch,
