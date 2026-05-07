@@ -6862,15 +6862,21 @@ async function handleStopLocationTimer(supabase: any, staffId: string, data: any
     )
   }
 
-  // Mirror stop into current_time_registration (single source of truth).
+  // Mirror stop into active_time_registrations (single source of truth).
   try {
     await supabase
-      .from('current_time_registration')
-      .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+      .from('active_time_registrations')
+      .update({
+        status: 'stopped',
+        stopped_at: new Date().toISOString(),
+        stopped_by: staffId,
+        stop_source: stop_source || 'user_manual',
+      })
+      .eq('organization_id', organizationId)
       .eq('staff_id', staffId)
       .eq('status', 'active')
   } catch (regErr) {
-    console.warn('[stop_location_timer] current_time_registration mirror failed (non-fatal):', regErr)
+    console.warn('[stop_location_timer] active_time_registrations mirror failed (non-fatal):', regErr)
   }
 
   return new Response(
