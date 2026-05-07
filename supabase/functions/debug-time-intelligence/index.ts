@@ -468,19 +468,34 @@ Deno.serve(async (req) => {
     knownTargets: knownPlaces,
   });
 
-  const gpsDayTimeline: GpsTimelineSegment[] = gpsResult.segments;
+  const gpsSegments: GpsTimelineSegment[] = gpsResult.segments;
   const targetMatches = gpsResult.targetMatches;
   let clusterError: string | null = null;
 
   if (rawPings.length === 0) warnings.push("no_pings_for_day");
   if (rawPings.length > 0 && knownPlaces.length === 0) warnings.push("no_known_targets_with_coords_in_org");
-  if (rawPings.length > 0 && gpsDayTimeline.length === 0) warnings.push("pings_present_but_no_segments_built");
+  if (rawPings.length > 0 && gpsSegments.length === 0) warnings.push("pings_present_but_no_segments_built");
+
+  // Compact debug cap — never return an empty container when count > 0.
+  const SEGMENT_RETURN_CAP = 200;
+  const returnedSegments = gpsSegments.slice(0, SEGMENT_RETURN_CAP);
+  const gpsDayTimeline = {
+    count: gpsSegments.length,
+    firstStart: gpsSegments[0]?.startTs ?? null,
+    lastEnd: gpsSegments[gpsSegments.length - 1]?.endTs ?? null,
+    source: "gps_only" as const,
+    truncated: gpsSegments.length > returnedSegments.length,
+    totalSegments: gpsSegments.length,
+    returnedSegments: returnedSegments.length,
+    segments: returnedSegments,
+  };
 
   return json(200, {
     rawPingsCoverage,
     pingClassificationTimeline,
     gpsDayTimeline,
     targetMatches,
+    targetFetchDiagnostics,
     warnings,
     debugMeta: {
       ok: true,
@@ -496,11 +511,15 @@ Deno.serve(async (req) => {
       generatedAt: new Date().toISOString(),
       compactCounts: {
         rawPingCount: rawPings.length,
-        gpsDayTimelineCount: gpsDayTimeline.length,
+        gpsDayTimelineCount: gpsSegments.length,
+        gpsDayTimelineReturned: returnedSegments.length,
+        gpsDayTimelineTruncated: gpsDayTimeline.truncated,
         knownStayCount: targetMatches.summary.knownStayCount,
         unknownStayCount: targetMatches.summary.unknownStayCount,
         travelCount: targetMatches.summary.travelCount,
         gpsGapCount: targetMatches.summary.gpsGapCount,
+        targetCandidates: targetFetchDiagnostics.totalCandidates,
+        targetCandidatesWithCoords: targetFetchDiagnostics.candidatesWithCoords,
       },
     },
   });
