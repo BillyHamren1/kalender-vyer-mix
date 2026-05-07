@@ -10,15 +10,17 @@
  *
  * Per (staff, date) gör den följande, alltid på server-sidan:
  *   1. Avbryt om dagen är låst/attesterad (audit "skipped_locked").
- *   2. Ladda pings för dagen (med liten överlappning).
- *   3. Ladda alla kända targets: warehouse-locations, bookings, large_projects.
- *   4. Kör auto-start-engine.processStaff() i LIVE-läge → arrival/exit/switch
- *      stänger föregående aktiva location_time_entry, skapar
- *      transportsegment via travel_time_logs, öppnar ny LTE och triggar
- *      ev. workday-skapande — exakt samma logik som cron, bara realtidsdriven.
- *   5. Logga decision (rule_engine) i staff_day_decision_log med antal
- *      arrivals/switches/öppnade/stängda LTE:er.
- *   6. Köa en day-snapshot rebuild (staff_day_rebuild_queue) med reason
+ *   2. Anropa `process-location-auto-start` i mode=backfill_day, dry_run=false,
+ *      scoped till (staff_id, organization_id, date) — det är samma engine
+ *      som cron och scenario-testerna kör. Den:
+ *        • laddar pings för dagen,
+ *        • laddar targets (warehouse / booking / large_project),
+ *        • avgör arrival/exit/switch via stable-entry,
+ *        • stänger föregående aktiva LTE vid bekräftat platsbyte,
+ *        • skapar transportsegment via travel_time_logs,
+ *        • öppnar ny LTE och triggar ev. workday-skapande.
+ *   3. Logga decision (rule_engine) i staff_day_decision_log.
+ *   4. Köa en day-snapshot rebuild (staff_day_rebuild_queue) med reason
  *      "late_ping" så day-timeline-engine räknar om dagen.
  *
  * VIKTIGT — appen ska INTE själv klassa platsbyten längre.
@@ -27,17 +29,13 @@
  */
 
 import {
-  loadTargets,
-  processStaff,
-  ENGINE_VERSION,
-  type Ping,
-  type ProcessReport,
-} from "../process-location-auto-start/engine.ts";
-import {
   enqueueDayRebuild,
   isDayLocked,
   logDayDecision,
 } from "./day-decision-audit.ts";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 export interface ProcessLocationUpdateArgs {
   staffId: string;
@@ -51,38 +49,10 @@ export interface ProcessLocationUpdateArgs {
 export interface ProcessLocationUpdateResult {
   date: string;
   locked: boolean;
-  pings: number;
-  arrivals: number;
-  switches: number;
-  workdays_opened: number;
-  ltes_opened: number;
-  ltes_closed: number;
-  travels_created: number;
+  ok: boolean;
+  engine_status?: number;
+  engine_report?: any;
   errors: string[];
-}
-
-const DAY_OVERLAP_MS = 30 * 60 * 1000; // grab a bit before/after the date
-
-function emptyReport(): ProcessReport {
-  return {
-    run_id: globalThis.crypto?.randomUUID?.() ?? `live-${Date.now()}`,
-    engine_version: ENGINE_VERSION,
-    mode: "cron",
-    dry_run: false,
-    source_tag: "live_upload",
-    staff: 0,
-    pings: 0,
-    arrivals: 0,
-    switches: 0,
-    workdays_opened: 0,
-    ltes_opened: 0,
-    ltes_closed: 0,
-    travels_created: 0,
-    events_emitted: 0,
-    skipped_existing: 0,
-    errors: [],
-    plan: [],
-  };
 }
 
 /**
@@ -96,27 +66,11 @@ export async function processStaffLocationUpdate(
   const dates = Array.from(new Set(args.dates)).sort();
   if (dates.length === 0) return out;
 
-  let targets: any[] = [];
-  try {
-    targets = await loadTargets(supabase);
-  } catch (err) {
-    console.warn("[processStaffLocationUpdate] loadTargets failed:", err);
-    return out;
-  }
-  // Scope to the staff's organization.
-  targets = targets.filter((t) => t.organization_id === args.organizationId);
-
   for (const date of dates) {
     const result: ProcessLocationUpdateResult = {
       date,
       locked: false,
-      pings: 0,
-      arrivals: 0,
-      switches: 0,
-      workdays_opened: 0,
-      ltes_opened: 0,
-      ltes_closed: 0,
-      travels_created: 0,
+      ok: false,
       errors: [],
     };
 
@@ -141,87 +95,50 @@ export async function processStaffLocationUpdate(
         continue;
       }
 
-      const fromIso = new Date(
-        new Date(`${date}T00:00:00.000Z`).getTime() - DAY_OVERLAP_MS,
-      ).toISOString();
-      const toIso = new Date(
-        new Date(`${date}T23:59:59.999Z`).getTime() + DAY_OVERLAP_MS,
-      ).toISOString();
+      // Run the canonical auto-start engine in live mode, scoped to this
+      // single (staff, date). The engine owns ALL location→state transitions:
+      // arrival/exit/switch/travel/workday. App logic must never duplicate
+      // these decisions.
+      const url = `${SUPABASE_URL}/functions/v1/process-location-auto-start`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SERVICE_ROLE}`,
+        },
+        body: JSON.stringify({
+          mode: "backfill",
+          dry_run: false,
+          confirm: true,
+          date,
+          staff_id: args.staffId,
+          organization_id: args.organizationId,
+        }),
+      });
+      result.engine_status = resp.status;
+      let body: any = null;
+      try { body = await resp.json(); } catch { /* ignore */ }
+      result.engine_report = body?.report ?? null;
 
-      // Paginate to bypass PostgREST's 1000-row cap on busy days.
-      const PAGE = 1000;
-      const HARD_CAP = 5000;
-      const rawPings: any[] = [];
-      let from = 0;
-      while (rawPings.length < HARD_CAP) {
-        const { data: page, error } = await supabase
-          .from("staff_location_history")
-          .select("id, staff_id, organization_id, lat, lng, accuracy, recorded_at")
-          .eq("staff_id", args.staffId)
-          .eq("organization_id", args.organizationId)
-          .gte("recorded_at", fromIso)
-          .lte("recorded_at", toIso)
-          .order("recorded_at", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw error;
-        const rows = page ?? [];
-        rawPings.push(...rows);
-        if (rows.length < PAGE) break;
-        from += PAGE;
+      if (!resp.ok) {
+        result.errors.push(`engine_${resp.status}: ${body?.error ?? ""}`);
+      } else {
+        result.ok = true;
       }
 
-      const pings: Ping[] = rawPings.map((r: any) => ({
-        id: r.id,
-        staff_id: r.staff_id,
-        organization_id: r.organization_id,
-        lat: Number(r.lat),
-        lng: Number(r.lng),
-        accuracy: r.accuracy != null ? Number(r.accuracy) : null,
-        recorded_at: r.recorded_at,
-        ts: new Date(r.recorded_at).getTime(),
-      }));
-      result.pings = pings.length;
-
-      if (pings.length === 0) {
-        out.push(result);
-        continue;
-      }
-
-      const report = emptyReport();
-      report.source_tag = args.source ?? "live_upload";
-      report.staff = 1;
-      report.pings = pings.length;
-
-      await processStaff(supabase, args.staffId, pings, targets, report);
-
-      result.arrivals = report.arrivals;
-      result.switches = report.switches;
-      result.workdays_opened = report.workdays_opened;
-      result.ltes_opened = report.ltes_opened;
-      result.ltes_closed = report.ltes_closed;
-      result.travels_created = report.travels_created;
-      result.errors = report.errors;
-
-      // Audit: always log what the engine decided so admin kan see varför
-      // dagen ändrades av en GPS-uppladdning.
+      // Audit: log what the engine returned so admin kan see varför dagen
+      // ändrades av en GPS-uppladdning.
       await logDayDecision(supabase, {
         organizationId: args.organizationId,
         staffId: args.staffId,
         dayDate: date,
         actor: "rule_engine",
-        action: "location_update_processed",
+        action: result.ok ? "location_update_processed" : "location_update_failed",
         reason: args.source ?? "upload_location_batch",
         after: {
-          pings: report.pings,
-          arrivals: report.arrivals,
-          switches: report.switches,
-          workdays_opened: report.workdays_opened,
-          ltes_opened: report.ltes_opened,
-          ltes_closed: report.ltes_closed,
-          travels_created: report.travels_created,
-          errors: report.errors,
-          run_id: report.run_id,
-          engine_version: report.engine_version,
+          engine_status: result.engine_status,
+          report: result.engine_report,
+          errors: result.errors,
         },
         sourceFunction: "processStaffLocationUpdate",
       });
@@ -241,7 +158,6 @@ export async function processStaffLocationUpdate(
         { staffId: args.staffId, date, err: err?.message ?? err },
       );
       result.errors.push(err?.message ?? String(err));
-      // Still try to log the failure for audit visibility.
       try {
         await logDayDecision(supabase, {
           organizationId: args.organizationId,
