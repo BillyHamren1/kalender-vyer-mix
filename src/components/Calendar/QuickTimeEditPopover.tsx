@@ -3,13 +3,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { updateWarehouseCalendarEvent } from '@/services/warehouseCalendarService';
 import { moveLargeProjectDay, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
+import { setPhaseLock, type Phase } from '@/services/timeSync';
 import { supabase } from '@/integrations/supabase/client';
 import { parse, isAfter } from 'date-fns';
-import { Clock, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, AlertTriangle, Lock } from 'lucide-react';
 import AddRiggDayDialog from './AddRiggDayDialog';
 
 
@@ -65,6 +67,31 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   const [endMinute, setEndMinute] = useState('00');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddRiggDay, setShowAddRiggDay] = useState(false);
+  const [locked, setLocked] = useState<boolean>(event.extendedProps?.timeLocked === true);
+
+  // Reflect prop changes when popover reopens
+  useEffect(() => {
+    setLocked(event.extendedProps?.timeLocked === true);
+  }, [event.extendedProps?.timeLocked, open]);
+
+  const phaseForLock = ((event.extendedProps?.eventType || event.eventType) as string | undefined);
+  const isLockablePhase = phaseForLock === 'rig' || phaseForLock === 'event' || phaseForLock === 'rigDown';
+  const canToggleLock = !isWarehouse && isLockablePhase && !!event.bookingId;
+
+  const handleToggleLock = async (next: boolean) => {
+    if (!canToggleLock || !event.bookingId) return;
+    const previous = locked;
+    setLocked(next);
+    try {
+      await setPhaseLock(event.bookingId, phaseForLock as Phase, next);
+      toast.success(next ? 'Tid låst som fast tid' : 'Fast tid upplåst');
+      if (onUpdate) onUpdate();
+    } catch (err) {
+      console.error('[QuickTimeEdit] setPhaseLock failed', err);
+      setLocked(previous);
+      toast.error('Kunde inte ändra låsstatus');
+    }
+  };
 
   // Notify parent about open state changes
   useEffect(() => {
@@ -100,6 +127,10 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   const endTime = `${endHour}:${endMinute}`;
 
   const handleSave = async () => {
+    if (locked) {
+      toast.error('Tiden är låst – bocka ur "Fast tid" för att flytta');
+      return;
+    }
     const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
     
     // Validate times
