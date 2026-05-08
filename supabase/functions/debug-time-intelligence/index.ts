@@ -312,6 +312,14 @@ Deno.serve(async (req) => {
     autostartableCount,
     excludedByReason,
   };
+  const targetSummaryComplete =
+    Number.isFinite(targetSummary.totalCandidates) &&
+    Number.isFinite(targetSummary.validCount) &&
+    Number.isFinite(targetSummary.invalidCount) &&
+    Number.isFinite(targetSummary.candidatesWithCoordinates) &&
+    Number.isFinite(targetSummary.autostartableCount) &&
+    targetSummary.excludedByReason !== null &&
+    typeof targetSummary.excludedByReason === "object";
 
   // ════════════════════════════════════════════════════════════════════════
   // 3) gpsDayTimeline
