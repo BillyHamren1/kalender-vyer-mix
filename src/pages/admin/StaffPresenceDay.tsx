@@ -116,16 +116,16 @@ interface DayResponse {
   }>;
 }
 
-const ROW_META: Record<TimelineRow["type"], { icon: any; cls: string; label: string }> = {
-  arrival: { icon: LogIn, cls: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30", label: "Anlände" },
-  departure: { icon: LogOut, cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", label: "Lämnade" },
-  signal_lost: { icon: WifiOff, cls: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30", label: "Signal saknas" },
-  signal_resumed: { icon: Wifi, cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30", label: "Signal åter" },
-  transport: { icon: Truck, cls: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border-cyan-500/30", label: "Transport" },
-  unknown_place: { icon: HelpCircle, cls: "bg-muted text-muted-foreground border-border", label: "Okänd plats" },
-  gps_gap: { icon: CircleSlash, cls: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30", label: "GPS-glapp" },
-  active_timer_started: { icon: Play, cls: "bg-primary/15 text-primary border-primary/30", label: "Timer startad" },
-  active_timer_stopped: { icon: Square, cls: "bg-muted text-foreground border-border", label: "Timer stoppad" },
+const ROW_META: Record<TimelineRow["type"], { icon: any; cls: string; label: string; group: "gps" | "timer" }> = {
+  arrival: { icon: LogIn, cls: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30", label: "Anlände", group: "gps" },
+  departure: { icon: LogOut, cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", label: "Lämnade", group: "gps" },
+  signal_lost: { icon: WifiOff, cls: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30", label: "Signal saknas", group: "gps" },
+  signal_resumed: { icon: Wifi, cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30", label: "Signal åter", group: "gps" },
+  transport: { icon: Truck, cls: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border-cyan-500/30", label: "Transport", group: "gps" },
+  unknown_place: { icon: HelpCircle, cls: "bg-muted text-muted-foreground border-border", label: "Okänd plats", group: "gps" },
+  gps_gap: { icon: CircleSlash, cls: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30", label: "GPS-glapp (signal)", group: "gps" },
+  active_timer_started: { icon: Play, cls: "bg-primary/15 text-primary border-primary/40 border-l-4 border-l-primary", label: "Timer startad", group: "timer" },
+  active_timer_stopped: { icon: Square, cls: "bg-muted text-foreground border-border border-l-4 border-l-primary/60", label: "Timer stoppad", group: "timer" },
 };
 
 const SIGNAL_META = {
