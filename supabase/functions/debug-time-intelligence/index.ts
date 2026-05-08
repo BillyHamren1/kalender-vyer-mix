@@ -610,6 +610,7 @@ Deno.serve(async (req) => {
     input: { staffId, date, organizationId },
     rawPingsCoverage,
     targetDiagnostics: targetDiagnosticsBlock,
+    targetSummary,
     gpsDayTimeline,
     compactCounts,
     autoStartDecisions,
