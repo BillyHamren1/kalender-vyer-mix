@@ -289,13 +289,20 @@ Deno.serve(async (req) => {
     lastPingAt = lp?.recorded_at ?? null;
   }
 
+  let resolvedTargetsAll: any[] = [];
+  let targetDiagnostics: any = null;
+  let targetMatchSummary: any = null;
+
   try {
-    const { targets: resolved } = await resolveWorkTargets({
+    const { targets: resolved, targetDiagnostics: tdiag } = await resolveWorkTargets({
       organizationId: orgId,
       staffId,
       date,
       supabaseAdmin: admin,
     });
+    resolvedTargetsAll = resolved;
+    targetDiagnostics = tdiag;
+
     const workTargets: WorkTarget[] = resolved
       .map(toWorkTarget)
       .filter((t): t is WorkTarget => !!t);
@@ -307,6 +314,84 @@ Deno.serve(async (req) => {
       pings,
       targets: workTargets,
     });
+
+    // Compute target matching summary
+    const projectTargets = resolved.filter((r) => r.type === 'project');
+    const bookingTargets = resolved.filter((r) => r.type === 'booking');
+    const warehouseTargets = resolved.filter((r) => r.type === 'warehouse');
+    const locationTargets = resolved.filter((r) => r.type === 'location');
+    const targetsWithCoords = resolved.filter((r) => r.latitude != null && r.longitude != null);
+    const targetsMissingCoords = resolved.filter((r) => r.latitude == null || r.longitude == null);
+    const matchedTargetIds = new Set(
+      gpsTimeline.segments
+        .filter((s) => s.matchedTargetId)
+        .map((s) => `${s.matchedTargetType}:${s.matchedTargetId}`),
+    );
+    const matchedTargetsList = resolved.filter((r) => {
+      const kind = r.type === 'location' ? 'organization_location' : r.type;
+      return matchedTargetIds.has(`${kind}:${r.id}`);
+    });
+    const unmatchedProjectTargets = projectTargets.filter((r) => {
+      return !matchedTargetIds.has(`project:${r.id}`);
+    });
+
+    targetMatchSummary = {
+      totalTargets: resolved.length,
+      projectTargets: projectTargets.length,
+      bookingTargets: bookingTargets.length,
+      warehouseTargets: warehouseTargets.length,
+      locationTargets: locationTargets.length,
+      targetsWithCoordinates: targetsWithCoords.length,
+      targetsMissingCoordinates: targetsMissingCoords.length,
+      matchedTargets: matchedTargetsList.length,
+      unmatchedProjectTargets: unmatchedProjectTargets.length,
+      excludedByReason: tdiag?.excludedByReason ?? {},
+      warnings: tdiag?.warnings ?? [],
+    };
+
+    // Helper: compute nearest target candidates from a center
+    const computeNearest = (
+      cLat: number | null,
+      cLng: number | null,
+    ): NearestTargetCandidate[] => {
+      if (cLat == null || cLng == null) return [];
+      const cands: NearestTargetCandidate[] = resolved.map((r) => {
+        const hasCoords = r.latitude != null && r.longitude != null;
+        const distance = hasCoords ? haversineM(cLat, cLng, r.latitude!, r.longitude!) : null;
+        const insideRadius =
+          distance != null && r.radiusMeters != null && distance <= r.radiusMeters;
+        const excluded =
+          r.targetValidity !== 'valid'
+            ? r.targetValidity
+            : !r.timeTrackingAllowed
+            ? 'not_allowed_for_time_tracking'
+            : !hasCoords
+            ? 'missing_coordinates'
+            : null;
+        return {
+          targetLabel: r.name,
+          targetType: r.type,
+          targetId: r.id,
+          targetSource: r.targetSource,
+          targetValidity: r.targetValidity,
+          timeTrackingAllowed: r.timeTrackingAllowed,
+          lat: r.latitude,
+          lng: r.longitude,
+          radiusMeters: r.radiusMeters,
+          distanceMeters: distance != null ? Math.round(distance) : null,
+          insideRadius,
+          excludedReason: excluded,
+        };
+      });
+      // Sort: missing coords last; otherwise by distance asc
+      cands.sort((a, b) => {
+        if (a.distanceMeters == null && b.distanceMeters == null) return 0;
+        if (a.distanceMeters == null) return 1;
+        if (b.distanceMeters == null) return -1;
+        return a.distanceMeters - b.distanceMeters;
+      });
+      return cands.slice(0, 5);
+    };
 
     for (const seg of gpsTimeline.segments) {
       let type: TimelineRow['type'] | null = null;
@@ -320,8 +405,41 @@ Deno.serve(async (req) => {
       } else if (seg.type === 'unknown_place') {
         type = 'unknown_place';
         label = seg.label ?? 'Okänd plats';
+      } else if (seg.type === 'known_site') {
+        // Skip: arrivals already cover known_site presence; debug not needed here
+        continue;
       }
       if (!type) continue;
+
+      // Debug: include nearest targets for interesting segments
+      const isLongTransport = type === 'transport' && (seg.durationMin ?? 0) >= 5;
+      const needsDebug =
+        type === 'unknown_place' ||
+        type === 'gps_gap' ||
+        isLongTransport ||
+        (seg.kind === 'stay' && !seg.matchedTargetId);
+
+      let nearest: NearestTargetCandidate[] = [];
+      let noMatchHint: string | null = null;
+      if (needsDebug) {
+        nearest = computeNearest(seg.centerLat, seg.centerLng);
+        const projectsInList = nearest.filter((c) => c.targetType === 'project');
+        if (projectsInList.length === 0 && projectTargets.length > 0) {
+          noMatchHint = 'Projekt saknas i target resolver för denna dag';
+        } else {
+          const closestProject = projectsInList[0];
+          if (closestProject) {
+            if (closestProject.lat == null || closestProject.lng == null) {
+              noMatchHint = 'Projekt hittades men saknar koordinater';
+            } else if (!closestProject.insideRadius && closestProject.distanceMeters != null) {
+              const radius = closestProject.radiusMeters ?? 0;
+              const outside = Math.max(0, closestProject.distanceMeters - radius);
+              noMatchHint = `Projekt hittades men GPS låg ${outside} m utanför radius (avstånd ${closestProject.distanceMeters} m, radius ${radius} m)`;
+            }
+          }
+        }
+      }
+
       timeline.push({
         at: seg.startTs,
         endAt: seg.endTs,
@@ -331,11 +449,18 @@ Deno.serve(async (req) => {
         confidence: null,
         source: 'gps_day_timeline',
         gpsSegmentId: seg.id,
+        centerLat: seg.centerLat,
+        centerLng: seg.centerLng,
+        matchedTargetId: seg.matchedTargetId,
+        matchedTargetType: seg.matchedTargetType,
+        nearestTargets: needsDebug ? nearest : undefined,
+        noMatchHint,
       });
     }
   } catch (e) {
-    // Ignore — timeline still has presence_events + timer events
+    console.error('[presence-day] gps timeline failed', e);
   }
+
 
   // ── Sort timeline ──
   timeline.sort((a, b) => a.at.localeCompare(b.at));
