@@ -510,6 +510,21 @@ Deno.serve(async (req) => {
         ['transport', 'unknown_place', 'gps_gap'].includes(t.type),
       ).length,
     },
+    targetMatchSummary,
+    targets: resolvedTargetsAll.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      targetSource: r.targetSource,
+      targetValidity: r.targetValidity,
+      timeTrackingAllowed: r.timeTrackingAllowed,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      radiusMeters: r.radiusMeters,
+      status: r.status,
+      dateRelevance: r.dateRelevance,
+      notes: r.diagnostics?.notes ?? [],
+    })),
   });
   } catch (e: any) {
     console.error('[get-staff-presence-day] fatal', e);
