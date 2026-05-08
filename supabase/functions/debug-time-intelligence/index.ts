@@ -364,6 +364,17 @@ Deno.serve(async (req) => {
     };
   }
 
+  function haversineM(aLat: number, aLng: number, bLat: number, bLng: number): number {
+    const R = 6371000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(bLat - aLat);
+    const dLng = toRad(bLng - aLng);
+    const s1 = Math.sin(dLat / 2);
+    const s2 = Math.sin(dLng / 2);
+    const a = s1 * s1 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * s2 * s2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+
   const autoStartDecisions: Array<{
     segmentId: string;
     segmentStart: string;
@@ -376,6 +387,12 @@ Deno.serve(async (req) => {
     reason: string;
     confidence: number;
     evidence: AutoStartDecisionResult["evidence"];
+    firstPingAt: string | null;
+    lastPingAt: string | null;
+    dwellSeconds: number;
+    arrivalPingsCount: number;
+    targetDistanceMeters: number | null;
+    targetRadiusMeters: number | null;
   }> = [];
 
   let prevSeg: GpsTimelineSegment | null = null;
@@ -399,6 +416,19 @@ Deno.serve(async (req) => {
       localTime: seg.endTs,
     });
 
+    let targetDistanceMeters: number | null = null;
+    let targetRadiusMeters: number | null = null;
+    if (rt) {
+      const wt = toWorkTarget(rt);
+      const tCenter = wt?.center ?? null;
+      targetRadiusMeters = wt?.radiusM ?? rt.radiusMeters ?? null;
+      if (tCenter && seg.centerLat != null && seg.centerLng != null) {
+        targetDistanceMeters = Math.round(
+          haversineM(seg.centerLat, seg.centerLng, tCenter.lat, tCenter.lng),
+        );
+      }
+    }
+
     autoStartDecisions.push({
       segmentId: seg.id,
       segmentStart: seg.startTs,
@@ -411,6 +441,12 @@ Deno.serve(async (req) => {
       reason: decision.reason,
       confidence: decision.confidence,
       evidence: decision.evidence,
+      firstPingAt: seg.startTs,
+      lastPingAt: seg.endTs,
+      dwellSeconds: Math.round((seg.durationMin ?? 0) * 60),
+      arrivalPingsCount: seg.pingCount,
+      targetDistanceMeters,
+      targetRadiusMeters,
     });
     prevSeg = seg;
   }
@@ -485,10 +521,38 @@ Deno.serve(async (req) => {
   let allowedCount = 0;
   let blockedCount = 0;
   let firstAllowedDecision: typeof autoStartDecisions[number] | null = null;
+  const allowedDecisions: Array<{
+    startAt: string;
+    targetName: string;
+    targetType: string;
+    segmentLabel: string;
+    reason: string;
+    confidence: number;
+    dwellSeconds: number;
+    arrivalPingsCount: number;
+    firstPingAt: string;
+    lastPingAt: string;
+    targetDistanceMeters: number;
+    targetRadiusMeters: number;
+  }> = [];
   for (const d of autoStartDecisions) {
     if (d.allowed) {
       allowedCount++;
       if (!firstAllowedDecision) firstAllowedDecision = d;
+      allowedDecisions.push({
+        startAt: d.segmentStart,
+        targetName: d.matchedTargetName!,
+        targetType: d.matchedTargetType!,
+        segmentLabel: d.segmentLabel,
+        reason: d.reason,
+        confidence: d.confidence,
+        dwellSeconds: d.dwellSeconds,
+        arrivalPingsCount: d.arrivalPingsCount,
+        firstPingAt: d.firstPingAt!,
+        lastPingAt: d.lastPingAt!,
+        targetDistanceMeters: d.targetDistanceMeters!,
+        targetRadiusMeters: d.targetRadiusMeters!,
+      });
     } else {
       blockedCount++;
       blockedByReason[d.reason] = (blockedByReason[d.reason] ?? 0) + 1;
@@ -499,6 +563,7 @@ Deno.serve(async (req) => {
     blockedCount,
     blockedByReason,
     firstAllowedDecision,
+    allowedDecisions,
   };
 
   // ════════════════════════════════════════════════════════════════════════
