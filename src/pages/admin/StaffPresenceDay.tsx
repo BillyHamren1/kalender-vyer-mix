@@ -525,6 +525,23 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
             </div>
           </details>
         )}
+        {row.suppressedNoiseSegments && row.suppressedNoiseSegments.length > 0 && (
+          <details className="text-xs mt-1">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Dolda brus-segment ({row.suppressedNoiseSegments.length})
+            </summary>
+            <div className="mt-1 space-y-1 pl-2 border-l border-border">
+              {row.suppressedNoiseSegments.map((s, si) => (
+                <div key={si} className="text-muted-foreground">
+                  {fmtTime(s.at)}{s.endAt ? ` → ${fmtTime(s.endAt)}` : ""}
+                  {s.durationMin != null && ` (${s.durationMin} min)`}
+                  · {s.type} · {s.reason}
+                  {s.id && ` · seg: ${s.id}`}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
         {row.noMatchHint && (
           <div className="text-xs mt-1 px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/30">
             ⚠ {row.noMatchHint}
