@@ -3305,12 +3305,37 @@ serve(async (req) => {
           // Prepare update data - strip non-DB fields and reset viewed flag if booking is newly confirmed
           // CRITICAL: Never overwrite organization_id on existing bookings to prevent cross-tenant data theft
           const { allRigDates: _ard, allEventDates: _aed, allRigdownDates: _ardd, organization_id: _stripOrgId, ...dbBookingData } = bookingData as any;
+
+          // FIXED-TIME LOCK: Auto-lock a phase the first time we observe an external time
+          // for it. Once locked (or once we've seen the external value), we never re-lock —
+          // user toggle wins. Strip locked fields out of update unless first observation.
+          const lockPhases: Array<{ ext: string; lock: string }> = [
+            { ext: 'rig_start_time_external', lock: 'rig_time_locked' },
+            { ext: 'event_start_time_external', lock: 'event_time_locked' },
+            { ext: 'rigdown_start_time_external', lock: 'rigdown_time_locked' },
+          ];
+          const lockingPatch: Record<string, boolean> = {};
+          for (const { ext, lock } of lockPhases) {
+            const previouslySeen = (existingBooking as any)[ext] != null;
+            const incoming = (dbBookingData as any)[ext];
+            if (!previouslySeen && incoming) {
+              lockingPatch[lock] = true;
+            }
+          }
+          // Always strip incoming lock fields from updateData — only the lockingPatch above
+          // is allowed to flip them on; the user's manual toggle is the only other writer.
+          delete (dbBookingData as any).rig_time_locked;
+          delete (dbBookingData as any).event_time_locked;
+          delete (dbBookingData as any).rigdown_time_locked;
+
           const updateData: any = {
             ...dbBookingData,
+            ...lockingPatch,
             id: existingBooking.id,
             version: (existingBooking.version || 1) + 1,
             updated_at: new Date().toISOString()
           };
+          
           
           // CRITICAL: Preserve local project assignment flags
           // BUT skip preservation when booking is being re-confirmed (from cancelled/non-confirmed → confirmed)
