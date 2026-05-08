@@ -819,11 +819,39 @@ function isBridgeAllowed(b: PresenceDayBlock): boolean {
   return false;
 }
 
-function sameUnknownArea(a: PresenceDayBlock, b: PresenceDayBlock): boolean {
-  // Only merge if startAt of b is within 5 min of endAt of a (no other
-  // segment sat between them at the timeline level — caller filters that).
-  const gapMin = Math.max(0, (Date.parse(b.startAt) - Date.parse(a.endAt)) / 60000);
-  return gapMin <= 5;
+function isUnknownBridge(b: PresenceDayBlock): boolean {
+  // Bridges allowed BETWEEN two unknown_place anchors (within 250 m). Must be
+  // short and never represent a stable stop or actual stay elsewhere.
+  if (b.kind === 'transport') return b.durationMinutes < BRIDGE_TRANSPORT_MAX_MIN;
+  if (b.kind === 'signal_gap') return b.durationMinutes < BRIDGE_SIGNAL_GAP_MAX_MIN;
+  if (b.kind === 'unknown_place' && b.confidence === 'low') return b.durationMinutes < BRIDGE_UNKNOWN_MAX_MIN;
+  return false;
+}
+
+function isTransportInterstitial(b: PresenceDayBlock): boolean {
+  // Non-stable junk between two real transport segments. NEVER absorbs a
+  // stable stop (confirmed/probable_on_site > 5 min, unknown_place ≥ 5 min).
+  if (b.kind === 'transport') return true; // chain naturally
+  if (b.kind === 'unknown_place') return b.durationMinutes < STABLE_STOP_MIN_MIN;
+  if (b.kind === 'signal_gap') return b.durationMinutes < BRIDGE_SIGNAL_GAP_MAX_MIN;
+  return false;
+}
+
+function unknownsWithin(
+  a: PresenceDayBlock,
+  b: PresenceDayBlock,
+  maxMeters: number,
+): boolean {
+  const aLat = a.evidence.centerLat;
+  const aLng = a.evidence.centerLng;
+  const bLat = b.evidence.centerLat;
+  const bLng = b.evidence.centerLng;
+  if (aLat == null || aLng == null || bLat == null || bLng == null) {
+    // Fall back to time-adjacency only if no coords (legacy behaviour).
+    const gapMin = Math.max(0, (Date.parse(b.startAt) - Date.parse(a.endAt)) / 60000);
+    return gapMin <= 5;
+  }
+  return haversineM(aLat, aLng, bLat, bLng) <= maxMeters;
 }
 
 function mergeOnSite(
