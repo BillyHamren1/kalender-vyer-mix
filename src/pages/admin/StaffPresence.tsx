@@ -171,6 +171,38 @@ export default function StaffPresence() {
                     ? formatDistanceToNow(new Date(r.lastPingAt), { locale: sv, addSuffix: true })
                     : "—"}
                 </div>
+                {(r.arrival || r.departure) && (
+                  <div className="text-xs space-y-0.5 pt-1 border-t">
+                    {r.arrival && r.arrival.stillOnSite && (
+                      <div>
+                        <span className="text-muted-foreground">Anlände:</span>{" "}
+                        <span className="font-medium">
+                          {new Date(r.arrival.at).toLocaleTimeString("sv-SE", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>{" "}
+                        <span className="text-muted-foreground">
+                          {r.arrival.targetLabel ?? ""}
+                        </span>
+                      </div>
+                    )}
+                    {r.departure && r.departure.isLatest && (
+                      <div>
+                        <span className="text-muted-foreground">Lämnade:</span>{" "}
+                        <span className="font-medium">
+                          {new Date(r.departure.at).toLocaleTimeString("sv-SE", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>{" "}
+                        <span className="text-muted-foreground">
+                          {r.departure.targetLabel ?? ""}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 pt-1 border-t">
                   <Activity className="h-4 w-4 text-muted-foreground" />
                   {r.activeTimer.active ? (
