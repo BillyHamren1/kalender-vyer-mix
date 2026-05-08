@@ -521,10 +521,38 @@ Deno.serve(async (req) => {
   let allowedCount = 0;
   let blockedCount = 0;
   let firstAllowedDecision: typeof autoStartDecisions[number] | null = null;
+  const allowedDecisions: Array<{
+    startAt: string;
+    targetName: string;
+    targetType: string;
+    segmentLabel: string;
+    reason: string;
+    confidence: number;
+    dwellSeconds: number;
+    arrivalPingsCount: number;
+    firstPingAt: string;
+    lastPingAt: string;
+    targetDistanceMeters: number;
+    targetRadiusMeters: number;
+  }> = [];
   for (const d of autoStartDecisions) {
     if (d.allowed) {
       allowedCount++;
       if (!firstAllowedDecision) firstAllowedDecision = d;
+      allowedDecisions.push({
+        startAt: d.segmentStart,
+        targetName: d.matchedTargetName!,
+        targetType: d.matchedTargetType!,
+        segmentLabel: d.segmentLabel,
+        reason: d.reason,
+        confidence: d.confidence,
+        dwellSeconds: d.dwellSeconds,
+        arrivalPingsCount: d.arrivalPingsCount,
+        firstPingAt: d.firstPingAt!,
+        lastPingAt: d.lastPingAt!,
+        targetDistanceMeters: d.targetDistanceMeters!,
+        targetRadiusMeters: d.targetRadiusMeters!,
+      });
     } else {
       blockedCount++;
       blockedByReason[d.reason] = (blockedByReason[d.reason] ?? 0) + 1;
@@ -535,6 +563,7 @@ Deno.serve(async (req) => {
     blockedCount,
     blockedByReason,
     firstAllowedDecision,
+    allowedDecisions,
   };
 
   // ════════════════════════════════════════════════════════════════════════
