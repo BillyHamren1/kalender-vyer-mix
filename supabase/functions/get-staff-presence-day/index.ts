@@ -89,6 +89,8 @@ interface TimelineRow {
   label: string;
   targetType?: string | null;
   targetId?: string | null;
+  targetLabel?: string | null;
+  registrationId?: string | null;
   confidence?: number | null;
   source: string;
   gpsSegmentId?: string | null;
@@ -100,6 +102,8 @@ interface TimelineRow {
   matchedTargetType?: string | null;
   nearestTargets?: NearestTargetCandidate[];
   noMatchHint?: string | null;
+  mergedSources?: string[];
+  duplicates?: Array<{ source: string; at: string; label: string; registrationId?: string | null }>;
 }
 
 const EARTH_R = 6_371_000;
