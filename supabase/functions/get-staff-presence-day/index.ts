@@ -475,6 +475,50 @@ Deno.serve(async (req) => {
   // ── Sort timeline ──
   timeline.sort((a, b) => a.at.localeCompare(b.at));
 
+  // ── Deduplicate timeline rows ──
+  // Same logical event may surface from multiple sources (active_time_registrations,
+  // staff_presence_events, gps_day_timeline). Collapse to a single canonical row
+  // and keep the other sources in `duplicates` (collapsible debug in UI).
+  const dedupKey = (r: TimelineRow): string => {
+    if (r.registrationId && (r.type === 'active_timer_started' || r.type === 'active_timer_stopped')) {
+      return `reg:${r.registrationId}|${r.type}`;
+    }
+    const atSec = r.at.slice(0, 19); // round to second
+    return `${r.type}|${atSec}|${r.targetLabel ?? r.label}|${r.targetType ?? ''}|${r.targetId ?? ''}`;
+  };
+  const sourceRank: Record<string, number> = {
+    'time-engine': 0,
+    'active_time_registrations': 0,
+    'user_timer': 0,
+    'auto_engine': 0,
+    'staff_presence_events': 1,
+    'gps_day_timeline': 2,
+  };
+  const rankOf = (s: string) => sourceRank[s] ?? 5;
+  const buckets = new Map<string, TimelineRow>();
+  for (const row of timeline) {
+    const key = dedupKey(row);
+    const existing = buckets.get(key);
+    if (!existing) {
+      buckets.set(key, { ...row, mergedSources: [row.source] });
+      continue;
+    }
+    const dup = { source: row.source, at: row.at, label: row.label, registrationId: row.registrationId ?? null };
+    if (rankOf(row.source) < rankOf(existing.source)) {
+      const prevDup = { source: existing.source, at: existing.at, label: existing.label, registrationId: existing.registrationId ?? null };
+      buckets.set(key, {
+        ...row,
+        mergedSources: Array.from(new Set([...(existing.mergedSources ?? []), row.source])),
+        duplicates: [...(existing.duplicates ?? []), prevDup],
+      });
+    } else {
+      existing.mergedSources = Array.from(new Set([...(existing.mergedSources ?? [existing.source]), row.source]));
+      existing.duplicates = [...(existing.duplicates ?? []), dup];
+    }
+  }
+  const dedupedTimeline = Array.from(buckets.values()).sort((a, b) => a.at.localeCompare(b.at));
+  const dedupRemoved = timeline.length - dedupedTimeline.length;
+
   // ── Header summary ──
   const ageSec = lastPingAt
     ? Math.floor((Date.now() - new Date(lastPingAt).getTime()) / 1000)
