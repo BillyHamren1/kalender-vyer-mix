@@ -636,12 +636,19 @@ Deno.serve(async (req) => {
   if (!(targetSummary.validCount > 0)) readinessFailures.push("no_valid_targets");
   if (!allowedDecisionsComplete) readinessFailures.push("allowed_decisions_missing_evidence");
 
-  if (readinessFailures.length > 0 && activeTimeRegistrationPreview) {
+  // Hard rule: if preview wouldn't create an active registration, status MUST be NOT_READY.
+  const previewWouldNotCreate =
+    activeTimeRegistrationPreview?.wouldCreateActiveRegistration !== true;
+
+  if ((readinessFailures.length > 0 || previewWouldNotCreate) && activeTimeRegistrationPreview) {
     activeTimeRegistrationPreview.status = "NOT_READY";
     activeTimeRegistrationPreview.wouldCreate = false;
     activeTimeRegistrationPreview.wouldCreateActiveRegistration = false;
-    activeTimeRegistrationPreview.reason =
-      activeTimeRegistrationPreview.reason ?? readinessFailures[0];
+    // Prioritize root-cause reason: missing evidence > other failures.
+    const priorityReason = !allowedDecisionsComplete
+      ? "allowed_decision_missing_evidence"
+      : readinessFailures[0] ?? "preview_would_not_create";
+    activeTimeRegistrationPreview.reason = priorityReason;
     activeTimeRegistrationPreview.readinessFailures = readinessFailures;
   } else if (activeTimeRegistrationPreview) {
     activeTimeRegistrationPreview.status = "READY_TO_CONFIRM";
