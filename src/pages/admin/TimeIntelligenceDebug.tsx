@@ -1517,6 +1517,79 @@ export default function TimeIntelligenceDebug() {
         </Card>
       )}
 
+      {testable && (
+        <Card>
+          <CardHeader className="pb-3 gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">
+              Testbara personer för {date} ({testable.filter((r) => r.testStatus === "TESTABLE").length} TESTABLE / {testable.length})
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setTestable(null)}>
+              <X className="h-4 w-4 mr-1" /> Stäng
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-muted-foreground border-b">
+                  <tr className="text-left">
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">Personal</th>
+                    <th className="py-2 pr-3 text-right">rawPings</th>
+                    <th className="py-2 pr-3 text-right">timeline</th>
+                    <th className="py-2 pr-3 text-right">knownStays</th>
+                    <th className="py-2 pr-3 text-right">allowedAutoStart</th>
+                    <th className="py-2 pr-3">aktiv timer nu</th>
+                    <th className="py-2 pr-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {testable.map((r) => {
+                    const tone: StatusTone =
+                      r.testStatus === "TESTABLE" ? "ok"
+                      : r.testStatus === "BLOCKED_ACTIVE_TIMER" ? "warn"
+                      : r.testStatus === "ERROR" ? "bad"
+                      : "neutral";
+                    return (
+                      <tr key={r.staffId} className="border-b">
+                        <td className="py-2 pr-3">
+                          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-[10px] ${TONE_CLASS[tone]}`}>
+                            {r.testStatus}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 font-medium">{r.name}</td>
+                        <td className="py-2 pr-3 text-right">{r.rawPingCount}</td>
+                        <td className="py-2 pr-3 text-right">{r.gpsDayTimelineCount}</td>
+                        <td className="py-2 pr-3 text-right">{r.knownStayCount}</td>
+                        <td className="py-2 pr-3 text-right">{r.allowedAutoStartCount}</td>
+                        <td className="py-2 pr-3">
+                          {r.hasActiveRegistrationNow
+                            ? <span className="text-amber-600">{r.currentActiveTargetLabel ?? "ja"}</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="py-2 pr-3">
+                          <Button
+                            size="sm"
+                            variant={r.testStatus === "TESTABLE" ? "default" : "ghost"}
+                            onClick={() => { setStaffId(r.staffId); runDryRun(r.staffId); }}
+                          >
+                            Välj
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {testable.some((r) => r.error) && (
+                <div className="mt-2 text-xs text-destructive">
+                  Vissa personer gav fel — se konsolen.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {confirmResp?.confirmResult && (
         <Card className={confirmResp.confirmResult.created ? "border-emerald-500/50" : "border-amber-500/50"}>
           <CardHeader className="pb-3 gap-3 sm:flex-row sm:items-start sm:justify-between">
