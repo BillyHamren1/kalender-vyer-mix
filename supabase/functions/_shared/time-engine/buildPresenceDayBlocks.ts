@@ -463,13 +463,29 @@ export function buildPresenceDayBlocks(
 
   blocks.sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
 
+  // Aggregate evidence → semantic day-report blocks. Timer markers are kept
+  // as overlays in BOTH layers so the consumer can render them either way.
+  const evidenceBlocks = blocks;
+  const dayReportBlocks = aggregateEvidenceBlocks(evidenceBlocks);
+
   return {
     staffId: input.staffId,
     organizationId: input.organizationId,
     date: input.date,
     computedAt: new Date().toISOString(),
-    blocks,
-    summary: summarise(blocks),
+    blocks: dayReportBlocks,
+    evidenceBlocks,
+    presenceDayBlocks: dayReportBlocks,
+    presenceDayBlocksRawEvidence: evidenceBlocks,
+    summary: summarise(dayReportBlocks),
+    aggregation: {
+      rawEvidenceBlocksCount: evidenceBlocks.length,
+      presenceDayBlocksCount: dayReportBlocks.length,
+      compressionRatio:
+        evidenceBlocks.length > 0
+          ? Math.round((dayReportBlocks.length / evidenceBlocks.length) * 1000) / 1000
+          : 1,
+    },
   };
 }
 
