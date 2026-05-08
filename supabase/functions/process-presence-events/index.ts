@@ -45,6 +45,18 @@ interface ReqBody {
   staffId?: string;
   date?: string; // YYYY-MM-DD
   dryRun?: boolean;
+  diagnostics?: boolean;
+}
+
+const EARTH_R = 6_371_000;
+function haversineM(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.sqrt(s));
 }
 
 Deno.serve(async (req) => {
