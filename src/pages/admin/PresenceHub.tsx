@@ -311,6 +311,12 @@ export default function PresenceHub() {
                         <span className="text-xs text-muted-foreground">Ingen aktiv timer</span>
                       )}
                     </div>
+                    <Button asChild variant="outline" size="sm" className="w-full mt-1">
+                      <Link to={`/admin/presence/staff/${r.staffId}?date=${new Date().toISOString().slice(0, 10)}`}>
+                        <CalendarDays className="h-4 w-4 mr-2" />
+                        Visa dag
+                      </Link>
+                    </Button>
                   </CardContent>
                 </Card>
               );
