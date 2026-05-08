@@ -619,3 +619,292 @@ function summarise(blocks: PresenceDayBlock[]): PresenceDaySummary {
   }
   return sum;
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Aggregation: evidenceBlocks → dayReportBlocks
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Walk evidence blocks and produce semantically meaningful day-report blocks.
+ *
+ * Rules (mirrored from the spec):
+ *   A) Same target on-site blocks merge across short bridges (transport <3min,
+ *      unknown_place <3min, signal_gap <5min).
+ *   B) signal_gap > 30 min is NEVER absorbed.
+ *   C) signal_gap 5-30 min same target stays 'probable_on_site' (medium) and
+ *      naturally merges with neighbouring same-target anchors via rule A's
+ *      same-target loop (it carries the same targetId).
+ *   D) Consecutive transport blocks with no stable stop between are merged.
+ *   E) Consecutive unknown_place at same area are merged.
+ *   F) uncertain_transition passes through unchanged.
+ *   G) timer_marker passes through unchanged.
+ */
+function aggregateEvidenceBlocks(evidence: PresenceDayBlock[]): PresenceDayBlock[] {
+  if (evidence.length === 0) return [];
+
+  // Separate timer markers — they stay as overlays in their own positions.
+  const markers = evidence.filter((b) => b.kind === 'timer_marker');
+  const timeline = evidence
+    .filter((b) => b.kind !== 'timer_marker')
+    .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+
+  const out: PresenceDayBlock[] = [];
+  let seq = 0;
+  const newId = (kind: PresenceBlockKind) => `pdb-agg-${kind}-${seq++}`;
+
+  let i = 0;
+  while (i < timeline.length) {
+    const b = timeline[i];
+
+    // ── On-site anchor (confirmed or probable) → grow with bridges ────────
+    if (b.kind === 'confirmed_on_site' || b.kind === 'probable_on_site') {
+      const members: PresenceDayBlock[] = [b];
+      const suppressed: PresenceDayBlock[] = [];
+      let j = i + 1;
+
+      while (j < timeline.length) {
+        const nb = timeline[j];
+
+        // Direct same-target on-site continuation (no bridge).
+        if (
+          (nb.kind === 'confirmed_on_site' || nb.kind === 'probable_on_site') &&
+          sameTarget(b, nb)
+        ) {
+          members.push(nb);
+          j += 1;
+          continue;
+        }
+
+        // Bridge candidate: collect a *run* of bridge-eligible segments and
+        // peek for a same-target anchor after the run.
+        let k = j;
+        const bridges: PresenceDayBlock[] = [];
+        while (k < timeline.length && isBridgeAllowed(timeline[k])) {
+          bridges.push(timeline[k]);
+          k += 1;
+        }
+        const after = k < timeline.length ? timeline[k] : null;
+        if (
+          bridges.length > 0 &&
+          after &&
+          (after.kind === 'confirmed_on_site' || after.kind === 'probable_on_site') &&
+          sameTarget(b, after)
+        ) {
+          for (const br of bridges) suppressed.push(br);
+          members.push(after);
+          j = k + 1;
+          continue;
+        }
+
+        break;
+      }
+
+      out.push(mergeOnSite(newId, members, suppressed));
+      i = j;
+      continue;
+    }
+
+    // ── Transport run merge ───────────────────────────────────────────────
+    if (b.kind === 'transport') {
+      const run: PresenceDayBlock[] = [b];
+      let j = i + 1;
+      while (j < timeline.length && timeline[j].kind === 'transport') {
+        run.push(timeline[j]);
+        j += 1;
+      }
+      out.push(mergeTransport(newId, run));
+      i = j;
+      continue;
+    }
+
+    // ── Unknown_place merge by proximity ──────────────────────────────────
+    if (b.kind === 'unknown_place') {
+      const run: PresenceDayBlock[] = [b];
+      let j = i + 1;
+      while (
+        j < timeline.length &&
+        timeline[j].kind === 'unknown_place' &&
+        sameUnknownArea(run[run.length - 1], timeline[j])
+      ) {
+        run.push(timeline[j]);
+        j += 1;
+      }
+      out.push(mergeUnknown(newId, run));
+      i = j;
+      continue;
+    }
+
+    // ── signal_gap / uncertain_transition → passthrough (rebadge id) ──────
+    out.push({ ...b, id: newId(b.kind) });
+    i += 1;
+  }
+
+  // Re-insert timer markers and sort.
+  for (const m of markers) out.push({ ...m, id: `pdb-agg-timer-${seq++}` });
+  out.sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+  return out;
+}
+
+function sameTarget(a: PresenceDayBlock, b: PresenceDayBlock): boolean {
+  return (
+    !!a.targetId &&
+    !!b.targetId &&
+    a.targetId === b.targetId &&
+    (a.targetType ?? '') === (b.targetType ?? '')
+  );
+}
+
+function isBridgeAllowed(b: PresenceDayBlock): boolean {
+  if (b.kind === 'transport') return b.durationMinutes < BRIDGE_TRANSPORT_MAX_MIN;
+  if (b.kind === 'unknown_place') return b.durationMinutes < BRIDGE_UNKNOWN_MAX_MIN;
+  if (b.kind === 'signal_gap') return b.durationMinutes < BRIDGE_SIGNAL_GAP_MAX_MIN;
+  return false;
+}
+
+function sameUnknownArea(a: PresenceDayBlock, b: PresenceDayBlock): boolean {
+  // Only merge if startAt of b is within 5 min of endAt of a (no other
+  // segment sat between them at the timeline level — caller filters that).
+  const gapMin = Math.max(0, (Date.parse(b.startAt) - Date.parse(a.endAt)) / 60000);
+  return gapMin <= 5;
+}
+
+function mergeOnSite(
+  newId: (k: PresenceBlockKind) => string,
+  members: PresenceDayBlock[],
+  suppressed: PresenceDayBlock[],
+): PresenceDayBlock {
+  const first = members[0];
+  const last = members[members.length - 1];
+  const startAt = first.startAt;
+  const endAt = last.endAt;
+  const dur = durationMinutes(startAt, endAt);
+  const anyProbable = members.some((m) => m.kind === 'probable_on_site');
+  const suppressedSignalGapMin = suppressed
+    .filter((s) => s.kind === 'signal_gap')
+    .reduce((acc, s) => acc + s.durationMinutes, 0);
+  const suppressedSignalGapCount = suppressed.filter((s) => s.kind === 'signal_gap').length;
+  const hasGapEvidence = anyProbable || suppressedSignalGapMin > 0;
+
+  const kind: PresenceBlockKind = hasGapEvidence ? 'probable_on_site' : 'confirmed_on_site';
+  const confidence: PresenceConfidence = hasGapEvidence ? 'medium' : 'high';
+
+  const totalSignalGap =
+    suppressedSignalGapMin +
+    members.reduce((acc, m) => acc + (m.signalGapMinutes ?? m.evidence.signalGapMinutes ?? 0), 0);
+  const totalSignalGapCount =
+    suppressedSignalGapCount +
+    members.reduce((acc, m) => acc + (m.signalGapCount ?? 0), 0);
+
+  const suppressedKinds: Record<string, number> = {};
+  for (const s of suppressed) suppressedKinds[s.kind] = (suppressedKinds[s.kind] ?? 0) + 1;
+
+  const reviewState: PresenceReviewState =
+    hasGapEvidence && totalSignalGap >= 15 ? 'needs_review' : 'ok';
+
+  return {
+    id: newId(kind),
+    kind,
+    startAt,
+    endAt,
+    durationMinutes: dur,
+    durationLabel: formatDurationLabel(dur),
+    targetType: first.targetType,
+    targetId: first.targetId,
+    targetLabel: first.targetLabel,
+    confidence,
+    confidenceReason: hasGapEvidence
+      ? `Sammanslagen vistelse på samma plats (${members.length} delar, ${totalSignalGapCount} GPS-glapp ≈ ${totalSignalGap} min)`
+      : `Bekräftad sammanhängande vistelse (${members.length} delar)`,
+    reviewState,
+    evidence: {
+      pingCount: members.reduce((a, m) => a + (m.evidence.pingCount ?? 0), 0),
+      signalGapMinutes: totalSignalGap || undefined,
+      mergedBlockCount: members.length,
+      suppressedKinds: Object.keys(suppressedKinds).length ? suppressedKinds : undefined,
+      surroundingTargetLabels: {
+        before: first.evidence.surroundingTargetLabels?.before ?? null,
+        after: last.evidence.surroundingTargetLabels?.after ?? null,
+      },
+    },
+    sourceSegmentIds: members.flatMap((m) => m.sourceSegmentIds),
+    hiddenRawSegmentIds: [
+      ...members.flatMap((m) => m.hiddenRawSegmentIds),
+      ...suppressed.flatMap((s) => s.sourceSegmentIds),
+    ],
+    signalGapMinutes: totalSignalGap || 0,
+    signalGapCount: totalSignalGapCount,
+    suppressedSegments: suppressed.map((s) => s.id),
+  };
+}
+
+function mergeTransport(
+  newId: (k: PresenceBlockKind) => string,
+  run: PresenceDayBlock[],
+): PresenceDayBlock {
+  if (run.length === 1) return { ...run[0], id: newId('transport') };
+  const first = run[0];
+  const last = run[run.length - 1];
+  const startAt = first.startAt;
+  const endAt = last.endAt;
+  const dur = durationMinutes(startAt, endAt);
+  const distance = run.reduce((a, m) => a + (m.evidence.distanceMeters ?? 0), 0);
+  const pings = run.reduce((a, m) => a + (m.evidence.pingCount ?? 0), 0);
+  const avgKmh = dur > 0 ? Math.round((distance / 1000) / (dur / 60) * 10) / 10 : 0;
+  return {
+    id: newId('transport'),
+    kind: 'transport',
+    startAt,
+    endAt,
+    durationMinutes: dur,
+    durationLabel: formatDurationLabel(dur),
+    targetType: null,
+    targetId: null,
+    targetLabel: 'Transport',
+    confidence: 'high',
+    confidenceReason: `Sammanslagen rörelse (${run.length} segment)`,
+    reviewState: 'ok',
+    evidence: {
+      pingCount: pings,
+      distanceMeters: Math.round(distance),
+      avgKmh,
+      mergedBlockCount: run.length,
+    },
+    sourceSegmentIds: run.flatMap((m) => m.sourceSegmentIds),
+    hiddenRawSegmentIds: run.flatMap((m) => m.hiddenRawSegmentIds),
+    suppressedSegments: [],
+  };
+}
+
+function mergeUnknown(
+  newId: (k: PresenceBlockKind) => string,
+  run: PresenceDayBlock[],
+): PresenceDayBlock {
+  if (run.length === 1) return { ...run[0], id: newId('unknown_place') };
+  const first = run[0];
+  const last = run[run.length - 1];
+  const startAt = first.startAt;
+  const endAt = last.endAt;
+  const dur = durationMinutes(startAt, endAt);
+  const pings = run.reduce((a, m) => a + (m.evidence.pingCount ?? 0), 0);
+  return {
+    id: newId('unknown_place'),
+    kind: 'unknown_place',
+    startAt,
+    endAt,
+    durationMinutes: dur,
+    durationLabel: formatDurationLabel(dur),
+    targetType: null,
+    targetId: null,
+    targetLabel: 'Okänd plats',
+    confidence: 'medium',
+    confidenceReason: `Sammanslagen okänd plats (${run.length} segment)`,
+    reviewState: 'needs_review',
+    evidence: {
+      pingCount: pings,
+      mergedBlockCount: run.length,
+    },
+    sourceSegmentIds: run.flatMap((m) => m.sourceSegmentIds),
+    hiddenRawSegmentIds: run.flatMap((m) => m.hiddenRawSegmentIds),
+    suppressedSegments: [],
+  };
+}
