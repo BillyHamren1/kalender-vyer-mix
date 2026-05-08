@@ -1016,6 +1016,46 @@ export default function TimeIntelligenceDebug() {
   const [batch, setBatch] = useState<BatchRow[] | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [pingFirst, setPingFirst] = useState<any>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmResp, setConfirmResp] = useState<any>(null);
+
+  const runConfirm = async () => {
+    if (!staffId || !date) return;
+    setConfirming(true);
+    setConfirmResp(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
+        body: { staffId, date, dryRun: false, confirm: true },
+      });
+      if (error) throw error;
+      setConfirmResp(data);
+      setResult(data); // refresh dry-run view too
+      const cr = data?.confirmResult;
+      if (cr?.created) toast.success("CONFIRM TEST — active_time_registration skapades");
+      else if (cr?.already_active) toast.info("Redan aktiv registrering");
+      else toast.error("Confirm misslyckades: " + (cr?.reason ?? "okänt"));
+    } catch (e: any) {
+      toast.error("Confirm-fel: " + (e?.message ?? String(e)));
+      setConfirmResp({ error: e?.message ?? String(e) });
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const canConfirm = (() => {
+    const r = result;
+    if (!r) return false;
+    const preview = r.activeTimeRegistrationPreview ?? null;
+    const leak = r.legacyLeakCheck ?? {};
+    const legacyLeakDetected =
+      !!leak.inputLegacySourceLeakDetected || !!leak.forbiddenTableLeakDetected || !!leak.legacyLeakDetected;
+    return (
+      preview?.status === "READY_TO_CONFIRM" &&
+      preview?.wouldCreateActiveRegistration === true &&
+      !legacyLeakDetected &&
+      Array.isArray(r.warnings) && r.warnings.length === 0
+    );
+  })();
 
   useEffect(() => {
     (async () => {
