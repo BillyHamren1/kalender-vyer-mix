@@ -131,16 +131,32 @@ const isShortNoise = (r: SmoothInputRow): boolean => {
 };
 
 /**
- * GPS-glapp = signalstatus, inte rörelse. Om samma target finns före OCH efter
- * gapet ska det absorberas oavsett längd och bara visas som varningsindikator
- * på blocket. Endast bevisad annan plats bryter blocket.
+ * GPS-glapp / signalstatus = teknisk händelse, inte rörelse. Departure utan
+ * efterföljande annan target = också teknisk. Alla absorberas om samma target
+ * finns före OCH efter sträckan.
  */
-const isBridgeableGap = (r: SmoothInputRow): boolean => r.type === 'gps_gap';
+const isBridgeableTechnical = (r: SmoothInputRow): boolean =>
+  r.type === 'gps_gap' ||
+  r.type === 'signal_lost' ||
+  r.type === 'signal_resumed' ||
+  r.type === 'departure';
 
 const noiseReason = (r: SmoothInputRow): SuppressedNoiseSegment['reason'] => {
   if (r.type === 'transport') return 'short_transport';
   if (r.type === 'gps_gap') return 'gps_gap_inside_stay';
+  if (r.type === 'signal_lost') return 'signal_lost_inside_stay';
+  if (r.type === 'signal_resumed') return 'signal_resumed_inside_stay';
+  if (r.type === 'departure') return 'departure_inside_stay';
   return 'short_unknown';
+};
+
+const noiseKind = (r: SmoothInputRow): NonNullable<SuppressedNoiseSegment['kind']> => {
+  if (r.type === 'gps_gap') return 'gps_gap';
+  if (r.type === 'transport') return 'transport';
+  if (r.type === 'unknown_place') return 'unknown';
+  if (r.type === 'signal_lost' || r.type === 'signal_resumed') return 'signal';
+  if (r.type === 'departure') return 'departure';
+  return 'unknown';
 };
 
 const endOf = (r: SmoothInputRow): string => r.endAt ?? r.at;
