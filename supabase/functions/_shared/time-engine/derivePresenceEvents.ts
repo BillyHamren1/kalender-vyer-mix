@@ -1,28 +1,31 @@
 /**
  * derivePresenceEvents — pure helper.
  *
- * Walks an ordered list of GpsTimelineSegment and emits arrival/departure
- * presence events on transitions IN/OUT of a `known_site` segment.
+ * Walks an ordered list of GpsTimelineSegment and emits presence events:
+ *   - arrival         : transition INTO a known_site from a different (or no) known_site
+ *                       (gps_gap is "looked through" — does not count as outside).
+ *   - departure       : transition OUT of a known_site into a different known_site or
+ *                       a confirmed signal segment (transport / unknown_place).
+ *                       gps_gap alone NEVER triggers departure.
+ *   - signal_lost     : a gps_gap segment begins (we just lost reliable signal).
+ *   - signal_resumed  : a gps_gap segment ends and a new signal segment follows.
  *
- * Rules:
- *   - arrival: previous segment is NOT a known_site (or none), current IS.
- *   - departure: previous segment IS a known_site, current is NOT (or end-of-day).
- *   - moving directly between two different known_sites yields:
- *       departure(prev) + arrival(next).
- *   - gps_gap and unknown_place do NOT generate events on their own —
- *     they only matter as a transition state.
- *   - never produces time_report / location_time_entry / travel — read-only.
+ * Read-only — never produces time_report / location_time_entry / travel.
  */
 
 import type { GpsTimelineSegment } from './buildGpsDayTimeline.ts';
 
-export type PresenceEventType = 'arrival' | 'departure';
+export type PresenceEventType =
+  | 'arrival'
+  | 'departure'
+  | 'signal_lost'
+  | 'signal_resumed';
 
 export interface DerivedPresenceEvent {
   eventType: PresenceEventType;
-  /** When the arrival/departure happened (ISO). */
+  /** When the event happened (ISO). */
   eventAt: string;
-  targetType: string;        // 'project' | 'large_project' | 'organization_location' | 'booking' | 'unknown'
+  targetType: string;        // 'project' | 'large_project' | 'organization_location' | 'booking' | 'unknown' | 'none'
   targetId: string | null;
   targetLabel: string | null;
   confidence: number | null;
@@ -38,8 +41,22 @@ function isKnown(seg: GpsTimelineSegment | undefined | null): boolean {
   return !!seg && seg.type === 'known_site' && !!seg.matchedTargetId;
 }
 
+function isGap(seg: GpsTimelineSegment | undefined | null): boolean {
+  return !!seg && seg.type === 'gps_gap';
+}
+
 function targetKey(seg: GpsTimelineSegment): string {
   return `${seg.matchedTargetType ?? 'unknown'}::${seg.matchedTargetId ?? ''}`;
+}
+
+/** Walk back/forward skipping gps_gap segments. */
+function prevSignal(segs: GpsTimelineSegment[], i: number): GpsTimelineSegment | null {
+  for (let j = i - 1; j >= 0; j--) if (!isGap(segs[j])) return segs[j];
+  return null;
+}
+function nextSignal(segs: GpsTimelineSegment[], i: number): GpsTimelineSegment | null {
+  for (let j = i + 1; j < segs.length; j++) if (!isGap(segs[j])) return segs[j];
+  return null;
 }
 
 export function derivePresenceEvents(
@@ -53,13 +70,66 @@ export function derivePresenceEvents(
 
   for (let i = 0; i < segs.length; i++) {
     const cur = segs[i];
-    const prev = segs[i - 1] ?? null;
-    const next = segs[i + 1] ?? null;
+
+    // --- gps_gap → signal_lost / signal_resumed --------------------------
+    if (isGap(cur)) {
+      const before = prevSignal(segs, i);
+      out.push({
+        eventType: 'signal_lost',
+        eventAt: cur.startTs,
+        targetType: before && isKnown(before)
+          ? (before.matchedTargetType ?? 'unknown')
+          : 'none',
+        targetId: before && isKnown(before) ? (before.matchedTargetId ?? null) : null,
+        targetLabel: before && isKnown(before)
+          ? (before.matchedTargetName ?? before.label ?? null)
+          : null,
+        confidence: null,
+        gpsSegmentId: cur.id,
+        metadata: {
+          gap_minutes: cur.durationMin,
+          previous_segment_type: before?.type ?? null,
+          previous_segment_id: before?.id ?? null,
+        },
+      });
+
+      const after = nextSignal(segs, i);
+      if (after) {
+        out.push({
+          eventType: 'signal_resumed',
+          eventAt: cur.endTs,
+          targetType: isKnown(after)
+            ? (after.matchedTargetType ?? 'unknown')
+            : (after.type === 'transport' ? 'transport' : 'unknown'),
+          targetId: isKnown(after) ? (after.matchedTargetId ?? null) : null,
+          targetLabel: isKnown(after)
+            ? (after.matchedTargetName ?? after.label ?? null)
+            : (after.label ?? null),
+          confidence: after.confidence ?? null,
+          gpsSegmentId: cur.id,
+          metadata: {
+            gap_minutes: cur.durationMin,
+            next_segment_type: after.type,
+            next_segment_id: after.id,
+          },
+        });
+      }
+      continue;
+    }
 
     if (!isKnown(cur)) continue;
 
-    const enteredFromOutside = !isKnown(prev) || targetKey(prev!) !== targetKey(cur);
-    const willLeave = !isKnown(next) || targetKey(next!) !== targetKey(cur);
+    // --- arrival / departure on known_site (look past gaps) --------------
+    const prev = prevSignal(segs, i);
+    const next = nextSignal(segs, i);
+
+    const enteredFromOutside =
+      !prev || !isKnown(prev) || targetKey(prev) !== targetKey(cur);
+
+    // Departure requires a confirmed next signal that is not the same target.
+    // gps_gap alone (no following signal) is NOT a departure.
+    const willLeave =
+      !!next && (!isKnown(next) || targetKey(next) !== targetKey(cur));
 
     if (enteredFromOutside) {
       out.push({
@@ -95,7 +165,6 @@ export function derivePresenceEvents(
           ping_count: cur.pingCount,
           duration_min: cur.durationMin,
           reason: cur.reason,
-          end_of_day: next === null,
         },
       });
     }
