@@ -89,6 +89,8 @@ interface TimelineRow {
   label: string;
   targetType?: string | null;
   targetId?: string | null;
+  targetLabel?: string | null;
+  registrationId?: string | null;
   confidence?: number | null;
   source: string;
   gpsSegmentId?: string | null;
@@ -100,6 +102,8 @@ interface TimelineRow {
   matchedTargetType?: string | null;
   nearestTargets?: NearestTargetCandidate[];
   noMatchHint?: string | null;
+  mergedSources?: string[];
+  duplicates?: Array<{ source: string; at: string; label: string; registrationId?: string | null }>;
 }
 
 const EARTH_R = 6_371_000;
@@ -192,6 +196,8 @@ Deno.serve(async (req) => {
       label: r.target_label ?? (r.event_type === 'signal_lost' ? 'GPS-signal saknas' : r.event_type === 'signal_resumed' ? 'GPS-signal åter' : 'Okänd plats'),
       targetType: r.target_type,
       targetId: r.target_id,
+      targetLabel: r.target_label ?? null,
+      registrationId: (r.metadata as any)?.registration_id ?? null,
       confidence: r.confidence,
       source: r.source ?? 'staff_presence_events',
       gpsSegmentId: r.gps_segment_id,
@@ -224,6 +230,8 @@ Deno.serve(async (req) => {
         label: `Timer startad (${label})`,
         targetType,
         targetId,
+        targetLabel: label,
+        registrationId: t.id,
         confidence: null,
         source: t.start_source ?? evidence.engine ?? 'time-engine',
         gpsSegmentId: evidence.segmentId ?? null,
@@ -236,6 +244,8 @@ Deno.serve(async (req) => {
         label: `Timer stoppad (${t.stop_source ?? 'okänd'})`,
         targetType,
         targetId,
+        targetLabel: label,
+        registrationId: t.id,
         confidence: null,
         source: t.stop_source ?? 'unknown',
       });
@@ -465,6 +475,50 @@ Deno.serve(async (req) => {
   // ── Sort timeline ──
   timeline.sort((a, b) => a.at.localeCompare(b.at));
 
+  // ── Deduplicate timeline rows ──
+  // Same logical event may surface from multiple sources (active_time_registrations,
+  // staff_presence_events, gps_day_timeline). Collapse to a single canonical row
+  // and keep the other sources in `duplicates` (collapsible debug in UI).
+  const dedupKey = (r: TimelineRow): string => {
+    if (r.registrationId && (r.type === 'active_timer_started' || r.type === 'active_timer_stopped')) {
+      return `reg:${r.registrationId}|${r.type}`;
+    }
+    const atSec = r.at.slice(0, 19); // round to second
+    return `${r.type}|${atSec}|${r.targetLabel ?? r.label}|${r.targetType ?? ''}|${r.targetId ?? ''}`;
+  };
+  const sourceRank: Record<string, number> = {
+    'time-engine': 0,
+    'active_time_registrations': 0,
+    'user_timer': 0,
+    'auto_engine': 0,
+    'staff_presence_events': 1,
+    'gps_day_timeline': 2,
+  };
+  const rankOf = (s: string) => sourceRank[s] ?? 5;
+  const buckets = new Map<string, TimelineRow>();
+  for (const row of timeline) {
+    const key = dedupKey(row);
+    const existing = buckets.get(key);
+    if (!existing) {
+      buckets.set(key, { ...row, mergedSources: [row.source] });
+      continue;
+    }
+    const dup = { source: row.source, at: row.at, label: row.label, registrationId: row.registrationId ?? null };
+    if (rankOf(row.source) < rankOf(existing.source)) {
+      const prevDup = { source: existing.source, at: existing.at, label: existing.label, registrationId: existing.registrationId ?? null };
+      buckets.set(key, {
+        ...row,
+        mergedSources: Array.from(new Set([...(existing.mergedSources ?? []), row.source])),
+        duplicates: [...(existing.duplicates ?? []), prevDup],
+      });
+    } else {
+      existing.mergedSources = Array.from(new Set([...(existing.mergedSources ?? [existing.source]), row.source]));
+      existing.duplicates = [...(existing.duplicates ?? []), dup];
+    }
+  }
+  const dedupedTimeline = Array.from(buckets.values()).sort((a, b) => a.at.localeCompare(b.at));
+  const dedupRemoved = timeline.length - dedupedTimeline.length;
+
   // ── Header summary ──
   const ageSec = lastPingAt
     ? Math.floor((Date.now() - new Date(lastPingAt).getTime()) / 1000)
@@ -474,8 +528,8 @@ Deno.serve(async (req) => {
   // Current status: latest arrival without later departure
   let currentLabel = 'Okänt';
   let currentTargetType: string | null = null;
-  for (let i = timeline.length - 1; i >= 0; i--) {
-    const ev = timeline[i];
+  for (let i = dedupedTimeline.length - 1; i >= 0; i--) {
+    const ev = dedupedTimeline[i];
     if (ev.type === 'arrival') {
       currentLabel = ev.label;
       currentTargetType = ev.targetType ?? null;
@@ -501,12 +555,14 @@ Deno.serve(async (req) => {
       currentLabel,
       currentTargetType,
     },
-    timeline,
+    timeline: dedupedTimeline,
     counts: {
-      total: timeline.length,
+      total: dedupedTimeline.length,
+      rawTotal: timeline.length,
+      duplicatesCollapsed: dedupRemoved,
       presenceEvents: (presenceRows ?? []).length,
-      timerEvents: timeline.filter((t) => t.type.startsWith('active_timer_')).length,
-      gpsSegments: timeline.filter((t) =>
+      timerEvents: dedupedTimeline.filter((t) => t.type.startsWith('active_timer_')).length,
+      gpsSegments: dedupedTimeline.filter((t) =>
         ['transport', 'unknown_place', 'gps_gap'].includes(t.type),
       ).length,
     },
