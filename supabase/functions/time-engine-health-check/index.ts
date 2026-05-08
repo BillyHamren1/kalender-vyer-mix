@@ -253,6 +253,25 @@ async function runManualTimerTest(supabase: any, organizationId: string, staffId
   const out: any = { ran: true, steps: [] };
   let testRowId: string | null = null;
   try {
+    // Pre-step: stop any pre-existing active rows so the manual round-trip can run.
+    // GPS auto-start can re-create rows between health-check calls; we sweep here.
+    const preClear = await supabase
+      .from('active_time_registrations')
+      .update({
+        status: 'stopped',
+        stopped_at: new Date().toISOString(),
+        stop_source: 'health_check_preclear',
+        stopped_by: 'time-engine-health-check',
+      })
+      .eq('staff_id', staffId)
+      .eq('status', 'active')
+      .select('id');
+    out.steps.push({
+      step: 'preclear_active',
+      ok: !preClear.error,
+      cleared: (preClear.data ?? []).map((r: any) => r.id),
+      error: preClear.error?.message ?? null,
+    });
     const startedAt = new Date().toISOString();
     const ins = await supabase
       .from('active_time_registrations')
