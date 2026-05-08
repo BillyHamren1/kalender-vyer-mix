@@ -19,26 +19,19 @@
  *   6. Primär action          (Starta/Avsluta arbetsdag)
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Sun, Loader2, Square, Play, ShieldCheck, AlertTriangle, Clock,
+  Sun, Loader2, ShieldCheck, AlertTriangle, Clock, ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { extractUTCTime } from '@/utils/dateUtils';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { toast } from 'sonner';
 import {
   useStaffDayStatus,
   type StaffDaySnapshot,
   type StaffDaySegment,
 } from '@/hooks/useStaffDayStatus';
-import { useWorkDay } from '@/hooks/useWorkDay';
-import { useMobileAuth } from '@/contexts/MobileAuthContext';
-import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
-import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
-import { mobileApi } from '@/services/mobileApiService';
-import StartDayDialog, { type StartDaySelection } from '../StartDayDialog';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
