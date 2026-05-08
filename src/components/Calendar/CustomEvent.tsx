@@ -281,7 +281,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     const category = ext.category ? String(ext.category) : null;
     const assignedCount = Array.isArray(ext.assignedIds) ? ext.assignedIds.length : 0;
     return (
-      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+      <EventHoverCard event={event} onClick={handleViewDetails}>
         <div
           className="h-full w-full rounded-md border-l-4 px-1.5 py-1 text-[11px] leading-tight overflow-hidden"
           style={{
@@ -332,19 +332,18 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // If read-only, just render the card with double-click for details
   if (readOnly) {
     return (
-      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+      <EventHoverCard event={event} onClick={handleViewDetails}>
         {eventCardContent}
       </EventHoverCard>
     );
   }
 
-  // Warehouse events: single-click does NOTHING (previously opened a time-picker
-  // popover which felt accidental). Time edits go through double-click → details
-  // dialog or right-click context menu. Drag/resize still work via EventHoverCard.
+  // Warehouse events: single-click opens details (consolidated UX). Drag/resize
+  // still work via EventHoverCard.
   if (isWarehouseEvent && !readOnly) {
     return (
       <>
-        <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+        <EventHoverCard event={event} onClick={handleViewDetails}>
           <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
             {eventCardContent}
           </div>
@@ -382,7 +381,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           }
         }}
       >
-        <div onContextMenu={handleContextMenu} onDoubleClick={handleViewDetails} style={{ width: '100%', height: '100%' }}>
+        <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
           {eventCardContent}
         </div>
       </EventActionPopover>
