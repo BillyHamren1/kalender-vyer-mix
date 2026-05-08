@@ -38,6 +38,7 @@ import {
 } from "../_shared/time-engine/decideAutoStart.ts";
 import { processGpsTimelineForAutoStart } from "../_shared/time-engine/processGpsTimelineForAutoStart.ts";
 import { assertNoLegacySources } from "../_shared/time-engine/assertNoLegacySources.ts";
+import { buildTimeRegistrationSegments } from "../_shared/time-engine/buildTimeRegistrationSegments.ts";
 import type { WorkTarget } from "../_shared/time-engine/contracts.ts";
 
 const corsHeaders = {
