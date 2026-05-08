@@ -15,6 +15,9 @@ import {
   Truck,
   AlertCircle,
   Clock,
+  CalendarDays,
+  MapPin,
+  Activity,
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
