@@ -278,15 +278,21 @@ Deno.serve(async (req) => {
     .map(toWorkTarget)
     .filter((t): t is WorkTarget => t !== null);
 
-  // targetSummary — compact glance from resolveWorkTargets diagnostics
+  // targetSummary — compact glance from resolveWorkTargets diagnostics.
+  // MUST never be null, even when resolveWorkTargets failed.
   const AUTOSTARTABLE = new Set(["planned_today", "warehouse", "explicit_time_tracking_location"]);
   const diag = (targetDiagnosticsBlock ?? {}) as Record<string, any>;
-  const validCount = Number(diag.validTargets ?? resolvedTargets.length);
-  const excludedCount = Number(diag.excludedTargets ?? 0);
-  const totalCandidates = Number(diag.totalFetched ?? validCount + excludedCount);
-  const candidatesWithCoordinates = Number(
-    diag.candidatesWithCoordinates ??
-      resolvedTargets.filter((t) => t.latitude != null && t.longitude != null).length,
+  const safeNum = (v: unknown, fallback = 0): number => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const validCountFromTargets = resolvedTargets.length;
+  const validCount = safeNum(diag.validTargets, validCountFromTargets);
+  const excludedCount = safeNum(diag.excludedTargets, 0);
+  const totalCandidates = safeNum(diag.totalFetched, validCount + excludedCount);
+  const candidatesWithCoordinates = safeNum(
+    diag.candidatesWithCoordinates,
+    resolvedTargets.filter((t) => t.latitude != null && t.longitude != null).length,
   );
   const autostartableCount = resolvedTargets.filter(
     (t) =>
@@ -294,13 +300,17 @@ Deno.serve(async (req) => {
       t.timeTrackingAllowed === true &&
       AUTOSTARTABLE.has(String(t.targetSource)),
   ).length;
+  const excludedByReason: Record<string, number> =
+    diag.excludedByReason && typeof diag.excludedByReason === "object"
+      ? (diag.excludedByReason as Record<string, number>)
+      : {};
   const targetSummary = {
     totalCandidates,
     validCount,
     invalidCount: excludedCount,
     candidatesWithCoordinates,
     autostartableCount,
-    excludedByReason: (diag.excludedByReason ?? {}) as Record<string, number>,
+    excludedByReason,
   };
 
   // ════════════════════════════════════════════════════════════════════════
