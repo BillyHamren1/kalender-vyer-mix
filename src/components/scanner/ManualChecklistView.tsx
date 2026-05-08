@@ -17,6 +17,7 @@ import {
   fetchPackingForScanner,
   signPacking
 } from '@/services/scannerService';
+import { PackingPreflightPanel } from './PackingPreflightPanel';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { computePackingProgress } from '@/lib/packing/progress';
