@@ -103,6 +103,7 @@ interface DayHealth {
   needsReviewCount: number;
   longestSignalGaps: LongGapEntry[];
   warnings: string[];
+  sampleStaffDays?: SampleStaffDay[];
 }
 
 Deno.serve(async (req) => {
