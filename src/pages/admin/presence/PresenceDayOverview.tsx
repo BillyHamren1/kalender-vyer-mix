@@ -6,7 +6,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, RefreshCw, Wifi, WifiOff, AlertTriangle, Activity } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronDown,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  Activity,
+  Search,
+} from "lucide-react";
 
 interface Block {
   at: string;
@@ -37,7 +46,7 @@ interface DayRow extends StaffMini {
   error?: string | null;
 }
 
-const HOUR_PX = 64; // 1h column width
+const HOUR_PX = 64;
 const ROW_H = 64;
 const LEFT_W = 240;
 
@@ -47,6 +56,39 @@ const SIG_META = {
   stale: { label: "Gammal", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", Icon: AlertTriangle },
   no_signal: { label: "Ingen signal", cls: "bg-muted text-muted-foreground border-border", Icon: WifiOff },
 } as const;
+
+type FilterKey =
+  | "all"
+  | "on_site"
+  | "on_project"
+  | "on_warehouse"
+  | "transport"
+  | "stale"
+  | "no_signal"
+  | "active_timer"
+  | "needs_review";
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: "all", label: "Alla" },
+  { key: "on_site", label: "På plats" },
+  { key: "on_project", label: "På event/projekt" },
+  { key: "on_warehouse", label: "På lager" },
+  { key: "transport", label: "Transport" },
+  { key: "stale", label: "Signal saknas" },
+  { key: "no_signal", label: "Ingen signal" },
+  { key: "active_timer", label: "Har aktiv timer" },
+  { key: "needs_review", label: "Behöver granskas" },
+];
+
+type GroupKey = "all" | "warehouse" | "project" | "transport" | "no_signal";
+
+const GROUPS: { key: GroupKey; label: string }[] = [
+  { key: "all", label: "Alla personal" },
+  { key: "warehouse", label: "På lager" },
+  { key: "project", label: "På projekt/event" },
+  { key: "transport", label: "I transport" },
+  { key: "no_signal", label: "Saknar signal" },
+];
 
 const fmtDur = (min: number) => {
   if (min < 60) return `${min} min`;
@@ -82,12 +124,73 @@ async function fetchPool<T, R>(
   return out;
 }
 
+const isWarehouseLabel = (label: string) => /lager|warehouse|depå|depot/i.test(label);
+
+type Category = "on_warehouse" | "on_project" | "transport" | "unknown" | "idle";
+
+function categorize(row: DayRow | undefined, s: StaffMini): Category {
+  // Prefer active timer label if any
+  if (s.hasActiveTimer) {
+    if (isWarehouseLabel(s.currentLabel)) return "on_warehouse";
+    return "on_project";
+  }
+  // Find latest meaningful block (last by start time)
+  const blocks = (row?.blocks ?? [])
+    .filter((b) => ["smoothed_presence", "transport", "unknown_place"].includes(b.type))
+    .slice()
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  const last = blocks[0];
+  if (!last) return "idle";
+  if (last.type === "transport") return "transport";
+  if (last.type === "unknown_place") return "unknown";
+  // smoothed_presence
+  if (isWarehouseLabel(last.label)) return "on_warehouse";
+  return "on_project";
+}
+
+function needsReview(row: DayRow | undefined, s: StaffMini): boolean {
+  if (!row) return false;
+  const hasGap = row.blocks.some((b) => b.type === "gps_gap");
+  if (hasGap) return true;
+  if (s.signal === "stale" && s.hasActiveTimer) return true;
+  if (s.signal === "no_signal" && s.hasActiveTimer) return true;
+  return false;
+}
+
+function matchesFilter(filter: FilterKey, row: DayRow | undefined, s: StaffMini, cat: Category): boolean {
+  switch (filter) {
+    case "all": return true;
+    case "on_site": return cat === "on_warehouse" || cat === "on_project";
+    case "on_project": return cat === "on_project";
+    case "on_warehouse": return cat === "on_warehouse";
+    case "transport": return cat === "transport";
+    case "stale": return s.signal === "stale";
+    case "no_signal": return s.signal === "no_signal";
+    case "active_timer": return s.hasActiveTimer;
+    case "needs_review": return needsReview(row, s);
+  }
+}
+
+function groupOf(s: StaffMini, cat: Category): GroupKey[] {
+  const groups: GroupKey[] = ["all"];
+  if (cat === "on_warehouse") groups.push("warehouse");
+  if (cat === "on_project") groups.push("project");
+  if (cat === "transport") groups.push("transport");
+  if (s.signal === "stale" || s.signal === "no_signal") groups.push("no_signal");
+  return groups;
+}
+
 export default function PresenceDayOverview() {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState<string>(today);
   const [staff, setStaff] = useState<StaffMini[] | null>(null);
   const [rows, setRows] = useState<Record<string, DayRow>>({});
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [collapsed, setCollapsed] = useState<Record<GroupKey, boolean>>({
+    all: false, warehouse: false, project: false, transport: false, no_signal: false,
+  });
   const reqIdRef = useRef(0);
 
   const loadStaff = useCallback(async () => {
@@ -109,7 +212,6 @@ export default function PresenceDayOverview() {
   const loadDay = useCallback(async (s: StaffMini[], d: string) => {
     const myReq = ++reqIdRef.current;
     setLoading(true);
-    // Initialize rows in loading state, preserving order
     const init: Record<string, DayRow> = {};
     for (const st of s) init[st.staffId] = { ...st, blocks: [], loading: true };
     setRows(init);
@@ -157,7 +259,6 @@ export default function PresenceDayOverview() {
     return () => { cancelled = true; };
   }, [date, loadStaff, loadDay]);
 
-  // Compute time-axis range from data, clamped to a sensible default 06–20.
   const { dayStart, startHour, endHour, totalHours } = useMemo(() => {
     const ds = new Date(`${date}T00:00:00`);
     let minH = 6;
@@ -176,6 +277,35 @@ export default function PresenceDayOverview() {
   const totalWidth = totalHours * HOUR_PX;
   const minOffset = startHour * 60;
 
+  // Filtered/categorized staff
+  const decorated = useMemo(() => {
+    if (!staff) return [];
+    const q = search.trim().toLowerCase();
+    return staff
+      .map((s) => {
+        const row = rows[s.staffId];
+        const cat = categorize(row, s);
+        return { s, row, cat };
+      })
+      .filter(({ s, row, cat }) => {
+        if (q && !s.name.toLowerCase().includes(q)) return false;
+        return matchesFilter(filter, row, s, cat);
+      });
+  }, [staff, rows, search, filter]);
+
+  // Group buckets
+  const grouped = useMemo(() => {
+    const buckets: Record<GroupKey, typeof decorated> = {
+      all: [], warehouse: [], project: [], transport: [], no_signal: [],
+    };
+    for (const item of decorated) {
+      for (const g of groupOf(item.s, item.cat)) {
+        buckets[g].push(item);
+      }
+    }
+    return buckets;
+  }, [decorated]);
+
   const renderBlock = (b: Block, key: string) => {
     if (!b.endAt && b.type !== "active_timer_started" && b.type !== "active_timer_stopped") return null;
     const startMin = minutesOfDay(b.at, dayStart) - minOffset;
@@ -186,12 +316,7 @@ export default function PresenceDayOverview() {
 
     if (b.type === "smoothed_presence") {
       return (
-        <div
-          key={key}
-          className="absolute top-2 bottom-2 rounded-md border border-primary/40 bg-primary/15 text-primary px-2 flex items-center text-[11px] font-medium overflow-hidden shadow-sm"
-          style={{ left, width }}
-          title={`${b.label} · ${fmtDur(dur)}`}
-        >
+        <div key={key} className="absolute top-2 bottom-2 rounded-md border border-primary/40 bg-primary/15 text-primary px-2 flex items-center text-[11px] font-medium overflow-hidden shadow-sm" style={{ left, width }} title={`${b.label} · ${fmtDur(dur)}`}>
           <span className="truncate">{b.label}</span>
           <span className="ml-1 opacity-70 shrink-0">· {fmtDur(dur)}</span>
         </div>
@@ -199,67 +324,93 @@ export default function PresenceDayOverview() {
     }
     if (b.type === "transport") {
       return (
-        <div
-          key={key}
-          className="absolute top-5 bottom-5 rounded-sm border border-cyan-500/40 bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 px-1.5 flex items-center text-[10px] overflow-hidden"
-          style={{ left, width }}
-          title={`Transport · ${fmtDur(dur)}`}
-        >
+        <div key={key} className="absolute top-5 bottom-5 rounded-sm border border-cyan-500/40 bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 px-1.5 flex items-center text-[10px] overflow-hidden" style={{ left, width }} title={`Transport · ${fmtDur(dur)}`}>
           <span className="truncate">→ {fmtDur(dur)}</span>
         </div>
       );
     }
     if (b.type === "unknown_place") {
       return (
-        <div
-          key={key}
-          className="absolute top-3 bottom-3 rounded-sm border border-border bg-muted/60 text-muted-foreground px-1.5 flex items-center text-[10px] overflow-hidden"
-          style={{ left, width }}
-          title={`Okänd plats · ${fmtDur(dur)}`}
-        >
+        <div key={key} className="absolute top-3 bottom-3 rounded-sm border border-border bg-muted/60 text-muted-foreground px-1.5 flex items-center text-[10px] overflow-hidden" style={{ left, width }} title={`Okänd plats · ${fmtDur(dur)}`}>
           <span className="truncate">Okänd · {fmtDur(dur)}</span>
         </div>
       );
     }
     if (b.type === "gps_gap") {
-      return (
-        <div
-          key={key}
-          className="absolute top-1/2 -translate-y-1/2 h-[3px] bg-amber-500/60 rounded-full"
-          style={{ left, width }}
-          title={`Signalglapp · ${fmtDur(dur)}`}
-        />
-      );
+      return <div key={key} className="absolute top-1/2 -translate-y-1/2 h-[3px] bg-amber-500/60 rounded-full" style={{ left, width }} title={`Signalglapp · ${fmtDur(dur)}`} />;
     }
     if (b.type === "active_timer_started" || b.type === "active_timer_stopped") {
-      return (
-        <div
-          key={key}
-          className={`absolute top-1 bottom-1 w-[2px] ${b.type === "active_timer_started" ? "bg-primary" : "bg-primary/50"}`}
-          style={{ left }}
-          title={`${b.type === "active_timer_started" ? "Timer startad" : "Timer stoppad"} · ${b.label}`}
-        />
-      );
+      return <div key={key} className={`absolute top-1 bottom-1 w-[2px] ${b.type === "active_timer_started" ? "bg-primary" : "bg-primary/50"}`} style={{ left }} title={`${b.type === "active_timer_started" ? "Timer startad" : "Timer stoppad"} · ${b.label}`} />;
     }
     return null;
+  };
+
+  const renderStaffRow = (item: { s: StaffMini; row: DayRow | undefined; cat: Category }) => {
+    const { s, row } = item;
+    const sigMeta = SIG_META[s.signal];
+    const SigIcon = sigMeta.Icon;
+    const review = needsReview(row, s);
+    return (
+      <div key={s.staffId} className="flex border-b hover:bg-muted/30 transition-colors" style={{ height: ROW_H }}>
+        <Link to={`/admin/presence/staff/${s.staffId}?date=${date}`} className="sticky left-0 z-10 bg-background hover:bg-muted/50 border-r flex flex-col justify-center px-3 gap-0.5" style={{ width: LEFT_W, minWidth: LEFT_W }}>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm truncate">{s.name}</span>
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Badge variant="outline" className={`${sigMeta.cls} text-[10px] px-1.5 py-0 h-4`}>
+              <SigIcon className="h-2.5 w-2.5 mr-1" />
+              {sigMeta.label}
+            </Badge>
+            {s.hasActiveTimer && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-primary/40 text-primary">
+                <Activity className="h-2.5 w-2.5 mr-1" /> Timer
+              </Badge>
+            )}
+            {review && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-500/40 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-2.5 w-2.5 mr-1" /> Granska
+              </Badge>
+            )}
+          </div>
+          <div className="text-[10px] text-muted-foreground truncate">{s.currentLabel || "—"}</div>
+        </Link>
+        <div className="relative" style={{ width: totalWidth }}>
+          {Array.from({ length: totalHours + 1 }).map((_, i) => (
+            <div key={i} className="absolute top-0 bottom-0 border-l border-border/40" style={{ left: i * HOUR_PX }} />
+          ))}
+          {row?.loading && (
+            <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground">Laddar…</div>
+          )}
+          {row?.error && !row.loading && (
+            <div className="absolute inset-0 flex items-center pl-2 text-[11px] text-destructive">{row.error}</div>
+          )}
+          {row?.blocks.map((b, i) => renderBlock(b, `${s.staffId}-${i}`))}
+        </div>
+      </div>
+    );
   };
 
   return (
     <Card>
       <CardContent className="p-0">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between gap-3 p-3 border-b">
-          <div className="flex items-center gap-2">
+        {/* Toolbar row 1: date + search + refresh */}
+        <div className="flex items-center justify-between gap-3 p-3 border-b flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <label className="text-sm text-muted-foreground">Datum</label>
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="h-8 w-[160px]"
-            />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-[160px]" />
             <Button variant="outline" size="sm" onClick={() => setDate(today)}>Idag</Button>
+            <div className="relative ml-2">
+              <Search className="h-3.5 w-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Sök personal…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 w-[220px] pl-7"
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
             <Legend swatch="bg-primary/30 border-primary/40" label="På plats" />
             <Legend swatch="bg-cyan-500/30 border-cyan-500/40" label="Transport" />
             <Legend swatch="bg-muted border-border" label="Okänd" />
@@ -271,28 +422,39 @@ export default function PresenceDayOverview() {
           </div>
         </div>
 
-        {/* Gantt body */}
+        {/* Toolbar row 2: filter chips */}
+        <div className="flex items-center gap-1.5 p-2 border-b bg-muted/20 flex-wrap">
+          {FILTERS.map((f) => {
+            const active = filter === f.key;
+            return (
+              <Button
+                key={f.key}
+                size="sm"
+                variant={active ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => setFilter(f.key)}
+              >
+                {f.label}
+              </Button>
+            );
+          })}
+        </div>
+
+        {/* Gantt body — grouped */}
         <div className="relative overflow-x-auto">
           <div style={{ minWidth: LEFT_W + totalWidth }}>
-            {/* Sticky header */}
+            {/* Sticky time header */}
             <div className="flex border-b sticky top-0 bg-background z-20">
-              <div
-                className="sticky left-0 z-30 bg-background border-r"
-                style={{ width: LEFT_W, minWidth: LEFT_W }}
-              >
+              <div className="sticky left-0 z-30 bg-background border-r" style={{ width: LEFT_W, minWidth: LEFT_W }}>
                 <div className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Personal ({staff?.length ?? 0})
+                  Personal ({decorated.length}/{staff?.length ?? 0})
                 </div>
               </div>
               <div className="relative" style={{ width: totalWidth, height: 32 }}>
                 {Array.from({ length: totalHours + 1 }).map((_, i) => {
                   const h = startHour + i;
                   return (
-                    <div
-                      key={i}
-                      className="absolute top-0 bottom-0 border-l border-border/60 text-[10px] text-muted-foreground pl-1"
-                      style={{ left: i * HOUR_PX }}
-                    >
+                    <div key={i} className="absolute top-0 bottom-0 border-l border-border/60 text-[10px] text-muted-foreground pl-1" style={{ left: i * HOUR_PX }}>
                       {String(h).padStart(2, "0")}
                     </div>
                   );
@@ -300,68 +462,34 @@ export default function PresenceDayOverview() {
               </div>
             </div>
 
-            {/* Rows */}
-            {!staff && (
-              <div className="p-6 text-sm text-muted-foreground">Laddar personal…</div>
+            {!staff && <div className="p-6 text-sm text-muted-foreground">Laddar personal…</div>}
+            {staff && staff.length === 0 && (
+              <div className="p-6 text-sm text-muted-foreground">Ingen personal hittad.</div>
             )}
-            {staff?.map((s) => {
-              const row = rows[s.staffId];
-              const sigMeta = SIG_META[s.signal];
-              const SigIcon = sigMeta.Icon;
+
+            {staff && GROUPS.map((g) => {
+              const items = grouped[g.key];
+              if (!items.length) return null;
+              const isCollapsed = collapsed[g.key];
               return (
-                <div
-                  key={s.staffId}
-                  className="flex border-b hover:bg-muted/30 transition-colors"
-                  style={{ height: ROW_H }}
-                >
-                  <Link
-                    to={`/admin/presence/staff/${s.staffId}?date=${date}`}
-                    className="sticky left-0 z-10 bg-background hover:bg-muted/50 border-r flex flex-col justify-center px-3 gap-0.5"
-                    style={{ width: LEFT_W, minWidth: LEFT_W }}
+                <div key={g.key}>
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))}
+                    className="w-full sticky left-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-muted/40 hover:bg-muted/60 border-b text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                    style={{ width: LEFT_W + totalWidth }}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">{s.name}</span>
-                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant="outline" className={`${sigMeta.cls} text-[10px] px-1.5 py-0 h-4`}>
-                        <SigIcon className="h-2.5 w-2.5 mr-1" />
-                        {sigMeta.label}
-                      </Badge>
-                      {s.hasActiveTimer && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-primary/40 text-primary">
-                          <Activity className="h-2.5 w-2.5 mr-1" /> Timer
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground truncate">{s.currentLabel || "—"}</div>
-                  </Link>
-                  <div className="relative" style={{ width: totalWidth }}>
-                    {/* Hour grid */}
-                    {Array.from({ length: totalHours + 1 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="absolute top-0 bottom-0 border-l border-border/40"
-                        style={{ left: i * HOUR_PX }}
-                      />
-                    ))}
-                    {row?.loading && (
-                      <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground">
-                        Laddar…
-                      </div>
-                    )}
-                    {row?.error && !row.loading && (
-                      <div className="absolute inset-0 flex items-center pl-2 text-[11px] text-destructive">
-                        {row.error}
-                      </div>
-                    )}
-                    {row?.blocks.map((b, i) => renderBlock(b, `${s.staffId}-${i}`))}
-                  </div>
+                    {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    <span>{g.label}</span>
+                    <span className="opacity-60">({items.length})</span>
+                  </button>
+                  {!isCollapsed && items.map(renderStaffRow)}
                 </div>
               );
             })}
-            {staff && staff.length === 0 && (
-              <div className="p-6 text-sm text-muted-foreground">Ingen personal hittad.</div>
+
+            {staff && decorated.length === 0 && (
+              <div className="p-6 text-sm text-muted-foreground">Inga personer matchar filtret.</div>
             )}
           </div>
         </div>
