@@ -582,6 +582,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
         </div>
       </div>
 
+      {/* WMS preflight check (run before scanning) */}
+      <PackingPreflightPanel
+        packingId={packingId}
+        bookingNumber={packing?.booking?.booking_number ?? null}
+      />
+
       {showQR && (
         <div className="mb-4">
           <PackingQRCode packingId={packingId} packingName={packingName} />
