@@ -23,6 +23,21 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
+interface NearestTargetCandidate {
+  targetLabel: string;
+  targetType: string;
+  targetId: string;
+  targetSource: string;
+  targetValidity: string;
+  timeTrackingAllowed: boolean;
+  lat: number | null;
+  lng: number | null;
+  radiusMeters: number | null;
+  distanceMeters: number | null;
+  insideRadius: boolean;
+  excludedReason: string | null;
+}
+
 interface TimelineRow {
   at: string;
   endAt?: string | null;
@@ -43,6 +58,26 @@ interface TimelineRow {
   confidence?: number | null;
   source: string;
   gpsSegmentId?: string | null;
+  centerLat?: number | null;
+  centerLng?: number | null;
+  matchedTargetId?: string | null;
+  matchedTargetType?: string | null;
+  nearestTargets?: NearestTargetCandidate[];
+  noMatchHint?: string | null;
+}
+
+interface TargetMatchSummary {
+  totalTargets: number;
+  projectTargets: number;
+  bookingTargets: number;
+  warehouseTargets: number;
+  locationTargets: number;
+  targetsWithCoordinates: number;
+  targetsMissingCoordinates: number;
+  matchedTargets: number;
+  unmatchedProjectTargets: number;
+  excludedByReason: Record<string, number>;
+  warnings: string[];
 }
 
 interface DayResponse {
@@ -60,6 +95,21 @@ interface DayResponse {
   };
   timeline: TimelineRow[];
   counts: { total: number; presenceEvents: number; timerEvents: number; gpsSegments: number };
+  targetMatchSummary?: TargetMatchSummary | null;
+  targets?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    targetSource: string;
+    targetValidity: string;
+    timeTrackingAllowed: boolean;
+    latitude: number | null;
+    longitude: number | null;
+    radiusMeters: number | null;
+    status: string | null;
+    dateRelevance: string;
+    notes: string[];
+  }>;
 }
 
 const ROW_META: Record<TimelineRow["type"], { icon: any; cls: string; label: string }> = {
