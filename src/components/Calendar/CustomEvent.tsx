@@ -376,7 +376,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           }
         }}
       >
-        <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+        <div style={{ width: '100%', height: '100%' }}>
           {eventCardContent}
         </div>
       </EventActionPopover>
