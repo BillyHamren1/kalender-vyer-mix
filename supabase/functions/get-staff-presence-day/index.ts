@@ -347,6 +347,9 @@ Deno.serve(async (req) => {
       .filter((t): t is WorkTarget => !!t);
 
     const gpsTimeline = buildGpsDayTimeline({
+      // capture also for the new presence-day-blocks engine
+      // (assigned below to gpsTimelineResult outside the try)
+
       staffId,
       organizationId: orgId,
       date,
