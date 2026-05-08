@@ -172,7 +172,8 @@ const EARTH_R = 6_371_000;
 const BRIDGE_TRANSPORT_MAX_MIN = 3;
 const BRIDGE_UNKNOWN_MAX_MIN = 3;
 const BRIDGE_SIGNAL_GAP_MAX_MIN = 5; // hard ceiling, separate from same-target signal_gap > 30 = never bridge
-const UNKNOWN_MERGE_DISTANCE_M = 150;
+const UNKNOWN_MERGE_DISTANCE_M = 250;
+const STABLE_STOP_MIN_MIN = 5;
 
 // ───────────────────────────────────────────────────────────────────────────
 // Helpers
