@@ -381,7 +381,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           }
         }}
       >
-        <div onContextMenu={handleContextMenu} onDoubleClick={handleViewDetails} style={{ width: '100%', height: '100%' }}>
+        <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
           {eventCardContent}
         </div>
       </EventActionPopover>
