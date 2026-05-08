@@ -162,6 +162,14 @@ const MEDIUM_GAP_MAX_MIN = 30;
 const UNCERTAIN_DISTANCE_M = 5000;
 const EARTH_R = 6_371_000;
 
+// Aggregation thresholds — bridges allowed BETWEEN two same-target on-site
+// anchors. Long bridges (signal_gap > MEDIUM, transport >= 3min, etc.) are
+// NEVER absorbed; they remain as their own day-report blocks.
+const BRIDGE_TRANSPORT_MAX_MIN = 3;
+const BRIDGE_UNKNOWN_MAX_MIN = 3;
+const BRIDGE_SIGNAL_GAP_MAX_MIN = 5; // hard ceiling, separate from same-target signal_gap > 30 = never bridge
+const UNKNOWN_MERGE_DISTANCE_M = 150;
+
 // ───────────────────────────────────────────────────────────────────────────
 // Helpers
 // ───────────────────────────────────────────────────────────────────────────
