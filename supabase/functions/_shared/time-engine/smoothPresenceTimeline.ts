@@ -437,17 +437,143 @@ export function smoothPresenceTimeline(
     i = j;
   }
 
-  out.sort((a, b) => a.at.localeCompare(b.at));
+  // Post-pass: merge consecutive transport blocks when no stable stop sits between them.
+  const merged = mergeConsecutiveTransports(out);
+  merged.sort((a, b) => a.at.localeCompare(b.at));
 
   return {
-    smoothed: out,
+    smoothed: merged,
     blocks,
     stats: {
       inputRows: sorted.length,
-      smoothedRows: out.length,
+      smoothedRows: merged.length,
       blocksCreated: blocks.length,
       suppressedNoise,
       mergedArrivals,
     },
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transport-merge post-pass
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STABLE_STOP_MIN_MIN = 3; // unknown_place < 3 min räknas inte som stabilt stopp
+
+const isStableStop = (r: any): boolean => {
+  if (!r) return false;
+  if (r.type === 'smoothed_presence') return true;
+  if (r.type === 'arrival') return true;
+  if (r.type === 'unknown_place' && (r.durationMin ?? 0) >= STABLE_STOP_MIN_MIN) return true;
+  return false;
+};
+
+const isTransportMergeable = (r: any): boolean => {
+  if (!r) return false;
+  if (r.type === 'transport') return true;
+  if (r.type === 'gps_gap') return true;
+  if (r.type === 'signal_lost' || r.type === 'signal_resumed') return true;
+  if (r.type === 'departure') return true;
+  if (r.type === 'unknown_place' && (r.durationMin ?? 0) < STABLE_STOP_MIN_MIN) return true;
+  return false;
+};
+
+function mergeConsecutiveTransports(
+  rows: Array<SmoothInputRow | SmoothedPresenceBlock>,
+): Array<SmoothInputRow | SmoothedPresenceBlock> {
+  const sorted = [...rows].sort((a, b) => a.at.localeCompare(b.at));
+  const out: Array<SmoothInputRow | SmoothedPresenceBlock> = [];
+
+  let i = 0;
+  while (i < sorted.length) {
+    const row: any = sorted[i];
+    if (row.type !== 'transport') {
+      out.push(row);
+      i += 1;
+      continue;
+    }
+
+    // Walk forward across bridgeable rows; stop on stable stop or timer events.
+    let j = i + 1;
+    let lastTransportIdx = i;
+    while (j < sorted.length) {
+      const next: any = sorted[j];
+      if (next.type === 'active_timer_started' || next.type === 'active_timer_stopped') break;
+      if (isStableStop(next)) break;
+      if (!isTransportMergeable(next)) break;
+      if (next.type === 'transport') lastTransportIdx = j;
+      j += 1;
+    }
+
+    const endIdx = lastTransportIdx;
+    const members = sorted.slice(i, endIdx + 1);
+    const transportMembers = members.filter((m: any) => m.type === 'transport');
+
+    if (transportMembers.length <= 1) {
+      out.push(row);
+      i += 1;
+      continue;
+    }
+
+    const first: any = transportMembers[0];
+    const last: any = transportMembers[transportMembers.length - 1];
+    const blockStart = first.at;
+    const blockEnd = last.endAt ?? last.at;
+    const durationMin = minutesBetween(blockStart, blockEnd);
+
+    const mergedTransportSegmentIds: string[] = transportMembers
+      .map((m: any) => m.gpsSegmentId)
+      .filter((x: any): x is string => !!x);
+
+    const absorbed = members.filter((m: any) => m.type !== 'transport');
+    const suppressedNoiseSegments: SuppressedNoiseSegment[] = absorbed.map((m: any) => ({
+      id: m.gpsSegmentId ?? null,
+      segmentId: m.gpsSegmentId ?? null,
+      type: m.type,
+      kind: noiseKind(m),
+      at: m.at,
+      startTs: m.at,
+      endAt: m.endAt ?? null,
+      endTs: m.endAt ?? null,
+      durationMin: m.durationMin ?? null,
+      label: m.label,
+      reason: noiseReason(m),
+    }));
+
+    const signalGapsDuringTransport: SignalGapMeta[] = absorbed
+      .filter((m: any) => m.type === 'gps_gap')
+      .map((m: any) => ({
+        segmentId: m.gpsSegmentId ?? null,
+        startTs: m.at,
+        endTs: m.endAt ?? null,
+        durationMin: m.durationMin ?? null,
+      }));
+    const signalGapMin = signalGapsDuringTransport.reduce((s, g) => s + (g.durationMin ?? 0), 0);
+
+    const mergedRow: any = {
+      ...first,
+      type: 'transport',
+      at: blockStart,
+      endAt: blockEnd,
+      durationMin,
+      label: 'Transport',
+      source: 'smoothed_transport_merge',
+      mergedTransportSegmentIds,
+      suppressedNoiseSegments,
+      signalGapsDuringTransport,
+      signalGapCount: signalGapsDuringTransport.length,
+      signalGapMin,
+    };
+
+    out.push(mergedRow);
+
+    // Re-emit any trailing tech rows between last transport and the stop, so the
+    // raw view doesn't lose the breadcrumbs entirely (clean view filters them).
+    for (let k = endIdx + 1; k < j; k += 1) {
+      out.push(sorted[k]);
+    }
+    i = j;
+  }
+
+  return out;
 }
