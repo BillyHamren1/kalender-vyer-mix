@@ -95,7 +95,8 @@ Deno.serve(async (req) => {
     const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? '';
     const okSvc =
       (SERVICE_ROLE.length > 0 && bearer === SERVICE_ROLE) ||
-      (CRON_SECRET.length > 0 && bearer === CRON_SECRET);
+      (CRON_SECRET.length > 0 && bearer === CRON_SECRET) ||
+      (ANON_KEY.length > 0 && bearer === ANON_KEY);
     let userOrgId: string | null = null;
     if (!okSvc) {
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
