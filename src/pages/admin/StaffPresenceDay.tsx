@@ -321,8 +321,35 @@ export default function StaffPresenceDay() {
 
       {data && data.timeline.length > 0 && (() => {
         const rows = data.timeline;
-        const gpsRows = rows.filter((r) => ROW_META[r.type].group === "gps");
+        const allGpsRows = rows.filter((r) => ROW_META[r.type].group === "gps");
         const timerRows = rows.filter((r) => ROW_META[r.type].group === "timer");
+
+        // UI noise filter for "ren dag": drop short transport / unknown / gps_gap and
+        // collapse repeated arrivals to the same target. Smoothing happens server-side,
+        // this is a final presentation pass for whatever rows remain.
+        const MIN_VISIBLE_MIN = 3;
+        const cleanGpsRows: TimelineRow[] = [];
+        let lastArrivalKey: string | null = null;
+        for (const r of allGpsRows) {
+          const dur = r.durationMin ?? null;
+          if (r.type === "transport") {
+            if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+          } else if (r.type === "unknown_place") {
+            if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+          } else if (r.type === "gps_gap") {
+            if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+          } else if (r.type === "arrival" || r.type === "smoothed_presence") {
+            const key = r.matchedTargetId || r.targetId || r.label;
+            if (key && key === lastArrivalKey) continue; // collapse jitter / re-arrival
+            lastArrivalKey = key;
+          } else if (r.type === "departure") {
+            // departures within same-target jitter add no info in clean view
+            continue;
+          }
+          cleanGpsRows.push(r);
+        }
+        const gpsRows = showRaw ? allGpsRows : cleanGpsRows;
+        const hiddenNoiseCount = allGpsRows.length - cleanGpsRows.length;
         const dayStart = rows[0]?.at ?? null;
         const gpsGapCount = rows.filter((r) => r.type === "gps_gap").length;
         const arrivalCount = rows.filter((r) => r.type === "arrival").length;
@@ -384,9 +411,9 @@ export default function StaffPresenceDay() {
                 <CardTitle className="text-lg flex items-center gap-2">
                   <MapPin className="h-5 w-5" /> Närvaro & GPS
                   <Badge variant="outline" className="ml-2 text-xs">{gpsRows.length}</Badge>
-                  {(data.smoothedBlocks?.length ?? 0) > 0 && !showRaw && (
+                  {!showRaw && hiddenNoiseCount > 0 && (
                     <Badge variant="outline" className="ml-1 text-[10px]">
-                      {data.smoothedBlocks!.length} sammanhängande block
+                      {hiddenNoiseCount} brus dolt
                     </Badge>
                   )}
                   <Button
@@ -395,13 +422,17 @@ export default function StaffPresenceDay() {
                     className="ml-auto h-7 text-xs"
                     onClick={() => setShowRaw((v) => !v)}
                   >
-                    {showRaw ? "Visa sammanhängande" : "Visa rå GPS-segment"}
+                    {showRaw ? "Visa ren dag" : "Visa tekniska GPS-segment"}
                   </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {gpsRows.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Inga GPS-händelser för dagen.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {allGpsRows.length === 0
+                      ? "Inga GPS-händelser för dagen."
+                      : "Endast brus för dagen — klicka på \"Visa tekniska GPS-segment\" för att se rådata."}
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {(showRaw
@@ -414,7 +445,14 @@ export default function StaffPresenceDay() {
                   <p className="text-xs text-muted-foreground mt-3">
                     Smoothing: {(data.summary as any).smoothing.blocksCount} block ·
                     {" "}{(data.summary as any).smoothing.suppressedNoiseCount} brus-segment dolda ·
-                    {" "}{(data.summary as any).smoothing.mergedArrivals} dubbletter av samma plats infogade.
+                    {" "}{(data.summary as any).smoothing.mergedArrivals} dubbletter av samma plats infogade ·
+                    {" "}+{hiddenNoiseCount} dolda i UI-filter (transport/unknown/gap &lt; {MIN_VISIBLE_MIN} min).
+                  </p>
+                )}
+                {showRaw && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Rå-vy: alla raw gps_day_timeline-segment med seg-id. Inkluderar transport, unknown_place
+                    och gps_gap kortare än {MIN_VISIBLE_MIN} min.
                   </p>
                 )}
               </CardContent>
