@@ -115,7 +115,9 @@ interface DayResponse {
     currentTargetType: string | null;
   };
   timeline: TimelineRow[];
-  counts: { total: number; presenceEvents: number; timerEvents: number; gpsSegments: number };
+  rawTimeline?: TimelineRow[];
+  smoothedBlocks?: TimelineRow[];
+  counts: { total: number; presenceEvents: number; timerEvents: number; gpsSegments: number; smoothedBlocks?: number; suppressedNoise?: number };
   targetMatchSummary?: TargetMatchSummary | null;
   targets?: Array<{
     id: string;
