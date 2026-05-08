@@ -69,8 +69,11 @@ interface DayHealth {
   date: string;
   rawPingCount: number;
   gpsDayTimelineCount: number;
+  rawEvidenceBlocksCount: number;
   presenceDayBlocksCount: number;
+  compressionRatio: number;
   blocksByKind: Record<string, number>;
+  evidenceBlocksByKind: Record<string, number>;
   confirmedOnSiteMinutes: number;
   probableOnSiteMinutes: number;
   signalGapMinutes: number;
