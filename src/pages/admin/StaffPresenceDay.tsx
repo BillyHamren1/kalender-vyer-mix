@@ -331,11 +331,33 @@ export default function StaffPresenceDay() {
                         {row.targetType && <span>typ: {row.targetType}</span>}
                         {row.confidence != null && <span>conf: {Math.round(Number(row.confidence) * 100)}%</span>}
                         <span>källa: {row.source}</span>
+                        {row.mergedSources && row.mergedSources.length > 1 && (
+                          <Badge variant="outline" className="text-[10px]">
+                            +{row.mergedSources.length - 1} källa{row.mergedSources.length - 1 === 1 ? '' : 'r'}
+                          </Badge>
+                        )}
+                        {row.registrationId && <span>reg: {row.registrationId.slice(0, 8)}…</span>}
                         {row.gpsSegmentId && <span>seg: {row.gpsSegmentId}</span>}
                         {row.centerLat != null && row.centerLng != null && (
                           <span>@ {row.centerLat.toFixed(5)}, {row.centerLng.toFixed(5)}</span>
                         )}
                       </div>
+                      {row.duplicates && row.duplicates.length > 0 && (
+                        <details className="text-xs mt-1">
+                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                            Dolda dubbletter ({row.duplicates.length})
+                          </summary>
+                          <div className="mt-1 space-y-1 pl-2 border-l border-border">
+                            {row.duplicates.map((d, di) => (
+                              <div key={di} className="text-muted-foreground">
+                                {fmtTime(d.at)} · källa: {d.source}
+                                {d.registrationId && ` · reg: ${d.registrationId.slice(0, 8)}…`}
+                                {d.label && d.label !== row.label && ` · ${d.label}`}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                       {row.noMatchHint && (
                         <div className="text-xs mt-1 px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/30">
                           ⚠ {row.noMatchHint}
