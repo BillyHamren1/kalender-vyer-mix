@@ -230,6 +230,8 @@ Deno.serve(async (req) => {
         label: `Timer startad (${label})`,
         targetType,
         targetId,
+        targetLabel: label,
+        registrationId: t.id,
         confidence: null,
         source: t.start_source ?? evidence.engine ?? 'time-engine',
         gpsSegmentId: evidence.segmentId ?? null,
@@ -242,6 +244,8 @@ Deno.serve(async (req) => {
         label: `Timer stoppad (${t.stop_source ?? 'okänd'})`,
         targetType,
         targetId,
+        targetLabel: label,
+        registrationId: t.id,
         confidence: null,
         source: t.stop_source ?? 'unknown',
       });
