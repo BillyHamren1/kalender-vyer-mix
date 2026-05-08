@@ -203,6 +203,8 @@ export default function PresenceDayOverview() {
   const [collapsed, setCollapsed] = useState<Record<GroupKey, boolean>>({
     all: false, warehouse: false, project: false, transport: false, no_signal: false,
   });
+  const [selected, setSelected] = useState<{ staff: StaffMini; block: any } | null>(null);
+  const [showTech, setShowTech] = useState(false);
   const reqIdRef = useRef(0);
 
   const loadStaff = useCallback(async () => {
