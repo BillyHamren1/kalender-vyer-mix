@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeft, Loader2, LogOut, Play } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import WorkDayHeaderTimer from './WorkDayHeaderTimer';
+
 import { useWorkDay } from '@/hooks/useWorkDay';
 import { clearWorkdayEnded } from '@/services/workdayState';
 import { useLanguage } from '@/i18n/LanguageContext';
