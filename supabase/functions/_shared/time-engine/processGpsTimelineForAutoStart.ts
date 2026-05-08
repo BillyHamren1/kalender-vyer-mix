@@ -271,12 +271,72 @@ export async function processGpsTimelineForAutoStart(
   const active = await fetchActiveRegistration(supabaseAdmin, organizationId, staffId);
   const decisions: AutoStartDecisionLogEntry[] = [];
 
+  // 3b) User-ended-workday suppression — if the user manually stopped their
+  // workday today, GPS/auto-start is locked out for the rest of the local
+  // day. Manual start via WorkDayPanel bypasses this (it goes through
+  // start_time_registration directly, not through this engine).
+  const nowIso = input.localTime ?? new Date().toISOString();
+  const suppression = await fetchActiveSuppression(
+    supabaseAdmin, organizationId, staffId, date, nowIso,
+  );
+
   // 4) Decide on relevant stay segments
   const candidates = timeline.segments.filter(
     (s) => s.kind === 'stay' && s.type === 'known_site' && s.matchedTargetId,
   );
 
   let createdRegistrationId: UUID | null = null;
+
+  // If suppression is active we still emit one decision per candidate so the
+  // health check / debug surface clearly shows `blocked_user_ended_workday`,
+  // but we never insert a registration row.
+  if (suppression) {
+    for (const seg of candidates) {
+      const target = findTargetForSegment(seg, resolvedTargets);
+      decisions.push({
+        segmentId: seg.id,
+        segmentKind: seg.kind,
+        segmentType: seg.type,
+        matchedTargetId: target?.id ?? seg.matchedTargetId,
+        matchedTargetName: target?.name ?? seg.matchedTargetName,
+        decision: {
+          allowed: false,
+          reason: 'blocked_user_ended_workday',
+          confidence: seg.confidence,
+          startAt: null,
+          targetId: null,
+          targetType: null,
+          targetName: null,
+          source: null,
+          evidence: {
+            isNightLocal: false,
+            localHour: 0,
+            dwellMinutes: seg.durationMin,
+            requiredDwellMinutes: 0,
+            pingCount: seg.pingCount,
+            requiredPingCount: 0,
+            confidence: seg.confidence,
+            requiredConfidence: 0,
+            segmentKind: seg.kind,
+            segmentType: seg.type,
+            policyUsed: 'day',
+          },
+        },
+      });
+    }
+    return {
+      organizationId,
+      staffId,
+      date,
+      alreadyActive: !!active,
+      createdRegistrationId: null,
+      decisions,
+      targetDiagnostics,
+      suppression,
+      computedAt: new Date().toISOString(),
+    };
+  }
+
 
   for (const seg of candidates) {
     const target = findTargetForSegment(seg, resolvedTargets);
