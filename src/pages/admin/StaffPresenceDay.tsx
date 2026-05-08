@@ -20,6 +20,7 @@ import {
   CircleSlash,
   Play,
   Square,
+  Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -38,6 +39,16 @@ interface NearestTargetCandidate {
   excludedReason: string | null;
 }
 
+interface SuppressedNoiseSegment {
+  id: string | null;
+  type: string;
+  at: string;
+  endAt: string | null;
+  durationMin: number | null;
+  label: string;
+  reason: string;
+}
+
 interface TimelineRow {
   at: string;
   endAt?: string | null;
@@ -51,7 +62,8 @@ interface TimelineRow {
     | "unknown_place"
     | "gps_gap"
     | "active_timer_started"
-    | "active_timer_stopped";
+    | "active_timer_stopped"
+    | "smoothed_presence";
   label: string;
   targetType?: string | null;
   targetId?: string | null;
@@ -68,6 +80,11 @@ interface TimelineRow {
   targetLabel?: string | null;
   mergedSources?: string[];
   duplicates?: Array<{ source: string; at: string; label: string; registrationId?: string | null }>;
+  // smoothed_presence-only:
+  startAt?: string;
+  mergedSegmentIds?: string[];
+  suppressedNoiseCount?: number;
+  suppressedNoiseSegments?: SuppressedNoiseSegment[];
 }
 
 interface TargetMatchSummary {
@@ -98,7 +115,9 @@ interface DayResponse {
     currentTargetType: string | null;
   };
   timeline: TimelineRow[];
-  counts: { total: number; presenceEvents: number; timerEvents: number; gpsSegments: number };
+  rawTimeline?: TimelineRow[];
+  smoothedBlocks?: TimelineRow[];
+  counts: { total: number; presenceEvents: number; timerEvents: number; gpsSegments: number; smoothedBlocks?: number; suppressedNoise?: number };
   targetMatchSummary?: TargetMatchSummary | null;
   targets?: Array<{
     id: string;
@@ -126,6 +145,7 @@ const ROW_META: Record<TimelineRow["type"], { icon: any; cls: string; label: str
   gps_gap: { icon: CircleSlash, cls: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30", label: "GPS-glapp (signal)", group: "gps" },
   active_timer_started: { icon: Play, cls: "bg-primary/15 text-primary border-primary/40 border-l-4 border-l-primary", label: "Timer startad", group: "timer" },
   active_timer_stopped: { icon: Square, cls: "bg-muted text-foreground border-border border-l-4 border-l-primary/60", label: "Timer stoppad", group: "timer" },
+  smoothed_presence: { icon: Clock, cls: "bg-green-500/15 text-green-800 dark:text-green-300 border-green-500/40 border-l-4 border-l-green-500", label: "På känd plats", group: "gps" },
 };
 
 const SIGNAL_META = {
@@ -149,6 +169,7 @@ export default function StaffPresenceDay() {
   const [staffName, setStaffName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
 
   const load = useCallback(async () => {
     if (!staffId) return;
@@ -363,6 +384,19 @@ export default function StaffPresenceDay() {
                 <CardTitle className="text-lg flex items-center gap-2">
                   <MapPin className="h-5 w-5" /> Närvaro & GPS
                   <Badge variant="outline" className="ml-2 text-xs">{gpsRows.length}</Badge>
+                  {(data.smoothedBlocks?.length ?? 0) > 0 && !showRaw && (
+                    <Badge variant="outline" className="ml-1 text-[10px]">
+                      {data.smoothedBlocks!.length} sammanhängande block
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-7 text-xs"
+                    onClick={() => setShowRaw((v) => !v)}
+                  >
+                    {showRaw ? "Visa sammanhängande" : "Visa rå GPS-segment"}
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -370,8 +404,18 @@ export default function StaffPresenceDay() {
                   <p className="text-sm text-muted-foreground">Inga GPS-händelser för dagen.</p>
                 ) : (
                   <div className="space-y-2">
-                    {gpsRows.map((row, i) => <TimelineRowView key={`g${i}`} row={row} />)}
+                    {(showRaw
+                      ? (data.rawTimeline ?? data.timeline).filter((r) => ROW_META[r.type]?.group === "gps")
+                      : gpsRows
+                    ).map((row, i) => <TimelineRowView key={`g${i}`} row={row} />)}
                   </div>
+                )}
+                {!showRaw && (data.summary as any)?.smoothing && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Smoothing: {(data.summary as any).smoothing.blocksCount} block ·
+                    {" "}{(data.summary as any).smoothing.suppressedNoiseCount} brus-segment dolda ·
+                    {" "}{(data.summary as any).smoothing.mergedArrivals} dubbletter av samma plats infogade.
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -476,6 +520,23 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
                   {fmtTime(d.at)} · källa: {d.source}
                   {d.registrationId && ` · reg: ${d.registrationId.slice(0, 8)}…`}
                   {d.label && d.label !== row.label && ` · ${d.label}`}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+        {row.suppressedNoiseSegments && row.suppressedNoiseSegments.length > 0 && (
+          <details className="text-xs mt-1">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Dolda brus-segment ({row.suppressedNoiseSegments.length})
+            </summary>
+            <div className="mt-1 space-y-1 pl-2 border-l border-border">
+              {row.suppressedNoiseSegments.map((s, si) => (
+                <div key={si} className="text-muted-foreground">
+                  {fmtTime(s.at)}{s.endAt ? ` → ${fmtTime(s.endAt)}` : ""}
+                  {s.durationMin != null && ` (${s.durationMin} min)`}
+                  · {s.type} · {s.reason}
+                  {s.id && ` · seg: ${s.id}`}
                 </div>
               ))}
             </div>
