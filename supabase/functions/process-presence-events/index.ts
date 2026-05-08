@@ -123,13 +123,122 @@ Deno.serve(async (req) => {
       segments: timeline.segments,
     });
 
-    if (dryRun) {
+    if (dryRun || body.diagnostics) {
+      const targetsWithCoordinates = resolved.filter((t) => t.latitude != null && t.longitude != null).length;
+      const targetsWithoutCoordinates = resolved.length - targetsWithCoordinates;
+      const validTargets = resolved.filter((t) => t.targetValidity === 'valid').length;
+      const invalidTargets = resolved.length - validTargets;
+      const excludedByReason: Record<string, number> = {};
+      for (const t of resolved) {
+        if (t.targetValidity !== 'valid') {
+          excludedByReason[t.targetValidity] = (excludedByReason[t.targetValidity] ?? 0) + 1;
+        }
+      }
+      const autostartableTargets = resolved.filter(
+        (t) => t.targetValidity === 'valid' && t.timeTrackingAllowed,
+      ).length;
+
+      const stays = timeline.segments.filter((s) => s.kind === 'stay');
+      const knownStayCount = stays.filter((s) => s.type === 'known_site').length;
+      const unknownStayCount = stays.filter((s) => s.type === 'unknown_place').length;
+
+      const segmentsWithDiag = stays.map((s) => {
+        const cLat = s.centerLat!;
+        const cLng = s.centerLng!;
+        const ranked = resolved
+          .map((t) => {
+            const hasCoords = t.latitude != null && t.longitude != null;
+            const distanceMeters = hasCoords
+              ? haversineM(cLat, cLng, t.latitude!, t.longitude!)
+              : null;
+            const radius = t.radiusMeters ?? 100;
+            const insideRadius = distanceMeters != null ? distanceMeters <= radius : false;
+            const excludedReason = t.targetValidity !== 'valid'
+              ? t.targetValidity
+              : !hasCoords
+                ? 'missing_coordinates'
+                : !insideRadius
+                  ? 'outside_radius'
+                  : null;
+            return {
+              target_id: t.id,
+              target_label: t.name,
+              target_type: t.type,
+              targetSource: t.targetSource,
+              targetValidity: t.targetValidity,
+              timeTrackingAllowed: t.timeTrackingAllowed,
+              lat: t.latitude,
+              lng: t.longitude,
+              radiusMeters: radius,
+              distanceMeters: distanceMeters != null ? Math.round(distanceMeters) : null,
+              insideRadius,
+              excludedReason,
+            };
+          })
+          .sort((a, b) => {
+            if (a.distanceMeters == null) return 1;
+            if (b.distanceMeters == null) return -1;
+            return a.distanceMeters - b.distanceMeters;
+          });
+
+        return {
+          segment: {
+            id: s.id,
+            startTs: s.startTs,
+            endTs: s.endTs,
+            durationMin: s.durationMin,
+            centerLat: cLat,
+            centerLng: cLng,
+            pingCount: s.pingCount,
+            label: s.label,
+            reason: s.reason,
+            type: s.type,
+          },
+          nearestTargets: ranked.slice(0, 5),
+        };
+      });
+
+      let closestOverall: { distanceMeters: number; target_label: string; target_id: string } | null = null;
+      for (const sd of segmentsWithDiag) {
+        const top = sd.nearestTargets[0];
+        if (top && top.distanceMeters != null) {
+          if (!closestOverall || top.distanceMeters < closestOverall.distanceMeters) {
+            closestOverall = {
+              distanceMeters: top.distanceMeters,
+              target_label: top.target_label,
+              target_id: top.target_id,
+            };
+          }
+        }
+      }
+
+      const targetDebugSummary = {
+        totalTargets: resolved.length,
+        targetsWithCoordinates,
+        targetsWithoutCoordinates,
+        autostartableTargets,
+        validTargets,
+        invalidTargets,
+        excludedByReason,
+        closestTargetOverall: closestOverall,
+      };
+
+      const longestStays = [...segmentsWithDiag]
+        .sort((a, b) => b.segment.durationMin - a.segment.durationMin)
+        .slice(0, 10);
+
       return json({
-        dryRun: true,
+        dryRun: !!dryRun,
+        diagnostics: !!body.diagnostics,
         date,
-        segmentCount: timeline.segments.length,
+        rawPingCount: pings.length,
+        gpsDayTimelineCount: timeline.segments.length,
+        knownStayCount,
+        unknownStayCount,
+        targetDebugSummary,
+        longestStays,
         derivedEventCount: events.length,
-        events,
+        events: dryRun ? events : undefined,
       });
     }
 
