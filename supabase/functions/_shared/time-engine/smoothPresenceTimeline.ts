@@ -68,6 +68,9 @@ export interface SmoothedPresenceBlock {
   mergedSegmentIds: string[];
   suppressedNoiseCount: number;
   suppressedNoiseSegments: SuppressedNoiseSegment[];
+  /** GPS-glapp som absorberats inuti samma presence-block. Visas som varning, inte egen rad. */
+  signalGapCount: number;
+  signalGapMin: number;
 }
 
 export interface SmoothPresenceResult {
