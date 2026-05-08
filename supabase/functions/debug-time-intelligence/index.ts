@@ -454,14 +454,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    const ev = (decision.evidence ?? {}) as Record<string, any>;
+    const resolvedTargetId =
+      rt?.id ??
+      (seg as any).matchedTargetId ??
+      ev.targetId ??
+      ev.target_id ??
+      null;
+    const resolvedTargetName =
+      rt?.name ??
+      (seg as any).matchedTargetName ??
+      ev.targetName ??
+      ev.target_name ??
+      seg.label ??
+      null;
+    const resolvedTargetType =
+      rt?.type ??
+      (seg as any).matchedTargetType ??
+      ev.targetType ??
+      ev.target_type ??
+      null;
+
     autoStartDecisions.push({
       segmentId: seg.id,
       segmentStart: seg.startTs,
       segmentEnd: seg.endTs,
       segmentLabel: seg.label,
-      matchedTargetId: rt?.id ?? null,
-      matchedTargetName: rt?.name ?? null,
-      matchedTargetType: rt?.type ?? null,
+      matchedTargetId: resolvedTargetId,
+      matchedTargetName: resolvedTargetName,
+      matchedTargetType: resolvedTargetType,
       allowed: decision.allowed,
       reason: decision.reason,
       confidence: decision.confidence,
@@ -485,8 +506,10 @@ Deno.serve(async (req) => {
     if (allowed) {
       const ev = (allowed.evidence ?? {}) as Record<string, any>;
       const startAt = allowed.segmentStart ?? ev.startAt ?? null;
-      const dwellSeconds = ev.dwellSeconds ?? ev.dwell_seconds ?? null;
-      const arrivalPingsCount = ev.arrivalPingsCount ?? ev.arrival_pings_count ?? ev.pingsCount ?? null;
+      const dwellSeconds = allowed.dwellSeconds ?? ev.dwellSeconds ?? ev.dwell_seconds ?? null;
+      const arrivalPingsCount =
+        allowed.arrivalPingsCount ?? ev.arrivalPingsCount ?? ev.arrival_pings_count ?? ev.pingsCount ?? null;
+      const targetId = allowed.matchedTargetId ?? null;
       const targetName = allowed.matchedTargetName ?? null;
       const targetType = allowed.matchedTargetType ?? null;
       const confidence = allowed.confidence ?? null;
@@ -495,6 +518,7 @@ Deno.serve(async (req) => {
       if (startAt == null) missing.push("startAt");
       if (dwellSeconds == null) missing.push("dwellSeconds");
       if (arrivalPingsCount == null) missing.push("arrivalPingsCount");
+      if (targetId == null) missing.push("targetId");
       if (targetName == null) missing.push("targetName");
       if (targetType == null) missing.push("targetType");
       if (confidence == null) missing.push("confidence");
@@ -508,8 +532,9 @@ Deno.serve(async (req) => {
           startAt,
           dwellSeconds,
           arrivalPingsCount,
-          targetId: allowed.matchedTargetId,
+          targetId,
           targetType,
+          targetName,
           targetLabel: targetName,
           confidence,
         };
@@ -519,8 +544,9 @@ Deno.serve(async (req) => {
           status: "READY_TO_CONFIRM",
           startAt,
           startSource: "gps_geofence_auto_start",
-          targetId: allowed.matchedTargetId,
+          targetId,
           targetType,
+          targetName,
           targetLabel: targetName,
           dwellSeconds,
           arrivalPingsCount,
@@ -548,8 +574,10 @@ Deno.serve(async (req) => {
   let firstAllowedDecision: typeof autoStartDecisions[number] | null = null;
   const allowedDecisions: Array<{
     startAt: string;
+    targetId: string;
     targetName: string;
     targetType: string;
+    targetLabel: string;
     segmentLabel: string;
     reason: string;
     confidence: number;
@@ -566,8 +594,10 @@ Deno.serve(async (req) => {
       if (!firstAllowedDecision) firstAllowedDecision = d;
       allowedDecisions.push({
         startAt: d.segmentStart,
+        targetId: d.matchedTargetId!,
         targetName: d.matchedTargetName!,
         targetType: d.matchedTargetType!,
+        targetLabel: d.matchedTargetName!,
         segmentLabel: d.segmentLabel,
         reason: d.reason,
         confidence: d.confidence,
