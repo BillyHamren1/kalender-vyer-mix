@@ -1,84 +1,136 @@
-# Verifierad rotorsak
+## Time Registration Segments — Build Plan
 
-Det är nu tydligt vad som bestämmer att produkterna ”försvinner”:
+Time Engine får ett nytt skikt: när en `active_time_registrations` är aktiv ska GPS-tidslinjen brytas ned i segment som beskriver **vad timern faktiskt har bestått av över tid** (arbetsplats, transport, okänd plats, GPS-glapp).
 
-## Kedjan som orsakar felet
+Ingen befintlig data flyttas. Inga skrivningar till `workdays`, `time_reports`, `location_time_entries`, `travel_time_logs`.
 
-1. I `eventflow-booking` exporteras produkter från `booking_products` i `export_bookings`.
-   - Där står uttryckligen att produkter skickas exakt som de ligger i databasen.
-   - `export_bookings` hämtar bokningar först och gör sedan en separat query mot `booking_products` för dessa `booking_id`.
+---
 
-2. Men i samma projekt (`eventflow-booking`) finns en importväg som först raderar alla produkt­rader för en bokning och sedan lägger in dem igen.
-   - Fil: `eventflow-booking/supabase/functions/import-bookings/index.ts`
-   - Den gör:
-     - `delete().eq('booking_id', booking.id)`
-     - därefter loopar den och `insert()` produkterna igen
+### 1. Datamodell — ny tabell `time_registration_segments`
 
-3. Under det korta fönstret mellan `delete` och sista `insert` kan `export_bookings` svara med bokningen men med `products: []`.
-   - Alltså: i Booking-systemet ”finns produkterna” före och efter,
-   - men just när Planning läser kan källan tillfälligt se tom ut.
+| Kolumn | Typ | Beskrivning |
+|---|---|---|
+| `id` | uuid PK | |
+| `registration_id` | uuid FK → `active_time_registrations(id)` ON DELETE CASCADE | |
+| `staff_id` | text | redundant för snabb filter |
+| `organization_id` | uuid | RLS-isolering |
+| `started_at` | timestamptz | |
+| `ended_at` | timestamptz NULL | NULL = pågår |
+| `kind` | text CHECK IN (`'work_target'`, `'transport'`, `'unknown_place'`, `'gps_gap'`) | |
+| `label` | text | t.ex. "Swedish Game Fair", "Transport", "Okänd plats", "GPS-glapp" |
+| `target_kind` | text NULL | `project / booking / warehouse / organization_location` när `kind='work_target'` |
+| `target_ref_id` | uuid NULL | |
+| `target_key` | text NULL | normaliserad nyckel (`project:<uuid>` etc.) |
+| `source_gps_segment_id` | text NULL | spårar tillbaka till GpsSegment.id |
+| `confidence` | numeric(3,2) | 0–1 |
+| `created_at` / `updated_at` | timestamptz | |
 
-4. I detta projekt (`Planning`) tolkar `supabase/functions/import-bookings/index.ts` en tom array som sanningen.
-   - `checkProductChanges(...)` ser då alla lokala produkter som “removed”
-   - sedan kör merge-logiken:
-     - uppdaterar/infogar inget (för att arrayen är tom)
-     - och därefter raderas alla gamla lokala produkter som inte blev “seen”
-   - resultat: `booking_products` blir 0 lokalt
+**Index**: `(registration_id, started_at)`, `(organization_id, staff_id, started_at)`.
+**RLS** (RESTRICTIVE): `organization_id = get_user_organization_id(auth.uid())`. Service-role bypass för edge functions.
+**CHECK**: `ended_at IS NULL OR ended_at >= started_at`.
+**Constraint**: max ett segment per registration utan `ended_at`.
 
-## Slutsats
+---
 
-Det som faktiskt bestämmer att de försvinner är alltså:
+### 2. Kontrakt — uppdatera `TimeRegistrationSegmentKind`
 
-```text
-Booking-projektet skapar ett tillfälligt tomt produktfönster
-        +
-Planning-importen litar destruktivt på tom array
-        =
-alla lokala produkter raderas
+I `src/lib/time-engine/contracts.ts` och `supabase/functions/_shared/time-engine/contracts.ts` (speglade):
+
+```ts
+export type TimeRegistrationSegmentKind =
+  | 'work_target'
+  | 'transport'
+  | 'unknown_place'
+  | 'gps_gap';
 ```
 
-Det är därför det kan se helt orimligt ut:
-- ”I Booking finns ju alla produkter” — ja, före/efter syncen
-- men Planning råkar läsa precis när Booking-kopian är tillfälligt tom
-- och Plannings importer tar då beslutet att radera allt lokalt
+Lägg `targetKind`/`targetRefId` på `TimeRegistrationSegment`. (Ersätter de gamla `project/booking/warehouse` som separata kinds — work_target + targetKind är samlande.)
 
-# Vad jag har verifierat
+---
 
-- GOPA-projektets UI läser direkt från lokala `booking_products`
-- nätverksanropet för GOPA gav `[]`
-- databasen i Planning har just nu `0` rader för GOPA-bokningen
-- det finns många genomförda `booking_sync_jobs` för samma bokning idag
-- Booking-projektets kod har en verklig `delete all -> reinsert all`-sekvens för produkter
-- Planning-projektets kod har en verklig `empty external products -> delete unseen local products`-sekvens
+### 3. Pure builder — `buildTimeRegistrationSegments()`
 
-# Plan för fix
+Ny fil: `supabase/functions/_shared/time-engine/buildTimeRegistrationSegments.ts` (+ frontend-spegling i `src/lib/time-engine/`).
 
-## I detta projekt (kan fixas här först)
-1. Hårdna `supabase/functions/import-bookings/index.ts`
-   - Om extern payload kommer med `products: []` och lokalt redan finns produkter:
-   - behandla det som `transient_empty_source`, inte som “delete all”
-   - hoppa över destruktiv delete i både merge- och recovery-flödet
+**Input**:
+- `activeRegistration: ActiveTimeRegistration` (krävs — annars returnera `[]`)
+- `gpsTimeline: GpsDayTimeline`
+- `targetMatches: TargetMatch[]` (per gps segment)
+- `now: Date`
 
-2. Lägg till tydlig audit/logg för produktbeslut
-   - booking id
-   - external product count
-   - local product count
-   - delete skipped / delete allowed
-   - orsak
+**Output**: `TimeRegistrationSegment[]`
 
-3. Gör GOPA-säker återställning
-   - efter skyddet är på plats kan bokningen synkas om utan risk att ännu en tom upstream-snapshot rensar allt igen
+**Regler**:
+1. Klipp GPS-tidslinjen till intervallet `[registration.startedAt, registration.endedAt ?? now]`.
+2. För varje (klippt) gps-segment, mappa via target match outcome:
+   - `inside_known_target` → `work_target` (label = target.label, targetKind/targetRefId fryses från target)
+   - `transport` (movement) → `transport` (alltid tillåtet INOM aktiv registration)
+   - `unknown_place` → `unknown_place` (tillåtet INOM aktiv registration)
+   - `gps_gap` / `insufficient_signal` → `gps_gap`
+3. **Slå ihop angränsande segment** med samma `kind` + `targetKey`.
+4. **GPS-glapp drar inte av arbetstid** — det är ett signalstatus-segment som ligger sida vid sida med övriga (timern fortsätter att tickka). Ingen segment-typ "paus" eller "subtract".
+5. Bygg aldrig segment som börjar före `startedAt` eller slutar efter `endedAt/now`.
+6. Builder är ren — inga DB-anrop, ingen tid läses från legacy-källor.
 
-## I källprojektet `eventflow-booking` (separat åtgärd i den koden)
-4. Byt bort `delete + insert` för produkter
-   - helst merge/upsert
-   - alternativt gör hela produktbytet atomiskt så `export_bookings` aldrig ser ett tomt mellanläge
+**Auto-start-policy oförändrad**: builder kallas ENDAST när registration redan finns. Den kan aldrig själv starta en timer — det är fortfarande `evaluateAutoStart`/`AutoStartPolicy`s ansvar. Transport och unknown_place får alltså aldrig starta timer; men när en timer redan lever blir de legitima segment.
 
-# Viktig slutsats
+---
 
-Den primära buggen är inte att exporten ”glömmer” produkter permanent.
-Den verkliga buggen är att:
-- källsystemet exponerar ett tomt mellanläge,
-- och Planning-systemet behandlar det tomma mellanläget som auktoritativ sanning.
+### 4. Edge function — utöka `debug-time-intelligence`
 
-Godkänn så går jag vidare med skyddet i Planning-importen först, vilket stoppar att GOPA och liknande bokningar töms igen.
+Lägg till action `build_segments`:
+- Input: `staffId`, `organizationId`, `date`, `registrationId` (valfri — annars senaste aktiva för dagen)
+- Hämtar `active_time_registrations` + `gpsDayTimeline` (befintlig `buildGpsDayTimeline`) + `targetMatches`
+- Anropar `buildTimeRegistrationSegments`
+- **Persisterar** via diff-upsert mot `time_registration_segments` (radera segment för registreringen som inte längre finns + insert nya). Service-role.
+- Returnerar `{ segments, persisted: { inserted, deleted, kept }, leakCheck }`
+- Leak-detector (samma proxy som existerande actions) säkerställer att ingen läsning/skrivning sker mot `workdays/time_reports/location_time_entries/travel_time_logs`.
+
+---
+
+### 5. UI — Time Intelligence Debug
+
+I `src/pages/admin/TimeIntelligenceDebug.tsx`, lägg till en sektion **"Segment för aktiv registrering"**:
+- Knapp "Bygg segment" som anropar `build_segments`
+- Tabell med: `started_at | ended_at | kind (badge) | label | confidence | source_gps_segment_id`
+- Färg per kind: work_target = grön, transport = blå, unknown_place = amber, gps_gap = grå/randig
+- Visar tydligt: "GPS-glapp drar inte arbetstid — timern tickar vidare under glappet"
+
+---
+
+### 6. Tests
+
+Ny vitest: `src/test/timeRegistrationSegments.contract.test.ts`:
+- Ingen aktiv registration → `[]`
+- Aktiv timer + 3 gps-segment (inside, movement, gps_gap) → 3 segment med rätt kinds
+- gps_gap drar inte arbetstid (registreringens längd = `endedAt - startedAt` oavsett gap)
+- Transport/unknown_place utanför aktiv timer → ignoreras (klippt bort)
+- Angränsande work_target med samma targetKey → mergas
+- Builder läser INTE från legacy-tabeller (statisk import-check, samma stil som `assertNoLegacySources`)
+
+---
+
+### 7. Filer som skapas/ändras
+
+**Ny tabell**: migration för `time_registration_segments` + RLS + index + constraints.
+
+**Ny kod**:
+- `supabase/functions/_shared/time-engine/buildTimeRegistrationSegments.ts` (pure)
+- `src/lib/time-engine/buildTimeRegistrationSegments.ts` (frontend-spegel)
+- `src/test/timeRegistrationSegments.contract.test.ts`
+
+**Ändringar**:
+- `supabase/functions/_shared/time-engine/contracts.ts` + `src/lib/time-engine/contracts.ts` — nya segment-kinds + targetKind/targetRefId-fält
+- `supabase/functions/_shared/time-engine/index.ts` + `src/lib/time-engine/index.ts` — re-export
+- `supabase/functions/debug-time-intelligence/index.ts` — `build_segments`-action med persist + leak-check
+- `src/pages/admin/TimeIntelligenceDebug.tsx` — UI-sektion + knapp
+
+---
+
+### 8. Hård gräns
+
+- Builder kallar inga DB-funktioner och importerar inga legacy-typer.
+- Edge function-action kör bara select på `active_time_registrations` + GPS-pings + targets, och insert/delete på `time_registration_segments` — proxy-leak-detector blockerar/loggar allt annat.
+- Time Engine v2 förblir isolerat. TimeReport (attestable artifact) är fortfarande ett senare steg — ingenting i denna leverans skapar lönegrundande/attesterbara rader.
+
+Säg till om du vill att jag ändrar något (t.ex. behålla `project/booking/warehouse` som distinkta kinds istället för samlande `work_target` med `targetKind`), annars kör jag enligt planen.
