@@ -127,6 +127,14 @@ const getBookingPhaseTimes = (booking: BookingRow, phase: PlannerPhase) => {
   return { start: booking.rigdown_start_time, end: booking.rigdown_end_time };
 };
 
+const getBookingPhaseLock = (booking: BookingRow | undefined | null, phase: PlannerPhase | null | undefined): boolean => {
+  if (!booking || !phase) return false;
+  if (phase === 'rig') return booking.rig_time_locked === true;
+  if (phase === 'event') return booking.event_time_locked === true;
+  if (phase === 'rigDown') return booking.rigdown_time_locked === true;
+  return false;
+};
+
 const mapRealRowToCalendarEvent = (
   row: RealCalendarEventRow,
   booking?: BookingRow,
@@ -161,6 +169,7 @@ const mapRealRowToCalendarEvent = (
       largeProjectName: project?.name || undefined,
       isSyntheticFallback: false,
       manuallyAssigned: false,
+      timeLocked: getBookingPhaseLock(booking, normalizePhase(row.event_type) as PlannerPhase | null),
     },
   };
 };
