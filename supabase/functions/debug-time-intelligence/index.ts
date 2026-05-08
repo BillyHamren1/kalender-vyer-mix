@@ -422,19 +422,56 @@ Deno.serve(async (req) => {
   {
     const allowed = autoStartDecisions.find((d) => d.allowed) ?? null;
     if (allowed) {
-      activeTimeRegistrationPreview = {
-        wouldCreate: true,
-        startAt: allowed.segmentStart,
-        startSource: "gps_geofence_auto_start",
-        targetId: allowed.matchedTargetId,
-        targetType: allowed.matchedTargetType,
-        targetLabel: allowed.matchedTargetName,
-        reason: allowed.reason,
-      };
+      const ev = (allowed.evidence ?? {}) as Record<string, any>;
+      const startAt = allowed.segmentStart ?? ev.startAt ?? null;
+      const dwellSeconds = ev.dwellSeconds ?? ev.dwell_seconds ?? null;
+      const arrivalPingsCount = ev.arrivalPingsCount ?? ev.arrival_pings_count ?? ev.pingsCount ?? null;
+      const targetName = allowed.matchedTargetName ?? null;
+      const targetType = allowed.matchedTargetType ?? null;
+      const confidence = allowed.confidence ?? null;
+
+      const missing: string[] = [];
+      if (startAt == null) missing.push("startAt");
+      if (dwellSeconds == null) missing.push("dwellSeconds");
+      if (arrivalPingsCount == null) missing.push("arrivalPingsCount");
+      if (targetName == null) missing.push("targetName");
+      if (targetType == null) missing.push("targetType");
+      if (confidence == null) missing.push("confidence");
+
+      if (missing.length > 0) {
+        activeTimeRegistrationPreview = {
+          wouldCreate: false,
+          status: "NOT_READY",
+          reason: "allowed_decision_missing_evidence",
+          missingEvidence: missing,
+          startAt,
+          dwellSeconds,
+          arrivalPingsCount,
+          targetId: allowed.matchedTargetId,
+          targetType,
+          targetLabel: targetName,
+          confidence,
+        };
+      } else {
+        activeTimeRegistrationPreview = {
+          wouldCreate: true,
+          status: "READY_TO_CONFIRM",
+          startAt,
+          startSource: "gps_geofence_auto_start",
+          targetId: allowed.matchedTargetId,
+          targetType,
+          targetLabel: targetName,
+          dwellSeconds,
+          arrivalPingsCount,
+          confidence,
+          reason: allowed.reason,
+        };
+      }
     } else {
       const firstBlocked = autoStartDecisions[0] ?? null;
       activeTimeRegistrationPreview = {
         wouldCreate: false,
+        status: "NOT_READY",
         reason: firstBlocked?.reason
           ?? (autoStartDecisions.length === 0 ? "no_candidate_stay_segment" : "no_allowed_decision"),
       };
