@@ -87,6 +87,9 @@ interface TimelineRow {
   suppressedNoiseSegments?: SuppressedNoiseSegment[];
   signalGapCount?: number;
   signalGapMin?: number;
+  transitionDistanceMeters?: number | null;
+  sameAreaThresholdMeters?: number;
+  gapTreatment?: 'merged_as_same_area' | 'shown_as_signal_gap_between_places' | 'signal_gap_without_confirmed_departure';
 }
 
 interface TargetMatchSummary {
