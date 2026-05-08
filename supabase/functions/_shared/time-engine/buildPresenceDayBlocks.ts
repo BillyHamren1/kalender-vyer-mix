@@ -735,32 +735,59 @@ function aggregateEvidenceBlocks(evidence: PresenceDayBlock[]): PresenceDayBlock
       continue;
     }
 
-    // ── Transport run merge ───────────────────────────────────────────────
+    // ── Transport run merge (chain across non-stable bridges) ────────────
     if (b.kind === 'transport') {
       const run: PresenceDayBlock[] = [b];
+      const suppressed: PresenceDayBlock[] = [];
       let j = i + 1;
-      while (j < timeline.length && timeline[j].kind === 'transport') {
-        run.push(timeline[j]);
-        j += 1;
+      while (j < timeline.length) {
+        // Collect a run of non-stable interstitials, then test for next transport.
+        let k = j;
+        const interstitials: PresenceDayBlock[] = [];
+        while (k < timeline.length && isTransportInterstitial(timeline[k])) {
+          interstitials.push(timeline[k]);
+          k += 1;
+        }
+        const after = k < timeline.length ? timeline[k] : null;
+        if (after && after.kind === 'transport') {
+          for (const it of interstitials) suppressed.push(it);
+          run.push(after);
+          j = k + 1;
+          continue;
+        }
+        break;
       }
-      out.push(mergeTransport(newId, run));
+      out.push(mergeTransport(newId, run, suppressed));
       i = j;
       continue;
     }
 
-    // ── Unknown_place merge by proximity ──────────────────────────────────
+    // ── Unknown_place merge by proximity (250 m + bridges) ────────────────
     if (b.kind === 'unknown_place') {
-      const run: PresenceDayBlock[] = [b];
+      const anchors: PresenceDayBlock[] = [b];
+      const suppressed: PresenceDayBlock[] = [];
       let j = i + 1;
-      while (
-        j < timeline.length &&
-        timeline[j].kind === 'unknown_place' &&
-        sameUnknownArea(run[run.length - 1], timeline[j])
-      ) {
-        run.push(timeline[j]);
-        j += 1;
+      while (j < timeline.length) {
+        let k = j;
+        const localBridges: PresenceDayBlock[] = [];
+        while (k < timeline.length && isUnknownBridge(timeline[k])) {
+          localBridges.push(timeline[k]);
+          k += 1;
+        }
+        const after = k < timeline.length ? timeline[k] : null;
+        if (
+          after &&
+          after.kind === 'unknown_place' &&
+          unknownsWithin(anchors[anchors.length - 1], after, UNKNOWN_MERGE_DISTANCE_M)
+        ) {
+          for (const br of localBridges) suppressed.push(br);
+          anchors.push(after);
+          j = k + 1;
+          continue;
+        }
+        break;
       }
-      out.push(mergeUnknown(newId, run));
+      out.push(mergeUnknown(newId, anchors, suppressed));
       i = j;
       continue;
     }
