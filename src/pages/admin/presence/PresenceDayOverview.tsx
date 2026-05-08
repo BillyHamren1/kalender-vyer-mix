@@ -661,7 +661,103 @@ export default function PresenceDayOverview() {
           Klicka på en rad för full detalj. {format(new Date(), "HH:mm")}
         </div>
       </CardContent>
+
+      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <SheetContent side="right" className="w-[420px] sm:max-w-[420px] overflow-y-auto">
+          {selected && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  {selected.block.type === "smoothed_presence" && <MapPin className="h-4 w-4" />}
+                  {selected.block.type === "transport" && <Navigation className="h-4 w-4" />}
+                  {selected.block.type === "unknown_place" && <HelpCircle className="h-4 w-4" />}
+                  {selected.block.type === "gps_gap" && <SignalOff className="h-4 w-4" />}
+                  {blockTitle(selected.block)}
+                </SheetTitle>
+                <SheetDescription>{selected.staff.name}</SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-4 space-y-3 text-sm">
+                {selected.block.type === "smoothed_presence" && (
+                  <Row label="Plats" value={selected.block.label} />
+                )}
+                {selected.block.type === "transport" && (
+                  <>
+                    <Row label="Från" value={selected.block.fromLabel || "Okänd startpunkt"} />
+                    <Row label="Till" value={selected.block.toLabel || "Okänd destination"} />
+                  </>
+                )}
+                {selected.block.type === "unknown_place" && (
+                  <Row label="Status" value="Behöver granskas" />
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Row label="Start" value={fmtTime(selected.block.at)} icon={<Clock className="h-3 w-3" />} />
+                  <Row label="Slut" value={fmtTime(selected.block.endAt)} icon={<Clock className="h-3 w-3" />} />
+                </div>
+                <Row
+                  label="Längd"
+                  value={fmtDur(
+                    selected.block.durationMin ??
+                      Math.max(
+                        0,
+                        selected.block.endAt
+                          ? Math.round(
+                              (new Date(selected.block.endAt).getTime() -
+                                new Date(selected.block.at).getTime()) /
+                                60000,
+                            )
+                          : 0,
+                      ),
+                  )}
+                />
+                {(selected.block.inlineGapMin ?? 0) > 0 && (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5" />
+                    <span>Signalglapp under besöket: {selected.block.inlineGapMin} min</span>
+                  </div>
+                )}
+                {selected.block.confidence && (
+                  <Row label="Confidence" value={String(selected.block.confidence)} />
+                )}
+
+                <div className="pt-2">
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => setShowTech((v) => !v)}>
+                    {showTech ? "Dölj tekniska detaljer" : "Visa tekniska detaljer"}
+                  </Button>
+                </div>
+                {showTech && (
+                  <pre className="text-[10px] bg-muted/50 rounded p-2 overflow-x-auto max-h-[300px]">
+                    {JSON.stringify(selected.block, null, 2)}
+                  </pre>
+                )}
+
+                <div className="pt-2">
+                  <Link
+                    to={`/admin/presence/staff/${selected.staff.staffId}?date=${date}`}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Öppna full personvy →
+                  </Link>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </Card>
+  );
+}
+
+function Row({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+        {icon}
+        {label}
+      </div>
+      <div className="text-sm">{value}</div>
+    </div>
   );
 }
 
