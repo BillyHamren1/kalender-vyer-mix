@@ -196,9 +196,12 @@ function buildTimeEngineSummary(result: any) {
                 : "not_ready")
     : null;
 
+  const noPings = (cov.pingCount ?? 0) === 0;
+  const status = noPings ? "NO_PINGS" : ready ? "READY_TO_CONFIRM" : "NOT_READY";
+
   return {
-    status: ready ? "READY_TO_CONFIRM" : "NOT_READY",
-    notReadyReason,
+    status,
+    notReadyReason: noPings ? "no_pings_for_day" : notReadyReason,
     rawPingsCoverage: {
       rawPingCount: cov.pingCount ?? 0,
       firstPingAt: cov.firstPingAt ?? null,
