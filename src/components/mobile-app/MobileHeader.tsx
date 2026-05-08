@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeft, Loader2, LogOut, Play } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import WorkDayHeaderTimer from './WorkDayHeaderTimer';
+
 import { useWorkDay } from '@/hooks/useWorkDay';
 import { clearWorkdayEnded } from '@/services/workdayState';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -233,15 +233,10 @@ export const HeaderStartEndDayButton: React.FC = () => {
   }, [requestStart, start]);
 
   if (workdayOpen) {
-    // End-day button intentionally moved to the Profile page.
-    // Two adjacent stop buttons (timer stop vs. day stop) confused users into
-    // thinking they were double-reporting. Day-end is a deliberate action and
-    // belongs on Profile alongside Logout.
-    return (
-      <div className="flex items-center gap-2">
-        <WorkDayHeaderTimer />
-      </div>
-    );
+    // Header visar ingen timer längre — legacy WorkDayHeaderTimer borttagen.
+    // Riktig timerstatus visas endast i WorkDayPanel via useActiveTimerStatus
+    // / active_time_registrations. End-day-knappen ligger på Profile-sidan.
+    return null;
   }
 
   return (
