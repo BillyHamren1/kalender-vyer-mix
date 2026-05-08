@@ -25,7 +25,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:messaging": "bash scripts/test-messaging.sh",
-    "test:time-reporting": "bash scripts/test-time-reporting.sh"
+    "test:time-reporting": "bash scripts/test-time-reporting.sh",
+    "test:scanner": "vitest run src/services/__tests__/scannerService.scanning.test.ts",
+    "test:scanner-flow": "vitest run src/__tests__/scanner-wms-flow.static.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
