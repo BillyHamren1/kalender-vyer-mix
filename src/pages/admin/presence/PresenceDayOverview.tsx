@@ -55,6 +55,8 @@ interface StaffMini {
 
 interface DayRow extends StaffMini {
   blocks: Block[];
+  /** New deterministic engine output. Preferred over `blocks` when present. */
+  engineBlocks?: any[] | null;
   loading: boolean;
   error?: string | null;
 }
