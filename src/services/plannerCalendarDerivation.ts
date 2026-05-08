@@ -32,6 +32,9 @@ interface BookingRow {
   event_end_time: string | null;
   rigdown_start_time: string | null;
   rigdown_end_time: string | null;
+  rig_time_locked?: boolean | null;
+  event_time_locked?: boolean | null;
+  rigdown_time_locked?: boolean | null;
   status: string | null;
 }
 
