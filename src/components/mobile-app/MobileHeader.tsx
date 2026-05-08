@@ -233,15 +233,10 @@ export const HeaderStartEndDayButton: React.FC = () => {
   }, [requestStart, start]);
 
   if (workdayOpen) {
-    // End-day button intentionally moved to the Profile page.
-    // Two adjacent stop buttons (timer stop vs. day stop) confused users into
-    // thinking they were double-reporting. Day-end is a deliberate action and
-    // belongs on Profile alongside Logout.
-    return (
-      <div className="flex items-center gap-2">
-        <WorkDayHeaderTimer />
-      </div>
-    );
+    // Header visar ingen timer längre — legacy WorkDayHeaderTimer borttagen.
+    // Riktig timerstatus visas endast i WorkDayPanel via useActiveTimerStatus
+    // / active_time_registrations. End-day-knappen ligger på Profile-sidan.
+    return null;
   }
 
   return (
