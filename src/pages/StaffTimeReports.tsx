@@ -1317,37 +1317,29 @@ const StaffTimeReports: React.FC = () => {
             })),
           });
 
-          // Active timers: any open distribution row (time_report w/o end,
-          // open LTE that isn't presence-only) — used to detect "tappad signal".
-          const activeTimerInputs = [
-            ...staffReports
-              .filter(r => !r.end_iso)
-              .map(r => ({
-                id: `tr:${r.id}`,
-                startedAt: r.start_iso,
-                label: r.label ?? '—',
-                source: 'time_report' as const,
-                reportedAsDistribution: true,
-              })),
-            ...staffLTEs
-              .filter(e => !e.exited_at && !e.isPresenceOnly)
-              .map(e => ({
-                id: `lte:${e.id}`,
-                startedAt: e.entered_at,
-                label: e.label ?? 'Plats',
-                source: 'location_entry' as const,
+          // Active timer authority = active_time_registrations (Time Engine).
+          // Öppna time_reports/LTE/travel-rader är legacy-historik och får
+          // INTE driva "Pågående aktivitet"-statusen — de visas fortfarande
+          // som rader i sina egna sektioner, men authority är denna enda rad.
+          const activeReg = activeRegByStaff.get(s.id) || null;
+          const activeTimerInputs = activeReg
+            ? [{
+                id: `atr:${activeReg.id}`,
+                startedAt: activeReg.started_at,
+                label: activeReg.current_label
+                  ?? activeReg.start_target_label
+                  ?? activeReg.current_kind
+                  ?? 'Pågående',
+                source: 'active_registration' as const,
                 reportedAsDistribution: false,
-              })),
-            ...staffTravel
-              .filter(t => !t.end_iso)
-              .map(t => ({
-                id: `tv:${t.id}`,
-                startedAt: t.start_iso!,
-                label: t.to_address ? `Resa → ${t.to_address.split(',')[0].trim()}` : 'Resa',
-                source: 'travel' as const,
-                reportedAsDistribution: false,
-              })),
-          ];
+                startSource: activeReg.start_source ?? null,
+                autoStarted: !!activeReg.auto_started,
+                currentKind: activeReg.current_kind ?? null,
+                currentTargetType: activeReg.current_target_type ?? null,
+                currentTargetId: activeReg.current_target_id ?? null,
+                startTargetLabel: activeReg.start_target_label ?? null,
+              }]
+            : [];
 
           const ping = pingMap.get(s.id) || null;
 
