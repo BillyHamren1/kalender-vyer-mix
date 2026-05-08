@@ -332,6 +332,8 @@ Deno.serve(async (req) => {
     const locationTargets = resolved.filter((r) => r.type === 'location');
     const targetsWithCoords = resolved.filter((r) => r.latitude != null && r.longitude != null);
     const targetsMissingCoords = resolved.filter((r) => r.latitude == null || r.longitude == null);
+    const projectsMissingCoords = projectTargets.filter((r) => r.latitude == null || r.longitude == null);
+    const bookingsMissingCoords = bookingTargets.filter((r) => r.latitude == null || r.longitude == null);
     const matchedTargetIds = new Set(
       gpsTimeline.segments
         .filter((s) => s.matchedTargetId)
@@ -341,6 +343,8 @@ Deno.serve(async (req) => {
       const kind = r.type === 'location' ? 'organization_location' : r.type;
       return matchedTargetIds.has(`${kind}:${r.id}`);
     });
+    const matchedProjectTargets = matchedTargetsList.filter((r) => r.type === 'project');
+    const matchedBookingTargets = matchedTargetsList.filter((r) => r.type === 'booking');
     const unmatchedProjectTargets = projectTargets.filter((r) => {
       return !matchedTargetIds.has(`project:${r.id}`);
     });
@@ -353,7 +357,11 @@ Deno.serve(async (req) => {
       locationTargets: locationTargets.length,
       targetsWithCoordinates: targetsWithCoords.length,
       targetsMissingCoordinates: targetsMissingCoords.length,
+      projectsMissingCoordinates: projectsMissingCoords.length,
+      bookingsMissingCoordinates: bookingsMissingCoords.length,
       matchedTargets: matchedTargetsList.length,
+      matchedProjectTargets: matchedProjectTargets.length,
+      matchedBookingTargets: matchedBookingTargets.length,
       unmatchedProjectTargets: unmatchedProjectTargets.length,
       excludedByReason: tdiag?.excludedByReason ?? {},
       warnings: tdiag?.warnings ?? [],
