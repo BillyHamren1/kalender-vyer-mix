@@ -1880,6 +1880,12 @@ export default function TimeIntelligenceDebug() {
               {activeRegLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Check active registration
             </Button>
+            {activeRegChecked && !activeReg && (
+              <Button size="sm" onClick={startManualTestRegistration} disabled={!staffId || startManualLoading}>
+                {startManualLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Start manual test registration
+              </Button>
+            )}
             {activeReg?.status === "active" && (
               <Button size="sm" variant="destructive" onClick={stopActiveRegistration} disabled={stopLoading}>
                 {stopLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
