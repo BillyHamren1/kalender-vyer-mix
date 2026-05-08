@@ -254,7 +254,7 @@ export default function PresenceHub({ initialTab }: { initialTab?: string } = {}
         </Card>
       )}
 
-      <Tabs defaultValue="day" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList>
           <TabsTrigger value="day">
             <CalendarDays className="h-4 w-4 mr-2" />
