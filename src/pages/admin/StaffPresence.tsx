@@ -24,6 +24,18 @@ interface PresenceRow {
     label: string;
     distanceMeters: number;
   } | null;
+  arrival: {
+    at: string;
+    targetLabel: string | null;
+    targetType: string;
+    stillOnSite: boolean;
+  } | null;
+  departure: {
+    at: string;
+    targetLabel: string | null;
+    targetType: string;
+    isLatest: boolean;
+  } | null;
   activeTimer:
     | { active: false }
     | {
