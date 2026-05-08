@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MapPin, Pencil } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MapPin, Pencil, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,9 +9,11 @@ import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import ProjectActionMenu from "@/components/project/ProjectActionMenu";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
+import LargeProjectScheduleEditable from "@/components/project/LargeProjectScheduleEditable";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { cancelProject } from "@/services/projectService";
 import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
+import { propagateProjectDatesToBookings } from "@/services/largeProjectScheduleSync";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
