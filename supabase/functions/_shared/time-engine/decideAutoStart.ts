@@ -150,7 +150,15 @@ export type AutoStartDecisionReason =
   | 'blocked_not_enough_pings'
   | 'blocked_night_requires_stronger_evidence'
   | 'blocked_target_not_autostartable_source'
-  | 'blocked_missing_allowed_decision_fields';
+  | 'blocked_missing_allowed_decision_fields'
+  /**
+   * User manually ended their workday earlier today via WorkDayPanel.
+   * GPS/geofence may not auto-start a new timer for the rest of the
+   * local day. A suppression row in `time_auto_start_suppressions`
+   * is the source of truth. Manual start from WorkDayPanel is NOT
+   * blocked by this reason — only background auto-start is.
+   */
+  | 'blocked_user_ended_workday';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
