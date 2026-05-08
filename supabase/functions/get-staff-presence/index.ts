@@ -242,18 +242,42 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ─── Latest arrival/departure per staff (last 24h) ───────────────────────
+  const arrivalMap = new Map<string, any>();
+  const departureMap = new Map<string, any>();
+  for (let i = 0; i < staffIds.length; i += chunkSize) {
+    const chunk = staffIds.slice(i, i + chunkSize);
+    const { data: events } = await admin
+      .from("staff_presence_events")
+      .select("staff_id, event_type, target_type, target_id, target_label, event_at")
+      .eq("organization_id", orgId)
+      .in("staff_id", chunk)
+      .in("event_type", ["arrival", "departure"])
+      .gte("event_at", since)
+      .order("event_at", { ascending: false })
+      .limit(2000);
+    for (const ev of events ?? []) {
+      if (ev.event_type === "arrival" && !arrivalMap.has(ev.staff_id)) {
+        arrivalMap.set(ev.staff_id, ev);
+      } else if (ev.event_type === "departure" && !departureMap.has(ev.staff_id)) {
+        departureMap.set(ev.staff_id, ev);
+      }
+    }
+  }
+
   // ─── Build presence rows ─────────────────────────────────────────────────
   const now = Date.now();
   const presence = staffList.map((s: any) => {
     const ping = pingMap.get(s.id) ?? null;
     const reg = regMap.get(s.id) ?? null;
+    const lastArrival = arrivalMap.get(s.id) ?? null;
+    const lastDeparture = departureMap.get(s.id) ?? null;
 
     const ageSec = ping
       ? Math.max(0, Math.floor((now - new Date(ping.recorded_at).getTime()) / 1000))
       : null;
     const signal = classifySignal(ageSec);
 
-    // Match nearest target if ping present
     let matched: { target: Target; distance: number } | null = null;
     if (ping) {
       let best: { target: Target; distance: number } | null = null;
@@ -266,7 +290,6 @@ Deno.serve(async (req) => {
       matched = best;
     }
 
-    // Interpreted status
     let interpreted:
       | "på event"
       | "på lager"
@@ -280,8 +303,6 @@ Deno.serve(async (req) => {
       interpreted = matched.target.kind === "warehouse" ? "på lager" : "på event";
     } else if (ping && ping.speed != null && ping.speed > TRANSPORT_SPEED_MPS) {
       interpreted = "transport";
-    } else if (!ping) {
-      interpreted = "okänd plats";
     } else {
       interpreted = "okänd plats";
     }
@@ -291,6 +312,15 @@ Deno.serve(async (req) => {
       : reg
       ? reg.current_label ?? reg.start_target_label ?? "Okänd plats"
       : "Okänd plats";
+
+    // Determine arrival/departure to show:
+    // - if onSite (matched), show last arrival to that target.
+    // - else, show last departure that happened after last arrival.
+    const arrivalAt = lastArrival?.event_at ?? null;
+    const departureAt = lastDeparture?.event_at ?? null;
+    const stillOnSite =
+      !!arrivalAt &&
+      (!departureAt || new Date(departureAt).getTime() < new Date(arrivalAt).getTime());
 
     return {
       staffId: s.id,
@@ -306,6 +336,22 @@ Deno.serve(async (req) => {
             id: matched.target.id,
             label: matched.target.label,
             distanceMeters: Math.round(matched.distance),
+          }
+        : null,
+      arrival: arrivalAt
+        ? {
+            at: arrivalAt,
+            targetLabel: lastArrival.target_label,
+            targetType: lastArrival.target_type,
+            stillOnSite,
+          }
+        : null,
+      departure: departureAt
+        ? {
+            at: departureAt,
+            targetLabel: lastDeparture.target_label,
+            targetType: lastDeparture.target_type,
+            isLatest: !stillOnSite,
           }
         : null,
       activeTimer: reg
