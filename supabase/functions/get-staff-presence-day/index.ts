@@ -528,8 +528,8 @@ Deno.serve(async (req) => {
   // Current status: latest arrival without later departure
   let currentLabel = 'Okänt';
   let currentTargetType: string | null = null;
-  for (let i = timeline.length - 1; i >= 0; i--) {
-    const ev = timeline[i];
+  for (let i = dedupedTimeline.length - 1; i >= 0; i--) {
+    const ev = dedupedTimeline[i];
     if (ev.type === 'arrival') {
       currentLabel = ev.label;
       currentTargetType = ev.targetType ?? null;
@@ -555,12 +555,14 @@ Deno.serve(async (req) => {
       currentLabel,
       currentTargetType,
     },
-    timeline,
+    timeline: dedupedTimeline,
     counts: {
-      total: timeline.length,
+      total: dedupedTimeline.length,
+      rawTotal: timeline.length,
+      duplicatesCollapsed: dedupRemoved,
       presenceEvents: (presenceRows ?? []).length,
-      timerEvents: timeline.filter((t) => t.type.startsWith('active_timer_')).length,
-      gpsSegments: timeline.filter((t) =>
+      timerEvents: dedupedTimeline.filter((t) => t.type.startsWith('active_timer_')).length,
+      gpsSegments: dedupedTimeline.filter((t) =>
         ['transport', 'unknown_place', 'gps_gap'].includes(t.type),
       ).length,
     },
