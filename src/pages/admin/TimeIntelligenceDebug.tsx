@@ -1308,6 +1308,16 @@ export default function TimeIntelligenceDebug() {
                 {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
                 Torrkör hela dagen
               </Button>
+              <Button
+                onClick={runConfirm}
+                disabled={!canConfirm || confirming || loading}
+                size="lg"
+                variant="destructive"
+                title={canConfirm ? "Skapar EN aktiv registrering live" : "Kräver READY_TO_CONFIRM från senaste dry-run"}
+              >
+                {confirming ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                Confirm auto-start test
+              </Button>
             </div>
           </div>
 
