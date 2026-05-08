@@ -1033,7 +1033,15 @@ export default function TimeIntelligenceDebug() {
       const cr = data?.confirmResult;
       if (cr?.created) toast.success("CONFIRM TEST — active_time_registration skapades");
       else if (cr?.already_active) toast.info("Redan aktiv registrering");
-      else toast.error("Confirm misslyckades: " + (cr?.reason ?? "okänt"));
+      else {
+        const detail =
+          cr?.reason
+          ?? (Array.isArray(cr?.readinessFailures) && cr.readinessFailures.length > 0
+              ? cr.readinessFailures.join(", ")
+              : "okänt");
+        toast.error("Confirm misslyckades: " + detail);
+        console.warn("[confirm-auto-start]", cr);
+      }
     } catch (e: any) {
       toast.error("Confirm-fel: " + (e?.message ?? String(e)));
       setConfirmResp({ error: e?.message ?? String(e) });
