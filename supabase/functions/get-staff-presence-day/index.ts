@@ -353,4 +353,8 @@ Deno.serve(async (req) => {
       ).length,
     },
   });
+  } catch (e: any) {
+    console.error('[get-staff-presence-day] fatal', e);
+    return json(200, { ok: false, error: e?.message ?? String(e) });
+  }
 });
