@@ -19,26 +19,19 @@
  *   6. Primär action          (Starta/Avsluta arbetsdag)
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Sun, Loader2, Square, Play, ShieldCheck, AlertTriangle, Clock,
+  Sun, Loader2, ShieldCheck, AlertTriangle, Clock, ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { extractUTCTime } from '@/utils/dateUtils';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { toast } from 'sonner';
 import {
   useStaffDayStatus,
   type StaffDaySnapshot,
   type StaffDaySegment,
 } from '@/hooks/useStaffDayStatus';
-import { useWorkDay } from '@/hooks/useWorkDay';
-import { useMobileAuth } from '@/contexts/MobileAuthContext';
-import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
-import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
-import { mobileApi } from '@/services/mobileApiService';
-import StartDayDialog, { type StartDaySelection } from '../StartDayDialog';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
@@ -378,109 +371,28 @@ const ActionsNeededSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapsh
 };
 
 // ────────────────────────────────────────────────────────────────────
-// 6) Primär action — Starta/Avsluta arbetsdag
+// 6) Primär action — länk till WorkDayPanel (enda timer-ytan)
 // ────────────────────────────────────────────────────────────────────
 
+/**
+ * Single-timer policy: TodayTab styr inte timer själv. Knappen länkar
+ * till `/m` där `WorkDayPanel` är monterad och äger start/stopp av
+ * arbetsdagen.
+ */
 const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapshot }) => {
-  const { start, isLoading } = useWorkDay();
-  const { staff } = useMobileAuth();
-  const { data: bookings = [] } = useMobileBookings();
-  const geo = useGeofencingContextOptional();
-  const { requestStart } = useTimerStartFlow(bookings, staff?.id);
-  const [busy, setBusy] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const navigate = useNavigate();
   const isOpen = snapshot?.workday?.isOpen ?? false;
-
-  const startDayLocations = useMemo(
-    () => (geo?.orgLocations ?? [])
-      .filter((loc: any) => loc.show_as_project === true)
-      .map((loc: any) => ({ id: loc.id, name: loc.name, address: loc.address ?? null })),
-    [geo?.orgLocations],
-  );
-
-  const handleEnd = () => {
-    window.dispatchEvent(new CustomEvent('request-end-day'));
-  };
-
-  const handleConfirm = async (selection: StartDaySelection) => {
-    setBusy(true);
-    try {
-      if (selection.kind === 'target') {
-        const result = await requestStart(selection.target, {
-          label: selection.label,
-          startedAtIso: selection.startedAtIso,
-        });
-        if (result === 'started' || result === 'already_running') {
-          toast.success(`Arbetsdag startad på ${selection.label}`);
-          setDialogOpen(false);
-        } else if (result === 'conflict') {
-          setDialogOpen(false);
-        }
-        return;
-      }
-      if (selection.kind === 'presence') {
-        const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
-        if (!wd) { toast.error('Kunde inte starta arbetsdagen'); return; }
-        toast.success('Arbetsdag startad. Plats moniteras.');
-        setDialogOpen(false);
-        return;
-      }
-      const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
-      if (!wd) { toast.error('Kunde inte starta arbetsdagen'); return; }
-      try {
-        await mobileApi.createWorkdayFlag({
-          flag_type: 'unclear_start_target',
-          flag_date: new Date().toISOString().slice(0, 10),
-          title: 'Oklart startprojekt',
-          description: selection.text,
-          severity: 'warning',
-          needs_user_input: false,
-          context: { entered_text: selection.text, source: 'today_tab_manual', startedAtIso: selection.startedAtIso ?? null },
-        });
-      } catch (err) {
-        console.warn('[TodayTab] createWorkdayFlag failed (non-fatal):', err);
-      }
-      toast.success('Arbetsdag startad. Arbetsledare kopplar projekt åt dig.');
-      setDialogOpen(false);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (isOpen) {
-    return (
-      <Button
-        size="lg"
-        variant="outline"
-        className="w-full h-12 rounded-2xl text-sm font-bold gap-2"
-        onClick={handleEnd}
-      >
-        <Square className="w-4 h-4" />
-        Avsluta arbetsdag
-      </Button>
-    );
-  }
-
+  const label = isOpen ? 'Hantera arbetsdag i översikten' : 'Starta arbetsdag i översikten';
   return (
-    <>
-      <Button
-        size="lg"
-        className="w-full h-12 rounded-2xl text-sm font-bold gap-2"
-        onClick={() => setDialogOpen(true)}
-        disabled={busy || isLoading}
-      >
-        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-        Starta arbetsdag
-      </Button>
-      <StartDayDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onConfirm={handleConfirm}
-        bookings={bookings}
-        locations={startDayLocations}
-        starting={busy}
-      />
-    </>
+    <Button
+      size="lg"
+      variant={isOpen ? 'outline' : 'default'}
+      className="w-full h-12 rounded-2xl text-sm font-bold gap-2"
+      onClick={() => navigate('/m')}
+    >
+      {label}
+      <ArrowRight className="w-4 h-4" />
+    </Button>
   );
 };
 

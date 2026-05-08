@@ -1,35 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Loader2, LogOut, Play } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-
-import { useWorkDay } from '@/hooks/useWorkDay';
-import { clearWorkdayEnded } from '@/services/workdayState';
-import { useLanguage } from '@/i18n/LanguageContext';
-import { useMobileAuth } from '@/contexts/MobileAuthContext';
-import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencingContext } from '@/contexts/GeofencingContext';
-import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
-import { haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
-import { mobileApi } from '@/services/mobileApiService';
-import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
-import type { MobileBooking } from '@/services/mobileApiService';
-import { isBookingPlannedOnDate } from '@/lib/mobileBookingPlanning';
+import { ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
  *
- * Headers portal into #mobile-header-slot (rendered by TimeAppLayout)
- * so they sit OUTSIDE the scroll container. This avoids a long-standing
- * iOS WKWebView bug where `position: sticky` inside a momentum-scrolling
- * element jitters / lags behind the scroll.
+ * Single-timer policy: headern startar eller stoppar INTE arbetsdag.
+ * Timer-styrning sker uteslutande i `WorkDayPanel`. Headern visar
+ * navigation, titel och eventuella passiva actions.
  *
- * If the slot is not present (e.g. Scanner shell), headers render
- * inline as a graceful fallback.
+ * Headers portal into #mobile-header-slot (rendered by TimeAppLayout)
+ * so they sit OUTSIDE the scroll container — avoids iOS WKWebView
+ * `position: sticky` jitter inside momentum-scrolling elements.
  * ============================================================ */
 
-/** Resolves the portal slot, retrying on first paint until it exists. */
 const useMobileHeaderSlot = (): HTMLElement | null => {
   const [slot, setSlot] = useState<HTMLElement | null>(() =>
     typeof document !== 'undefined' ? document.getElementById('mobile-header-slot') : null
@@ -51,235 +36,23 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
 };
 
 /**
- * HeaderWorkdayControls
+ * HeaderStartEndDayButton
  *
- * Tidigare visade dag-klockan på en egen rad ovanför ikonerna. Nu renderas
- * `WorkDayHeaderTimer` inline bredvid Start/Avsluta-knappen i sidans header
- * (se `HeaderStartEndDayButton`), så vi behöver inte längre någon separat rad.
+ * Borttagen som interaktiv yta. Returnerar null för att behålla
+ * import-kontraktet i sidor som fortfarande mountar den. All
+ * arbetsdagsstart/-stopp sker i `WorkDayPanel`.
  */
-const HeaderWorkdayControls: React.FC = () => null;
-
-/**
- * Är denna booking planerad för idag? Vi kollar rig/event/down + assignment_dates.
- * Endast bookings som är planerade idag får auto-starta dagen via GPS.
- */
-function isPlannedToday(b: MobileBooking): boolean {
-  return isBookingPlannedOnDate(b);
-}
-
-/**
- * Försöker hitta en booking/projekt som matchar användarens GPS-position.
- * Begränsar till bookings som är PLANERADE IDAG — vi auto-startar aldrig på
- * ett projekt som ligger om flera veckor bara för att GPS råkar matcha.
- * Returnerar närmaste träff inom ENTER_RADIUS, eller null.
- */
-function findNearbyBooking(
-  bookings: MobileBooking[],
-  pos: { lat: number; lng: number } | null,
-): MobileBooking | null {
-  if (!pos) return null;
-  let best: { b: MobileBooking; dist: number } | null = null;
-  for (const b of bookings) {
-    if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
-    if (!isPlannedToday(b)) continue;
-    const dist = haversineDistance(pos.lat, pos.lng, b.delivery_latitude, b.delivery_longitude);
-    if (dist <= ENTER_RADIUS && (!best || dist < best.dist)) {
-      best = { b, dist };
-    }
-  }
-  return best?.b ?? null;
-}
-
-/** Vänta upp till `timeoutMs` på en GPS-position. */
-function waitForPosition(
-  getPos: () => { lat: number; lng: number } | null,
-  timeoutMs = 3000,
-  pollMs = 200,
-): Promise<{ lat: number; lng: number } | null> {
-  return new Promise((resolve) => {
-    const start = Date.now();
-    const tick = () => {
-      const p = getPos();
-      if (p) return resolve(p);
-      if (Date.now() - start >= timeoutMs) return resolve(null);
-      setTimeout(tick, pollMs);
-    };
-    tick();
-  });
-}
-
-export const HeaderStartEndDayButton: React.FC = () => {
-  const location = useLocation();
-  const { t } = useLanguage();
-  const { staff } = useMobileAuth();
-  const { current, start, ensureActive } = useWorkDay();
-  const { data: bookings = [] } = useMobileBookings();
-  const { userPosition, orgLocations } = useGeofencingContext();
-  const { requestStart } = useTimerStartFlow(bookings, staff?.id);
-
-  // Fasta platser som ALLTID ska kunna väljas (t.ex. Lager). Vi visar bara
-  // de som markerats som `show_as_project` i admin — samma kriterium som
-  // jobblistan på /m/jobs använder.
-  const startDayLocations = useMemo(
-    () => orgLocations
-      .filter((loc: any) => loc.show_as_project === true)
-      .map((loc: any) => ({ id: loc.id, name: loc.name, address: loc.address ?? null })),
-    [orgLocations]
-  );
-
-  const workdayOpen = !!current && !current.ended_at;
-  const [startingDay, setStartingDay] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  // Göm på rapport-sidan (samma policy som tidigare)
-  if (location.pathname === '/m/report') return null;
-
-  /**
-   * Steg 1: Snabb GPS-poll (≤3s). Om vi hittar en booking vid platsen
-   *         → auto-starta workday + projekttimer direkt.
-   *         Annars → öppna StartDayDialog så användaren MÅSTE välja något.
-   */
-  const handleStartDay = useCallback(async () => {
-    if (startingDay || workdayOpen) return;
-    setStartingDay(true);
-    try {
-      clearWorkdayEnded();
-      const pos = userPosition ?? await waitForPosition(() => userPosition);
-      const match = findNearbyBooking(bookings, pos);
-
-      if (match) {
-        // requestStart() är ensam ansvarig för ensureWorkDayActive +
-        // konflikt/distance/startSession. Ingen separat ensureActive() här.
-        const target = match.large_project_id && match.large_project_name
-          ? { kind: 'project' as const, largeProjectId: match.large_project_id, name: match.large_project_name }
-          : { kind: 'booking' as const, bookingId: match.id, client: match.client };
-        const label = match.large_project_name || match.client;
-        const result = await requestStart(target, { label });
-        if (result === 'started' || result === 'already_running') {
-          toast.success(`Arbetspass startat på ${label}`);
-        }
-        return;
-      }
-
-      setDialogOpen(true);
-    } finally {
-      setStartingDay(false);
-    }
-  }, [startingDay, workdayOpen, userPosition, bookings, requestStart]);
-
-  /**
-   * Användaren har valt något i dialogen.
-   *   - 'target' → samma flöde som auto-match (workday + timer)
-   *   - 'manual' → starta workday + skapa workday_flag (unclear_start_target).
-   *                Ingen aktivitetstimer; arbetsledare måste reda ut.
-   */
-  const handleDialogConfirm = useCallback(async (selection: StartDaySelection) => {
-    setStartingDay(true);
-    try {
-      if (selection.kind === 'target') {
-        // requestStart() ansvarar ensamt för ensureWorkDayActive +
-        // konflikt/distance/startSession. Ingen separat ensureActive() här.
-        const result = await requestStart(selection.target, {
-          label: selection.label,
-          startedAtIso: selection.startedAtIso,
-        });
-        if (result === 'started' || result === 'already_running') {
-          toast.success(`Arbetspass startat på ${selection.label}`);
-          setDialogOpen(false);
-        } else if (result === 'conflict') {
-          // Globala TimerConflictDialog tar över; stäng vår dialog.
-          setDialogOpen(false);
-        }
-        return;
-      }
-
-      // Presence-only start (utan projektkoppling) — workday startar och
-      // geofence/backend kopplar projekt/plats automatiskt på arbetsplats.
-      if (selection.kind === 'presence') {
-        const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
-        if (!wd) {
-          toast.error('Kunde inte starta arbetspasset. Försök igen.');
-          return;
-        }
-        toast.success('Arbetsdag startad. Plats moniteras.');
-        setDialogOpen(false);
-        return;
-      }
-
-      // Manuell text: workday-first, sedan flagga.
-      const wd = await start(selection.startedAtIso ? { startedAtIso: selection.startedAtIso } : {});
-      if (!wd) {
-        toast.error('Kunde inte starta arbetspasset. Försök igen.');
-        return;
-      }
-      try {
-        await mobileApi.createWorkdayFlag({
-          flag_type: 'unclear_start_target',
-          flag_date: new Date().toISOString().slice(0, 10),
-          title: 'Oklart startprojekt',
-          description: selection.text,
-          severity: 'warning',
-          needs_user_input: false,
-          context: { entered_text: selection.text, source: 'start_day_manual', startedAtIso: selection.startedAtIso ?? null },
-        });
-      } catch (err) {
-        console.warn('[StartDay] createWorkdayFlag failed (non-fatal):', err);
-      }
-      toast.success('Arbetspass startat. Arbetsledare kopplar projekt åt dig.');
-      setDialogOpen(false);
-    } finally {
-      setStartingDay(false);
-    }
-  }, [requestStart, start]);
-
-  if (workdayOpen) {
-    // Header visar ingen timer längre — legacy WorkDayHeaderTimer borttagen.
-    // Riktig timerstatus visas endast i WorkDayPanel via useActiveTimerStatus
-    // / active_time_registrations. End-day-knappen ligger på Profile-sidan.
-    return null;
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={handleStartDay}
-        disabled={startingDay}
-        className="flex items-center gap-1.5 rounded-xl bg-primary-foreground px-3 py-2 text-sm font-semibold text-primary shadow-sm active:scale-95 transition-all disabled:opacity-60"
-        title={t('workday.startDayTitle')}
-        aria-label={startingDay ? t('workday.starting') : t('workday.startDay')}
-      >
-        {startingDay
-          ? <Loader2 className="h-4 w-4 animate-spin" />
-          : <Play className="h-4 w-4 fill-current" />}
-        <span>{startingDay ? t('workday.starting') : t('workday.startDay')}</span>
-      </button>
-      <StartDayDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onConfirm={handleDialogConfirm}
-        bookings={bookings}
-        locations={startDayLocations}
-        starting={startingDay}
-      />
-    </>
-  );
-};
+export const HeaderStartEndDayButton: React.FC = () => null;
 
 /** Wraps header markup with a portal to the slot, falling back to inline. */
 export const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const slot = useMobileHeaderSlot();
-  // When portalled into #mobile-header-slot, the slot itself paints the iOS
-  // safe-area (statusbar). When falling back to inline (non-Time shells like
-  // MobileAppLayout), we must paint it ourselves.
   const content = (
     <div className="relative bg-primary shadow-sm">
-      <HeaderWorkdayControls />
       {children}
     </div>
   );
   if (slot) return createPortal(content, slot);
-  // Fallback: render inline (non-Time shells) — include safe-area padding here.
   return (
     <div
       className="sticky top-0 z-[60] bg-primary"

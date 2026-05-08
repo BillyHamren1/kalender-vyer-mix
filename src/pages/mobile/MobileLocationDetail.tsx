@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Clock, Square, Play, Check, Building2, Loader2, Users, MapPin, Navigation } from 'lucide-react';
+import { Plus, Check, Loader2, Users, MapPin, Navigation } from 'lucide-react';
 import { mobileApi } from '@/services/mobileApiService';
-import { useMobileBookings } from '@/hooks/useMobileData';
-import { useWorkSession, WorkTarget } from '@/hooks/useWorkSession';
-import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
-import { useMobileAuth } from '@/contexts/MobileAuthContext';
-import { useLanguage } from '@/i18n/LanguageContext';
+import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,8 +16,6 @@ import LagerTeamSection from '@/components/mobile-app/lager/LagerTeamSection';
 import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSection';
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
 import LagerMyAssignmentsSection from '@/components/mobile-app/lager/LagerMyAssignmentsSection';
-import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
-import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 
 interface LagerTask {
   id: string;
@@ -35,23 +29,17 @@ interface LagerTask {
 const tabs = ['Info', 'Team', 'Photos', 'Costs'] as const;
 type TabKey = typeof tabs[number];
 
+/**
+ * MobileLocationDetail
+ * --------------------
+ * Single-timer policy: platsdetalj startar/stoppar INTE timer. All
+ * arbetsdagsstart/-stopp sker i WorkDayPanel. Här visas platsinfo,
+ * lageruppgifter och kontaktdata.
+ */
 const MobileLocationDetail = () => {
   const { id: locationId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { staff } = useMobileAuth();
-  const { t } = useLanguage();
-  const { data: bookings = [] } = useMobileBookings();
-  const { activeTimers, geo, stopSession, dialogs } = useWorkSession(bookings, staff?.id);
-  const {
-    requestStart,
-    cancelConflict,
-    confirmSwitch,
-    conflictEval,
-    pendingLabel,
-    distanceWarning,
-    dismissDistanceWarning,
-  } = useTimerStartFlow(bookings, staff?.id);
-  const { orgLocations } = geo;
+  const { orgLocations } = useGeofencingContext();
 
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [loading, setLoading] = useState(true);
@@ -62,19 +50,8 @@ const MobileLocationDetail = () => {
   const [newDesc, setNewDesc] = useState('');
   const [assignToMe, setAssignToMe] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [, setTick] = useState(0);
 
   const location = orgLocations.find((l) => l.id === locationId) || null;
-  const locKey = `location-${locationId}`;
-  const hasLocationTimer = activeTimers.has(locKey);
-  const currentTimer = activeTimers.get(locKey);
-
-  // tick for elapsed display
-  useEffect(() => {
-    if (activeTimers.size === 0) return;
-    const id = setInterval(() => setTick((x) => x + 1), 1000);
-    return () => clearInterval(id);
-  }, [activeTimers.size]);
 
   const loadTasks = async () => {
     try {
@@ -93,56 +70,6 @@ const MobileLocationDetail = () => {
     loadTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId]);
-
-  const formatElapsed = (startIso: string) => {
-    const secs = Math.floor((Date.now() - new Date(startIso).getTime()) / 1000);
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
-  // Location target — UNIFIED (Fas 1): creates a time_report just like
-  // booking/project timers, so workdays + time_reports stay in sync.
-  const locationTarget: WorkTarget | null = location
-    ? { kind: 'location', locationId: location.id, name: location.name }
-    : null;
-
-  const handleStartTaskTimer = async (task: LagerTask) => {
-    if (!locationTarget) return;
-    // UNIFIED START FLOW — workday-first guarantee, conflict + distance dialogs.
-    await requestStart(locationTarget, {
-      label: task.title,
-      taskId: task.id,
-      taskTitle: task.title,
-    });
-  };
-
-  const handleStartGeneralTimer = async () => {
-    if (!locationTarget) return;
-    await requestStart(locationTarget, { label: locationTarget.name });
-  };
-
-  const handleStopTimer = async () => {
-    if (!locationTarget) return;
-    // Unified engine — saves a time_report (Fas 1 unification) and stops.
-    // We stay on the location page so user sees the timer disappear and
-    // can continue with another task without losing context.
-    try {
-      const res = await stopSession(locationTarget);
-      if (res.cancelled) return;
-      if (res.saved) {
-        const hours = res.hoursWorked ?? 0;
-        toast.success(
-          hours > 0
-            ? `Tidrapport sparad: ${hours.toFixed(1).replace('.', ',')} h`
-            : 'Timern stoppad',
-        );
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte stoppa timer');
-    }
-  };
 
   const handleToggleComplete = async (task: LagerTask) => {
     try {
@@ -191,16 +118,10 @@ const MobileLocationDetail = () => {
   };
 
   const renderTaskCard = (task: LagerTask, isMine: boolean) => {
-    const activeTimer = activeTimers.get(locKey);
-    const isActiveTask = hasLocationTimer && !!activeTimer && (activeTimer as any).establishmentTaskId === task.id;
-
     return (
       <div
         key={task.id}
-        className={cn(
-          'rounded-2xl border bg-card p-3.5 transition-all',
-          isActiveTask ? 'border-primary/40 ring-1 ring-primary/20 shadow-md' : 'border-border'
-        )}
+        className="rounded-2xl border border-border bg-card p-3.5 transition-all"
       >
         <div className="flex items-start gap-3">
           <button
@@ -220,31 +141,8 @@ const MobileLocationDetail = () => {
             {task.deadline && (
               <p className="text-[11px] text-muted-foreground mt-1">📅 {task.deadline}</p>
             )}
-            {isActiveTask && activeTimer && (
-              <p className="text-xs font-mono tabular-nums text-primary font-bold mt-1">
-                ⏱ {formatElapsed(activeTimer.startTime)}
-              </p>
-            )}
           </div>
-          {isMine ? (
-            isActiveTask ? (
-              <button
-                onClick={handleStopTimer}
-                className="shrink-0 w-10 h-10 rounded-xl bg-destructive text-destructive-foreground flex items-center justify-center shadow-md active:scale-90"
-                aria-label="Sluta registrera tid här"
-              >
-                <Square className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={() => handleStartTaskTimer(task)}
-                className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:scale-90"
-                aria-label="Registrera tid här"
-              >
-                <Clock className="w-4 h-4" />
-              </button>
-            )
-          ) : (
+          {!isMine && (
             <Button size="sm" variant="outline" onClick={() => handleClaim(task)} className="shrink-0">
               Ta
             </Button>
@@ -275,39 +173,8 @@ const MobileLocationDetail = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
-      {/* Header — identical pattern to MobileJobDetail */}
-      <MobileBackHeader
-        title={location.name}
-        backTo="/m"
-        rightAction={
-          <button
-            onClick={hasLocationTimer ? handleStopTimer : handleStartGeneralTimer}
-            className={cn(
-              "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
-              hasLocationTimer
-                ? "bg-destructive text-destructive-foreground animate-pulse"
-                : "bg-primary-foreground text-primary",
-            )}
-            aria-label={hasLocationTimer ? "Sluta registrera tid här" : "Registrera tid här"}
-          >
-            {hasLocationTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-          </button>
-        }
-      />
+      <MobileBackHeader title={location.name} backTo="/m" />
 
-      {/* Timer info bar */}
-      {currentTimer && (
-        <div className="text-center py-1.5 bg-primary/5">
-          <span className="text-xs font-mono tabular-nums text-primary bg-primary/10 px-3 py-1 rounded-full">
-            <Clock className="w-3 h-3 inline mr-1" />{formatElapsed(currentTimer.startTime)}
-          </span>
-          {(currentTimer as any).establishmentTaskTitle && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">{(currentTimer as any).establishmentTaskTitle}</p>
-          )}
-        </div>
-      )}
-
-      {/* Address card — same style as MobileJobDetail */}
       {location.address && (
         <button
           onClick={openNavigation}
@@ -321,7 +188,6 @@ const MobileLocationDetail = () => {
         </button>
       )}
 
-      {/* Tab navigation — identical to MobileJobDetail */}
       <div className="px-4 pt-2.5">
         <div className="flex gap-0.5 bg-muted/50 rounded-xl p-0.5">
           {tabs.map(tab => (
@@ -341,15 +207,12 @@ const MobileLocationDetail = () => {
         </div>
       </div>
 
-      {/* Tab content */}
       <div className="flex-1 px-4 py-3 space-y-5">
         {activeTab === 'Info' && (
           <>
-            {/* Mina lageruppgifter — visas högt upp när platsen är ett lager */}
             {location && /lager/i.test(location.name) && (
               <LagerMyAssignmentsSection />
             )}
-            {/* My tasks */}
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -373,7 +236,6 @@ const MobileLocationDetail = () => {
               )}
             </div>
 
-            {/* Open tasks */}
             {openTasks.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2.5">
@@ -393,7 +255,6 @@ const MobileLocationDetail = () => {
         {activeTab === 'Costs' && <LagerExpensesSection />}
       </div>
 
-      {/* Create task dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
@@ -433,27 +294,6 @@ const MobileLocationDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <TimerConflictDialog
-        open={!!conflictEval}
-        evaluation={conflictEval}
-        newTargetLabel={pendingLabel}
-        onCancel={cancelConflict}
-        onSwitch={confirmSwitch}
-      />
-      <DistanceWarningDialog
-        open={!!distanceWarning}
-        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
-        placeName={distanceWarning?.placeName || ''}
-        distanceMeters={distanceWarning?.distance || 0}
-        onConfirm={async (reason) => {
-          if (!distanceWarning) return false;
-          const status = await distanceWarning.onConfirm(reason);
-          const ok = status === 'started' || status === 'already_running';
-          if (ok) dismissDistanceWarning();
-          return ok;
-        }}
-      />
-      {dialogs}
     </div>
   );
 };
