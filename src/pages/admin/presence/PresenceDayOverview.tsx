@@ -15,7 +15,19 @@ import {
   AlertTriangle,
   Activity,
   Search,
+  MapPin,
+  Navigation,
+  HelpCircle,
+  WifiOff as SignalOff,
+  Clock,
 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 
 interface Block {
   at: string;
