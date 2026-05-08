@@ -541,6 +541,18 @@ export default function PresenceDayOverview() {
     );
   };
 
+  const fmtTime = (iso?: string | null) => (iso ? format(new Date(iso), "HH:mm") : "—");
+  const blockTitle = (b: any) => {
+    if (!b) return "Detalj";
+    if (b.type === "smoothed_presence") return "På känd plats";
+    if (b.type === "transport") return "Transport";
+    if (b.type === "unknown_place") return "Okänd plats";
+    if (b.type === "gps_gap") return "Signal saknas";
+    if (b.type === "active_timer_started") return "Timer startad";
+    if (b.type === "active_timer_stopped") return "Timer stoppad";
+    return b.type;
+  };
+
   return (
     <Card>
       <CardContent className="p-0">
