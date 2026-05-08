@@ -1004,6 +1004,26 @@ interface BatchRow {
   error?: string;
 }
 
+type TestableStatus =
+  | "TESTABLE"
+  | "BLOCKED_ACTIVE_TIMER"
+  | "NO_PINGS"
+  | "NO_ALLOWED_AUTOSTART"
+  | "ERROR";
+
+interface TestableRow {
+  staffId: string;
+  name: string;
+  rawPingCount: number;
+  gpsDayTimelineCount: number;
+  knownStayCount: number;
+  allowedAutoStartCount: number;
+  hasActiveRegistrationNow: boolean;
+  currentActiveTargetLabel: string | null;
+  testStatus: TestableStatus;
+  error?: string;
+}
+
 export default function TimeIntelligenceDebug() {
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [staffId, setStaffId] = useState<string>("");
@@ -1019,6 +1039,117 @@ export default function TimeIntelligenceDebug() {
   const [pingFirst, setPingFirst] = useState<any>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmResp, setConfirmResp] = useState<any>(null);
+  const [testable, setTestable] = useState<TestableRow[] | null>(null);
+  const [testableScanning, setTestableScanning] = useState(false);
+  const [testableProgress, setTestableProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const scanTestable = async () => {
+    if (!date || staff.length === 0) return;
+    setTestableScanning(true);
+    setTestable(null);
+    try {
+      // 1) fetch active registrations once
+      const { data: active } = await supabase
+        .from("active_time_registrations")
+        .select("staff_id, current_label, start_target_label")
+        .eq("status", "active");
+      const activeMap = new Map<string, string | null>();
+      for (const r of active ?? []) {
+        activeMap.set(
+          String((r as any).staff_id),
+          ((r as any).current_label ?? (r as any).start_target_label ?? null) as string | null,
+        );
+      }
+
+      const rows: TestableRow[] = [];
+      setTestableProgress({ done: 0, total: staff.length });
+
+      // run with limited concurrency
+      const concurrency = 4;
+      let idx = 0;
+      const workers = Array.from({ length: concurrency }, async () => {
+        while (idx < staff.length) {
+          const my = idx++;
+          const s = staff[my];
+          const hasActive = activeMap.has(s.id);
+          const currentLabel = activeMap.get(s.id) ?? null;
+          try {
+            const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
+              body: { staffId: s.id, date, dryRun: true },
+            });
+            if (error) throw error;
+            const rawPingCount = Number(data?.rawPingsCoverage?.pingCount ?? 0);
+            const segs: any[] = Array.isArray(data?.gpsDayTimeline?.segments)
+              ? data.gpsDayTimeline.segments
+              : [];
+            const gpsDayTimelineCount = Number(data?.gpsDayTimeline?.count ?? segs.length);
+            const knownStayCount = segs.filter(
+              (x) => x?.kind === "stay" && x?.type === "known_site",
+            ).length;
+            const allowedAutoStartCount = Number(
+              data?.autoStartSummary?.allowedCount ??
+                (Array.isArray(data?.autoStartDecisions)
+                  ? data.autoStartDecisions.filter((d: any) => d?.allowed).length
+                  : 0),
+            );
+            let testStatus: TestableStatus;
+            if (rawPingCount === 0) testStatus = "NO_PINGS";
+            else if (allowedAutoStartCount === 0) testStatus = "NO_ALLOWED_AUTOSTART";
+            else if (hasActive) testStatus = "BLOCKED_ACTIVE_TIMER";
+            else testStatus = "TESTABLE";
+            rows.push({
+              staffId: s.id,
+              name: s.name,
+              rawPingCount,
+              gpsDayTimelineCount,
+              knownStayCount,
+              allowedAutoStartCount,
+              hasActiveRegistrationNow: hasActive,
+              currentActiveTargetLabel: currentLabel,
+              testStatus,
+            });
+          } catch (e: any) {
+            rows.push({
+              staffId: s.id,
+              name: s.name,
+              rawPingCount: 0,
+              gpsDayTimelineCount: 0,
+              knownStayCount: 0,
+              allowedAutoStartCount: 0,
+              hasActiveRegistrationNow: hasActive,
+              currentActiveTargetLabel: currentLabel,
+              testStatus: "ERROR",
+              error: e?.message ?? String(e),
+            });
+          }
+          setTestableProgress({ done: rows.length, total: staff.length });
+        }
+      });
+      await Promise.all(workers);
+
+      // sort: TESTABLE first, then BLOCKED_ACTIVE_TIMER, then NO_ALLOWED_AUTOSTART, then NO_PINGS, then ERROR
+      const order: Record<TestableStatus, number> = {
+        TESTABLE: 0,
+        BLOCKED_ACTIVE_TIMER: 1,
+        NO_ALLOWED_AUTOSTART: 2,
+        NO_PINGS: 3,
+        ERROR: 4,
+      };
+      rows.sort((a, b) => {
+        const d = order[a.testStatus] - order[b.testStatus];
+        if (d !== 0) return d;
+        return b.allowedAutoStartCount - a.allowedAutoStartCount;
+      });
+      setTestable(rows);
+      const testableCount = rows.filter((r) => r.testStatus === "TESTABLE").length;
+      toast.success(`Hittade ${testableCount} testbara personer (${rows.length} skannade)`);
+    } catch (e: any) {
+      toast.error("Skanning misslyckades: " + (e?.message ?? String(e)));
+    } finally {
+      setTestableScanning(false);
+      setTestableProgress(null);
+    }
+  };
 
   const runConfirm = async () => {
     if (!staffId || !date) return;
@@ -1350,6 +1481,15 @@ export default function TimeIntelligenceDebug() {
               </Label>
             </div>
             <div className="ml-auto flex flex-wrap gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={scanTestable}
+                disabled={!date || staff.length === 0 || testableScanning || loading}
+              >
+                {testableScanning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Hitta testbara personer för valt datum
+              </Button>
               <Button variant="outline" size="sm" onClick={() => runBatch(todayIso(), true)} disabled={loading}>
                 Kör alla med aktiv arbetsdag idag
               </Button>
@@ -1363,12 +1503,90 @@ export default function TimeIntelligenceDebug() {
               Kör batch: {batchProgress.done} / {batchProgress.total}
             </p>
           )}
+          {testableProgress && (
+            <p className="text-xs text-muted-foreground">
+              Skannar testbara: {testableProgress.done} / {testableProgress.total}
+            </p>
+          )}
         </CardContent>
       </Card>
 
       {error && (
         <Card className="border-destructive">
           <CardContent className="pt-6"><p className="text-sm text-destructive font-mono">{error}</p></CardContent>
+        </Card>
+      )}
+
+      {testable && (
+        <Card>
+          <CardHeader className="pb-3 gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">
+              Testbara personer för {date} ({testable.filter((r) => r.testStatus === "TESTABLE").length} TESTABLE / {testable.length})
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setTestable(null)}>
+              <X className="h-4 w-4 mr-1" /> Stäng
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-muted-foreground border-b">
+                  <tr className="text-left">
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">Personal</th>
+                    <th className="py-2 pr-3 text-right">rawPings</th>
+                    <th className="py-2 pr-3 text-right">timeline</th>
+                    <th className="py-2 pr-3 text-right">knownStays</th>
+                    <th className="py-2 pr-3 text-right">allowedAutoStart</th>
+                    <th className="py-2 pr-3">aktiv timer nu</th>
+                    <th className="py-2 pr-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {testable.map((r) => {
+                    const tone: StatusTone =
+                      r.testStatus === "TESTABLE" ? "ok"
+                      : r.testStatus === "BLOCKED_ACTIVE_TIMER" ? "warn"
+                      : r.testStatus === "ERROR" ? "bad"
+                      : "neutral";
+                    return (
+                      <tr key={r.staffId} className="border-b">
+                        <td className="py-2 pr-3">
+                          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-[10px] ${TONE_CLASS[tone]}`}>
+                            {r.testStatus}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 font-medium">{r.name}</td>
+                        <td className="py-2 pr-3 text-right">{r.rawPingCount}</td>
+                        <td className="py-2 pr-3 text-right">{r.gpsDayTimelineCount}</td>
+                        <td className="py-2 pr-3 text-right">{r.knownStayCount}</td>
+                        <td className="py-2 pr-3 text-right">{r.allowedAutoStartCount}</td>
+                        <td className="py-2 pr-3">
+                          {r.hasActiveRegistrationNow
+                            ? <span className="text-amber-600">{r.currentActiveTargetLabel ?? "ja"}</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="py-2 pr-3">
+                          <Button
+                            size="sm"
+                            variant={r.testStatus === "TESTABLE" ? "default" : "ghost"}
+                            onClick={() => { setStaffId(r.staffId); runDryRun(r.staffId); }}
+                          >
+                            Välj
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {testable.some((r) => r.error) && (
+                <div className="mt-2 text-xs text-destructive">
+                  Vissa personer gav fel — se konsolen.
+                </div>
+              )}
+            </div>
+          </CardContent>
         </Card>
       )}
 
