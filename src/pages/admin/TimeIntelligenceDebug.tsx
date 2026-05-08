@@ -298,6 +298,18 @@ function TimeEngineDryRunSummary({ result }: { result: any }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {noPings && (
+          <div className="rounded-md border border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant="outline" className="border-amber-600 text-amber-700 dark:text-amber-300">
+                NO_PINGS
+              </Badge>
+            </div>
+            <div className="text-amber-900 dark:text-amber-100">
+              Inga GPS-pings finns för denna person/dag. Personen kan inte torrköras eftersom appen inte har skickat positioner.
+            </div>
+          </div>
+        )}
         <section>
           <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">1. Data in</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
