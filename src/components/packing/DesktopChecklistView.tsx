@@ -25,6 +25,7 @@ import { togglePackingItemManually } from '@/services/scannerService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
 import { computePackingProgress } from '@/lib/packing/progress';
+import { PackingPreflightPanel } from '@/components/scanner/PackingPreflightPanel';
 
 interface DesktopChecklistViewProps {
   packingId: string;
