@@ -54,6 +54,7 @@ const CommunicationPage = lazyWithRecovery(() => import("./pages/CommunicationPa
 const OpsControlCenter = lazyWithRecovery(() => import("./pages/OpsControlCenter"));
 const SyncReconciliation = lazyWithRecovery(() => import("./pages/SyncReconciliation"));
 const StaffLiveDebug = lazyWithRecovery(() => import("./pages/admin/StaffLiveDebug"));
+const StaffPresence = lazyWithRecovery(() => import("./pages/admin/StaffPresence"));
 const TimeIntelligenceDebug = lazyWithRecovery(() => import("./pages/admin/TimeIntelligenceDebug"));
 const LegacyIncomingPackingDebug = lazyWithRecovery(() => import("./pages/admin/LegacyIncomingPackingDebug"));
 const TransportResponse = lazyWithRecovery(() => import("./pages/TransportResponse"));
