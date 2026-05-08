@@ -432,3 +432,91 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function TimelineRowView({ row }: { row: TimelineRow }) {
+  const meta = ROW_META[row.type];
+  const Icon = meta.icon;
+  return (
+    <div className={`flex items-start gap-3 p-3 rounded-md border ${meta.cls}`}>
+      <Icon className="h-4 w-4 mt-1 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="font-mono font-semibold tabular-nums">{fmtTime(row.at)}</span>
+          {row.endAt && (
+            <span className="text-xs text-muted-foreground">→ {fmtTime(row.endAt)}{row.durationMin != null && ` (${row.durationMin} min)`}</span>
+          )}
+          <span className="text-xs uppercase tracking-wide opacity-70">
+            {meta.group === "timer" ? `Timer · ${meta.label}` : meta.label}
+          </span>
+        </div>
+        <div className="text-sm mt-0.5 truncate">{row.label}</div>
+        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+          {row.targetType && <span>typ: {row.targetType}</span>}
+          {row.confidence != null && <span>conf: {Math.round(Number(row.confidence) * 100)}%</span>}
+          <span>källa: {row.source}</span>
+          {row.mergedSources && row.mergedSources.length > 1 && (
+            <Badge variant="outline" className="text-[10px]">
+              +{row.mergedSources.length - 1} källa{row.mergedSources.length - 1 === 1 ? '' : 'r'}
+            </Badge>
+          )}
+          {row.registrationId && <span>reg: {row.registrationId.slice(0, 8)}…</span>}
+          {row.gpsSegmentId && <span>seg: {row.gpsSegmentId}</span>}
+          {row.centerLat != null && row.centerLng != null && (
+            <span>@ {row.centerLat.toFixed(5)}, {row.centerLng.toFixed(5)}</span>
+          )}
+        </div>
+        {row.duplicates && row.duplicates.length > 0 && (
+          <details className="text-xs mt-1">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Dolda dubbletter ({row.duplicates.length})
+            </summary>
+            <div className="mt-1 space-y-1 pl-2 border-l border-border">
+              {row.duplicates.map((d, di) => (
+                <div key={di} className="text-muted-foreground">
+                  {fmtTime(d.at)} · källa: {d.source}
+                  {d.registrationId && ` · reg: ${d.registrationId.slice(0, 8)}…`}
+                  {d.label && d.label !== row.label && ` · ${d.label}`}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+        {row.noMatchHint && (
+          <div className="text-xs mt-1 px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/30">
+            ⚠ {row.noMatchHint}
+          </div>
+        )}
+        {row.nearestTargets && row.nearestTargets.length > 0 && (
+          <details className="text-xs mt-2">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Närmaste targets ({row.nearestTargets.length})
+            </summary>
+            <div className="mt-1 space-y-1">
+              {row.nearestTargets.map((c) => (
+                <div key={c.targetId} className={`p-2 rounded border ${c.insideRadius ? 'border-green-500/40 bg-green-500/5' : 'border-border bg-muted/30'}`}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-medium">{c.targetLabel}</span>
+                    <Badge variant="outline" className="text-[10px]">{c.targetType}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{c.targetSource}</Badge>
+                    <Badge variant={c.targetValidity === 'valid' ? 'default' : 'destructive'} className="text-[10px]">{c.targetValidity}</Badge>
+                    {c.insideRadius && <Badge className="text-[10px] bg-green-600">inside</Badge>}
+                    {c.excludedReason && <Badge variant="destructive" className="text-[10px]">{c.excludedReason}</Badge>}
+                  </div>
+                  <div className="mt-1 text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                    {c.distanceMeters != null ? <span>avstånd: {c.distanceMeters} m</span> : <span>avstånd: —</span>}
+                    <span>radius: {c.radiusMeters ?? '—'} m</span>
+                    {c.lat != null && c.lng != null
+                      ? <span>{c.lat.toFixed(5)}, {c.lng.toFixed(5)}</span>
+                      : <span>koordinater saknas</span>}
+                    <span>id: {c.targetId.slice(0, 8)}…</span>
+                    <span>tracking: {c.timeTrackingAllowed ? 'ja' : 'nej'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+    </div>
+  );
+}
