@@ -260,7 +260,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsRes, activeRegRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -304,6 +304,15 @@ const StaffTimeReports: React.FC = () => {
         supabase
           .from('large_project_staff')
           .select('staff_id, large_project_id'),
+        // ── Authoritativ källa för "aktiv timer": active_time_registrations.
+        // Tar alla som är status='active' och har startat senast dagSlut.
+        // RLS isolerar org. stopped_at är NULL för alla active-rader. ──
+        supabase
+          .from('active_time_registrations')
+          .select('id, staff_id, status, started_at, stopped_at, start_source, start_target_label, current_label, current_kind, current_target_type, current_target_id, auto_started')
+          .eq('status', 'active')
+          .lte('started_at', nextDayIso)
+          .is('stopped_at', null),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
