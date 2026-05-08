@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Play, Square, Loader2, Repeat, Clock } from 'lucide-react';
+import { Play, Square, Loader2, Sun } from 'lucide-react';
 import { toast } from 'sonner';
+import { format, parseISO } from 'date-fns';
 import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
@@ -11,23 +12,25 @@ import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
 /**
  * WorkDayPanel — den ENDA synliga timer-ytan i Tidappen.
  *
- * Frikopplad från workday/useWorkSession. Styr ENBART
- * `active_time_registrations` via Time Engine v2:
- *   - start: mobileApi.startTimeRegistration (→ start_time_registration)
- *   - stop:  mobileApi.stopTimeRegistration  (→ stop_time_registration)
+ * En enda mental modell för användaren:
+ *   • Starta arbetsdag
+ *   • Avsluta arbetsdag
  *
- * Två lägen, drivna ENBART av useActiveTimerStatus:
- *   A) Ingen aktiv timer  → "Tid registreras inte" + [Starta timer]
- *   B) Aktiv timer        → HH:MM:SS + "Registreras på: {label}" + [Ändra] [Stoppa timer]
+ * Projekt/bokningar/lager/transport visas som "vad dagen består av"
+ * (label på den aktiva registreringen), inte som separata timers
+ * användaren styr. Användaren ser inte längre orden "timer".
+ *
+ * Datakälla: useActiveTimerStatus (active_time_registrations).
+ * Skriver:    mobileApi.startTimeRegistration / stopTimeRegistration.
  *
  * Får inte: skapa workday, läsa useWorkSession, läsa location_time_entries,
  * dispatch:a request-end-day, eller använda useTimerStartFlow/useWorkDay.
  */
-const formatHMS = (totalSeconds: number) => {
+const formatDuration = (totalSeconds: number) => {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  if (h <= 0) return `${m} min`;
+  return `${h} h ${m} min`;
 };
 
 export const WorkDayPanel: React.FC = () => {
@@ -49,9 +52,6 @@ export const WorkDayPanel: React.FC = () => {
     [geo?.orgLocations],
   );
 
-  const handleStartClick = () => setDialogOpen(true);
-  const handleSwitchClick = () => setDialogOpen(true);
-
   const notifyChanged = () => {
     window.dispatchEvent(new Event('timer-state-changed'));
     refresh?.();
@@ -66,42 +66,17 @@ export const WorkDayPanel: React.FC = () => {
         stop_source: 'user_manual',
       });
       if (res?.success === false) {
-        toast.error('Kunde inte stoppa timern. Försök igen.');
+        toast.error('Kunde inte avsluta arbetsdagen. Försök igen.');
       } else {
-        toast.success('Timer stoppad.');
+        toast.success('Arbetsdag avslutad.');
         notifyChanged();
       }
     } catch (err) {
       console.warn('[WorkDayPanel] stopTimeRegistration failed:', err);
-      toast.error('Kunde inte stoppa timern. Försök igen.');
+      toast.error('Kunde inte avsluta arbetsdagen. Försök igen.');
     } finally {
       setStopping(false);
     }
-  };
-
-  const startWithParams = async (
-    params: Parameters<typeof mobileApi.startTimeRegistration>[0],
-    label: string,
-  ) => {
-    // If a timer is already running, stop it first to allow switching target.
-    if (timer.timerActive && timer.timerId) {
-      try {
-        await mobileApi.stopTimeRegistration({
-          registration_id: timer.timerId,
-          stop_source: 'user_switch',
-        });
-      } catch (err) {
-        console.warn('[WorkDayPanel] stop-before-switch failed:', err);
-      }
-    }
-    const res = await mobileApi.startTimeRegistration(params);
-    if (res?.success === false) {
-      toast.error('Kunde inte starta timern.');
-      return false;
-    }
-    toast.success(`Timer startad på ${label}`);
-    notifyChanged();
-    return true;
   };
 
   const handleDialogConfirm = async (selection: StartDaySelection) => {
@@ -109,7 +84,6 @@ export const WorkDayPanel: React.FC = () => {
     try {
       if (selection.kind === 'target') {
         const t = selection.target as any;
-        // Mappa selektion → Time Engine v2 start params.
         let target_type: 'booking' | 'large_project' | 'location' | null = null;
         let target_id: string | null = null;
         if (t.kind === 'project' && t.largeProjectId) {
@@ -123,48 +97,52 @@ export const WorkDayPanel: React.FC = () => {
           target_id = t.locationId;
         }
         if (!target_type || !target_id) {
-          toast.error('Ogiltigt mål för timer.');
+          toast.error('Ogiltigt mål.');
           return;
         }
-        const params: Parameters<typeof mobileApi.startTimeRegistration>[0] = {
+        const res = await mobileApi.startTimeRegistration({
           started_at: selection.startedAtIso,
           target_type,
           target_id,
-        };
-        const ok = await startWithParams(params, selection.label);
-        if (ok) setDialogOpen(false);
+        });
+        if (res?.success === false) {
+          toast.error('Kunde inte starta arbetsdagen.');
+          return;
+        }
+        toast.success(`Arbetsdag startad på ${selection.label}`);
+        notifyChanged();
+        setDialogOpen(false);
         return;
       }
-      // 'presence' / 'manual' → workday-relaterade flöden hör inte hemma här.
-      toast.error('Välj projekt eller plats för att starta timer.');
+      toast.error('Välj projekt eller plats för att starta arbetsdagen.');
     } finally {
       setStarting(false);
     }
   };
 
-  // ── LÄGE A — ingen aktiv timer (kompakt) ────────────────────────────
+  // ── Kompakt: arbetsdagen är inte startad ────────────────────────────
   if (!timer.timerActive) {
     return (
       <>
         <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm flex items-center gap-3">
           <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-muted shrink-0">
-            <Clock className="w-4 h-4 text-muted-foreground" />
+            <Sun className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground leading-tight">
-              Tid registreras inte
+              Arbetsdagen är inte startad
             </p>
             <p className="text-xs text-muted-foreground leading-tight mt-0.5">
-              Starta timern när du börjar jobba.
+              Starta dagen när du börjar jobba.
             </p>
           </div>
           <button
-            onClick={handleStartClick}
+            onClick={() => setDialogOpen(true)}
             disabled={starting}
             className="shrink-0 h-11 px-4 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center gap-1.5 active:scale-[0.99] transition-all disabled:opacity-60"
           >
             {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-            <span>{starting ? 'Startar…' : 'Starta timer'}</span>
+            <span>{starting ? 'Startar…' : 'Starta arbetsdag'}</span>
           </button>
         </div>
         <StartDayDialog
@@ -179,7 +157,10 @@ export const WorkDayPanel: React.FC = () => {
     );
   }
 
-  // ── LÄGE B — aktiv timer (kompakt) ──────────────────────────────────
+  // ── Kompakt: arbetsdagen är aktiv ───────────────────────────────────
+  const startedLabel = timer.startedAt ? format(parseISO(timer.startedAt), 'HH:mm') : '—';
+  const totalLabel = formatDuration(timer.elapsedSeconds);
+
   return (
     <>
       <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
@@ -189,45 +170,37 @@ export const WorkDayPanel: React.FC = () => {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground leading-none">
-              Timer aktiv
+              Arbetsdag aktiv
             </p>
             <div className="text-2xl font-extrabold tracking-tight text-foreground tabular-nums leading-tight mt-0.5">
-              {formatHMS(timer.elapsedSeconds)}
+              {totalLabel}
             </div>
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground mt-2">
-          Registreras på:{' '}
-          <span className="font-semibold text-foreground">{timer.registrationLabel}</span>
-        </p>
+        <div className="mt-2 space-y-0.5 text-xs">
+          <p className="text-muted-foreground">
+            Startad: <span className="font-semibold text-foreground">{startedLabel}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Just nu: <span className="font-semibold text-foreground">{timer.registrationLabel}</span>
+          </p>
+          <p className="text-[11px] text-muted-foreground/70 italic pt-1">
+            Dagens fördelning kommer senare
+          </p>
+        </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <button
-            onClick={handleSwitchClick}
-            className="h-11 rounded-xl bg-secondary text-secondary-foreground text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.99] transition-all"
-          >
-            <Repeat className="w-4 h-4" />
-            Ändra plats
-          </button>
+        <div className="mt-3">
           <button
             onClick={handleStop}
             disabled={stopping}
-            className="h-11 rounded-xl bg-destructive text-destructive-foreground text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.99] transition-all disabled:opacity-60"
+            className="w-full h-11 rounded-xl bg-destructive text-destructive-foreground text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.99] transition-all disabled:opacity-60"
           >
             {stopping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4 fill-current" />}
-            Stoppa timer
+            Avsluta arbetsdag
           </button>
         </div>
       </div>
-      <StartDayDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onConfirm={handleDialogConfirm}
-        bookings={bookings}
-        locations={startDayLocations}
-        starting={starting}
-      />
     </>
   );
 };
