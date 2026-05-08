@@ -593,6 +593,24 @@ Deno.serve(async (req) => {
   const smoothing = smoothPresenceTimeline(dedupedTimeline as any);
   const smoothedTimeline = smoothing.smoothed as any[];
 
+  // ── New deterministic presence-day-blocks engine ──
+  // Replaces ad-hoc UI smoothing with semantic blocks. Pure transform of the
+  // raw GpsDayTimelineResult + active-timer markers. Never writes anything,
+  // never affects auto-start, never creates time_reports/workdays/LTE/travel.
+  if (gpsTimelineResult) {
+    try {
+      presenceDayBlocksResult = buildPresenceDayBlocks({
+        staffId,
+        organizationId: orgId,
+        date,
+        gpsTimeline: gpsTimelineResult,
+        timerMarkers,
+      });
+    } catch (e) {
+      console.error('[presence-day] buildPresenceDayBlocks failed', e);
+    }
+  }
+
   // ── Header summary ──
   const ageSec = lastPingAt
     ? Math.floor((Date.now() - new Date(lastPingAt).getTime()) / 1000)
