@@ -140,7 +140,16 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         boxShadow: '0 0 6px rgba(239, 68, 68, 0.3)',
       };
     }
-    
+
+    // Locked time = solid red border (Fast tid) — has priority over warehouse change indicator
+    if (isLocked) {
+      return {
+        ...baseStyles,
+        border: '3px solid #DC2626',
+        boxShadow: '0 0 8px rgba(220, 38, 38, 0.55)',
+      };
+    }
+
     // Add orange border + animation for warehouse events with changes
     if (hasSourceChanges) {
       return {
@@ -148,15 +157,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         border: '2px solid #f97316',
         boxShadow: '0 0 8px rgba(249, 115, 22, 0.5)',
         animation: 'pulse-orange 2s infinite'
-      };
-    }
-
-    // Locked time = solid red border (Fast tid)
-    if (isLocked) {
-      return {
-        ...baseStyles,
-        border: '2px solid #DC2626',
-        boxShadow: '0 0 6px rgba(220, 38, 38, 0.3)',
       };
     }
 
@@ -259,14 +259,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     </div>
   );
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (moveDateHandlers.canOpen()) {
-      moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
-      setShowDateDialog(true);
-    }
-  }, [moveDateHandlers, event.id, event.title]);
+  // Right-click intentionally falls through to the browser's native context
+  // menu — all event actions (team / dagar / tid / öppna / flytta datum…)
+  // are reachable from the single-click EventActionPopover.
 
   // Project-activity rendering (establishment_tasks visualiserade i
   // ProjectCalendarView). Eget kort med tydlig "Endast projekt"-/publicerad-
@@ -344,7 +339,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     return (
       <>
         <EventHoverCard event={event} onClick={handleViewDetails}>
-          <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+          <div style={{ width: '100%', height: '100%' }}>
             {eventCardContent}
           </div>
         </EventHoverCard>
@@ -381,7 +376,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           }
         }}
       >
-        <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+        <div style={{ width: '100%', height: '100%' }}>
           {eventCardContent}
         </div>
       </EventActionPopover>

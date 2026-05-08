@@ -51,6 +51,7 @@ export const useRealTimeCalendarEvents = () => {
               internalnotes, carry_more_than_10m, ground_nails_allowed,
               assigned_project_id, assigned_project_name, assigned_to_project,
               status, large_project_id,
+              rig_time_locked, event_time_locked, rigdown_time_locked,
               booking_products (name, quantity, notes)
             `)
             .in('id', uniqueBookingIds);
@@ -119,6 +120,15 @@ export const useRealTimeCalendarEvents = () => {
               largeProjectId: largeProjectId || event.extendedProps?.largeProjectId,
               largeProjectName: projectName || event.extendedProps?.largeProjectName,
               isLargeProject: Boolean(largeProjectId) || event.extendedProps?.isLargeProject,
+              timeLocked: (() => {
+                const phase = event.eventType || event.extendedProps?.eventType;
+                if (booking) {
+                  if (phase === 'rig') return booking.rig_time_locked === true;
+                  if (phase === 'event') return booking.event_time_locked === true;
+                  if (phase === 'rigDown') return booking.rigdown_time_locked === true;
+                }
+                return event.extendedProps?.timeLocked === true;
+              })(),
             }
           };
         });
