@@ -259,14 +259,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     </div>
   );
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (moveDateHandlers.canOpen()) {
-      moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
-      setShowDateDialog(true);
-    }
-  }, [moveDateHandlers, event.id, event.title]);
+  // Right-click intentionally falls through to the browser's native context
+  // menu — all event actions (team / dagar / tid / öppna / flytta datum…)
+  // are reachable from the single-click EventActionPopover.
 
   // Project-activity rendering (establishment_tasks visualiserade i
   // ProjectCalendarView). Eget kort med tydlig "Endast projekt"-/publicerad-
