@@ -468,6 +468,7 @@ export async function processGpsTimelineForAutoStart(
     createdRegistrationId,
     decisions,
     targetDiagnostics,
+    suppression: null,
     computedAt: new Date().toISOString(),
   };
 }
