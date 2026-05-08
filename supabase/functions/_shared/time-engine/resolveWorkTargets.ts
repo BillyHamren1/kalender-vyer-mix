@@ -372,6 +372,11 @@ export async function resolveWorkTargets(
         if (validity !== 'valid') bumpExcluded(diag, validity);
         else diag.validTargets += 1;
 
+        const lpNotes: string[] = [];
+        if (validity === 'missing_coordinates' && r.address) {
+          lpNotes.push('address_exists_but_missing_coordinates');
+        }
+
         targets.push({
           id: r.id,
           type: 'project',
@@ -385,7 +390,7 @@ export async function resolveWorkTargets(
           timeTrackingAllowed: true,
           dateRelevance: isPlannedToday ? 'today' : 'recent',
           status,
-          diagnostics: { notes: [] },
+          diagnostics: { notes: lpNotes },
         });
       }
     }
