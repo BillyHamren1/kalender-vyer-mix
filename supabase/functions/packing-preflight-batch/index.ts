@@ -52,11 +52,58 @@ interface PreflightRow {
   wmsMatches: WmsItemType[]
 }
 
-// ---------- WMS lookup stubs (mirrors packing-preflight-check) ----------
-// TODO(wms): replace with real endpoints when available.
-async function wmsLookupByItemTypeId(_id: string): Promise<WmsItemType[]> { return [] }
-async function wmsLookupBySku(_sku: string): Promise<WmsItemType[]> { return [] }
-async function wmsLookupByName(_name: string): Promise<WmsItemType[]> { return [] }
+// ---------- WMS lookup (mirrors packing-preflight-check) ----------
+const WMS_BASE_URL = 'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1'
+
+async function wmsLookup(
+  body: Record<string, unknown>,
+  apiKey: string,
+  orgId: string,
+): Promise<any | null> {
+  try {
+    const res = await fetch(`${WMS_BASE_URL}/item-type-lookup`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'x-organization-id': orgId,
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.warn(`[preflight-batch] WMS item-type-lookup failed status=${res.status} body=${text}`)
+      return null
+    }
+    return await res.json()
+  } catch (e: any) {
+    console.warn('[preflight-batch] WMS network error:', e?.message)
+    return null
+  }
+}
+
+const toMatch = (m: any, matchedBy: string): WmsItemType => ({
+  id: m?.id ?? null,
+  sku: m?.sku ?? null,
+  name: m?.name_sv || m?.name_en || null,
+  matchedBy,
+})
+
+async function wmsLookupByItemTypeId(id: string, apiKey: string, orgId: string): Promise<WmsItemType[]> {
+  const data = await wmsLookup({ item_type_id: id }, apiKey, orgId)
+  const m = data?.exactItemTypeMatch
+  return m ? [toMatch(m, 'item_type_id')] : []
+}
+async function wmsLookupBySku(sku: string, apiKey: string, orgId: string): Promise<WmsItemType[]> {
+  const data = await wmsLookup({ sku }, apiKey, orgId)
+  const arr = Array.isArray(data?.skuMatches) ? data.skuMatches : []
+  return arr.map((m: any) => toMatch(m, 'sku'))
+}
+async function wmsLookupByName(name: string, apiKey: string, orgId: string): Promise<WmsItemType[]> {
+  const data = await wmsLookup({ name }, apiKey, orgId)
+  const arr = Array.isArray(data?.nameMatches) ? data.nameMatches : []
+  return arr.map((m: any) => toMatch(m, 'name'))
+}
 
 // ---------- Per-row classification (mirrors packing-preflight-check) ----------
 function classifyRow(args: {
