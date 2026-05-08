@@ -1,5 +1,6 @@
 import { PackingWithBooking, PackingParcel } from "@/types/packing";
 import { getToken, clearAuth } from "@/services/mobileApiService";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface ScanResult {
   type: 'packing_id' | 'product_sku' | 'rfid_tag' | 'serial' | 'unknown';
