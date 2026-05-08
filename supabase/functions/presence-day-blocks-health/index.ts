@@ -390,6 +390,7 @@ Deno.serve(async (req) => {
           });
         }
       }
+      day.sampleStaffDays = samples;
 
       // Top 20 longest signal gaps for the day
       day.longestSignalGaps = allLongGaps
