@@ -437,7 +437,9 @@ Deno.serve(async (req) => {
     segmentStart: string;
     segmentEnd: string;
     segmentLabel: string;
-    matchedTarget: { id: string; type: string; name: string } | null;
+    matchedTargetId: string | null;
+    matchedTargetName: string | null;
+    matchedTargetType: string | null;
     allowed: boolean;
     reason: string;
     confidence: number;
@@ -470,7 +472,9 @@ Deno.serve(async (req) => {
       segmentStart: seg.startTs,
       segmentEnd: seg.endTs,
       segmentLabel: seg.label,
-      matchedTarget: rt ? { id: rt.id, type: rt.type, name: rt.name } : null,
+      matchedTargetId: rt?.id ?? null,
+      matchedTargetName: rt?.name ?? null,
+      matchedTargetType: rt?.type ?? null,
       allowed: decision.allowed,
       reason: decision.reason,
       confidence: decision.confidence,
