@@ -662,7 +662,9 @@ Deno.serve(async (req) => {
     // `rawGpsTimeline` and `technicalTimeline` are only for the
     // "Visa tekniska GPS-segment" toggle.
     presenceDayBlocks: presenceDayBlocksResult?.blocks ?? [],
+    presenceDayBlocksRawEvidence: presenceDayBlocksResult?.evidenceBlocks ?? [],
     presenceDaySummary: presenceDayBlocksResult?.summary ?? null,
+    presenceDayAggregation: presenceDayBlocksResult?.aggregation ?? null,
     rawGpsTimeline: gpsTimelineResult
       ? {
           segments: gpsTimelineResult.segments,
