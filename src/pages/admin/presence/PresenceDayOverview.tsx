@@ -28,6 +28,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { toOverviewBlocks, type OverviewBlock } from "@/lib/presence/overviewBlock";
 
 interface Block {
   at: string;
@@ -203,7 +204,7 @@ export default function PresenceDayOverview() {
   const [collapsed, setCollapsed] = useState<Record<GroupKey, boolean>>({
     all: false, warehouse: false, project: false, transport: false, no_signal: false,
   });
-  const [selected, setSelected] = useState<{ staff: StaffMini; block: any } | null>(null);
+  const [selected, setSelected] = useState<{ staff: StaffMini; block: OverviewBlock } | null>(null);
   const [showTech, setShowTech] = useState(false);
   const reqIdRef = useRef(0);
 
@@ -320,91 +321,19 @@ export default function PresenceDayOverview() {
     return buckets;
   }, [decorated]);
 
-  // Decorate blocks per row: compute from/to for transport, inline gps_gap into same-place presence.
-  type DecoratedBlock = Block & {
-    fromLabel?: string | null;
-    toLabel?: string | null;
-    inlineGapMin?: number; // gps_gap minutes attached to a presence block
-    standaloneGap?: boolean; // true if this gps_gap should render as its own block
-    confidence?: string | null;
-  };
-
-  const decorateBlocks = (blocks: Block[]): DecoratedBlock[] => {
-    // Stable sort by start
-    const main = blocks
-      .filter((b) =>
-        ["smoothed_presence", "transport", "unknown_place", "gps_gap"].includes(b.type),
-      )
-      .slice()
-      .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
-
-    const presenceLike = (b: Block | undefined) =>
-      !!b && (b.type === "smoothed_presence" || b.type === "unknown_place");
-
-    const out: DecoratedBlock[] = main.map((b) => ({ ...b }));
-
-    for (let i = 0; i < out.length; i++) {
-      const b = out[i];
-      if (b.type === "transport") {
-        // nearest presence-like neighbours
-        let prev: Block | undefined;
-        for (let j = i - 1; j >= 0; j--) {
-          if (presenceLike(out[j])) { prev = out[j]; break; }
-        }
-        let next: Block | undefined;
-        for (let j = i + 1; j < out.length; j++) {
-          if (presenceLike(out[j])) { next = out[j]; break; }
-        }
-        b.fromLabel = prev?.label ?? null;
-        b.toLabel = next?.label ?? null;
-      } else if (b.type === "gps_gap") {
-        // Inline if surrounded by same-place presence (or one side is presence and other is end of day)
-        let prev: Block | undefined;
-        for (let j = i - 1; j >= 0; j--) {
-          if (out[j].type !== "gps_gap") { prev = out[j]; break; }
-        }
-        let next: Block | undefined;
-        for (let j = i + 1; j < out.length; j++) {
-          if (out[j].type !== "gps_gap") { next = out[j]; break; }
-        }
-        const samePlace =
-          presenceLike(prev) && presenceLike(next) && prev!.label === next!.label;
-        if (samePlace && prev) {
-          // attach inline warning to the prev presence block (closest preceding same-place block)
-          const idx = out.indexOf(prev as DecoratedBlock);
-          if (idx >= 0) {
-            const dur = b.durationMin ?? 0;
-            (out[idx] as DecoratedBlock).inlineGapMin =
-              ((out[idx] as DecoratedBlock).inlineGapMin ?? 0) + dur;
-          }
-          b.standaloneGap = false;
-        } else {
-          b.standaloneGap = true;
-        }
-      }
-    }
-
-    // Keep also active_timer_started/stopped markers (not in `main` loop)
-    const markers = blocks.filter(
-      (b) => b.type === "active_timer_started" || b.type === "active_timer_stopped",
-    );
-    return [...out, ...markers as DecoratedBlock[]];
-  };
-
   const renderBlock = (
-    b: DecoratedBlock,
+    b: OverviewBlock,
     key: string,
     onClick?: () => void,
   ) => {
-    if (!b.endAt && b.type !== "active_timer_started" && b.type !== "active_timer_stopped") return null;
-    const startMin = minutesOfDay(b.at, dayStart) - minOffset;
+    if (!b.endAt && b.kind !== "timer") return null;
+    const startMin = minutesOfDay(b.startAt, dayStart) - minOffset;
     const endMin = b.endAt ? minutesOfDay(b.endAt, dayStart) - minOffset : startMin;
     const left = (startMin / 60) * HOUR_PX;
     const width = Math.max(2, ((endMin - startMin) / 60) * HOUR_PX);
-    const dur = b.durationMin ?? Math.max(0, endMin - startMin);
 
-    if (b.type === "smoothed_presence") {
-      const hasGap = (b.inlineGapMin ?? 0) > 0;
+    if (b.kind === "work_site") {
+      const inlineGap = b.meta?.inlineGapMinutes ?? 0;
       return (
         <button
           key={key}
@@ -412,22 +341,18 @@ export default function PresenceDayOverview() {
           onClick={onClick}
           className="absolute top-2 bottom-2 rounded-md border border-primary/40 bg-primary/15 hover:bg-primary/25 text-primary px-2 flex items-center gap-1 text-[11px] font-medium overflow-hidden shadow-sm cursor-pointer transition-colors"
           style={{ left, width }}
-          title={`${b.label} · ${fmtDur(dur)}${hasGap ? ` · signalglapp ${b.inlineGapMin} min` : ""}`}
+          title={`${b.title} · ${b.durationLabel}${inlineGap > 0 ? ` · signalglapp ${inlineGap} min` : ""}`}
         >
-          <span className="truncate">{b.label}</span>
-          <span className="opacity-70 shrink-0">· {fmtDur(dur)}</span>
-          {hasGap && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />}
+          <span className="truncate">{b.title}</span>
+          <span className="opacity-70 shrink-0">· {b.durationLabel}</span>
+          {b.reviewState === "signal_issue" && (
+            <SignalOff className="h-3 w-3 text-amber-500 shrink-0" />
+          )}
         </button>
       );
     }
-    if (b.type === "transport") {
-      const fromTo = b.fromLabel && b.toLabel
-        ? `${b.fromLabel} → ${b.toLabel}`
-        : b.toLabel
-          ? `→ ${b.toLabel}`
-          : b.fromLabel
-            ? `${b.fromLabel} →`
-            : "Transport";
+    if (b.kind === "transport") {
+      const fromTo = b.subtitle || "Transport";
       return (
         <button
           key={key}
@@ -435,15 +360,15 @@ export default function PresenceDayOverview() {
           onClick={onClick}
           className="absolute top-5 bottom-5 rounded-sm border border-cyan-500/40 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-700 dark:text-cyan-400 px-1.5 flex items-center text-[10px] overflow-hidden cursor-pointer transition-colors"
           style={{ left, width }}
-          title={`Transport · ${fromTo} · ${fmtDur(dur)}`}
+          title={`Transport · ${fromTo} · ${b.durationLabel}`}
         >
           <Navigation className="h-2.5 w-2.5 mr-1 shrink-0" />
           <span className="truncate">{fromTo}</span>
-          <span className="ml-1 opacity-70 shrink-0">· {fmtDur(dur)}</span>
+          <span className="ml-1 opacity-70 shrink-0">· {b.durationLabel}</span>
         </button>
       );
     }
-    if (b.type === "unknown_place") {
+    if (b.kind === "unknown") {
       return (
         <button
           key={key}
@@ -451,17 +376,18 @@ export default function PresenceDayOverview() {
           onClick={onClick}
           className="absolute top-3 bottom-3 rounded-sm border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 px-1.5 flex items-center text-[10px] overflow-hidden cursor-pointer transition-colors"
           style={{ left, width }}
-          title={`Okänd plats · behöver granskas · ${fmtDur(dur)}`}
+          title={`Okänd plats · behöver granskas · ${b.durationLabel}`}
         >
           <HelpCircle className="h-2.5 w-2.5 mr-1 shrink-0" />
           <span className="truncate">Okänd plats</span>
-          <span className="ml-1 opacity-70 shrink-0">· granska · {fmtDur(dur)}</span>
+          {b.reviewState === "needs_review" && (
+            <span className="ml-1 opacity-70 shrink-0">· granska</span>
+          )}
+          <span className="ml-1 opacity-70 shrink-0">· {b.durationLabel}</span>
         </button>
       );
     }
-    if (b.type === "gps_gap") {
-      // Only render standalone gaps (inline gaps render on adjacent presence)
-      if (!b.standaloneGap) return null;
+    if (b.kind === "signal_gap") {
       return (
         <button
           key={key}
@@ -469,21 +395,22 @@ export default function PresenceDayOverview() {
           onClick={onClick}
           className="absolute top-4 bottom-4 rounded-sm border border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 px-1.5 flex items-center text-[10px] overflow-hidden cursor-pointer transition-colors"
           style={{ left, width }}
-          title={`Signal saknas · ${fmtDur(dur)}`}
+          title={`Signal saknas · ${b.durationLabel}`}
         >
           <SignalOff className="h-2.5 w-2.5 mr-1 shrink-0" />
           <span className="truncate">Signal saknas</span>
-          <span className="ml-1 opacity-70 shrink-0">· {fmtDur(dur)}</span>
+          <span className="ml-1 opacity-70 shrink-0">· {b.durationLabel}</span>
         </button>
       );
     }
-    if (b.type === "active_timer_started" || b.type === "active_timer_stopped") {
+    if (b.kind === "timer") {
+      const isStart = b.title === "Timer startad";
       return (
         <div
           key={key}
-          className={`absolute top-1 bottom-1 w-[2px] ${b.type === "active_timer_started" ? "bg-primary" : "bg-primary/50"}`}
+          className={`absolute top-1 bottom-1 w-[2px] ${isStart ? "bg-primary" : "bg-primary/50"}`}
           style={{ left }}
-          title={`${b.type === "active_timer_started" ? "Timer startad" : "Timer stoppad"} · ${b.label}`}
+          title={`${b.title} · ${b.subtitle ?? ""}`}
         />
       );
     }
@@ -530,7 +457,7 @@ export default function PresenceDayOverview() {
           {row?.error && !row.loading && (
             <div className="absolute inset-0 flex items-center pl-2 text-[11px] text-destructive">{row.error}</div>
           )}
-          {row && decorateBlocks(row.blocks).map((b, i) =>
+          {row && toOverviewBlocks(s.staffId, s.name, date, row.blocks as any).map((b, i) =>
             renderBlock(b, `${s.staffId}-${i}`, () => {
               setShowTech(false);
               setSelected({ staff: s, block: b });
@@ -542,16 +469,6 @@ export default function PresenceDayOverview() {
   };
 
   const fmtTime = (iso?: string | null) => (iso ? format(new Date(iso), "HH:mm") : "—");
-  const blockTitle = (b: any) => {
-    if (!b) return "Detalj";
-    if (b.type === "smoothed_presence") return "På känd plats";
-    if (b.type === "transport") return "Transport";
-    if (b.type === "unknown_place") return "Okänd plats";
-    if (b.type === "gps_gap") return "Signal saknas";
-    if (b.type === "active_timer_started") return "Timer startad";
-    if (b.type === "active_timer_stopped") return "Timer stoppad";
-    return b.type;
-  };
 
   return (
     <Card>
@@ -668,57 +585,59 @@ export default function PresenceDayOverview() {
             <>
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  {selected.block.type === "smoothed_presence" && <MapPin className="h-4 w-4" />}
-                  {selected.block.type === "transport" && <Navigation className="h-4 w-4" />}
-                  {selected.block.type === "unknown_place" && <HelpCircle className="h-4 w-4" />}
-                  {selected.block.type === "gps_gap" && <SignalOff className="h-4 w-4" />}
-                  {blockTitle(selected.block)}
+                  {selected.block.kind === "work_site" && <MapPin className="h-4 w-4" />}
+                  {selected.block.kind === "transport" && <Navigation className="h-4 w-4" />}
+                  {selected.block.kind === "unknown" && <HelpCircle className="h-4 w-4" />}
+                  {selected.block.kind === "signal_gap" && <SignalOff className="h-4 w-4" />}
+                  {selected.block.kind === "timer" && <Activity className="h-4 w-4" />}
+                  {selected.block.title}
                 </SheetTitle>
                 <SheetDescription>{selected.staff.name}</SheetDescription>
               </SheetHeader>
 
               <div className="mt-4 space-y-3 text-sm">
-                {selected.block.type === "smoothed_presence" && (
-                  <Row label="Plats" value={selected.block.label} />
+                {selected.block.kind === "work_site" && selected.block.targetLabel && (
+                  <Row label="Plats" value={selected.block.targetLabel} />
                 )}
-                {selected.block.type === "transport" && (
+                {selected.block.kind === "transport" && (
                   <>
                     <Row label="Från" value={selected.block.fromLabel || "Okänd startpunkt"} />
                     <Row label="Till" value={selected.block.toLabel || "Okänd destination"} />
                   </>
                 )}
-                {selected.block.type === "unknown_place" && (
+                {selected.block.kind === "unknown" && (
                   <Row label="Status" value="Behöver granskas" />
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <Row label="Start" value={fmtTime(selected.block.at)} icon={<Clock className="h-3 w-3" />} />
+                  <Row label="Start" value={fmtTime(selected.block.startAt)} icon={<Clock className="h-3 w-3" />} />
                   <Row label="Slut" value={fmtTime(selected.block.endAt)} icon={<Clock className="h-3 w-3" />} />
                 </div>
-                <Row
-                  label="Längd"
-                  value={fmtDur(
-                    selected.block.durationMin ??
-                      Math.max(
-                        0,
-                        selected.block.endAt
-                          ? Math.round(
-                              (new Date(selected.block.endAt).getTime() -
-                                new Date(selected.block.at).getTime()) /
-                                60000,
-                            )
-                          : 0,
-                      ),
-                  )}
-                />
-                {(selected.block.inlineGapMin ?? 0) > 0 && (
+                {selected.block.durationMinutes > 0 && (
+                  <Row label="Längd" value={selected.block.durationLabel} />
+                )}
+
+                {selected.block.reviewState !== "ok" && (
+                  <Row
+                    label="Granskningsstatus"
+                    value={
+                      selected.block.reviewState === "needs_review"
+                        ? "Behöver granskas"
+                        : selected.block.reviewState === "signal_issue"
+                          ? "Signalproblem"
+                          : "Ignorerad"
+                    }
+                  />
+                )}
+
+                {(selected.block.meta?.inlineGapMinutes ?? 0) > 0 && (
                   <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
                     <AlertTriangle className="h-3.5 w-3.5 mt-0.5" />
-                    <span>Signalglapp under besöket: {selected.block.inlineGapMin} min</span>
+                    <span>Signalglapp under besöket: {selected.block.meta?.inlineGapMinutes} min</span>
                   </div>
                 )}
-                {selected.block.confidence && (
-                  <Row label="Confidence" value={String(selected.block.confidence)} />
+                {selected.block.confidence !== null && (
+                  <Row label="Confidence" value={selected.block.confidence.toFixed(2)} />
                 )}
 
                 <div className="pt-2">
