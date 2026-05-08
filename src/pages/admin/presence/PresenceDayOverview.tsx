@@ -251,9 +251,10 @@ export default function PresenceDayOverview() {
         const blocks: Block[] = tl.filter((r) =>
           ["smoothed_presence", "transport", "unknown_place", "gps_gap", "active_timer_started", "active_timer_stopped"].includes(r.type),
         );
+        const engineBlocks = (data as any).presenceDayBlocks ?? null;
         setRows((prev) => ({
           ...prev,
-          [st.staffId]: { ...st, blocks, loading: false },
+          [st.staffId]: { ...st, blocks, engineBlocks, loading: false },
         }));
         return null;
       },
