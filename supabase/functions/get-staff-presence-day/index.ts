@@ -356,6 +356,7 @@ Deno.serve(async (req) => {
       pings,
       targets: workTargets,
     });
+    gpsTimelineResult = gpsTimeline;
 
     // Compute target matching summary
     const projectTargets = resolved.filter((r) => r.type === 'project');
