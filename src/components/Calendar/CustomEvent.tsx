@@ -339,7 +339,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     return (
       <>
         <EventHoverCard event={event} onClick={handleViewDetails}>
-          <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
+          <div style={{ width: '100%', height: '100%' }}>
             {eventCardContent}
           </div>
         </EventHoverCard>
