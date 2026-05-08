@@ -201,7 +201,7 @@ async function runDateCheck(
     const blocked = decisions.filter((d: any) => d?.decision?.allowed !== true);
     const blockedByReason: Record<string, number> = {};
     for (const d of blocked) {
-      const r = d.reason ?? 'unknown';
+      const r = d?.decision?.reason ?? d?.skippedReason ?? 'unknown';
       blockedByReason[r] = (blockedByReason[r] ?? 0) + 1;
     }
     D = {
