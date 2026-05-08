@@ -337,6 +337,152 @@ Deno.serve(async (req) => {
   const dayEnd = `${date}T23:59:59.999Z`;
 
   // ════════════════════════════════════════════════════════════════════════
+  // BUILD SEGMENTS ACTION (action: "build_segments")
+  // Bygger TimeRegistrationSegment[] för en aktiv registration utifrån
+  // dagens GPS-tidslinje. Persisterar via diff mot time_registration_segments.
+  // Skriver ALDRIG till workdays/time_reports/location_time_entries/travel_time_logs.
+  // ════════════════════════════════════════════════════════════════════════
+  if (body?.action === "build_segments") {
+    const inputRegistrationId = String(body?.registrationId ?? "").trim() || null;
+
+    // 1) Find registration: explicit id, or latest active for this staff/day.
+    let regQuery = realClient
+      .from("active_time_registrations")
+      .select("id, staff_id, organization_id, started_at, stopped_at, status, start_source, start_target_type, start_target_id, start_target_label, current_kind, current_label, current_target_key, auto_started, started_by_user, confidence")
+      .eq("staff_id", staffId)
+      .eq("organization_id", organizationId);
+    if (inputRegistrationId) regQuery = regQuery.eq("id", inputRegistrationId);
+    else {
+      regQuery = regQuery
+        .gte("started_at", dayStart)
+        .lte("started_at", dayEnd)
+        .order("started_at", { ascending: false })
+        .limit(1);
+    }
+    const { data: regRow, error: regErr } = await regQuery.maybeSingle();
+    if (regErr) return json(500, { ok: false, error: `registration_lookup_failed: ${regErr.message}` });
+    if (!regRow) return json(404, { ok: false, error: "no_registration_found_for_day" });
+
+    const activeRegistration = {
+      id: regRow.id,
+      staffId: regRow.staff_id,
+      organizationId: regRow.organization_id,
+      startedAt: regRow.started_at,
+      endedAt: regRow.stopped_at,
+      status: regRow.status,
+      startSource: regRow.start_source ?? "user_timer",
+      startedByUser: !!regRow.started_by_user,
+      autoStarted: !!regRow.auto_started,
+      startTargetType: regRow.start_target_type ?? null,
+      startTargetId: regRow.start_target_id ?? null,
+      startTargetLabel: regRow.start_target_label ?? null,
+      currentKind: regRow.current_kind ?? "unknown_place",
+      currentLabel: regRow.current_label ?? "Okänd plats",
+      currentTargetKey: regRow.current_target_key ?? null,
+      confidence: Number(regRow.confidence ?? 0),
+      needsUserChoice: false,
+    } as any;
+
+    // 2) Build inputs reusing existing helpers.
+    const pingsRes2 = await fetchAllStaffLocationPings(supabase, staffId, dayStart, dayEnd);
+    const rawPings2: any[] = pingsRes2.data ?? [];
+
+    const r2 = await resolveWorkTargets({ organizationId, staffId, date, supabaseAdmin: supabase as any });
+    const workTargets2: WorkTarget[] = r2.targets.map(toWorkTarget).filter((t): t is WorkTarget => t !== null);
+    const targetsByRefId = new Map<string, WorkTarget>(workTargets2.map((t) => [t.refId, t]));
+
+    const gpsPings: GpsPing[] = rawPings2
+      .filter((p) => p.lat != null && p.lng != null && p.recorded_at)
+      .map((p) => ({
+        ts: p.recorded_at,
+        lat: Number(p.lat),
+        lng: Number(p.lng),
+        accuracyM: p.accuracy != null ? Number(p.accuracy) : null,
+        speedMps: p.speed != null ? Number(p.speed) : null,
+      }));
+
+    const gpsTimeline = buildGpsDayTimeline({
+      staffId,
+      organizationId,
+      date,
+      pings: gpsPings,
+      targets: workTargets2,
+    });
+
+    // 3) Pure builder.
+    const segments = buildTimeRegistrationSegments({
+      activeRegistration,
+      gpsTimeline,
+      targetsByRefId,
+      now: new Date(),
+    });
+
+    // 4) Persist via diff: delete existing segments for this registration, insert fresh.
+    const { error: delErr, count: deletedCount } = await realClient
+      .from("time_registration_segments")
+      .delete({ count: "exact" })
+      .eq("registration_id", activeRegistration.id);
+    if (delErr) {
+      return json(500, { ok: false, error: `segments_delete_failed: ${delErr.message}` });
+    }
+
+    let insertedCount = 0;
+    if (segments.length > 0) {
+      const rows = segments.map((s) => ({
+        registration_id: s.registrationId,
+        staff_id: staffId,
+        organization_id: organizationId,
+        started_at: s.startedAt,
+        ended_at: s.endedAt,
+        kind: s.kind,
+        label: s.label,
+        target_kind: s.targetKind ?? null,
+        target_ref_id: s.targetRefId ?? null,
+        target_key: s.targetKey ?? null,
+        source_gps_segment_id: s.sourceGpsSegmentId ?? null,
+        confidence: typeof s.confidence === "number" ? Number(s.confidence.toFixed(2)) : 0,
+      }));
+      const { data: inserted, error: insErr } = await realClient
+        .from("time_registration_segments")
+        .insert(rows)
+        .select("id");
+      if (insErr) {
+        return json(500, { ok: false, error: `segments_insert_failed: ${insErr.message}` });
+      }
+      insertedCount = inserted?.length ?? 0;
+    }
+
+    return json(200, {
+      ok: true,
+      action: "build_segments",
+      registration: {
+        id: activeRegistration.id,
+        startedAt: activeRegistration.startedAt,
+        endedAt: activeRegistration.endedAt,
+        status: activeRegistration.status,
+        startSource: activeRegistration.startSource,
+        startTargetLabel: activeRegistration.startTargetLabel,
+        currentLabel: activeRegistration.currentLabel,
+      },
+      segments,
+      persisted: { deleted: deletedCount ?? 0, inserted: insertedCount },
+      counts: {
+        total: segments.length,
+        work_target: segments.filter((s) => s.kind === "work_target").length,
+        transport: segments.filter((s) => s.kind === "transport").length,
+        unknown_place: segments.filter((s) => s.kind === "unknown_place").length,
+        gps_gap: segments.filter((s) => s.kind === "gps_gap").length,
+      },
+      legacyLeakCheck: {
+        reads: legacyDbReads,
+        clean: legacyDbReads.length === 0,
+      },
+      computedAt: new Date().toISOString(),
+    });
+  }
+
+
+  // ════════════════════════════════════════════════════════════════════════
   // 1) rawPingsCoverage
   // ════════════════════════════════════════════════════════════════════════
   const pingsRes = await fetchAllStaffLocationPings(supabase, staffId, dayStart, dayEnd);
