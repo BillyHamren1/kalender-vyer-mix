@@ -853,11 +853,15 @@ Deno.serve(async (req) => {
                 registration: now ?? null,
               };
             } else {
+              console.error("[confirm] insert failed", { organizationId, staffId, insertErr });
               confirmResult = {
                 attempted: true,
                 created: false,
-                reason: "insert_failed",
-                error: insertErr.message,
+                reason: `insert_failed: ${insertErr.message ?? "unknown"}`,
+                error: insertErr.message ?? String(insertErr),
+                errorCode: (insertErr as any).code ?? null,
+                errorDetails: (insertErr as any).details ?? null,
+                errorHint: (insertErr as any).hint ?? null,
               };
             }
           } else {
