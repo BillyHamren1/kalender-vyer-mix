@@ -57,6 +57,7 @@ const StaffLiveDebug = lazyWithRecovery(() => import("./pages/admin/StaffLiveDeb
 const StaffPresence = lazyWithRecovery(() => import("./pages/admin/StaffPresence"));
 const TargetPresence = lazyWithRecovery(() => import("./pages/admin/TargetPresence"));
 const PresenceHub = lazyWithRecovery(() => import("./pages/admin/PresenceHub"));
+const StaffPresenceDay = lazyWithRecovery(() => import("./pages/admin/StaffPresenceDay"));
 const TimeIntelligenceDebug = lazyWithRecovery(() => import("./pages/admin/TimeIntelligenceDebug"));
 const LegacyIncomingPackingDebug = lazyWithRecovery(() => import("./pages/admin/LegacyIncomingPackingDebug"));
 const TransportResponse = lazyWithRecovery(() => import("./pages/TransportResponse"));
