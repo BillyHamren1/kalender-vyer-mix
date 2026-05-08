@@ -334,6 +334,79 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  // START MANUAL TEST ACTION (action: "start_manual_test")
+  // Skapar en active_time_registration utan GPS-krav. Ingen dry-run, ingen
+  // workday/time_report/location_time_entry/travel_time_log.
+  // ════════════════════════════════════════════════════════════════════════
+  if (body?.action === "start_manual_test") {
+    const targetType = String(body?.targetType ?? "warehouse");
+    const targetLabel = String(body?.targetLabel ?? "FA Warehouse");
+    const startSource = String(body?.startSource ?? "user_timer");
+
+    // Block if there is already an active registration for this staff.
+    const { data: existing } = await realClient
+      .from("active_time_registrations")
+      .select("id, status, started_at, start_source, start_target_label, current_label, auto_started")
+      .eq("organization_id", organizationId)
+      .eq("staff_id", staffId)
+      .eq("status", "active")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      return json(409, {
+        ok: false,
+        action: "start_manual_test",
+        error: "active_registration_already_exists",
+        registration: existing,
+      });
+    }
+
+    const startedAtIso = new Date().toISOString();
+    const { data: created, error: insErr } = await realClient
+      .from("active_time_registrations")
+      .insert({
+        organization_id: organizationId,
+        staff_id: staffId,
+        status: "active",
+        start_source: startSource,
+        start_target_type: targetType,
+        start_target_label: targetLabel,
+        current_target_type: targetType,
+        current_label: targetLabel,
+        current_kind: targetType,
+        auto_started: false,
+        started_at: startedAtIso,
+        metadata: { debug_manual_test: true },
+      })
+      .select("id, status, started_at, start_source, start_target_type, start_target_label, current_label, auto_started")
+      .maybeSingle();
+
+    if (insErr) {
+      return json(500, {
+        ok: false,
+        action: "start_manual_test",
+        error: `insert_failed: ${insErr.message}`,
+        errorCode: (insErr as any).code ?? null,
+      });
+    }
+
+    return json(200, {
+      ok: true,
+      action: "start_manual_test",
+      created: true,
+      id: created?.id,
+      status: created?.status,
+      started_at: created?.started_at,
+      start_source: created?.start_source,
+      start_target_label: created?.start_target_label,
+      current_label: created?.current_label,
+      auto_started: created?.auto_started,
+    });
+  }
+
   const dayStart = `${date}T00:00:00.000Z`;
   const dayEnd = `${date}T23:59:59.999Z`;
 

@@ -1065,6 +1065,38 @@ export default function TimeIntelligenceDebug() {
   const [activeRegChecked, setActiveRegChecked] = useState(false);
   const [stopResult, setStopResult] = useState<any>(null);
   const [stopLoading, setStopLoading] = useState(false);
+  const [startManualResult, setStartManualResult] = useState<any>(null);
+  const [startManualLoading, setStartManualLoading] = useState(false);
+
+  const startManualTestRegistration = async () => {
+    if (!staffId) return;
+    setStartManualLoading(true);
+    setStartManualResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
+        body: {
+          staffId,
+          date,
+          action: "start_manual_test",
+          targetType: "warehouse",
+          targetLabel: "FA Warehouse",
+          startSource: "user_timer",
+        },
+      });
+      if (error) throw error;
+      setStartManualResult(data);
+      if (data?.created) {
+        toast.success("Manuell testregistrering skapad");
+      } else {
+        toast.error(data?.error ?? "Kunde inte skapa registrering");
+      }
+      await checkActiveRegistration();
+    } catch (e: any) {
+      toast.error(e?.message ?? String(e));
+    } finally {
+      setStartManualLoading(false);
+    }
+  };
 
   const checkActiveRegistration = async () => {
     if (!staffId) return;
@@ -1848,6 +1880,12 @@ export default function TimeIntelligenceDebug() {
               {activeRegLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Check active registration
             </Button>
+            {activeRegChecked && !activeReg && (
+              <Button size="sm" onClick={startManualTestRegistration} disabled={!staffId || startManualLoading}>
+                {startManualLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Start manual test registration
+              </Button>
+            )}
             {activeReg?.status === "active" && (
               <Button size="sm" variant="destructive" onClick={stopActiveRegistration} disabled={stopLoading}>
                 {stopLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
@@ -1916,6 +1954,23 @@ export default function TimeIntelligenceDebug() {
                   <Badge variant="outline">Δ travel_time_logs: {stopResult.sideEffects.delta.travel_time_logs}</Badge>
                 </div>
               )}
+            </div>
+          )}
+          {startManualResult && (
+            <div className="rounded-md border bg-muted p-3">
+              <div className="text-xs font-semibold mb-2">Start manual test-resultat</div>
+              <pre className="text-xs whitespace-pre-wrap break-words font-mono">
+{JSON.stringify({
+  created: startManualResult.created,
+  id: startManualResult.id,
+  status: startManualResult.status,
+  started_at: startManualResult.started_at,
+  start_source: startManualResult.start_source,
+  start_target_label: startManualResult.start_target_label,
+  current_label: startManualResult.current_label,
+  auto_started: startManualResult.auto_started,
+}, null, 2)}
+              </pre>
             </div>
           )}
         </CardContent>
