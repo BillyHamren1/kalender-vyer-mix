@@ -534,6 +534,14 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
           </span>
         </div>
         <div className="text-sm mt-0.5 truncate">{row.label}</div>
+        {row.type === 'smoothed_presence' && (row.signalGapCount ?? 0) > 0 && (
+          <div className="mt-1 inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="h-3 w-3" />
+            <span>
+              Signalglapp förekom · {row.signalGapCount} st · totalt {row.signalGapMin} min
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
           {row.targetType && <span>typ: {row.targetType}</span>}
           {row.confidence != null && <span>conf: {Math.round(Number(row.confidence) * 100)}%</span>}
