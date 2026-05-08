@@ -65,8 +65,28 @@ interface LongGapEntry {
   decision: string;
 }
 
+interface SampleBlock {
+  kind: string;
+  startAt: string;
+  endAt: string;
+  durationMinutes: number;
+  targetLabel: string | null;
+  confidence: string | null;
+  signalGapMinutes: number;
+  sourceSegmentIdsCount: number;
+  hiddenRawSegmentIdsCount: number;
+}
+interface SampleStaffDay {
+  staffName: string;
+  staffId: string;
+  gpsDayTimelineCount: number;
+  rawEvidenceBlocksCount: number;
+  presenceDayBlocksCount: number;
+  blocks: SampleBlock[];
+}
 interface DayHealth {
   date: string;
+  staffCount: number;
   rawPingCount: number;
   gpsDayTimelineCount: number;
   rawEvidenceBlocksCount: number;
