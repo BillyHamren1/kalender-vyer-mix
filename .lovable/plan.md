@@ -1,59 +1,49 @@
+## Problem
 
-## Mål
+På `/admin/presence/staff/:staffId` visas:
+1. **"Failed to send a request to the Edge Function"** — `get-staff-presence-day` 500:ar
+2. **Tomt namn** ("—") — eftersom svaret aldrig kommer fram
 
-En enda adminvy `/admin/presence` som visar både:
-- **Personal-perspektiv**: vem är var just nu (från `StaffPresence`)
-- **Plats-perspektiv**: vilka är på ett visst event/projekt/lager (från `TargetPresence`)
+## Rotorsak
 
-Istället för två separata sidor.
+I `supabase/functions/get-staff-presence-day/index.ts` selectar jag fel kolumnnamn från `active_time_registrations`:
 
-## Vy-struktur
+```ts
+.select('id, started_at, stopped_at, status, stop_source, metadata, target_type, target_id')
+```
 
-Sida: `src/pages/admin/Presence.tsx` (route `/admin/presence`)
+Tabellen har inte `target_type` / `target_id` — riktiga namnen är `start_target_type`, `start_target_id`, `start_target_label`, `current_label`, `current_target_type`, `current_target_id`. Felaktig select → PostgREST-fel → funktionen kraschar.
 
-Toppen: gemensam header med "Senast uppdaterad" + auto-refresh.
+Dessutom skickas namnet bara i `data.staff.name` när allt går igenom — så även en mindre framtida fel-väg i funktionen släcker hela headern.
 
-Två tabbar (shadcn `Tabs`):
+## Åtgärd
 
-1. **Personal** (default)
-   - Återanvänder hela nuvarande `StaffPresence`-listan: namn, signalstatus (live/recent/stale/no_signal), aktuell tolkad status (på event/lager/transport/okänd plats/GPS-glapp), target_label, arrival/departure, aktiv timer.
-   - Klick på en rad → expanderar inline och visar personens senaste presence-händelser (arrival/departure/signal_lost/signal_resumed) från `staff_presence_events` senaste 24h.
+### 1. Fixa kolumnnamn i `get-staff-presence-day`
 
-2. **Platser**
-   - Lista över alla targets (events/projekt/lager) som har minst en person på plats just nu, eller har haft det idag.
-   - Per target: namn, typ (event/projekt/lager), antal personer på plats nu, antal som lämnat idag.
-   - Klick på en target → expanderar och visar `TargetPresence`-listan inline (personer med arrived_at, departed_at, senaste ping, confidence, aktiv timer ja/nej).
+- Byt select till `start_target_type, start_target_id, start_target_label, current_label, current_target_type, current_target_id, auto_started, start_source`.
+- Använd `current_label || start_target_label` som etikett för timer-händelser.
+- Uppdatera `activeTimerInfo` och timer-rad-objekten med rätt fältnamn.
 
-## Datakällor (oförändrade)
+### 2. Robust felhantering
 
-- `get-staff-presence` edge function (Personal-tabben)
-- `get-target-presence` edge function (Platser-tabben, anropas per target on-expand eller batch för "aktiva targets idag")
-- `staff_presence_events` (24h-historik vid expansion)
-- `active_time_registrations` (aktiv timer-flagga)
+- Lägg in en yttre `try/catch` runt hela handlern så att oväntade fel returnerar `{ ok: false, error }` med 200 + CORS (istället för att Supabase-klienten visar generiskt "Failed to send a request to the Edge Function").
+- Kontrollera `error` på varje Supabase-anrop och fortsätt med tom array om det failar — funktionen ska aldrig krascha helt bara för att en delkälla saknas.
+- Returnera alltid `staff: { id, name }` så fort vi har gjort staff-fetchen, även om presence/timer/GPS senare fallerar.
 
-Inga nya tabeller. Inget skrivande. Ingen `time_report`/`workday`/`LTE`/`travel` läses eller skrivs.
+### 3. Visa namn direkt på sidan utan att vänta på edge function
 
-## Filer
+I `StaffPresenceDay.tsx`:
+- Hämta namnet från `staff_members`-tabellen direkt via `supabase.from('staff_members').select('name').eq('id', staffId).maybeSingle()` parallellt med edge-anropet, så headern visar namnet även om edge-funktionen failar.
+- Visa edge-funktionens fel som notis utan att dölja header/datumväljare.
 
-**Nya:**
-- `src/pages/admin/Presence.tsx` — wrapper med tabbar
-- `src/components/admin/presence/StaffPresenceTab.tsx` — extraherad från `StaffPresence.tsx`
-- `src/components/admin/presence/TargetsPresenceTab.tsx` — ny: lista aktiva targets idag + expansion till `TargetPresence`-data
-- `src/components/admin/presence/TargetPresenceList.tsx` — extraherad från `TargetPresence.tsx`
+### 4. Verifiera
 
-**Edge functions:**
-- Ny `get-active-targets-today` (eller utökning av `get-target-presence` med `action: 'list_active_today'`) som returnerar listan av targets med minst en arrival idag.
+- Deploya och kör funktionen manuellt med en känd staffId via curl-edge-functions.
+- Ladda om `/admin/presence/staff/365f4d55-…?date=2026-05-08` och bekräfta att "Billy Hamrén" syns och tidslinjen renderar.
 
-**Routing (`src/App.tsx`):**
-- Lägg till `/admin/presence`
-- Behåll `/admin/staff-presence` och `/admin/target-presence` som thin redirects till `/admin/presence?tab=staff` resp. `?tab=targets&target=...` så gamla länkar fungerar.
+## Filer som ändras
 
-**Navigation:**
-- Lägg till en synlig "Närvaro"-länk i admin-sidebaren så det går att hitta utan att skriva URL manuellt.
+- `supabase/functions/get-staff-presence-day/index.ts` — kolumnnamn + try/catch + alltid returnera staff
+- `src/pages/admin/StaffPresenceDay.tsx` — parallell namn-fetch + visa fel utan att dölja header
 
-## Acceptans
-
-- En sida visar både "vem är var" och "vilka är på X"
-- Tabbarna delar samma realtime-uppdatering (Supabase realtime på `staff_location_history` + `staff_presence_events` + `active_time_registrations`)
-- Inga nya skrivvägar. Inga `time_report`/`workday`-mutationer.
-- Gamla URL:er fortsätter fungera via redirect.
+Inga DB-migrationer. Inga ändringar i andra funktioner.
