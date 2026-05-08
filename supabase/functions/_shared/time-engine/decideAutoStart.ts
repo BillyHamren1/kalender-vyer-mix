@@ -149,7 +149,8 @@ export type AutoStartDecisionReason =
   | 'blocked_not_enough_dwell'
   | 'blocked_not_enough_pings'
   | 'blocked_night_requires_stronger_evidence'
-  | 'blocked_target_not_autostartable_source';
+  | 'blocked_target_not_autostartable_source'
+  | 'blocked_missing_allowed_decision_fields';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
