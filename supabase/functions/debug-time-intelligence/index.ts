@@ -724,6 +724,7 @@ Deno.serve(async (req) => {
   if (!previewWouldCreate) readinessFailures.push("preview_would_not_create");
   if (!(autoStartSummary.allowedCount > 0)) readinessFailures.push("no_allowed_auto_start");
   if (!(targetSummary.validCount > 0)) readinessFailures.push("no_valid_targets");
+  if (!(targetSummary.totalCandidates > 0)) readinessFailures.push("no_total_candidates");
   if (!allowedDecisionsComplete) readinessFailures.push("allowed_decisions_missing_evidence");
 
   const isReady = readinessFailures.length === 0;
