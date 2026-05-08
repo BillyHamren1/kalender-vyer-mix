@@ -72,6 +72,11 @@ export interface SignalGapMeta {
   durationMin: number | null;
 }
 
+export type GapTreatment =
+  | 'merged_as_same_area'
+  | 'shown_as_signal_gap_between_places'
+  | 'signal_gap_without_confirmed_departure';
+
 export interface SmoothedPresenceBlock {
   source: 'smoothed_gps_presence';
   type: 'smoothed_presence';
@@ -93,6 +98,12 @@ export interface SmoothedPresenceBlock {
   signalGaps: SignalGapMeta[];
   /** Alla suppressade segment (alias av suppressedNoiseSegments med utökad info). */
   suppressedSegments: SuppressedNoiseSegment[];
+  /** Avstånd (meter) mellan blockets centrum och nästa stabila plats efter sista glappet. */
+  transitionDistanceMeters?: number | null;
+  /** Tröskelvärde för "samma område" (meter). */
+  sameAreaThresholdMeters?: number;
+  /** Hur det sista glappet i blocket behandlades. */
+  gapTreatment?: GapTreatment;
 }
 
 export interface SmoothPresenceResult {
