@@ -578,7 +578,7 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TimelineRowView({ row, technical = false }: { row: TimelineRow; technical?: boolean }) {
+function TimelineRowView({ row, technical = false, fromLabel = null, toLabel = null }: { row: TimelineRow; technical?: boolean; fromLabel?: string | null; toLabel?: string | null }) {
   const meta = ROW_META[row.type];
   const Icon = meta.icon;
 
@@ -588,7 +588,8 @@ function TimelineRowView({ row, technical = false }: { row: TimelineRow; technic
   const isUnknown = row.type === 'unknown_place';
   const hasEnd = !!row.endAt;
   const headerLabel = meta.group === 'timer' ? `Timer · ${meta.label}` : meta.label;
-  const softHint = !technical ? softenNoMatchHint(row.noMatchHint) : null;
+  // For transport rows we never show "Ingen säker projektmatchning" — transport is movement, not a place.
+  const softHint = !technical && !isTransport ? softenNoMatchHint(row.noMatchHint) : null;
 
   return (
     <div className={`flex items-start gap-3 p-3 rounded-md border ${meta.cls}`}>
@@ -623,11 +624,13 @@ function TimelineRowView({ row, technical = false }: { row: TimelineRow; technic
         ) : isTransport ? (
           <div className="text-sm mt-0.5">
             <div className="font-medium">Transport</div>
-            {!technical && (
-              <div className="text-xs text-muted-foreground mt-0.5">
-                Tid: {fmtHumanDuration(row.durationMin)}
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+              <div><span className="opacity-70">Från:</span> {fromLabel || 'Okänd startpunkt'}</div>
+              <div><span className="opacity-70">Till:</span> {toLabel || 'Okänd destination'}</div>
+              {!technical && (
+                <div>Tid: {fmtHumanDuration(row.durationMin)}</div>
+              )}
+            </div>
           </div>
         ) : isUnknown ? (
           <div className="text-sm mt-0.5">
