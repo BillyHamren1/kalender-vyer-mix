@@ -131,42 +131,124 @@ const ProjectLayout = () => {
     ? "execution"
     : "overview";
 
+  // Source-of-truth dates: prefer project's own fields, fall back to booking
+  const bRef: any = (project as any).booking ?? null;
+  const rigDate = project.rigdaydate || bRef?.rigdaydate || null;
+  const eventDate = project.eventdate || bRef?.eventdate || null;
+  const rigDownDate = project.rigdowndate || bRef?.rigdowndate || null;
+  const rigStart = project.rig_start_time || bRef?.rig_start_time || null;
+  const rigEnd = project.rig_end_time || bRef?.rig_end_time || null;
+  const evStart = project.event_start_time || bRef?.event_start_time || null;
+  const evEnd = project.event_end_time || bRef?.event_end_time || null;
+  const rdStart = project.rigdown_start_time || bRef?.rigdown_start_time || null;
+  const rdEnd = project.rigdown_end_time || bRef?.rigdown_end_time || null;
+
+  const handleScheduleUpdate = async (
+    dateType: 'rig' | 'event' | 'rigDown',
+    dates: string[],
+    startTime: string,
+    endTime: string,
+  ) => {
+    const dateField = { rig: 'rigdaydate', event: 'eventdate', rigDown: 'rigdowndate' }[dateType];
+    const startField = { rig: 'rig_start_time', event: 'event_start_time', rigDown: 'rigdown_start_time' }[dateType];
+    const endField = { rig: 'rig_end_time', event: 'event_end_time', rigDown: 'rigdown_end_time' }[dateType];
+    try {
+      await detail.updateProject({
+        [dateField]: dates[0] || null,
+        [startField]: startTime || null,
+        [endField]: endTime || null,
+      } as any);
+      if (project.booking_id) {
+        try {
+          await propagateProjectDatesToBookings({
+            bookingIds: [project.booking_id],
+            dateType,
+            dates,
+            startTime,
+            endTime,
+          });
+        } catch (err) {
+          console.warn('Calendar regen failed:', err);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      toast.success('Schema uppdaterat');
+    } catch (e: any) {
+      toast.error(e?.message || 'Kunde inte uppdatera datum');
+    }
+  };
+
   return (
     <>
     <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/projects"))}
-              className="rounded-xl"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1
-                className="text-2xl font-bold tracking-tight"
-                style={{ color: "hsl(var(--heading))" }}
+        {/* Header — mirrors LargeProjectLayout */}
+        <div className="px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm mb-5">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/projects"))}
+                className="rounded-lg h-8 w-8 -ml-1"
+                aria-label="Tillbaka"
               >
-                {project.name}
-              </h1>
-              {booking && (
-                <p className="text-sm text-muted-foreground">
-                  {(booking as any).title ? <><span className="font-medium text-foreground">{(booking as any).title}</span> • </> : null}
-                  {booking.client} • {booking.booking_number || booking.id}
-                </p>
-              )}
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shadow-[hsl(270_45%_55%)]/15 shrink-0"
+                style={{ background: 'linear-gradient(135deg, hsl(270 45% 60%) 0%, hsl(280 50% 45%) 100%)' }}
+              >
+                <FolderKanban className="text-white" style={{ width: 18, height: 18 }} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1
+                    className="text-xl font-bold tracking-tight leading-none"
+                    style={{ color: "hsl(var(--heading))" }}
+                  >
+                    {project.name}
+                  </h1>
+                  <Badge variant="outline" className="text-xs">Medelprojekt</Badge>
+                </div>
+                {booking && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
+                    {(booking as any).title && (
+                      <>
+                        <span className="font-medium text-foreground">{(booking as any).title}</span>
+                        <span>·</span>
+                      </>
+                    )}
+                    <span>{booking.client}</span>
+                    <span>·</span>
+                    <span>{booking.booking_number || booking.id}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ProjectStatusDropdown status={project.status} onStatusChange={detail.updateStatus} />
+              <ProjectActionMenu
+                currentType="medium"
+                onConvert={handleConvert}
+                onDelete={handleDeleteProject}
+              />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <ProjectStatusDropdown status={project.status} onStatusChange={detail.updateStatus} />
-            <ProjectActionMenu
-              currentType="medium"
-              onConvert={handleConvert}
-              onDelete={handleDeleteProject}
+
+          {/* Datumkort i headern — samma layout som stora projekt */}
+          <div className="mt-4 pt-4 border-t border-border/40">
+            <LargeProjectScheduleEditable
+              startDates={rigDate ? [rigDate] : []}
+              eventDates={eventDate ? [eventDate] : []}
+              endDates={rigDownDate ? [rigDownDate] : []}
+              startStartTime={rigStart}
+              startEndTime={rigEnd}
+              eventStartTime={evStart}
+              eventEndTime={evEnd}
+              endStartTime={rdStart}
+              endEndTime={rdEnd}
+              onUpdateScheduleMulti={handleScheduleUpdate}
             />
           </div>
         </div>
