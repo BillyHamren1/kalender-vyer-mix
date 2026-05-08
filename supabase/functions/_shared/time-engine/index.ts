@@ -10,4 +10,5 @@ export * from './resolveWorkTargets.ts';
 export * from './decideAutoStart.ts';
 export * from './processGpsTimelineForAutoStart.ts';
 export * from './assertNoLegacySources.ts';
+export * from './buildTimeRegistrationSegments.ts';
 
