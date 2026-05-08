@@ -45,7 +45,10 @@ export type TargetSource =
   | 'permanent_location'
   | 'warehouse'
   | 'recent_confirmed'
-  | 'explicit_time_tracking_location';
+  | 'explicit_time_tracking_location'
+  | 'date_relevant_booking'
+  | 'project_linked_booking'
+  | 'large_project_linked_booking';
 
 export type TargetValidity =
   | 'valid'
