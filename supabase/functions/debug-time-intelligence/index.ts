@@ -461,7 +461,6 @@ Deno.serve(async (req) => {
     rawPingsCoverage,
     targetDiagnostics: targetDiagnosticsBlock,
     gpsDayTimeline,
-    payableSnapshot,
     compactCounts,
     autoStartDecisions,
     activeTimeRegistrationPreview,
