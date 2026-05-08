@@ -496,7 +496,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
-      {/* Compact status / action strip */}
+      {/* WMS preflight check (run before scanning) */}
+      <div className="shrink-0 px-2 pt-2">
+        <PackingPreflightPanel
+          packingId={packingId}
+          bookingNumber={packing?.booking?.booking_number ?? null}
+        />
+      </div>
       <div className="shrink-0 px-2 py-1.5 bg-card border-b space-y-1">
         {scannerState && (
           <ScannerModeIndicator
