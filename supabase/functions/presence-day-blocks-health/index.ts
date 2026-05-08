@@ -282,6 +282,27 @@ Deno.serve(async (req) => {
           day.evidenceBlocksByKind[b.kind] = (day.evidenceBlocksByKind[b.kind] ?? 0) + 1;
         }
 
+        if (samples.length < sampleLimit && result.blocks.length > 0) {
+          samples.push({
+            staffName: s.name ?? s.id,
+            staffId: s.id,
+            gpsDayTimelineCount: gpsTimeline.segments.length,
+            rawEvidenceBlocksCount: result.evidenceBlocks.length,
+            presenceDayBlocksCount: result.blocks.length,
+            blocks: result.blocks.map((b: any) => ({
+              kind: b.kind,
+              startAt: b.startAt,
+              endAt: b.endAt,
+              durationMinutes: Math.round(b.durationMinutes * 100) / 100,
+              targetLabel: b.targetLabel ?? null,
+              confidence: b.confidence ?? null,
+              signalGapMinutes: Math.round((b.signalGapMinutes ?? 0) * 100) / 100,
+              sourceSegmentIdsCount: (b.sourceSegmentIds ?? []).length,
+              hiddenRawSegmentIdsCount: (b.hiddenRawSegmentIds ?? []).length,
+            })),
+          });
+        }
+
         // ── Invariant checks (run on raw evidence — aggregated blocks
         // legitimately span multiple stays for the same target). ──
         for (const b of result.evidenceBlocks) {
