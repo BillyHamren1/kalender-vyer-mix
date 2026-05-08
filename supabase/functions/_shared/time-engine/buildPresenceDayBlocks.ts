@@ -89,9 +89,17 @@ export interface PresenceDayBlock {
     surroundingTargetLabels?: { before: string | null; after: string | null };
     timerSource?: string | null;
     registrationId?: UUID | null;
+    mergedBlockCount?: number;
+    suppressedKinds?: Record<string, number>;
   };
   sourceSegmentIds: string[];
   hiddenRawSegmentIds: string[];
+  /** Aggregated-only: minutes of signal_gap absorbed inside this block. */
+  signalGapMinutes?: number;
+  /** Aggregated-only: number of signal_gap evidence blocks absorbed. */
+  signalGapCount?: number;
+  /** Aggregated-only: ids of evidence blocks suppressed (bridges + merged anchors). */
+  suppressedSegments?: string[];
 }
 
 export interface PresenceDaySummary {
