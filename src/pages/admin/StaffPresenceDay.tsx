@@ -152,7 +152,7 @@ export default function StaffPresenceDay() {
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between flex-wrap gap-2">
             <div>
-              <CardTitle className="text-2xl">{data?.staff.name ?? "—"}</CardTitle>
+              <CardTitle className="text-2xl">{data?.staff?.name ?? staffName ?? "—"}</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">Närvarologg för dagen</p>
             </div>
             {sig && SigIcon && (
