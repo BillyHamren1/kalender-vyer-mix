@@ -256,11 +256,12 @@ function buildTimeEngineSummary(result: any) {
       };
     })(),
     activeTimeRegistrationPreview: preview ? {
-      wouldCreateActiveRegistration: !!preview.wouldCreate,
+      wouldCreateActiveRegistration: previewWouldCreate,
       startAt: preview.startAt ?? null,
       startSource: preview.startSource ?? null,
       targetLabel: preview.targetLabel ?? null,
       reason: preview.reason ?? null,
+      status: preview.status ?? null,
     } : null,
     warnings,
     legacyLeakCheck: {
