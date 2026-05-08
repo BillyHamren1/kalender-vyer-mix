@@ -329,6 +329,9 @@ Deno.serve(async (req) => {
   }
 
   const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY') || ''
+  if (!PRICELIST_API_KEY) {
+    return json({ success: false, error: 'PRICELIST_API_KEY saknas för WMS preflight' }, 500)
+  }
 
   // 3. Per-row verification
   const rows: PreflightRow[] = []
