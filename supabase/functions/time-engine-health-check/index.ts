@@ -440,6 +440,7 @@ Deno.serve(async (req) => {
     if (E.blocksDualActive === false) warnings.push('multiple active timers possible');
     if (E.confirmCreatesExactlyOneActive === false) blockers.push('manual timer start failed');
     else if (E.confirmCreatesExactlyOneActive === true) passedChecks.push('manual_timer_round_trip');
+    if (E.manualTimerSkipped) warnings.push(`manual timer test skipped: ${E.manualTimerSkipped}`);
 
     const overallStatus = blockers.length > 0 ? 'FAIL' : warnings.length > 0 ? 'PARTIAL' : 'PASS';
     const nextRecommendedAction = blockers.length > 0
