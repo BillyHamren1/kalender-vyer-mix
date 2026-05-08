@@ -506,8 +506,10 @@ Deno.serve(async (req) => {
     if (allowed) {
       const ev = (allowed.evidence ?? {}) as Record<string, any>;
       const startAt = allowed.segmentStart ?? ev.startAt ?? null;
-      const dwellSeconds = ev.dwellSeconds ?? ev.dwell_seconds ?? null;
-      const arrivalPingsCount = ev.arrivalPingsCount ?? ev.arrival_pings_count ?? ev.pingsCount ?? null;
+      const dwellSeconds = allowed.dwellSeconds ?? ev.dwellSeconds ?? ev.dwell_seconds ?? null;
+      const arrivalPingsCount =
+        allowed.arrivalPingsCount ?? ev.arrivalPingsCount ?? ev.arrival_pings_count ?? ev.pingsCount ?? null;
+      const targetId = allowed.matchedTargetId ?? null;
       const targetName = allowed.matchedTargetName ?? null;
       const targetType = allowed.matchedTargetType ?? null;
       const confidence = allowed.confidence ?? null;
@@ -516,6 +518,7 @@ Deno.serve(async (req) => {
       if (startAt == null) missing.push("startAt");
       if (dwellSeconds == null) missing.push("dwellSeconds");
       if (arrivalPingsCount == null) missing.push("arrivalPingsCount");
+      if (targetId == null) missing.push("targetId");
       if (targetName == null) missing.push("targetName");
       if (targetType == null) missing.push("targetType");
       if (confidence == null) missing.push("confidence");
@@ -529,8 +532,9 @@ Deno.serve(async (req) => {
           startAt,
           dwellSeconds,
           arrivalPingsCount,
-          targetId: allowed.matchedTargetId,
+          targetId,
           targetType,
+          targetName,
           targetLabel: targetName,
           confidence,
         };
@@ -540,8 +544,9 @@ Deno.serve(async (req) => {
           status: "READY_TO_CONFIRM",
           startAt,
           startSource: "gps_geofence_auto_start",
-          targetId: allowed.matchedTargetId,
+          targetId,
           targetType,
+          targetName,
           targetLabel: targetName,
           dwellSeconds,
           arrivalPingsCount,
