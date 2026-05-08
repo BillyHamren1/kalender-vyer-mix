@@ -736,9 +736,11 @@ Deno.serve(async (req) => {
       activeTimeRegistrationPreview.status = "NOT_READY";
       activeTimeRegistrationPreview.wouldCreate = false;
       activeTimeRegistrationPreview.wouldCreateActiveRegistration = false;
-      const priorityReason = !allowedDecisionsComplete
-        ? "allowed_decision_missing_evidence"
-        : readinessFailures[0] ?? "preview_would_not_create";
+      const priorityReason = !targetSummaryComplete
+        ? "target_summary_missing"
+        : !allowedDecisionsComplete
+          ? "allowed_decision_missing_evidence"
+          : readinessFailures[0] ?? "preview_would_not_create";
       activeTimeRegistrationPreview.reason = priorityReason;
       activeTimeRegistrationPreview.readinessFailures = readinessFailures;
     }
