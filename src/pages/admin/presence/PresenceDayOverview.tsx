@@ -749,7 +749,7 @@ export default function PresenceDayOverview() {
   );
 }
 
-function Row({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+function Row({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
