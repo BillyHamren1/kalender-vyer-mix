@@ -312,6 +312,14 @@ Deno.serve(async (req) => {
     autostartableCount,
     excludedByReason,
   };
+  const targetSummaryComplete =
+    Number.isFinite(targetSummary.totalCandidates) &&
+    Number.isFinite(targetSummary.validCount) &&
+    Number.isFinite(targetSummary.invalidCount) &&
+    Number.isFinite(targetSummary.candidatesWithCoordinates) &&
+    Number.isFinite(targetSummary.autostartableCount) &&
+    targetSummary.excludedByReason !== null &&
+    typeof targetSummary.excludedByReason === "object";
 
   // ════════════════════════════════════════════════════════════════════════
   // 3) gpsDayTimeline
@@ -712,6 +720,7 @@ Deno.serve(async (req) => {
   const readinessFailures: string[] = [];
   if (warnings.length !== 0) readinessFailures.push("warnings_present");
   if (legacyLeakDetected) readinessFailures.push("legacy_leak_detected");
+  if (!targetSummaryComplete) readinessFailures.push("target_summary_missing");
   if (!previewWouldCreate) readinessFailures.push("preview_would_not_create");
   if (!(autoStartSummary.allowedCount > 0)) readinessFailures.push("no_allowed_auto_start");
   if (!(targetSummary.validCount > 0)) readinessFailures.push("no_valid_targets");
@@ -727,9 +736,11 @@ Deno.serve(async (req) => {
       activeTimeRegistrationPreview.status = "NOT_READY";
       activeTimeRegistrationPreview.wouldCreate = false;
       activeTimeRegistrationPreview.wouldCreateActiveRegistration = false;
-      const priorityReason = !allowedDecisionsComplete
-        ? "allowed_decision_missing_evidence"
-        : readinessFailures[0] ?? "preview_would_not_create";
+      const priorityReason = !targetSummaryComplete
+        ? "target_summary_missing"
+        : !allowedDecisionsComplete
+          ? "allowed_decision_missing_evidence"
+          : readinessFailures[0] ?? "preview_would_not_create";
       activeTimeRegistrationPreview.reason = priorityReason;
       activeTimeRegistrationPreview.readinessFailures = readinessFailures;
     }
