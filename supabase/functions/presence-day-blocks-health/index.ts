@@ -350,6 +350,10 @@ Deno.serve(async (req) => {
         .sort((a, b) => b.durationMinutes - a.durationMinutes)
         .slice(0, 20);
 
+      day.compressionRatio = day.rawEvidenceBlocksCount > 0
+        ? Math.round((day.presenceDayBlocksCount / day.rawEvidenceBlocksCount) * 1000) / 1000
+        : 1;
+
       perDay.push(day);
     }
 
