@@ -64,6 +64,10 @@ interface TimelineRow {
   matchedTargetType?: string | null;
   nearestTargets?: NearestTargetCandidate[];
   noMatchHint?: string | null;
+  registrationId?: string | null;
+  targetLabel?: string | null;
+  mergedSources?: string[];
+  duplicates?: Array<{ source: string; at: string; label: string; registrationId?: string | null }>;
 }
 
 interface TargetMatchSummary {
