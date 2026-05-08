@@ -720,6 +720,7 @@ Deno.serve(async (req) => {
   const readinessFailures: string[] = [];
   if (warnings.length !== 0) readinessFailures.push("warnings_present");
   if (legacyLeakDetected) readinessFailures.push("legacy_leak_detected");
+  if (!targetSummaryComplete) readinessFailures.push("target_summary_missing");
   if (!previewWouldCreate) readinessFailures.push("preview_would_not_create");
   if (!(autoStartSummary.allowedCount > 0)) readinessFailures.push("no_allowed_auto_start");
   if (!(targetSummary.validCount > 0)) readinessFailures.push("no_valid_targets");
