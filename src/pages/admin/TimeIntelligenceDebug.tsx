@@ -1060,6 +1060,72 @@ export default function TimeIntelligenceDebug() {
   const [testableProgress, setTestableProgress] = useState<{ done: number; total: number } | null>(null);
   const [segmentsResult, setSegmentsResult] = useState<any>(null);
   const [segmentsLoading, setSegmentsLoading] = useState(false);
+  const [activeReg, setActiveReg] = useState<any>(null);
+  const [activeRegLoading, setActiveRegLoading] = useState(false);
+  const [activeRegChecked, setActiveRegChecked] = useState(false);
+  const [stopResult, setStopResult] = useState<any>(null);
+  const [stopLoading, setStopLoading] = useState(false);
+
+  const checkActiveRegistration = async () => {
+    if (!staffId) return;
+    setActiveRegLoading(true);
+    setStopResult(null);
+    try {
+      const { data, error } = await supabase
+        .from("active_time_registrations")
+        .select("id, status, started_at, stopped_at, stop_source, start_source, start_target_label, current_label, auto_started")
+        .eq("staff_id", staffId)
+        .eq("status", "active")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      setActiveReg(data ?? null);
+      setActiveRegChecked(true);
+    } catch (e: any) {
+      toast.error(e?.message ?? String(e));
+    } finally {
+      setActiveRegLoading(false);
+    }
+  };
+
+  const stopActiveRegistration = async () => {
+    if (!staffId || !date || !activeReg?.id) return;
+    setStopLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
+        body: {
+          staffId,
+          date,
+          action: "stop_registration",
+          registrationId: activeReg.id,
+          stopSource: "debug_test_stop",
+        },
+      });
+      if (error) throw error;
+      const after = data?.registration?.after ?? data?.registration ?? null;
+      setStopResult({
+        stopped: data?.stopped === true || after?.status === "stopped",
+        id: after?.id ?? activeReg.id,
+        status: after?.status ?? null,
+        stopped_at: after?.stopped_at ?? null,
+        stop_source: after?.stop_source ?? null,
+        sideEffects: data?.sideEffects ?? null,
+        stillHasActiveRegistration: data?.stillHasActiveRegistration ?? null,
+      });
+      if (data?.stopped || after?.status === "stopped") {
+        toast.success("Aktiv testregistrering stoppad");
+      } else {
+        toast.error(data?.error ?? "Kunde inte stoppa registrering");
+      }
+      // Re-check after stop
+      await checkActiveRegistration();
+    } catch (e: any) {
+      toast.error(e?.message ?? String(e));
+    } finally {
+      setStopLoading(false);
+    }
+  };
 
   const buildSegments = async () => {
     if (!staffId || !date) return;
