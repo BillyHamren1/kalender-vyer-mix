@@ -1833,6 +1833,94 @@ export default function TimeIntelligenceDebug() {
         </Card>
       )}
 
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Aktiv testregistrering</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Läser direkt från <code className="font-mono">active_time_registrations</code>. Stop-knappen anropar
+              <code className="font-mono"> debug-time-intelligence</code> · <code className="font-mono">stop_registration</code>
+              med <code className="font-mono">stop_source = "debug_test_stop"</code>. Skapar inte workday / time_report / location_time_entry / travel_time_log.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button size="sm" variant="outline" onClick={checkActiveRegistration} disabled={!staffId || activeRegLoading}>
+              {activeRegLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Check active registration
+            </Button>
+            {activeReg?.status === "active" && (
+              <Button size="sm" variant="destructive" onClick={stopActiveRegistration} disabled={stopLoading}>
+                {stopLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
+                Stop active test registration
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!staffId && (
+            <p className="text-xs text-muted-foreground">Välj en person ovan för att kunna kontrollera aktiv registrering.</p>
+          )}
+          {staffId && !activeRegChecked && (
+            <p className="text-xs text-muted-foreground">Klicka "Check active registration" för att läsa aktuell rad.</p>
+          )}
+          {activeRegChecked && !activeReg && (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+              No active registration
+            </div>
+          )}
+          {activeReg && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              {([
+                ["id", activeReg.id],
+                ["status", activeReg.status],
+                ["started_at", activeReg.started_at],
+                ["start_source", activeReg.start_source],
+                ["start_target_label", activeReg.start_target_label],
+                ["current_label", activeReg.current_label],
+                ["auto_started", String(activeReg.auto_started)],
+                ["stopped_at", activeReg.stopped_at ?? "—"],
+                ["stop_source", activeReg.stop_source ?? "—"],
+              ] as Array<[string, any]>).map(([k, v]) => (
+                <div key={k} className="flex flex-col">
+                  <span className="text-muted-foreground">{k}</span>
+                  <span className="font-mono break-all">{v == null ? "—" : String(v)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {stopResult && (
+            <div className="rounded-md border bg-muted p-3">
+              <div className="text-xs font-semibold mb-2">Stop-resultat</div>
+              <pre className="text-xs whitespace-pre-wrap break-words font-mono">
+{JSON.stringify({
+  stopped: stopResult.stopped,
+  id: stopResult.id,
+  status: stopResult.status,
+  stopped_at: stopResult.stopped_at,
+  stop_source: stopResult.stop_source,
+}, null, 2)}
+              </pre>
+              {stopResult.sideEffects?.delta && (
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <Badge
+                    variant="outline"
+                    className={stopResult.sideEffects.noSideEffectsCreated
+                      ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
+                      : "bg-destructive/15 text-destructive border-destructive/30"}
+                  >
+                    {stopResult.sideEffects.noSideEffectsCreated ? "no side-effects" : "SIDE-EFFECTS DETECTED"}
+                  </Badge>
+                  <Badge variant="outline">Δ time_reports: {stopResult.sideEffects.delta.time_reports}</Badge>
+                  <Badge variant="outline">Δ workdays: {stopResult.sideEffects.delta.workdays}</Badge>
+                  <Badge variant="outline">Δ location_time_entries: {stopResult.sideEffects.delta.location_time_entries}</Badge>
+                  <Badge variant="outline">Δ travel_time_logs: {stopResult.sideEffects.delta.travel_time_logs}</Badge>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {result && (
         <>
           <div className="flex items-center gap-2 flex-wrap">
@@ -1875,90 +1963,6 @@ export default function TimeIntelligenceDebug() {
             <Section title="Debug meta" data={result.debugMeta ?? result.diagnostics} />
           </div>
 
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Aktiv testregistrering</CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Läser direkt från <code className="font-mono">active_time_registrations</code>. Stop-knappen anropar
-                  <code className="font-mono"> debug-time-intelligence</code> · <code className="font-mono">stop_registration</code>
-                  med <code className="font-mono">stop_source = "debug_test_stop"</code>. Skapar inte workday / time_report / location_time_entry / travel_time_log.
-                </p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Button size="sm" variant="outline" onClick={checkActiveRegistration} disabled={!staffId || activeRegLoading}>
-                  {activeRegLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Check active registration
-                </Button>
-                {activeReg?.status === "active" && (
-                  <Button size="sm" variant="destructive" onClick={stopActiveRegistration} disabled={stopLoading}>
-                    {stopLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
-                    Stop active test registration
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {!activeRegChecked && (
-                <p className="text-xs text-muted-foreground">Klicka "Check active registration" för att läsa aktuell rad.</p>
-              )}
-              {activeRegChecked && !activeReg && (
-                <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">
-                  No active registration
-                </div>
-              )}
-              {activeReg && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                  {([
-                    ["id", activeReg.id],
-                    ["status", activeReg.status],
-                    ["started_at", activeReg.started_at],
-                    ["start_source", activeReg.start_source],
-                    ["start_target_label", activeReg.start_target_label],
-                    ["current_label", activeReg.current_label],
-                    ["auto_started", String(activeReg.auto_started)],
-                    ["stopped_at", activeReg.stopped_at ?? "—"],
-                    ["stop_source", activeReg.stop_source ?? "—"],
-                  ] as Array<[string, any]>).map(([k, v]) => (
-                    <div key={k} className="flex flex-col">
-                      <span className="text-muted-foreground">{k}</span>
-                      <span className="font-mono break-all">{v == null ? "—" : String(v)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {stopResult && (
-                <div className="rounded-md border bg-muted p-3">
-                  <div className="text-xs font-semibold mb-2">Stop-resultat</div>
-                  <pre className="text-xs whitespace-pre-wrap break-words font-mono">
-{JSON.stringify({
-  stopped: stopResult.stopped,
-  id: stopResult.id,
-  status: stopResult.status,
-  stopped_at: stopResult.stopped_at,
-  stop_source: stopResult.stop_source,
-}, null, 2)}
-                  </pre>
-                  {stopResult.sideEffects?.delta && (
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      <Badge
-                        variant="outline"
-                        className={stopResult.sideEffects.noSideEffectsCreated
-                          ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
-                          : "bg-destructive/15 text-destructive border-destructive/30"}
-                      >
-                        {stopResult.sideEffects.noSideEffectsCreated ? "no side-effects" : "SIDE-EFFECTS DETECTED"}
-                      </Badge>
-                      <Badge variant="outline">Δ time_reports: {stopResult.sideEffects.delta.time_reports}</Badge>
-                      <Badge variant="outline">Δ workdays: {stopResult.sideEffects.delta.workdays}</Badge>
-                      <Badge variant="outline">Δ location_time_entries: {stopResult.sideEffects.delta.location_time_entries}</Badge>
-                      <Badge variant="outline">Δ travel_time_logs: {stopResult.sideEffects.delta.travel_time_logs}</Badge>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
