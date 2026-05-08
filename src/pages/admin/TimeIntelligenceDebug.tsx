@@ -1351,6 +1351,64 @@ export default function TimeIntelligenceDebug() {
         </Card>
       )}
 
+      {confirmResp?.confirmResult && (
+        <Card className={confirmResp.confirmResult.created ? "border-emerald-500/50" : "border-amber-500/50"}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {confirmResp.confirmResult.created ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+              )}
+              CONFIRM TEST {confirmResp.confirmResult.created
+                ? "— en active_time_registration skapades"
+                : confirmResp.confirmResult.already_active
+                  ? "— redan aktiv registrering"
+                  : "— ingen rad skapades"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {(() => {
+              const cr = confirmResp.confirmResult;
+              const reg = cr.registration ?? null;
+              const fields: Array<[string, any]> = [
+                ["createdRegistrationId", cr.createdRegistrationId ?? reg?.id ?? null],
+                ["existingRegistrationId", cr.existingRegistrationId ?? null],
+                ["already_active", cr.already_active === true],
+                ["status", reg?.status ?? null],
+                ["started_at", reg?.started_at ?? null],
+                ["start_source", reg?.start_source ?? null],
+                ["start_target_label", reg?.start_target_label ?? null],
+                ["auto_started", reg?.auto_started ?? null],
+                ["current_label", reg?.current_label ?? null],
+                ["reason", cr.reason ?? null],
+                ["error", cr.error ?? null],
+              ];
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {fields.map(([k, v]) => (
+                    <div key={k} className="flex flex-col">
+                      <span className="text-xs text-muted-foreground">{k}</span>
+                      <span className="font-mono text-xs break-all">{v == null ? "—" : String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {Array.isArray(confirmResp.confirmResult.readinessFailures) && confirmResp.confirmResult.readinessFailures.length > 0 && (
+              <div className="text-xs">
+                <div className="text-muted-foreground mb-1">readinessFailures</div>
+                <div className="flex flex-wrap gap-1">
+                  {confirmResp.confirmResult.readinessFailures.map((r: string) => (
+                    <Badge key={r} variant="outline">{r}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {batch && (
         <Card>
           <CardHeader className="pb-3">
