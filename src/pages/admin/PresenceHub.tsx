@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { sv } from "date-fns/locale";
+import PresenceDayOverview from "./presence/PresenceDayOverview";
 
 type Signal = "live" | "recent" | "stale" | "no_signal";
 type Interpreted = "på event" | "på lager" | "transport" | "okänd plats" | "GPS-glapp";
@@ -249,8 +250,12 @@ export default function PresenceHub() {
         </Card>
       )}
 
-      <Tabs defaultValue="staff" className="w-full">
+      <Tabs defaultValue="day" className="w-full">
         <TabsList>
+          <TabsTrigger value="day">
+            <CalendarDays className="h-4 w-4 mr-2" />
+            Dagöversikt
+          </TabsTrigger>
           <TabsTrigger value="staff">
             <Users className="h-4 w-4 mr-2" />
             Personal ({rows.length})
@@ -260,6 +265,10 @@ export default function PresenceHub() {
             Platser ({targets.length})
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="day" className="mt-4">
+          <PresenceDayOverview />
+        </TabsContent>
 
         <TabsContent value="staff" className="mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
