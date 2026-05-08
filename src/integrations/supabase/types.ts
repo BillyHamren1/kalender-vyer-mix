@@ -5695,6 +5695,54 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_presence_events: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          event_at: string
+          event_type: string
+          gps_segment_id: string | null
+          id: string
+          metadata: Json
+          organization_id: string
+          source: string
+          staff_id: string
+          target_id: string | null
+          target_label: string | null
+          target_type: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          event_at: string
+          event_type: string
+          gps_segment_id?: string | null
+          id?: string
+          metadata?: Json
+          organization_id: string
+          source?: string
+          staff_id: string
+          target_id?: string | null
+          target_label?: string | null
+          target_type: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          event_at?: string
+          event_type?: string
+          gps_segment_id?: string | null
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          source?: string
+          staff_id?: string
+          target_id?: string | null
+          target_label?: string | null
+          target_type?: string
+        }
+        Relationships: []
+      }
       staff_private_zones: {
         Row: {
           active: boolean
