@@ -128,31 +128,39 @@ const mapRealRowToCalendarEvent = (
   row: RealCalendarEventRow,
   booking?: BookingRow,
   project?: LargeProjectRow,
-): CalendarEvent => ({
-  id: row.id,
-  title: project?.name || booking?.client || row.title,
-  start: row.start_time,
-  end: row.end_time,
-  resourceId: row.resource_id || '',
-  bookingId: row.booking_id || undefined,
-  eventType: normalizePhase(row.event_type) || undefined,
-  delivery_address: row.delivery_address || booking?.deliveryaddress || project?.address || undefined,
-  booking_number: row.booking_number || booking?.booking_number || undefined,
-  bookingNumber: row.booking_number || booking?.booking_number || undefined,
-  extendedProps: {
+): CalendarEvent => {
+  const bookingTitle = booking?.title?.trim() || null;
+  const baseLabel = project?.name || booking?.client || row.title;
+  const displayTitle = !project?.name && bookingTitle
+    ? `${baseLabel} – ${bookingTitle}`
+    : baseLabel;
+  return {
+    id: row.id,
+    title: displayTitle,
+    start: row.start_time,
+    end: row.end_time,
+    resourceId: row.resource_id || '',
     bookingId: row.booking_id || undefined,
-    booking_id: row.booking_id || undefined,
-    resourceId: row.resource_id || undefined,
-    deliveryAddress: row.delivery_address || booking?.deliveryaddress || project?.address || undefined,
+    eventType: normalizePhase(row.event_type) || undefined,
+    delivery_address: row.delivery_address || booking?.deliveryaddress || project?.address || undefined,
+    booking_number: row.booking_number || booking?.booking_number || undefined,
     bookingNumber: row.booking_number || booking?.booking_number || undefined,
-    eventType: normalizePhase(row.event_type) || row.event_type,
-    sourceDate: row.source_date || extractDate(row.start_time),
-    largeProjectId: booking?.large_project_id || undefined,
-    largeProjectName: project?.name || undefined,
-    isSyntheticFallback: false,
-    manuallyAssigned: false,
-  },
-});
+    extendedProps: {
+      bookingId: row.booking_id || undefined,
+      booking_id: row.booking_id || undefined,
+      resourceId: row.resource_id || undefined,
+      deliveryAddress: row.delivery_address || booking?.deliveryaddress || project?.address || undefined,
+      bookingNumber: row.booking_number || booking?.booking_number || undefined,
+      bookingTitle: bookingTitle || undefined,
+      eventType: normalizePhase(row.event_type) || row.event_type,
+      sourceDate: row.source_date || extractDate(row.start_time),
+      largeProjectId: booking?.large_project_id || undefined,
+      largeProjectName: project?.name || undefined,
+      isSyntheticFallback: false,
+      manuallyAssigned: false,
+    },
+  };
+};
 
 export const buildPlannerCalendarEvents = ({
   realEvents,
