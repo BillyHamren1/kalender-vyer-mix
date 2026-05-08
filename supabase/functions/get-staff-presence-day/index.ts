@@ -411,6 +411,22 @@ Deno.serve(async (req) => {
       return cands.slice(0, 5);
     };
 
+    // Pre-compute target labels by id (used for known_site labels)
+    const targetById = new Map<string, any>();
+    for (const r of resolved) {
+      const kind = r.type === 'location' ? 'organization_location' : r.type;
+      targetById.set(`${kind}:${r.id}`, r);
+    }
+
+    // Set of (targetType:targetId) where staff_presence_events already contributed
+    // an arrival — used so we don't double-list known_site as a separate row.
+    const presenceArrivalKeys = new Set<string>();
+    for (const r of presenceRows ?? []) {
+      if (r.event_type === 'arrival' && r.target_type && r.target_id) {
+        presenceArrivalKeys.add(`${r.target_type}:${r.target_id}`);
+      }
+    }
+
     for (const seg of gpsTimeline.segments) {
       let type: TimelineRow['type'] | null = null;
       let label = seg.label ?? '';
@@ -424,8 +440,16 @@ Deno.serve(async (req) => {
         type = 'unknown_place';
         label = seg.label ?? 'Okänd plats';
       } else if (seg.type === 'known_site') {
-        // Skip: arrivals already cover known_site presence; debug not needed here
-        continue;
+        // Show known-site presence even when staff_presence_events is empty.
+        // Skip if there's already an arrival from staff_presence_events for the
+        // same target — that authoritative source wins.
+        const matchedKey = seg.matchedTargetId
+          ? `${seg.matchedTargetType}:${seg.matchedTargetId}`
+          : null;
+        if (matchedKey && presenceArrivalKeys.has(matchedKey)) continue;
+        const t = matchedKey ? targetById.get(matchedKey) : null;
+        type = 'arrival';
+        label = t?.name ? `På känd plats: ${t.name}` : 'På känd plats';
       }
       if (!type) continue;
 
@@ -464,6 +488,9 @@ Deno.serve(async (req) => {
         durationMin: seg.durationMin ?? null,
         type,
         label,
+        targetType: seg.matchedTargetType ?? null,
+        targetId: seg.matchedTargetId ?? null,
+        targetLabel: type === 'arrival' ? label : null,
         confidence: null,
         source: 'gps_day_timeline',
         gpsSegmentId: seg.id,
