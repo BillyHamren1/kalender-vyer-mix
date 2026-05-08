@@ -257,6 +257,19 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             <div className="text-sm font-medium truncate max-w-[280px]">{event.title}</div>
           </div>
 
+          {canToggleLock && (
+            <label className={`flex items-center gap-2 px-2 py-1.5 rounded border ${locked ? 'border-red-400 bg-red-50' : 'border-muted bg-muted/30'} cursor-pointer`}>
+              <Checkbox
+                checked={locked}
+                onCheckedChange={(v) => handleToggleLock(v === true)}
+              />
+              <Lock className={`h-3.5 w-3.5 ${locked ? 'text-red-600' : 'text-muted-foreground'}`} />
+              <span className={`text-xs ${locked ? 'text-red-700 font-medium' : 'text-muted-foreground'}`}>
+                Fast tid {locked ? '(låst – kan ej flyttas)' : '(klicka i för att låsa)'}
+              </span>
+            </label>
+          )}
+
           <div className="flex gap-4">
             {/* START TIME */}
             <div className={`space-y-2 p-3 rounded-lg border ${
