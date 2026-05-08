@@ -39,6 +39,16 @@ interface NearestTargetCandidate {
   excludedReason: string | null;
 }
 
+interface SuppressedNoiseSegment {
+  id: string | null;
+  type: string;
+  at: string;
+  endAt: string | null;
+  durationMin: number | null;
+  label: string;
+  reason: string;
+}
+
 interface TimelineRow {
   at: string;
   endAt?: string | null;
@@ -52,7 +62,8 @@ interface TimelineRow {
     | "unknown_place"
     | "gps_gap"
     | "active_timer_started"
-    | "active_timer_stopped";
+    | "active_timer_stopped"
+    | "smoothed_presence";
   label: string;
   targetType?: string | null;
   targetId?: string | null;
@@ -69,6 +80,11 @@ interface TimelineRow {
   targetLabel?: string | null;
   mergedSources?: string[];
   duplicates?: Array<{ source: string; at: string; label: string; registrationId?: string | null }>;
+  // smoothed_presence-only:
+  startAt?: string;
+  mergedSegmentIds?: string[];
+  suppressedNoiseCount?: number;
+  suppressedNoiseSegments?: SuppressedNoiseSegment[];
 }
 
 interface TargetMatchSummary {
