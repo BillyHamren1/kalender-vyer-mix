@@ -232,6 +232,7 @@ export function smoothPresenceTimeline(
     const anchorLabel = row.targetLabel ?? row.label;
     const anchorTargetType = row.matchedTargetType ?? row.targetType ?? null;
     const anchorTargetId = row.matchedTargetId ?? row.targetId ?? null;
+    const anchorCenter = centerOf(row);
 
     let blockStart = row.at;
     let blockEnd = endOf(row);
@@ -239,6 +240,10 @@ export function smoothPresenceTimeline(
     if (row.gpsSegmentId) mergedSegmentIds.push(row.gpsSegmentId);
     const suppressed: SuppressedNoiseSegment[] = [];
     let arrivalsInBlock = 1;
+
+    // Distansmetadata om sista bridgade glappet
+    let transitionDistanceMeters: number | null = null;
+    let gapTreatment: GapTreatment | undefined;
 
     let j = i + 1;
     while (j < sorted.length) {
@@ -276,21 +281,94 @@ export function smoothPresenceTimeline(
         continue;
       }
 
-      // Annan känd arrival på annat target → bryt
+      // Annan känd arrival på annat target → kolla avstånd; <5km = samma område
       if (isKnownArrival(next) && targetKey(next) !== anchorKey) {
+        const otherCenter = centerOf(next);
+        const dist =
+          anchorCenter && otherCenter
+            ? haversineMeters(anchorCenter, otherCenter)
+            : null;
+        if (dist != null && dist < SAME_AREA_THRESHOLD_M) {
+          // Merge cross-target inom samma område. Behåll ankarets identitet.
+          const ne = endOf(next);
+          if (ne > blockEnd) blockEnd = ne;
+          if (next.gpsSegmentId) mergedSegmentIds.push(next.gpsSegmentId);
+          suppressed.push({
+            id: next.gpsSegmentId ?? null,
+            segmentId: next.gpsSegmentId ?? null,
+            type: next.type,
+            kind: 'rearrival',
+            at: next.at,
+            startTs: next.at,
+            endAt: next.endAt ?? null,
+            endTs: next.endAt ?? null,
+            durationMin: next.durationMin ?? null,
+            label: next.label,
+            reason: 'same_target_rearrival',
+          });
+          arrivalsInBlock += 1;
+          mergedArrivals += 1;
+          transitionDistanceMeters = dist;
+          gapTreatment = 'merged_as_same_area';
+          j += 1;
+          continue;
+        }
+        // ≥ 5km → verkligt platsbyte, bryt
+        if (dist != null) transitionDistanceMeters = dist;
+        gapTreatment = 'shown_as_signal_gap_between_places';
         break;
       }
 
       // Kort transport/unknown ELLER teknisk händelse (gps_gap, signal_lost,
-      // signal_resumed, departure) → kolla om följt av samma target. GPS-glapp
-      // / signal-events / departure utan annan target = signalstatus, inte rörelse.
+      // signal_resumed, departure) → kolla om följt av samma target eller plats
+      // i samma område (< 5km). GPS-glapp / signal-events / departure utan
+      // bevisat platsbyte = signalstatus, inte rörelse.
       if (isShortNoise(next) || isBridgeableTechnical(next)) {
-        // Leta nästa "icke-noise" som är arrival
+        const sequenceHasGap = isBridgeableTechnical(next) || (() => {
+          for (let s = j; s < sorted.length; s += 1) {
+            const r = sorted[s];
+            if (!(isShortNoise(r) || isBridgeableTechnical(r))) break;
+            if (r.type === 'gps_gap') return true;
+          }
+          return false;
+        })();
+
+        // Leta nästa "icke-noise"
         let k = j + 1;
         while (k < sorted.length && (isShortNoise(sorted[k]) || isBridgeableTechnical(sorted[k]))) k += 1;
         const after = k < sorted.length ? sorted[k] : null;
-        if (after && isKnownArrival(after) && targetKey(after) === anchorKey) {
-          // Suppressa hela noise-strecket fram till nästa same-target arrival
+
+        let absorb = false;
+        if (after && isKnownArrival(after)) {
+          if (targetKey(after) === anchorKey) {
+            absorb = true;
+            if (sequenceHasGap) {
+              transitionDistanceMeters = 0;
+              gapTreatment = 'merged_as_same_area';
+            }
+          } else {
+            const otherCenter = centerOf(after);
+            const dist =
+              anchorCenter && otherCenter
+                ? haversineMeters(anchorCenter, otherCenter)
+                : null;
+            if (dist != null && dist < SAME_AREA_THRESHOLD_M) {
+              absorb = true;
+              transitionDistanceMeters = dist;
+              gapTreatment = 'merged_as_same_area';
+            } else {
+              if (dist != null) transitionDistanceMeters = dist;
+              if (sequenceHasGap) gapTreatment = 'shown_as_signal_gap_between_places';
+              absorb = false;
+            }
+          }
+        } else {
+          // Inget arrival efter — gps-glapp utan bekräftad departure
+          if (sequenceHasGap) gapTreatment = 'signal_gap_without_confirmed_departure';
+          absorb = false;
+        }
+
+        if (absorb) {
           for (let s = j; s < k; s += 1) {
             const nz = sorted[s];
             if (nz.gpsSegmentId) mergedSegmentIds.push(nz.gpsSegmentId);
@@ -309,11 +387,10 @@ export function smoothPresenceTimeline(
             });
             suppressedNoise += 1;
           }
-          // Fortsätt loop med arrival efter noise
           j = k;
           continue;
         }
-        // Inget same-target follow-up → block slutar här
+        // Bryt — låt bridging-rader stanna kvar i timeline som egna händelser
         break;
       }
 
@@ -348,6 +425,9 @@ export function smoothPresenceTimeline(
       signalGapMin,
       signalGaps,
       suppressedSegments: suppressed,
+      transitionDistanceMeters,
+      sameAreaThresholdMeters: SAME_AREA_THRESHOLD_M,
+      gapTreatment,
     };
     blocks.push(block);
     out.push(block);
