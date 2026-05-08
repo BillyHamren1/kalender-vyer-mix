@@ -264,3 +264,81 @@ export async function backfillLargeProjectTimes(largeProjectId: string): Promise
 
   return { groupsProcessed, syncedSiblings };
 }
+
+/**
+ * Toggle the per-phase "fixed time" lock for a booking.
+ * - When locking (`locked=true`) without an existing external snapshot,
+ *   we copy the current live time into `<phase>_*_external` so we always have
+ *   a stable rollback target.
+ * - When unlocking (`locked=false`), we only flip the flag.
+ *
+ * In a large project the flag is propagated to all sibling bookings sharing
+ * the same phase + date (mirrors `syncPhaseTime`).
+ */
+export async function setPhaseLock(
+  bookingId: string,
+  phase: Phase,
+  locked: boolean,
+): Promise<{ bookingsUpdated: number; syncedSiblings: number; largeProjectId: string | null }> {
+  const f = PHASE_FIELDS[phase];
+
+  const { data: primary, error: pErr } = await supabase
+    .from('bookings')
+    .select(`id, large_project_id, ${f.date}, ${f.start}, ${f.end}, ${f.startExt}, ${f.endExt}`)
+    .eq('id', bookingId)
+    .maybeSingle();
+
+  if (pErr || !primary) {
+    console.warn('[setPhaseLock] booking lookup failed', bookingId, pErr);
+    return { bookingsUpdated: 0, syncedSiblings: 0, largeProjectId: null };
+  }
+
+  const date = (primary as any)[f.date] as string | null;
+  const liveStart = (primary as any)[f.start] as string | null;
+  const liveEnd = (primary as any)[f.end] as string | null;
+  const extStart = (primary as any)[f.startExt] as string | null;
+  const extEnd = (primary as any)[f.endExt] as string | null;
+
+  const patch: Record<string, unknown> = { [f.lock]: locked };
+  // When locking and we have no external snapshot yet, snapshot the current live values.
+  if (locked && !extStart && liveStart) patch[f.startExt] = liveStart;
+  if (locked && !extEnd && liveEnd) patch[f.endExt] = liveEnd;
+
+  const { error: uErr } = await supabase.from('bookings').update(patch).eq('id', bookingId);
+  if (uErr) {
+    console.warn('[setPhaseLock] primary update failed', bookingId, uErr);
+    return { bookingsUpdated: 0, syncedSiblings: 0, largeProjectId: null };
+  }
+
+  let bookingsUpdated = 1;
+  let syncedSiblings = 0;
+  const largeProjectId = (primary as any).large_project_id ?? null;
+
+  if (largeProjectId && date) {
+    const { data: siblings } = await supabase
+      .from('bookings')
+      .select(`id, ${f.start}, ${f.end}, ${f.startExt}, ${f.endExt}`)
+      .eq('large_project_id', largeProjectId)
+      .eq(f.date as 'rigdaydate' | 'eventdate' | 'rigdowndate', date)
+      .neq('id', bookingId);
+
+    if (siblings) {
+      for (const sib of siblings) {
+        const sibPatch: Record<string, unknown> = { [f.lock]: locked };
+        if (locked && !(sib as any)[f.startExt] && (sib as any)[f.start]) {
+          sibPatch[f.startExt] = (sib as any)[f.start];
+        }
+        if (locked && !(sib as any)[f.endExt] && (sib as any)[f.end]) {
+          sibPatch[f.endExt] = (sib as any)[f.end];
+        }
+        const { error: sErr } = await supabase.from('bookings').update(sibPatch).eq('id', (sib as any).id);
+        if (!sErr) {
+          bookingsUpdated += 1;
+          syncedSiblings += 1;
+        }
+      }
+    }
+  }
+
+  return { bookingsUpdated, syncedSiblings, largeProjectId };
+}
