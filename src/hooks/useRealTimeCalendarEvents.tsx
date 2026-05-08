@@ -222,6 +222,9 @@ export const useRealTimeCalendarEvents = () => {
     // Manual cross-component refresh signal (dispatched after planning saves)
     const onManualRefresh = () => handleCalendarEventChange();
     window.addEventListener('planner-calendar-refresh', onManualRefresh);
+    // `bookings.<phase>_time_locked` lives outside calendar_events realtime,
+    // so we listen for the explicit signal from setPhaseLock.
+    window.addEventListener('phase-lock-changed', onManualRefresh as EventListener);
 
     console.log('Real-time calendar subscription established (read-only mode)');
 
@@ -231,6 +234,7 @@ export const useRealTimeCalendarEvents = () => {
         clearTimeout(reloadTimerRef.current);
       }
       window.removeEventListener('planner-calendar-refresh', onManualRefresh);
+      window.removeEventListener('phase-lock-changed', onManualRefresh as EventListener);
       supabase.removeChannel(calendarChannel);
       console.log('Real-time subscriptions cleaned up');
     };
