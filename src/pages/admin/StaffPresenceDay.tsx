@@ -23,6 +23,21 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
+interface NearestTargetCandidate {
+  targetLabel: string;
+  targetType: string;
+  targetId: string;
+  targetSource: string;
+  targetValidity: string;
+  timeTrackingAllowed: boolean;
+  lat: number | null;
+  lng: number | null;
+  radiusMeters: number | null;
+  distanceMeters: number | null;
+  insideRadius: boolean;
+  excludedReason: string | null;
+}
+
 interface TimelineRow {
   at: string;
   endAt?: string | null;
@@ -43,6 +58,26 @@ interface TimelineRow {
   confidence?: number | null;
   source: string;
   gpsSegmentId?: string | null;
+  centerLat?: number | null;
+  centerLng?: number | null;
+  matchedTargetId?: string | null;
+  matchedTargetType?: string | null;
+  nearestTargets?: NearestTargetCandidate[];
+  noMatchHint?: string | null;
+}
+
+interface TargetMatchSummary {
+  totalTargets: number;
+  projectTargets: number;
+  bookingTargets: number;
+  warehouseTargets: number;
+  locationTargets: number;
+  targetsWithCoordinates: number;
+  targetsMissingCoordinates: number;
+  matchedTargets: number;
+  unmatchedProjectTargets: number;
+  excludedByReason: Record<string, number>;
+  warnings: string[];
 }
 
 interface DayResponse {
@@ -60,6 +95,21 @@ interface DayResponse {
   };
   timeline: TimelineRow[];
   counts: { total: number; presenceEvents: number; timerEvents: number; gpsSegments: number };
+  targetMatchSummary?: TargetMatchSummary | null;
+  targets?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    targetSource: string;
+    targetValidity: string;
+    timeTrackingAllowed: boolean;
+    latitude: number | null;
+    longitude: number | null;
+    radiusMeters: number | null;
+    status: string | null;
+    dateRelevance: string;
+    notes: string[];
+  }>;
 }
 
 const ROW_META: Record<TimelineRow["type"], { icon: any; cls: string; label: string }> = {
@@ -185,6 +235,65 @@ export default function StaffPresenceDay() {
         </CardContent>
       </Card>
 
+      {data?.targetMatchSummary && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Target matching summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <SummaryItem label="Totalt" value={String(data.targetMatchSummary.totalTargets)} />
+              <SummaryItem label="Projekt" value={String(data.targetMatchSummary.projectTargets)} />
+              <SummaryItem label="Bokningar" value={String(data.targetMatchSummary.bookingTargets)} />
+              <SummaryItem label="Lager" value={String(data.targetMatchSummary.warehouseTargets)} />
+              <SummaryItem label="Med koordinater" value={String(data.targetMatchSummary.targetsWithCoordinates)} />
+              <SummaryItem label="Saknar koordinater" value={String(data.targetMatchSummary.targetsMissingCoordinates)} />
+              <SummaryItem label="Matchade" value={String(data.targetMatchSummary.matchedTargets)} />
+              <SummaryItem label="Omatchade projekt" value={String(data.targetMatchSummary.unmatchedProjectTargets)} />
+            </div>
+            {Object.keys(data.targetMatchSummary.excludedByReason).length > 0 && (
+              <div className="text-xs">
+                <div className="text-muted-foreground uppercase tracking-wide mb-1">Exkluderade</div>
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(data.targetMatchSummary.excludedByReason).map(([k, v]) => (
+                    <Badge key={k} variant="outline" className="text-xs">{k}: {v}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {data.targetMatchSummary.warnings.length > 0 && (
+              <div className="text-xs text-destructive">
+                {data.targetMatchSummary.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                Visa alla {data.targets?.length ?? 0} targets
+              </summary>
+              <div className="mt-2 space-y-1 max-h-64 overflow-y-auto">
+                {data.targets?.map((t) => (
+                  <div key={`${t.type}:${t.id}`} className="flex flex-wrap items-center gap-2 p-2 rounded border border-border bg-muted/30">
+                    <span className="font-medium">{t.name}</span>
+                    <Badge variant="outline" className="text-[10px]">{t.type}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{t.targetSource}</Badge>
+                    <Badge variant={t.targetValidity === 'valid' ? 'default' : 'destructive'} className="text-[10px]">{t.targetValidity}</Badge>
+                    {(t.latitude == null || t.longitude == null) && (
+                      <Badge variant="destructive" className="text-[10px]">no coords</Badge>
+                    )}
+                    {t.latitude != null && (
+                      <span className="text-muted-foreground">{t.latitude?.toFixed(5)}, {t.longitude?.toFixed(5)} · r={t.radiusMeters}m</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </details>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -219,7 +328,45 @@ export default function StaffPresenceDay() {
                         {row.confidence != null && <span>conf: {Math.round(Number(row.confidence) * 100)}%</span>}
                         <span>källa: {row.source}</span>
                         {row.gpsSegmentId && <span>seg: {row.gpsSegmentId}</span>}
+                        {row.centerLat != null && row.centerLng != null && (
+                          <span>@ {row.centerLat.toFixed(5)}, {row.centerLng.toFixed(5)}</span>
+                        )}
                       </div>
+                      {row.noMatchHint && (
+                        <div className="text-xs mt-1 px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/30">
+                          ⚠ {row.noMatchHint}
+                        </div>
+                      )}
+                      {row.nearestTargets && row.nearestTargets.length > 0 && (
+                        <details className="text-xs mt-2">
+                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                            Närmaste targets ({row.nearestTargets.length})
+                          </summary>
+                          <div className="mt-1 space-y-1">
+                            {row.nearestTargets.map((c) => (
+                              <div key={c.targetId} className={`p-2 rounded border ${c.insideRadius ? 'border-green-500/40 bg-green-500/5' : 'border-border bg-muted/30'}`}>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="font-medium">{c.targetLabel}</span>
+                                  <Badge variant="outline" className="text-[10px]">{c.targetType}</Badge>
+                                  <Badge variant="outline" className="text-[10px]">{c.targetSource}</Badge>
+                                  <Badge variant={c.targetValidity === 'valid' ? 'default' : 'destructive'} className="text-[10px]">{c.targetValidity}</Badge>
+                                  {c.insideRadius && <Badge className="text-[10px] bg-green-600">inside</Badge>}
+                                  {c.excludedReason && <Badge variant="destructive" className="text-[10px]">{c.excludedReason}</Badge>}
+                                </div>
+                                <div className="mt-1 text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                                  {c.distanceMeters != null ? <span>avstånd: {c.distanceMeters} m</span> : <span>avstånd: —</span>}
+                                  <span>radius: {c.radiusMeters ?? '—'} m</span>
+                                  {c.lat != null && c.lng != null
+                                    ? <span>{c.lat.toFixed(5)}, {c.lng.toFixed(5)}</span>
+                                    : <span>koordinater saknas</span>}
+                                  <span>id: {c.targetId.slice(0, 8)}…</span>
+                                  <span>tracking: {c.timeTrackingAllowed ? 'ja' : 'nej'}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   </div>
                 );
