@@ -242,6 +242,29 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ─── Latest arrival/departure per staff (last 24h) ───────────────────────
+  const arrivalMap = new Map<string, any>();
+  const departureMap = new Map<string, any>();
+  for (let i = 0; i < staffIds.length; i += chunkSize) {
+    const chunk = staffIds.slice(i, i + chunkSize);
+    const { data: events } = await admin
+      .from("staff_presence_events")
+      .select("staff_id, event_type, target_type, target_id, target_label, event_at")
+      .eq("organization_id", orgId)
+      .in("staff_id", chunk)
+      .in("event_type", ["arrival", "departure"])
+      .gte("event_at", since)
+      .order("event_at", { ascending: false })
+      .limit(2000);
+    for (const ev of events ?? []) {
+      if (ev.event_type === "arrival" && !arrivalMap.has(ev.staff_id)) {
+        arrivalMap.set(ev.staff_id, ev);
+      } else if (ev.event_type === "departure" && !departureMap.has(ev.staff_id)) {
+        departureMap.set(ev.staff_id, ev);
+      }
+    }
+  }
+
   // ─── Build presence rows ─────────────────────────────────────────────────
   const now = Date.now();
   const presence = staffList.map((s: any) => {
