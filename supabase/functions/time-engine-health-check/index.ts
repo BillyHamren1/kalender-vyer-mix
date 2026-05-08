@@ -189,14 +189,16 @@ async function runDateCheck(
   // ---- D) Auto-start decision ----
   let D: any = { error: null };
   try {
-    const auto = processGpsTimelineForAutoStart({
-      timeline,
-      targets: workTargets,
-      now: new Date(`${date}T12:00:00Z`),
+    const auto = await processGpsTimelineForAutoStart({
+      organizationId, staffId, date,
+      gpsDayTimeline: timeline,
+      targets: resolved as any,
+      supabaseAdmin: supabase,
+      dryRun: true,
     });
-    const decisions = (auto as any).decisions ?? (auto as any).results ?? [];
-    const allowed = decisions.filter((d: any) => d.allowed || d.reason === 'allowed_valid_geofence');
-    const blocked = decisions.filter((d: any) => !(d.allowed || d.reason === 'allowed_valid_geofence'));
+    const decisions = (auto as any).decisions ?? [];
+    const allowed = decisions.filter((d: any) => d?.decision?.allowed === true);
+    const blocked = decisions.filter((d: any) => d?.decision?.allowed !== true);
     const blockedByReason: Record<string, number> = {};
     for (const d of blocked) {
       const r = d.reason ?? 'unknown';
