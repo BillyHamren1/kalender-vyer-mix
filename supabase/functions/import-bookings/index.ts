@@ -3507,6 +3507,10 @@ serve(async (req) => {
           console.log(`Inserting new booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
           
           const { allRigDates: _ard2, allEventDates: _aed2, allRigdownDates: _ardd2, ...dbInsertData } = bookingData as any;
+          // FIXED-TIME LOCK: For new bookings, lock any phase that arrived with an external time.
+          dbInsertData.rig_time_locked = !!dbInsertData.rig_start_time_external;
+          dbInsertData.event_time_locked = !!dbInsertData.event_start_time_external;
+          dbInsertData.rigdown_time_locked = !!dbInsertData.rigdown_start_time_external;
           const { error: insertError } = await supabase
             .from('bookings')
             .insert(dbInsertData)
