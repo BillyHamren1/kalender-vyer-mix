@@ -122,6 +122,36 @@ export interface SmoothPresenceResult {
 }
 
 const MERGE_NOISE_MAX_MIN = 5;     // brus mellan samma target som suppress:as
+export const SAME_AREA_THRESHOLD_M = 5000; // < 5km efter glapp = samma område
+
+const num = (v: any): number | null => {
+  if (v == null) return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const centerOf = (r: SmoothInputRow): { lat: number; lng: number } | null => {
+  const lat = num((r as any).centerLat) ?? num((r as any).lat);
+  const lng = num((r as any).centerLng) ?? num((r as any).lng);
+  if (lat == null || lng == null) return null;
+  return { lat, lng };
+};
+
+const haversineMeters = (
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number => {
+  const R = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.min(1, Math.sqrt(h))));
+};
 
 const targetKey = (r: SmoothInputRow): string | null => {
   const t = r.matchedTargetType ?? r.targetType ?? null;
