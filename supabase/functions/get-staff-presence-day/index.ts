@@ -555,18 +555,24 @@ Deno.serve(async (req) => {
   const dedupedTimeline = Array.from(buckets.values()).sort((a, b) => a.at.localeCompare(b.at));
   const dedupRemoved = timeline.length - dedupedTimeline.length;
 
+  // ── Smoothing layer (presentation only) ──
+  // Slå ihop GPS-brus runt samma target till sammanhängande presence-block.
+  // Påverkar ALDRIG raw gpsDayTimeline / time_reports / workdays / LTE / travel.
+  const smoothing = smoothPresenceTimeline(dedupedTimeline as any);
+  const smoothedTimeline = smoothing.smoothed as any[];
+
   // ── Header summary ──
   const ageSec = lastPingAt
     ? Math.floor((Date.now() - new Date(lastPingAt).getTime()) / 1000)
     : null;
   const signal = classifySignal(ageSec);
 
-  // Current status: latest arrival without later departure
+  // Current status: latest arrival/smoothed_presence without later departure
   let currentLabel = 'Okänt';
   let currentTargetType: string | null = null;
-  for (let i = dedupedTimeline.length - 1; i >= 0; i--) {
-    const ev = dedupedTimeline[i];
-    if (ev.type === 'arrival') {
+  for (let i = smoothedTimeline.length - 1; i >= 0; i--) {
+    const ev = smoothedTimeline[i];
+    if (ev.type === 'arrival' || ev.type === 'smoothed_presence') {
       currentLabel = ev.label;
       currentTargetType = ev.targetType ?? null;
       break;
@@ -590,17 +596,28 @@ Deno.serve(async (req) => {
       activeTimer: activeTimerInfo,
       currentLabel,
       currentTargetType,
+      smoothing: {
+        blocksCount: smoothing.stats.blocksCreated,
+        suppressedNoiseCount: smoothing.stats.suppressedNoise,
+        mergedArrivals: smoothing.stats.mergedArrivals,
+        rawRowCount: smoothing.stats.inputRows,
+        smoothedRowCount: smoothing.stats.smoothedRows,
+      },
     },
-    timeline: dedupedTimeline,
+    timeline: smoothedTimeline,
+    rawTimeline: dedupedTimeline,
+    smoothedBlocks: smoothing.blocks,
     counts: {
-      total: dedupedTimeline.length,
+      total: smoothedTimeline.length,
       rawTotal: timeline.length,
       duplicatesCollapsed: dedupRemoved,
       presenceEvents: (presenceRows ?? []).length,
-      timerEvents: dedupedTimeline.filter((t) => t.type.startsWith('active_timer_')).length,
-      gpsSegments: dedupedTimeline.filter((t) =>
-        ['transport', 'unknown_place', 'gps_gap'].includes(t.type),
+      timerEvents: smoothedTimeline.filter((t: any) => t.type?.startsWith?.('active_timer_')).length,
+      gpsSegments: smoothedTimeline.filter((t: any) =>
+        ['transport', 'unknown_place', 'gps_gap', 'smoothed_presence'].includes(t.type),
       ).length,
+      smoothedBlocks: smoothing.blocks.length,
+      suppressedNoise: smoothing.stats.suppressedNoise,
     },
     targetMatchSummary,
     targets: resolvedTargetsAll.map((r: any) => ({
