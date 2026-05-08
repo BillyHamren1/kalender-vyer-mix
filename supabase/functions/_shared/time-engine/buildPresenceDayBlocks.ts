@@ -433,7 +433,11 @@ export function buildPresenceDayBlocks(
         confidence: seg.confidence >= 0.6 ? 'medium' : 'low',
         confidenceReason: 'GPS visar stabil plats utan känd target',
         reviewState: 'needs_review',
-        evidence: { pingCount: seg.pingCount },
+        evidence: {
+          pingCount: seg.pingCount,
+          centerLat: seg.centerLat ?? null,
+          centerLng: seg.centerLng ?? null,
+        },
         sourceSegmentIds: [seg.id],
         hiddenRawSegmentIds: [],
       });
