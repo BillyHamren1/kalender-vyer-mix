@@ -1956,6 +1956,23 @@ export default function TimeIntelligenceDebug() {
               )}
             </div>
           )}
+          {startManualResult && (
+            <div className="rounded-md border bg-muted p-3">
+              <div className="text-xs font-semibold mb-2">Start manual test-resultat</div>
+              <pre className="text-xs whitespace-pre-wrap break-words font-mono">
+{JSON.stringify({
+  created: startManualResult.created,
+  id: startManualResult.id,
+  status: startManualResult.status,
+  started_at: startManualResult.started_at,
+  start_source: startManualResult.start_source,
+  start_target_label: startManualResult.start_target_label,
+  current_label: startManualResult.current_label,
+  auto_started: startManualResult.auto_started,
+}, null, 2)}
+              </pre>
+            </div>
+          )}
         </CardContent>
       </Card>
 
