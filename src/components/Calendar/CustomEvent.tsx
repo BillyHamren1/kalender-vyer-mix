@@ -140,7 +140,16 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         boxShadow: '0 0 6px rgba(239, 68, 68, 0.3)',
       };
     }
-    
+
+    // Locked time = solid red border (Fast tid) — has priority over warehouse change indicator
+    if (isLocked) {
+      return {
+        ...baseStyles,
+        border: '3px solid #DC2626',
+        boxShadow: '0 0 8px rgba(220, 38, 38, 0.55)',
+      };
+    }
+
     // Add orange border + animation for warehouse events with changes
     if (hasSourceChanges) {
       return {
@@ -148,15 +157,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         border: '2px solid #f97316',
         boxShadow: '0 0 8px rgba(249, 115, 22, 0.5)',
         animation: 'pulse-orange 2s infinite'
-      };
-    }
-
-    // Locked time = solid red border (Fast tid)
-    if (isLocked) {
-      return {
-        ...baseStyles,
-        border: '2px solid #DC2626',
-        boxShadow: '0 0 6px rgba(220, 38, 38, 0.3)',
       };
     }
 
