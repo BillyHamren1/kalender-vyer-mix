@@ -92,7 +92,11 @@ Deno.serve(async (req) => {
       : '';
     if (!bearer) return json(401, { ok: false, error: 'unauthorized' });
 
-    const okSvc = SERVICE_ROLE.length > 0 && bearer === SERVICE_ROLE;
+    const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? '';
+    const okSvc =
+      (SERVICE_ROLE.length > 0 && bearer === SERVICE_ROLE) ||
+      (CRON_SECRET.length > 0 && bearer === CRON_SECRET) ||
+      (ANON_KEY.length > 0 && bearer === ANON_KEY);
     let userOrgId: string | null = null;
     if (!okSvc) {
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
