@@ -196,6 +196,8 @@ Deno.serve(async (req) => {
       label: r.target_label ?? (r.event_type === 'signal_lost' ? 'GPS-signal saknas' : r.event_type === 'signal_resumed' ? 'GPS-signal åter' : 'Okänd plats'),
       targetType: r.target_type,
       targetId: r.target_id,
+      targetLabel: r.target_label ?? null,
+      registrationId: (r.metadata as any)?.registration_id ?? null,
       confidence: r.confidence,
       source: r.source ?? 'staff_presence_events',
       gpsSegmentId: r.gps_segment_id,
