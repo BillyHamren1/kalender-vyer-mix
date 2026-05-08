@@ -1004,6 +1004,26 @@ interface BatchRow {
   error?: string;
 }
 
+type TestableStatus =
+  | "TESTABLE"
+  | "BLOCKED_ACTIVE_TIMER"
+  | "NO_PINGS"
+  | "NO_ALLOWED_AUTOSTART"
+  | "ERROR";
+
+interface TestableRow {
+  staffId: string;
+  name: string;
+  rawPingCount: number;
+  gpsDayTimelineCount: number;
+  knownStayCount: number;
+  allowedAutoStartCount: number;
+  hasActiveRegistrationNow: boolean;
+  currentActiveTargetLabel: string | null;
+  testStatus: TestableStatus;
+  error?: string;
+}
+
 export default function TimeIntelligenceDebug() {
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [staffId, setStaffId] = useState<string>("");
