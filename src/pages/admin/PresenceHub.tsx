@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { sv } from "date-fns/locale";
+import PresenceDayOverview from "./presence/PresenceDayOverview";
 
 type Signal = "live" | "recent" | "stale" | "no_signal";
 type Interpreted = "på event" | "på lager" | "transport" | "okänd plats" | "GPS-glapp";
