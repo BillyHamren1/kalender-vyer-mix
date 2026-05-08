@@ -65,8 +65,28 @@ interface LongGapEntry {
   decision: string;
 }
 
+interface SampleBlock {
+  kind: string;
+  startAt: string;
+  endAt: string;
+  durationMinutes: number;
+  targetLabel: string | null;
+  confidence: string | null;
+  signalGapMinutes: number;
+  sourceSegmentIdsCount: number;
+  hiddenRawSegmentIdsCount: number;
+}
+interface SampleStaffDay {
+  staffName: string;
+  staffId: string;
+  gpsDayTimelineCount: number;
+  rawEvidenceBlocksCount: number;
+  presenceDayBlocksCount: number;
+  blocks: SampleBlock[];
+}
 interface DayHealth {
   date: string;
+  staffCount: number;
   rawPingCount: number;
   gpsDayTimelineCount: number;
   rawEvidenceBlocksCount: number;
@@ -83,6 +103,7 @@ interface DayHealth {
   needsReviewCount: number;
   longestSignalGaps: LongGapEntry[];
   warnings: string[];
+  sampleStaffDays?: SampleStaffDay[];
 }
 
 Deno.serve(async (req) => {
@@ -145,6 +166,7 @@ Deno.serve(async (req) => {
 
       const day: DayHealth = {
         date,
+        staffCount: staffList.length,
         rawPingCount: 0,
         gpsDayTimelineCount: 0,
         rawEvidenceBlocksCount: 0,
@@ -161,7 +183,10 @@ Deno.serve(async (req) => {
         needsReviewCount: 0,
         longestSignalGaps: [],
         warnings: [],
+        sampleStaffDays: [],
       };
+      const samples: SampleStaffDay[] = [];
+      const sampleLimit: number = Math.max(0, Math.min(10, Number(body?.sampleStaffDayCount ?? 2)));
 
       const allLongGaps: LongGapEntry[] = [];
 
@@ -257,6 +282,27 @@ Deno.serve(async (req) => {
           day.evidenceBlocksByKind[b.kind] = (day.evidenceBlocksByKind[b.kind] ?? 0) + 1;
         }
 
+        if (samples.length < sampleLimit && result.blocks.length > 0) {
+          samples.push({
+            staffName: s.name ?? s.id,
+            staffId: s.id,
+            gpsDayTimelineCount: gpsTimeline.segments.length,
+            rawEvidenceBlocksCount: result.evidenceBlocks.length,
+            presenceDayBlocksCount: result.blocks.length,
+            blocks: result.blocks.map((b: any) => ({
+              kind: b.kind,
+              startAt: b.startAt,
+              endAt: b.endAt,
+              durationMinutes: Math.round(b.durationMinutes * 100) / 100,
+              targetLabel: b.targetLabel ?? null,
+              confidence: b.confidence ?? null,
+              signalGapMinutes: Math.round((b.signalGapMinutes ?? 0) * 100) / 100,
+              sourceSegmentIdsCount: (b.sourceSegmentIds ?? []).length,
+              hiddenRawSegmentIdsCount: (b.hiddenRawSegmentIds ?? []).length,
+            })),
+          });
+        }
+
         // ── Invariant checks (run on raw evidence — aggregated blocks
         // legitimately span multiple stays for the same target). ──
         for (const b of result.evidenceBlocks) {
@@ -344,6 +390,7 @@ Deno.serve(async (req) => {
           });
         }
       }
+      day.sampleStaffDays = samples;
 
       // Top 20 longest signal gaps for the day
       day.longestSignalGaps = allLongGaps
