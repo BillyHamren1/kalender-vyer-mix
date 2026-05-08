@@ -656,43 +656,46 @@ Deno.serve(async (req) => {
       activeTimeRegistrationPreview.wouldCreate === true;
   }
 
-  const allowedDecisionsComplete = allowedDecisions.every(
-    (d) =>
-      d.startAt != null &&
-      d.dwellSeconds != null &&
-      d.arrivalPingsCount != null &&
-      d.targetName != null &&
-      d.confidence != null,
-  );
+  const allowedDecisionsComplete =
+    allowedDecisions.length > 0 &&
+    allowedDecisions.every(
+      (d) =>
+        d.startAt != null &&
+        d.targetName != null &&
+        d.targetType != null &&
+        d.targetLabel != null &&
+        d.dwellSeconds != null &&
+        d.arrivalPingsCount != null,
+    );
 
+  const previewWouldCreate =
+    activeTimeRegistrationPreview?.wouldCreateActiveRegistration === true;
+
+  // Strict READY_TO_CONFIRM gate — every condition must hold.
   const readinessFailures: string[] = [];
   if (warnings.length !== 0) readinessFailures.push("warnings_present");
   if (legacyLeakDetected) readinessFailures.push("legacy_leak_detected");
-  if (!(compactCounts.rawPingCount > 0)) readinessFailures.push("no_raw_pings");
-  if (!(compactCounts.gpsDayTimelineCount > 0)) readinessFailures.push("empty_gps_day_timeline");
+  if (!previewWouldCreate) readinessFailures.push("preview_would_not_create");
   if (!(autoStartSummary.allowedCount > 0)) readinessFailures.push("no_allowed_auto_start");
-  if (activeTimeRegistrationPreview?.wouldCreateActiveRegistration !== true)
-    readinessFailures.push("preview_would_not_create");
   if (!(targetSummary.validCount > 0)) readinessFailures.push("no_valid_targets");
   if (!allowedDecisionsComplete) readinessFailures.push("allowed_decisions_missing_evidence");
 
-  // Hard rule: if preview wouldn't create an active registration, status MUST be NOT_READY.
-  const previewWouldNotCreate =
-    activeTimeRegistrationPreview?.wouldCreateActiveRegistration !== true;
+  const isReady = readinessFailures.length === 0;
 
-  if ((readinessFailures.length > 0 || previewWouldNotCreate) && activeTimeRegistrationPreview) {
-    activeTimeRegistrationPreview.status = "NOT_READY";
-    activeTimeRegistrationPreview.wouldCreate = false;
-    activeTimeRegistrationPreview.wouldCreateActiveRegistration = false;
-    // Prioritize root-cause reason: missing evidence > other failures.
-    const priorityReason = !allowedDecisionsComplete
-      ? "allowed_decision_missing_evidence"
-      : readinessFailures[0] ?? "preview_would_not_create";
-    activeTimeRegistrationPreview.reason = priorityReason;
-    activeTimeRegistrationPreview.readinessFailures = readinessFailures;
-  } else if (activeTimeRegistrationPreview) {
-    activeTimeRegistrationPreview.status = "READY_TO_CONFIRM";
-    activeTimeRegistrationPreview.readinessFailures = [];
+  if (activeTimeRegistrationPreview) {
+    if (isReady) {
+      activeTimeRegistrationPreview.status = "READY_TO_CONFIRM";
+      activeTimeRegistrationPreview.readinessFailures = [];
+    } else {
+      activeTimeRegistrationPreview.status = "NOT_READY";
+      activeTimeRegistrationPreview.wouldCreate = false;
+      activeTimeRegistrationPreview.wouldCreateActiveRegistration = false;
+      const priorityReason = !allowedDecisionsComplete
+        ? "allowed_decision_missing_evidence"
+        : readinessFailures[0] ?? "preview_would_not_create";
+      activeTimeRegistrationPreview.reason = priorityReason;
+      activeTimeRegistrationPreview.readinessFailures = readinessFailures;
+    }
   }
 
   return json(200, {
