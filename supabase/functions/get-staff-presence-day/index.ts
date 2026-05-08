@@ -265,6 +265,16 @@ Deno.serve(async (req) => {
         confidence: null,
         source: t.stop_source ?? 'unknown',
       });
+      timerMarkers.push({
+        id: `tm-stop-${t.id}`,
+        kind: 'stopped',
+        at: t.stopped_at,
+        label: `Timer slut: ${label}`,
+        targetType,
+        targetId,
+        registrationId: t.id,
+        source: t.stop_source ?? null,
+      });
     }
     if (!t.stopped_at && t.status === 'active') {
       hasActiveTimer = true;
