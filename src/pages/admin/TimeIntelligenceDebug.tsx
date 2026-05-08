@@ -279,9 +279,10 @@ function buildTimeEngineSummary(result: any) {
 
 function TimeEngineDryRunSummary({ result }: { result: any }) {
   const s = useMemo(() => buildTimeEngineSummary(result), [result]);
+  const noPings = s.status === "NO_PINGS";
   const ready = s.status === "READY_TO_CONFIRM";
-  const tone: StatusTone = ready ? "ok" : "bad";
-  const Icon = ready ? CheckCircle2 : XCircle;
+  const tone: StatusTone = ready ? "ok" : noPings ? "warn" : "bad";
+  const Icon = ready ? CheckCircle2 : noPings ? AlertCircle : XCircle;
   const cov = s.rawPingsCoverage;
   const gps = s.gpsSummary;
   const auto = s.autoStartSummary;
