@@ -123,7 +123,11 @@ const KIND_LABEL: Record<string, string> = {
 
 const fmtTime = (iso: string | null) => (iso ? format(new Date(iso), "HH:mm") : "—");
 
-export default function PresenceHub() {
+export default function PresenceHub({ initialTab }: { initialTab?: string } = {}) {
+  const tabFromUrl = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("tab")
+    : null;
+  const defaultTab = tabFromUrl || initialTab || "day";
   const [rows, setRows] = useState<PresenceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
