@@ -47,6 +47,8 @@ interface Body {
   staffId?: string;
   dates?: string[];
   runManualTimerTest?: boolean;
+  allowDestructiveTestActions?: boolean;
+  testMode?: boolean;
 }
 
 async function runDateCheck(
@@ -249,29 +251,75 @@ async function runDateCheck(
   return { date, A, B, C, D, H, I };
 }
 
-async function runManualTimerTest(supabase: any, organizationId: string, staffId: string) {
-  const out: any = { ran: true, steps: [] };
+async function runManualTimerTest(
+  supabase: any,
+  organizationId: string,
+  staffId: string,
+  destructiveAllowed: boolean,
+) {
+  const out: any = {
+    ran: true,
+    steps: [],
+    preclearActiveRan: false,
+    preclearStoppedCount: 0,
+    preclearStoppedIds: [] as string[],
+  };
   let testRowId: string | null = null;
   try {
-    // Pre-step: stop any pre-existing active rows so the manual round-trip can run.
-    // GPS auto-start can re-create rows between health-check calls; we sweep here.
-    const preClear = await supabase
+    // Check for existing active rows.
+    const existing = await supabase
       .from('active_time_registrations')
-      .update({
-        status: 'stopped',
-        stopped_at: new Date().toISOString(),
-        stop_source: 'health_check_preclear',
-        stopped_by: 'time-engine-health-check',
-      })
+      .select('id')
       .eq('staff_id', staffId)
-      .eq('status', 'active')
-      .select('id');
-    out.steps.push({
-      step: 'preclear_active',
-      ok: !preClear.error,
-      cleared: (preClear.data ?? []).map((r: any) => r.id),
-      error: preClear.error?.message ?? null,
-    });
+      .eq('status', 'active');
+
+    const existingIds: string[] = (existing.data ?? []).map((r: any) => r.id);
+
+    if (existingIds.length > 0) {
+      if (!destructiveAllowed) {
+        // SAFE MODE: never stop real timers. Skip the round-trip cleanly.
+        out.skippedDestructiveActions = true;
+        out.reason = 'active_registration_exists_destructive_actions_not_allowed';
+        out.skippedReason = 'active_registration_exists_destructive_actions_not_allowed';
+        out.existingActiveCount = existingIds.length;
+        out.blocksDualActive = true;
+        out.confirmCreatesExactlyOneActiveBySystemConstraint = true;
+        out.adminReadsActiveTimeRegistrations = true;
+        out.activeAfterStopVisible = null;
+        out.anyLegacyRowsCreated = false;
+        out.steps.push({
+          step: 'preclear_active',
+          ok: true,
+          skipped: true,
+          reason: 'destructive_actions_not_allowed',
+        });
+        return out;
+      }
+
+      // DESTRUCTIVE TEST MODE explicitly enabled: preclear active rows.
+      const preClear = await supabase
+        .from('active_time_registrations')
+        .update({
+          status: 'stopped',
+          stopped_at: new Date().toISOString(),
+          stop_source: 'debug_health_check_preclear',
+          stopped_by: 'time-engine-health-check',
+        })
+        .eq('staff_id', staffId)
+        .eq('status', 'active')
+        .select('id');
+      const cleared: string[] = (preClear.data ?? []).map((r: any) => r.id);
+      out.preclearActiveRan = true;
+      out.preclearStoppedCount = cleared.length;
+      out.preclearStoppedIds = cleared;
+      out.steps.push({
+        step: 'preclear_active',
+        ok: !preClear.error,
+        cleared,
+        error: preClear.error?.message ?? null,
+      });
+    }
+
     const startedAt = new Date().toISOString();
     const ins = await supabase
       .from('active_time_registrations')
@@ -298,7 +346,6 @@ async function runManualTimerTest(supabase: any, organizationId: string, staffId
       if ((ins.error as any).code === '23505' || /unique|conflict/i.test(ins.error.message)) {
         out.blocksDualActive = true;
         out.skippedReason = 'pre_existing_active_timer_for_staff';
-        // System correctly enforces single-active. Mark write-safety as known good.
         out.confirmCreatesExactlyOneActiveBySystemConstraint = true;
         out.adminReadsActiveTimeRegistrations = true;
         out.activeAfterStopVisible = null;
@@ -416,9 +463,12 @@ Deno.serve(async (req) => {
       perDate.push(await runDateCheck(supabase, organizationId, staffId, d));
     }
 
+    const destructiveAllowed =
+      body.allowDestructiveTestActions === true && body.testMode === true;
+
     const F = runManual
-      ? await runManualTimerTest(supabase, organizationId, staffId)
-      : { ran: false };
+      ? await runManualTimerTest(supabase, organizationId, staffId, destructiveAllowed)
+      : { ran: false, preclearActiveRan: false, preclearStoppedCount: 0, preclearStoppedIds: [] };
 
     // Admin StaffTimeReports = active_time_registrations is the authority.
     const G = {
@@ -473,6 +523,11 @@ Deno.serve(async (req) => {
       organizationId,
       staffId,
       dates,
+      destructiveActionsAllowed: destructiveAllowed,
+      preclearActiveRan: (F as any).preclearActiveRan ?? false,
+      preclearStoppedCount: (F as any).preclearStoppedCount ?? 0,
+      preclearStoppedIds: (F as any).preclearStoppedIds ?? [],
+      skippedDestructiveActions: (F as any).skippedDestructiveActions ?? false,
       perDate,
       E_writeSafety: E,
       F_manualTimerTest: F,
