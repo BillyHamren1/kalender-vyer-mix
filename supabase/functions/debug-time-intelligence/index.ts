@@ -278,6 +278,31 @@ Deno.serve(async (req) => {
     .map(toWorkTarget)
     .filter((t): t is WorkTarget => t !== null);
 
+  // targetSummary — compact glance from resolveWorkTargets diagnostics
+  const AUTOSTARTABLE = new Set(["planned_today", "warehouse", "explicit_time_tracking_location"]);
+  const diag = (targetDiagnosticsBlock ?? {}) as Record<string, any>;
+  const validCount = Number(diag.validTargets ?? resolvedTargets.length);
+  const excludedCount = Number(diag.excludedTargets ?? 0);
+  const totalCandidates = Number(diag.totalFetched ?? validCount + excludedCount);
+  const candidatesWithCoordinates = Number(
+    diag.candidatesWithCoordinates ??
+      resolvedTargets.filter((t) => t.latitude != null && t.longitude != null).length,
+  );
+  const autostartableCount = resolvedTargets.filter(
+    (t) =>
+      t.targetValidity === "valid" &&
+      t.timeTrackingAllowed === true &&
+      AUTOSTARTABLE.has(String(t.targetSource)),
+  ).length;
+  const targetSummary = {
+    totalCandidates,
+    validCount,
+    invalidCount: excludedCount,
+    candidatesWithCoordinates,
+    autostartableCount,
+    excludedByReason: (diag.excludedByReason ?? {}) as Record<string, number>,
+  };
+
   // ════════════════════════════════════════════════════════════════════════
   // 3) gpsDayTimeline
   // ════════════════════════════════════════════════════════════════════════
@@ -585,6 +610,7 @@ Deno.serve(async (req) => {
     input: { staffId, date, organizationId },
     rawPingsCoverage,
     targetDiagnostics: targetDiagnosticsBlock,
+    targetSummary,
     gpsDayTimeline,
     compactCounts,
     autoStartDecisions,
