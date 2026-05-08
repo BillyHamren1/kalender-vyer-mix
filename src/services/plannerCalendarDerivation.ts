@@ -32,6 +32,9 @@ interface BookingRow {
   event_end_time: string | null;
   rigdown_start_time: string | null;
   rigdown_end_time: string | null;
+  rig_time_locked?: boolean | null;
+  event_time_locked?: boolean | null;
+  rigdown_time_locked?: boolean | null;
   status: string | null;
 }
 
@@ -124,6 +127,14 @@ const getBookingPhaseTimes = (booking: BookingRow, phase: PlannerPhase) => {
   return { start: booking.rigdown_start_time, end: booking.rigdown_end_time };
 };
 
+const getBookingPhaseLock = (booking: BookingRow | undefined | null, phase: PlannerPhase | null | undefined): boolean => {
+  if (!booking || !phase) return false;
+  if (phase === 'rig') return booking.rig_time_locked === true;
+  if (phase === 'event') return booking.event_time_locked === true;
+  if (phase === 'rigDown') return booking.rigdown_time_locked === true;
+  return false;
+};
+
 const mapRealRowToCalendarEvent = (
   row: RealCalendarEventRow,
   booking?: BookingRow,
@@ -158,6 +169,7 @@ const mapRealRowToCalendarEvent = (
       largeProjectName: project?.name || undefined,
       isSyntheticFallback: false,
       manuallyAssigned: false,
+      timeLocked: getBookingPhaseLock(booking, normalizePhase(row.event_type) as PlannerPhase | null),
     },
   };
 };
@@ -288,6 +300,7 @@ export const buildPlannerCalendarEvents = ({
       const existing = projectGroups.get(key);
       const rowBookingNumber = row.booking_number || booking?.booking_number || '';
       const rowClientName = booking?.client || '';
+      const rowLocked = getBookingPhaseLock(booking, phase);
       if (!existing) {
         projectGroups.set(key, {
           rep: row,
@@ -297,7 +310,8 @@ export const buildPlannerCalendarEvents = ({
           eventIds: new Set([row.id]),
           earliestStart: row.start_time,
           latestEnd: row.end_time,
-        });
+          anyLocked: rowLocked,
+        } as any);
       } else {
         if (row.booking_id) existing.bookingIds.add(row.booking_id);
         if (rowBookingNumber) existing.bookingNumbers.add(rowBookingNumber);
@@ -305,6 +319,7 @@ export const buildPlannerCalendarEvents = ({
         existing.eventIds.add(row.id);
         if (row.start_time < existing.earliestStart) existing.earliestStart = row.start_time;
         if (row.end_time > existing.latestEnd) existing.latestEnd = row.end_time;
+        if (rowLocked) (existing as any).anyLocked = true;
       }
       continue;
     }
@@ -393,6 +408,7 @@ export const buildPlannerCalendarEvents = ({
         consolidatedBookingIds: includedBookingIds,
         consolidatedEventIds: Array.from(group.eventIds),
         lptaTeamId: lptaTeam || undefined,
+        timeLocked: (group as any).anyLocked === true,
       },
     });
   }

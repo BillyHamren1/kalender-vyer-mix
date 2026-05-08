@@ -68,6 +68,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   // Check if booking is cancelled
   const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
+  const isLocked = event.extendedProps?.timeLocked === true;
 
   // Context menu handlers
   const handleViewDetails = useCallback(() => {
@@ -149,7 +150,16 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         animation: 'pulse-orange 2s infinite'
       };
     }
-    
+
+    // Locked time = solid red border (Fast tid)
+    if (isLocked) {
+      return {
+        ...baseStyles,
+        border: '2px solid #DC2626',
+        boxShadow: '0 0 6px rgba(220, 38, 38, 0.3)',
+      };
+    }
+
     return baseStyles;
   };
 

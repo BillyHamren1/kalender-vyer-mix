@@ -16,10 +16,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type Phase = 'rig' | 'event' | 'rigDown';
 
-const PHASE_FIELDS: Record<Phase, { date: string; start: string; end: string; eventType: string }> = {
-  rig:     { date: 'rigdaydate',   start: 'rig_start_time',     end: 'rig_end_time',     eventType: 'rig' },
-  event:   { date: 'eventdate',    start: 'event_start_time',   end: 'event_end_time',   eventType: 'event' },
-  rigDown: { date: 'rigdowndate',  start: 'rigdown_start_time', end: 'rigdown_end_time', eventType: 'rigDown' },
+const PHASE_FIELDS: Record<Phase, { date: string; start: string; end: string; eventType: string; lock: string; startExt: string; endExt: string }> = {
+  rig:     { date: 'rigdaydate',   start: 'rig_start_time',     end: 'rig_end_time',     eventType: 'rig',     lock: 'rig_time_locked',     startExt: 'rig_start_time_external',     endExt: 'rig_end_time_external' },
+  event:   { date: 'eventdate',    start: 'event_start_time',   end: 'event_end_time',   eventType: 'event',   lock: 'event_time_locked',   startExt: 'event_start_time_external',   endExt: 'event_end_time_external' },
+  rigDown: { date: 'rigdowndate',  start: 'rigdown_start_time', end: 'rigdown_end_time', eventType: 'rigDown', lock: 'rigdown_time_locked', startExt: 'rigdown_start_time_external', endExt: 'rigdown_end_time_external' },
 };
 
 export interface SyncPhaseTimeInput {
@@ -28,6 +28,8 @@ export interface SyncPhaseTimeInput {
   date: string;               // YYYY-MM-DD — the phase date that should match
   startISO: string | null;    // full ISO timestamp or null to clear
   endISO: string | null;
+  /** When true, ignore the per-phase lock flag. Default false — locked phases reject writes. */
+  allowLocked?: boolean;
 }
 
 export interface SyncPhaseTimeResult {
@@ -35,6 +37,7 @@ export interface SyncPhaseTimeResult {
   eventsUpserted: number;
   syncedSiblings: number;      // siblings other than the primary booking
   largeProjectId: string | null;
+  blocked?: 'locked';
 }
 
 /**
@@ -115,19 +118,31 @@ async function applyToBooking(
  * same phase date.
  */
 export async function syncPhaseTime(input: SyncPhaseTimeInput): Promise<SyncPhaseTimeResult> {
-  const { bookingId, phase, date, startISO, endISO } = input;
+  const { bookingId, phase, date, startISO, endISO, allowLocked = false } = input;
 
-  // Look up the primary booking's large_project_id.
+  // Look up the primary booking's large_project_id + lock flag.
   const f = PHASE_FIELDS[phase];
   const { data: primary, error: pErr } = await supabase
     .from('bookings')
-    .select('id, large_project_id')
+    .select(`id, large_project_id, ${f.lock}`)
     .eq('id', bookingId)
     .maybeSingle();
 
   if (pErr || !primary) {
     console.warn('[timeSync] primary booking lookup failed', bookingId, pErr);
     return { bookingsUpdated: 0, eventsUpserted: 0, syncedSiblings: 0, largeProjectId: null };
+  }
+
+  // Lock guard: refuse to write if locked unless caller explicitly overrides.
+  if (!allowLocked && (primary as any)[f.lock] === true) {
+    console.info('[timeSync] phase locked, write blocked', bookingId, phase);
+    return {
+      bookingsUpdated: 0,
+      eventsUpserted: 0,
+      syncedSiblings: 0,
+      largeProjectId: (primary as any).large_project_id ?? null,
+      blocked: 'locked',
+    };
   }
 
   let bookingsUpdated = 0;
@@ -248,4 +263,82 @@ export async function backfillLargeProjectTimes(largeProjectId: string): Promise
   }
 
   return { groupsProcessed, syncedSiblings };
+}
+
+/**
+ * Toggle the per-phase "fixed time" lock for a booking.
+ * - When locking (`locked=true`) without an existing external snapshot,
+ *   we copy the current live time into `<phase>_*_external` so we always have
+ *   a stable rollback target.
+ * - When unlocking (`locked=false`), we only flip the flag.
+ *
+ * In a large project the flag is propagated to all sibling bookings sharing
+ * the same phase + date (mirrors `syncPhaseTime`).
+ */
+export async function setPhaseLock(
+  bookingId: string,
+  phase: Phase,
+  locked: boolean,
+): Promise<{ bookingsUpdated: number; syncedSiblings: number; largeProjectId: string | null }> {
+  const f = PHASE_FIELDS[phase];
+
+  const { data: primary, error: pErr } = await supabase
+    .from('bookings')
+    .select(`id, large_project_id, ${f.date}, ${f.start}, ${f.end}, ${f.startExt}, ${f.endExt}`)
+    .eq('id', bookingId)
+    .maybeSingle();
+
+  if (pErr || !primary) {
+    console.warn('[setPhaseLock] booking lookup failed', bookingId, pErr);
+    return { bookingsUpdated: 0, syncedSiblings: 0, largeProjectId: null };
+  }
+
+  const date = (primary as any)[f.date] as string | null;
+  const liveStart = (primary as any)[f.start] as string | null;
+  const liveEnd = (primary as any)[f.end] as string | null;
+  const extStart = (primary as any)[f.startExt] as string | null;
+  const extEnd = (primary as any)[f.endExt] as string | null;
+
+  const patch: Record<string, unknown> = { [f.lock]: locked };
+  // When locking and we have no external snapshot yet, snapshot the current live values.
+  if (locked && !extStart && liveStart) patch[f.startExt] = liveStart;
+  if (locked && !extEnd && liveEnd) patch[f.endExt] = liveEnd;
+
+  const { error: uErr } = await supabase.from('bookings').update(patch).eq('id', bookingId);
+  if (uErr) {
+    console.warn('[setPhaseLock] primary update failed', bookingId, uErr);
+    return { bookingsUpdated: 0, syncedSiblings: 0, largeProjectId: null };
+  }
+
+  let bookingsUpdated = 1;
+  let syncedSiblings = 0;
+  const largeProjectId = (primary as any).large_project_id ?? null;
+
+  if (largeProjectId && date) {
+    const { data: siblings } = await supabase
+      .from('bookings')
+      .select(`id, ${f.start}, ${f.end}, ${f.startExt}, ${f.endExt}`)
+      .eq('large_project_id', largeProjectId)
+      .eq(f.date as 'rigdaydate' | 'eventdate' | 'rigdowndate', date)
+      .neq('id', bookingId);
+
+    if (siblings) {
+      for (const sib of siblings) {
+        const sibPatch: Record<string, unknown> = { [f.lock]: locked };
+        if (locked && !(sib as any)[f.startExt] && (sib as any)[f.start]) {
+          sibPatch[f.startExt] = (sib as any)[f.start];
+        }
+        if (locked && !(sib as any)[f.endExt] && (sib as any)[f.end]) {
+          sibPatch[f.endExt] = (sib as any)[f.end];
+        }
+        const { error: sErr } = await supabase.from('bookings').update(sibPatch).eq('id', (sib as any).id);
+        if (!sErr) {
+          bookingsUpdated += 1;
+          syncedSiblings += 1;
+        }
+      }
+    }
+  }
+
+  return { bookingsUpdated, syncedSiblings, largeProjectId };
 }
