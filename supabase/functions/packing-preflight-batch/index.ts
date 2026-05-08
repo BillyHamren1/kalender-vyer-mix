@@ -251,71 +251,89 @@ Deno.serve(async (req) => {
   const results: any[] = []
   for (const { id: packingId, bookingId } of packPairs) {
     const booking = bookingById.get(bookingId)
-    const { data: items, error: itemsErr } = await supabase
-      .from('packing_list_items')
-      .select(`
-        id,
-        booking_product_id,
-        quantity_to_pack,
-        excluded,
-        manual_name,
-        booking_products (
-          id, name, sku, inventory_item_type_id, quantity
-        )
-      `)
-      .eq('packing_id', packingId)
-      .eq('organization_id', orgId)
-    if (itemsErr) continue
+    try {
+      const { data: items, error: itemsErr } = await supabase
+        .from('packing_list_items')
+        .select(`
+          id,
+          booking_product_id,
+          quantity_to_pack,
+          excluded,
+          manual_name,
+          booking_products (
+            id, name, sku, inventory_item_type_id, quantity
+          )
+        `)
+        .eq('packing_id', packingId)
+        .eq('organization_id', orgId)
+      if (itemsErr) throw new Error(itemsErr.message)
 
-    const rows: PreflightRow[] = []
-    let worst: RowStatus = 'PASS'
-    let pass = 0, warning = 0, blocked = 0
-    for (const it of items || []) {
-      if ((it as any).excluded) continue
-      const bp = (it as any).booking_products || null
-      const inventoryItemTypeId: string | null = bp?.inventory_item_type_id ?? null
-      const sku: string | null = bp?.sku ?? null
-      const name: string | null = bp?.name ?? (it as any).manual_name ?? null
-      const [byItemTypeId, bySku, byName] = await Promise.all([
-        inventoryItemTypeId ? wmsLookupByItemTypeId(inventoryItemTypeId) : Promise.resolve([]),
-        sku ? wmsLookupBySku(sku) : Promise.resolve([]),
-        name ? wmsLookupByName(name) : Promise.resolve([]),
-      ])
-      const verdict = classifyRow({ inventoryItemTypeId, sku, name, byItemTypeId, bySku, byName })
-      const row: PreflightRow = {
-        packingItemId: (it as any).id,
-        bookingProductId: bp?.id ?? null,
-        name,
-        sku,
-        inventoryItemTypeId,
-        quantityToPack: Number((it as any).quantity_to_pack ?? 0),
-        status: verdict.status,
-        reason: verdict.reason,
-        suggestedFix: verdict.suggestedFix,
-        wmsMatches: verdict.wmsMatches,
+      const rows: PreflightRow[] = []
+      let worst: RowStatus = 'PASS'
+      let pass = 0, warning = 0, blocked = 0
+      for (const it of items || []) {
+        if ((it as any).excluded) continue
+        const bp = (it as any).booking_products || null
+        const inventoryItemTypeId: string | null = bp?.inventory_item_type_id ?? null
+        const sku: string | null = bp?.sku ?? null
+        const name: string | null = bp?.name ?? (it as any).manual_name ?? null
+        const [byItemTypeId, bySku, byName] = await Promise.all([
+          inventoryItemTypeId ? wmsLookupByItemTypeId(inventoryItemTypeId, PRICELIST_API_KEY, orgId) : Promise.resolve([]),
+          sku ? wmsLookupBySku(sku, PRICELIST_API_KEY, orgId) : Promise.resolve([]),
+          name ? wmsLookupByName(name, PRICELIST_API_KEY, orgId) : Promise.resolve([]),
+        ])
+        const verdict = classifyRow({ inventoryItemTypeId, sku, name, byItemTypeId, bySku, byName })
+        const row: PreflightRow = {
+          packingItemId: (it as any).id,
+          bookingProductId: bp?.id ?? null,
+          name,
+          sku,
+          inventoryItemTypeId,
+          quantityToPack: Number((it as any).quantity_to_pack ?? 0),
+          status: verdict.status,
+          reason: verdict.reason,
+          suggestedFix: verdict.suggestedFix,
+          wmsMatches: verdict.wmsMatches,
+        }
+        rows.push(row)
+        worst = worstOf(worst, row.status)
+        if (row.status === 'PASS') pass++
+        else if (row.status === 'WARNING') warning++
+        else blocked++
       }
-      rows.push(row)
-      worst = worstOf(worst, row.status)
-      if (row.status === 'PASS') pass++
-      else if (row.status === 'WARNING') warning++
-      else blocked++
+
+      const blockedItems = rows.filter((r) => r.status === 'BLOCKED')
+
+      results.push({
+        packingId,
+        bookingNumber: booking?.booking_number ?? null,
+        customerName: booking?.client ?? null,
+        eventDate: booking?.eventdate ?? booking?.rigdaydate ?? null,
+        totalItems: rows.length,
+        pass,
+        warning,
+        blocked,
+        canStartScanning: blocked === 0,
+        worstStatus: worst,
+        blockedItems,
+      })
+    } catch (e: any) {
+      console.warn(`[preflight-batch] packing ${packingId} failed:`, e?.message)
+      results.push({
+        packingId,
+        bookingNumber: booking?.booking_number ?? null,
+        customerName: booking?.client ?? null,
+        eventDate: booking?.eventdate ?? booking?.rigdaydate ?? null,
+        totalItems: 0,
+        pass: 0,
+        warning: 0,
+        blocked: 0,
+        canStartScanning: false,
+        worstStatus: 'ERROR',
+        blockedItems: [],
+        error: e?.message || 'Unknown error',
+      })
     }
-
-    const blockedItems = rows.filter((r) => r.status === 'BLOCKED')
-
-    results.push({
-      packingId,
-      bookingNumber: booking?.booking_number ?? null,
-      customerName: booking?.client ?? null,
-      eventDate: booking?.eventdate ?? booking?.rigdaydate ?? null,
-      totalItems: rows.length,
-      pass,
-      warning,
-      blocked,
-      canStartScanning: blocked === 0,
-      worstStatus: worst,
-      blockedItems,
-    })
   }
 
   // 4. Sort worst-first
