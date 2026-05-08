@@ -464,11 +464,16 @@ export default function PresenceDayOverview() {
           {row?.error && !row.loading && (
             <div className="absolute inset-0 flex items-center pl-2 text-[11px] text-destructive">{row.error}</div>
           )}
-          {row && toOverviewBlocks(s.staffId, s.name, date, row.blocks as any).map((b, i) =>
-            renderBlock(b, `${s.staffId}-${i}`, () => {
-              setShowTech(false);
-              setSelected({ staff: s, block: b });
-            }),
+          {row && (
+            (row.engineBlocks && row.engineBlocks.length > 0
+              ? presenceDayBlocksToOverview(s.staffId, s.name, date, row.engineBlocks as any)
+              : toOverviewBlocks(s.staffId, s.name, date, row.blocks as any)
+            ).map((b, i) =>
+              renderBlock(b, `${s.staffId}-${i}`, () => {
+                setShowTech(false);
+                setSelected({ staff: s, block: b });
+              }),
+            )
           )}
         </div>
       </div>
