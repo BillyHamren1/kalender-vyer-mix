@@ -45,7 +45,10 @@ export type TargetSource =
   | 'permanent_location'
   | 'warehouse'
   | 'recent_confirmed'
-  | 'explicit_time_tracking_location';
+  | 'explicit_time_tracking_location'
+  | 'date_relevant_booking'
+  | 'project_linked_booking'
+  | 'large_project_linked_booking';
 
 export type TargetValidity =
   | 'valid'
@@ -217,6 +220,10 @@ export async function resolveWorkTargets(
     diag.warnings.push(`large bsa hint failed: ${(e as Error).message}`);
   }
 
+  // Track booking_ids referenced by local projects → resolved as bookings later
+  // even if they are not "planned today" via BSA.
+  const projectLinkedBookingIds = new Set<UUID>();
+
   // ─────────────────────────── Projects ────────────────────────────────────
   try {
     const { data, error } = await supabaseAdmin
@@ -230,6 +237,9 @@ export async function resolveWorkTargets(
     if (error) {
       diag.warnings.push(`projects: ${error.message}`);
     } else {
+      for (const r of data ?? []) {
+        if (r.booking_id) projectLinkedBookingIds.add(r.booking_id);
+      }
       // Fallback: för projekt utan coords men med booking_id, hämta booking-coords.
       // Triggern (inherit_booking_coords_to_project) sköter normalfallet, men för
       // historisk data eller race conditions behåller vi en runtime-safety net.
@@ -304,6 +314,12 @@ export async function resolveWorkTargets(
         if (validity !== 'valid') bumpExcluded(diag, validity);
         else diag.validTargets += 1;
 
+        const notes: string[] = [];
+        if (coordsFromBooking) notes.push('coords_from_booking_fallback');
+        if (validity === 'missing_coordinates' && r.deliveryaddress) {
+          notes.push('address_exists_but_missing_coordinates');
+        }
+
         targets.push({
           id: r.id,
           type: 'project',
@@ -317,7 +333,7 @@ export async function resolveWorkTargets(
           timeTrackingAllowed: true,
           dateRelevance: isPlannedToday ? 'today' : 'recent',
           status,
-          diagnostics: { notes: coordsFromBooking ? ['coords_from_booking_fallback'] : [] },
+          diagnostics: { notes },
         });
       }
     }
@@ -356,6 +372,11 @@ export async function resolveWorkTargets(
         if (validity !== 'valid') bumpExcluded(diag, validity);
         else diag.validTargets += 1;
 
+        const lpNotes: string[] = [];
+        if (validity === 'missing_coordinates' && r.address) {
+          lpNotes.push('address_exists_but_missing_coordinates');
+        }
+
         targets.push({
           id: r.id,
           type: 'project',
@@ -369,7 +390,7 @@ export async function resolveWorkTargets(
           timeTrackingAllowed: true,
           dateRelevance: isPlannedToday ? 'today' : 'recent',
           status,
-          diagnostics: { notes: [] },
+          diagnostics: { notes: lpNotes },
         });
       }
     }
@@ -377,8 +398,55 @@ export async function resolveWorkTargets(
     diag.warnings.push(`large_projects fetch failed: ${(e as Error).message}`);
   }
 
-  // ─────────────────────────── Bookings (planned-today only) ───────────────
-  if (todayBookingIds.size > 0) {
+  // ─────────────────────────── Bookings (expanded) ────────────────────────
+  // We resolve bookings from multiple sources, in priority order:
+  //   1. planned_today              — BSA + calendar_events for `date`
+  //   2. date_relevant_booking      — bookings with eventdate/rigdaydate/rigdowndate = date
+  //   3. project_linked_booking     — bookings referenced by local projects
+  //   4. large_project_linked_booking — bookings referenced by today-relevant LP
+  // The first source that contributes a booking_id wins (priority via priorityMap).
+  const bookingSourceMap = new Map<UUID, TargetSource>();
+  for (const id of todayBookingIds) bookingSourceMap.set(id, 'planned_today');
+
+  // 2) date-relevant bookings (eventdate/rigdaydate/rigdowndate = date)
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('bookings')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .or(`eventdate.eq.${date},rigdaydate.eq.${date},rigdowndate.eq.${date}`);
+    if (error) diag.warnings.push(`date-relevant bookings: ${error.message}`);
+    else (data ?? []).forEach((r: any) => {
+      if (!bookingSourceMap.has(r.id)) bookingSourceMap.set(r.id, 'date_relevant_booking');
+    });
+  } catch (e) {
+    diag.warnings.push(`date-relevant bookings failed: ${(e as Error).message}`);
+  }
+
+  // 3) project-linked bookings (referenced by local projects)
+  for (const id of projectLinkedBookingIds) {
+    if (!bookingSourceMap.has(id)) bookingSourceMap.set(id, 'project_linked_booking');
+  }
+
+  // 4) bookings linked to today-relevant large projects
+  if (todayLargeProjectIds.size > 0) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('large_project_bookings')
+        .select('booking_id')
+        .in('large_project_id', Array.from(todayLargeProjectIds));
+      if (error) diag.warnings.push(`large_project_bookings: ${error.message}`);
+      else (data ?? []).forEach((r: any) => {
+        if (r.booking_id && !bookingSourceMap.has(r.booking_id)) {
+          bookingSourceMap.set(r.booking_id, 'large_project_linked_booking');
+        }
+      });
+    } catch (e) {
+      diag.warnings.push(`large_project_bookings failed: ${(e as Error).message}`);
+    }
+  }
+
+  if (bookingSourceMap.size > 0) {
     try {
       const { data, error } = await supabaseAdmin
         .from('bookings')
@@ -386,7 +454,7 @@ export async function resolveWorkTargets(
           'id, title, status, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate',
         )
         .eq('organization_id', organizationId)
-        .in('id', Array.from(todayBookingIds));
+        .in('id', Array.from(bookingSourceMap.keys()));
 
       if (error) {
         diag.warnings.push(`bookings: ${error.message}`);
@@ -407,6 +475,17 @@ export async function resolveWorkTargets(
           if (validity !== 'valid') bumpExcluded(diag, validity);
           else diag.validTargets += 1;
 
+          const source = bookingSourceMap.get(r.id) ?? 'date_relevant_booking';
+          const isDateMatch =
+            r.eventdate === date || r.rigdaydate === date || r.rigdowndate === date;
+          const dateRelevance: ResolvedWorkTarget['dateRelevance'] =
+            source === 'planned_today' || isDateMatch ? 'today' : 'recent';
+
+          const bNotes: string[] = [];
+          if (validity === 'missing_coordinates' && r.deliveryaddress) {
+            bNotes.push('address_exists_but_missing_coordinates');
+          }
+
           targets.push({
             id: r.id,
             type: 'booking',
@@ -415,12 +494,12 @@ export async function resolveWorkTargets(
             longitude: lng,
             radiusMeters: radius,
             polygon: null,
-            targetSource: 'planned_today',
+            targetSource: source,
             targetValidity: validity,
             timeTrackingAllowed: true,
-            dateRelevance: 'today',
+            dateRelevance,
             status: r.status ?? null,
-            diagnostics: { notes: [] },
+            diagnostics: { notes: bNotes },
           });
         }
       }
