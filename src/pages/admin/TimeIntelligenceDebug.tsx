@@ -1481,6 +1481,15 @@ export default function TimeIntelligenceDebug() {
               </Label>
             </div>
             <div className="ml-auto flex flex-wrap gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={scanTestable}
+                disabled={!date || staff.length === 0 || testableScanning || loading}
+              >
+                {testableScanning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Hitta testbara personer för valt datum
+              </Button>
               <Button variant="outline" size="sm" onClick={() => runBatch(todayIso(), true)} disabled={loading}>
                 Kör alla med aktiv arbetsdag idag
               </Button>
@@ -1492,6 +1501,11 @@ export default function TimeIntelligenceDebug() {
           {batchProgress && (
             <p className="text-xs text-muted-foreground">
               Kör batch: {batchProgress.done} / {batchProgress.total}
+            </p>
+          )}
+          {testableProgress && (
+            <p className="text-xs text-muted-foreground">
+              Skannar testbara: {testableProgress.done} / {testableProgress.total}
             </p>
           )}
         </CardContent>
