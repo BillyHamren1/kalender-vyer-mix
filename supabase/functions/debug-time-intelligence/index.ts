@@ -442,6 +442,29 @@ Deno.serve(async (req) => {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  // 5b) autoStartSummary  (compact glance)
+  // ════════════════════════════════════════════════════════════════════════
+  const blockedByReason: Record<string, number> = {};
+  let allowedCount = 0;
+  let blockedCount = 0;
+  let firstAllowedDecision: typeof autoStartDecisions[number] | null = null;
+  for (const d of autoStartDecisions) {
+    if (d.allowed) {
+      allowedCount++;
+      if (!firstAllowedDecision) firstAllowedDecision = d;
+    } else {
+      blockedCount++;
+      blockedByReason[d.reason] = (blockedByReason[d.reason] ?? 0) + 1;
+    }
+  }
+  const autoStartSummary = {
+    allowedCount,
+    blockedCount,
+    blockedByReason,
+    firstAllowedDecision,
+  };
+
+  // ════════════════════════════════════════════════════════════════════════
   // 6) legacyLeakCheck
   // ════════════════════════════════════════════════════════════════════════
   const inputLeak = assertNoLegacySources(body, { debug: false, label: "debug-time-intelligence" });
@@ -463,6 +486,7 @@ Deno.serve(async (req) => {
     gpsDayTimeline,
     compactCounts,
     autoStartDecisions,
+    autoStartSummary,
     activeTimeRegistrationPreview,
     legacyLeakCheck,
     warnings,
