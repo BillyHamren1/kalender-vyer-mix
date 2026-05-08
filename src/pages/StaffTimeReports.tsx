@@ -348,6 +348,12 @@ const StaffTimeReports: React.FC = () => {
       const travel = travelRes.data || [];
       const locationEntries = locationRes.data || [];
       const workdays = workdaysRes.data || [];
+      // ── Authoritativ aktiv-timer-källa (Time Engine) ───────────────
+      const activeRegRows = ((activeRegRes as any).error ? [] : (activeRegRes as any).data || []) as any[];
+      const activeRegByStaff = new Map<string, any>();
+      for (const r of activeRegRows) {
+        if (!activeRegByStaff.has(r.staff_id)) activeRegByStaff.set(r.staff_id, r);
+      }
       // historyPings hämtas per-staff längre ned (efter att staffIds är kända)
       // för att kunna paginera komplett utan global limit.
       let historyPings: any[] = [];
