@@ -281,7 +281,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     const category = ext.category ? String(ext.category) : null;
     const assignedCount = Array.isArray(ext.assignedIds) ? ext.assignedIds.length : 0;
     return (
-      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+      <EventHoverCard event={event} onClick={handleViewDetails}>
         <div
           className="h-full w-full rounded-md border-l-4 px-1.5 py-1 text-[11px] leading-tight overflow-hidden"
           style={{
