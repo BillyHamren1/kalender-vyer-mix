@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
       const { data: prof } = await userClient
         .from("profiles")
         .select("organization_id")
-        .eq("id", data.user.id)
+        .eq("user_id", data.user.id)
         .maybeSingle();
       userOrgId = prof?.organization_id ?? null;
     } catch {
