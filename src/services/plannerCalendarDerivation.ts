@@ -19,6 +19,7 @@ interface RealCalendarEventRow {
 interface BookingRow {
   id: string;
   client: string | null;
+  title: string | null;
   booking_number: string | null;
   deliveryaddress: string | null;
   large_project_id: string | null;
