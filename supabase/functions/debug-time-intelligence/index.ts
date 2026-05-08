@@ -322,81 +322,12 @@ Deno.serve(async (req) => {
     segments: returnedSegments,
   };
 
-  // ════════════════════════════════════════════════════════════════════════
-  // 3b) payableSnapshot — visibility-only read of workday/attest
-  //     Bypasses the legacy-leak proxy intentionally; this is debug, not engine.
-  // ════════════════════════════════════════════════════════════════════════
-  let payableSnapshot: any = null;
-  try {
-    const { data: wdRows } = await realClient
-      .from("workdays")
-      .select("id, started_at, ended_at, approved_at, status")
-      .eq("staff_id", staffId)
-      .gte("started_at", dayStart)
-      .lte("started_at", dayEnd)
-      .order("started_at", { ascending: true });
-    const wd = (wdRows ?? [])[0] ?? null;
-    const wdStart = wd?.started_at ?? null;
-    const wdEnd = wd?.ended_at ?? null;
-    const wdDurationMinutes = wdStart && wdEnd
-      ? Math.round((new Date(wdEnd).getTime() - new Date(wdStart).getTime()) / 60000)
-      : null;
-    // Filter GPS segments to workday window for payable visibility
-    let snapshotSegments: GpsTimelineSegment[] = [];
-    if (wdStart) {
-      const wsMs = new Date(wdStart).getTime();
-      const weMs = wdEnd ? new Date(wdEnd).getTime() : Date.now();
-      snapshotSegments = timeline.segments.filter((s) => {
-        const sMs = new Date(s.startTs).getTime();
-        const eMs = new Date(s.endTs).getTime();
-        return eMs >= wsMs && sMs <= weMs;
-      });
-    }
-    payableSnapshot = {
-      workdayStart: wdStart,
-      workdayEnd: wdEnd,
-      workdayDurationMinutes: wdDurationMinutes,
-      workdayIsOpen: !!wd && !wdEnd,
-      workdayApproved: !!wd?.approved_at,
-      workdayStatus: wd?.status ?? null,
-      workdayCount: (wdRows ?? []).length,
-      segmentSource: "gps_day_timeline_clipped_to_workday",
-      segmentsCount: snapshotSegments.length,
-      segments: snapshotSegments.slice(0, SEGMENT_RETURN_CAP),
-    };
-  } catch (e) {
-    payableSnapshot = { error: String((e as any)?.message ?? e) };
-  }
-
-  // Clipping detector: did pings exist outside the workday window but our
-  // GPS timeline appears to only span it?
-  if (
-    rawPings.length > 0 &&
-    payableSnapshot?.workdayStart &&
-    payableSnapshot?.workdayEnd &&
-    gpsFirstStart &&
-    gpsLastEnd
-  ) {
-    const firstPingMs = new Date(rawPings[0].recorded_at).getTime();
-    const lastPingMs = new Date(rawPings[rawPings.length - 1].recorded_at).getTime();
-    const wsMs = new Date(payableSnapshot.workdayStart).getTime();
-    const weMs = new Date(payableSnapshot.workdayEnd).getTime();
-    const tlStartMs = new Date(gpsFirstStart).getTime();
-    const tlEndMs = new Date(gpsLastEnd).getTime();
-    const pingsExtendOutside = firstPingMs < wsMs - 60_000 || lastPingMs > weMs + 60_000;
-    const timelineHugsWorkday = tlStartMs >= wsMs - 60_000 && tlEndMs <= weMs + 60_000;
-    if (pingsExtendOutside && timelineHugsWorkday) {
-      warnings.push("gps_day_timeline_is_clipped_to_workday");
-    }
-  }
+  // payableSnapshot intentionally removed — GPS-only debug must NOT mix in
+  // workday/payable/attest. Den fasen hör hemma i ett separat verktyg.
 
   const compactCounts = {
     rawPingCount: rawPings.length,
     gpsDayTimelineCount: gpsDayTimeline.count,
-    snapshotSegmentsCount: payableSnapshot?.segmentsCount ?? 0,
-    workdayStart: payableSnapshot?.workdayStart ?? null,
-    workdayEnd: payableSnapshot?.workdayEnd ?? null,
-    workdayDurationMinutes: payableSnapshot?.workdayDurationMinutes ?? null,
   };
 
   if (rawPings.length === 0) warnings.push("no_pings_for_day");
@@ -404,6 +335,7 @@ Deno.serve(async (req) => {
     warnings.push("no_known_targets_with_coords_in_org");
   if (rawPings.length > 0 && timeline.segments.length === 0)
     warnings.push("pings_present_but_no_segments_built");
+
 
   // ════════════════════════════════════════════════════════════════════════
   // 4) autoStartDecisions  (per stay-segment)
@@ -529,7 +461,6 @@ Deno.serve(async (req) => {
     rawPingsCoverage,
     targetDiagnostics: targetDiagnosticsBlock,
     gpsDayTimeline,
-    payableSnapshot,
     compactCounts,
     autoStartDecisions,
     activeTimeRegistrationPreview,
