@@ -220,6 +220,10 @@ export async function resolveWorkTargets(
     diag.warnings.push(`large bsa hint failed: ${(e as Error).message}`);
   }
 
+  // Track booking_ids referenced by local projects → resolved as bookings later
+  // even if they are not "planned today" via BSA.
+  const projectLinkedBookingIds = new Set<UUID>();
+
   // ─────────────────────────── Projects ────────────────────────────────────
   try {
     const { data, error } = await supabaseAdmin
@@ -233,6 +237,9 @@ export async function resolveWorkTargets(
     if (error) {
       diag.warnings.push(`projects: ${error.message}`);
     } else {
+      for (const r of data ?? []) {
+        if (r.booking_id) projectLinkedBookingIds.add(r.booking_id);
+      }
       // Fallback: för projekt utan coords men med booking_id, hämta booking-coords.
       // Triggern (inherit_booking_coords_to_project) sköter normalfallet, men för
       // historisk data eller race conditions behåller vi en runtime-safety net.
@@ -307,6 +314,12 @@ export async function resolveWorkTargets(
         if (validity !== 'valid') bumpExcluded(diag, validity);
         else diag.validTargets += 1;
 
+        const notes: string[] = [];
+        if (coordsFromBooking) notes.push('coords_from_booking_fallback');
+        if (validity === 'missing_coordinates' && r.deliveryaddress) {
+          notes.push('address_exists_but_missing_coordinates');
+        }
+
         targets.push({
           id: r.id,
           type: 'project',
@@ -320,7 +333,7 @@ export async function resolveWorkTargets(
           timeTrackingAllowed: true,
           dateRelevance: isPlannedToday ? 'today' : 'recent',
           status,
-          diagnostics: { notes: coordsFromBooking ? ['coords_from_booking_fallback'] : [] },
+          diagnostics: { notes },
         });
       }
     }
