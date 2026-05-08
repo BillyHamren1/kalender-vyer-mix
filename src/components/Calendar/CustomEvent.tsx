@@ -332,7 +332,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // If read-only, just render the card with double-click for details
   if (readOnly) {
     return (
-      <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+      <EventHoverCard event={event} onClick={handleViewDetails}>
         {eventCardContent}
       </EventHoverCard>
     );
