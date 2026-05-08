@@ -169,6 +169,7 @@ export default function StaffPresenceDay() {
   const [staffName, setStaffName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
 
   const load = useCallback(async () => {
     if (!staffId) return;
