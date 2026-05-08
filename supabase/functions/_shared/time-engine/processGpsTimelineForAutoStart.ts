@@ -95,6 +95,18 @@ export interface ProcessAutoStartResult {
   createdRegistrationId: UUID | null;
   decisions: AutoStartDecisionLogEntry[];
   targetDiagnostics?: TargetDiagnostics;
+  /**
+   * Set when an active suppression row in `time_auto_start_suppressions`
+   * blocked all auto-start decisions for this staff/date. The user
+   * manually ended their workday earlier today; only manual start from
+   * WorkDayPanel may resume the timer for the rest of the local day.
+   */
+  suppression?: {
+    id: UUID;
+    suppressedUntil: ISODateTime;
+    reason: string;
+    source: string;
+  } | null;
   computedAt: ISODateTime;
 }
 
