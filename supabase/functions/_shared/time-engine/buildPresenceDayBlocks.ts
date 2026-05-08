@@ -137,8 +137,20 @@ export interface PresenceDayBlocksResult {
   organizationId: UUID;
   date: ISODate;
   computedAt: ISODateTime;
+  /** Aggregated, semantically meaningful day blocks — UI/time-report layer. */
   blocks: PresenceDayBlock[];
+  /** Per-segment raw evidence blocks (pre-aggregation) — debug/technical UI. */
+  evidenceBlocks: PresenceDayBlock[];
+  /** Aliases for callers that prefer the explicit name. */
+  presenceDayBlocks: PresenceDayBlock[];
+  presenceDayBlocksRawEvidence: PresenceDayBlock[];
   summary: PresenceDaySummary;
+  /** Aggregation diagnostics (rawEvidence/aggregated counts + ratio). */
+  aggregation: {
+    rawEvidenceBlocksCount: number;
+    presenceDayBlocksCount: number;
+    compressionRatio: number;
+  };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
