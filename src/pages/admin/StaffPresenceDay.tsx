@@ -92,6 +92,7 @@ export default function StaffPresenceDay() {
   const date = searchParams.get("date") || today;
 
   const [data, setData] = useState<DayResponse | null>(null);
+  const [staffName, setStaffName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,6 +100,13 @@ export default function StaffPresenceDay() {
     if (!staffId) return;
     setLoading(true);
     setError(null);
+    // Fetch staff name directly so header always works
+    supabase
+      .from("staff_members")
+      .select("name")
+      .eq("id", staffId)
+      .maybeSingle()
+      .then(({ data: s }) => { if (s?.name) setStaffName(s.name); });
     try {
       const { data: resp, error: fnErr } = await supabase.functions.invoke<DayResponse>(
         "get-staff-presence-day",
