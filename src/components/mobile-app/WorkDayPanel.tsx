@@ -142,27 +142,29 @@ export const WorkDayPanel: React.FC = () => {
     }
   };
 
-  // ── LÄGE A — ingen aktiv timer ───────────────────────────────────────
+  // ── LÄGE A — ingen aktiv timer (kompakt) ────────────────────────────
   if (!timer.timerActive) {
     return (
       <>
-        <div className="rounded-3xl border border-border/60 bg-card p-8 shadow-md text-center">
-          <div className="flex items-center justify-center w-14 h-14 mx-auto rounded-2xl bg-muted mb-4">
-            <Clock className="w-7 h-7 text-muted-foreground" />
+        <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-muted shrink-0">
+            <Clock className="w-4 h-4 text-muted-foreground" />
           </div>
-          <p className="text-2xl font-extrabold text-foreground tracking-tight">
-            Tid registreras inte
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Starta timern när du börjar jobba.
-          </p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground leading-tight">
+              Tid registreras inte
+            </p>
+            <p className="text-xs text-muted-foreground leading-tight mt-0.5">
+              Starta timern när du börjar jobba.
+            </p>
+          </div>
           <button
             onClick={handleStartClick}
             disabled={starting}
-            className="mt-6 w-full h-16 rounded-2xl bg-primary text-primary-foreground font-extrabold text-lg flex items-center justify-center gap-2 shadow-lg active:scale-[0.99] transition-all disabled:opacity-60"
+            className="shrink-0 h-11 px-4 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center gap-1.5 active:scale-[0.99] transition-all disabled:opacity-60"
           >
-            {starting ? <Loader2 className="w-6 h-6 animate-spin" /> : <Play className="w-6 h-6 fill-current" />}
-            {starting ? 'Startar…' : 'Starta timer'}
+            {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+            <span>{starting ? 'Startar…' : 'Starta timer'}</span>
           </button>
         </div>
         <StartDayDialog
@@ -177,34 +179,41 @@ export const WorkDayPanel: React.FC = () => {
     );
   }
 
-  // ── LÄGE B — aktiv timer ─────────────────────────────────────────────
+  // ── LÄGE B — aktiv timer (kompakt) ──────────────────────────────────
   return (
     <>
-      <div className="rounded-3xl border border-border/60 bg-card p-6 shadow-md">
-        <div className="text-center">
-          <div className="text-5xl font-extrabold tracking-tight text-foreground tabular-nums">
-            {formatHMS(timer.elapsedSeconds)}
+      <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           </div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mt-3">
-            Registreras på
-          </p>
-          <p className="text-base font-bold text-foreground mt-1 line-clamp-2">
-            {timer.registrationLabel}
-          </p>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground leading-none">
+              Timer aktiv
+            </p>
+            <div className="text-2xl font-extrabold tracking-tight text-foreground tabular-nums leading-tight mt-0.5">
+              {formatHMS(timer.elapsedSeconds)}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <p className="text-xs text-muted-foreground mt-2">
+          Registreras på:{' '}
+          <span className="font-semibold text-foreground">{timer.registrationLabel}</span>
+        </p>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             onClick={handleSwitchClick}
-            className="h-12 rounded-2xl bg-secondary text-secondary-foreground font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-all"
+            className="h-11 rounded-xl bg-secondary text-secondary-foreground text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.99] transition-all"
           >
             <Repeat className="w-4 h-4" />
-            Ändra
+            Ändra plats
           </button>
           <button
             onClick={handleStop}
             disabled={stopping}
-            className="h-12 rounded-2xl bg-destructive text-destructive-foreground font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-all disabled:opacity-60"
+            className="h-11 rounded-xl bg-destructive text-destructive-foreground text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.99] transition-all disabled:opacity-60"
           >
             {stopping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4 fill-current" />}
             Stoppa timer
