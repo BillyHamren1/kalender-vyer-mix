@@ -196,9 +196,12 @@ function buildTimeEngineSummary(result: any) {
                 : "not_ready")
     : null;
 
+  const noPings = (cov.pingCount ?? 0) === 0;
+  const status = noPings ? "NO_PINGS" : ready ? "READY_TO_CONFIRM" : "NOT_READY";
+
   return {
-    status: ready ? "READY_TO_CONFIRM" : "NOT_READY",
-    notReadyReason,
+    status,
+    notReadyReason: noPings ? "no_pings_for_day" : notReadyReason,
     rawPingsCoverage: {
       rawPingCount: cov.pingCount ?? 0,
       firstPingAt: cov.firstPingAt ?? null,
@@ -276,9 +279,10 @@ function buildTimeEngineSummary(result: any) {
 
 function TimeEngineDryRunSummary({ result }: { result: any }) {
   const s = useMemo(() => buildTimeEngineSummary(result), [result]);
+  const noPings = s.status === "NO_PINGS";
   const ready = s.status === "READY_TO_CONFIRM";
-  const tone: StatusTone = ready ? "ok" : "bad";
-  const Icon = ready ? CheckCircle2 : XCircle;
+  const tone: StatusTone = ready ? "ok" : noPings ? "warn" : "bad";
+  const Icon = ready ? CheckCircle2 : noPings ? AlertCircle : XCircle;
   const cov = s.rawPingsCoverage;
   const gps = s.gpsSummary;
   const auto = s.autoStartSummary;
@@ -294,6 +298,18 @@ function TimeEngineDryRunSummary({ result }: { result: any }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {noPings && (
+          <div className="rounded-md border border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant="outline" className="border-amber-600 text-amber-700 dark:text-amber-300">
+                NO_PINGS
+              </Badge>
+            </div>
+            <div className="text-amber-900 dark:text-amber-100">
+              Inga GPS-pings finns för denna person/dag. Personen kan inte torrköras eftersom appen inte har skickat positioner.
+            </div>
+          </div>
+        )}
         <section>
           <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">1. Data in</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
