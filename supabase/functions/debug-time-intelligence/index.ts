@@ -595,6 +595,8 @@ Deno.serve(async (req) => {
   // 6) legacyLeakCheck
   // ════════════════════════════════════════════════════════════════════════
   const inputLeak = assertNoLegacySources(body, { debug: false, label: "debug-time-intelligence" });
+  const legacyLeakDetected =
+    inputLeak.legacySourceLeakDetected || legacyDbReads.length > 0;
   const legacyLeakCheck = {
     inputLegacySourceLeakDetected: inputLeak.legacySourceLeakDetected,
     inputLegacySources: inputLeak.legacySources,
@@ -602,7 +604,49 @@ Deno.serve(async (req) => {
     forbiddenTables: Array.from(FORBIDDEN_TABLES),
     forbiddenTableReadsObserved: legacyDbReads,
     forbiddenTableLeakDetected: legacyDbReads.length > 0,
+    legacyLeakDetected,
   };
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 7) Strict READY_TO_CONFIRM gate
+  // ════════════════════════════════════════════════════════════════════════
+  // Mirror wouldCreate as wouldCreateActiveRegistration for explicit naming.
+  if (activeTimeRegistrationPreview && typeof activeTimeRegistrationPreview === "object") {
+    activeTimeRegistrationPreview.wouldCreateActiveRegistration =
+      activeTimeRegistrationPreview.wouldCreate === true;
+  }
+
+  const allowedDecisionsComplete = allowedDecisions.every(
+    (d) =>
+      d.startAt != null &&
+      d.dwellSeconds != null &&
+      d.arrivalPingsCount != null &&
+      d.targetName != null &&
+      d.confidence != null,
+  );
+
+  const readinessFailures: string[] = [];
+  if (warnings.length !== 0) readinessFailures.push("warnings_present");
+  if (legacyLeakDetected) readinessFailures.push("legacy_leak_detected");
+  if (!(compactCounts.rawPingCount > 0)) readinessFailures.push("no_raw_pings");
+  if (!(compactCounts.gpsDayTimelineCount > 0)) readinessFailures.push("empty_gps_day_timeline");
+  if (!(autoStartSummary.allowedCount > 0)) readinessFailures.push("no_allowed_auto_start");
+  if (activeTimeRegistrationPreview?.wouldCreateActiveRegistration !== true)
+    readinessFailures.push("preview_would_not_create");
+  if (!(targetSummary.validCount > 0)) readinessFailures.push("no_valid_targets");
+  if (!allowedDecisionsComplete) readinessFailures.push("allowed_decisions_missing_evidence");
+
+  if (readinessFailures.length > 0 && activeTimeRegistrationPreview) {
+    activeTimeRegistrationPreview.status = "NOT_READY";
+    activeTimeRegistrationPreview.wouldCreate = false;
+    activeTimeRegistrationPreview.wouldCreateActiveRegistration = false;
+    activeTimeRegistrationPreview.reason =
+      activeTimeRegistrationPreview.reason ?? readinessFailures[0];
+    activeTimeRegistrationPreview.readinessFailures = readinessFailures;
+  } else if (activeTimeRegistrationPreview) {
+    activeTimeRegistrationPreview.status = "READY_TO_CONFIRM";
+    activeTimeRegistrationPreview.readinessFailures = [];
+  }
 
   return json(200, {
     ok: true,
