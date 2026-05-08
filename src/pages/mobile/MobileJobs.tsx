@@ -1,15 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
-import { type WorkTarget } from '@/hooks/useWorkSession';
-import { useTimerStartFlow } from '@/hooks/useTimerStartFlow';
-import { TimerConflictDialog } from '@/components/mobile-app/TimerConflictDialog';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
-import DistanceWarningDialog from '@/components/mobile-app/DistanceWarningDialog';
 import { HeaderShell, HeaderStartEndDayButton } from '@/components/mobile-app/MobileHeader';
 import WorkDayPanel from '@/components/mobile-app/WorkDayPanel';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
@@ -17,7 +12,7 @@ import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
-import { Loader2, RefreshCw, Clock, Square, Building2, MapPin, UserCircle2 } from 'lucide-react';
+import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -26,7 +21,23 @@ import { useWorkDay } from '@/hooks/useWorkDay';
 const VIEW_MODE_KEY = 'mobile.calendarView';
 const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
 
-
+/**
+ * MobileJobs — calendar/job overview.
+ *
+ * TIMER POLICY (2026-05-08):
+ *   This page no longer starts or stops any timer. The single timer surface
+ *   in the Time app is `WorkDayPanel` (driven by `active_time_registrations`
+ *   via `useActiveTimerStatus` + `mobileApi.startTimeRegistration` /
+ *   `stopTimeRegistration`). Job/project/location cards are read-only —
+ *   tapping them only opens the corresponding detail page.
+ *
+ *   Removed from this file: `useTimerStartFlow`, `handleTimerToggle`,
+ *   `handleProjectTimerToggle`, `handleLocationTimerToggle`, the
+ *   `TimerConflictDialog`, the `DistanceWarningDialog`, and any
+ *   clock/stop buttons rendered on the cards themselves. `activeTimers`
+ *   from `GeofencingContext` is no longer treated as timer authority and
+ *   is not surfaced as visual highlight on the cards.
+ */
 const MobileJobs = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
@@ -36,7 +47,6 @@ const MobileJobs = () => {
   const { current: currentWorkday } = useWorkDay();
   const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
 
-
   // Calendar view state — persisted in localStorage
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
     const stored = localStorage.getItem(VIEW_MODE_KEY);
@@ -45,38 +55,20 @@ const MobileJobs = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   useEffect(() => { localStorage.setItem(VIEW_MODE_KEY, viewMode); }, [viewMode]);
 
-  const { activeTimers, userPosition, isTracking, geofenceEvent, nearbyBookings, orgLocations, dismissGeofenceEvent } = useGeofencingContext();
+  const { geofenceEvent, dismissGeofenceEvent, orgLocations } = useGeofencingContext();
 
-  // ALL starts go through useTimerStartFlow → evaluateStartConflict →
-  // startSession. No raw startTimer / startSession calls here. Direct
-  // calls are forbidden and fail the unification contract test.
-  const {
-    requestStart,
-    cancelConflict,
-    confirmSwitch,
-    conflictEval,
-    pendingLabel,
-    distanceWarning,
-    dismissDistanceWarning,
-  } = useTimerStartFlow(bookings, staff?.id);
-
-  // Fixed locations that should appear as job cards
+  // Fixed locations that should appear as job cards (read-only)
   const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
 
   /**
-   * Geofence ENTER no longer auto-starts a timer. The arrival popup
+   * Geofence ENTER no longer auto-starts any timer here. The arrival popup
    * (UnifiedArrivalPrompt, rendered globally by MobileGlobalOverlays) is
-   * now the single user-visible entry point for geo-driven starts. This
-   * eliminates "phantom timers" that started silently in the background.
-   *
-   * EXIT still routes the user to /m/report so save-then-stop runs.
+   * the single user-visible entry point for geo-driven starts. EXIT routes
+   * the user to /m/report so save-then-stop runs (handled globally now).
    */
-  const handleGeofenceConfirm = (correctedStartTime?: string) => {
-    if (!geofenceEvent) {
-      return;
-    }
+  const handleGeofenceConfirm = () => {
+    if (!geofenceEvent) return;
     if (geofenceEvent.type === 'enter') {
-      // Intentional no-op. Arrival popup handles the start.
       console.log('[MobileJobs] geofence enter — deferring to arrival popup');
     } else {
       toast.success(t('timer.stoppedCreateReport'));
@@ -85,65 +77,9 @@ const MobileJobs = () => {
     dismissGeofenceEvent();
   };
 
-
-  // Timer toggle for standalone bookings.
-  // STOP path: never clears local timer here — navigates user to /m/report
-  // where save-then-stop is enforced.
-  const handleTimerToggle = async (e: React.MouseEvent, booking: MobileBooking) => {
-    e.stopPropagation();
-    if (activeTimers.has(booking.id)) {
-      toast.success(t('timer.stoppedCreateReport'));
-      navigate('/m/report');
-      return;
-    }
-    const target: WorkTarget = { kind: 'booking', bookingId: booking.id, client: booking.client };
-    await requestStart(target);
-  };
-
-  // Timer toggle for projects
-  const handleProjectTimerToggle = async (e: React.MouseEvent, lpId: string, name: string, _entries: { booking: MobileBooking }[]) => {
-    e.stopPropagation();
-    const projectKey = `project-${lpId}`;
-    if (activeTimers.has(projectKey)) {
-      toast.success(t('timer.stoppedCreateReport'));
-      navigate('/m/report');
-      return;
-    }
-    const target: WorkTarget = { kind: 'project', largeProjectId: lpId, name };
-    await requestStart(target);
-  };
-
-  // Timer toggle for fixed locations (e.g. Lager)
-  const handleLocationTimerToggle = async (e: React.MouseEvent, loc: typeof locationJobs[0]) => {
-    e.stopPropagation();
-    const locKey = `location-${loc.id}`;
-    if (activeTimers.has(locKey)) {
-      toast.success(t('timer.stoppedCreateReport'));
-      navigate('/m/report');
-      return;
-    }
-    const target: WorkTarget = {
-      kind: 'location',
-      locationId: loc.id,
-      name: loc.name,
-    };
-    await requestStart(target);
-  };
-  // Elapsed time display
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (activeTimers.size === 0) return;
-    const id = setInterval(() => setTick(t => t + 1), 1000);
-    return () => clearInterval(id);
-  }, [activeTimers.size]);
-
-  const formatElapsed = (startIso: string) => {
-    const secs = Math.floor((Date.now() - new Date(startIso).getTime()) / 1000);
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
+  // Empty set — cards are not visually tied to legacy activeTimers anymore.
+  // The single timer surface is WorkDayPanel.
+  const noActiveBookingIds = new Set<string>();
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
@@ -189,8 +125,6 @@ const MobileJobs = () => {
           </button>
         </div>
       </HeaderShell>
-      {/* "X aktiv timer"-bannern borttagen — GlobalActiveTimerBanner visar
-          redan varje timer som egen rad högst upp, så detta var dubbelinfo. */}
 
       {/* Content */}
       <div className="flex-1 px-4 py-4 space-y-5">
@@ -214,7 +148,7 @@ const MobileJobs = () => {
               <MobileDayView
                 date={selectedDate}
                 shifts={shifts}
-                activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+                activeBookingIds={noActiveBookingIds}
                 onShowWeek={() => setViewMode('week')}
               />
             )}
@@ -223,7 +157,7 @@ const MobileJobs = () => {
                 selectedDate={selectedDate}
                 onSelectDate={setSelectedDate}
                 shifts={shifts}
-                activeBookingIds={new Set(Array.from(activeTimers.keys()))}
+                activeBookingIds={noActiveBookingIds}
               />
             )}
             {viewMode === 'month' && (
@@ -235,7 +169,7 @@ const MobileJobs = () => {
             )}
           </div>
 
-          {/* Fixed location jobs (e.g. Lager) */}
+          {/* Fixed location jobs (e.g. Lager) — read-only, opens detail. */}
           {locationJobs.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-2.5">
@@ -245,69 +179,35 @@ const MobileJobs = () => {
                 </h2>
               </div>
               <div className="space-y-2">
-                {locationJobs.map(loc => {
-                  const locKey = `location-${loc.id}`;
-                  const hasTimer = activeTimers.has(locKey);
-                  const timer = activeTimers.get(locKey);
-
-                  return (
-                    <div
-                      key={loc.id}
-                      className={cn(
-                        "w-full rounded-2xl border bg-card p-3.5 transition-all duration-150",
-                        hasTimer
-                          ? "border-primary/30 shadow-md ring-1 ring-primary/10"
-                          : "border-primary/20 shadow-md",
-                      )}
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={() => navigate(`/m/location/${loc.id}`)}
-                          className="flex-1 min-w-0 text-left active:opacity-70"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <Building2 className="w-3.5 h-3.5 text-primary/70" />
-                            <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-accent/50 text-accent-foreground border-accent/30">
-                              LOCATION
-                            </span>
-                          </div>
-                          <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
-                            {loc.name}
-                          </h3>
-                          {loc.address && (
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/40" />
-                              <span className="truncate">{loc.address}</span>
-                            </div>
-                          )}
-                          {hasTimer && timer && (
-                            <p className="text-xs font-mono tabular-nums text-primary font-bold mt-1">
-                              ⏱ {formatElapsed(timer.startTime)}
-                            </p>
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => handleLocationTimerToggle(e, loc)}
-                          className={cn(
-                            "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
-                            hasTimer
-                              ? "bg-destructive text-destructive-foreground shadow-md"
-                              : "bg-primary/10 text-primary hover:bg-primary/20"
-                          )}
-                        >
-                          {hasTimer ? <Square className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                        </button>
-                      </div>
+                {locationJobs.map(loc => (
+                  <button
+                    key={loc.id}
+                    onClick={() => navigate(`/m/location/${loc.id}`)}
+                    className="w-full text-left rounded-2xl border border-primary/20 bg-card p-3.5 shadow-md active:opacity-80 transition-all"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="w-3.5 h-3.5 text-primary/70" />
+                      <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-accent/50 text-accent-foreground border-accent/30">
+                        LOCATION
+                      </span>
                     </div>
-                  );
-                })}
+                    <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
+                      {loc.name}
+                    </h3>
+                    {loc.address && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/40" />
+                        <span className="truncate">{loc.address}</span>
+                      </div>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
           )}
           </>
         )}
       </div>
-
 
       {geofenceEvent && (
         <GeofencePrompt
@@ -316,28 +216,6 @@ const MobileJobs = () => {
           onDismiss={dismissGeofenceEvent}
         />
       )}
-
-      <DistanceWarningDialog
-        open={!!distanceWarning}
-        onOpenChange={(open) => { if (!open) dismissDistanceWarning(); }}
-        placeName={distanceWarning?.placeName || ''}
-        distanceMeters={distanceWarning?.distance || 0}
-        onConfirm={async (reason) => {
-          if (!distanceWarning) return false;
-          const status = await distanceWarning.onConfirm(reason);
-          const ok = status === 'started' || status === 'already_running';
-          if (ok) dismissDistanceWarning();
-          return ok;
-        }}
-      />
-
-      <TimerConflictDialog
-        open={!!conflictEval}
-        evaluation={conflictEval}
-        newTargetLabel={pendingLabel}
-        onCancel={cancelConflict}
-        onSwitch={confirmSwitch}
-      />
     </div>
   );
 };
