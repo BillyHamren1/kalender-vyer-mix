@@ -145,6 +145,7 @@ const ROW_META: Record<TimelineRow["type"], { icon: any; cls: string; label: str
   gps_gap: { icon: CircleSlash, cls: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30", label: "GPS-glapp (signal)", group: "gps" },
   active_timer_started: { icon: Play, cls: "bg-primary/15 text-primary border-primary/40 border-l-4 border-l-primary", label: "Timer startad", group: "timer" },
   active_timer_stopped: { icon: Square, cls: "bg-muted text-foreground border-border border-l-4 border-l-primary/60", label: "Timer stoppad", group: "timer" },
+  smoothed_presence: { icon: Clock, cls: "bg-green-500/15 text-green-800 dark:text-green-300 border-green-500/40 border-l-4 border-l-green-500", label: "På känd plats", group: "gps" },
 };
 
 const SIGNAL_META = {
