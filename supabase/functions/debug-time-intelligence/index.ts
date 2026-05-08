@@ -486,6 +486,7 @@ Deno.serve(async (req) => {
     gpsDayTimeline,
     compactCounts,
     autoStartDecisions,
+    autoStartSummary,
     activeTimeRegistrationPreview,
     legacyLeakCheck,
     warnings,
