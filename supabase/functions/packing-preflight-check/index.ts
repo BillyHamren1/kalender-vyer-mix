@@ -55,33 +55,55 @@ interface PreflightRow {
 // ------------------------------------------------------------
 // WMS lookup helpers
 // ------------------------------------------------------------
-// TODO(wms): There is currently NO dedicated Bundle/WMS endpoint
-// for "lookup item_type by id / sku / name" exposed to the
-// scanner-api stack. scan-status only works per serial number,
-// and allocate-instance / checkin-scan are write paths.
-//
-// When such an endpoint becomes available (e.g.
-//   GET /functions/v1/item-type?item_type_id=...
-//   GET /functions/v1/item-type?sku=...
-//   GET /functions/v1/item-type-search?name=...
-// ) wire it in here. Until then these helpers return empty
-// match-sets and we degrade to "cannot confirm WMS identity",
-// which surfaces as BLOCKED for ID-less rows. This is the safe
-// default for a preflight check.
+// Calls Bundle/WMS item-type-lookup. READ-ONLY — never mutates WMS.
+// On non-OK response we log and return [] so the row is classified
+// as unverified (BLOCKED) rather than silently passing.
 // ------------------------------------------------------------
 
 const WMS_BASE_URL = 'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1'
+
+async function wmsLookup(
+  body: Record<string, unknown>,
+  apiKey: string,
+  orgId: string,
+): Promise<any | null> {
+  try {
+    const res = await fetch(`${WMS_BASE_URL}/item-type-lookup`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'x-organization-id': orgId,
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.warn(`[preflight] WMS item-type-lookup failed status=${res.status} body=${text}`)
+      return null
+    }
+    return await res.json()
+  } catch (e: any) {
+    console.warn('[preflight] WMS item-type-lookup network error:', e?.message)
+    return null
+  }
+}
+
+const toMatch = (m: any, matchedBy: string): WmsItemType => ({
+  id: m?.id ?? null,
+  sku: m?.sku ?? null,
+  name: m?.name_sv || m?.name_en || null,
+  matchedBy,
+})
 
 async function wmsLookupByItemTypeId(
   itemTypeId: string,
   apiKey: string,
   orgId: string,
 ): Promise<WmsItemType[]> {
-  // TODO(wms): replace with real endpoint when available.
-  // Intentionally returns [] today so callers treat unknown ids
-  // as unverified.
-  void itemTypeId; void apiKey; void orgId; void WMS_BASE_URL
-  return []
+  const data = await wmsLookup({ item_type_id: itemTypeId }, apiKey, orgId)
+  const m = data?.exactItemTypeMatch
+  return m ? [toMatch(m, 'item_type_id')] : []
 }
 
 async function wmsLookupBySku(
@@ -89,9 +111,9 @@ async function wmsLookupBySku(
   apiKey: string,
   orgId: string,
 ): Promise<WmsItemType[]> {
-  // TODO(wms): replace with real endpoint when available.
-  void sku; void apiKey; void orgId
-  return []
+  const data = await wmsLookup({ sku }, apiKey, orgId)
+  const arr = Array.isArray(data?.skuMatches) ? data.skuMatches : []
+  return arr.map((m: any) => toMatch(m, 'sku'))
 }
 
 async function wmsLookupByName(
@@ -99,9 +121,9 @@ async function wmsLookupByName(
   apiKey: string,
   orgId: string,
 ): Promise<WmsItemType[]> {
-  // TODO(wms): replace with real endpoint when available.
-  void name; void apiKey; void orgId
-  return []
+  const data = await wmsLookup({ name }, apiKey, orgId)
+  const arr = Array.isArray(data?.nameMatches) ? data.nameMatches : []
+  return arr.map((m: any) => toMatch(m, 'name'))
 }
 
 // ------------------------------------------------------------
@@ -307,6 +329,9 @@ Deno.serve(async (req) => {
   }
 
   const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY') || ''
+  if (!PRICELIST_API_KEY) {
+    return json({ success: false, error: 'PRICELIST_API_KEY saknas för WMS preflight' }, 500)
+  }
 
   // 3. Per-row verification
   const rows: PreflightRow[] = []
