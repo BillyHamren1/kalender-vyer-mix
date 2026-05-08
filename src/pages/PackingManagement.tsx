@@ -190,6 +190,13 @@ const PackingManagement = () => {
               queryClient.invalidateQueries({ queryKey: ['bookings-without-packing'] });
             }}
           />
+
+          <details className="mt-8">
+            <summary className="cursor-pointer text-sm text-muted-foreground">
+              Dev / Debug
+            </summary>
+            <PreflightBatchDebugPanel />
+          </details>
         </div>
       </div>
     </div>
