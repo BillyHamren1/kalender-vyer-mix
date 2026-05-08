@@ -463,9 +463,12 @@ Deno.serve(async (req) => {
       perDate.push(await runDateCheck(supabase, organizationId, staffId, d));
     }
 
+    const destructiveAllowed =
+      body.allowDestructiveTestActions === true && body.testMode === true;
+
     const F = runManual
-      ? await runManualTimerTest(supabase, organizationId, staffId)
-      : { ran: false };
+      ? await runManualTimerTest(supabase, organizationId, staffId, destructiveAllowed)
+      : { ran: false, preclearActiveRan: false, preclearStoppedCount: 0, preclearStoppedIds: [] };
 
     // Admin StaffTimeReports = active_time_registrations is the authority.
     const G = {
