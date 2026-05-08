@@ -5,7 +5,7 @@ import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
-import { HeaderShell, HeaderStartEndDayButton } from '@/components/mobile-app/MobileHeader';
+import { HeaderShell } from '@/components/mobile-app/MobileHeader';
 import WorkDayPanel from '@/components/mobile-app/WorkDayPanel';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
@@ -17,7 +17,7 @@ import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { useWorkDay } from '@/hooks/useWorkDay';
+
 
 const VIEW_MODE_KEY = 'mobile.calendarView';
 const isViewMode = (v: unknown): v is CalendarViewMode =>
@@ -46,8 +46,6 @@ const MobileJobs = () => {
   const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
   const { data: shifts = [] } = useScheduledShifts();
   const { t } = useLanguage();
-  const { current: currentWorkday } = useWorkDay();
-  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
 
   // Calendar view state — persisted in localStorage
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
@@ -96,9 +94,6 @@ const MobileJobs = () => {
             >
               <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
             </button>
-
-            {/* Start/Avsluta dag — kompakt ikon mellan Uppdatera och Profil */}
-            <HeaderStartEndDayButton />
           </div>
 
           {/* RIGHT: clickable name → profile */}
@@ -117,12 +112,6 @@ const MobileJobs = () => {
             </div>
             <div className="relative shrink-0">
               <UserCircle2 className="w-7 h-7 text-primary-foreground/90" />
-              {workdayOpen && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-destructive ring-2 ring-primary"
-                  aria-label="Arbetsdagen pågår — öppna profilen för att avsluta"
-                />
-              )}
             </div>
           </button>
         </div>
