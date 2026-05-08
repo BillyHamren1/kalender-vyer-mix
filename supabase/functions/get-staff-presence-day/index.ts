@@ -30,6 +30,11 @@ import {
 } from '../_shared/time-engine/resolveWorkTargets.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { smoothPresenceTimeline } from '../_shared/time-engine/smoothPresenceTimeline.ts';
+import {
+  buildPresenceDayBlocks,
+  type PresenceDayBlocksResult,
+  type TimerMarkerInput,
+} from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -237,6 +242,16 @@ Deno.serve(async (req) => {
         source: t.start_source ?? evidence.engine ?? 'time-engine',
         gpsSegmentId: evidence.segmentId ?? null,
       });
+      timerMarkers.push({
+        id: `tm-start-${t.id}`,
+        kind: 'started',
+        at: t.started_at,
+        label: `Timer: ${label}`,
+        targetType,
+        targetId,
+        registrationId: t.id,
+        source: t.start_source ?? evidence.engine ?? 'time-engine',
+      });
     }
     if (t.stopped_at && t.stopped_at >= dayStart && t.stopped_at <= dayEnd) {
       timeline.push({
@@ -249,6 +264,16 @@ Deno.serve(async (req) => {
         registrationId: t.id,
         confidence: null,
         source: t.stop_source ?? 'unknown',
+      });
+      timerMarkers.push({
+        id: `tm-stop-${t.id}`,
+        kind: 'stopped',
+        at: t.stopped_at,
+        label: `Timer slut: ${label}`,
+        targetType,
+        targetId,
+        registrationId: t.id,
+        source: t.stop_source ?? null,
       });
     }
     if (!t.stopped_at && t.status === 'active') {
@@ -303,6 +328,9 @@ Deno.serve(async (req) => {
   let resolvedTargetsAll: any[] = [];
   let targetDiagnostics: any = null;
   let targetMatchSummary: any = null;
+  let gpsTimelineResult: any = null;
+  let presenceDayBlocksResult: PresenceDayBlocksResult | null = null;
+  const timerMarkers: TimerMarkerInput[] = [];
 
   try {
     const { targets: resolved, targetDiagnostics: tdiag } = await resolveWorkTargets({
@@ -319,12 +347,16 @@ Deno.serve(async (req) => {
       .filter((t): t is WorkTarget => !!t);
 
     const gpsTimeline = buildGpsDayTimeline({
+      // capture also for the new presence-day-blocks engine
+      // (assigned below to gpsTimelineResult outside the try)
+
       staffId,
       organizationId: orgId,
       date,
       pings,
       targets: workTargets,
     });
+    gpsTimelineResult = gpsTimeline;
 
     // Compute target matching summary
     const projectTargets = resolved.filter((r) => r.type === 'project');
@@ -561,6 +593,24 @@ Deno.serve(async (req) => {
   const smoothing = smoothPresenceTimeline(dedupedTimeline as any);
   const smoothedTimeline = smoothing.smoothed as any[];
 
+  // ── New deterministic presence-day-blocks engine ──
+  // Replaces ad-hoc UI smoothing with semantic blocks. Pure transform of the
+  // raw GpsDayTimelineResult + active-timer markers. Never writes anything,
+  // never affects auto-start, never creates time_reports/workdays/LTE/travel.
+  if (gpsTimelineResult) {
+    try {
+      presenceDayBlocksResult = buildPresenceDayBlocks({
+        staffId,
+        organizationId: orgId,
+        date,
+        gpsTimeline: gpsTimelineResult,
+        timerMarkers,
+      });
+    } catch (e) {
+      console.error('[presence-day] buildPresenceDayBlocks failed', e);
+    }
+  }
+
   // ── Header summary ──
   const ageSec = lastPingAt
     ? Math.floor((Date.now() - new Date(lastPingAt).getTime()) / 1000)
@@ -607,6 +657,21 @@ Deno.serve(async (req) => {
     timeline: smoothedTimeline,
     rawTimeline: dedupedTimeline,
     smoothedBlocks: smoothing.blocks,
+    // ── New presence-day-blocks engine output ──
+    // Default UI MUST consume `presenceDayBlocks`.
+    // `rawGpsTimeline` and `technicalTimeline` are only for the
+    // "Visa tekniska GPS-segment" toggle.
+    presenceDayBlocks: presenceDayBlocksResult?.blocks ?? [],
+    presenceDaySummary: presenceDayBlocksResult?.summary ?? null,
+    rawGpsTimeline: gpsTimelineResult
+      ? {
+          segments: gpsTimelineResult.segments,
+          gaps: gpsTimelineResult.gaps,
+          qualitySummary: gpsTimelineResult.qualitySummary,
+          targetMatchSummary: gpsTimelineResult.targetMatchSummary,
+        }
+      : null,
+    technicalTimeline: dedupedTimeline,
     counts: {
       total: smoothedTimeline.length,
       rawTotal: timeline.length,

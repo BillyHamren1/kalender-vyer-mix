@@ -28,7 +28,11 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { toOverviewBlocks, type OverviewBlock } from "@/lib/presence/overviewBlock";
+import {
+  toOverviewBlocks,
+  presenceDayBlocksToOverview,
+  type OverviewBlock,
+} from "@/lib/presence/overviewBlock";
 
 interface Block {
   at: string;
@@ -55,6 +59,8 @@ interface StaffMini {
 
 interface DayRow extends StaffMini {
   blocks: Block[];
+  /** New deterministic engine output. Preferred over `blocks` when present. */
+  engineBlocks?: any[] | null;
   loading: boolean;
   error?: string | null;
 }
@@ -249,9 +255,10 @@ export default function PresenceDayOverview() {
         const blocks: Block[] = tl.filter((r) =>
           ["smoothed_presence", "transport", "unknown_place", "gps_gap", "active_timer_started", "active_timer_stopped"].includes(r.type),
         );
+        const engineBlocks = (data as any).presenceDayBlocks ?? null;
         setRows((prev) => ({
           ...prev,
-          [st.staffId]: { ...st, blocks, loading: false },
+          [st.staffId]: { ...st, blocks, engineBlocks, loading: false },
         }));
         return null;
       },
@@ -457,11 +464,16 @@ export default function PresenceDayOverview() {
           {row?.error && !row.loading && (
             <div className="absolute inset-0 flex items-center pl-2 text-[11px] text-destructive">{row.error}</div>
           )}
-          {row && toOverviewBlocks(s.staffId, s.name, date, row.blocks as any).map((b, i) =>
-            renderBlock(b, `${s.staffId}-${i}`, () => {
-              setShowTech(false);
-              setSelected({ staff: s, block: b });
-            }),
+          {row && (
+            (row.engineBlocks && row.engineBlocks.length > 0
+              ? presenceDayBlocksToOverview(s.staffId, s.name, date, row.engineBlocks as any)
+              : toOverviewBlocks(s.staffId, s.name, date, row.blocks as any)
+            ).map((b, i) =>
+              renderBlock(b, `${s.staffId}-${i}`, () => {
+                setShowTech(false);
+                setSelected({ staff: s, block: b });
+              }),
+            )
           )}
         </div>
       </div>
