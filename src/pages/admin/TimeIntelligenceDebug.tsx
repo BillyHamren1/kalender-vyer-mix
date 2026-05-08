@@ -1013,6 +1013,7 @@ export default function TimeIntelligenceDebug() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [confirmCopied, setConfirmCopied] = useState(false);
   const [batch, setBatch] = useState<BatchRow[] | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [pingFirst, setPingFirst] = useState<any>(null);
@@ -1268,6 +1269,18 @@ export default function TimeIntelligenceDebug() {
     }
   };
 
+  const copyConfirmResult = async () => {
+    if (!confirmResp?.confirmResult) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(confirmResp.confirmResult, null, 2));
+      setConfirmCopied(true);
+      toast.success("Confirm-resultat kopierat");
+      setTimeout(() => setConfirmCopied(false), 2000);
+    } catch (e: any) {
+      toast.error("Kunde inte kopiera: " + (e?.message ?? String(e)));
+    }
+  };
+
   const isDryRun = result?.dryRun !== false;
   const datePreset = useMemo(() =>
     date === todayIso() ? "today" : date === yesterdayIso() ? "yesterday" : "custom",
@@ -1361,7 +1374,7 @@ export default function TimeIntelligenceDebug() {
 
       {confirmResp?.confirmResult && (
         <Card className={confirmResp.confirmResult.created ? "border-emerald-500/50" : "border-amber-500/50"}>
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 gap-3 sm:flex-row sm:items-start sm:justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               {confirmResp.confirmResult.created ? (
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -1374,6 +1387,10 @@ export default function TimeIntelligenceDebug() {
                   ? "— redan aktiv registrering"
                   : "— ingen rad skapades"}
             </CardTitle>
+            <Button variant="outline" size="sm" onClick={copyConfirmResult} className="shrink-0">
+              {confirmCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+              Kopiera confirm-resultat
+            </Button>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             {(() => {
