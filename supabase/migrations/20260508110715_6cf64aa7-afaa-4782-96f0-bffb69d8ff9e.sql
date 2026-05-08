@@ -1,0 +1,1 @@
+ALTER TABLE public.staff_presence_events ALTER COLUMN staff_id TYPE text USING staff_id::text;
