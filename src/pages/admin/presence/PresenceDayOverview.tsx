@@ -28,7 +28,11 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { toOverviewBlocks, type OverviewBlock } from "@/lib/presence/overviewBlock";
+import {
+  toOverviewBlocks,
+  presenceDayBlocksToOverview,
+  type OverviewBlock,
+} from "@/lib/presence/overviewBlock";
 
 interface Block {
   at: string;
