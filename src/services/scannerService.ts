@@ -1,5 +1,6 @@
 import { PackingWithBooking, PackingParcel } from "@/types/packing";
 import { getToken, clearAuth } from "@/services/mobileApiService";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface ScanResult {
   type: 'packing_id' | 'product_sku' | 'rfid_tag' | 'serial' | 'unknown';
@@ -417,6 +418,54 @@ export const signPacking = async (
   signedByStaffId?: string | null
 ): Promise<void> => {
   await callScannerApi('sign_packing', { packingId, signedBy, signedByStaffId: signedByStaffId || null });
+};
+
+// ============== PREFLIGHT CHECK (WMS coupling validation) ==============
+// Calls the read-only `packing-preflight-check` edge function which checks
+// each packing_list_item against booking_products and WMS to surface
+// mis-coupled products BEFORE scanning starts.
+
+export type PreflightRowStatus = 'PASS' | 'WARNING' | 'BLOCKED';
+
+export interface PreflightWmsMatch {
+  id: string | null;
+  sku: string | null;
+  name: string | null;
+  matchedBy: string;
+}
+
+export interface PreflightItem {
+  packingItemId: string;
+  bookingProductId: string | null;
+  name: string | null;
+  sku: string | null;
+  inventoryItemTypeId: string | null;
+  quantityToPack: number;
+  status: PreflightRowStatus;
+  reason: string;
+  suggestedFix?: string | null;
+  wmsMatches: PreflightWmsMatch[];
+}
+
+export interface PreflightResult {
+  success: boolean;
+  packingId?: string;
+  bookingNumber?: string | null;
+  summary: { total: number; pass: number; warning: number; blocked: number };
+  canStartScanning: boolean;
+  items: PreflightItem[];
+  error?: string;
+}
+
+export const runPackingPreflightCheck = async (
+  packingId: string,
+  bookingNumber?: string | null,
+): Promise<PreflightResult> => {
+  const { data, error } = await supabase.functions.invoke('packing-preflight-check', {
+    body: { packing_id: packingId, booking_number: bookingNumber ?? undefined },
+  });
+  if (error) throw new Error(error.message || 'Preflight failed');
+  return data as PreflightResult;
 };
 
 // Identify a product by serial number or SKU (home screen lookup)
