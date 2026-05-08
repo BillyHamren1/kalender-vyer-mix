@@ -776,11 +776,15 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (existingErr) {
+          console.error("[confirm] lookup failed", { organizationId, staffId, existingErr });
           confirmResult = {
             attempted: true,
             created: false,
-            reason: "lookup_failed",
-            error: existingErr.message,
+            reason: `lookup_failed: ${existingErr.message ?? "unknown"}`,
+            error: existingErr.message ?? String(existingErr),
+            errorCode: (existingErr as any).code ?? null,
+            errorDetails: (existingErr as any).details ?? null,
+            errorHint: (existingErr as any).hint ?? null,
           };
         } else if (existing) {
           confirmResult = {
