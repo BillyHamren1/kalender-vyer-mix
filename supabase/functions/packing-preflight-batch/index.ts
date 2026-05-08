@@ -52,11 +52,58 @@ interface PreflightRow {
   wmsMatches: WmsItemType[]
 }
 
-// ---------- WMS lookup stubs (mirrors packing-preflight-check) ----------
-// TODO(wms): replace with real endpoints when available.
-async function wmsLookupByItemTypeId(_id: string): Promise<WmsItemType[]> { return [] }
-async function wmsLookupBySku(_sku: string): Promise<WmsItemType[]> { return [] }
-async function wmsLookupByName(_name: string): Promise<WmsItemType[]> { return [] }
+// ---------- WMS lookup (mirrors packing-preflight-check) ----------
+const WMS_BASE_URL = 'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1'
+
+async function wmsLookup(
+  body: Record<string, unknown>,
+  apiKey: string,
+  orgId: string,
+): Promise<any | null> {
+  try {
+    const res = await fetch(`${WMS_BASE_URL}/item-type-lookup`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'x-organization-id': orgId,
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.warn(`[preflight-batch] WMS item-type-lookup failed status=${res.status} body=${text}`)
+      return null
+    }
+    return await res.json()
+  } catch (e: any) {
+    console.warn('[preflight-batch] WMS network error:', e?.message)
+    return null
+  }
+}
+
+const toMatch = (m: any, matchedBy: string): WmsItemType => ({
+  id: m?.id ?? null,
+  sku: m?.sku ?? null,
+  name: m?.name_sv || m?.name_en || null,
+  matchedBy,
+})
+
+async function wmsLookupByItemTypeId(id: string, apiKey: string, orgId: string): Promise<WmsItemType[]> {
+  const data = await wmsLookup({ item_type_id: id }, apiKey, orgId)
+  const m = data?.exactItemTypeMatch
+  return m ? [toMatch(m, 'item_type_id')] : []
+}
+async function wmsLookupBySku(sku: string, apiKey: string, orgId: string): Promise<WmsItemType[]> {
+  const data = await wmsLookup({ sku }, apiKey, orgId)
+  const arr = Array.isArray(data?.skuMatches) ? data.skuMatches : []
+  return arr.map((m: any) => toMatch(m, 'sku'))
+}
+async function wmsLookupByName(name: string, apiKey: string, orgId: string): Promise<WmsItemType[]> {
+  const data = await wmsLookup({ name }, apiKey, orgId)
+  const arr = Array.isArray(data?.nameMatches) ? data.nameMatches : []
+  return arr.map((m: any) => toMatch(m, 'name'))
+}
 
 // ---------- Per-row classification (mirrors packing-preflight-check) ----------
 function classifyRow(args: {
@@ -148,6 +195,11 @@ Deno.serve(async (req) => {
   const orgId = profile?.organization_id
   if (!orgId) return json({ success: false, error: 'No organization for user' }, 403)
 
+  const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY') || ''
+  if (!PRICELIST_API_KEY) {
+    return json({ success: false, error: 'PRICELIST_API_KEY saknas för WMS preflight' }, 500)
+  }
+
   // 1. Find bookings in range (eventdate OR rigdaydate inside window)
   let bookingQ = supabase
     .from('bookings')
@@ -199,75 +251,93 @@ Deno.serve(async (req) => {
   const results: any[] = []
   for (const { id: packingId, bookingId } of packPairs) {
     const booking = bookingById.get(bookingId)
-    const { data: items, error: itemsErr } = await supabase
-      .from('packing_list_items')
-      .select(`
-        id,
-        booking_product_id,
-        quantity_to_pack,
-        excluded,
-        manual_name,
-        booking_products (
-          id, name, sku, inventory_item_type_id, quantity
-        )
-      `)
-      .eq('packing_id', packingId)
-      .eq('organization_id', orgId)
-    if (itemsErr) continue
+    try {
+      const { data: items, error: itemsErr } = await supabase
+        .from('packing_list_items')
+        .select(`
+          id,
+          booking_product_id,
+          quantity_to_pack,
+          excluded,
+          manual_name,
+          booking_products (
+            id, name, sku, inventory_item_type_id, quantity
+          )
+        `)
+        .eq('packing_id', packingId)
+        .eq('organization_id', orgId)
+      if (itemsErr) throw new Error(itemsErr.message)
 
-    const rows: PreflightRow[] = []
-    let worst: RowStatus = 'PASS'
-    let pass = 0, warning = 0, blocked = 0
-    for (const it of items || []) {
-      if ((it as any).excluded) continue
-      const bp = (it as any).booking_products || null
-      const inventoryItemTypeId: string | null = bp?.inventory_item_type_id ?? null
-      const sku: string | null = bp?.sku ?? null
-      const name: string | null = bp?.name ?? (it as any).manual_name ?? null
-      const [byItemTypeId, bySku, byName] = await Promise.all([
-        inventoryItemTypeId ? wmsLookupByItemTypeId(inventoryItemTypeId) : Promise.resolve([]),
-        sku ? wmsLookupBySku(sku) : Promise.resolve([]),
-        name ? wmsLookupByName(name) : Promise.resolve([]),
-      ])
-      const verdict = classifyRow({ inventoryItemTypeId, sku, name, byItemTypeId, bySku, byName })
-      const row: PreflightRow = {
-        packingItemId: (it as any).id,
-        bookingProductId: bp?.id ?? null,
-        name,
-        sku,
-        inventoryItemTypeId,
-        quantityToPack: Number((it as any).quantity_to_pack ?? 0),
-        status: verdict.status,
-        reason: verdict.reason,
-        suggestedFix: verdict.suggestedFix,
-        wmsMatches: verdict.wmsMatches,
+      const rows: PreflightRow[] = []
+      let worst: RowStatus = 'PASS'
+      let pass = 0, warning = 0, blocked = 0
+      for (const it of items || []) {
+        if ((it as any).excluded) continue
+        const bp = (it as any).booking_products || null
+        const inventoryItemTypeId: string | null = bp?.inventory_item_type_id ?? null
+        const sku: string | null = bp?.sku ?? null
+        const name: string | null = bp?.name ?? (it as any).manual_name ?? null
+        const [byItemTypeId, bySku, byName] = await Promise.all([
+          inventoryItemTypeId ? wmsLookupByItemTypeId(inventoryItemTypeId, PRICELIST_API_KEY, orgId) : Promise.resolve([]),
+          sku ? wmsLookupBySku(sku, PRICELIST_API_KEY, orgId) : Promise.resolve([]),
+          name ? wmsLookupByName(name, PRICELIST_API_KEY, orgId) : Promise.resolve([]),
+        ])
+        const verdict = classifyRow({ inventoryItemTypeId, sku, name, byItemTypeId, bySku, byName })
+        const row: PreflightRow = {
+          packingItemId: (it as any).id,
+          bookingProductId: bp?.id ?? null,
+          name,
+          sku,
+          inventoryItemTypeId,
+          quantityToPack: Number((it as any).quantity_to_pack ?? 0),
+          status: verdict.status,
+          reason: verdict.reason,
+          suggestedFix: verdict.suggestedFix,
+          wmsMatches: verdict.wmsMatches,
+        }
+        rows.push(row)
+        worst = worstOf(worst, row.status)
+        if (row.status === 'PASS') pass++
+        else if (row.status === 'WARNING') warning++
+        else blocked++
       }
-      rows.push(row)
-      worst = worstOf(worst, row.status)
-      if (row.status === 'PASS') pass++
-      else if (row.status === 'WARNING') warning++
-      else blocked++
+
+      const blockedItems = rows.filter((r) => r.status === 'BLOCKED')
+
+      results.push({
+        packingId,
+        bookingNumber: booking?.booking_number ?? null,
+        customerName: booking?.client ?? null,
+        eventDate: booking?.eventdate ?? booking?.rigdaydate ?? null,
+        totalItems: rows.length,
+        pass,
+        warning,
+        blocked,
+        canStartScanning: blocked === 0,
+        worstStatus: worst,
+        blockedItems,
+      })
+    } catch (e: any) {
+      console.warn(`[preflight-batch] packing ${packingId} failed:`, e?.message)
+      results.push({
+        packingId,
+        bookingNumber: booking?.booking_number ?? null,
+        customerName: booking?.client ?? null,
+        eventDate: booking?.eventdate ?? booking?.rigdaydate ?? null,
+        totalItems: 0,
+        pass: 0,
+        warning: 0,
+        blocked: 0,
+        canStartScanning: false,
+        worstStatus: 'ERROR',
+        blockedItems: [],
+        error: e?.message || 'Unknown error',
+      })
     }
-
-    const blockedItems = rows.filter((r) => r.status === 'BLOCKED')
-
-    results.push({
-      packingId,
-      bookingNumber: booking?.booking_number ?? null,
-      customerName: booking?.client ?? null,
-      eventDate: booking?.eventdate ?? booking?.rigdaydate ?? null,
-      totalItems: rows.length,
-      pass,
-      warning,
-      blocked,
-      canStartScanning: blocked === 0,
-      worstStatus: worst,
-      blockedItems,
-    })
   }
 
   // 4. Sort worst-first
-  const sortRank: Record<RowStatus, number> = { BLOCKED: 0, WARNING: 1, PASS: 2 }
+  const sortRank: Record<string, number> = { ERROR: -1, BLOCKED: 0, WARNING: 1, PASS: 2 }
   results.sort((a, b) => {
     const r = sortRank[a.worstStatus] - sortRank[b.worstStatus]
     if (r !== 0) return r
