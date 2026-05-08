@@ -291,7 +291,11 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         </Button>
       </div>
 
-      {/* Progress + Kolli button */}
+      {/* WMS preflight check (run before scanning) */}
+      <PackingPreflightPanel
+        packingId={packingId}
+        bookingNumber={packing?.booking?.booking_number ?? null}
+      />
       <div className="flex items-center gap-2 px-1">
         <div className="flex-1">
           <Progress value={progress.percentage} className="h-2.5" />
