@@ -338,13 +338,12 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     );
   }
 
-  // Warehouse events: single-click does NOTHING (previously opened a time-picker
-  // popover which felt accidental). Time edits go through double-click → details
-  // dialog or right-click context menu. Drag/resize still work via EventHoverCard.
+  // Warehouse events: single-click opens details (consolidated UX). Drag/resize
+  // still work via EventHoverCard.
   if (isWarehouseEvent && !readOnly) {
     return (
       <>
-        <EventHoverCard event={event} onDoubleClick={handleViewDetails}>
+        <EventHoverCard event={event} onClick={handleViewDetails}>
           <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
             {eventCardContent}
           </div>
