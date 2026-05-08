@@ -657,6 +657,21 @@ Deno.serve(async (req) => {
     timeline: smoothedTimeline,
     rawTimeline: dedupedTimeline,
     smoothedBlocks: smoothing.blocks,
+    // ── New presence-day-blocks engine output ──
+    // Default UI MUST consume `presenceDayBlocks`.
+    // `rawGpsTimeline` and `technicalTimeline` are only for the
+    // "Visa tekniska GPS-segment" toggle.
+    presenceDayBlocks: presenceDayBlocksResult?.blocks ?? [],
+    presenceDaySummary: presenceDayBlocksResult?.summary ?? null,
+    rawGpsTimeline: gpsTimelineResult
+      ? {
+          segments: gpsTimelineResult.segments,
+          gaps: gpsTimelineResult.gaps,
+          qualitySummary: gpsTimelineResult.qualitySummary,
+          targetMatchSummary: gpsTimelineResult.targetMatchSummary,
+        }
+      : null,
+    technicalTimeline: dedupedTimeline,
     counts: {
       total: smoothedTimeline.length,
       rawTotal: timeline.length,
