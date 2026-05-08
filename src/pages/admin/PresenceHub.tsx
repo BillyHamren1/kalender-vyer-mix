@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import {
   LogIn,
   LogOut,
   Users,
+  CalendarDays,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -309,6 +311,12 @@ export default function PresenceHub() {
                         <span className="text-xs text-muted-foreground">Ingen aktiv timer</span>
                       )}
                     </div>
+                    <Button asChild variant="outline" size="sm" className="w-full mt-1">
+                      <Link to={`/admin/presence/staff/${r.staffId}?date=${new Date().toISOString().slice(0, 10)}`}>
+                        <CalendarDays className="h-4 w-4 mr-2" />
+                        Visa dag
+                      </Link>
+                    </Button>
                   </CardContent>
                 </Card>
               );
