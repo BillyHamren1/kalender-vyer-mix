@@ -54,6 +54,7 @@ const CommunicationPage = lazyWithRecovery(() => import("./pages/CommunicationPa
 const OpsControlCenter = lazyWithRecovery(() => import("./pages/OpsControlCenter"));
 const SyncReconciliation = lazyWithRecovery(() => import("./pages/SyncReconciliation"));
 const StaffLiveDebug = lazyWithRecovery(() => import("./pages/admin/StaffLiveDebug"));
+const StaffPresence = lazyWithRecovery(() => import("./pages/admin/StaffPresence"));
 const TimeIntelligenceDebug = lazyWithRecovery(() => import("./pages/admin/TimeIntelligenceDebug"));
 const LegacyIncomingPackingDebug = lazyWithRecovery(() => import("./pages/admin/LegacyIncomingPackingDebug"));
 const TransportResponse = lazyWithRecovery(() => import("./pages/TransportResponse"));
@@ -332,6 +333,7 @@ const WebRoutes: React.FC = () => {
               {/* Hidden admin sync tools */}
               <Route path="/admin/sync" element={<SyncReconciliation />} />
               <Route path="/admin/staff-live" element={<StaffLiveDebug />} />
+              <Route path="/admin/staff-presence" element={<StaffPresence />} />
               <Route path="/admin/time-intelligence-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/time-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/legacy-incoming-packing" element={<LegacyIncomingPackingDebug />} />
