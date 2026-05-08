@@ -150,6 +150,30 @@ export async function moveLargeProjectDay({
   const bookingDateCol = PHASE_TO_BOOKING_DATE[phase];
   const bookingTimes = PHASE_TO_BOOKING_TIMES[phase];
 
+  // ── Lock guard ──
+  // If ANY of the affected sibling bookings has the phase locked ("Fast tid"),
+  // refuse the move so we don't silently overwrite a fixed time.
+  const lockCol =
+    phase === 'rig' ? 'rig_time_locked'
+    : phase === 'event' ? 'event_time_locked'
+    : phase === 'rigDown' ? 'rigdown_time_locked'
+    : null;
+  if (lockCol && bookingIds.length > 0) {
+    const { data: lockedRows } = await supabase
+      .from('bookings')
+      .select(`id, ${lockCol}`)
+      .in('id', bookingIds)
+      .eq(bookingDateCol, fromDate)
+      .eq(lockCol, true)
+      .limit(1);
+    if (lockedRows && lockedRows.length > 0) {
+      const err = new Error('Tiden är låst – bocka ur "Fast tid" för att flytta');
+      (err as any).code = 'TIME_LOCKED';
+      console.warn('[moveLargeProjectDay] blocked by lock', { largeProjectId, phase, fromDate });
+      throw err;
+    }
+  }
+
   let bookingsUpdated = 0;
   let calendarEventsUpdated = 0;
 
