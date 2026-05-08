@@ -384,6 +384,19 @@ export default function StaffPresenceDay() {
                 <CardTitle className="text-lg flex items-center gap-2">
                   <MapPin className="h-5 w-5" /> Närvaro & GPS
                   <Badge variant="outline" className="ml-2 text-xs">{gpsRows.length}</Badge>
+                  {(data.smoothedBlocks?.length ?? 0) > 0 && !showRaw && (
+                    <Badge variant="outline" className="ml-1 text-[10px]">
+                      {data.smoothedBlocks!.length} sammanhängande block
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-7 text-xs"
+                    onClick={() => setShowRaw((v) => !v)}
+                  >
+                    {showRaw ? "Visa sammanhängande" : "Visa rå GPS-segment"}
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -391,8 +404,18 @@ export default function StaffPresenceDay() {
                   <p className="text-sm text-muted-foreground">Inga GPS-händelser för dagen.</p>
                 ) : (
                   <div className="space-y-2">
-                    {gpsRows.map((row, i) => <TimelineRowView key={`g${i}`} row={row} />)}
+                    {(showRaw
+                      ? (data.rawTimeline ?? data.timeline).filter((r) => ROW_META[r.type]?.group === "gps")
+                      : gpsRows
+                    ).map((row, i) => <TimelineRowView key={`g${i}`} row={row} />)}
                   </div>
+                )}
+                {!showRaw && (data.summary as any)?.smoothing && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Smoothing: {(data.summary as any).smoothing.blocksCount} block ·
+                    {" "}{(data.summary as any).smoothing.suppressedNoiseCount} brus-segment dolda ·
+                    {" "}{(data.summary as any).smoothing.mergedArrivals} dubbletter av samma plats infogade.
+                  </p>
                 )}
               </CardContent>
             </Card>
