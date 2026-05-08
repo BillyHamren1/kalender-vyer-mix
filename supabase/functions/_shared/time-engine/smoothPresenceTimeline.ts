@@ -203,12 +203,10 @@ export function smoothPresenceTimeline(
     while (j < sorted.length) {
       const next = sorted[j];
 
-      // Pass-through-rader (timer/signal) bryter inte block men ingår inte i det.
+      // Pass-through-rader (timer) bryter inte block men ingår inte i det.
       if (
         next.type === 'active_timer_started' ||
-        next.type === 'active_timer_stopped' ||
-        next.type === 'signal_lost' ||
-        next.type === 'signal_resumed'
+        next.type === 'active_timer_stopped'
       ) {
         break;
       }
@@ -220,9 +218,13 @@ export function smoothPresenceTimeline(
         if (next.gpsSegmentId) mergedSegmentIds.push(next.gpsSegmentId);
         suppressed.push({
           id: next.gpsSegmentId ?? null,
+          segmentId: next.gpsSegmentId ?? null,
           type: next.type,
+          kind: 'rearrival',
           at: next.at,
+          startTs: next.at,
           endAt: next.endAt ?? null,
+          endTs: next.endAt ?? null,
           durationMin: next.durationMin ?? null,
           label: next.label,
           reason: 'same_target_rearrival',
@@ -238,12 +240,13 @@ export function smoothPresenceTimeline(
         break;
       }
 
-      // Kort transport/unknown ELLER gps_gap (oavsett längd) → kolla om följt av
-      // samma target. GPS-glapp är signalstatus, inte rörelse.
-      if (isShortNoise(next) || isBridgeableGap(next)) {
+      // Kort transport/unknown ELLER teknisk händelse (gps_gap, signal_lost,
+      // signal_resumed, departure) → kolla om följt av samma target. GPS-glapp
+      // / signal-events / departure utan annan target = signalstatus, inte rörelse.
+      if (isShortNoise(next) || isBridgeableTechnical(next)) {
         // Leta nästa "icke-noise" som är arrival
         let k = j + 1;
-        while (k < sorted.length && (isShortNoise(sorted[k]) || isBridgeableGap(sorted[k]))) k += 1;
+        while (k < sorted.length && (isShortNoise(sorted[k]) || isBridgeableTechnical(sorted[k]))) k += 1;
         const after = k < sorted.length ? sorted[k] : null;
         if (after && isKnownArrival(after) && targetKey(after) === anchorKey) {
           // Suppressa hela noise-strecket fram till nästa same-target arrival
@@ -252,9 +255,13 @@ export function smoothPresenceTimeline(
             if (nz.gpsSegmentId) mergedSegmentIds.push(nz.gpsSegmentId);
             suppressed.push({
               id: nz.gpsSegmentId ?? null,
+              segmentId: nz.gpsSegmentId ?? null,
               type: nz.type,
+              kind: noiseKind(nz),
               at: nz.at,
+              startTs: nz.at,
               endAt: nz.endAt ?? null,
+              endTs: nz.endAt ?? null,
               durationMin: nz.durationMin ?? null,
               label: nz.label,
               reason: noiseReason(nz),
@@ -276,6 +283,12 @@ export function smoothPresenceTimeline(
     const durationMin = minutesBetween(blockStart, blockEnd);
     const gapSegments = suppressed.filter((s) => s.reason === 'gps_gap_inside_stay');
     const signalGapMin = gapSegments.reduce((sum, s) => sum + (s.durationMin ?? 0), 0);
+    const signalGaps: SignalGapMeta[] = gapSegments.map((s) => ({
+      segmentId: s.segmentId ?? s.id ?? null,
+      startTs: s.startTs ?? s.at,
+      endTs: s.endTs ?? s.endAt ?? null,
+      durationMin: s.durationMin ?? null,
+    }));
     const block: SmoothedPresenceBlock = {
       source: 'smoothed_gps_presence',
       type: 'smoothed_presence',
@@ -292,6 +305,8 @@ export function smoothPresenceTimeline(
       suppressedNoiseSegments: suppressed,
       signalGapCount: gapSegments.length,
       signalGapMin,
+      signalGaps,
+      suppressedSegments: suppressed,
     };
     blocks.push(block);
     out.push(block);
