@@ -6084,6 +6084,42 @@ export type Database = {
           },
         ]
       }
+      time_auto_start_suppressions: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          metadata: Json
+          organization_id: string
+          reason: string
+          source: string
+          staff_id: string
+          suppressed_until: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          metadata?: Json
+          organization_id: string
+          reason: string
+          source: string
+          staff_id: string
+          suppressed_until: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          reason?: string
+          source?: string
+          staff_id?: string
+          suppressed_until?: string
+        }
+        Relationships: []
+      }
       time_registration_segments: {
         Row: {
           confidence: number
