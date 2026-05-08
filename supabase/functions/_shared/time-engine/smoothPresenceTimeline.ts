@@ -104,10 +104,16 @@ const isShortNoise = (r: SmoothInputRow): boolean => {
   const dur = r.durationMin ?? 0;
   return (
     (r.type === 'transport' && dur < MERGE_NOISE_MAX_MIN) ||
-    (r.type === 'unknown_place' && dur < MERGE_NOISE_MAX_MIN) ||
-    (r.type === 'gps_gap' && dur < MERGE_NOISE_MAX_MIN)
+    (r.type === 'unknown_place' && dur < MERGE_NOISE_MAX_MIN)
   );
 };
+
+/**
+ * GPS-glapp = signalstatus, inte rörelse. Om samma target finns före OCH efter
+ * gapet ska det absorberas oavsett längd och bara visas som varningsindikator
+ * på blocket. Endast bevisad annan plats bryter blocket.
+ */
+const isBridgeableGap = (r: SmoothInputRow): boolean => r.type === 'gps_gap';
 
 const noiseReason = (r: SmoothInputRow): SuppressedNoiseSegment['reason'] => {
   if (r.type === 'transport') return 'short_transport';
