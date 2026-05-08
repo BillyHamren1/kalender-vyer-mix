@@ -323,30 +323,49 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
             Preliminär fördelning av arbetsdagen — bekräftas när timern stoppas/sparas.
           </div>
           <ul className="space-y-1">
-            {canonical.activeTimerRows.map((t) => (
-              <li key={t.id} className="flex items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  {t.signalLost ? (
-                    <WifiOff className="h-3.5 w-3.5 text-destructive shrink-0" />
-                  ) : (
-                    <Activity className="h-3.5 w-3.5 text-primary shrink-0" />
+            {canonical.activeTimerRows.map((t) => {
+              const isAuthority = t.source === 'active_registration';
+              return (
+                <li key={t.id} className="flex flex-col gap-1 text-xs border-b border-primary/10 last:border-0 pb-1.5 last:pb-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {t.signalLost ? (
+                        <WifiOff className="h-3.5 w-3.5 text-destructive shrink-0" />
+                      ) : (
+                        <Activity className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )}
+                      <span className="truncate font-medium">{t.label}</span>
+                      <span className="text-muted-foreground tabular-nums">
+                        · start {toHHMM(t.startedAt)} · {formatHoursMinutes(t.runningMinutes / 60)}
+                      </span>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] gap-1 ${t.signalLost ? 'border-destructive/40 text-destructive' : 'border-primary/30 text-primary'}`}
+                      title={t.signalLost
+                        ? `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}. Granska innan godkännande.`
+                        : `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}.`}
+                    >
+                      {t.signalLost ? 'Pågår — signal tappad' : 'Pågår'}
+                    </Badge>
+                  </div>
+                  {isAuthority && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground pl-5">
+                      {t.startTargetLabel && t.startTargetLabel !== t.label && (
+                        <span>Startad på: <span className="font-medium text-foreground/80">{t.startTargetLabel}</span></span>
+                      )}
+                      {t.startSource && (
+                        <span>Källa: <span className="font-mono">{t.startSource}</span></span>
+                      )}
+                      <span>Auto: <span className="font-medium">{t.autoStarted ? 'ja' : 'nej'}</span></span>
+                      {t.currentKind && (
+                        <span>Typ: <span className="font-mono">{t.currentKind}</span></span>
+                      )}
+                    </div>
                   )}
-                  <span className="truncate">{t.label}</span>
-                  <span className="text-muted-foreground tabular-nums">
-                    · start {toHHMM(t.startedAt)} · {formatHoursMinutes(t.runningMinutes / 60)}
-                  </span>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] gap-1 ${t.signalLost ? 'border-destructive/40 text-destructive' : 'border-primary/30 text-primary'}`}
-                  title={t.signalLost
-                    ? `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}. Granska innan godkännande.`
-                    : `Senaste GPS-ping ${t.lastPingAgeMin == null ? 'okänd' : `${t.lastPingAgeMin} min sedan`}.`}
-                >
-                  {t.signalLost ? 'Pågår — signal tappad' : 'Preliminär — pågår'}
-                </Badge>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
