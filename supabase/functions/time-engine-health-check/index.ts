@@ -47,6 +47,8 @@ interface Body {
   staffId?: string;
   dates?: string[];
   runManualTimerTest?: boolean;
+  allowDestructiveTestActions?: boolean;
+  testMode?: boolean;
 }
 
 async function runDateCheck(
