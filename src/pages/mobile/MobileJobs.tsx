@@ -5,7 +5,7 @@ import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
-import { HeaderShell, HeaderStartEndDayButton } from '@/components/mobile-app/MobileHeader';
+import { HeaderShell } from '@/components/mobile-app/MobileHeader';
 import WorkDayPanel from '@/components/mobile-app/WorkDayPanel';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
