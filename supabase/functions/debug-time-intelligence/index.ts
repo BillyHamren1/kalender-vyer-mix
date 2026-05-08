@@ -198,6 +198,141 @@ Deno.serve(async (req) => {
     return json(400, { ok: false, error: "could not resolve organization_id for staff" });
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  // STOP ACTION (action: "stop_registration")
+  // Stoppar EN active_time_registration och verifierar att inga sidoeffekter
+  // (time_report / workday / location_time_entry / travel_time_log) skapas.
+  // ════════════════════════════════════════════════════════════════════════
+  if (body?.action === "stop_registration") {
+    const registrationId = String(body?.registrationId ?? "").trim();
+    const stopSource = String(body?.stopSource ?? "debug-time-intelligence/manual_stop").trim();
+    if (!registrationId) {
+      return json(400, { ok: false, error: "registrationId required for stop_registration" });
+    }
+
+    // 1) Verify the row exists and belongs to this staff/org.
+    const { data: before, error: beforeErr } = await realClient
+      .from("active_time_registrations")
+      .select("id, status, started_at, stopped_at, stop_source, staff_id, organization_id, start_target_label, current_label, auto_started, start_source")
+      .eq("id", registrationId)
+      .maybeSingle();
+    if (beforeErr) return json(500, { ok: false, error: `lookup_failed: ${beforeErr.message}` });
+    if (!before) return json(404, { ok: false, error: "registration_not_found" });
+    if (before.staff_id !== staffId || before.organization_id !== organizationId) {
+      return json(403, { ok: false, error: "registration_does_not_belong_to_staff_or_org", before });
+    }
+
+    // 2) Snapshot side-effect tables BEFORE stop.
+    const snapshotSideEffects = async () => {
+      const [tr, wd, lte, travel] = await Promise.all([
+        realClient.from("time_reports").select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId).eq("staff_id", staffId).eq("report_date", date),
+        realClient.from("workdays").select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId).eq("staff_id", staffId)
+          .gte("started_at", `${date}T00:00:00.000Z`).lte("started_at", `${date}T23:59:59.999Z`),
+        realClient.from("location_time_entries").select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId).eq("staff_id", staffId).eq("entry_date", date),
+        realClient.from("travel_time_logs").select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId).eq("staff_id", staffId).eq("report_date", date),
+      ]);
+      return {
+        time_reports: tr.count ?? 0,
+        workdays: wd.count ?? 0,
+        location_time_entries: lte.count ?? 0,
+        travel_time_logs: travel.count ?? 0,
+      };
+    };
+
+    const sideEffectsBefore = await snapshotSideEffects();
+
+    // 3) If already stopped, just report state.
+    if (before.status === "stopped") {
+      const sideEffectsAfter = await snapshotSideEffects();
+      return json(200, {
+        ok: true,
+        action: "stop_registration",
+        already_stopped: true,
+        registration: before,
+        sideEffects: {
+          before: sideEffectsBefore,
+          after: sideEffectsAfter,
+          delta: {
+            time_reports: sideEffectsAfter.time_reports - sideEffectsBefore.time_reports,
+            workdays: sideEffectsAfter.workdays - sideEffectsBefore.workdays,
+            location_time_entries: sideEffectsAfter.location_time_entries - sideEffectsBefore.location_time_entries,
+            travel_time_logs: sideEffectsAfter.travel_time_logs - sideEffectsBefore.travel_time_logs,
+          },
+        },
+      });
+    }
+
+    // 4) Perform stop.
+    const stoppedAtIso = new Date().toISOString();
+    const { data: after, error: stopErr } = await realClient
+      .from("active_time_registrations")
+      .update({
+        status: "stopped",
+        stopped_at: stoppedAtIso,
+        stop_source: stopSource,
+      })
+      .eq("id", registrationId)
+      .eq("status", "active")
+      .select("id, status, started_at, stopped_at, stop_source, staff_id, organization_id, start_target_label, current_label, auto_started, start_source")
+      .maybeSingle();
+
+    if (stopErr) {
+      return json(500, {
+        ok: false,
+        error: `stop_failed: ${stopErr.message}`,
+        errorCode: (stopErr as any).code ?? null,
+        before,
+        sideEffectsBefore,
+      });
+    }
+
+    // 5) Snapshot side-effect tables AFTER stop.
+    const sideEffectsAfter = await snapshotSideEffects();
+
+    // 6) Verify no remaining active registration for this staff.
+    const { data: stillActive } = await realClient
+      .from("active_time_registrations")
+      .select("id, status")
+      .eq("organization_id", organizationId)
+      .eq("staff_id", staffId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    const delta = {
+      time_reports: sideEffectsAfter.time_reports - sideEffectsBefore.time_reports,
+      workdays: sideEffectsAfter.workdays - sideEffectsBefore.workdays,
+      location_time_entries: sideEffectsAfter.location_time_entries - sideEffectsBefore.location_time_entries,
+      travel_time_logs: sideEffectsAfter.travel_time_logs - sideEffectsBefore.travel_time_logs,
+    };
+
+    return json(200, {
+      ok: true,
+      action: "stop_registration",
+      stopped: after?.status === "stopped",
+      registration: {
+        before,
+        after,
+      },
+      stillHasActiveRegistration: !!stillActive,
+      sideEffects: {
+        before: sideEffectsBefore,
+        after: sideEffectsAfter,
+        delta,
+        noSideEffectsCreated:
+          delta.time_reports === 0 &&
+          delta.workdays === 0 &&
+          delta.location_time_entries === 0 &&
+          delta.travel_time_logs === 0,
+      },
+      verifiedAt: new Date().toISOString(),
+    });
+  }
+
   const dayStart = `${date}T00:00:00.000Z`;
   const dayEnd = `${date}T23:59:59.999Z`;
 
