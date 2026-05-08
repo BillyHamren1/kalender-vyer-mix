@@ -1021,9 +1021,11 @@ Deno.serve(async (req) => {
       activeTimeRegistrationPreview.wouldCreateActiveRegistration = false;
       const priorityReason = !targetSummaryComplete
         ? "target_summary_missing"
-        : !allowedDecisionsComplete
-          ? "allowed_decision_missing_evidence"
-          : readinessFailures[0] ?? "preview_would_not_create";
+        : autoStartSummary.allowedCount === 0
+          ? "no_allowed_autostart"
+          : !allowedDecisionsComplete
+            ? "allowed_decision_missing_evidence"
+            : readinessFailures[0] ?? "preview_would_not_create";
       activeTimeRegistrationPreview.reason = priorityReason;
       activeTimeRegistrationPreview.readinessFailures = readinessFailures;
     }
