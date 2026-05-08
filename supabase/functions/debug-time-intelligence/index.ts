@@ -600,14 +600,51 @@ Deno.serve(async (req) => {
   }> = [];
   for (const d of autoStartDecisions) {
     if (d.allowed) {
+      // Re-resolve with the SAME fallback chain used by activeTimeRegistrationPreview
+      // so allowedDecisions never shows null for startAt / targetId / targetName / targetType / targetLabel.
+      const ev = (d.evidence ?? {}) as Record<string, any>;
+      const rtForSeg = resolvedTargets.find((t) => t.id === d.matchedTargetId) ?? null;
+      const startAt =
+        d.segmentStart ?? ev.startAt ?? ev.start_at ?? ev.firstPingAt ?? null;
+      const targetId =
+        d.matchedTargetId ?? ev.targetId ?? ev.target_id ?? rtForSeg?.id ?? null;
+      const targetName =
+        d.matchedTargetName ??
+        ev.targetName ??
+        ev.target_name ??
+        rtForSeg?.name ??
+        d.segmentLabel ??
+        null;
+      const targetType =
+        d.matchedTargetType ??
+        ev.targetType ??
+        ev.target_type ??
+        rtForSeg?.type ??
+        null;
+      const targetLabel = targetName;
+
+      // Hard contract: an allowed decision MUST carry concrete identifiers.
+      // If any are missing, downgrade to blocked instead of emitting nulls.
+      if (
+        startAt == null ||
+        targetId == null ||
+        targetName == null ||
+        targetType == null
+      ) {
+        blockedCount++;
+        const r = "blocked_missing_allowed_decision_fields";
+        blockedByReason[r] = (blockedByReason[r] ?? 0) + 1;
+        continue;
+      }
+
       allowedCount++;
       if (!firstAllowedDecision) firstAllowedDecision = d;
       allowedDecisions.push({
-        startAt: d.segmentStart,
-        targetId: d.matchedTargetId!,
-        targetName: d.matchedTargetName!,
-        targetType: d.matchedTargetType!,
-        targetLabel: d.matchedTargetName!,
+        startAt,
+        targetId,
+        targetName,
+        targetType,
+        targetLabel,
         segmentLabel: d.segmentLabel,
         reason: d.reason,
         confidence: d.confidence,
