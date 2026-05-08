@@ -321,8 +321,35 @@ export default function StaffPresenceDay() {
 
       {data && data.timeline.length > 0 && (() => {
         const rows = data.timeline;
-        const gpsRows = rows.filter((r) => ROW_META[r.type].group === "gps");
+        const allGpsRows = rows.filter((r) => ROW_META[r.type].group === "gps");
         const timerRows = rows.filter((r) => ROW_META[r.type].group === "timer");
+
+        // UI noise filter for "ren dag": drop short transport / unknown / gps_gap and
+        // collapse repeated arrivals to the same target. Smoothing happens server-side,
+        // this is a final presentation pass for whatever rows remain.
+        const MIN_VISIBLE_MIN = 3;
+        const cleanGpsRows: TimelineRow[] = [];
+        let lastArrivalKey: string | null = null;
+        for (const r of allGpsRows) {
+          const dur = r.durationMin ?? null;
+          if (r.type === "transport") {
+            if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+          } else if (r.type === "unknown_place") {
+            if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+          } else if (r.type === "gps_gap") {
+            if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+          } else if (r.type === "arrival" || r.type === "smoothed_presence") {
+            const key = r.matchedTargetId || r.targetId || r.label;
+            if (key && key === lastArrivalKey) continue; // collapse jitter / re-arrival
+            lastArrivalKey = key;
+          } else if (r.type === "departure") {
+            // departures within same-target jitter add no info in clean view
+            continue;
+          }
+          cleanGpsRows.push(r);
+        }
+        const gpsRows = showRaw ? allGpsRows : cleanGpsRows;
+        const hiddenNoiseCount = allGpsRows.length - cleanGpsRows.length;
         const dayStart = rows[0]?.at ?? null;
         const gpsGapCount = rows.filter((r) => r.type === "gps_gap").length;
         const arrivalCount = rows.filter((r) => r.type === "arrival").length;
