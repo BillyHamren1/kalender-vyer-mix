@@ -454,14 +454,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    const ev = (decision.evidence ?? {}) as Record<string, any>;
+    const resolvedTargetId =
+      rt?.id ??
+      (seg as any).matchedTargetId ??
+      ev.targetId ??
+      ev.target_id ??
+      null;
+    const resolvedTargetName =
+      rt?.name ??
+      (seg as any).matchedTargetName ??
+      ev.targetName ??
+      ev.target_name ??
+      seg.label ??
+      null;
+    const resolvedTargetType =
+      rt?.type ??
+      (seg as any).matchedTargetType ??
+      ev.targetType ??
+      ev.target_type ??
+      null;
+
     autoStartDecisions.push({
       segmentId: seg.id,
       segmentStart: seg.startTs,
       segmentEnd: seg.endTs,
       segmentLabel: seg.label,
-      matchedTargetId: rt?.id ?? null,
-      matchedTargetName: rt?.name ?? null,
-      matchedTargetType: rt?.type ?? null,
+      matchedTargetId: resolvedTargetId,
+      matchedTargetName: resolvedTargetName,
+      matchedTargetType: resolvedTargetType,
       allowed: decision.allowed,
       reason: decision.reason,
       confidence: decision.confidence,
