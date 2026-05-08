@@ -55,6 +55,7 @@ const OpsControlCenter = lazyWithRecovery(() => import("./pages/OpsControlCenter
 const SyncReconciliation = lazyWithRecovery(() => import("./pages/SyncReconciliation"));
 const StaffLiveDebug = lazyWithRecovery(() => import("./pages/admin/StaffLiveDebug"));
 const StaffPresence = lazyWithRecovery(() => import("./pages/admin/StaffPresence"));
+const TargetPresence = lazyWithRecovery(() => import("./pages/admin/TargetPresence"));
 const TimeIntelligenceDebug = lazyWithRecovery(() => import("./pages/admin/TimeIntelligenceDebug"));
 const LegacyIncomingPackingDebug = lazyWithRecovery(() => import("./pages/admin/LegacyIncomingPackingDebug"));
 const TransportResponse = lazyWithRecovery(() => import("./pages/TransportResponse"));
@@ -334,6 +335,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/admin/sync" element={<SyncReconciliation />} />
               <Route path="/admin/staff-live" element={<StaffLiveDebug />} />
               <Route path="/admin/staff-presence" element={<StaffPresence />} />
+              <Route path="/admin/presence/:targetType/:targetId" element={<TargetPresence />} />
               <Route path="/admin/time-intelligence-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/time-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/legacy-incoming-packing" element={<LegacyIncomingPackingDebug />} />
