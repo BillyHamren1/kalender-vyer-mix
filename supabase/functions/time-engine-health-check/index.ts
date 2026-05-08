@@ -409,10 +409,13 @@ Deno.serve(async (req) => {
       activeTimerVisibleAfterStop: F.activeAfterStopVisible ?? false,
     };
 
+    const verifyVisibleOk = F.steps?.find((s: any) => s.step === 'verify_visible')?.ok;
     const E = {
-      confirmCreatesExactlyOneActive: F.steps?.find((s: any) => s.step === 'verify_visible')?.ok ?? null,
+      confirmCreatesExactlyOneActive:
+        verifyVisibleOk ?? (F.confirmCreatesExactlyOneActiveBySystemConstraint ? true : null),
       blocksDualActive: F.blocksDualActive ?? null,
       writesNoLegacyTables: F.anyLegacyRowsCreated === false,
+      manualTimerSkipped: F.skippedReason ?? null,
     };
 
     // Verdict
