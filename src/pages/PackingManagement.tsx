@@ -12,6 +12,7 @@ import PackingCalendarView from "@/components/packing/PackingCalendarView";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import BulkCleanupDialog from "@/components/packing/BulkCleanupDialog";
 import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
+import PreflightBatchDebugPanel from "@/components/scanner/PreflightBatchDebugPanel";
 import { fetchPackings, deletePacking } from "@/services/packingService";
 import { PackingStatus, PACKING_STATUS_LABELS } from "@/types/packing";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
