@@ -16,10 +16,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type Phase = 'rig' | 'event' | 'rigDown';
 
-const PHASE_FIELDS: Record<Phase, { date: string; start: string; end: string; eventType: string }> = {
-  rig:     { date: 'rigdaydate',   start: 'rig_start_time',     end: 'rig_end_time',     eventType: 'rig' },
-  event:   { date: 'eventdate',    start: 'event_start_time',   end: 'event_end_time',   eventType: 'event' },
-  rigDown: { date: 'rigdowndate',  start: 'rigdown_start_time', end: 'rigdown_end_time', eventType: 'rigDown' },
+const PHASE_FIELDS: Record<Phase, { date: string; start: string; end: string; eventType: string; lock: string; startExt: string; endExt: string }> = {
+  rig:     { date: 'rigdaydate',   start: 'rig_start_time',     end: 'rig_end_time',     eventType: 'rig',     lock: 'rig_time_locked',     startExt: 'rig_start_time_external',     endExt: 'rig_end_time_external' },
+  event:   { date: 'eventdate',    start: 'event_start_time',   end: 'event_end_time',   eventType: 'event',   lock: 'event_time_locked',   startExt: 'event_start_time_external',   endExt: 'event_end_time_external' },
+  rigDown: { date: 'rigdowndate',  start: 'rigdown_start_time', end: 'rigdown_end_time', eventType: 'rigDown', lock: 'rigdown_time_locked', startExt: 'rigdown_start_time_external', endExt: 'rigdown_end_time_external' },
 };
 
 export interface SyncPhaseTimeInput {
@@ -28,6 +28,8 @@ export interface SyncPhaseTimeInput {
   date: string;               // YYYY-MM-DD — the phase date that should match
   startISO: string | null;    // full ISO timestamp or null to clear
   endISO: string | null;
+  /** When true, ignore the per-phase lock flag. Default false — locked phases reject writes. */
+  allowLocked?: boolean;
 }
 
 export interface SyncPhaseTimeResult {
@@ -35,6 +37,7 @@ export interface SyncPhaseTimeResult {
   eventsUpserted: number;
   syncedSiblings: number;      // siblings other than the primary booking
   largeProjectId: string | null;
+  blocked?: 'locked';
 }
 
 /**
@@ -115,19 +118,31 @@ async function applyToBooking(
  * same phase date.
  */
 export async function syncPhaseTime(input: SyncPhaseTimeInput): Promise<SyncPhaseTimeResult> {
-  const { bookingId, phase, date, startISO, endISO } = input;
+  const { bookingId, phase, date, startISO, endISO, allowLocked = false } = input;
 
-  // Look up the primary booking's large_project_id.
+  // Look up the primary booking's large_project_id + lock flag.
   const f = PHASE_FIELDS[phase];
   const { data: primary, error: pErr } = await supabase
     .from('bookings')
-    .select('id, large_project_id')
+    .select(`id, large_project_id, ${f.lock}`)
     .eq('id', bookingId)
     .maybeSingle();
 
   if (pErr || !primary) {
     console.warn('[timeSync] primary booking lookup failed', bookingId, pErr);
     return { bookingsUpdated: 0, eventsUpserted: 0, syncedSiblings: 0, largeProjectId: null };
+  }
+
+  // Lock guard: refuse to write if locked unless caller explicitly overrides.
+  if (!allowLocked && (primary as any)[f.lock] === true) {
+    console.info('[timeSync] phase locked, write blocked', bookingId, phase);
+    return {
+      bookingsUpdated: 0,
+      eventsUpserted: 0,
+      syncedSiblings: 0,
+      largeProjectId: (primary as any).large_project_id ?? null,
+      blocked: 'locked',
+    };
   }
 
   let bookingsUpdated = 0;
