@@ -1058,6 +1058,29 @@ export default function TimeIntelligenceDebug() {
   const [testable, setTestable] = useState<TestableRow[] | null>(null);
   const [testableScanning, setTestableScanning] = useState(false);
   const [testableProgress, setTestableProgress] = useState<{ done: number; total: number } | null>(null);
+  const [segmentsResult, setSegmentsResult] = useState<any>(null);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+
+  const buildSegments = async () => {
+    if (!staffId || !date) return;
+    setSegmentsLoading(true);
+    setSegmentsResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
+        body: { staffId, date, action: "build_segments" },
+      });
+      if (error) throw error;
+      setSegmentsResult(data);
+      if (data?.ok) toast.success(`Byggde ${data?.counts?.total ?? 0} segment`);
+      else toast.error(data?.error ?? "Kunde inte bygga segment");
+    } catch (e: any) {
+      toast.error(e?.message ?? String(e));
+      setSegmentsResult({ ok: false, error: e?.message ?? String(e) });
+    } finally {
+      setSegmentsLoading(false);
+    }
+  };
+
 
   const scanTestable = async () => {
     if (!date || staff.length === 0) return;
