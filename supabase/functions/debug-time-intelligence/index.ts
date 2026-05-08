@@ -747,10 +747,139 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  // 8) Optional CONFIRM TEST  (dryRun:false + confirm:true)
+  // Skapar max EN active_time_registration baserat på första allowedDecision.
+  // Skriver bara om strikt readiness-gate är godkänd.
+  // ════════════════════════════════════════════════════════════════════════
+  let confirmResult: any = null;
+  const wantsConfirm = body?.dryRun === false && body?.confirm === true;
+
+  if (wantsConfirm) {
+    if (!isReady) {
+      confirmResult = {
+        attempted: true,
+        created: false,
+        reason: "not_ready",
+        readinessFailures,
+      };
+    } else {
+      try {
+        // Check existing active row first.
+        const { data: existing, error: existingErr } = await realClient
+          .from("active_time_registrations")
+          .select("id, started_at, status, start_source, start_target_label, current_label, auto_started")
+          .eq("organization_id", organizationId)
+          .eq("staff_id", staffId)
+          .eq("status", "active")
+          .limit(1)
+          .maybeSingle();
+
+        if (existingErr) {
+          confirmResult = {
+            attempted: true,
+            created: false,
+            reason: "lookup_failed",
+            error: existingErr.message,
+          };
+        } else if (existing) {
+          confirmResult = {
+            attempted: true,
+            created: false,
+            already_active: true,
+            existingRegistrationId: existing.id,
+            registration: existing,
+          };
+        } else {
+          const first = allowedDecisions[0]!;
+          const evidence = {
+            dwellSeconds: first.dwellSeconds,
+            arrivalPingsCount: first.arrivalPingsCount,
+            firstPingAt: first.firstPingAt,
+            lastPingAt: first.lastPingAt,
+            targetDistanceMeters: first.targetDistanceMeters,
+            targetRadiusMeters: first.targetRadiusMeters,
+            policyReason: first.reason,
+            segmentLabel: first.segmentLabel,
+            engine: "time-engine.v1",
+            via: "debug-time-intelligence/confirm",
+          };
+
+          const insertRow = {
+            organization_id: organizationId,
+            staff_id: staffId,
+            status: "active",
+            started_at: first.startAt,
+            start_source: "gps_geofence_auto_start",
+            auto_started: true,
+            start_target_type: first.targetType,
+            start_target_id: first.targetId,
+            start_target_label: first.targetLabel,
+            current_kind: first.targetType,
+            current_label: first.targetLabel,
+            current_target_type: first.targetType,
+            current_target_id: first.targetId,
+            current_confidence: first.confidence,
+            needs_user_choice: false,
+            metadata: { evidence },
+          };
+
+          const { data: inserted, error: insertErr } = await realClient
+            .from("active_time_registrations")
+            .insert(insertRow)
+            .select("id, started_at, status, start_source, start_target_label, current_label, auto_started")
+            .maybeSingle();
+
+          if (insertErr) {
+            // Race: unique partial idx (org, staff) WHERE status='active'
+            if ((insertErr as any).code === "23505") {
+              const { data: now } = await realClient
+                .from("active_time_registrations")
+                .select("id, started_at, status, start_source, start_target_label, current_label, auto_started")
+                .eq("organization_id", organizationId)
+                .eq("staff_id", staffId)
+                .eq("status", "active")
+                .limit(1)
+                .maybeSingle();
+              confirmResult = {
+                attempted: true,
+                created: false,
+                already_active: true,
+                existingRegistrationId: now?.id ?? null,
+                registration: now ?? null,
+              };
+            } else {
+              confirmResult = {
+                attempted: true,
+                created: false,
+                reason: "insert_failed",
+                error: insertErr.message,
+              };
+            }
+          } else {
+            confirmResult = {
+              attempted: true,
+              created: true,
+              createdRegistrationId: inserted?.id ?? null,
+              registration: inserted ?? null,
+            };
+          }
+        }
+      } catch (e: any) {
+        confirmResult = {
+          attempted: true,
+          created: false,
+          reason: "exception",
+          error: e?.message ?? String(e),
+        };
+      }
+    }
+  }
+
   return json(200, {
     ok: true,
     contractVersion: "time-engine.v1",
-    input: { staffId, date, organizationId },
+    input: { staffId, date, organizationId, dryRun: body?.dryRun !== false, confirm: body?.confirm === true },
     rawPingsCoverage,
     targetDiagnostics: targetDiagnosticsBlock,
     targetSummary,
@@ -759,6 +888,7 @@ Deno.serve(async (req) => {
     autoStartDecisions,
     autoStartSummary,
     activeTimeRegistrationPreview,
+    confirmResult,
     legacyLeakCheck,
     warnings,
     generatedAt: new Date().toISOString(),
