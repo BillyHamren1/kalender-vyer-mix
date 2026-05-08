@@ -137,14 +137,16 @@ const MobileJobs = () => {
           </div>
         ) : (
           <>
-          {/* Calendar — toggleable Day/Week/Month */}
+          {/* Calendar — toggleable Day/Week/Month/List */}
           <div className="space-y-3">
             <CalendarViewToggle value={viewMode} onChange={setViewMode} />
-            <CalendarDateNav
-              viewMode={viewMode}
-              selectedDate={selectedDate}
-              onChange={setSelectedDate}
-            />
+            {viewMode !== 'list' && (
+              <CalendarDateNav
+                viewMode={viewMode}
+                selectedDate={selectedDate}
+                onChange={setSelectedDate}
+              />
+            )}
             {viewMode === 'day' && (
               <MobileDayView
                 date={selectedDate}
@@ -166,6 +168,12 @@ const MobileJobs = () => {
                 selectedDate={selectedDate}
                 onSelectDate={(d) => { setSelectedDate(d); setViewMode('day'); }}
                 shifts={shifts}
+              />
+            )}
+            {viewMode === 'list' && (
+              <MobileJobListView
+                shifts={shifts}
+                fixedLocations={locationJobs.map(l => ({ id: l.id, name: l.name, address: l.address ?? null }))}
               />
             )}
           </div>
