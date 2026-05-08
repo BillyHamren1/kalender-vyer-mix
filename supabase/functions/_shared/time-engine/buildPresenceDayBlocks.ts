@@ -487,14 +487,36 @@ export function buildPresenceDayBlocks(
     presenceDayBlocks: dayReportBlocks,
     presenceDayBlocksRawEvidence: evidenceBlocks,
     summary: summarise(dayReportBlocks),
-    aggregation: {
-      rawEvidenceBlocksCount: evidenceBlocks.length,
-      presenceDayBlocksCount: dayReportBlocks.length,
-      compressionRatio:
-        evidenceBlocks.length > 0
-          ? Math.round((dayReportBlocks.length / evidenceBlocks.length) * 1000) / 1000
-          : 1,
-    },
+    aggregation: buildAggregationMetrics(evidenceBlocks, dayReportBlocks),
+  };
+}
+
+function buildAggregationMetrics(
+  evidence: PresenceDayBlock[],
+  presence: PresenceDayBlock[],
+) {
+  const byKind: Record<string, { evidence: number; presence: number; compressionRatio: number }> = {};
+  const kinds: PresenceBlockKind[] = [
+    'confirmed_on_site', 'probable_on_site', 'signal_gap',
+    'uncertain_transition', 'transport', 'unknown_place', 'timer_marker',
+  ];
+  for (const k of kinds) {
+    const ev = evidence.filter((b) => b.kind === k).length;
+    const pr = presence.filter((b) => b.kind === k).length;
+    byKind[k] = {
+      evidence: ev,
+      presence: pr,
+      compressionRatio: ev > 0 ? Math.round((pr / ev) * 1000) / 1000 : 1,
+    };
+  }
+  return {
+    rawEvidenceBlocksCount: evidence.length,
+    presenceDayBlocksCount: presence.length,
+    compressionRatio:
+      evidence.length > 0
+        ? Math.round((presence.length / evidence.length) * 1000) / 1000
+        : 1,
+    byKind,
   };
 }
 
