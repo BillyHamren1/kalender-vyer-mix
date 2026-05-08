@@ -30,6 +30,11 @@ import {
 } from '../_shared/time-engine/resolveWorkTargets.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { smoothPresenceTimeline } from '../_shared/time-engine/smoothPresenceTimeline.ts';
+import {
+  buildPresenceDayBlocks,
+  type PresenceDayBlocksResult,
+  type TimerMarkerInput,
+} from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
