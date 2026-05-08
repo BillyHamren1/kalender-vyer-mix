@@ -51,7 +51,25 @@ export interface SuppressedNoiseSegment {
   endAt: string | null;
   durationMin: number | null;
   label: string;
-  reason: 'short_transport' | 'short_unknown' | 'same_target_rearrival' | 'gps_gap_inside_stay';
+  reason:
+    | 'short_transport'
+    | 'short_unknown'
+    | 'same_target_rearrival'
+    | 'gps_gap_inside_stay'
+    | 'signal_lost_inside_stay'
+    | 'signal_resumed_inside_stay'
+    | 'departure_inside_stay';
+  kind?: 'gps_gap' | 'transport' | 'unknown' | 'signal' | 'departure' | 'rearrival';
+  segmentId?: string | null;
+  startTs?: string;
+  endTs?: string | null;
+}
+
+export interface SignalGapMeta {
+  segmentId: string | null;
+  startTs: string;
+  endTs: string | null;
+  durationMin: number | null;
 }
 
 export interface SmoothedPresenceBlock {
@@ -71,6 +89,10 @@ export interface SmoothedPresenceBlock {
   /** GPS-glapp som absorberats inuti samma presence-block. Visas som varning, inte egen rad. */
   signalGapCount: number;
   signalGapMin: number;
+  /** Detaljerad metadata om absorberade signalglapp. */
+  signalGaps: SignalGapMeta[];
+  /** Alla suppressade segment (alias av suppressedNoiseSegments med utökad info). */
+  suppressedSegments: SuppressedNoiseSegment[];
 }
 
 export interface SmoothPresenceResult {
