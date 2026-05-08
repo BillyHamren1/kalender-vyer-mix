@@ -51,6 +51,7 @@ export const useRealTimeCalendarEvents = () => {
               internalnotes, carry_more_than_10m, ground_nails_allowed,
               assigned_project_id, assigned_project_name, assigned_to_project,
               status, large_project_id,
+              rig_time_locked, event_time_locked, rigdown_time_locked,
               booking_products (name, quantity, notes)
             `)
             .in('id', uniqueBookingIds);
