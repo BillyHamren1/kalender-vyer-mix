@@ -177,6 +177,46 @@ async function fetchActiveRegistration(
   return data ? { id: data.id as UUID, startedAt: data.started_at as ISODateTime } : null;
 }
 
+/**
+ * Returns the most recent active suppression row for this staff/date.
+ * Active = `suppressed_until > nowIso`. The suppression is created by
+ * mobile-app-api when the user manually stops their workday and is the
+ * authoritative reason GPS/geofence may not auto-start a new timer for
+ * the rest of the local day.
+ */
+async function fetchActiveSuppression(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+  date: ISODate,
+  nowIso: ISODateTime,
+): Promise<{ id: UUID; suppressedUntil: ISODateTime; reason: string; source: string } | null> {
+  const { data, error } = await supabaseAdmin
+    .from('time_auto_start_suppressions')
+    .select('id, suppressed_until, reason, source')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .eq('date', date)
+    .gt('suppressed_until', nowIso)
+    .order('suppressed_until', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    // Non-fatal — log and treat as no suppression rather than blocking the engine.
+    // eslint-disable-next-line no-console
+    console.warn('[time-engine] fetchActiveSuppression failed:', error.message);
+    return null;
+  }
+  return data
+    ? {
+        id: data.id as UUID,
+        suppressedUntil: data.suppressed_until as ISODateTime,
+        reason: data.reason as string,
+        source: data.source as string,
+      }
+    : null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
