@@ -461,22 +461,11 @@ export const runPackingPreflightCheck = async (
   packingId: string,
   bookingNumber?: string | null,
 ): Promise<PreflightResult> => {
-  // Use the same anon-key pattern as callScannerApi (no JWT verify required).
-  const url = `https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/packing-preflight-check`;
-  const token = getToken();
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ packing_id: packingId, booking_number: bookingNumber ?? undefined }),
+  const { data, error } = await supabase.functions.invoke('packing-preflight-check', {
+    body: { packing_id: packingId, booking_number: bookingNumber ?? undefined },
   });
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    throw new Error(errBody?.error || `Preflight failed (${res.status})`);
-  }
-  return res.json();
+  if (error) throw new Error(error.message || 'Preflight failed');
+  return data as PreflightResult;
 };
 
 // Identify a product by serial number or SKU (home screen lookup)
