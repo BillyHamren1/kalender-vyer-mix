@@ -1393,6 +1393,40 @@ export default function TimeIntelligenceDebug() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
+            {confirmResp.confirmResult.already_active === true && confirmResp.confirmResult.created === false && (() => {
+              const cr = confirmResp.confirmResult;
+              const reg = cr.registration ?? null;
+              return (
+                <div className="rounded-md border border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="border-amber-600 text-amber-700 dark:text-amber-300">
+                      BLOCKED_BY_ACTIVE_REGISTRATION
+                    </Badge>
+                  </div>
+                  <div className="font-medium text-amber-900 dark:text-amber-100">
+                    Confirm stoppades — personen har redan en aktiv tidsregistrering.
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {([
+                      ["existingRegistrationId", cr.existingRegistrationId ?? reg?.id ?? null],
+                      ["started_at", reg?.started_at ?? null],
+                      ["start_source", reg?.start_source ?? null],
+                      ["start_target_label", reg?.start_target_label ?? null],
+                      ["current_label", reg?.current_label ?? null],
+                      ["auto_started", reg?.auto_started ?? null],
+                    ] as Array<[string, any]>).map(([k, v]) => (
+                      <div key={k} className="flex flex-col">
+                        <span className="text-xs text-amber-800/80 dark:text-amber-200/70">{k}</span>
+                        <span className="font-mono text-xs break-all text-amber-950 dark:text-amber-50">{v == null ? "—" : String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-xs text-amber-800 dark:text-amber-200">
+                    Detta är korrekt skydd. Time Engine får inte skapa parallella aktiva tidsregistreringar.
+                  </div>
+                </div>
+              );
+            })()}
             {(() => {
               const cr = confirmResp.confirmResult;
               const reg = cr.registration ?? null;
