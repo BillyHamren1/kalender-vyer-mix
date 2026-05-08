@@ -1016,6 +1016,46 @@ export default function TimeIntelligenceDebug() {
   const [batch, setBatch] = useState<BatchRow[] | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [pingFirst, setPingFirst] = useState<any>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmResp, setConfirmResp] = useState<any>(null);
+
+  const runConfirm = async () => {
+    if (!staffId || !date) return;
+    setConfirming(true);
+    setConfirmResp(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
+        body: { staffId, date, dryRun: false, confirm: true },
+      });
+      if (error) throw error;
+      setConfirmResp(data);
+      setResult(data); // refresh dry-run view too
+      const cr = data?.confirmResult;
+      if (cr?.created) toast.success("CONFIRM TEST — active_time_registration skapades");
+      else if (cr?.already_active) toast.info("Redan aktiv registrering");
+      else toast.error("Confirm misslyckades: " + (cr?.reason ?? "okänt"));
+    } catch (e: any) {
+      toast.error("Confirm-fel: " + (e?.message ?? String(e)));
+      setConfirmResp({ error: e?.message ?? String(e) });
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const canConfirm = (() => {
+    const r = result;
+    if (!r) return false;
+    const preview = r.activeTimeRegistrationPreview ?? null;
+    const leak = r.legacyLeakCheck ?? {};
+    const legacyLeakDetected =
+      !!leak.inputLegacySourceLeakDetected || !!leak.forbiddenTableLeakDetected || !!leak.legacyLeakDetected;
+    return (
+      preview?.status === "READY_TO_CONFIRM" &&
+      preview?.wouldCreateActiveRegistration === true &&
+      !legacyLeakDetected &&
+      Array.isArray(r.warnings) && r.warnings.length === 0
+    );
+  })();
 
   useEffect(() => {
     (async () => {
@@ -1268,6 +1308,16 @@ export default function TimeIntelligenceDebug() {
                 {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
                 Torrkör hela dagen
               </Button>
+              <Button
+                onClick={runConfirm}
+                disabled={!canConfirm || confirming || loading}
+                size="lg"
+                variant="destructive"
+                title={canConfirm ? "Skapar EN aktiv registrering live" : "Kräver READY_TO_CONFIRM från senaste dry-run"}
+              >
+                {confirming ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                Confirm auto-start test
+              </Button>
             </div>
           </div>
 
@@ -1298,6 +1348,64 @@ export default function TimeIntelligenceDebug() {
       {error && (
         <Card className="border-destructive">
           <CardContent className="pt-6"><p className="text-sm text-destructive font-mono">{error}</p></CardContent>
+        </Card>
+      )}
+
+      {confirmResp?.confirmResult && (
+        <Card className={confirmResp.confirmResult.created ? "border-emerald-500/50" : "border-amber-500/50"}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {confirmResp.confirmResult.created ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+              )}
+              CONFIRM TEST {confirmResp.confirmResult.created
+                ? "— en active_time_registration skapades"
+                : confirmResp.confirmResult.already_active
+                  ? "— redan aktiv registrering"
+                  : "— ingen rad skapades"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {(() => {
+              const cr = confirmResp.confirmResult;
+              const reg = cr.registration ?? null;
+              const fields: Array<[string, any]> = [
+                ["createdRegistrationId", cr.createdRegistrationId ?? reg?.id ?? null],
+                ["existingRegistrationId", cr.existingRegistrationId ?? null],
+                ["already_active", cr.already_active === true],
+                ["status", reg?.status ?? null],
+                ["started_at", reg?.started_at ?? null],
+                ["start_source", reg?.start_source ?? null],
+                ["start_target_label", reg?.start_target_label ?? null],
+                ["auto_started", reg?.auto_started ?? null],
+                ["current_label", reg?.current_label ?? null],
+                ["reason", cr.reason ?? null],
+                ["error", cr.error ?? null],
+              ];
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {fields.map(([k, v]) => (
+                    <div key={k} className="flex flex-col">
+                      <span className="text-xs text-muted-foreground">{k}</span>
+                      <span className="font-mono text-xs break-all">{v == null ? "—" : String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {Array.isArray(confirmResp.confirmResult.readinessFailures) && confirmResp.confirmResult.readinessFailures.length > 0 && (
+              <div className="text-xs">
+                <div className="text-muted-foreground mb-1">readinessFailures</div>
+                <div className="flex flex-wrap gap-1">
+                  {confirmResp.confirmResult.readinessFailures.map((r: string) => (
+                    <Badge key={r} variant="outline">{r}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
         </Card>
       )}
 
