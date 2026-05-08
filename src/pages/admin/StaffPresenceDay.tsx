@@ -116,16 +116,16 @@ interface DayResponse {
   }>;
 }
 
-const ROW_META: Record<TimelineRow["type"], { icon: any; cls: string; label: string }> = {
-  arrival: { icon: LogIn, cls: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30", label: "Anlände" },
-  departure: { icon: LogOut, cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", label: "Lämnade" },
-  signal_lost: { icon: WifiOff, cls: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30", label: "Signal saknas" },
-  signal_resumed: { icon: Wifi, cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30", label: "Signal åter" },
-  transport: { icon: Truck, cls: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border-cyan-500/30", label: "Transport" },
-  unknown_place: { icon: HelpCircle, cls: "bg-muted text-muted-foreground border-border", label: "Okänd plats" },
-  gps_gap: { icon: CircleSlash, cls: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30", label: "GPS-glapp" },
-  active_timer_started: { icon: Play, cls: "bg-primary/15 text-primary border-primary/30", label: "Timer startad" },
-  active_timer_stopped: { icon: Square, cls: "bg-muted text-foreground border-border", label: "Timer stoppad" },
+const ROW_META: Record<TimelineRow["type"], { icon: any; cls: string; label: string; group: "gps" | "timer" }> = {
+  arrival: { icon: LogIn, cls: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30", label: "Anlände", group: "gps" },
+  departure: { icon: LogOut, cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", label: "Lämnade", group: "gps" },
+  signal_lost: { icon: WifiOff, cls: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30", label: "Signal saknas", group: "gps" },
+  signal_resumed: { icon: Wifi, cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30", label: "Signal åter", group: "gps" },
+  transport: { icon: Truck, cls: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border-cyan-500/30", label: "Transport", group: "gps" },
+  unknown_place: { icon: HelpCircle, cls: "bg-muted text-muted-foreground border-border", label: "Okänd plats", group: "gps" },
+  gps_gap: { icon: CircleSlash, cls: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30", label: "GPS-glapp (signal)", group: "gps" },
+  active_timer_started: { icon: Play, cls: "bg-primary/15 text-primary border-primary/40 border-l-4 border-l-primary", label: "Timer startad", group: "timer" },
+  active_timer_stopped: { icon: Square, cls: "bg-muted text-foreground border-border border-l-4 border-l-primary/60", label: "Timer stoppad", group: "timer" },
 };
 
 const SIGNAL_META = {
@@ -298,109 +298,123 @@ export default function StaffPresenceDay() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Tidslinje
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading && <p className="text-sm text-muted-foreground">Laddar…</p>}
-          {!loading && data && data.timeline.length === 0 && (
-            <p className="text-sm text-muted-foreground">Inga händelser för det här datumet.</p>
-          )}
-          {!loading && data && data.timeline.length > 0 && (
-            <div className="space-y-2">
-              {data.timeline.map((row, i) => {
-                const meta = ROW_META[row.type];
-                const Icon = meta.icon;
-                return (
-                  <div key={i} className={`flex items-start gap-3 p-3 rounded-md border ${meta.cls}`}>
-                    <Icon className="h-4 w-4 mt-1 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="font-mono font-semibold tabular-nums">{fmtTime(row.at)}</span>
-                        {row.endAt && (
-                          <span className="text-xs text-muted-foreground">→ {fmtTime(row.endAt)}{row.durationMin != null && ` (${row.durationMin} min)`}</span>
-                        )}
-                        <span className="text-xs uppercase tracking-wide opacity-70">{meta.label}</span>
-                      </div>
-                      <div className="text-sm mt-0.5 truncate">{row.label}</div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
-                        {row.targetType && <span>typ: {row.targetType}</span>}
-                        {row.confidence != null && <span>conf: {Math.round(Number(row.confidence) * 100)}%</span>}
-                        <span>källa: {row.source}</span>
-                        {row.mergedSources && row.mergedSources.length > 1 && (
-                          <Badge variant="outline" className="text-[10px]">
-                            +{row.mergedSources.length - 1} källa{row.mergedSources.length - 1 === 1 ? '' : 'r'}
-                          </Badge>
-                        )}
-                        {row.registrationId && <span>reg: {row.registrationId.slice(0, 8)}…</span>}
-                        {row.gpsSegmentId && <span>seg: {row.gpsSegmentId}</span>}
-                        {row.centerLat != null && row.centerLng != null && (
-                          <span>@ {row.centerLat.toFixed(5)}, {row.centerLng.toFixed(5)}</span>
-                        )}
-                      </div>
-                      {row.duplicates && row.duplicates.length > 0 && (
-                        <details className="text-xs mt-1">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                            Dolda dubbletter ({row.duplicates.length})
-                          </summary>
-                          <div className="mt-1 space-y-1 pl-2 border-l border-border">
-                            {row.duplicates.map((d, di) => (
-                              <div key={di} className="text-muted-foreground">
-                                {fmtTime(d.at)} · källa: {d.source}
-                                {d.registrationId && ` · reg: ${d.registrationId.slice(0, 8)}…`}
-                                {d.label && d.label !== row.label && ` · ${d.label}`}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                      {row.noMatchHint && (
-                        <div className="text-xs mt-1 px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/30">
-                          ⚠ {row.noMatchHint}
-                        </div>
-                      )}
-                      {row.nearestTargets && row.nearestTargets.length > 0 && (
-                        <details className="text-xs mt-2">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                            Närmaste targets ({row.nearestTargets.length})
-                          </summary>
-                          <div className="mt-1 space-y-1">
-                            {row.nearestTargets.map((c) => (
-                              <div key={c.targetId} className={`p-2 rounded border ${c.insideRadius ? 'border-green-500/40 bg-green-500/5' : 'border-border bg-muted/30'}`}>
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="font-medium">{c.targetLabel}</span>
-                                  <Badge variant="outline" className="text-[10px]">{c.targetType}</Badge>
-                                  <Badge variant="outline" className="text-[10px]">{c.targetSource}</Badge>
-                                  <Badge variant={c.targetValidity === 'valid' ? 'default' : 'destructive'} className="text-[10px]">{c.targetValidity}</Badge>
-                                  {c.insideRadius && <Badge className="text-[10px] bg-green-600">inside</Badge>}
-                                  {c.excludedReason && <Badge variant="destructive" className="text-[10px]">{c.excludedReason}</Badge>}
-                                </div>
-                                <div className="mt-1 text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                                  {c.distanceMeters != null ? <span>avstånd: {c.distanceMeters} m</span> : <span>avstånd: —</span>}
-                                  <span>radius: {c.radiusMeters ?? '—'} m</span>
-                                  {c.lat != null && c.lng != null
-                                    ? <span>{c.lat.toFixed(5)}, {c.lng.toFixed(5)}</span>
-                                    : <span>koordinater saknas</span>}
-                                  <span>id: {c.targetId.slice(0, 8)}…</span>
-                                  <span>tracking: {c.timeTrackingAllowed ? 'ja' : 'nej'}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                    </div>
+      {data && data.timeline.length > 0 && (() => {
+        const rows = data.timeline;
+        const gpsRows = rows.filter((r) => ROW_META[r.type].group === "gps");
+        const timerRows = rows.filter((r) => ROW_META[r.type].group === "timer");
+        const dayStart = rows[0]?.at ?? null;
+        const gpsGapCount = rows.filter((r) => r.type === "gps_gap").length;
+        const arrivalCount = rows.filter((r) => r.type === "arrival").length;
+        const unknownCount = rows.filter((r) => r.type === "unknown_place").length;
+        const transportCount = rows.filter((r) => r.type === "transport").length;
+        const transportMin = rows
+          .filter((r) => r.type === "transport")
+          .reduce((s, r) => s + (r.durationMin ?? 0), 0);
+        const gapMin = rows
+          .filter((r) => r.type === "gps_gap")
+          .reduce((s, r) => s + (r.durationMin ?? 0), 0);
+        // Active timer periods: pair starts with stops (by registrationId)
+        const startsById = new Map<string, string>();
+        for (const r of timerRows) {
+          if (r.type === "active_timer_started" && r.registrationId) startsById.set(r.registrationId, r.at);
+        }
+        const periods: Array<{ start: string; end: string | null; min: number | null }> = [];
+        for (const r of timerRows) {
+          if (r.type === "active_timer_started" && r.registrationId) {
+            periods.push({ start: r.at, end: null, min: null });
+          } else if (r.type === "active_timer_stopped" && r.registrationId) {
+            const startAt = startsById.get(r.registrationId);
+            if (startAt) {
+              const min = Math.round((new Date(r.at).getTime() - new Date(startAt).getTime()) / 60000);
+              const open = periods.find((p) => p.start === startAt && p.end == null);
+              if (open) { open.end = r.at; open.min = min; }
+            }
+          }
+        }
+        const timerMin = periods.reduce((s, p) => s + (p.min ?? 0), 0);
+
+        return (
+          <>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4" /> Dagens sammanfattning
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <SummaryItem label="Start på dagen" value={dayStart ? fmtTime(dayStart) : "—"} />
+                  <SummaryItem label="Senaste ping" value={data.summary.lastPingAt ? fmtTime(data.summary.lastPingAt) : "—"} />
+                  <SummaryItem label="Kända platser" value={String(arrivalCount)} />
+                  <SummaryItem label="Okända platser" value={String(unknownCount)} />
+                  <SummaryItem label="Transport" value={transportCount > 0 ? `${transportCount} st (${transportMin} min)` : "0"} />
+                  <SummaryItem label="GPS-glapp" value={gpsGapCount > 0 ? `${gpsGapCount} st (${gapMin} min)` : "0"} />
+                  <SummaryItem label="Timerperioder" value={periods.length > 0 ? `${periods.length} st (${timerMin} min)` : "0"} />
+                  <SummaryItem label="Aktiv timer nu" value={data.summary.hasActiveTimer ? "Ja" : "Nej"} />
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  GPS-glapp är signalstatus, inte arbetstid — personen kan ha varit kvar på samma plats utan ping.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MapPin className="h-5 w-5" /> Närvaro & GPS
+                  <Badge variant="outline" className="ml-2 text-xs">{gpsRows.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {gpsRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Inga GPS-händelser för dagen.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {gpsRows.map((row, i) => <TimelineRowView key={`g${i}`} row={row} />)}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Play className="h-5 w-5 text-primary" /> Timer-händelser
+                  <Badge variant="outline" className="ml-2 text-xs">{timerRows.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {timerRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Inga timer-händelser för dagen.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {timerRows.map((row, i) => <TimelineRowView key={`t${i}`} row={row} />)}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-3">
+                  Timer-händelser visar registrerad arbetstid — inte fysisk plats. Stäms av mot GPS ovan.
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        );
+      })()}
+
+      {!loading && data && data.timeline.length === 0 && (
+        <Card>
+          <CardContent className="py-6">
+            <p className="text-sm text-muted-foreground">Inga händelser för det här datumet.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {loading && (
+        <Card>
+          <CardContent className="py-6">
+            <p className="text-sm text-muted-foreground">Laddar…</p>
+          </CardContent>
+        </Card>
+      )}
 
       <p className="text-xs text-muted-foreground">
         Detta är närvarologg från GPS och Time Engine. Inga time_reports, workdays, location_time_entries
@@ -415,6 +429,94 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
     <div className="space-y-0.5">
       <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className="font-medium truncate" title={value}>{value}</div>
+    </div>
+  );
+}
+
+function TimelineRowView({ row }: { row: TimelineRow }) {
+  const meta = ROW_META[row.type];
+  const Icon = meta.icon;
+  return (
+    <div className={`flex items-start gap-3 p-3 rounded-md border ${meta.cls}`}>
+      <Icon className="h-4 w-4 mt-1 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="font-mono font-semibold tabular-nums">{fmtTime(row.at)}</span>
+          {row.endAt && (
+            <span className="text-xs text-muted-foreground">→ {fmtTime(row.endAt)}{row.durationMin != null && ` (${row.durationMin} min)`}</span>
+          )}
+          <span className="text-xs uppercase tracking-wide opacity-70">
+            {meta.group === "timer" ? `Timer · ${meta.label}` : meta.label}
+          </span>
+        </div>
+        <div className="text-sm mt-0.5 truncate">{row.label}</div>
+        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+          {row.targetType && <span>typ: {row.targetType}</span>}
+          {row.confidence != null && <span>conf: {Math.round(Number(row.confidence) * 100)}%</span>}
+          <span>källa: {row.source}</span>
+          {row.mergedSources && row.mergedSources.length > 1 && (
+            <Badge variant="outline" className="text-[10px]">
+              +{row.mergedSources.length - 1} källa{row.mergedSources.length - 1 === 1 ? '' : 'r'}
+            </Badge>
+          )}
+          {row.registrationId && <span>reg: {row.registrationId.slice(0, 8)}…</span>}
+          {row.gpsSegmentId && <span>seg: {row.gpsSegmentId}</span>}
+          {row.centerLat != null && row.centerLng != null && (
+            <span>@ {row.centerLat.toFixed(5)}, {row.centerLng.toFixed(5)}</span>
+          )}
+        </div>
+        {row.duplicates && row.duplicates.length > 0 && (
+          <details className="text-xs mt-1">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Dolda dubbletter ({row.duplicates.length})
+            </summary>
+            <div className="mt-1 space-y-1 pl-2 border-l border-border">
+              {row.duplicates.map((d, di) => (
+                <div key={di} className="text-muted-foreground">
+                  {fmtTime(d.at)} · källa: {d.source}
+                  {d.registrationId && ` · reg: ${d.registrationId.slice(0, 8)}…`}
+                  {d.label && d.label !== row.label && ` · ${d.label}`}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+        {row.noMatchHint && (
+          <div className="text-xs mt-1 px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/30">
+            ⚠ {row.noMatchHint}
+          </div>
+        )}
+        {row.nearestTargets && row.nearestTargets.length > 0 && (
+          <details className="text-xs mt-2">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Närmaste targets ({row.nearestTargets.length})
+            </summary>
+            <div className="mt-1 space-y-1">
+              {row.nearestTargets.map((c) => (
+                <div key={c.targetId} className={`p-2 rounded border ${c.insideRadius ? 'border-green-500/40 bg-green-500/5' : 'border-border bg-muted/30'}`}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-medium">{c.targetLabel}</span>
+                    <Badge variant="outline" className="text-[10px]">{c.targetType}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{c.targetSource}</Badge>
+                    <Badge variant={c.targetValidity === 'valid' ? 'default' : 'destructive'} className="text-[10px]">{c.targetValidity}</Badge>
+                    {c.insideRadius && <Badge className="text-[10px] bg-green-600">inside</Badge>}
+                    {c.excludedReason && <Badge variant="destructive" className="text-[10px]">{c.excludedReason}</Badge>}
+                  </div>
+                  <div className="mt-1 text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                    {c.distanceMeters != null ? <span>avstånd: {c.distanceMeters} m</span> : <span>avstånd: —</span>}
+                    <span>radius: {c.radiusMeters ?? '—'} m</span>
+                    {c.lat != null && c.lng != null
+                      ? <span>{c.lat.toFixed(5)}, {c.lng.toFixed(5)}</span>
+                      : <span>koordinater saknas</span>}
+                    <span>id: {c.targetId.slice(0, 8)}…</span>
+                    <span>tracking: {c.timeTrackingAllowed ? 'ja' : 'nej'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
     </div>
   );
 }
