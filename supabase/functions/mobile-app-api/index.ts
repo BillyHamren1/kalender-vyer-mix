@@ -5888,17 +5888,29 @@ async function handleUploadLocationBatch(
     try {
       const dayStartIso = `${date}T00:00:00.000Z`
       const dayEndIso = `${date}T23:59:59.999Z`
-      const { data: dayPings } = await supabase
-        .from('staff_location_history')
-        .select('recorded_at, lat, lng, accuracy, speed')
-        .eq('organization_id', organizationId)
-        .eq('staff_id', staffId)
-        .gte('recorded_at', dayStartIso)
-        .lte('recorded_at', dayEndIso)
-        .order('recorded_at', { ascending: true })
-        .limit(2000)
+      // Paginated fetch — Time Engine MUST receive ALL pings for the day,
+      // not just the first 2000. Batch in chunks of 1000 via .range().
+      const PAGE_SIZE = 1000
+      const allDayPings: any[] = []
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const to = from + PAGE_SIZE - 1
+        const { data: pageRows, error: pageErr } = await supabase
+          .from('staff_location_history')
+          .select('recorded_at, lat, lng, accuracy, speed')
+          .eq('organization_id', organizationId)
+          .eq('staff_id', staffId)
+          .gte('recorded_at', dayStartIso)
+          .lte('recorded_at', dayEndIso)
+          .order('recorded_at', { ascending: true })
+          .range(from, to)
+        if (pageErr) break
+        const rows = pageRows || []
+        if (rows.length === 0) break
+        allDayPings.push(...rows)
+        if (rows.length < PAGE_SIZE) break
+      }
 
-      const pings = (dayPings || [])
+      const pings = allDayPings
         .filter((p: any) => p.lat != null && p.lng != null && p.recorded_at)
         .map((p: any) => ({
           ts: p.recorded_at,
