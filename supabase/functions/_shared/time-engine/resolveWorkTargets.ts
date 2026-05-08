@@ -222,7 +222,7 @@ export async function resolveWorkTargets(
     const { data, error } = await supabaseAdmin
       .from('projects')
       .select(
-        'id, name, status, planning_status, deliveryaddress, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_polygon, eventdate, rigdaydate, rigdowndate, deleted_at, is_internal',
+        'id, name, status, planning_status, deliveryaddress, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_polygon, eventdate, rigdaydate, rigdowndate, deleted_at, is_internal, booking_id',
       )
       .eq('organization_id', organizationId)
       .is('deleted_at', null);
@@ -230,11 +230,56 @@ export async function resolveWorkTargets(
     if (error) {
       diag.warnings.push(`projects: ${error.message}`);
     } else {
+      // Fallback: för projekt utan coords men med booking_id, hämta booking-coords.
+      // Triggern (inherit_booking_coords_to_project) sköter normalfallet, men för
+      // historisk data eller race conditions behåller vi en runtime-safety net.
+      const projectsMissingCoords = (data ?? []).filter(
+        (r: any) =>
+          r.booking_id &&
+          (!isFiniteNumber(r.delivery_latitude) || !isFiniteNumber(r.delivery_longitude)) &&
+          !normalizePolygon(r.address_geofence_polygon),
+      );
+      const bookingCoordsByProjectId = new Map<string, { lat: number; lng: number; addr: string | null }>();
+      if (projectsMissingCoords.length > 0) {
+        const bookingIds = [...new Set(projectsMissingCoords.map((r: any) => r.booking_id))];
+        try {
+          const { data: bRows, error: bErr } = await supabaseAdmin
+            .from('bookings')
+            .select('id, delivery_latitude, delivery_longitude, deliveryaddress')
+            .in('id', bookingIds);
+          if (bErr) {
+            diag.warnings.push(`booking coords fallback: ${bErr.message}`);
+          } else {
+            const byBookingId = new Map<string, any>();
+            for (const b of bRows ?? []) byBookingId.set(b.id, b);
+            for (const p of projectsMissingCoords) {
+              const b = byBookingId.get((p as any).booking_id);
+              if (b && isFiniteNumber(b.delivery_latitude) && isFiniteNumber(b.delivery_longitude)) {
+                bookingCoordsByProjectId.set((p as any).id, {
+                  lat: b.delivery_latitude,
+                  lng: b.delivery_longitude,
+                  addr: b.deliveryaddress ?? null,
+                });
+              }
+            }
+          }
+        } catch (e) {
+          diag.warnings.push(`booking coords fallback failed: ${(e as Error).message}`);
+        }
+      }
+
       for (const r of data ?? []) {
         diag.totalFetched += 1;
         const polygon = normalizePolygon(r.address_geofence_polygon);
-        const lat = isFiniteNumber(r.delivery_latitude) ? r.delivery_latitude : null;
-        const lng = isFiniteNumber(r.delivery_longitude) ? r.delivery_longitude : null;
+        let lat = isFiniteNumber(r.delivery_latitude) ? r.delivery_latitude : null;
+        let lng = isFiniteNumber(r.delivery_longitude) ? r.delivery_longitude : null;
+        let coordsFromBooking = false;
+        if ((lat == null || lng == null) && bookingCoordsByProjectId.has(r.id)) {
+          const fb = bookingCoordsByProjectId.get(r.id)!;
+          lat = fb.lat;
+          lng = fb.lng;
+          coordsFromBooking = true;
+        }
         const radius = isFiniteNumber(r.address_radius_meters) ? r.address_radius_meters : 150;
 
         const isPlannedToday =
