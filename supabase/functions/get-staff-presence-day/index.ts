@@ -59,6 +59,21 @@ function classifySignal(ageSec: number | null) {
   return 'no_signal';
 }
 
+interface NearestTargetCandidate {
+  targetLabel: string;
+  targetType: string;
+  targetId: string;
+  targetSource: string;
+  targetValidity: string;
+  timeTrackingAllowed: boolean;
+  lat: number | null;
+  lng: number | null;
+  radiusMeters: number | null;
+  distanceMeters: number | null;
+  insideRadius: boolean;
+  excludedReason: string | null;
+}
+
 interface TimelineRow {
   at: string;
   type:
@@ -79,7 +94,25 @@ interface TimelineRow {
   gpsSegmentId?: string | null;
   endAt?: string | null;
   durationMin?: number | null;
+  centerLat?: number | null;
+  centerLng?: number | null;
+  matchedTargetId?: string | null;
+  matchedTargetType?: string | null;
+  nearestTargets?: NearestTargetCandidate[];
+  noMatchHint?: string | null;
 }
+
+const EARTH_R = 6_371_000;
+function haversineM(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.sqrt(s));
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
