@@ -595,57 +595,59 @@ export default function PresenceDayOverview() {
             <>
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  {selected.block.type === "smoothed_presence" && <MapPin className="h-4 w-4" />}
-                  {selected.block.type === "transport" && <Navigation className="h-4 w-4" />}
-                  {selected.block.type === "unknown_place" && <HelpCircle className="h-4 w-4" />}
-                  {selected.block.type === "gps_gap" && <SignalOff className="h-4 w-4" />}
-                  {blockTitle(selected.block)}
+                  {selected.block.kind === "work_site" && <MapPin className="h-4 w-4" />}
+                  {selected.block.kind === "transport" && <Navigation className="h-4 w-4" />}
+                  {selected.block.kind === "unknown" && <HelpCircle className="h-4 w-4" />}
+                  {selected.block.kind === "signal_gap" && <SignalOff className="h-4 w-4" />}
+                  {selected.block.kind === "timer" && <Activity className="h-4 w-4" />}
+                  {selected.block.title}
                 </SheetTitle>
                 <SheetDescription>{selected.staff.name}</SheetDescription>
               </SheetHeader>
 
               <div className="mt-4 space-y-3 text-sm">
-                {selected.block.type === "smoothed_presence" && (
-                  <Row label="Plats" value={selected.block.label} />
+                {selected.block.kind === "work_site" && selected.block.targetLabel && (
+                  <Row label="Plats" value={selected.block.targetLabel} />
                 )}
-                {selected.block.type === "transport" && (
+                {selected.block.kind === "transport" && (
                   <>
                     <Row label="Från" value={selected.block.fromLabel || "Okänd startpunkt"} />
                     <Row label="Till" value={selected.block.toLabel || "Okänd destination"} />
                   </>
                 )}
-                {selected.block.type === "unknown_place" && (
+                {selected.block.kind === "unknown" && (
                   <Row label="Status" value="Behöver granskas" />
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <Row label="Start" value={fmtTime(selected.block.at)} icon={<Clock className="h-3 w-3" />} />
+                  <Row label="Start" value={fmtTime(selected.block.startAt)} icon={<Clock className="h-3 w-3" />} />
                   <Row label="Slut" value={fmtTime(selected.block.endAt)} icon={<Clock className="h-3 w-3" />} />
                 </div>
-                <Row
-                  label="Längd"
-                  value={fmtDur(
-                    selected.block.durationMin ??
-                      Math.max(
-                        0,
-                        selected.block.endAt
-                          ? Math.round(
-                              (new Date(selected.block.endAt).getTime() -
-                                new Date(selected.block.at).getTime()) /
-                                60000,
-                            )
-                          : 0,
-                      ),
-                  )}
-                />
-                {(selected.block.inlineGapMin ?? 0) > 0 && (
+                {selected.block.durationMinutes > 0 && (
+                  <Row label="Längd" value={selected.block.durationLabel} />
+                )}
+
+                {selected.block.reviewState !== "ok" && (
+                  <Row
+                    label="Granskningsstatus"
+                    value={
+                      selected.block.reviewState === "needs_review"
+                        ? "Behöver granskas"
+                        : selected.block.reviewState === "signal_issue"
+                          ? "Signalproblem"
+                          : "Ignorerad"
+                    }
+                  />
+                )}
+
+                {(selected.block.meta?.inlineGapMinutes ?? 0) > 0 && (
                   <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
                     <AlertTriangle className="h-3.5 w-3.5 mt-0.5" />
-                    <span>Signalglapp under besöket: {selected.block.inlineGapMin} min</span>
+                    <span>Signalglapp under besöket: {selected.block.meta?.inlineGapMinutes} min</span>
                   </div>
                 )}
-                {selected.block.confidence && (
-                  <Row label="Confidence" value={String(selected.block.confidence)} />
+                {selected.block.confidence !== null && (
+                  <Row label="Confidence" value={selected.block.confidence.toFixed(2)} />
                 )}
 
                 <div className="pt-2">
