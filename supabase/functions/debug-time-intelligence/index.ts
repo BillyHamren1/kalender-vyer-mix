@@ -574,8 +574,10 @@ Deno.serve(async (req) => {
   let firstAllowedDecision: typeof autoStartDecisions[number] | null = null;
   const allowedDecisions: Array<{
     startAt: string;
+    targetId: string;
     targetName: string;
     targetType: string;
+    targetLabel: string;
     segmentLabel: string;
     reason: string;
     confidence: number;
@@ -592,8 +594,10 @@ Deno.serve(async (req) => {
       if (!firstAllowedDecision) firstAllowedDecision = d;
       allowedDecisions.push({
         startAt: d.segmentStart,
+        targetId: d.matchedTargetId!,
         targetName: d.matchedTargetName!,
         targetType: d.matchedTargetType!,
+        targetLabel: d.matchedTargetName!,
         segmentLabel: d.segmentLabel,
         reason: d.reason,
         confidence: d.confidence,
