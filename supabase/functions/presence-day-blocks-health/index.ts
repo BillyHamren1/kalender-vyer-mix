@@ -240,6 +240,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        day.rawEvidenceBlocksCount += result.evidenceBlocks.length;
         day.presenceDayBlocksCount += result.blocks.length;
         day.confirmedOnSiteMinutes += result.summary.confirmedOnSiteMinutes;
         day.probableOnSiteMinutes += result.summary.probableOnSiteMinutes;
@@ -252,10 +253,13 @@ Deno.serve(async (req) => {
         for (const b of result.blocks) {
           day.blocksByKind[b.kind] = (day.blocksByKind[b.kind] ?? 0) + 1;
         }
+        for (const b of result.evidenceBlocks) {
+          day.evidenceBlocksByKind[b.kind] = (day.evidenceBlocksByKind[b.kind] ?? 0) + 1;
+        }
 
-        // ── Invariant checks ──
-        // (a) confirmed_on_site MUST come from a real GPS stay segment.
-        for (const b of result.blocks) {
+        // ── Invariant checks (run on raw evidence — aggregated blocks
+        // legitimately span multiple stays for the same target). ──
+        for (const b of result.evidenceBlocks) {
           if (b.kind === 'confirmed_on_site') {
             const allFromKnownStay = b.sourceSegmentIds.every((id) => {
               const seg = gpsTimeline.segments.find((g) => g.id === id);
