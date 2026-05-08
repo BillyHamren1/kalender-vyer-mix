@@ -166,6 +166,7 @@ Deno.serve(async (req) => {
 
       const day: DayHealth = {
         date,
+        staffCount: staffList.length,
         rawPingCount: 0,
         gpsDayTimelineCount: 0,
         rawEvidenceBlocksCount: 0,
@@ -182,7 +183,10 @@ Deno.serve(async (req) => {
         needsReviewCount: 0,
         longestSignalGaps: [],
         warnings: [],
+        sampleStaffDays: [],
       };
+      const samples: SampleStaffDay[] = [];
+      const sampleLimit: number = Math.max(0, Math.min(10, Number(body?.sampleStaffDayCount ?? 2)));
 
       const allLongGaps: LongGapEntry[] = [];
 
