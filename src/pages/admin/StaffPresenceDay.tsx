@@ -336,10 +336,16 @@ export default function StaffPresenceDay() {
           const dur = r.durationMin ?? null;
           if (r.type === "transport") {
             if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+            lastArrivalKey = null; // movement breaks the same-target streak
           } else if (r.type === "unknown_place") {
             if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+            lastArrivalKey = null;
           } else if (r.type === "gps_gap") {
-            if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+            // gps_gap is signal status, never its own row in clean view
+            continue;
+          } else if (r.type === "signal_lost" || r.type === "signal_resumed") {
+            // signal events are surfaced as a badge on the presence block
+            continue;
           } else if (r.type === "arrival" || r.type === "smoothed_presence") {
             const key = r.matchedTargetId || r.targetId || r.label;
             if (key && key === lastArrivalKey) continue; // collapse jitter / re-arrival
@@ -411,7 +417,7 @@ export default function StaffPresenceDay() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <MapPin className="h-5 w-5" /> Närvaro & GPS
+                  <MapPin className="h-5 w-5" /> {showRaw ? "Tekniska GPS-segment" : "Ren daglogg"}
                   <Badge variant="outline" className="ml-2 text-xs">{gpsRows.length}</Badge>
                   {!showRaw && hiddenNoiseCount > 0 && (
                     <Badge variant="outline" className="ml-1 text-[10px]">
@@ -424,7 +430,7 @@ export default function StaffPresenceDay() {
                     className="ml-auto h-7 text-xs"
                     onClick={() => setShowRaw((v) => !v)}
                   >
-                    {showRaw ? "Visa ren dag" : "Visa tekniska GPS-segment"}
+                    {showRaw ? "Visa ren daglogg" : "Visa tekniska GPS-segment"}
                   </Button>
                 </CardTitle>
               </CardHeader>
