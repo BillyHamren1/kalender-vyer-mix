@@ -120,6 +120,15 @@ export const useRealTimeCalendarEvents = () => {
               largeProjectId: largeProjectId || event.extendedProps?.largeProjectId,
               largeProjectName: projectName || event.extendedProps?.largeProjectName,
               isLargeProject: Boolean(largeProjectId) || event.extendedProps?.isLargeProject,
+              timeLocked: (() => {
+                const phase = event.eventType || event.extendedProps?.eventType;
+                if (booking) {
+                  if (phase === 'rig') return booking.rig_time_locked === true;
+                  if (phase === 'event') return booking.event_time_locked === true;
+                  if (phase === 'rigDown') return booking.rigdown_time_locked === true;
+                }
+                return event.extendedProps?.timeLocked === true;
+              })(),
             }
           };
         });
