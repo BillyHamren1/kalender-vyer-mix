@@ -270,13 +270,14 @@ Deno.serve(async (req) => {
   const presence = staffList.map((s: any) => {
     const ping = pingMap.get(s.id) ?? null;
     const reg = regMap.get(s.id) ?? null;
+    const lastArrival = arrivalMap.get(s.id) ?? null;
+    const lastDeparture = departureMap.get(s.id) ?? null;
 
     const ageSec = ping
       ? Math.max(0, Math.floor((now - new Date(ping.recorded_at).getTime()) / 1000))
       : null;
     const signal = classifySignal(ageSec);
 
-    // Match nearest target if ping present
     let matched: { target: Target; distance: number } | null = null;
     if (ping) {
       let best: { target: Target; distance: number } | null = null;
@@ -289,7 +290,6 @@ Deno.serve(async (req) => {
       matched = best;
     }
 
-    // Interpreted status
     let interpreted:
       | "på event"
       | "på lager"
@@ -303,8 +303,6 @@ Deno.serve(async (req) => {
       interpreted = matched.target.kind === "warehouse" ? "på lager" : "på event";
     } else if (ping && ping.speed != null && ping.speed > TRANSPORT_SPEED_MPS) {
       interpreted = "transport";
-    } else if (!ping) {
-      interpreted = "okänd plats";
     } else {
       interpreted = "okänd plats";
     }
@@ -314,6 +312,15 @@ Deno.serve(async (req) => {
       : reg
       ? reg.current_label ?? reg.start_target_label ?? "Okänd plats"
       : "Okänd plats";
+
+    // Determine arrival/departure to show:
+    // - if onSite (matched), show last arrival to that target.
+    // - else, show last departure that happened after last arrival.
+    const arrivalAt = lastArrival?.event_at ?? null;
+    const departureAt = lastDeparture?.event_at ?? null;
+    const stillOnSite =
+      !!arrivalAt &&
+      (!departureAt || new Date(departureAt).getTime() < new Date(arrivalAt).getTime());
 
     return {
       staffId: s.id,
@@ -329,6 +336,22 @@ Deno.serve(async (req) => {
             id: matched.target.id,
             label: matched.target.label,
             distanceMeters: Math.round(matched.distance),
+          }
+        : null,
+      arrival: arrivalAt
+        ? {
+            at: arrivalAt,
+            targetLabel: lastArrival.target_label,
+            targetType: lastArrival.target_type,
+            stillOnSite,
+          }
+        : null,
+      departure: departureAt
+        ? {
+            at: departureAt,
+            targetLabel: lastDeparture.target_label,
+            targetType: lastDeparture.target_type,
+            isLatest: !stillOnSite,
           }
         : null,
       activeTimer: reg
