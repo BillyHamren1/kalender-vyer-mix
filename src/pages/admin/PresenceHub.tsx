@@ -213,10 +213,34 @@ export default function PresenceHub() {
             </p>
           )}
         </div>
-        <Button onClick={fetchData} disabled={loading} variant="outline" size="sm">
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Uppdatera
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={async () => {
+              const dryRun = !confirm("Backfilla koordinater för ALLA bokningar/projekt utan koordinater?\n\nOK = kör skarpt, Avbryt = endast förhandsgranska");
+              const { data, error } = await supabase.functions.invoke("backfill-coords", {
+                body: { dryRun, limit: 500 },
+              });
+              if (error) { alert("Fel: " + error.message); return; }
+              const c = (data as any)?.counts ?? {};
+              alert(
+                `${dryRun ? "Förhandsgranskning" : "Backfill klar"}\n` +
+                `Geokodade: ${c.geocoded ?? 0}\n` +
+                `Uppdaterade: ${c.updated ?? 0}\n` +
+                `Geokodning misslyckades: ${c.geocodeFailed ?? 0}\n` +
+                `Hoppade över (saknar adress): ${c.skipped ?? 0}`
+              );
+            }}
+            variant="outline"
+            size="sm"
+          >
+            <MapPin className="h-4 w-4 mr-2" />
+            Backfilla koordinater
+          </Button>
+          <Button onClick={fetchData} disabled={loading} variant="outline" size="sm">
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Uppdatera
+          </Button>
+        </div>
       </div>
 
       {error && (
