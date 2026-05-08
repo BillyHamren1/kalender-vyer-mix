@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
   }
 
   // 4. Sort worst-first
-  const sortRank: Record<RowStatus, number> = { BLOCKED: 0, WARNING: 1, PASS: 2 }
+  const sortRank: Record<string, number> = { ERROR: -1, BLOCKED: 0, WARNING: 1, PASS: 2 }
   results.sort((a, b) => {
     const r = sortRank[a.worstStatus] - sortRank[b.worstStatus]
     if (r !== 0) return r
