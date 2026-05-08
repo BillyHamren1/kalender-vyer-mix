@@ -135,16 +135,11 @@ export function classifyActiveSegment(
     return { kind: 'transport', targetKey: null, label: 'Transport' };
   }
   if (segment.kind === 'gps_gap' || match.outcome === 'gps_uncertain' || match.outcome === 'insufficient_signal') {
-    return { kind: 'gps_uncertain', targetKey: null, label: 'GPS-osäkerhet' };
+    return { kind: 'gps_gap', targetKey: null, label: 'GPS-glapp' };
   }
   if (match.outcome === 'inside_known_target' && match.target) {
     const t = match.target;
-    const kind: TimeRegistrationSegmentKind =
-      t.kind === 'project' ? 'project'
-      : t.kind === 'booking' ? 'booking'
-      : t.kind === 'warehouse' ? 'warehouse'
-      : 'unknown_place';
-    return { kind, targetKey: t.key, label: t.label };
+    return { kind: 'work_target', targetKey: t.key, label: t.label };
   }
   return { kind: 'unknown_place', targetKey: null, label: 'Okänd plats' };
 }
