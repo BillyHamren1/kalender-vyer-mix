@@ -141,15 +141,64 @@ function buildTimeEngineSummary(result: any) {
 
   const preview = r.activeTimeRegistrationPreview ?? null;
 
+  // Backend is authoritative for readiness, targetSummary and allowedDecisions.
+  const backendTargetSummary = r.targetSummary ?? null;
+  const backendAutoSummary = r.autoStartSummary ?? {};
+  const backendAllowedDecisions: any[] = Array.isArray(backendAutoSummary.allowedDecisions)
+    ? backendAutoSummary.allowedDecisions
+    : [];
+
+  const targetSummaryComplete =
+    !!backendTargetSummary &&
+    Number.isFinite(Number(backendTargetSummary.totalCandidates)) &&
+    Number.isFinite(Number(backendTargetSummary.validCount)) &&
+    Number.isFinite(Number(backendTargetSummary.invalidCount)) &&
+    Number.isFinite(Number(backendTargetSummary.candidatesWithCoordinates)) &&
+    Number.isFinite(Number(backendTargetSummary.autostartableCount)) &&
+    backendTargetSummary.excludedByReason != null &&
+    typeof backendTargetSummary.excludedByReason === "object";
+
+  const allowedDecisionsComplete =
+    backendAllowedDecisions.length > 0 &&
+    backendAllowedDecisions.every(
+      (d) =>
+        d?.startAt != null &&
+        d?.targetName != null &&
+        d?.targetType != null &&
+        d?.targetLabel != null &&
+        d?.dwellSeconds != null &&
+        d?.arrivalPingsCount != null,
+    );
+
+  const previewWouldCreate = preview?.wouldCreateActiveRegistration === true;
+
   const ready =
     warnings.length === 0 &&
     !legacyLeakDetected &&
-    (cov.pingCount ?? 0) > 0 &&
-    segs.length > 0 &&
-    decisions.length > 0;
+    previewWouldCreate &&
+    targetSummaryComplete &&
+    Number(backendTargetSummary?.validCount ?? 0) > 0 &&
+    Number(backendTargetSummary?.totalCandidates ?? 0) > 0 &&
+    Number(backendAutoSummary?.allowedCount ?? 0) > 0 &&
+    allowedDecisionsComplete;
+
+  const notReadyReason = !ready
+    ? (!targetSummaryComplete
+        ? "target_summary_missing"
+        : !allowedDecisionsComplete
+          ? "allowed_decision_missing_evidence"
+          : !previewWouldCreate
+            ? "preview_would_not_create"
+            : warnings.length > 0
+              ? "warnings_present"
+              : legacyLeakDetected
+                ? "legacy_leak_detected"
+                : "not_ready")
+    : null;
 
   return {
     status: ready ? "READY_TO_CONFIRM" : "NOT_READY",
+    notReadyReason,
     rawPingsCoverage: {
       rawPingCount: cov.pingCount ?? 0,
       firstPingAt: cov.firstPingAt ?? null,
@@ -168,11 +217,7 @@ function buildTimeEngineSummary(result: any) {
         durationMin: s.durationMin, label: s.label,
       })),
     },
-    targetSummary: r.targetDiagnostics ? {
-      totalCandidates: r.targetDiagnostics.totalCandidates ?? null,
-      validCount: r.targetDiagnostics.validCount ?? null,
-      invalidCount: r.targetDiagnostics.invalidCount ?? null,
-    } : null,
+    targetSummary: backendTargetSummary,
     autoStartSummary: (() => {
       const blockedByReason: Record<string, number> = {};
       for (const d of blocked) {
