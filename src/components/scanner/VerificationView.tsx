@@ -27,6 +27,7 @@ import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 import { QrParcelManager } from './QrParcelManager';
+import { PackingPreflightPanel } from './PackingPreflightPanel';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
