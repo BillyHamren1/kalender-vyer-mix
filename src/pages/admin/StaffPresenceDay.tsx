@@ -417,7 +417,7 @@ export default function StaffPresenceDay() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <MapPin className="h-5 w-5" /> Närvaro & GPS
+                  <MapPin className="h-5 w-5" /> {showRaw ? "Tekniska GPS-segment" : "Ren daglogg"}
                   <Badge variant="outline" className="ml-2 text-xs">{gpsRows.length}</Badge>
                   {!showRaw && hiddenNoiseCount > 0 && (
                     <Badge variant="outline" className="ml-1 text-[10px]">
@@ -430,7 +430,7 @@ export default function StaffPresenceDay() {
                     className="ml-auto h-7 text-xs"
                     onClick={() => setShowRaw((v) => !v)}
                   >
-                    {showRaw ? "Visa ren dag" : "Visa tekniska GPS-segment"}
+                    {showRaw ? "Visa ren daglogg" : "Visa tekniska GPS-segment"}
                   </Button>
                 </CardTitle>
               </CardHeader>
