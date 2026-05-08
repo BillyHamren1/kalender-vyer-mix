@@ -487,52 +487,26 @@ Deno.serve(async (req) => {
   // 5) activeTimeRegistrationPreview  (dryRun)
   // ════════════════════════════════════════════════════════════════════════
   let activeTimeRegistrationPreview: any = null;
-  try {
-    const proc = await processGpsTimelineForAutoStart({
-      organizationId,
-      staffId,
-      date,
-      gpsDayTimeline: timeline,
-      targets: resolvedTargets,
-      supabaseAdmin: supabase as any,
-      dryRun: true,
-    });
-    const allowed = proc.decisions.find((d) => d.decision.allowed) ?? null;
-    if (proc.alreadyActive) {
-      activeTimeRegistrationPreview = {
-        wouldCreate: false,
-        startAt: null,
-        startSource: null,
-        targetLabel: null,
-        reason: "already_active_registration",
-      };
-    } else if (allowed) {
+  {
+    const allowed = autoStartDecisions.find((d) => d.allowed) ?? null;
+    if (allowed) {
       activeTimeRegistrationPreview = {
         wouldCreate: true,
-        startAt: allowed.decision.startAt,
-        startSource: allowed.decision.source,
-        targetLabel: allowed.matchedTargetName ?? allowed.decision.targetName,
-        reason: allowed.decision.reason,
+        startAt: allowed.segmentStart,
+        startSource: "gps_geofence_auto_start",
+        targetId: allowed.matchedTargetId,
+        targetType: allowed.matchedTargetType,
+        targetLabel: allowed.matchedTargetName,
+        reason: allowed.reason,
       };
     } else {
-      const firstBlocked = proc.decisions.find((d) => !d.decision.allowed);
+      const firstBlocked = autoStartDecisions[0] ?? null;
       activeTimeRegistrationPreview = {
         wouldCreate: false,
-        startAt: null,
-        startSource: null,
-        targetLabel: firstBlocked?.matchedTargetName ?? null,
-        reason: firstBlocked?.decision.reason
-          ?? (proc.decisions.length === 0 ? "no_candidate_stay_segment" : "no_allowed_decision"),
+        reason: firstBlocked?.reason
+          ?? (autoStartDecisions.length === 0 ? "no_candidate_stay_segment" : "no_allowed_decision"),
       };
     }
-  } catch (e) {
-    activeTimeRegistrationPreview = {
-      wouldCreate: false,
-      startAt: null,
-      startSource: null,
-      targetLabel: null,
-      reason: `process_failed: ${(e as any)?.message ?? e}`,
-    };
   }
 
   // ════════════════════════════════════════════════════════════════════════
