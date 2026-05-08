@@ -248,6 +248,8 @@ const StaffTimeReports: React.FC = () => {
       { table: 'staff_locations', events: ['INSERT', 'UPDATE'] },
       { table: 'assistant_events', events: ['INSERT', 'UPDATE', 'DELETE'] },
       { table: 'workday_flags', events: ['INSERT', 'UPDATE', 'DELETE'] },
+      // Authoritativ källa för "aktiv timer" — Time Engine.
+      { table: 'active_time_registrations', events: ['INSERT', 'UPDATE', 'DELETE'] },
     ],
     queryKeys: [['staff-time-reports-day', dateStr]],
     debounceMs: 400,
@@ -258,7 +260,7 @@ const StaffTimeReports: React.FC = () => {
     refetchInterval: 60_000,
     queryFn: async (): Promise<StaffWithDayReport[]> => {
       // Fetch reports + travel + location-based time (e.g. Lager) in parallel
-      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsRes] = await Promise.all([
+      const [reportsRes, travelRes, locationRes, workdaysRes, pingsRes, assistantRes, flagsRes, bsaRes, saRes, lpsRes, activeRegRes] = await Promise.all([
         supabase
           .from('time_reports')
           .select('id, staff_id, booking_id, large_project_id, location_id, hours_worked, start_time, end_time, source, source_entry_id, approved, break_time, description, report_date')
@@ -302,6 +304,15 @@ const StaffTimeReports: React.FC = () => {
         supabase
           .from('large_project_staff')
           .select('staff_id, large_project_id'),
+        // ── Authoritativ källa för "aktiv timer": active_time_registrations.
+        // Tar alla som är status='active' och har startat senast dagSlut.
+        // RLS isolerar org. stopped_at är NULL för alla active-rader. ──
+        supabase
+          .from('active_time_registrations')
+          .select('id, staff_id, status, started_at, stopped_at, start_source, start_target_label, current_label, current_kind, current_target_type, current_target_id, auto_started')
+          .eq('status', 'active')
+          .lte('started_at', nextDayIso)
+          .is('stopped_at', null),
       ]);
 
       if (reportsRes.error) throw reportsRes.error;
@@ -337,6 +348,12 @@ const StaffTimeReports: React.FC = () => {
       const travel = travelRes.data || [];
       const locationEntries = locationRes.data || [];
       const workdays = workdaysRes.data || [];
+      // ── Authoritativ aktiv-timer-källa (Time Engine) ───────────────
+      const activeRegRows = ((activeRegRes as any).error ? [] : (activeRegRes as any).data || []) as any[];
+      const activeRegByStaff = new Map<string, any>();
+      for (const r of activeRegRows) {
+        if (!activeRegByStaff.has(r.staff_id)) activeRegByStaff.set(r.staff_id, r);
+      }
       // historyPings hämtas per-staff längre ned (efter att staffIds är kända)
       // för att kunna paginera komplett utan global limit.
       let historyPings: any[] = [];
@@ -1300,37 +1317,29 @@ const StaffTimeReports: React.FC = () => {
             })),
           });
 
-          // Active timers: any open distribution row (time_report w/o end,
-          // open LTE that isn't presence-only) — used to detect "tappad signal".
-          const activeTimerInputs = [
-            ...staffReports
-              .filter(r => !r.end_iso)
-              .map(r => ({
-                id: `tr:${r.id}`,
-                startedAt: r.start_iso,
-                label: r.label ?? '—',
-                source: 'time_report' as const,
-                reportedAsDistribution: true,
-              })),
-            ...staffLTEs
-              .filter(e => !e.exited_at && !e.isPresenceOnly)
-              .map(e => ({
-                id: `lte:${e.id}`,
-                startedAt: e.entered_at,
-                label: e.label ?? 'Plats',
-                source: 'location_entry' as const,
+          // Active timer authority = active_time_registrations (Time Engine).
+          // Öppna time_reports/LTE/travel-rader är legacy-historik och får
+          // INTE driva "Pågående aktivitet"-statusen — de visas fortfarande
+          // som rader i sina egna sektioner, men authority är denna enda rad.
+          const activeReg = activeRegByStaff.get(s.id) || null;
+          const activeTimerInputs = activeReg
+            ? [{
+                id: `atr:${activeReg.id}`,
+                startedAt: activeReg.started_at,
+                label: activeReg.current_label
+                  ?? activeReg.start_target_label
+                  ?? activeReg.current_kind
+                  ?? 'Pågående',
+                source: 'active_registration' as const,
                 reportedAsDistribution: false,
-              })),
-            ...staffTravel
-              .filter(t => !t.end_iso)
-              .map(t => ({
-                id: `tv:${t.id}`,
-                startedAt: t.start_iso!,
-                label: t.to_address ? `Resa → ${t.to_address.split(',')[0].trim()}` : 'Resa',
-                source: 'travel' as const,
-                reportedAsDistribution: false,
-              })),
-          ];
+                startSource: activeReg.start_source ?? null,
+                autoStarted: !!activeReg.auto_started,
+                currentKind: activeReg.current_kind ?? null,
+                currentTargetType: activeReg.current_target_type ?? null,
+                currentTargetId: activeReg.current_target_id ?? null,
+                startTargetLabel: activeReg.start_target_label ?? null,
+              }]
+            : [];
 
           const ping = pingMap.get(s.id) || null;
 

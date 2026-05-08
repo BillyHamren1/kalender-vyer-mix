@@ -49,11 +49,27 @@ export interface CanonicalActiveTimerInput {
   id: string;
   startedAt: string;
   label: string;
-  /** 'time_report' | 'location_entry' | 'travel' — drives icon/label. */
-  source: 'time_report' | 'location_entry' | 'travel';
+  /** 'time_report' | 'location_entry' | 'travel' = legacy open-row sources.
+   *  'active_registration' = nya Time Engine-authority
+   *  (active_time_registrations). Detta är den enda
+   *  authoritativa källan i nya flödet — andra används bara
+   *  som historisk legacy-vy och får INTE driva "aktiv timer"-status. */
+  source: 'time_report' | 'location_entry' | 'travel' | 'active_registration';
   /** Already saved as a time_report? Then it is NOT pending. */
   reportedAsDistribution?: boolean;
+  // ── Pass-through metadata från active_time_registrations ────────────
+  /** active_time_registrations.start_source ('user_timer', geofence, …). */
+  startSource?: string | null;
+  /** active_time_registrations.auto_started. */
+  autoStarted?: boolean | null;
+  /** active_time_registrations.current_kind ('booking'|'project'|'location'|'transport'|…). */
+  currentKind?: string | null;
+  currentTargetType?: string | null;
+  currentTargetId?: string | null;
+  /** start_target_label (vad timern startades på). */
+  startTargetLabel?: string | null;
 }
+
 
 export interface CanonicalActiveTimerRow extends CanonicalActiveTimerInput {
   /** Minutes since the timer started (capped at "now"). */
