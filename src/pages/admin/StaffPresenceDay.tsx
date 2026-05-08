@@ -623,7 +623,7 @@ function TimelineRowView({ row, technical = false, fromLabel = null, toLabel = n
           </div>
         ) : isTransport ? (
           <div className="text-sm mt-0.5">
-            <div className="font-medium">Transport</div>
+            <div className="font-medium">Transport mellan platser</div>
             <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
               <div><span className="opacity-70">Från:</span> {fromLabel || 'Okänd startpunkt'}</div>
               <div><span className="opacity-70">Till:</span> {toLabel || 'Okänd destination'}</div>
