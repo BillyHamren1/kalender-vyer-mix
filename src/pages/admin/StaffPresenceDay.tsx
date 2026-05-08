@@ -87,6 +87,9 @@ interface TimelineRow {
   suppressedNoiseSegments?: SuppressedNoiseSegment[];
   signalGapCount?: number;
   signalGapMin?: number;
+  transitionDistanceMeters?: number | null;
+  sameAreaThresholdMeters?: number;
+  gapTreatment?: 'merged_as_same_area' | 'shown_as_signal_gap_between_places' | 'signal_gap_without_confirmed_departure';
 }
 
 interface TargetMatchSummary {
@@ -544,8 +547,17 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
           <div className="mt-1 inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
             <AlertTriangle className="h-3 w-3" />
             <span>
-              Signalglapp förekom · {row.signalGapCount} st · totalt {row.signalGapMin} min
+              Signalglapp · {row.signalGapCount} st · totalt {row.signalGapMin} min
+              {row.gapTreatment === 'merged_as_same_area' && row.transitionDistanceMeters != null && row.transitionDistanceMeters > 0 && (
+                <> · samma område ({row.transitionDistanceMeters} m)</>
+              )}
             </span>
+          </div>
+        )}
+        {row.type === 'gps_gap' && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            GPS-signal saknades under platsbyte
+            {row.durationMin != null && ` · ${row.durationMin} min`}
           </div>
         )}
         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
