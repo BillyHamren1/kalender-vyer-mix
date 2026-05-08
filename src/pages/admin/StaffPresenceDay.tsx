@@ -85,6 +85,8 @@ interface TimelineRow {
   mergedSegmentIds?: string[];
   suppressedNoiseCount?: number;
   suppressedNoiseSegments?: SuppressedNoiseSegment[];
+  signalGapCount?: number;
+  signalGapMin?: number;
 }
 
 interface TargetMatchSummary {
