@@ -20,7 +20,8 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { useWorkDay } from '@/hooks/useWorkDay';
 
 const VIEW_MODE_KEY = 'mobile.calendarView';
-const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
+const isViewMode = (v: unknown): v is CalendarViewMode =>
+  v === 'day' || v === 'week' || v === 'month' || v === 'list';
 
 /**
  * MobileJobs — calendar/job overview.
