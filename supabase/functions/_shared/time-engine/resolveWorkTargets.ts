@@ -317,7 +317,7 @@ export async function resolveWorkTargets(
           timeTrackingAllowed: true,
           dateRelevance: isPlannedToday ? 'today' : 'recent',
           status,
-          diagnostics: { notes: [] },
+          diagnostics: { notes: coordsFromBooking ? ['coords_from_booking_fallback'] : [] },
         });
       }
     }
