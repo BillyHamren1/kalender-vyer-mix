@@ -1058,6 +1058,29 @@ export default function TimeIntelligenceDebug() {
   const [testable, setTestable] = useState<TestableRow[] | null>(null);
   const [testableScanning, setTestableScanning] = useState(false);
   const [testableProgress, setTestableProgress] = useState<{ done: number; total: number } | null>(null);
+  const [segmentsResult, setSegmentsResult] = useState<any>(null);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+
+  const buildSegments = async () => {
+    if (!staffId || !date) return;
+    setSegmentsLoading(true);
+    setSegmentsResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
+        body: { staffId, date, action: "build_segments" },
+      });
+      if (error) throw error;
+      setSegmentsResult(data);
+      if (data?.ok) toast.success(`Byggde ${data?.counts?.total ?? 0} segment`);
+      else toast.error(data?.error ?? "Kunde inte bygga segment");
+    } catch (e: any) {
+      toast.error(e?.message ?? String(e));
+      setSegmentsResult({ ok: false, error: e?.message ?? String(e) });
+    } finally {
+      setSegmentsLoading(false);
+    }
+  };
+
 
   const scanTestable = async () => {
     if (!date || staff.length === 0) return;
@@ -1787,6 +1810,86 @@ export default function TimeIntelligenceDebug() {
           </div>
 
           <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Segment för aktiv registrering</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Bryter ned aktiv tidsregistrering i work_target / transport / unknown_place / gps_gap.
+                  GPS-glapp drar inte arbetstid — timern tickar vidare under glappet.
+                </p>
+              </div>
+              <Button size="sm" onClick={buildSegments} disabled={!staffId || !date || segmentsLoading}>
+                {segmentsLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                Bygg segment
+              </Button>
+            </CardHeader>
+            {segmentsResult && (
+              <CardContent className="space-y-3">
+                {segmentsResult.ok === false && (
+                  <p className="text-sm text-destructive">{segmentsResult.error}</p>
+                )}
+                {segmentsResult.ok && (
+                  <>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <Badge variant="outline">Totalt: {segmentsResult.counts?.total ?? 0}</Badge>
+                      <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30">work_target: {segmentsResult.counts?.work_target ?? 0}</Badge>
+                      <Badge className="bg-blue-500/15 text-blue-700 border-blue-500/30">transport: {segmentsResult.counts?.transport ?? 0}</Badge>
+                      <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/30">unknown_place: {segmentsResult.counts?.unknown_place ?? 0}</Badge>
+                      <Badge variant="secondary">gps_gap: {segmentsResult.counts?.gps_gap ?? 0}</Badge>
+                      <Badge variant="outline">Sparat: +{segmentsResult.persisted?.inserted ?? 0} / -{segmentsResult.persisted?.deleted ?? 0}</Badge>
+                      {segmentsResult.legacyLeakCheck?.clean && (
+                        <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30">leak-check: clean</Badge>
+                      )}
+                    </div>
+                    <ScrollArea className="max-h-[400px]">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-muted-foreground border-b">
+                            <th className="py-1 pr-2">Start</th>
+                            <th className="py-1 pr-2">Slut</th>
+                            <th className="py-1 pr-2">Kind</th>
+                            <th className="py-1 pr-2">Label</th>
+                            <th className="py-1 pr-2">Conf</th>
+                            <th className="py-1 pr-2">GPS-seg</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(segmentsResult.segments ?? []).map((s: any, i: number) => (
+                            <tr key={i} className="border-b last:border-0 align-top">
+                              <td className="py-1 pr-2 font-mono">{s.startedAt?.slice(11, 19)}</td>
+                              <td className="py-1 pr-2 font-mono">{s.endedAt?.slice(11, 19)}</td>
+                              <td className="py-1 pr-2">
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    s.kind === "work_target" ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30" :
+                                    s.kind === "transport" ? "bg-blue-500/15 text-blue-700 border-blue-500/30" :
+                                    s.kind === "unknown_place" ? "bg-amber-500/15 text-amber-700 border-amber-500/30" :
+                                    ""
+                                  }
+                                >
+                                  {s.kind}
+                                </Badge>
+                              </td>
+                              <td className="py-1 pr-2">{s.label}</td>
+                              <td className="py-1 pr-2 font-mono">{Number(s.confidence ?? 0).toFixed(2)}</td>
+                              <td className="py-1 pr-2 font-mono text-muted-foreground">{s.sourceGpsSegmentId ?? "-"}</td>
+                            </tr>
+                          ))}
+                          {(!segmentsResult.segments || segmentsResult.segments.length === 0) && (
+                            <tr><td colSpan={6} className="py-3 text-center text-muted-foreground">Inga segment</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </ScrollArea>
+                  </>
+                )}
+              </CardContent>
+            )}
+          </Card>
+
+          <Card>
+
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base">Full JSON</CardTitle>
               <Button variant="outline" size="sm" onClick={copyJson}>

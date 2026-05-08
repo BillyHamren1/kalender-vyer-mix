@@ -259,13 +259,19 @@ export interface ActiveTimeRegistration {
 // 6. TimeRegistrationSegment
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Segment kinds for active time registration breakdown.
+ *
+ *   work_target    — inside a known/valid work target (project/booking/warehouse/org_location)
+ *   transport      — movement; never auto-starts a timer, but is a valid segment INSIDE an active timer
+ *   unknown_place  — stationary at an unknown place; never auto-starts, but valid INSIDE an active timer
+ *   gps_gap        — signal status only. Does NOT subtract work time. The timer keeps ticking.
+ */
 export type TimeRegistrationSegmentKind =
-  | 'project'
-  | 'booking'
-  | 'warehouse'
+  | 'work_target'
   | 'transport'
   | 'unknown_place'
-  | 'gps_uncertain';
+  | 'gps_gap';
 
 export interface TimeRegistrationSegment {
   registrationId: UUID;
@@ -273,6 +279,9 @@ export interface TimeRegistrationSegment {
   endedAt: ISODateTime | null;
   kind: TimeRegistrationSegmentKind;
   label: string;
+  /** Only set when kind='work_target'. */
+  targetKind?: WorkTargetKind | null;
+  targetRefId?: UUID | null;
   targetKey?: string | null;
   confidence: Confidence;
   sourceGpsSegmentId?: string | null;

@@ -6009,6 +6009,68 @@ export type Database = {
           },
         ]
       }
+      time_registration_segments: {
+        Row: {
+          confidence: number
+          created_at: string
+          ended_at: string | null
+          id: string
+          kind: string
+          label: string
+          organization_id: string
+          registration_id: string
+          source_gps_segment_id: string | null
+          staff_id: string
+          started_at: string
+          target_key: string | null
+          target_kind: string | null
+          target_ref_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          kind: string
+          label: string
+          organization_id: string
+          registration_id: string
+          source_gps_segment_id?: string | null
+          staff_id: string
+          started_at: string
+          target_key?: string | null
+          target_kind?: string | null
+          target_ref_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          kind?: string
+          label?: string
+          organization_id?: string
+          registration_id?: string
+          source_gps_segment_id?: string | null
+          staff_id?: string
+          started_at?: string
+          target_key?: string | null
+          target_kind?: string | null
+          target_ref_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_registration_segments_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "active_time_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       time_report_anomalies: {
         Row: {
           auto_classified: boolean
