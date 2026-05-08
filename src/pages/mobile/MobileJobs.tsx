@@ -94,9 +94,6 @@ const MobileJobs = () => {
             >
               <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
             </button>
-
-            {/* Start/Avsluta dag — kompakt ikon mellan Uppdatera och Profil */}
-            <HeaderStartEndDayButton />
           </div>
 
           {/* RIGHT: clickable name → profile */}
