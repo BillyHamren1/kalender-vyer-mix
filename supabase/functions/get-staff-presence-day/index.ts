@@ -242,6 +242,16 @@ Deno.serve(async (req) => {
         source: t.start_source ?? evidence.engine ?? 'time-engine',
         gpsSegmentId: evidence.segmentId ?? null,
       });
+      timerMarkers.push({
+        id: `tm-start-${t.id}`,
+        kind: 'started',
+        at: t.started_at,
+        label: `Timer: ${label}`,
+        targetType,
+        targetId,
+        registrationId: t.id,
+        source: t.start_source ?? evidence.engine ?? 'time-engine',
+      });
     }
     if (t.stopped_at && t.stopped_at >= dayStart && t.stopped_at <= dayEnd) {
       timeline.push({
