@@ -337,6 +337,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/admin/sync" element={<SyncReconciliation />} />
               <Route path="/admin/staff-live" element={<StaffLiveDebug />} />
               <Route path="/admin/presence" element={<PresenceHub />} />
+              <Route path="/admin/presence/day-overview" element={<PresenceHub initialTab="day" />} />
               <Route path="/admin/staff-presence" element={<Navigate to="/admin/presence" replace />} />
               <Route path="/admin/presence/:targetType/:targetId" element={<TargetPresence />} />
               <Route path="/admin/presence/staff/:staffId" element={<StaffPresenceDay />} />
