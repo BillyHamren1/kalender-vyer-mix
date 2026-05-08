@@ -164,6 +164,31 @@ const fmtTime = (iso: string) => {
   try { return format(new Date(iso), "HH:mm:ss"); } catch { return iso; }
 };
 
+const fmtClock = (iso: string) => {
+  try { return format(new Date(iso), "HH:mm"); } catch { return iso; }
+};
+
+/** Human duration: 0–59 → "X min", 60+ → "X h Y min". */
+const fmtHumanDuration = (min: number | null | undefined): string => {
+  if (min == null || !Number.isFinite(min) || min <= 0) return "—";
+  const m = Math.round(min);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem === 0 ? `${h} h` : `${h} h ${rem} min`;
+};
+
+/** Soften technical no-match messages for the clean view. */
+const softenNoMatchHint = (raw: string | null | undefined): string | null => {
+  if (!raw) return null;
+  const s = raw.toLowerCase();
+  if (s.includes("flera") || s.includes("multiple")) return "Flera projekt finns i närheten";
+  if (s.includes("utanför") || s.includes("outside") || s.includes("radius") || s.includes(" m ") || /\d{2,}\s*m/.test(s)) {
+    return "Ingen säker projektmatchning";
+  }
+  return "Ingen säker projektmatchning";
+};
+
 export default function StaffPresenceDay() {
   const { staffId } = useParams<{ staffId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -449,7 +474,7 @@ export default function StaffPresenceDay() {
                     {(showRaw
                       ? (data.rawTimeline ?? data.timeline).filter((r) => ROW_META[r.type]?.group === "gps")
                       : gpsRows
-                    ).map((row, i) => <TimelineRowView key={`g${i}`} row={row} />)}
+                    ).map((row, i) => <TimelineRowView key={`g${i}`} row={row} technical={showRaw} />)}
                   </div>
                 )}
                 {!showRaw && (data.summary as any)?.smoothing && (
@@ -526,55 +551,113 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TimelineRowView({ row }: { row: TimelineRow }) {
+function TimelineRowView({ row, technical = false }: { row: TimelineRow; technical?: boolean }) {
   const meta = ROW_META[row.type];
   const Icon = meta.icon;
+
+  // Human header: "12:19 → 15:29 · 3 h 10 min" (or "från 12:19" if still ongoing)
+  const isPresence = row.type === 'smoothed_presence' || row.type === 'arrival';
+  const isTransport = row.type === 'transport';
+  const isUnknown = row.type === 'unknown_place';
+  const hasEnd = !!row.endAt;
+  const headerLabel = meta.group === 'timer' ? `Timer · ${meta.label}` : meta.label;
+  const softHint = !technical ? softenNoMatchHint(row.noMatchHint) : null;
+
   return (
     <div className={`flex items-start gap-3 p-3 rounded-md border ${meta.cls}`}>
       <Icon className="h-4 w-4 mt-1 shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="font-mono font-semibold tabular-nums">{fmtTime(row.at)}</span>
-          {row.endAt && (
-            <span className="text-xs text-muted-foreground">→ {fmtTime(row.endAt)}{row.durationMin != null && ` (${row.durationMin} min)`}</span>
-          )}
-          <span className="text-xs uppercase tracking-wide opacity-70">
-            {meta.group === "timer" ? `Timer · ${meta.label}` : meta.label}
+          <span className="font-mono font-semibold tabular-nums">
+            {technical ? fmtTime(row.at) : fmtClock(row.at)}
+            {hasEnd && (
+              <> <span className="text-muted-foreground font-normal">→</span> {technical ? fmtTime(row.endAt!) : fmtClock(row.endAt!)}</>
+            )}
           </span>
+          {row.durationMin != null && row.durationMin > 0 && (
+            <span className="text-xs text-muted-foreground">· {fmtHumanDuration(row.durationMin)}</span>
+          )}
+          <span className="text-xs uppercase tracking-wide opacity-70">{headerLabel}</span>
         </div>
-        <div className="text-sm mt-0.5 truncate">{row.label}</div>
+
+        {/* Main human line */}
+        {isPresence ? (
+          <div className="text-sm mt-0.5">
+            <div className="font-medium truncate">{row.label}</div>
+            {!technical && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Tid på plats: {fmtHumanDuration(row.durationMin)}
+                {hasEnd
+                  ? <> · Lämnade cirka {fmtClock(row.endAt!)}</>
+                  : <> · Fortfarande där</>}
+              </div>
+            )}
+          </div>
+        ) : isTransport ? (
+          <div className="text-sm mt-0.5">
+            <div className="font-medium">Transport</div>
+            {!technical && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Tid: {fmtHumanDuration(row.durationMin)}
+              </div>
+            )}
+          </div>
+        ) : isUnknown ? (
+          <div className="text-sm mt-0.5">
+            <div className="font-medium truncate">{row.label || 'Okänd plats'}</div>
+            {!technical && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Tid: {fmtHumanDuration(row.durationMin)}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm mt-0.5 truncate">{row.label}</div>
+        )}
+
         {row.type === 'smoothed_presence' && (row.signalGapCount ?? 0) > 0 && (
           <div className="mt-1 inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
             <AlertTriangle className="h-3 w-3" />
             <span>
-              Signalglapp · {row.signalGapCount} st · totalt {row.signalGapMin} min
-              {row.gapTreatment === 'merged_as_same_area' && row.transitionDistanceMeters != null && row.transitionDistanceMeters > 0 && (
+              {row.signalGapCount} signalglapp · totalt {fmtHumanDuration(row.signalGapMin ?? 0)}
+              {technical && row.gapTreatment === 'merged_as_same_area' && row.transitionDistanceMeters != null && row.transitionDistanceMeters > 0 && (
                 <> · samma område ({row.transitionDistanceMeters} m)</>
               )}
             </span>
           </div>
         )}
+
         {row.type === 'gps_gap' && (
           <div className="mt-1 text-xs text-muted-foreground">
             GPS-signal saknades under platsbyte
-            {row.durationMin != null && ` · ${row.durationMin} min`}
+            {row.durationMin != null && ` · ${fmtHumanDuration(row.durationMin)}`}
           </div>
         )}
-        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
-          {row.targetType && <span>typ: {row.targetType}</span>}
-          {row.confidence != null && <span>conf: {Math.round(Number(row.confidence) * 100)}%</span>}
-          <span>källa: {row.source}</span>
-          {row.mergedSources && row.mergedSources.length > 1 && (
-            <Badge variant="outline" className="text-[10px]">
-              +{row.mergedSources.length - 1} källa{row.mergedSources.length - 1 === 1 ? '' : 'r'}
-            </Badge>
-          )}
-          {row.registrationId && <span>reg: {row.registrationId.slice(0, 8)}…</span>}
-          {row.gpsSegmentId && <span>seg: {row.gpsSegmentId}</span>}
-          {row.centerLat != null && row.centerLng != null && (
-            <span>@ {row.centerLat.toFixed(5)}, {row.centerLng.toFixed(5)}</span>
-          )}
-        </div>
+
+        {/* Soft hint (clean view) instead of harsh red technical message */}
+        {!technical && softHint && (
+          <div className="text-xs mt-1 text-muted-foreground italic">{softHint}</div>
+        )}
+
+        {/* Technical metadata strip — only in raw/technical view */}
+        {technical && (
+          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+            {row.targetType && <span>typ: {row.targetType}</span>}
+            {row.confidence != null && <span>conf: {Math.round(Number(row.confidence) * 100)}%</span>}
+            <span>källa: {row.source}</span>
+            {row.mergedSources && row.mergedSources.length > 1 && (
+              <Badge variant="outline" className="text-[10px]">
+                +{row.mergedSources.length - 1} källa{row.mergedSources.length - 1 === 1 ? '' : 'r'}
+              </Badge>
+            )}
+            {row.registrationId && <span>reg: {row.registrationId.slice(0, 8)}…</span>}
+            {row.gpsSegmentId && <span>seg: {row.gpsSegmentId}</span>}
+            {row.centerLat != null && row.centerLng != null && (
+              <span>@ {row.centerLat.toFixed(5)}, {row.centerLng.toFixed(5)}</span>
+            )}
+          </div>
+        )}
+
         {row.duplicates && row.duplicates.length > 0 && (
           <details className="text-xs mt-1">
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
@@ -591,6 +674,7 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
             </div>
           </details>
         )}
+
         {row.suppressedNoiseSegments && row.suppressedNoiseSegments.length > 0 && (
           <details className="text-xs mt-1">
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
@@ -608,39 +692,43 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
             </div>
           </details>
         )}
-        {row.noMatchHint && (
-          <div className="text-xs mt-1 px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/30">
-            ⚠ {row.noMatchHint}
-          </div>
-        )}
-        {row.nearestTargets && row.nearestTargets.length > 0 && (
+
+        {/* Technical match info — collapsed, never the headline. */}
+        {(row.noMatchHint || (row.nearestTargets && row.nearestTargets.length > 0)) && (
           <details className="text-xs mt-2">
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-              Närmaste targets ({row.nearestTargets.length})
+              Teknisk matchningsinfo{row.nearestTargets ? ` (${row.nearestTargets.length} närmaste)` : ''}
             </summary>
-            <div className="mt-1 space-y-1">
-              {row.nearestTargets.map((c) => (
-                <div key={c.targetId} className={`p-2 rounded border ${c.insideRadius ? 'border-green-500/40 bg-green-500/5' : 'border-border bg-muted/30'}`}>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-medium">{c.targetLabel}</span>
-                    <Badge variant="outline" className="text-[10px]">{c.targetType}</Badge>
-                    <Badge variant="outline" className="text-[10px]">{c.targetSource}</Badge>
-                    <Badge variant={c.targetValidity === 'valid' ? 'default' : 'destructive'} className="text-[10px]">{c.targetValidity}</Badge>
-                    {c.insideRadius && <Badge className="text-[10px] bg-green-600">inside</Badge>}
-                    {c.excludedReason && <Badge variant="destructive" className="text-[10px]">{c.excludedReason}</Badge>}
+            {row.noMatchHint && (
+              <div className="text-xs mt-1 px-2 py-1 rounded bg-muted text-muted-foreground border border-border">
+                {row.noMatchHint}
+              </div>
+            )}
+            {row.nearestTargets && row.nearestTargets.length > 0 && (
+              <div className="mt-1 space-y-1">
+                {row.nearestTargets.map((c) => (
+                  <div key={c.targetId} className={`p-2 rounded border ${c.insideRadius ? 'border-green-500/40 bg-green-500/5' : 'border-border bg-muted/30'}`}>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">{c.targetLabel}</span>
+                      <Badge variant="outline" className="text-[10px]">{c.targetType}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{c.targetSource}</Badge>
+                      <Badge variant={c.targetValidity === 'valid' ? 'default' : 'destructive'} className="text-[10px]">{c.targetValidity}</Badge>
+                      {c.insideRadius && <Badge className="text-[10px] bg-green-600">inside</Badge>}
+                      {c.excludedReason && <Badge variant="outline" className="text-[10px]">{c.excludedReason}</Badge>}
+                    </div>
+                    <div className="mt-1 text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                      {c.distanceMeters != null ? <span>avstånd: {c.distanceMeters} m</span> : <span>avstånd: —</span>}
+                      <span>radius: {c.radiusMeters ?? '—'} m</span>
+                      {c.lat != null && c.lng != null
+                        ? <span>{c.lat.toFixed(5)}, {c.lng.toFixed(5)}</span>
+                        : <span>koordinater saknas</span>}
+                      <span>id: {c.targetId.slice(0, 8)}…</span>
+                      <span>tracking: {c.timeTrackingAllowed ? 'ja' : 'nej'}</span>
+                    </div>
                   </div>
-                  <div className="mt-1 text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                    {c.distanceMeters != null ? <span>avstånd: {c.distanceMeters} m</span> : <span>avstånd: —</span>}
-                    <span>radius: {c.radiusMeters ?? '—'} m</span>
-                    {c.lat != null && c.lng != null
-                      ? <span>{c.lat.toFixed(5)}, {c.lng.toFixed(5)}</span>
-                      : <span>koordinater saknas</span>}
-                    <span>id: {c.targetId.slice(0, 8)}…</span>
-                    <span>tracking: {c.timeTrackingAllowed ? 'ja' : 'nej'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </details>
         )}
       </div>
