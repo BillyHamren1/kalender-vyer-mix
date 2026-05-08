@@ -340,5 +340,18 @@ export async function setPhaseLock(
     }
   }
 
+  // Notify any listening calendar/UI to refetch — `bookings.<phase>_time_locked`
+  // is not part of the calendar_events realtime channel, so the planner card's
+  // red border won't update otherwise.
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('phase-lock-changed', {
+        detail: { bookingId, phase, locked, largeProjectId },
+      }));
+    }
+  } catch {
+    /* no-op */
+  }
+
   return { bookingsUpdated, syncedSiblings, largeProjectId };
 }
