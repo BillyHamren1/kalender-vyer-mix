@@ -254,3 +254,142 @@ export function toOverviewBlocks(
 
   return out;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// New engine: map PresenceDayBlock (from buildPresenceDayBlocks) → OverviewBlock
+// ─────────────────────────────────────────────────────────────────────────
+
+interface EnginePresenceBlock {
+  id: string;
+  kind:
+    | "confirmed_on_site"
+    | "probable_on_site"
+    | "signal_gap"
+    | "uncertain_transition"
+    | "transport"
+    | "unknown_place"
+    | "timer_marker";
+  startAt: string;
+  endAt: string;
+  durationMinutes: number;
+  durationLabel: string;
+  targetType: string | null;
+  targetId: string | null;
+  targetLabel: string | null;
+  confidence: "high" | "medium" | "low";
+  confidenceReason: string;
+  reviewState: OverviewReviewState;
+  evidence?: {
+    signalGapMinutes?: number;
+    surroundingTargetLabels?: { before: string | null; after: string | null };
+    [k: string]: unknown;
+  };
+}
+
+const numericConfidence = (c: "high" | "medium" | "low" | null | undefined): number | null => {
+  if (c === "high") return 0.9;
+  if (c === "medium") return 0.6;
+  if (c === "low") return 0.3;
+  return null;
+};
+
+const mapTargetType = (t: string | null): OverviewTargetType => {
+  if (t === "project" || t === "large_project" || t === "booking" || t === "warehouse" || t === "location") {
+    return t;
+  }
+  return "unknown";
+};
+
+/**
+ * Map deterministic engine blocks (presenceDayBlocks) → OverviewBlock[].
+ * Used when the response includes the new field; falls back to legacy
+ * `toOverviewBlocks` when only smoothed rows are available.
+ */
+export function presenceDayBlocksToOverview(
+  staffId: string,
+  staffName: string,
+  date: string,
+  blocks: EnginePresenceBlock[],
+): OverviewBlock[] {
+  const out: OverviewBlock[] = [];
+  for (const b of blocks) {
+    const base = {
+      staffId,
+      staffName,
+      date,
+      startAt: b.startAt,
+      endAt: b.endAt,
+      durationMinutes: b.durationMinutes,
+      durationLabel: b.durationLabel,
+      targetId: b.targetId,
+      targetLabel: b.targetLabel,
+      confidence: numericConfidence(b.confidence),
+      reviewState: b.reviewState,
+      meta: {
+        sourceType: b.kind,
+        engine: "presenceDayBlocks",
+        confidenceReason: b.confidenceReason,
+        inlineGapMinutes: b.evidence?.signalGapMinutes,
+      } as OverviewBlock["meta"],
+    };
+    if (b.kind === "confirmed_on_site" || b.kind === "probable_on_site") {
+      out.push({
+        ...base,
+        kind: "work_site",
+        title: b.targetLabel ?? "På plats",
+        subtitle: b.kind === "probable_on_site" ? "Trolig närvaro" : null,
+        targetType: mapTargetType(b.targetType),
+        fromLabel: null,
+        toLabel: null,
+      });
+    } else if (b.kind === "transport") {
+      const from = b.evidence?.surroundingTargetLabels?.before ?? null;
+      const to = b.evidence?.surroundingTargetLabels?.after ?? null;
+      out.push({
+        ...base,
+        kind: "transport",
+        title: "Transport",
+        subtitle: from && to ? `${from} → ${to}` : to ? `→ ${to}` : from ? `${from} →` : null,
+        targetType: "unknown",
+        fromLabel: from,
+        toLabel: to,
+      });
+    } else if (b.kind === "unknown_place") {
+      out.push({
+        ...base,
+        kind: "unknown",
+        title: "Okänd plats",
+        subtitle: null,
+        targetType: "unknown",
+        fromLabel: null,
+        toLabel: null,
+      });
+    } else if (b.kind === "signal_gap" || b.kind === "uncertain_transition") {
+      const from = b.evidence?.surroundingTargetLabels?.before ?? null;
+      const to = b.evidence?.surroundingTargetLabels?.after ?? null;
+      out.push({
+        ...base,
+        kind: "signal_gap",
+        title: b.kind === "uncertain_transition" ? "Osäker förflyttning" : "Signal saknas",
+        subtitle: from && to ? `${from} → ${to}` : null,
+        targetType: "unknown",
+        fromLabel: from,
+        toLabel: to,
+      });
+    } else if (b.kind === "timer_marker") {
+      out.push({
+        ...base,
+        durationMinutes: 0,
+        durationLabel: "",
+        kind: "timer",
+        title: b.targetLabel ?? "Timer",
+        subtitle: b.confidenceReason,
+        targetType: mapTargetType(b.targetType),
+        fromLabel: null,
+        toLabel: null,
+      });
+    }
+  }
+  return out;
+}
+
