@@ -234,6 +234,7 @@ export const useRealTimeCalendarEvents = () => {
         clearTimeout(reloadTimerRef.current);
       }
       window.removeEventListener('planner-calendar-refresh', onManualRefresh);
+      window.removeEventListener('phase-lock-changed', onManualRefresh as EventListener);
       supabase.removeChannel(calendarChannel);
       console.log('Real-time subscriptions cleaned up');
     };
