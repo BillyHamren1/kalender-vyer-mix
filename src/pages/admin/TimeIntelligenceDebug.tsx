@@ -1065,6 +1065,38 @@ export default function TimeIntelligenceDebug() {
   const [activeRegChecked, setActiveRegChecked] = useState(false);
   const [stopResult, setStopResult] = useState<any>(null);
   const [stopLoading, setStopLoading] = useState(false);
+  const [startManualResult, setStartManualResult] = useState<any>(null);
+  const [startManualLoading, setStartManualLoading] = useState(false);
+
+  const startManualTestRegistration = async () => {
+    if (!staffId) return;
+    setStartManualLoading(true);
+    setStartManualResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("debug-time-intelligence", {
+        body: {
+          staffId,
+          date,
+          action: "start_manual_test",
+          targetType: "warehouse",
+          targetLabel: "FA Warehouse",
+          startSource: "user_timer",
+        },
+      });
+      if (error) throw error;
+      setStartManualResult(data);
+      if (data?.created) {
+        toast.success("Manuell testregistrering skapad");
+      } else {
+        toast.error(data?.error ?? "Kunde inte skapa registrering");
+      }
+      await checkActiveRegistration();
+    } catch (e: any) {
+      toast.error(e?.message ?? String(e));
+    } finally {
+      setStartManualLoading(false);
+    }
+  };
 
   const checkActiveRegistration = async () => {
     if (!staffId) return;
