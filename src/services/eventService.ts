@@ -408,11 +408,50 @@ export const updateCalendarEvent = async (
   updates: CalendarEventUpdate
 ): Promise<CalendarEvent & { syncedSiblings?: number }> => {
   console.log('📝 [Planner UI] Updating calendar event:', eventId);
-  
+
+  const isTimeChange = !!updates.start || !!updates.end;
+
+  // ── Lock guard ──
+  // If the caller wants to change start/end and the booking phase is locked
+  // ("Fast tid"), refuse the write here BEFORE we touch calendar_events.
+  // Otherwise the calendar row would already be moved before syncPhaseTime
+  // got a chance to block, leaving UI and bookings out of sync.
+  if (isTimeChange) {
+    const { data: existingEvent } = await supabase
+      .from('calendar_events')
+      .select('booking_id, event_type, source_date')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (existingEvent?.booking_id && existingEvent?.event_type) {
+      const phase = existingEvent.event_type as 'rig' | 'event' | 'rigDown';
+      const lockCol = phase === 'rig'
+        ? 'rig_time_locked'
+        : phase === 'event'
+        ? 'event_time_locked'
+        : phase === 'rigDown'
+        ? 'rigdown_time_locked'
+        : null;
+      if (lockCol) {
+        const { data: bRow } = await supabase
+          .from('bookings')
+          .select(`id, ${lockCol}`)
+          .eq('id', existingEvent.booking_id)
+          .maybeSingle();
+        if (bRow && (bRow as any)[lockCol] === true) {
+          const err = new Error('Tiden är låst – bocka ur "Fast tid" för att flytta');
+          (err as any).code = 'TIME_LOCKED';
+          console.warn('[updateCalendarEvent] blocked by lock', { eventId, phase });
+          throw err;
+        }
+      }
+    }
+  }
+
   const updateData: any = {};
   if (updates.start) {
     updateData.start_time = updates.start;
     // Keep source_date in sync with the new start so the reconciler
+
     // doesn't see a date mismatch and recreate / move the event back.
     updateData.source_date = String(updates.start).slice(0, 10);
   }
