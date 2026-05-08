@@ -631,6 +631,12 @@ function TimelineRowView({ row, technical = false, fromLabel = null, toLabel = n
                 <div>Tid: {fmtHumanDuration(row.durationMin)}</div>
               )}
             </div>
+            {(row.signalGapCount ?? 0) > 0 && (
+              <div className="mt-1 inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-3 w-3" />
+                <span>Signal/glapp under transport · {fmtHumanDuration(row.signalGapMin ?? 0)}</span>
+              </div>
+            )}
           </div>
         ) : isUnknown ? (
           <div className="text-sm mt-0.5">
