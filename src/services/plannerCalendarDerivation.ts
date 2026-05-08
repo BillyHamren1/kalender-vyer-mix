@@ -300,6 +300,7 @@ export const buildPlannerCalendarEvents = ({
       const existing = projectGroups.get(key);
       const rowBookingNumber = row.booking_number || booking?.booking_number || '';
       const rowClientName = booking?.client || '';
+      const rowLocked = getBookingPhaseLock(booking, phase);
       if (!existing) {
         projectGroups.set(key, {
           rep: row,
@@ -309,7 +310,8 @@ export const buildPlannerCalendarEvents = ({
           eventIds: new Set([row.id]),
           earliestStart: row.start_time,
           latestEnd: row.end_time,
-        });
+          anyLocked: rowLocked,
+        } as any);
       } else {
         if (row.booking_id) existing.bookingIds.add(row.booking_id);
         if (rowBookingNumber) existing.bookingNumbers.add(rowBookingNumber);
@@ -317,6 +319,7 @@ export const buildPlannerCalendarEvents = ({
         existing.eventIds.add(row.id);
         if (row.start_time < existing.earliestStart) existing.earliestStart = row.start_time;
         if (row.end_time > existing.latestEnd) existing.latestEnd = row.end_time;
+        if (rowLocked) (existing as any).anyLocked = true;
       }
       continue;
     }
@@ -405,6 +408,7 @@ export const buildPlannerCalendarEvents = ({
         consolidatedBookingIds: includedBookingIds,
         consolidatedEventIds: Array.from(group.eventIds),
         lptaTeamId: lptaTeam || undefined,
+        timeLocked: (group as any).anyLocked === true,
       },
     });
   }
