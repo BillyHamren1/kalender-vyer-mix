@@ -84,6 +84,7 @@ interface TimelineRow {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  try {
   // ── Auth ──
   const authHeader = req.headers.get('authorization') ?? '';
   const bearer = authHeader.toLowerCase().startsWith('bearer ')
@@ -165,13 +166,14 @@ Deno.serve(async (req) => {
   }
 
   // ── Active timers (started/stopped) ──
-  const { data: timers } = await admin
+  const { data: timers, error: timersErr } = await admin
     .from('active_time_registrations')
-    .select('id, started_at, stopped_at, status, stop_source, metadata, target_type, target_id')
+    .select('id, started_at, stopped_at, status, stop_source, metadata, start_target_type, start_target_id, start_target_label, current_label, current_target_type, current_target_id, start_source, auto_started')
     .eq('organization_id', orgId)
     .eq('staff_id', staffId)
     .or(`started_at.gte.${dayStart},stopped_at.gte.${dayStart}`)
     .order('started_at', { ascending: true });
+  if (timersErr) console.error('[presence-day] timers err', timersErr);
 
   let hasActiveTimer = false;
   let activeTimerInfo: any = null;
@@ -179,16 +181,18 @@ Deno.serve(async (req) => {
   for (const t of timers ?? []) {
     const meta = (t.metadata as any) ?? {};
     const evidence = meta.evidence ?? {};
-    const label = evidence.targetSource ?? t.target_type ?? 'Aktivitet';
+    const targetType = t.current_target_type ?? t.start_target_type ?? null;
+    const targetId = t.current_target_id ?? t.start_target_id ?? null;
+    const label = t.current_label ?? t.start_target_label ?? targetType ?? 'Aktivitet';
     if (t.started_at && t.started_at >= dayStart && t.started_at <= dayEnd) {
       timeline.push({
         at: t.started_at,
         type: 'active_timer_started',
         label: `Timer startad (${label})`,
-        targetType: t.target_type,
-        targetId: t.target_id,
+        targetType,
+        targetId,
         confidence: null,
-        source: evidence.engine ?? 'time-engine',
+        source: t.start_source ?? evidence.engine ?? 'time-engine',
         gpsSegmentId: evidence.segmentId ?? null,
       });
     }
@@ -197,8 +201,8 @@ Deno.serve(async (req) => {
         at: t.stopped_at,
         type: 'active_timer_stopped',
         label: `Timer stoppad (${t.stop_source ?? 'okänd'})`,
-        targetType: t.target_type,
-        targetId: t.target_id,
+        targetType,
+        targetId,
         confidence: null,
         source: t.stop_source ?? 'unknown',
       });
@@ -209,8 +213,8 @@ Deno.serve(async (req) => {
         id: t.id,
         startedAt: t.started_at,
         label,
-        targetType: t.target_type,
-        targetId: t.target_id,
+        targetType,
+        targetId,
       };
     }
   }
