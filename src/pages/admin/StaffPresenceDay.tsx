@@ -336,10 +336,16 @@ export default function StaffPresenceDay() {
           const dur = r.durationMin ?? null;
           if (r.type === "transport") {
             if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+            lastArrivalKey = null; // movement breaks the same-target streak
           } else if (r.type === "unknown_place") {
             if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+            lastArrivalKey = null;
           } else if (r.type === "gps_gap") {
-            if (dur == null || dur < MIN_VISIBLE_MIN) continue;
+            // gps_gap is signal status, never its own row in clean view
+            continue;
+          } else if (r.type === "signal_lost" || r.type === "signal_resumed") {
+            // signal events are surfaced as a badge on the presence block
+            continue;
           } else if (r.type === "arrival" || r.type === "smoothed_presence") {
             const key = r.matchedTargetId || r.targetId || r.label;
             if (key && key === lastArrivalKey) continue; // collapse jitter / re-arrival
