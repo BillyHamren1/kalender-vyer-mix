@@ -29,6 +29,7 @@ import {
   toWorkTarget,
 } from '../_shared/time-engine/resolveWorkTargets.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
+import { smoothPresenceTimeline } from '../_shared/time-engine/smoothPresenceTimeline.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
