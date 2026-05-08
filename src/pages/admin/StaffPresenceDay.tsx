@@ -471,10 +471,37 @@ export default function StaffPresenceDay() {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {(showRaw
-                      ? (data.rawTimeline ?? data.timeline).filter((r) => ROW_META[r.type]?.group === "gps")
-                      : gpsRows
-                    ).map((row, i) => <TimelineRowView key={`g${i}`} row={row} technical={showRaw} />)}
+                    {(() => {
+                      const list = showRaw
+                        ? (data.rawTimeline ?? data.timeline).filter((r) => ROW_META[r.type]?.group === "gps")
+                        : gpsRows;
+                      const STABLE_UNKNOWN_MIN = 10;
+                      const isStable = (r: TimelineRow | undefined) => {
+                        if (!r) return false;
+                        if (r.type === 'smoothed_presence' || r.type === 'arrival') return true;
+                        if (r.type === 'unknown_place' && (r.durationMin ?? 0) >= STABLE_UNKNOWN_MIN) return true;
+                        return false;
+                      };
+                      const labelOf = (r: TimelineRow | undefined): string | null => {
+                        if (!r) return null;
+                        if (r.label && r.label.trim()) return r.label.trim();
+                        if (r.centerLat != null && r.centerLng != null) return 'Ungefärlig plats';
+                        return null;
+                      };
+                      return list.map((row, i) => {
+                        let fromLabel: string | null = null;
+                        let toLabel: string | null = null;
+                        if (row.type === 'transport') {
+                          for (let j = i - 1; j >= 0; j--) {
+                            if (isStable(list[j])) { fromLabel = labelOf(list[j]); break; }
+                          }
+                          for (let j = i + 1; j < list.length; j++) {
+                            if (isStable(list[j])) { toLabel = labelOf(list[j]); break; }
+                          }
+                        }
+                        return <TimelineRowView key={`g${i}`} row={row} technical={showRaw} fromLabel={fromLabel} toLabel={toLabel} />;
+                      });
+                    })()}
                   </div>
                 )}
                 {!showRaw && (data.summary as any)?.smoothing && (
