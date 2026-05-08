@@ -803,7 +803,10 @@ export type Database = {
           deliveryaddress: string | null
           economics_data: Json | null
           event_end_time: string | null
+          event_end_time_external: string | null
           event_start_time: string | null
+          event_start_time_external: string | null
+          event_time_locked: boolean
           eventdate: string | null
           exact_time_info: string | null
           exact_time_needed: boolean | null
@@ -819,10 +822,16 @@ export type Database = {
           needs_review_reason: string | null
           organization_id: string
           rig_end_time: string | null
+          rig_end_time_external: string | null
           rig_start_time: string | null
+          rig_start_time_external: string | null
+          rig_time_locked: boolean
           rigdaydate: string | null
           rigdown_end_time: string | null
+          rigdown_end_time_external: string | null
           rigdown_start_time: string | null
+          rigdown_start_time_external: string | null
+          rigdown_time_locked: boolean
           rigdowndate: string | null
           status: string | null
           title: string | null
@@ -848,7 +857,10 @@ export type Database = {
           deliveryaddress?: string | null
           economics_data?: Json | null
           event_end_time?: string | null
+          event_end_time_external?: string | null
           event_start_time?: string | null
+          event_start_time_external?: string | null
+          event_time_locked?: boolean
           eventdate?: string | null
           exact_time_info?: string | null
           exact_time_needed?: boolean | null
@@ -864,10 +876,16 @@ export type Database = {
           needs_review_reason?: string | null
           organization_id?: string
           rig_end_time?: string | null
+          rig_end_time_external?: string | null
           rig_start_time?: string | null
+          rig_start_time_external?: string | null
+          rig_time_locked?: boolean
           rigdaydate?: string | null
           rigdown_end_time?: string | null
+          rigdown_end_time_external?: string | null
           rigdown_start_time?: string | null
+          rigdown_start_time_external?: string | null
+          rigdown_time_locked?: boolean
           rigdowndate?: string | null
           status?: string | null
           title?: string | null
@@ -893,7 +911,10 @@ export type Database = {
           deliveryaddress?: string | null
           economics_data?: Json | null
           event_end_time?: string | null
+          event_end_time_external?: string | null
           event_start_time?: string | null
+          event_start_time_external?: string | null
+          event_time_locked?: boolean
           eventdate?: string | null
           exact_time_info?: string | null
           exact_time_needed?: boolean | null
@@ -909,10 +930,16 @@ export type Database = {
           needs_review_reason?: string | null
           organization_id?: string
           rig_end_time?: string | null
+          rig_end_time_external?: string | null
           rig_start_time?: string | null
+          rig_start_time_external?: string | null
+          rig_time_locked?: boolean
           rigdaydate?: string | null
           rigdown_end_time?: string | null
+          rigdown_end_time_external?: string | null
           rigdown_start_time?: string | null
+          rigdown_start_time_external?: string | null
+          rigdown_time_locked?: boolean
           rigdowndate?: string | null
           status?: string | null
           title?: string | null
