@@ -195,6 +195,11 @@ Deno.serve(async (req) => {
   const orgId = profile?.organization_id
   if (!orgId) return json({ success: false, error: 'No organization for user' }, 403)
 
+  const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY') || ''
+  if (!PRICELIST_API_KEY) {
+    return json({ success: false, error: 'PRICELIST_API_KEY saknas för WMS preflight' }, 500)
+  }
+
   // 1. Find bookings in range (eventdate OR rigdaydate inside window)
   let bookingQ = supabase
     .from('bookings')
