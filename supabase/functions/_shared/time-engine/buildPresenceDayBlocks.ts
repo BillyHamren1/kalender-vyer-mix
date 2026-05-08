@@ -91,6 +91,9 @@ export interface PresenceDayBlock {
     registrationId?: UUID | null;
     mergedBlockCount?: number;
     suppressedKinds?: Record<string, number>;
+    centerLat?: number | null;
+    centerLng?: number | null;
+    maxDistanceMeters?: number | null;
   };
   sourceSegmentIds: string[];
   hiddenRawSegmentIds: string[];
