@@ -6140,6 +6140,47 @@ async function handleStartTimeRegistration(
   )
 }
 
+/**
+ * stop_sources that count as "user manually ended their workday" and
+ * therefore must lock GPS/auto-start out for the rest of the local day.
+ * Mirrored by the suppression check in
+ * `_shared/time-engine/processGpsTimelineForAutoStart.ts`.
+ */
+const USER_END_WORKDAY_STOP_SOURCES: ReadonlySet<string> = new Set([
+  'user_manual',
+  'user_end_workday',
+  'user_stop',
+  'manual',
+]);
+
+/**
+ * Returns the ISO timestamp for the next local-day boundary in `tz`,
+ * relative to `baseNow`. Used as `suppressed_until` so the lock expires
+ * automatically at midnight local time and tomorrow's GPS auto-start
+ * works as usual.
+ */
+function endOfLocalDayIso(tz = 'Europe/Stockholm', baseNow: Date = new Date()): string {
+  const todayLocal = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(baseNow);
+  const [y, m, d] = todayLocal.split('-').map(Number);
+  // Approximate next-local-midnight as a UTC instant, then correct using
+  // the tz offset of that instant. One refinement step is enough since
+  // DST shifts happen at 02:00/03:00, never at midnight-Stockholm.
+  const guess = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0));
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(guess);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  const asLocalUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  const offsetMs = asLocalUtc - guess.getTime();
+  return new Date(guess.getTime() - offsetMs).toISOString();
+}
+
+function localDateForTz(tz = 'Europe/Stockholm', baseNow: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(baseNow);
+}
+
 async function handleStopTimeRegistration(
   supabase: any, staffId: string, data: any, organizationId: string,
 ) {
@@ -6153,13 +6194,15 @@ async function handleStopTimeRegistration(
     }
   }
 
+  const effectiveStopSource = stop_source || 'user_manual'
+
   let q = supabase
     .from('active_time_registrations')
     .update({
       status: 'stopped',
       stopped_at: stoppedAtIso,
       stopped_by: staffId,
-      stop_source: stop_source || 'user_manual',
+      stop_source: effectiveStopSource,
     })
     .eq('organization_id', organizationId)
     .eq('staff_id', staffId)
@@ -6180,8 +6223,45 @@ async function handleStopTimeRegistration(
     )
   }
 
+  // After a USER-driven stop, lock out GPS/auto-start for the rest of the
+  // local day. This prevents the geofence engine from re-starting a timer
+  // while the person is still on site after explicitly ending the workday.
+  // Manual start via WorkDayPanel is unaffected — start_time_registration
+  // does not consult this table.
+  let suppressionRow: any = null
+  if (USER_END_WORKDAY_STOP_SOURCES.has(effectiveStopSource)) {
+    try {
+      const localDate = localDateForTz()
+      const suppressedUntil = endOfLocalDayIso()
+      const { data: supRow, error: supErr } = await supabase
+        .from('time_auto_start_suppressions')
+        .insert({
+          organization_id: organizationId,
+          staff_id: staffId,
+          date: localDate,
+          suppressed_until: suppressedUntil,
+          reason: 'user_ended_workday',
+          source: 'user_manual_stop',
+          metadata: {
+            stop_source: effectiveStopSource,
+            registration_id: row?.id ?? registration_id ?? null,
+            stopped_at: stoppedAtIso,
+          },
+        })
+        .select('id, suppressed_until, reason, source')
+        .maybeSingle()
+      if (supErr) {
+        console.warn('[stop_time_registration] suppression insert failed (non-fatal):', supErr.message)
+      } else {
+        suppressionRow = supRow
+      }
+    } catch (e: any) {
+      console.warn('[stop_time_registration] suppression insert threw (non-fatal):', e?.message ?? e)
+    }
+  }
+
   return new Response(
-    JSON.stringify({ success: true, registration: row }),
+    JSON.stringify({ success: true, registration: row, suppression: suppressionRow }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }

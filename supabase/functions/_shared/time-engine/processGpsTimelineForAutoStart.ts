@@ -95,6 +95,18 @@ export interface ProcessAutoStartResult {
   createdRegistrationId: UUID | null;
   decisions: AutoStartDecisionLogEntry[];
   targetDiagnostics?: TargetDiagnostics;
+  /**
+   * Set when an active suppression row in `time_auto_start_suppressions`
+   * blocked all auto-start decisions for this staff/date. The user
+   * manually ended their workday earlier today; only manual start from
+   * WorkDayPanel may resume the timer for the rest of the local day.
+   */
+  suppression?: {
+    id: UUID;
+    suppressedUntil: ISODateTime;
+    reason: string;
+    source: string;
+  } | null;
   computedAt: ISODateTime;
 }
 
@@ -165,6 +177,46 @@ async function fetchActiveRegistration(
   return data ? { id: data.id as UUID, startedAt: data.started_at as ISODateTime } : null;
 }
 
+/**
+ * Returns the most recent active suppression row for this staff/date.
+ * Active = `suppressed_until > nowIso`. The suppression is created by
+ * mobile-app-api when the user manually stops their workday and is the
+ * authoritative reason GPS/geofence may not auto-start a new timer for
+ * the rest of the local day.
+ */
+async function fetchActiveSuppression(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+  date: ISODate,
+  nowIso: ISODateTime,
+): Promise<{ id: UUID; suppressedUntil: ISODateTime; reason: string; source: string } | null> {
+  const { data, error } = await supabaseAdmin
+    .from('time_auto_start_suppressions')
+    .select('id, suppressed_until, reason, source')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .eq('date', date)
+    .gt('suppressed_until', nowIso)
+    .order('suppressed_until', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    // Non-fatal — log and treat as no suppression rather than blocking the engine.
+    // eslint-disable-next-line no-console
+    console.warn('[time-engine] fetchActiveSuppression failed:', error.message);
+    return null;
+  }
+  return data
+    ? {
+        id: data.id as UUID,
+        suppressedUntil: data.suppressed_until as ISODateTime,
+        reason: data.reason as string,
+        source: data.source as string,
+      }
+    : null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,12 +271,72 @@ export async function processGpsTimelineForAutoStart(
   const active = await fetchActiveRegistration(supabaseAdmin, organizationId, staffId);
   const decisions: AutoStartDecisionLogEntry[] = [];
 
+  // 3b) User-ended-workday suppression — if the user manually stopped their
+  // workday today, GPS/auto-start is locked out for the rest of the local
+  // day. Manual start via WorkDayPanel bypasses this (it goes through
+  // start_time_registration directly, not through this engine).
+  const nowIso = input.localTime ?? new Date().toISOString();
+  const suppression = await fetchActiveSuppression(
+    supabaseAdmin, organizationId, staffId, date, nowIso,
+  );
+
   // 4) Decide on relevant stay segments
   const candidates = timeline.segments.filter(
     (s) => s.kind === 'stay' && s.type === 'known_site' && s.matchedTargetId,
   );
 
   let createdRegistrationId: UUID | null = null;
+
+  // If suppression is active we still emit one decision per candidate so the
+  // health check / debug surface clearly shows `blocked_user_ended_workday`,
+  // but we never insert a registration row.
+  if (suppression) {
+    for (const seg of candidates) {
+      const target = findTargetForSegment(seg, resolvedTargets);
+      decisions.push({
+        segmentId: seg.id,
+        segmentKind: seg.kind,
+        segmentType: seg.type,
+        matchedTargetId: target?.id ?? seg.matchedTargetId,
+        matchedTargetName: target?.name ?? seg.matchedTargetName,
+        decision: {
+          allowed: false,
+          reason: 'blocked_user_ended_workday',
+          confidence: seg.confidence,
+          startAt: null,
+          targetId: null,
+          targetType: null,
+          targetName: null,
+          source: null,
+          evidence: {
+            isNightLocal: false,
+            localHour: 0,
+            dwellMinutes: seg.durationMin,
+            requiredDwellMinutes: 0,
+            pingCount: seg.pingCount,
+            requiredPingCount: 0,
+            confidence: seg.confidence,
+            requiredConfidence: 0,
+            segmentKind: seg.kind,
+            segmentType: seg.type,
+            policyUsed: 'day',
+          },
+        },
+      });
+    }
+    return {
+      organizationId,
+      staffId,
+      date,
+      alreadyActive: !!active,
+      createdRegistrationId: null,
+      decisions,
+      targetDiagnostics,
+      suppression,
+      computedAt: new Date().toISOString(),
+    };
+  }
+
 
   for (const seg of candidates) {
     const target = findTargetForSegment(seg, resolvedTargets);
@@ -356,6 +468,7 @@ export async function processGpsTimelineForAutoStart(
     createdRegistrationId,
     decisions,
     targetDiagnostics,
+    suppression: null,
     computedAt: new Date().toISOString(),
   };
 }
