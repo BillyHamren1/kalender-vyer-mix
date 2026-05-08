@@ -153,6 +153,7 @@ export interface PresenceDayBlocksResult {
     rawEvidenceBlocksCount: number;
     presenceDayBlocksCount: number;
     compressionRatio: number;
+    byKind: Record<string, { evidence: number; presence: number; compressionRatio: number }>;
   };
 }
 
