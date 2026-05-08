@@ -164,6 +164,31 @@ const fmtTime = (iso: string) => {
   try { return format(new Date(iso), "HH:mm:ss"); } catch { return iso; }
 };
 
+const fmtClock = (iso: string) => {
+  try { return format(new Date(iso), "HH:mm"); } catch { return iso; }
+};
+
+/** Human duration: 0–59 → "X min", 60+ → "X h Y min". */
+const fmtHumanDuration = (min: number | null | undefined): string => {
+  if (min == null || !Number.isFinite(min) || min <= 0) return "—";
+  const m = Math.round(min);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem === 0 ? `${h} h` : `${h} h ${rem} min`;
+};
+
+/** Soften technical no-match messages for the clean view. */
+const softenNoMatchHint = (raw: string | null | undefined): string | null => {
+  if (!raw) return null;
+  const s = raw.toLowerCase();
+  if (s.includes("flera") || s.includes("multiple")) return "Flera projekt finns i närheten";
+  if (s.includes("utanför") || s.includes("outside") || s.includes("radius") || s.includes(" m ") || /\d{2,}\s*m/.test(s)) {
+    return "Ingen säker projektmatchning";
+  }
+  return "Ingen säker projektmatchning";
+};
+
 export default function StaffPresenceDay() {
   const { staffId } = useParams<{ staffId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
