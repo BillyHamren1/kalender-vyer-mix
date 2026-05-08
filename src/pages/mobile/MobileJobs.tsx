@@ -17,7 +17,7 @@ import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { useWorkDay } from '@/hooks/useWorkDay';
+
 
 const VIEW_MODE_KEY = 'mobile.calendarView';
 const isViewMode = (v: unknown): v is CalendarViewMode =>
