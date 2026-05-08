@@ -149,7 +149,8 @@ export type AutoStartDecisionReason =
   | 'blocked_not_enough_dwell'
   | 'blocked_not_enough_pings'
   | 'blocked_night_requires_stronger_evidence'
-  | 'blocked_target_not_autostartable_source';
+  | 'blocked_target_not_autostartable_source'
+  | 'blocked_missing_allowed_decision_fields';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
@@ -384,16 +385,26 @@ export function decideAutoStart(input: DecideAutoStartInput): AutoStartDecisionR
     }
   }
 
-  // ✓ All checks passed.
+  // ✓ All checks passed — assemble allowed result.
+  const startAt = seg.startTs ?? null;
+  const targetId = target.refId ?? null;
+  const targetType = target.kind ?? null;
+  const targetName = target.label ?? null;
+  const source: AutoStartSource = 'gps_geofence_auto_start';
+
+  if (!startAt || !targetId || !targetType || !targetName) {
+    return deny('blocked_missing_allowed_decision_fields', evidence, seg.confidence);
+  }
+
   return {
     allowed: true,
     reason: 'allowed_valid_geofence',
     confidence: seg.confidence,
-    startAt: seg.startTs,
-    targetId: target.refId,
-    targetType: target.kind,
-    targetName: target.label,
-    source: 'gps_geofence_auto_start',
+    startAt,
+    targetId,
+    targetType,
+    targetName,
+    source,
     evidence,
   };
 }
