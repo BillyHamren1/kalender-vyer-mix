@@ -474,7 +474,7 @@ export default function StaffPresenceDay() {
                     {(showRaw
                       ? (data.rawTimeline ?? data.timeline).filter((r) => ROW_META[r.type]?.group === "gps")
                       : gpsRows
-                    ).map((row, i) => <TimelineRowView key={`g${i}`} row={row} />)}
+                    ).map((row, i) => <TimelineRowView key={`g${i}`} row={row} technical={showRaw} />)}
                   </div>
                 )}
                 {!showRaw && (data.summary as any)?.smoothing && (
