@@ -12,6 +12,7 @@ import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
+import MobileJobListView from '@/components/mobile-app/calendar/MobileJobListView';
 import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -19,7 +20,8 @@ import { useLanguage } from '@/i18n/LanguageContext';
 import { useWorkDay } from '@/hooks/useWorkDay';
 
 const VIEW_MODE_KEY = 'mobile.calendarView';
-const isViewMode = (v: unknown): v is CalendarViewMode => v === 'day' || v === 'week' || v === 'month';
+const isViewMode = (v: unknown): v is CalendarViewMode =>
+  v === 'day' || v === 'week' || v === 'month' || v === 'list';
 
 /**
  * MobileJobs — calendar/job overview.
@@ -136,14 +138,16 @@ const MobileJobs = () => {
           </div>
         ) : (
           <>
-          {/* Calendar — toggleable Day/Week/Month */}
+          {/* Calendar — toggleable Day/Week/Month/List */}
           <div className="space-y-3">
             <CalendarViewToggle value={viewMode} onChange={setViewMode} />
-            <CalendarDateNav
-              viewMode={viewMode}
-              selectedDate={selectedDate}
-              onChange={setSelectedDate}
-            />
+            {viewMode !== 'list' && (
+              <CalendarDateNav
+                viewMode={viewMode}
+                selectedDate={selectedDate}
+                onChange={setSelectedDate}
+              />
+            )}
             {viewMode === 'day' && (
               <MobileDayView
                 date={selectedDate}
@@ -165,6 +169,12 @@ const MobileJobs = () => {
                 selectedDate={selectedDate}
                 onSelectDate={(d) => { setSelectedDate(d); setViewMode('day'); }}
                 shifts={shifts}
+              />
+            )}
+            {viewMode === 'list' && (
+              <MobileJobListView
+                shifts={shifts}
+                fixedLocations={locationJobs.map(l => ({ id: l.id, name: l.name, address: l.address ?? null }))}
               />
             )}
           </div>
