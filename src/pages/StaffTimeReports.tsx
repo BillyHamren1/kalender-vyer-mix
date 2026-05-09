@@ -10,6 +10,7 @@ import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail'
 
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { format } from 'date-fns';
+import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import {
   buildStaffDayJournal,
   type RawTimeReport,
