@@ -42,6 +42,12 @@ const TYPE_LABEL: Record<string, string> = {
   large: 'Stort',
 };
 
+const TYPE_BADGE_CLASSES: Record<string, string> = {
+  small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
+  medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
+  large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
+};
+
 type Mode = 'create' | 'add';
 
 export const ConsolidateProjectsDialog: React.FC<Props> = ({
@@ -297,11 +303,11 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
               </Button>
             </div>
 
-            <div className="max-h-80 overflow-y-auto rounded-lg border divide-y">
+            <div className="max-h-80 overflow-y-auto rounded-xl border bg-card p-1.5 space-y-1">
               {isLoading ? (
-                <div className="p-3 space-y-2">
+                <div className="p-2 space-y-2">
                   {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-12" />
+                    <Skeleton key={i} className="h-14 rounded-lg" />
                   ))}
                 </div>
               ) : filtered.length === 0 ? (
@@ -315,16 +321,21 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
                   return (
                     <label
                       key={key}
-                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/40 transition-colors"
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
+                        checked
+                          ? 'bg-primary/5 border-primary/30'
+                          : 'border-transparent hover:bg-muted/50'
+                      }`}
                     >
                       <Checkbox checked={checked} onCheckedChange={() => toggle(c)} />
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] px-2 py-0.5 font-medium shrink-0 border-0 ${TYPE_BADGE_CLASSES[c.type]}`}
+                      >
+                        {TYPE_LABEL[c.type]}
+                      </Badge>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate">{c.name}</span>
-                          <Badge variant="outline" className="text-[10px] shrink-0">
-                            {TYPE_LABEL[c.type]}
-                          </Badge>
-                        </div>
+                        <div className="font-medium text-sm truncate">{c.name}</div>
                         {c.subtitle && (
                           <p className="text-xs text-muted-foreground truncate">
                             {c.subtitle}
