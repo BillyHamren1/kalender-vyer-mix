@@ -406,8 +406,12 @@ Deno.serve(async (req) => {
             )
             .eq('organization_id', orgId)
             .eq('staff_id', s.id)
-            .gte('started_at', dayStart)
-            .lte('started_at', dayEnd);
+            // Overlap query: registration intersects [dayStart, dayEnd] when
+            // started_at <= dayEnd AND (stopped_at IS NULL OR stopped_at >= dayStart).
+            // Previous version used started_at >= dayStart which dropped any
+            // registration that started yesterday and continued into today.
+            .lte('started_at', dayEnd)
+            .or(`stopped_at.is.null,stopped_at.gte.${dayStart}`);
           activeRegs = (data ?? []).map((r: any) => {
             const isActive = (r.status ?? '').toLowerCase() === 'active';
             const stoppedAt: string | null =
