@@ -787,6 +787,10 @@ import type { WorkTarget, WorkTargetKind } from './contracts.ts';
 export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
   if (rt.targetValidity !== 'valid') return null;
   if (rt.latitude == null || rt.longitude == null) return null;
+  // SECONDARY targets får inte auto-matchas som arbete — de exponeras bara via
+  // diagnostics/reviewSuggestions. buildGpsDayTimeline tar emot resultatet
+  // från `targets.map(toWorkTarget).filter(Boolean)`, så vi blockar här.
+  if (rt.canAutoMatchAsWork === false) return null;
   const kind: WorkTargetKind =
     rt.type === 'project' ? 'project'
     : rt.type === 'booking' ? 'booking'
