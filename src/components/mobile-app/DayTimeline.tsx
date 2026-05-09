@@ -73,8 +73,8 @@ function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date, 
     const endMs = Math.min(endDate.getTime(), dayEnd.getTime());
     if (endMs <= startMs) continue;
 
-    const topPx = ((startMs - dayStart.getTime()) / 60000) * PX_PER_MINUTE;
-    const heightPx = Math.max(((endMs - startMs) / 60000) * PX_PER_MINUTE, 22);
+    const topPx = ((startMs - dayStart.getTime()) / 60000) * pxPerMinute;
+    const heightPx = Math.max(((endMs - startMs) / 60000) * pxPerMinute, 18);
 
     if (startMs >= clusterEnd && cluster.length > 0) {
       flushCluster();
