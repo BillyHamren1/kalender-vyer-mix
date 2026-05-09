@@ -182,8 +182,8 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!staff) return json(404, { ok: false, error: 'staff_not_found' });
 
-  const dayStart = `${date}T00:00:00Z`;
-  const dayEnd = `${date}T23:59:59.999Z`;
+  // Stockholm-lokal kalenderdag översatt till UTC-fönster (DST-säker)
+  const { startUtc: dayStart, endUtc: dayEnd } = getStockholmDayWindowUtc(date);
 
   // ── Presence events (arrival/departure/signal_lost/signal_resumed) ──
   const { data: presenceRows } = await admin
