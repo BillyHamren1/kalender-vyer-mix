@@ -333,13 +333,14 @@ Deno.serve(async (req) => {
 
   let resolvedTargetsAll: any[] = [];
   let targetDiagnostics: any = null;
+  let targetResolution: any = null;
   let targetMatchSummary: any = null;
   let gpsTimelineResult: any = null;
   let presenceDayBlocksResult: PresenceDayBlocksResult | null = null;
   const timerMarkers: TimerMarkerInput[] = [];
 
   try {
-    const { targets: resolved, targetDiagnostics: tdiag } = await resolveWorkTargets({
+    const { targets: resolved, targetDiagnostics: tdiag, targetResolution: tres } = await resolveWorkTargets({
       organizationId: orgId,
       staffId,
       date,
@@ -347,6 +348,7 @@ Deno.serve(async (req) => {
     });
     resolvedTargetsAll = resolved;
     targetDiagnostics = tdiag;
+    targetResolution = tres;
 
     const workTargets: WorkTarget[] = resolved
       .map(toWorkTarget)
