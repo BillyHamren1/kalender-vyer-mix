@@ -5,13 +5,22 @@ import { useNavigate } from 'react-router-dom';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import { deleteCalendarEvent } from '@/services/eventService';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Combine } from 'lucide-react';
 import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
 import EventActionPopover from './EventActionPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { DeleteDayButton } from './DeleteDayButton';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import ConsolidateProjectsDialog from '@/components/project/ConsolidateProjectsDialog';
+import { resolveEventConsolidationSource } from '@/services/eventConsolidationResolver';
+import type { ConsolidationSource } from '@/services/projectConsolidationService';
 import './CustomEvent.css';
 
 interface CustomEventProps {
@@ -34,6 +43,24 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   
   const eventRef = useRef<HTMLDivElement>(null);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [consolidateOpen, setConsolidateOpen] = useState(false);
+  const [consolidateSource, setConsolidateSource] = useState<ConsolidationSource | null>(null);
+  const [consolidateName, setConsolidateName] = useState<string>('');
+
+  const handleOpenConsolidate = useCallback(async () => {
+    try {
+      const src = await resolveEventConsolidationSource(event);
+      if (!src) {
+        toast.info('Detta event är inte kopplat till ett projekt');
+        return;
+      }
+      setConsolidateSource(src);
+      setConsolidateName(event.title || '');
+      setConsolidateOpen(true);
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte öppna konsolidering');
+    }
+  }, [event]);
 
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
@@ -364,22 +391,41 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   return (
     <>
-      <EventActionPopover
-        event={event}
-        setEvents={setEvents}
-        onUpdate={onEventResize}
-        onOpenDetails={handleViewDetails}
-        onMoveDate={() => {
-          if (moveDateHandlers.canOpen()) {
-            moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
-            setShowDateDialog(true);
-          }
-        }}
-      >
-        <div style={{ width: '100%', height: '100%' }}>
-          {eventCardContent}
-        </div>
-      </EventActionPopover>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div style={{ width: '100%', height: '100%' }}>
+            <EventActionPopover
+              event={event}
+              setEvents={setEvents}
+              onUpdate={onEventResize}
+              onOpenDetails={handleViewDetails}
+              onMoveDate={() => {
+                if (moveDateHandlers.canOpen()) {
+                  moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
+                  setShowDateDialog(true);
+                }
+              }}
+            >
+              <div style={{ width: '100%', height: '100%' }}>
+                {eventCardContent}
+              </div>
+            </EventActionPopover>
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={handleOpenConsolidate}>
+            <Combine className="h-4 w-4 mr-2" />
+            Konsolidera till stort projekt...
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+
+      <ConsolidateProjectsDialog
+        open={consolidateOpen}
+        onOpenChange={setConsolidateOpen}
+        initialSelection={consolidateSource}
+        initialName={consolidateName}
+      />
 
       {/* Date Move Dialog — LEGACY local state, gated by editController */}
       <MoveEventDateDialog
