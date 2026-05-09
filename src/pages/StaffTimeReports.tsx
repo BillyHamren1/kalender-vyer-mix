@@ -1764,7 +1764,17 @@ const StaffTimeReports: React.FC = () => {
         >
           Engine: {engineMode === 'report_candidate' ? 'reportCandidate' : 'actualModel fallback'}
         </span>
-        {engineMode === 'actual_model_fallback' && (
+        {engineMode === 'actual_model_fallback' && hasUnsafeTargets && (
+          <span
+            className="text-amber-900 dark:text-amber-200"
+            title={unsafeExampleSources.length ? `Källor: ${unsafeExampleSources.join(', ')}` : undefined}
+          >
+            Ny motor stoppad: osäkra targets i underlaget ({unsafeStaffCount}{' '}
+            {unsafeStaffCount === 1 ? 'person' : 'personer'}). Visar fallback för hela dagen tills
+            resolveWorkTargets är fixad.
+          </span>
+        )}
+        {engineMode === 'actual_model_fallback' && !hasUnsafeTargets && (
           <span className="text-amber-800 dark:text-amber-200">
             Ny tidrapportmotor saknas för {missingStaffCount}{' '}
             {missingStaffCount === 1 ? 'person' : 'personer'}. Visar fallback för hela dagen.
