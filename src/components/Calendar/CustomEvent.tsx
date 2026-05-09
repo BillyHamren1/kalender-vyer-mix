@@ -419,7 +419,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             onSelect={() => handleOpenConsolidate('create')}
             className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
           >
-            <Combine className="h-4 w-4 text-primary" />
+            <Combine className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
             Konsolidera till nytt stort projekt...
           </ContextMenuItem>
           <ContextMenuItem
