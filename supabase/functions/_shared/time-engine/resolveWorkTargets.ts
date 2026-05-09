@@ -62,6 +62,43 @@ export type TargetValidity =
 
 export interface WorkTargetPolygonPoint { lat: number; lng: number }
 
+/**
+ * matchRole / assignmentAnchor / canAutoMatchAsWork
+ * --------------------------------------------------
+ * Tidigare matchade buildGpsDayTimeline GPS-pings mot ALLA returnerade
+ * targets, vilket gjorde att samma adress kunde få fel bokningsnamn (en
+ * "datumrelevant" booking utan staff-assignment vann över rätt rad).
+ *
+ * Nu klassar resolveWorkTargets varje target som PRIMARY eller SECONDARY:
+ *
+ *   PRIMARY  (canAutoMatchAsWork=true)  — får auto-matchas som arbete:
+ *     - warehouse / organization_locations
+ *     - booking där personen är direkt assignad på datumet (BSA staff_id)
+ *     - booking där personens team äger calendar_event för datumet
+ *     - large_project där personens team är assignad på datumet
+ *     - project vars booking är PRIMARY enligt ovan
+ *
+ *   SECONDARY (canAutoMatchAsWork=false) — visas bara som review/evidence:
+ *     - bokningar på samma datum utan staff-assignment
+ *     - aktiva projekt utan staff-assignment
+ *     - project-linked bookings utan staff-assignment
+ *     - bokningar på samma adress utan staff-assignment
+ *
+ * `addressAnchorKey` används för att gruppera secondary kandidater på
+ * samma adress som ett primary target (review-vyn kan då säga
+ * "samma adress, men ingen assignment").
+ */
+export type WorkTargetMatchRole = 'primary' | 'secondary';
+
+export type WorkTargetAssignmentAnchor =
+  | 'warehouse'
+  | 'direct_staff_assignment'
+  | 'team_calendar_event'
+  | 'large_project_staff_assignment'
+  | 'date_address_candidate'
+  | 'project_linked_unassigned'
+  | 'active_project_unassigned';
+
 export interface ResolvedWorkTarget {
   id: UUID;
   type: WorkTargetType;
@@ -75,9 +112,25 @@ export interface ResolvedWorkTarget {
   timeTrackingAllowed: boolean;
   dateRelevance: 'today' | 'recent' | 'permanent' | 'unknown';
   status: string | null;
+  matchRole: WorkTargetMatchRole;
+  assignmentAnchor: WorkTargetAssignmentAnchor;
+  canAutoMatchAsWork: boolean;
+  addressAnchorKey: string | null;
   diagnostics: {
     notes: string[];
   };
+}
+
+export interface TargetResolutionDiagnostics {
+  primaryTargetsCount: number;
+  secondaryTargetsCount: number;
+  unsafeAutoMatchedTargetsCount: number;
+  dateRelevantBookingsAsPrimaryCount: number;
+  activeProjectsAsPrimaryCount: number;
+  unassignedBookingsMatchedAsWorkCount: number;
+  unassignedProjectsMatchedAsWorkCount: number;
+  secondaryCandidatesNearGps: number;
+  warnings: string[];
 }
 
 export interface TargetDiagnostics {
@@ -99,6 +152,8 @@ export interface ResolveWorkTargetsInput {
 export interface ResolveWorkTargetsResult {
   targets: ResolvedWorkTarget[];
   targetDiagnostics: TargetDiagnostics;
+  /** Anchor-aware diagnostics. Health check failer på flera av dessa. */
+  targetResolution: TargetResolutionDiagnostics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
