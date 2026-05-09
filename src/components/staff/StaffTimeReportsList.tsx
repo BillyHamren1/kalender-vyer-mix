@@ -502,6 +502,8 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   reportCandidateBlocks={reportCandidateByStaff?.[staff.id]?.blocks ?? null}
                   reportCandidateSummary={reportCandidateByStaff?.[staff.id]?.summary ?? null}
                   reportCandidateLoading={reportCandidateByStaff?.[staff.id]?.loading ?? false}
+                  reportCandidatePresenceBlocks={reportCandidateByStaff?.[staff.id]?.presenceBlocks ?? null}
+                  reportCandidateTargets={reportCandidateByStaff?.[staff.id]?.targets ?? null}
                   engineMode={engineMode}
                   reportSlot={
                     <TimeReportReviewTable
