@@ -869,6 +869,7 @@ export function buildReportCandidateBlocks(
   let shortCrossTargetTransportReviewCount = 0;
   let shortUnknownTransportReviewCount = 0;
   let shortUnknownTransportHiddenCount = 0;
+  const absorbedSameTargetTransportExamples: ReportCandidateSummary['absorbedSameTargetTransportExamples'] = [];
 
   const flipToNeedsReview = (r: ReportCandidateBlock, reason: string) => {
     r.kind = 'needs_review';
