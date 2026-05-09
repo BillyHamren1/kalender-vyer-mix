@@ -89,6 +89,8 @@ interface DayHealth {
   transportRowsAfterSameTargetAbsorption: number;
   sameTargetTransportAbsorbedCount: number;
   sameTargetTransportAbsorbedMinutes: number;
+  sameTargetTransportRejectedByDistanceCount: number;
+  sameTargetTransportRejectedByDistanceMinutes: number;
   crossTargetTransportKeptCount: number;
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
@@ -102,6 +104,17 @@ interface DayHealth {
     durationMinutes: number;
     distanceMeters: number;
     absorbedIntoWorkBlock: { startAt: string; endAt: string } | null;
+    reviewReasons: string[];
+  }>;
+  sameTargetTransportRejectedExamples: Array<{
+    staffName: string;
+    staffId: string;
+    targetLabel: string | null;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    distanceMeters: number | null;
+    decision: 'kept_as_transport' | 'needs_review';
     reviewReasons: string[];
   }>;
   warnings: string[];
