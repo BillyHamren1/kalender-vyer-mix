@@ -1202,7 +1202,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
           kind: 'planned_signal_gap',
           severity: 'warning',
           label: 'Ingen app/GPS-signal under planerad tid',
-          detail: `Planerad start ${formatStockholmHm(pa.plannedStart)} på ${pa.label}, men ingen GPS-ping eller timer registrerad${firstSignalMs != null ? ` förrän ${new formatStockholmHm(Date(firstSignalMs).toISOString())}` : ' under perioden'}.`,
+          detail: `Planerad start ${formatStockholmHm(pa.plannedStart)} på ${pa.label}, men ingen GPS-ping eller timer registrerad${firstSignalMs != null ? ` förrän ${formatStockholmHm(new Date(firstSignalMs).toISOString())}` : ' under perioden'}.`,
           durationMin: gapMin,
           meta: {
             assignmentId: pa.id,
@@ -1215,7 +1215,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
             suggestedActions: [
               { id: 'create_workday_from_planned', label: `Skapa arbetsdag från planerad start ${formatStockholmHm(pa.plannedStart)}` },
               firstSignalMs != null
-                ? { id: 'start_from_first_signal', label: `Starta från första GPS ${new formatStockholmHm(Date(firstSignalMs).toISOString())}` }
+                ? { id: 'start_from_first_signal', label: `Starta från första GPS ${formatStockholmHm(new Date(firstSignalMs).toISOString())}` }
                 : null,
               { id: 'set_custom_start', label: 'Ange annan starttid' },
               { id: 'mark_absence', label: 'Markera frånvaro / ignorera planerad tid' },
