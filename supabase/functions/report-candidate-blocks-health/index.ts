@@ -418,7 +418,7 @@ Deno.serve(async (req) => {
         }> = [];
         try {
           const nowIso = new Date().toISOString();
-          const dayCutoff = `${date}T23:59:59.999Z`;
+          const dayCutoff = dayEnd;
           const { data } = await admin
             .from('active_time_registrations')
             .select(
