@@ -131,7 +131,34 @@ interface DayHealth {
   }>;
   warnings: string[];
   sampleStaffReports: SampleStaffReport[];
+  // Engine input provenance / validation surface
+  activeTimeRegistrationsCount: number;
+  openActiveTimeRegistrationsCount: number;
+  activeTimeRegistrationsUsedAsInput: true;
+  legacyLocationTimeEntriesCount: number;
+  legacyLocationTimeEntriesUsedAsInput: false;
+  validation: {
+    hasZeroMinuteMainRows: boolean;
+    hasSignalGapAsNormalReportRow: boolean;
+    hasLongDistanceSameTargetAbsorbed: boolean;
+    hasLegacyInputUsed: boolean;
+    hasUnstableBlockIds: boolean;
+    createdAnyTimeReports: boolean;
+    createdAnyWorkdays: boolean;
+    createdAnyLocationTimeEntries: boolean;
+    createdAnyTravelTimeLogs: boolean;
+  };
+  status: 'PASS' | 'FAIL';
 }
+
+/** Same-target transport with measured distance above this is "long distance"
+ *  and must NOT be absorbed (rule: round-trips outside the noise window stay
+ *  as transport). Mirrors buildReportCandidateBlocks default
+ *  sameTargetTransportAbsorbMaxDistanceMeters. */
+const LONG_DISTANCE_ABSORB_THRESHOLD_M = 750;
+/** Stable, deterministic ids produced by createReportCandidateBlockId start
+ *  with this prefix. Anything else is treated as unstable / legacy. */
+const STABLE_BLOCK_ID_PREFIX = 'rc_';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
