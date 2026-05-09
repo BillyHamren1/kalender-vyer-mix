@@ -391,22 +391,41 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   return (
     <>
-      <EventActionPopover
-        event={event}
-        setEvents={setEvents}
-        onUpdate={onEventResize}
-        onOpenDetails={handleViewDetails}
-        onMoveDate={() => {
-          if (moveDateHandlers.canOpen()) {
-            moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
-            setShowDateDialog(true);
-          }
-        }}
-      >
-        <div style={{ width: '100%', height: '100%' }}>
-          {eventCardContent}
-        </div>
-      </EventActionPopover>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div style={{ width: '100%', height: '100%' }}>
+            <EventActionPopover
+              event={event}
+              setEvents={setEvents}
+              onUpdate={onEventResize}
+              onOpenDetails={handleViewDetails}
+              onMoveDate={() => {
+                if (moveDateHandlers.canOpen()) {
+                  moveDateHandlers.onOpen({ id: event.id, title: event.title, start: event.start, end: event.end });
+                  setShowDateDialog(true);
+                }
+              }}
+            >
+              <div style={{ width: '100%', height: '100%' }}>
+                {eventCardContent}
+              </div>
+            </EventActionPopover>
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={handleOpenConsolidate}>
+            <Combine className="h-4 w-4 mr-2" />
+            Konsolidera till stort projekt...
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+
+      <ConsolidateProjectsDialog
+        open={consolidateOpen}
+        onOpenChange={setConsolidateOpen}
+        initialSelection={consolidateSource}
+        initialName={consolidateName}
+      />
 
       {/* Date Move Dialog — LEGACY local state, gated by editController */}
       <MoveEventDateDialog
