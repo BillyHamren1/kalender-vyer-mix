@@ -70,6 +70,13 @@ interface StaffDayTimelineCardProps {
   reportCandidateBlocks?: ReportCandidateBlockUI[] | null;
   reportCandidateSummary?: ReportCandidateSummaryUI | null;
   reportCandidateLoading?: boolean;
+  /**
+   * Sidnivå-engineMode. Kortet får ALDRIG välja motor själv — det här är
+   * sanningen för raden. 'report_candidate' = ny motor (även om blocks är
+   * tom array). 'actual_model_fallback' = renderas alltid med actualModel,
+   * även om reportCandidateBlocks råkar finnas.
+   */
+  engineMode?: 'report_candidate' | 'actual_model_fallback';
   // Pass-through till ActualDayPanel (rådatasektionen)
   onAdjustWorkday?: () => void;
   onCreateDistributionFromGps?: (visitKey: string) => void;
