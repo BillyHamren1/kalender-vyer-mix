@@ -41,7 +41,8 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
  *
  * Borttagen som interaktiv yta. Returnerar null för att behålla
  * import-kontraktet i sidor som fortfarande mountar den. All
- * arbetsdagsstart/-stopp sker i `WorkDayPanel`.
+ * arbetsdagsstart/-stopp sker via godkända timer-komponenter
+ * (CompactWorkDayTimer / WorkDayPanel).
  */
 export const HeaderStartEndDayButton: React.FC = () => null;
 
