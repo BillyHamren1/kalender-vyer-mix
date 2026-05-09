@@ -62,6 +62,14 @@ interface StaffDayTimelineCardProps {
   reportSlot?: React.ReactNode;
   extraActions?: React.ReactNode;
   rawGpsSlot?: React.ReactNode;
+  /**
+   * Canonical report-candidate blocks från get-staff-presence-day.
+   * När dessa finns används de som huvudtimeline. Saknas de visas
+   * en fallback från actualModel + tydlig märkning.
+   */
+  reportCandidateBlocks?: ReportCandidateBlockUI[] | null;
+  reportCandidateSummary?: ReportCandidateSummaryUI | null;
+  reportCandidateLoading?: boolean;
   // Pass-through till ActualDayPanel (rådatasektionen)
   onAdjustWorkday?: () => void;
   onCreateDistributionFromGps?: (visitKey: string) => void;
