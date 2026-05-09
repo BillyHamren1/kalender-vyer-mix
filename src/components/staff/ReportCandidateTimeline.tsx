@@ -13,15 +13,28 @@
  * Read-only. Skapar inget. Påverkar inget i mobilen.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { AlertTriangle, ArrowRight, Clock, HelpCircle, MapPin, Plane } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ChevronDown, ChevronRight, Clock, HelpCircle, MapPin, Plane } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 export type ReportBlockKind = 'work' | 'transport' | 'break' | 'unknown' | 'needs_review';
 export type ReportConfidence = 'high' | 'medium' | 'low';
 export type ReportReviewState = 'ok' | 'needs_review';
+
+export interface ReportCandidateEvidenceSummaryUI {
+  confirmedMinutes?: number;
+  probableMinutes?: number;
+  signalGapMinutes?: number;
+  transportMinutes?: number;
+  unknownMinutes?: number;
+  presenceBlockCount?: number;
+  suppressedSignalGapBlockCount?: number;
+  suppressedUnknownBlockCount?: number;
+  suppressedZeroLengthBlockCount?: number;
+  distanceMeters?: number;
+}
 
 export interface ReportCandidateBlockUI {
   id: string;
@@ -42,6 +55,13 @@ export interface ReportCandidateBlockUI {
   reviewReasons?: string[];
   warningLabel?: string | null;
   signalGapMinutes?: number;
+  // Evidens — fylls från backend ReportCandidateBlock
+  evidenceSummary?: ReportCandidateEvidenceSummaryUI | null;
+  sourcePresenceBlockIds?: string[];
+  hiddenSignalGapIds?: string[];
+  hiddenPresenceBlockIds?: string[];
+  firstConfirmedAt?: string | null;
+  lastConfirmedAt?: string | null;
 }
 
 export interface ReportCandidateSummaryUI {
