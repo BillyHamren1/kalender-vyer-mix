@@ -66,7 +66,7 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
   const [targetLargeId, setTargetLargeId] = useState<string>('');
   const [selected, setSelected] = useState<Map<string, ConsolidationSource>>(new Map());
   const [sortBy, setSortBy] = useState<'date' | 'name'>('date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const { data: candidates = [], isLoading } = useQuery({
     queryKey: ['consolidation-candidates'],
