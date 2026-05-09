@@ -702,13 +702,35 @@ export async function resolveWorkTargets(
     warnings: [],
   };
 
-  for (const t of targets) {
-    // Address anchor: ~5 decimaler ≈ 1.1 m, räcker för att gruppera på adress.
-    const addressAnchorKey = (t.latitude != null && t.longitude != null)
-      ? `${t.latitude.toFixed(5)},${t.longitude.toFixed(5)}`
-      : null;
-    t.addressAnchorKey = addressAnchorKey;
+  // Normalisera adress: lowercase, strip diakritik, collapse whitespace, remove
+  // trailing punctuation. Räcker för att FA Warehouse-adressen ska få samma
+  // location-key oavsett om den kommer från en booking eller en location.
+  function normalizeAddress(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    const s = raw
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[.,;:!?()]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return s.length > 0 ? s : null;
+  }
 
+  // Location-key utan tier/datum: används för att gruppera primary+secondary
+  // på samma fysiska adress. ~4 decimaler ≈ 11 m vilket ligger inom det
+  // önskade 20–30 m-fönstret.
+  function locationKey(t: ResolvedWorkTarget): string | null {
+    const norm = normalizeAddress(t.rawAddress);
+    if (norm) return `addr:${norm}`;
+    if (t.latitude != null && t.longitude != null) {
+      return `gps:${t.latitude.toFixed(4)},${t.longitude.toFixed(4)}`;
+    }
+    return null;
+  }
+
+  // Steg 1: klassa role/anchor per target.
+  for (const t of targets) {
     let role: WorkTargetMatchRole = 'secondary';
     let anchor: WorkTargetAssignmentAnchor;
 
@@ -732,8 +754,7 @@ export async function resolveWorkTargets(
         anchor = 'date_address_candidate';
       }
     } else {
-      // type === 'project' — täcker både vanliga projekt och large_projects
-      // (de pushas båda som type='project' i datalagret ovan).
+      // type === 'project'
       const linkedBookingId = projectIdToBookingId.get(t.id);
       if (assignedLargeProjectIds.has(t.id)) {
         role = 'primary';
@@ -754,27 +775,103 @@ export async function resolveWorkTargets(
     t.matchRole = role;
     t.assignmentAnchor = anchor;
     t.canAutoMatchAsWork = role === 'primary';
+  }
 
-    if (role === 'primary') resolution.primaryTargetsCount += 1;
+  // Steg 2: gruppera per location-key och välj kanonisk label.
+  // Mål: samma fysiska adress får inte byta bokning mellan rader. Den primary
+  // target som är "starkast" (direct > team > large_project > warehouse >
+  // date_address_candidate) sätter labeln för alla andra primary targets på
+  // samma adress. Secondary-only grupper får review-label och behåller
+  // canAutoMatchAsWork=false.
+  const ANCHOR_PRIORITY: Record<WorkTargetAssignmentAnchor, number> = {
+    direct_staff_assignment: 1,
+    team_calendar_event: 2,
+    large_project_staff_assignment: 3,
+    warehouse: 4,
+    date_address_candidate: 5,
+    project_linked_unassigned: 6,
+    active_project_unassigned: 7,
+  };
+
+  type Group = {
+    locKey: string;
+    addressDisplay: string | null;
+    targets: ResolvedWorkTarget[];
+  };
+  const groups = new Map<string, Group>();
+  for (const t of targets) {
+    const lk = locationKey(t);
+    if (!lk) continue;
+    let g = groups.get(lk);
+    if (!g) {
+      g = { locKey: lk, addressDisplay: t.rawAddress ?? null, targets: [] };
+      groups.set(lk, g);
+    } else if (!g.addressDisplay && t.rawAddress) {
+      g.addressDisplay = t.rawAddress;
+    }
+    g.targets.push(t);
+  }
+
+  for (const g of groups.values()) {
+    const primaries = g.targets.filter((x) => x.matchRole === 'primary');
+    if (primaries.length > 0) {
+      const winner = [...primaries].sort((a, b) =>
+        (ANCHOR_PRIORITY[a.assignmentAnchor!] ?? 99) -
+        (ANCHOR_PRIORITY[b.assignmentAnchor!] ?? 99)
+      )[0];
+      // Alla primary targets på samma adress visar winner-labeln. Detta
+      // hindrar att FA Warehouse-adressen flippar mellan "Booking X" och
+      // "Booking Y" beroende på vilken rad GPS råkar matcha.
+      for (const t of primaries) {
+        if (t !== winner) {
+          t.diagnostics.notes.push(`label_overridden_by_anchor:${winner.id}`);
+          t.name = winner.name;
+        }
+      }
+    } else {
+      // Endast secondary kandidater på adressen → får inte se ut som säker work.
+      const addrDisplay = g.addressDisplay ?? g.locKey.replace(/^gps:/, '');
+      for (const t of g.targets) {
+        const safeLabel = t.rawAddress
+          ? `Ej assignad plats · ${addrDisplay} · granska`
+          : `Okänd arbetsplats nära ${addrDisplay}`;
+        t.diagnostics.notes.push(`secondary_only_anchor_relabel:${t.name}`);
+        t.name = safeLabel;
+      }
+    }
+  }
+
+  // Steg 3: sätt addressAnchorKey (med datum + tier) och bumpa diagnostics.
+  for (const t of targets) {
+    const lk = locationKey(t);
+    const tier = t.matchRole === 'primary' ? 'assigned' : 'secondary';
+    t.addressAnchorKey = lk ? `${date}|${tier}|${lk}` : null;
+
+    if (t.matchRole === 'primary') resolution.primaryTargetsCount += 1;
     else resolution.secondaryTargetsCount += 1;
 
     // Hard-fail-detektorer för health check ───────────────────────────────
-    if (role === 'primary' && t.targetSource === 'date_relevant_booking') {
+    if (t.matchRole === 'primary' && t.targetSource === 'date_relevant_booking') {
       resolution.dateRelevantBookingsAsPrimaryCount += 1;
       resolution.unsafeAutoMatchedTargetsCount += 1;
     }
-    if (role === 'primary' && t.targetSource === 'active_project') {
+    if (t.matchRole === 'primary' && t.targetSource === 'active_project') {
       resolution.activeProjectsAsPrimaryCount += 1;
       resolution.unsafeAutoMatchedTargetsCount += 1;
     }
-    if (role === 'primary' && t.type === 'booking' && anchor === 'date_address_candidate') {
+    if (
+      t.matchRole === 'primary' &&
+      t.type === 'booking' &&
+      t.assignmentAnchor === 'date_address_candidate'
+    ) {
       resolution.unassignedBookingsMatchedAsWorkCount += 1;
       resolution.unsafeAutoMatchedTargetsCount += 1;
     }
     if (
-      role === 'primary' &&
+      t.matchRole === 'primary' &&
       t.type === 'project' &&
-      (anchor === 'active_project_unassigned' || anchor === 'project_linked_unassigned')
+      (t.assignmentAnchor === 'active_project_unassigned' ||
+        t.assignmentAnchor === 'project_linked_unassigned')
     ) {
       resolution.unassignedProjectsMatchedAsWorkCount += 1;
       resolution.unsafeAutoMatchedTargetsCount += 1;
