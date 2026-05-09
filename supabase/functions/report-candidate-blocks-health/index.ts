@@ -194,6 +194,7 @@ Deno.serve(async (req) => {
         shortCrossTargetTransportReviewCount: 0,
         shortUnknownTransportReviewCount: 0,
         shortUnknownTransportHiddenCount: 0,
+        absorbedSameTargetTransportExamples: [],
         warnings: [],
         sampleStaffReports: [],
       };
