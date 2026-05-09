@@ -1114,8 +1114,20 @@ export function buildReportCandidateBlocks(
 
   const transportRowsAfterSameTargetAbsorption = out.filter((r) => r.kind === 'transport').length;
 
-  // Re-id blocks so ids stay stable & sequential
-  out.forEach((r, idx) => { r.id = `rc-${idx}-${r.startAt}`; });
+  // Assign deterministic, position-independent ids. Same staff+day+kind+span
+  // +target+source set ⇒ same id across runs. See createReportCandidateBlockId.
+  out.forEach((r) => {
+    r.id = createReportCandidateBlockId({
+      staffId: input.staffId,
+      date: input.date,
+      kind: r.kind,
+      startAt: r.startAt,
+      endAt: r.endAt,
+      targetType: r.targetType,
+      targetId: r.targetId,
+      sourcePresenceBlockIds: r.sourcePresenceBlockIds,
+    });
+  });
 
   // ── Summary
   const summary: ReportCandidateSummary = {
