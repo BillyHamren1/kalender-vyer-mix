@@ -329,6 +329,10 @@ Deno.serve(async (req) => {
           (report.summary as any).sameTargetTransportAbsorbedCount ?? 0;
         day.sameTargetTransportAbsorbedMinutes +=
           (report.summary as any).sameTargetTransportAbsorbedMinutes ?? 0;
+        day.sameTargetTransportRejectedByDistanceCount +=
+          (report.summary as any).sameTargetTransportRejectedByDistanceCount ?? 0;
+        day.sameTargetTransportRejectedByDistanceMinutes +=
+          (report.summary as any).sameTargetTransportRejectedByDistanceMinutes ?? 0;
         day.crossTargetTransportKeptCount +=
           (report.summary as any).crossTargetTransportKeptCount ?? 0;
         day.shortCrossTargetTransportReviewCount +=
@@ -350,6 +354,23 @@ Deno.serve(async (req) => {
             durationMinutes: ex.durationMinutes,
             distanceMeters: ex.distanceMeters,
             absorbedIntoWorkBlock: ex.absorbedIntoWorkBlock ?? null,
+            reviewReasons: ex.reviewReasons ?? [],
+          });
+        }
+
+        const rejectedExamples =
+          (report.summary as any).sameTargetTransportRejectedExamples ?? [];
+        for (const ex of rejectedExamples) {
+          if (day.sameTargetTransportRejectedExamples.length >= 25) break;
+          day.sameTargetTransportRejectedExamples.push({
+            staffName: s.name ?? s.id,
+            staffId: s.id,
+            targetLabel: ex.targetLabel ?? null,
+            startAt: ex.startAt,
+            endAt: ex.endAt,
+            durationMinutes: ex.durationMinutes,
+            distanceMeters: ex.distanceMeters ?? null,
+            decision: ex.decision,
             reviewReasons: ex.reviewReasons ?? [],
           });
         }
