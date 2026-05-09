@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -79,9 +79,17 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
     [candidates],
   );
 
-  // Reset state on open
+  // Reset state only when the dialog transitions from closed -> open.
+  // Using initialSelection/initialName as deps would re-reset on every parent
+  // re-render (new object identity), which makes the name input impossible to edit.
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
     setSearch('');
     setName(initialName || '');
     const next = new Map<string, ConsolidationSource>();
