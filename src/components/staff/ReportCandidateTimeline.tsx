@@ -101,48 +101,160 @@ const fmtDur = (m: number): string => {
   return `${h}h ${min}m`;
 };
 
+function fmtDistance(m?: number): string | null {
+  if (m == null || !Number.isFinite(m)) return null;
+  if (m < 1000) return `${Math.round(m)} m`;
+  return `${(m / 1000).toFixed(m < 10000 ? 2 : 1)} km`;
+}
+
+function EvidencePanel({ block }: { block: ReportCandidateBlockUI }) {
+  const ev = block.evidenceSummary ?? {};
+  const hasAnySuppressed =
+    (ev.suppressedSignalGapBlockCount ?? 0) > 0 ||
+    (ev.suppressedUnknownBlockCount ?? 0) > 0 ||
+    (ev.suppressedZeroLengthBlockCount ?? 0) > 0;
+  const dist = fmtDistance(ev.distanceMeters);
+  return (
+    <div className="mt-2 space-y-2 rounded-md border bg-background/60 px-3 py-2 text-[11px] text-muted-foreground">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+        <div><span className="text-foreground font-medium">Klassificering:</span> {block.kind}</div>
+        <div><span className="text-foreground font-medium">Konfidens:</span> {block.confidence}</div>
+        <div><span className="text-foreground font-medium">Granskning:</span> {block.reviewState}</div>
+        <div><span className="text-foreground font-medium">Start:</span> {formatStockholmHms(block.startAt)}</div>
+        <div><span className="text-foreground font-medium">Slut:</span> {formatStockholmHms(block.endAt)}</div>
+        <div><span className="text-foreground font-medium">Längd:</span> {block.durationLabel ?? `${block.durationMinutes} min`}</div>
+        {block.firstConfirmedAt && (
+          <div><span className="text-foreground font-medium">Första bekräftad ping:</span> {formatStockholmHms(block.firstConfirmedAt)}</div>
+        )}
+        {block.lastConfirmedAt && (
+          <div><span className="text-foreground font-medium">Sista bekräftad ping:</span> {formatStockholmHms(block.lastConfirmedAt)}</div>
+        )}
+        {block.targetType && (
+          <div><span className="text-foreground font-medium">Target-typ:</span> {block.targetType}</div>
+        )}
+        {block.targetId && (
+          <div className="truncate" title={block.targetId}><span className="text-foreground font-medium">Target-ID:</span> {block.targetId}</div>
+        )}
+        {block.targetLabel && (
+          <div className="truncate" title={block.targetLabel}><span className="text-foreground font-medium">Target-label:</span> {block.targetLabel}</div>
+        )}
+        {block.fromLabel && (
+          <div className="truncate"><span className="text-foreground font-medium">Från:</span> {block.fromLabel}</div>
+        )}
+        {block.toLabel && (
+          <div className="truncate"><span className="text-foreground font-medium">Till:</span> {block.toLabel}</div>
+        )}
+        {dist && (
+          <div><span className="text-foreground font-medium">Avstånd:</span> {dist}</div>
+        )}
+      </div>
+
+      <div className="border-t pt-2">
+        <div className="text-foreground font-medium mb-1">Evidens (minuter)</div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
+          <div>Bekräftade: <span className="tabular-nums">{ev.confirmedMinutes ?? 0}</span></div>
+          <div>Sannolika: <span className="tabular-nums">{ev.probableMinutes ?? 0}</span></div>
+          <div>Signalglapp: <span className="tabular-nums">{ev.signalGapMinutes ?? 0}</span></div>
+          <div>Transport: <span className="tabular-nums">{ev.transportMinutes ?? 0}</span></div>
+          <div>Okänt: <span className="tabular-nums">{ev.unknownMinutes ?? 0}</span></div>
+          <div>Närvaro-block: <span className="tabular-nums">{ev.presenceBlockCount ?? 0}</span></div>
+        </div>
+      </div>
+
+      {hasAnySuppressed && (
+        <div className="border-t pt-2">
+          <div className="text-foreground font-medium mb-1">Dolt / sammanslaget</div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
+            <div>Signalglapp dolda: <span className="tabular-nums">{ev.suppressedSignalGapBlockCount ?? 0}</span></div>
+            <div>Okända dolda: <span className="tabular-nums">{ev.suppressedUnknownBlockCount ?? 0}</span></div>
+            <div>Noll-längd dolda: <span className="tabular-nums">{ev.suppressedZeroLengthBlockCount ?? 0}</span></div>
+          </div>
+        </div>
+      )}
+
+      {block.reviewReasons && block.reviewReasons.length > 0 && (
+        <div className="border-t pt-2">
+          <div className="text-foreground font-medium mb-1">Granska-skäl</div>
+          <ul className="list-disc pl-4 space-y-0.5">
+            {block.reviewReasons.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {block.sourcePresenceBlockIds && block.sourcePresenceBlockIds.length > 0 && (
+        <div className="border-t pt-2">
+          <div className="text-foreground font-medium mb-1">Källblock ({block.sourcePresenceBlockIds.length})</div>
+          <div className="font-mono text-[10px] break-all leading-snug">
+            {block.sourcePresenceBlockIds.join(', ')}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t pt-1 text-[10px]">
+        Block-ID: <span className="font-mono">{block.id}</span>
+      </div>
+    </div>
+  );
+}
+
 function BlockRow({ block }: { block: ReportCandidateBlockUI }) {
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
+  const [open, setOpen] = useState(false);
   const subtitle = block.subtitle
     ?? (block.fromLabel && block.toLabel ? `${block.fromLabel} → ${block.toLabel}` : block.targetLabel ?? null);
   return (
-    <div className={`flex items-center gap-3 rounded-md border px-3 py-2 ${meta.bg}`}>
-      <Icon className={`h-4 w-4 shrink-0 ${meta.tone}`} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 text-sm font-medium truncate">
-          <span className="truncate">{block.title}</span>
-          {block.reviewState === 'needs_review' && (
-            <Badge variant="outline" className="text-[10px] py-0 h-4 border-amber-400 text-amber-700">
-              granska
-            </Badge>
+    <div className={`rounded-md border ${meta.bg}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 px-3 py-2 text-left"
+        aria-expanded={open}
+      >
+        <Icon className={`h-4 w-4 shrink-0 ${meta.tone}`} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium truncate">
+            <span className="truncate">{block.title}</span>
+            {block.reviewState === 'needs_review' && (
+              <Badge variant="outline" className="text-[10px] py-0 h-4 border-amber-400 text-amber-700">
+                granska
+              </Badge>
+            )}
+            {block.confidence === 'low' && (
+              <Badge variant="outline" className="text-[10px] py-0 h-4">låg konfidens</Badge>
+            )}
+            {block.warningLabel && (
+              <span className="text-[10px] text-amber-700" title={block.warningLabel}>
+                ⚠ {block.warningLabel}
+              </span>
+            )}
+          </div>
+          {subtitle && (
+            <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
           )}
-          {block.confidence === 'low' && (
-            <Badge variant="outline" className="text-[10px] py-0 h-4">låg konfidens</Badge>
-          )}
-          {block.warningLabel && (
-            <span className="text-[10px] text-amber-700" title={block.warningLabel}>
-              ⚠ {block.warningLabel}
-            </span>
+          {block.reviewReasons && block.reviewReasons.length > 0 && (
+            <div className="text-[10px] text-amber-700/80 truncate">
+              {block.reviewReasons.join(' · ')}
+            </div>
           )}
         </div>
-        {subtitle && (
-          <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
-        )}
-        {block.reviewReasons && block.reviewReasons.length > 0 && (
-          <div className="text-[10px] text-amber-700/80 truncate">
-            {block.reviewReasons.join(' · ')}
-          </div>
-        )}
-      </div>
-      <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap flex items-center gap-1">
-        <span>{fmtHm(block.startAt)}</span>
-        <ArrowRight className="h-3 w-3" />
-        <span>{fmtHm(block.endAt)}</span>
-        <span className="ml-2 font-medium text-foreground">
-          {block.durationLabel ?? fmtDur(block.durationMinutes)}
-        </span>
-      </div>
+        <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap flex items-center gap-1">
+          <span>{fmtHm(block.startAt)}</span>
+          <ArrowRight className="h-3 w-3" />
+          <span>{fmtHm(block.endAt)}</span>
+          <span className="ml-2 font-medium text-foreground">
+            {block.durationLabel ?? fmtDur(block.durationMinutes)}
+          </span>
+          {open
+            ? <ChevronDown className="h-3.5 w-3.5 ml-1 text-muted-foreground" />
+            : <ChevronRight className="h-3.5 w-3.5 ml-1 text-muted-foreground" />}
+        </div>
+      </button>
+      {open && (
+        <div className="px-3 pb-2">
+          <EvidencePanel block={block} />
+        </div>
+      )}
     </div>
   );
 }
