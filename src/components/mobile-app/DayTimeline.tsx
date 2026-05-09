@@ -275,7 +275,6 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
                   width: `calc(${widthPct}% - 4px)`,
                 }}
               >
-                <div className="flex items-center gap-1.5 mb-0.5">
                 {isCompact ? (
                   <div className="flex items-center gap-1 leading-tight">
                     <span className="text-[9px] font-mono opacity-70 shrink-0">
