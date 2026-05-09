@@ -109,6 +109,10 @@ export interface ReportCandidateSummary {
   transportRowsAfterSameTargetAbsorption: number;
   sameTargetTransportAbsorbedCount: number;
   sameTargetTransportAbsorbedMinutes: number;
+  /** Same-target transports rejected because measured distance exceeded
+   *  sameTargetTransportAbsorbMaxDistanceMeters (real round-trip). */
+  sameTargetTransportRejectedByDistanceCount: number;
+  sameTargetTransportRejectedByDistanceMinutes: number;
   crossTargetTransportKeptCount: number;
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
@@ -122,6 +126,17 @@ export interface ReportCandidateSummary {
     durationMinutes: number;
     distanceMeters: number;
     absorbedIntoWorkBlock: { startAt: ISODateTime; endAt: ISODateTime } | null;
+    reviewReasons: string[];
+  }>;
+  /** Examples (max 20) of same-target transports that were REJECTED for
+   *  absorption (distance too large or missing). Kept as transport/needs_review. */
+  sameTargetTransportRejectedExamples: Array<{
+    targetLabel: string | null;
+    startAt: ISODateTime;
+    endAt: ISODateTime;
+    durationMinutes: number;
+    distanceMeters: number | null;
+    decision: 'kept_as_transport' | 'needs_review';
     reviewReasons: string[];
   }>;
 }
@@ -170,6 +185,12 @@ export interface ReportCandidatePolicy {
    *  transport is folded into work-A even when the transport is longer than
    *  shortTransportMergeMinutes. Default 25 min. */
   sameTargetTransportAbsorbMaxMinutes?: number;
+  /** Same-target absorption distance gate. Even when prev/next target match,
+   *  the transport is only absorbed if measured distance ≤ this. Above this
+   *  it is treated as a real round-trip (kept as transport, possibly
+   *  needs_review). If distance is missing the transport is NOT absorbed.
+   *  Default 750 m. */
+  sameTargetTransportAbsorbMaxDistanceMeters?: number;
   /** Short cross-target transport (different work targets) shorter than this
    *  is downgraded to needs_review instead of being a real trip. Default 5 min. */
   shortCrossTargetReviewMaxMinutes?: number;
@@ -212,6 +233,7 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   tinyWorkMaxMinutes: 2,
   realTripMinDistanceMeters: 1000,
   sameTargetTransportAbsorbMaxMinutes: 25,
+  sameTargetTransportAbsorbMaxDistanceMeters: 750,
   shortCrossTargetReviewMaxMinutes: 5,
   shortUnknownTransportHideMaxMinutes: 3,
 };
@@ -865,11 +887,14 @@ export function buildReportCandidateBlocks(
   const transportRowsBeforeSameTargetAbsorption = out.filter((r) => r.kind === 'transport').length;
   let sameTargetTransportAbsorbedCount = 0;
   let sameTargetTransportAbsorbedMinutes = 0;
+  let sameTargetTransportRejectedByDistanceCount = 0;
+  let sameTargetTransportRejectedByDistanceMinutes = 0;
   let crossTargetTransportKeptCount = 0;
   let shortCrossTargetTransportReviewCount = 0;
   let shortUnknownTransportReviewCount = 0;
   let shortUnknownTransportHiddenCount = 0;
   const absorbedSameTargetTransportExamples: ReportCandidateSummary['absorbedSameTargetTransportExamples'] = [];
+  const sameTargetTransportRejectedExamples: ReportCandidateSummary['sameTargetTransportRejectedExamples'] = [];
 
   const flipToNeedsReview = (r: ReportCandidateBlock, reason: string) => {
     r.kind = 'needs_review';
@@ -888,7 +913,9 @@ export function buildReportCandidateBlocks(
     for (let k = 0; k < out.length; k++) {
       const cur = out[k];
       if (cur.kind !== 'transport') continue;
-      const dist = cur.evidenceSummary.distanceMeters ?? 0;
+      const distRaw = cur.evidenceSummary.distanceMeters;
+      const distMissing = distRaw === undefined || distRaw === null;
+      const dist = distRaw ?? 0;
 
       const prev = out[k - 1];
       const next = out[k + 1];
@@ -897,13 +924,56 @@ export function buildReportCandidateBlocks(
       const prevWork = prev?.kind === 'work';
       const nextWork = next?.kind === 'work';
 
-      // Rule 1 refinement: same-target absorption (any duration up to cap).
-      // This runs BEFORE the realTripMinDistanceMeters early-return so a long
-      // GPS loop that returns to the same warehouse is still folded in.
-      if (
+      // Rule 1 refinement: same-target absorption (any duration up to cap)
+      // GATED by distance — only fold true jitter (≤ sameTargetTransportAbsorbMaxDistanceMeters).
+      // Real round-trips (e.g. drive away from warehouse and back) stay as transport.
+      const sameTargetCandidate =
         prevWork && nextWork && prevKey && nextKey && prevKey === nextKey &&
-        cur.durationMinutes <= policy.sameTargetTransportAbsorbMaxMinutes
-      ) {
+        cur.durationMinutes <= policy.sameTargetTransportAbsorbMaxMinutes;
+
+      if (sameTargetCandidate) {
+        if (distMissing) {
+          // No distance → cannot prove jitter. Keep as transport, mark for review.
+          if (!cur.reviewReasons.includes('same_target_transport_missing_distance')) {
+            cur.reviewReasons.push('same_target_transport_missing_distance');
+          }
+          if (sameTargetTransportRejectedExamples.length < 20) {
+            sameTargetTransportRejectedExamples.push({
+              targetLabel: prev.targetLabel ?? null,
+              startAt: cur.startAt,
+              endAt: cur.endAt,
+              durationMinutes: Math.round(cur.durationMinutes * 100) / 100,
+              distanceMeters: null,
+              decision: 'kept_as_transport',
+              reviewReasons: [...cur.reviewReasons],
+            });
+          }
+          crossTargetTransportKeptCount += 1;
+          continue;
+        }
+
+        if (dist > policy.sameTargetTransportAbsorbMaxDistanceMeters) {
+          // Real round-trip — too far to be jitter. Flip to needs_review so an
+          // operator can decide whether it was a real errand.
+          flipToNeedsReview(cur, 'same_target_roundtrip_distance_too_large');
+          sameTargetTransportRejectedByDistanceCount += 1;
+          sameTargetTransportRejectedByDistanceMinutes += cur.durationMinutes;
+          if (sameTargetTransportRejectedExamples.length < 20) {
+            sameTargetTransportRejectedExamples.push({
+              targetLabel: prev.targetLabel ?? null,
+              startAt: cur.startAt,
+              endAt: cur.endAt,
+              durationMinutes: Math.round(cur.durationMinutes * 100) / 100,
+              distanceMeters: Math.round(dist),
+              decision: 'needs_review',
+              reviewReasons: [...cur.reviewReasons],
+            });
+          }
+          changed2 = true;
+          break;
+        }
+
+        // Pure jitter — absorb.
         const transportMin = cur.durationMinutes;
         const exampleSnapshot = {
           targetLabel: prev.targetLabel ?? null,
@@ -1005,6 +1075,9 @@ export function buildReportCandidateBlocks(
     shortUnknownTransportReviewCount,
     shortUnknownTransportHiddenCount,
     absorbedSameTargetTransportExamples,
+    sameTargetTransportRejectedByDistanceCount,
+    sameTargetTransportRejectedByDistanceMinutes,
+    sameTargetTransportRejectedExamples,
   };
   for (const r of out) {
     if (r.kind === 'work') {
