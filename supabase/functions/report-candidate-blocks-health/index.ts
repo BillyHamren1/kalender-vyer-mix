@@ -85,6 +85,14 @@ interface DayHealth {
   suppressedMicroTransportMinutes: number;
   suppressedTinyWorkBlocksCount: number;
   suppressedTinyWorkMinutes: number;
+  transportRowsBeforeSameTargetAbsorption: number;
+  transportRowsAfterSameTargetAbsorption: number;
+  sameTargetTransportAbsorbedCount: number;
+  sameTargetTransportAbsorbedMinutes: number;
+  crossTargetTransportKeptCount: number;
+  shortCrossTargetTransportReviewCount: number;
+  shortUnknownTransportReviewCount: number;
+  shortUnknownTransportHiddenCount: number;
   warnings: string[];
   sampleStaffReports: SampleStaffReport[];
 }
