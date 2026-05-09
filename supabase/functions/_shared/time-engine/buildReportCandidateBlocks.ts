@@ -1146,6 +1146,7 @@ export function buildReportCandidateBlocks(
       }
 
       crossTargetTransportKeptCount += 1;
+      collectCrossTargetExample(cur, prev, next, dist, distMissing);
     }
   }
 
