@@ -877,10 +877,6 @@ export function buildReportCandidateBlocks(
       const cur = out[k];
       if (cur.kind !== 'transport') continue;
       const dist = cur.evidenceSummary.distanceMeters ?? 0;
-      if (dist >= policy.realTripMinDistanceMeters) {
-        crossTargetTransportKeptCount += 1;
-        continue;
-      }
 
       const prev = out[k - 1];
       const next = out[k + 1];
@@ -889,7 +885,9 @@ export function buildReportCandidateBlocks(
       const prevWork = prev?.kind === 'work';
       const nextWork = next?.kind === 'work';
 
-      // Rule 1 refinement: same-target absorption (any duration up to cap)
+      // Rule 1 refinement: same-target absorption (any duration up to cap).
+      // This runs BEFORE the realTripMinDistanceMeters early-return so a long
+      // GPS loop that returns to the same warehouse is still folded in.
       if (
         prevWork && nextWork && prevKey && nextKey && prevKey === nextKey &&
         cur.durationMinutes <= policy.sameTargetTransportAbsorbMaxMinutes
@@ -905,6 +903,11 @@ export function buildReportCandidateBlocks(
         sameTargetTransportAbsorbedMinutes += transportMin;
         changed2 = true;
         break;
+      }
+
+      if (dist >= policy.realTripMinDistanceMeters) {
+        crossTargetTransportKeptCount += 1;
+        continue;
       }
 
       // Rule 3: adjacent to unknown
