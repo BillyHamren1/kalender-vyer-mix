@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { Calendar } from 'lucide-react';
 import DayTimeline from '@/components/mobile-app/DayTimeline';
 import type { ScheduledShift } from '@/services/mobileApiService';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useShiftsByDate } from '@/hooks/useBookingsByDate';
+import { cn } from '@/lib/utils';
 
 interface Props {
   date: Date;
@@ -11,10 +13,19 @@ interface Props {
   onShowWeek?: () => void;
 }
 
+const DENSITY_KEY = 'mobile.dayDensity';
+type Density = 'compact' | 'detailed';
+
 const MobileDayView = ({ date, shifts, activeBookingIds, onShowWeek }: Props) => {
   const { t } = useLanguage();
   const grouped = useShiftsByDate(shifts);
   const day = grouped.getForDate(date);
+
+  const [density, setDensity] = useState<Density>(() => {
+    const stored = localStorage.getItem(DENSITY_KEY);
+    return stored === 'detailed' ? 'detailed' : 'compact';
+  });
+  useEffect(() => { localStorage.setItem(DENSITY_KEY, density); }, [density]);
 
   if (day.length === 0) {
     return (
@@ -37,7 +48,33 @@ const MobileDayView = ({ date, shifts, activeBookingIds, onShowWeek }: Props) =>
   }
 
   return (
-    <DayTimeline shifts={day} activeBookingIds={activeBookingIds} date={date} />
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <div className="inline-flex rounded-lg bg-muted p-0.5 text-[11px] font-semibold">
+          <button
+            type="button"
+            onClick={() => setDensity('compact')}
+            className={cn(
+              'px-2.5 py-1 rounded-md transition-colors',
+              density === 'compact' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            )}
+          >
+            Hel dag
+          </button>
+          <button
+            type="button"
+            onClick={() => setDensity('detailed')}
+            className={cn(
+              'px-2.5 py-1 rounded-md transition-colors',
+              density === 'detailed' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            )}
+          >
+            Detalj
+          </button>
+        </div>
+      </div>
+      <DayTimeline shifts={day} activeBookingIds={activeBookingIds} date={date} density={density} />
+    </div>
   );
 };
 
