@@ -116,6 +116,8 @@ export interface ResolvedWorkTarget {
   assignmentAnchor?: WorkTargetAssignmentAnchor;
   canAutoMatchAsWork?: boolean;
   addressAnchorKey?: string | null;
+  /** Raw address string (if any) — used to build anchor + display labels. */
+  rawAddress?: string | null;
   diagnostics: {
     notes: string[];
   };
