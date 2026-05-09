@@ -8,7 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Combine, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Combine, Search, ArrowUpDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import {
   consolidateProjects,
   fetchConsolidationCandidates,
@@ -32,6 +39,8 @@ const TYPE_LABEL: Record<string, string> = {
   large: 'Stort',
 };
 
+type Mode = 'create' | 'add';
+
 export const ConsolidateProjectsDialog: React.FC<Props> = ({
   open,
   onOpenChange,
@@ -41,8 +50,10 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [mode, setMode] = useState<Mode>('create');
   const [search, setSearch] = useState('');
   const [name, setName] = useState('');
+  const [targetLargeId, setTargetLargeId] = useState<string>('');
   const [selected, setSelected] = useState<Map<string, ConsolidationSource>>(new Map());
   const [sortBy, setSortBy] = useState<'date' | 'name'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -53,16 +64,28 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
     enabled: open,
   });
 
+  const largeCandidates = useMemo(
+    () => candidates.filter((c) => c.type === 'large'),
+    [candidates],
+  );
+
   // Reset state on open
   useEffect(() => {
     if (!open) return;
     setSearch('');
     setName(initialName || '');
     const next = new Map<string, ConsolidationSource>();
-    if (initialSelection) {
+    if (initialSelection && initialSelection.type !== 'large') {
       next.set(`${initialSelection.type}:${initialSelection.id}`, initialSelection);
     }
     setSelected(next);
+    if (initialSelection?.type === 'large') {
+      setMode('add');
+      setTargetLargeId(initialSelection.id);
+    } else {
+      setMode('create');
+      setTargetLargeId('');
+    }
   }, [open, initialSelection, initialName]);
 
   // Pre-fill name from initial selection's candidate name when known
@@ -75,16 +98,18 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
   }, [candidates, initialSelection, initialName, open, name]);
 
   const filtered = useMemo(() => {
+    // Always exclude large from selectable list — large can't be merged INTO another.
+    const pool = candidates.filter((c) => c.type !== 'large');
     const q = search.trim().toLowerCase();
     const base = !q
-      ? candidates
-      : candidates.filter(
+      ? pool
+      : pool.filter(
           (c) =>
             c.name.toLowerCase().includes(q) ||
             (c.subtitle || '').toLowerCase().includes(q),
         );
     const dirMul = sortDir === 'asc' ? 1 : -1;
-    const sorted = [...base].sort((a, b) => {
+    return [...base].sort((a, b) => {
       if (sortBy === 'name') {
         return a.name.localeCompare(b.name, 'sv') * dirMul;
       }
@@ -92,7 +117,6 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
       const bd = b.sortDate ? new Date(b.sortDate).getTime() : 0;
       return (ad - bd) * dirMul;
     });
-    return sorted;
   }, [candidates, search, sortBy, sortDir]);
 
   const toggleSort = (col: 'date' | 'name') => {
@@ -123,19 +147,37 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
     });
   };
 
+  const targetLarge = useMemo(
+    () => largeCandidates.find((l) => l.id === targetLargeId) || null,
+    [largeCandidates, targetLargeId],
+  );
+
   const mutation = useMutation({
-    mutationFn: () =>
-      consolidateProjects({
+    mutationFn: () => {
+      if (mode === 'add') {
+        if (!targetLarge) throw new Error('Välj ett stort projekt att lägga till i');
+        const sources: ConsolidationSource[] = [
+          { type: 'large', id: targetLarge.id },
+          ...selected.values(),
+        ];
+        return consolidateProjects({ name: targetLarge.name, sources });
+      }
+      return consolidateProjects({
         name: name.trim(),
         sources: [...selected.values()],
-      }),
+      });
+    },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['large-projects'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
       queryClient.invalidateQueries({ queryKey: ['planner-events'] });
       queryClient.invalidateQueries({ queryKey: ['consolidation-candidates'] });
-      toast.success(`Stort projekt skapat med ${res.bookingCount} bokningar`);
+      toast.success(
+        mode === 'add'
+          ? `Tillagt ${selected.size} projekt i stort projekt`
+          : `Stort projekt skapat med ${res.bookingCount} bokningar`,
+      );
       onOpenChange(false);
       navigate(`/large-project/${res.largeProjectId}`);
     },
@@ -145,7 +187,10 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
   });
 
   const canSubmit =
-    name.trim().length > 0 && selected.size >= 2 && !mutation.isPending;
+    !mutation.isPending &&
+    (mode === 'create'
+      ? name.trim().length > 0 && selected.size >= 2
+      : !!targetLargeId && selected.size >= 1);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -153,24 +198,77 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Combine className="h-5 w-5 text-primary" />
-            Konsolidera till stort projekt
+            {mode === 'add' ? 'Lägg till i stort projekt' : 'Konsolidera till stort projekt'}
           </DialogTitle>
         </DialogHeader>
 
+        {/* Mode toggle */}
+        <div className="inline-flex rounded-lg border p-0.5 bg-muted/40 self-start">
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'create' ? 'default' : 'ghost'}
+            className="h-8"
+            onClick={() => setMode('create')}
+          >
+            <Combine className="h-4 w-4 mr-1.5" />
+            Konsolidera till nytt stort projekt
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'add' ? 'default' : 'ghost'}
+            className="h-8"
+            onClick={() => setMode('add')}
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Lägg till i stort projekt
+          </Button>
+        </div>
+
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="consolidate-name">Namn på det nya stora projektet *</Label>
-            <Input
-              id="consolidate-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="T.ex. Stockholmsmässan 2026"
-              autoFocus
-            />
-          </div>
+          {mode === 'create' ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="consolidate-name">Namn på det nya stora projektet *</Label>
+              <Input
+                id="consolidate-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="T.ex. Stockholmsmässan 2026"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Stort projekt att lägga till i *</Label>
+              <Select value={targetLargeId} onValueChange={setTargetLargeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Välj stort projekt..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {largeCandidates.length === 0 ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground">
+                      Inga stora projekt finns ännu
+                    </div>
+                  ) : (
+                    largeCandidates.map((lp) => (
+                      <SelectItem key={lp.id} value={lp.id}>
+                        {lp.name}
+                        {lp.subtitle ? ` · ${lp.subtitle}` : ''}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-1.5">
-            <Label>Välj projekt att slå ihop ({selected.size} valda)</Label>
+            <Label>
+              {mode === 'add'
+                ? `Välj projekt att lägga till (${selected.size} valda)`
+                : `Välj projekt att slå ihop (${selected.size} valda)`}
+            </Label>
             <div className="relative">
               <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -230,11 +328,6 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
                           <Badge variant="outline" className="text-[10px] shrink-0">
                             {TYPE_LABEL[c.type]}
                           </Badge>
-                          {c.type === 'large' && (c.bookingCount || 0) > 0 && (
-                            <span className="text-[10px] text-muted-foreground shrink-0">
-                              {c.bookingCount} bokn.
-                            </span>
-                          )}
                         </div>
                         {c.subtitle && (
                           <p className="text-xs text-muted-foreground truncate">
@@ -247,9 +340,14 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
                 })
               )}
             </div>
-            {selected.size < 2 && (
+            {mode === 'create' && selected.size < 2 && (
               <p className="text-xs text-muted-foreground">
                 Välj minst två projekt för att kunna konsolidera.
+              </p>
+            )}
+            {mode === 'add' && selected.size < 1 && (
+              <p className="text-xs text-muted-foreground">
+                Välj minst ett projekt att lägga till.
               </p>
             )}
           </div>
@@ -260,7 +358,11 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
             Avbryt
           </Button>
           <Button onClick={() => mutation.mutate()} disabled={!canSubmit}>
-            {mutation.isPending ? 'Skapar...' : 'Skapa stort projekt'}
+            {mutation.isPending
+              ? 'Sparar...'
+              : mode === 'add'
+              ? 'Lägg till i stort projekt'
+              : 'Skapa stort projekt'}
           </Button>
         </DialogFooter>
       </DialogContent>
