@@ -742,6 +742,7 @@ Deno.serve(async (req) => {
       day.validation.createdAnyTravelTimeLogs = false;
 
       const v = day.validation;
+      const tr = (day as any).targetResolution ?? {};
       const failed =
         v.hasZeroMinuteMainRows ||
         v.hasSignalGapAsNormalReportRow ||
@@ -751,7 +752,12 @@ Deno.serve(async (req) => {
         v.createdAnyTimeReports ||
         v.createdAnyWorkdays ||
         v.createdAnyLocationTimeEntries ||
-        v.createdAnyTravelTimeLogs;
+        v.createdAnyTravelTimeLogs ||
+        (tr.unsafeAutoMatchedTargetsCount ?? 0) > 0 ||
+        (tr.dateRelevantBookingsAsPrimaryCount ?? 0) > 0 ||
+        (tr.activeProjectsAsPrimaryCount ?? 0) > 0 ||
+        (tr.unassignedBookingsMatchedAsWorkCount ?? 0) > 0 ||
+        (tr.unassignedProjectsMatchedAsWorkCount ?? 0) > 0;
       day.status = failed ? 'FAIL' : 'PASS';
 
       perDay.push(day);
