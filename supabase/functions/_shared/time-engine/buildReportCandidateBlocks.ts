@@ -132,11 +132,20 @@ export interface ReportCandidatePolicy {
    *  Default 10 min. */
   minUnknownMinutes?: number;
   /** Transport shorter than this is folded into surrounding work if same
-   *  target on both sides. Default 3 min. */
+   *  target on both sides (rule 1). Default 20 min. */
   shortTransportMergeMinutes?: number;
   /** Transport bridges (gap/unknown) shorter than this are absorbed when
    *  chaining transport into a single trip. Default 5 min. */
   transportChainBridgeMinutes?: number;
+  /** Post-pass: transport rows shorter than this are NEVER own report rows
+   *  (rule 4). Default 5 min. They are absorbed into adjacent work or hidden. */
+  microTransportMaxMinutes?: number;
+  /** Post-pass: work rows shorter than this are not own report rows
+   *  (rule 5). Default 2 min. */
+  tinyWorkMaxMinutes?: number;
+  /** Transport with measured distance ≥ this is always a real trip and is
+   *  never micro-suppressed. Default 1000 m. */
+  realTripMinDistanceMeters?: number;
 }
 
 export interface BuildReportCandidateBlocksInput {
@@ -167,8 +176,11 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   longGapInsideWorkMinutes: 20,
   loneGapNeedsReviewMinutes: 10,
   minUnknownMinutes: 10,
-  shortTransportMergeMinutes: 3,
+  shortTransportMergeMinutes: 20,
   transportChainBridgeMinutes: 5,
+  microTransportMaxMinutes: 5,
+  tinyWorkMaxMinutes: 2,
+  realTripMinDistanceMeters: 1000,
 };
 
 function minutesBetween(a: string, b: string): number {
