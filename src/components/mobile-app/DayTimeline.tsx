@@ -111,12 +111,15 @@ const eventTypeI18nKey: Record<EventTypeKey, 'dayTimeline.rig' | 'dayTimeline.ev
   other: 'dayTimeline.other',
 };
 
-const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
+const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: DayTimelineProps) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const today = date ?? new Date();
   const dayStartBase = startOfDay(today);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const PX_PER_HOUR = density === 'detailed' ? PX_PER_HOUR_DETAILED : PX_PER_HOUR_COMPACT;
+  const PX_PER_MINUTE = PX_PER_HOUR / 60;
+  const isCompact = density === 'compact';
 
   // Auto-extend window if shifts fall outside default 06–22.
   const { dayStart, dayEnd, totalHours } = useMemo(() => {
