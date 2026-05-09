@@ -49,10 +49,25 @@ export const EventWrapper: React.FC<{
   const baseZ = hasOverlap ? 25 + overlapColumn : 25;
   const isLocked = event.extendedProps?.timeLocked === true;
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const ext: any = event.extendedProps || {};
+    const largeProjectId = ext.largeProjectId;
+    if (ext.isLargeProject && largeProjectId) {
+      window.location.assign(`/large-project/${largeProjectId}`);
+      return;
+    }
+    if (event.bookingId) {
+      window.location.assign(`/booking/${event.bookingId}`);
+    }
+  }, [event]);
+
   return (
     <div
       draggable={!readOnly}
       onDragStart={handleDragStart}
+      onDoubleClick={handleDoubleClick}
       className={`${hasOverlap ? 'cascaded-event ' : ''}${isLocked ? 'locked-event-wrapper' : ''}`.trim() || undefined}
       style={{
         position: 'absolute',
@@ -64,7 +79,7 @@ export const EventWrapper: React.FC<{
         pointerEvents: 'auto',
         cursor: readOnly ? 'default' : 'grab',
         borderRadius: isLocked ? '6px' : undefined,
-        boxShadow: isLocked ? '0 0 0 3px hsl(var(--destructive))' : undefined,
+        boxShadow: isLocked ? '0 0 0 1.5px hsl(var(--destructive))' : undefined,
       }}
     >
       <CustomEvent
