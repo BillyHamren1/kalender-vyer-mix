@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Combine, Search } from 'lucide-react';
+import { Combine, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   consolidateProjects,
   fetchConsolidationCandidates,
