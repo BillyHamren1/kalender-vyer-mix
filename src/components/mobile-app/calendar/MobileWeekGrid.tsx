@@ -287,6 +287,7 @@ const MobileWeekGrid = ({
           })}
         </div>
       </div>
+      </div>
     </div>
   );
 };
