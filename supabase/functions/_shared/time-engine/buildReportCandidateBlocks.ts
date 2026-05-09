@@ -524,7 +524,9 @@ function finalize(
   const { title, subtitle } = buildTitleSubtitle(acc);
 
   return {
-    id: `rc-${index}-${acc.startAt}`,
+    // Placeholder — replaced with deterministic id at end of pipeline
+    // (see createReportCandidateBlockId call after all post-passes).
+    id: '',
     kind: acc.kind,
     startAt: acc.startAt,
     endAt: acc.endAt,
