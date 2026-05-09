@@ -1075,6 +1075,9 @@ export function buildReportCandidateBlocks(
     shortUnknownTransportReviewCount,
     shortUnknownTransportHiddenCount,
     absorbedSameTargetTransportExamples,
+    sameTargetTransportRejectedByDistanceCount,
+    sameTargetTransportRejectedByDistanceMinutes,
+    sameTargetTransportRejectedExamples,
   };
   for (const r of out) {
     if (r.kind === 'work') {
