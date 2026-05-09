@@ -280,8 +280,8 @@ export function buildReportDisplayBlocks(
         displayTitle = 'Okänd plats';
         displaySubtitle = `${coordText} · granska`;
       } else {
-        displayTitle = 'Okänd plats';
-        displaySubtitle = 'GPS-signal saknas · granska';
+        displayTitle = 'Period utan platsbevis';
+        displaySubtitle = 'Ingen GPS-position eller närliggande adress · granska';
       }
     } else if (isReview) {
       // Regel needs_review (inkl. missing_transition_evidence)
