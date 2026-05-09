@@ -208,29 +208,18 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Mode toggle */}
-        <div className="inline-flex rounded-lg border p-0.5 bg-muted/40 self-start">
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'create' ? 'default' : 'ghost'}
-            className="h-8"
-            onClick={() => setMode('create')}
-          >
-            <Combine className="h-4 w-4 mr-1.5" />
-            Konsolidera till nytt stort projekt
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'add' ? 'default' : 'ghost'}
-            className="h-8"
-            onClick={() => setMode('add')}
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Lägg till i stort projekt
-          </Button>
-        </div>
+        <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)} className="w-full">
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="create" className="gap-1.5">
+              <Combine className="h-4 w-4" />
+              Skapa nytt stort projekt
+            </TabsTrigger>
+            <TabsTrigger value="add" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Lägg till i stort projekt
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         <div className="space-y-4">
           {mode === 'create' ? (
