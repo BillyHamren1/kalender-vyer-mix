@@ -46,8 +46,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const [consolidateOpen, setConsolidateOpen] = useState(false);
   const [consolidateSource, setConsolidateSource] = useState<ConsolidationSource | null>(null);
   const [consolidateName, setConsolidateName] = useState<string>('');
+  const [consolidateMode, setConsolidateMode] = useState<'create' | 'add'>('create');
 
-  const handleOpenConsolidate = useCallback(async () => {
+  const handleOpenConsolidate = useCallback(async (mode: 'create' | 'add') => {
     try {
       const src = await resolveEventConsolidationSource(event);
       if (!src) {
@@ -56,6 +57,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       }
       setConsolidateSource(src);
       setConsolidateName(event.title || '');
+      setConsolidateMode(mode);
       setConsolidateOpen(true);
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte öppna konsolidering');
