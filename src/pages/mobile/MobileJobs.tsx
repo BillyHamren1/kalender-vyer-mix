@@ -6,7 +6,7 @@ import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import { HeaderShell } from '@/components/mobile-app/MobileHeader';
-import WorkDayPanel from '@/components/mobile-app/WorkDayPanel';
+import CompactWorkDayTimer from '@/components/mobile-app/CompactWorkDayTimer';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
@@ -115,12 +115,15 @@ const MobileJobs = () => {
             </div>
           </button>
         </div>
+        {/* Compact workday timer strip */}
+        <div className="px-5 pb-2">
+          <CompactWorkDayTimer />
+        </div>
       </HeaderShell>
 
       {/* Content */}
       <div className="flex-1 px-4 py-4 space-y-5">
-        {/* Primary workday panel — den enda synliga huvud-timern. */}
-        <WorkDayPanel />
+
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-7 h-7 animate-spin text-primary" />
