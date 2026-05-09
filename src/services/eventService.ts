@@ -623,3 +623,22 @@ export const deleteCalendarEvent = async (eventId: string): Promise<void> => {
     throw error;
   }
 };
+
+/**
+ * Toggle per-day time lock on a calendar_events row.
+ * Locked rows are protected from drag/resize and bulk time updates.
+ */
+export const setCalendarEventTimesLocked = async (
+  eventId: string,
+  locked: boolean
+): Promise<void> => {
+  const { error } = await supabase
+    .from('calendar_events')
+    .update({ times_locked: locked })
+    .eq('id', eventId);
+  if (error) {
+    console.error('❌ [setCalendarEventTimesLocked]', error);
+    throw error;
+  }
+  console.log(`🔒 [Planner UI] times_locked=${locked} for event ${eventId}`);
+};
