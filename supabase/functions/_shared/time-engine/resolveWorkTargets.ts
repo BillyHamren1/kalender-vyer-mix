@@ -230,11 +230,45 @@ export async function resolveWorkTargets(
   const targets: ResolvedWorkTarget[] = [];
   const seenKey = new Set<string>(); // dedupe by `${type}:${id}`
 
-  // Compute "planned today" hints up-front (used to bump source for projects/bookings).
-  const todayProjectIds = new Set<UUID>();
-  const todayBookingIds = new Set<UUID>();
+  // ── Anchor sets — driver matchRole/canAutoMatchAsWork senare i funktionen ──
+  // direct_staff_assignment: bokningar där personen står direkt på BSA-raden
+  // team_calendar_event:      bokningar via personens team + calendar_event
+  // large_project_staff_assignment: stora projekt där personens team är assignat
+  const directlyAssignedBookingIds = new Set<UUID>();
+  const teamCalendarBookingIds = new Set<UUID>();
+  const todayProjectIds = new Set<UUID>(); // (kvar för planned_today-hint)
+  const todayBookingIds = new Set<UUID>(); // primary booking-set (union)
+  const assignedLargeProjectIds = new Set<UUID>();
 
-  // ── Hint A: BSA — staff_assignments + calendar_events for `date` ─────────
+  // Personens team_ids för datumet — används för att korrekt filtrera
+  // large_project_team_assignments per staff (tabellen saknar staff_id).
+  const myTeamIdsToday = new Set<string>();
+
+  // ── A1. Direkt staff↔booking via booking_staff_assignments ────────────────
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('booking_staff_assignments')
+      .select('booking_id, team_id, staff_id, assignment_date')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .eq('assignment_date', date);
+    if (error) {
+      diag.warnings.push(`booking_staff_assignments: ${error.message}`);
+    } else {
+      for (const r of data ?? []) {
+        if (r.team_id && r.team_id !== 'project') myTeamIdsToday.add(String(r.team_id));
+        if (r.booking_id && r.team_id && r.team_id !== 'project') {
+          // team_id='project' = projektmedlemskap, INTE dagsplanering. Får
+          // aldrig räknas som direct_staff_assignment.
+          directlyAssignedBookingIds.add(r.booking_id);
+        }
+      }
+    }
+  } catch (e) {
+    diag.warnings.push(`booking_staff_assignments failed: ${(e as Error).message}`);
+  }
+
+  // ── A2. Team-resurs via staff_assignments + calendar_events för datumet ──
   try {
     const { data: bsa, error } = await supabaseAdmin
       .from('staff_assignments')
@@ -245,6 +279,7 @@ export async function resolveWorkTargets(
     if (error) {
       diag.warnings.push(`staff_assignments: ${error.message}`);
     } else if (bsa && bsa.length > 0) {
+      for (const r of bsa) if (r.team_id) myTeamIdsToday.add(String(r.team_id));
       const teamIds = bsa.map((r) => r.team_id).filter(Boolean);
       if (teamIds.length > 0) {
         const { data: ce, error: ceErr } = await supabaseAdmin
@@ -254,23 +289,39 @@ export async function resolveWorkTargets(
           .eq('source_date', date)
           .in('resource_id', teamIds);
         if (ceErr) diag.warnings.push(`calendar_events: ${ceErr.message}`);
-        else (ce ?? []).forEach((r) => r.booking_id && todayBookingIds.add(r.booking_id));
+        else (ce ?? []).forEach((r) => r.booking_id && teamCalendarBookingIds.add(r.booking_id));
       }
     }
   } catch (e) {
     diag.warnings.push(`bsa hint failed: ${(e as Error).message}`);
   }
 
-  // ── Hint B: large_project_team_assignments for `date` ────────────────────
-  const todayLargeProjectIds = new Set<UUID>();
+  // Union → primary booking-set (för senare PRIMARY-klassning).
+  for (const id of directlyAssignedBookingIds) todayBookingIds.add(id);
+  for (const id of teamCalendarBookingIds) todayBookingIds.add(id);
+
+  // ── B. large_project_team_assignments för datumet — FILTRERA PÅ PERSONENS TEAM ─
+  // Tabellen saknar staff_id; staff↔team-relationen kommer från staff_assignments.
+  // Att hämta alla LP-team-rader för datumet (gamla beteendet) gjorde att stora
+  // projekt utan personens team flaggades som planned_today.
+  const todayLargeProjectIds = new Set<UUID>(); // alla LP-team-rader datumet (för secondary)
   try {
     const { data, error } = await supabaseAdmin
       .from('large_project_team_assignments')
-      .select('large_project_id')
+      .select('large_project_id, team_id')
       .eq('organization_id', organizationId)
       .eq('assignment_date', date);
-    if (error) diag.warnings.push(`large_project_team_assignments: ${error.message}`);
-    else (data ?? []).forEach((r) => r.large_project_id && todayLargeProjectIds.add(r.large_project_id));
+    if (error) {
+      diag.warnings.push(`large_project_team_assignments: ${error.message}`);
+    } else {
+      for (const r of (data ?? [])) {
+        if (!r.large_project_id) continue;
+        todayLargeProjectIds.add(r.large_project_id);
+        if (r.team_id && myTeamIdsToday.has(String(r.team_id))) {
+          assignedLargeProjectIds.add(r.large_project_id);
+        }
+      }
+    }
   } catch (e) {
     diag.warnings.push(`large bsa hint failed: ${(e as Error).message}`);
   }
