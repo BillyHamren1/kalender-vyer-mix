@@ -322,6 +322,22 @@ Deno.serve(async (req) => {
         day.shortUnknownTransportHiddenCount +=
           (report.summary as any).shortUnknownTransportHiddenCount ?? 0;
 
+        const examples = (report.summary as any).absorbedSameTargetTransportExamples ?? [];
+        for (const ex of examples) {
+          if (day.absorbedSameTargetTransportExamples.length >= 25) break;
+          day.absorbedSameTargetTransportExamples.push({
+            staffName: s.name ?? s.id,
+            staffId: s.id,
+            targetLabel: ex.targetLabel ?? null,
+            startAt: ex.startAt,
+            endAt: ex.endAt,
+            durationMinutes: ex.durationMinutes,
+            distanceMeters: ex.distanceMeters,
+            absorbedIntoWorkBlock: ex.absorbedIntoWorkBlock ?? null,
+            reviewReasons: ex.reviewReasons ?? [],
+          });
+        }
+
         for (const b of report.blocks) {
           day.reportBlocksByKind[b.kind] = (day.reportBlocksByKind[b.kind] ?? 0) + 1;
           if (b.durationMinutes <= 0) {
