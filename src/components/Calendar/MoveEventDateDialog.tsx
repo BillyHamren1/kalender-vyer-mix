@@ -483,7 +483,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={setSelectedDate}
+                onSelect={(d) => { if (d) setSelectedDate(d); }}
                 initialFocus
                 className={cn("p-3 pointer-events-auto rounded-md border")}
               />

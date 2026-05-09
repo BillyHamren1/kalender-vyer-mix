@@ -1,60 +1,24 @@
-## Mål
+## Ändringar
 
-1. **Allt på singelklick.** Högerklick (det du kallar "dubbeltryck") ska bort helt på event i planeringskalendern. Allt det idag öppnar (Flytta datum-dialogen) ska istället nås via singelklick.
-2. **Röd ram runt event när "Fast tid" är ikryssad** i QuickTimeEditPopover.
+**1. Tunnare röd ram runt låsta event**
+- Fil: `src/components/Calendar/TimeGridEventLayer.tsx`
+- Ändra `boxShadow: '0 0 0 3px ...'` → `'0 0 0 1.5px hsl(var(--destructive))'`
 
----
+**2. Dubbelklick på event → projektsidan**
+- Undersök var `onEventClick` / `onDoubleClick` hanteras (troligen `CustomEvent.tsx` eller event-handler i `TimeGridEventLayer`)
+- Lägg till `onDoubleClick` på `EventWrapper` som navigerar till projektets sida (`/projects/:id` eller large project hub) istället för att öppna event-dialog
+- Bevara enkelklick-beteende
 
-## 1. Konsolidera singel + höger­klick → singelklick
+**3. Datumväljare: klicka in/ur på samma ställe utan att annan dialog öppnas**
+- Hitta date picker-popovern som används vid event-redigering (troligen `src/components/ui/calendar.tsx` via `Popover`)
+- Problem: när popovern stängs vid klick-utanför och man klickar tillbaka på samma datum-fält, triggas en annan dialog (sannolikt parent-event-handler bubblar)
+- Lösning: stoppa event propagation på datum-input/triggern, eller fixa popover-fokushantering så den toggle:ar rent
 
-**Idag:**
-- Singelklick öppnar `EventActionPopover` (Team / Dagar / Tid / Öppna / Flytta datum…).
-- Högerklick (`onContextMenu`) öppnar `MoveEventDateDialog` direkt.
-- Det skapar två olika ingångar och förvirrar.
+## Behöver kollas innan implementation
+- Vilken komponent renderar event-dialogen som öppnas på enkelklick i kalendern (för att hooka in dubbelklick rätt)
+- Vilken dialog är "den andra" som öppnas i punkt 3 — behöver titta på session replay eller komponenten där datumväljaren bor
 
-**Ändring i `src/components/Calendar/CustomEvent.tsx`:**
-- Ta bort `handleContextMenu` och `onContextMenu`-wrapparna runt eventkortet (både för warehouse-grenen och normal-grenen).
-- Återställ standard webbläsar-kontextmeny (ingen egen UI-trigger på högerklick).
-- Behåll `EventActionPopover` på singelklick (där "Flytta datum…"-knappen redan finns och öppnar `MoveEventDateDialog`). Det är nu enda vägen in.
-- Säkerställ att popovern faktiskt öppnas: `PopoverTrigger`-wrappen får `onPointerDown`/`onClick` som triggar `setOpen(true)` även när eventet är `draggable` (drag stjäl ibland klick-eventet på Radix).
-
-**Resultat:** Ett enda klick på ett event öppnar popovern med Team, Dagar, Tid, Öppna, Flytta datum. Högerklick gör inget speciellt längre.
-
----
-
-## 2. Röd ram när "Fast tid" är ikryssad
-
-**Idag:**
-- `CustomEvent.tsx` ritar redan röd ram (`border: 2px solid #DC2626`) när `event.extendedProps?.timeLocked === true`.
-- Flaggan `timeLocked` sätts korrekt i `plannerCalendarDerivation` från `bookings.<phase>_time_locked`.
-- Men: när användaren bockar i "Fast tid" i `QuickTimeEditPopover` så uppdaterar inte den lokala calendar-event-listan `timeLocked` förrän nästa fulla refetch. Och i `useRealTimeCalendarEvents` enrichas `extendedProps` om utan att uttryckligen ta med `timeLocked` (den följer bara med via `...event.extendedProps`-spread, vilket gör den känslig för att en mellanstegs-mappning tappar fältet).
-
-**Ändringar:**
-
-a) `src/hooks/useRealTimeCalendarEvents.tsx`
-- Lägg till `timeLocked: event.extendedProps?.timeLocked === true` i den explicita `extendedProps`-uppbyggnaden så fältet aldrig tappas.
-
-b) `src/components/Calendar/QuickTimeEditPopover.tsx`
-- Efter `setPhaseLock(...)` lyckats: optimistiskt uppdatera lokala events via `setEvents` (om tillgängligt) eller dispatcha samma cache-invalidations som `onUpdate` redan gör — så röd ram syns direkt utan reload.
-
-c) `src/components/Calendar/CustomEvent.tsx`
-- Förtydliga ramen: gör den lite tjockare (3px) och lägg en svag röd glow så den verkligen syns mot grön/blå eventbakgrund.
-- Säkerställ att `isLocked`-grenen körs även när eventet samtidigt är `hasSourceChanges` (idag vinner orange ramen). Prioritetsordning: cancelled > locked (röd) > sourceChanges (orange) > default.
-
----
-
-## Filer som ändras
-
-- `src/components/Calendar/CustomEvent.tsx` — ta bort kontextmeny, säkra klick-trigger, justera ramprioritet.
-- `src/hooks/useRealTimeCalendarEvents.tsx` — propagera `timeLocked` explicit.
-- `src/components/Calendar/QuickTimeEditPopover.tsx` — optimistisk uppdatering efter lås­ändring.
-
-Inget backend/DB-arbete krävs.
-
----
-
-## Vad som INTE ändras
-
-- `EventActionPopover` (innehåll/layout är samma — det är redan rätt vy).
-- `EventHoverCard` (rich hover-info kvarstår på hover, oförändrad).
-- "Fast tid"-toggling-logiken (`setPhaseLock`) är oförändrad.
+## Frågor
+Vill du att dubbelklick öppnar:
+- **a)** Stora projektets hub (`/project/large/:id`) om det är ett large project, annars vanliga projektsidan
+- **b)** Alltid samma route oavsett typ

@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { CalendarEvent, Resource } from './ResourceData';
 import CustomEvent from './CustomEvent';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
@@ -14,6 +15,7 @@ export const EventWrapper: React.FC<{
   readOnly?: boolean;
   setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly, setEvents }) => {
+  const navigate = useNavigate();
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (readOnly) {
       e.preventDefault();
@@ -49,10 +51,25 @@ export const EventWrapper: React.FC<{
   const baseZ = hasOverlap ? 25 + overlapColumn : 25;
   const isLocked = event.extendedProps?.timeLocked === true;
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const ext: any = event.extendedProps || {};
+    const largeProjectId = ext.largeProjectId;
+    if (ext.isLargeProject && largeProjectId) {
+      navigate(`/large-project/${largeProjectId}`);
+      return;
+    }
+    if (event.bookingId) {
+      navigate(`/booking/${event.bookingId}`);
+    }
+  }, [event, navigate]);
+
   return (
     <div
       draggable={!readOnly}
       onDragStart={handleDragStart}
+      onDoubleClick={handleDoubleClick}
       className={`${hasOverlap ? 'cascaded-event ' : ''}${isLocked ? 'locked-event-wrapper' : ''}`.trim() || undefined}
       style={{
         position: 'absolute',
@@ -64,7 +81,7 @@ export const EventWrapper: React.FC<{
         pointerEvents: 'auto',
         cursor: readOnly ? 'default' : 'grab',
         borderRadius: isLocked ? '6px' : undefined,
-        boxShadow: isLocked ? '0 0 0 3px hsl(var(--destructive))' : undefined,
+        boxShadow: isLocked ? '0 0 0 1.5px hsl(var(--destructive))' : undefined,
       }}
     >
       <CustomEvent

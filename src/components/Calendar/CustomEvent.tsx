@@ -145,8 +145,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     if (isLocked) {
       return {
         ...baseStyles,
-        border: '3px solid #DC2626',
-        boxShadow: '0 0 8px rgba(220, 38, 38, 0.55)',
+        border: '1.5px solid #DC2626',
+        boxShadow: '0 0 4px rgba(220, 38, 38, 0.4)',
       };
     }
 
