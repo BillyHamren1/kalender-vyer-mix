@@ -189,6 +189,12 @@ Deno.serve(async (req) => {
         needsReviewCount: 0,
         longestSignalGaps: [],
         warnings: [],
+        unknownEvidenceBlocksCount: 0,
+        unknownPresenceBlocksCount: 0,
+        unknownCompressionRatio: 1,
+        transportEvidenceBlocksCount: 0,
+        transportPresenceBlocksCount: 0,
+        transportCompressionRatio: 1,
         sampleStaffDays: [],
       };
       const samples: SampleStaffDay[] = [];
