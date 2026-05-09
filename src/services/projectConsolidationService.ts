@@ -13,6 +13,8 @@ export interface ConsolidationCandidate {
   name: string;
   subtitle?: string | null;
   bookingCount?: number;
+  /** ISO date used for sorting (event date, fallback to created_at). */
+  sortDate?: string | null;
 }
 
 export interface ConsolidateProjectsResult {
