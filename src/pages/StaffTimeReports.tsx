@@ -1670,8 +1670,54 @@ const StaffTimeReports: React.FC = () => {
   // Loading räknas inte som "saknas" — då visar vi laddtillstånd, inte fallback.
   const anyStillLoading = staffList.some((s) => reportCandidateByStaff[s.id]?.loading);
   const missingStaffCount = staffList.filter((s) => reportCandidateByStaff[s.id]?.missing).length;
+
+  // ── TILLFÄLLIG GUARD: pausa ny motor om underlaget innehåller osäkra targets. ──
+  // resolveWorkTargets är fortfarande för bred: den matchar bokningar via
+  // date_relevant_booking, active_project, project_linked_booking och
+  // large_project_linked_booking utan staff-assignment. Det leder till FEL
+  // bokningsnamn i huvudtimeline. Vi vägrar visa ny motor som "säker huvudvy"
+  // tills resolveWorkTargets är fixad.
+  const UNSAFE_TARGET_SOURCES = new Set<string>([
+    'date_relevant_booking',
+    'active_project',
+    'project_linked_booking',
+    // large_project_linked_booking utan staff-assignment är osäker; backend
+    // exponerar inte assignment-flagga per target ännu, så vi behandlar hela
+    // källan som osäker tillsvidare.
+    'large_project_linked_booking',
+  ]);
+  let unsafeStaffCount = 0;
+  let unsafeExampleSources: string[] = [];
+  for (const s of staffList) {
+    const q = reportCandidateQueries[staffList.indexOf(s)];
+    const data = q?.data as any | undefined;
+    if (!data) continue;
+    const targets: any[] = Array.isArray(data.targets) ? data.targets : [];
+    if (targets.length === 0) continue;
+    const sourceById = new Map<string, string>();
+    for (const t of targets) {
+      const key = `${t.type ?? ''}::${t.id ?? ''}`;
+      sourceById.set(key, String(t.targetSource ?? ''));
+    }
+    const blocks: any[] = Array.isArray(data.reportCandidateBlocks) ? data.reportCandidateBlocks : [];
+    const hasUnsafe = blocks.some((b) => {
+      if (!b?.targetId && !b?.targetType) return false;
+      const key = `${b.targetType ?? ''}::${b.targetId ?? ''}`;
+      const src = sourceById.get(key);
+      if (src && UNSAFE_TARGET_SOURCES.has(src)) {
+        if (unsafeExampleSources.length < 3) unsafeExampleSources.push(src);
+        return true;
+      }
+      return false;
+    });
+    if (hasUnsafe) unsafeStaffCount += 1;
+  }
+  const hasUnsafeTargets = unsafeStaffCount > 0;
+
   const engineMode: 'report_candidate' | 'actual_model_fallback' =
-    !anyStillLoading && missingStaffCount > 0 ? 'actual_model_fallback' : 'report_candidate';
+    !anyStillLoading && (missingStaffCount > 0 || hasUnsafeTargets)
+      ? 'actual_model_fallback'
+      : 'report_candidate';
 
   if (selectedStaffId) {
     return (
