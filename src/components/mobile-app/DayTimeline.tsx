@@ -20,12 +20,15 @@ interface DayTimelineProps {
   activeBookingIds?: Set<string>;
   /** Date to render. Defaults to today. */
   date?: Date;
+  /** 'compact' (default) shows whole day; 'detailed' uses larger PX_PER_HOUR + scroll-to-now. */
+  density?: 'compact' | 'detailed';
 }
 
 const DEFAULT_START_HOUR = 6;
 const DEFAULT_END_HOUR = 22;
-const PX_PER_HOUR = 40;
-const PX_PER_MINUTE = PX_PER_HOUR / 60;
+const PX_PER_HOUR_COMPACT = 24;
+const PX_PER_HOUR_DETAILED = 40;
+
 
 interface PositionedItem {
   item: MobileCalendarItem;
