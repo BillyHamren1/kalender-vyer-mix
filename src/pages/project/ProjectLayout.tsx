@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import ProjectActionMenu from "@/components/project/ProjectActionMenu";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
+import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
 import LargeProjectScheduleEditable from "@/components/project/LargeProjectScheduleEditable";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
@@ -31,6 +32,7 @@ const ProjectLayout = () => {
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
+  const [isConsolidateOpen, setIsConsolidateOpen] = useState(false);
   const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
   const [editSubtitle, setEditSubtitle] = useState("");
   const subtitleInputRef = useRef<HTMLInputElement>(null);
@@ -280,6 +282,13 @@ const ProjectLayout = () => {
                 currentType="medium"
                 onConvert={handleConvert}
                 onDelete={handleDeleteProject}
+                onConsolidate={() => setIsConsolidateOpen(true)}
+              />
+              <ConsolidateProjectsDialog
+                open={isConsolidateOpen}
+                onOpenChange={setIsConsolidateOpen}
+                initialSelection={projectId ? { type: 'medium', id: projectId } : null}
+                initialName={project?.name}
               />
             </div>
           </div>
