@@ -196,6 +196,7 @@ Deno.serve(async (req) => {
     .order('event_at', { ascending: true });
 
   const timeline: TimelineRow[] = [];
+  const timerMarkers: TimerMarkerInput[] = [];
 
   for (const r of presenceRows ?? []) {
     timeline.push({
@@ -337,7 +338,6 @@ Deno.serve(async (req) => {
   let targetMatchSummary: any = null;
   let gpsTimelineResult: any = null;
   let presenceDayBlocksResult: PresenceDayBlocksResult | null = null;
-  const timerMarkers: TimerMarkerInput[] = [];
 
   try {
     const { targets: resolved, targetDiagnostics: tdiag, targetResolution: tres } = await resolveWorkTargets({
