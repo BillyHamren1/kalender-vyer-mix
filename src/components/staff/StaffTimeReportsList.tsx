@@ -78,6 +78,15 @@ interface StaffTimeReportsListProps {
   onSelectStaff: (id: string, name: string) => void;
   selectedDate: Date;
   onDateChange: (date: Date) => void;
+  /** Map staffId → reportCandidateBlocks/summary från get-staff-presence-day. */
+  reportCandidateByStaff?: Record<
+    string,
+    {
+      blocks: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
+      summary: import('./ReportCandidateTimeline').ReportCandidateSummaryUI | null;
+      loading: boolean;
+    } | undefined
+  >;
 }
 
 const formatRelativeDate = (date: Date): string => {
