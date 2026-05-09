@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Combine, Search } from 'lucide-react';
+import { Combine, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   consolidateProjects,
   fetchConsolidationCandidates,
@@ -44,6 +44,8 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
   const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [selected, setSelected] = useState<Map<string, ConsolidationSource>>(new Map());
+  const [sortBy, setSortBy] = useState<'date' | 'name'>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const { data: candidates = [], isLoading } = useQuery({
     queryKey: ['consolidation-candidates'],
@@ -74,13 +76,42 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.subtitle || '').toLowerCase().includes(q),
+    const base = !q
+      ? candidates
+      : candidates.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.subtitle || '').toLowerCase().includes(q),
+        );
+    const dirMul = sortDir === 'asc' ? 1 : -1;
+    const sorted = [...base].sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name, 'sv') * dirMul;
+      }
+      const ad = a.sortDate ? new Date(a.sortDate).getTime() : 0;
+      const bd = b.sortDate ? new Date(b.sortDate).getTime() : 0;
+      return (ad - bd) * dirMul;
+    });
+    return sorted;
+  }, [candidates, search, sortBy, sortDir]);
+
+  const toggleSort = (col: 'date' | 'name') => {
+    if (sortBy === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(col);
+      setSortDir(col === 'date' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortIcon = (col: 'date' | 'name') => {
+    if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortDir === 'asc' ? (
+      <ArrowUp className="h-3 w-3 ml-1" />
+    ) : (
+      <ArrowDown className="h-3 w-3 ml-1" />
     );
-  }, [candidates, search]);
+  };
 
   const toggle = (c: ConsolidationCandidate) => {
     const key = `${c.type}:${c.id}`;
@@ -148,6 +179,28 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
                 placeholder="Sök projekt..."
                 className="pl-8"
               />
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Sortera:</span>
+              <Button
+                type="button"
+                variant={sortBy === 'date' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => toggleSort('date')}
+              >
+                Datum {sortIcon('date')}
+              </Button>
+              <Button
+                type="button"
+                variant={sortBy === 'name' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => toggleSort('name')}
+              >
+                Namn {sortIcon('name')}
+              </Button>
             </div>
 
             <div className="max-h-80 overflow-y-auto rounded-lg border divide-y">
