@@ -11,7 +11,7 @@
 
 const TZ = 'Europe/Stockholm';
 
-function safeDate(iso: string | Date | null | undefined): Date | null {
+function safeDate(iso: string | Date | number | null | undefined): Date | null {
   if (iso == null) return null;
   if (iso instanceof Date) return Number.isFinite(iso.getTime()) ? iso : null;
   const d = new Date(iso);
@@ -19,7 +19,7 @@ function safeDate(iso: string | Date | null | undefined): Date | null {
 }
 
 /** "HH:mm" i Europe/Stockholm. Tom sträng om input är ogiltig. */
-export function formatStockholmHm(iso: string | Date | null | undefined): string {
+export function formatStockholmHm(iso: string | Date | number | null | undefined): string {
   const d = safeDate(iso);
   if (!d) return '';
   return d.toLocaleTimeString('sv-SE', {
@@ -31,7 +31,7 @@ export function formatStockholmHm(iso: string | Date | null | undefined): string
 }
 
 /** "HH:mm:ss" i Europe/Stockholm. Tom sträng om input är ogiltig. */
-export function formatStockholmHms(iso: string | Date | null | undefined): string {
+export function formatStockholmHms(iso: string | Date | number | null | undefined): string {
   const d = safeDate(iso);
   if (!d) return '';
   return d.toLocaleTimeString('sv-SE', {
