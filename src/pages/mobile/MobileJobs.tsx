@@ -152,6 +152,7 @@ const MobileJobs = () => {
               <MobileWeekView
                 selectedDate={selectedDate}
                 onSelectDate={setSelectedDate}
+                onOpenDayView={(d) => { setSelectedDate(d); setViewMode('day'); }}
                 shifts={shifts}
                 activeBookingIds={noActiveBookingIds}
               />
