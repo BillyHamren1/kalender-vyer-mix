@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import { Clock, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/ui/PageContainer';
