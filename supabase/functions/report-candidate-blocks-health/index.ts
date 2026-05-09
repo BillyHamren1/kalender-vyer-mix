@@ -93,6 +93,17 @@ interface DayHealth {
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
   shortUnknownTransportHiddenCount: number;
+  absorbedSameTargetTransportExamples: Array<{
+    staffName: string;
+    staffId: string;
+    targetLabel: string | null;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    distanceMeters: number;
+    absorbedIntoWorkBlock: { startAt: string; endAt: string } | null;
+    reviewReasons: string[];
+  }>;
   warnings: string[];
   sampleStaffReports: SampleStaffReport[];
 }
