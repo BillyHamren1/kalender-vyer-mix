@@ -505,6 +505,7 @@ export async function resolveWorkTargets(
           timeTrackingAllowed: true,
           dateRelevance: isPlannedToday ? 'today' : 'recent',
           status,
+          rawAddress: (r.address as string | null) ?? null,
           diagnostics: { notes: lpNotes },
         });
       }
