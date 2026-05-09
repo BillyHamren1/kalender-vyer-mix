@@ -32,7 +32,6 @@
  */
 
 import type {
-import { formatStockholmHm, formatStockholmHms } from './formatStockholmTime';
   ActualStaffDayModel,
   ActualWorkdayFlagInput,
 } from './actualStaffDayModel';
@@ -42,6 +41,7 @@ import type {
   JourneyBlock,
   GapBlock,
 } from './dayBlockTimeline';
+import { formatStockholmHm, formatStockholmHms } from './formatStockholmTime';
 
 // ── Output-typer ─────────────────────────────────────────────────────
 

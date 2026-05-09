@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState } from 'react';
-import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle, ExternalLink, Trash2 } from 'lucide-react';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
 import {
@@ -15,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { AddressMapDialog } from './AddressMapDialog';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 interface ExcludeCtx {
   canExclude: boolean;

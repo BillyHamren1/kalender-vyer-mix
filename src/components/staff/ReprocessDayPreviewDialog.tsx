@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 import { format } from 'date-fns';
 import { Sparkles, ArrowRight, Check, X } from 'lucide-react';
 import {
@@ -14,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 /**
  * ReprocessDayPreviewDialog — kör buildActualStaffDayModel för en dag och
