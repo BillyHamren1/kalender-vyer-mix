@@ -82,14 +82,17 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
       next.set(`${initialSelection.type}:${initialSelection.id}`, initialSelection);
     }
     setSelected(next);
-    if (initialSelection?.type === 'large') {
+    if (initialMode) {
+      setMode(initialMode);
+      setTargetLargeId(initialSelection?.type === 'large' ? initialSelection.id : '');
+    } else if (initialSelection?.type === 'large') {
       setMode('add');
       setTargetLargeId(initialSelection.id);
     } else {
       setMode('create');
       setTargetLargeId('');
     }
-  }, [open, initialSelection, initialName]);
+  }, [open, initialSelection, initialName, initialMode]);
 
   // Pre-fill name from initial selection's candidate name when known
   useEffect(() => {
