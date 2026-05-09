@@ -1696,6 +1696,7 @@ const StaffTimeReports: React.FC = () => {
         }}
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
+        reportCandidateByStaff={reportCandidateByStaff}
       />
     </PageContainer>
   );
