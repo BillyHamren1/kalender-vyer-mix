@@ -103,6 +103,12 @@ interface DayHealth {
   needsReviewCount: number;
   longestSignalGaps: LongGapEntry[];
   warnings: string[];
+  unknownEvidenceBlocksCount: number;
+  unknownPresenceBlocksCount: number;
+  unknownCompressionRatio: number;
+  transportEvidenceBlocksCount: number;
+  transportPresenceBlocksCount: number;
+  transportCompressionRatio: number;
   sampleStaffDays?: SampleStaffDay[];
 }
 
@@ -183,6 +189,12 @@ Deno.serve(async (req) => {
         needsReviewCount: 0,
         longestSignalGaps: [],
         warnings: [],
+        unknownEvidenceBlocksCount: 0,
+        unknownPresenceBlocksCount: 0,
+        unknownCompressionRatio: 1,
+        transportEvidenceBlocksCount: 0,
+        transportPresenceBlocksCount: 0,
+        transportCompressionRatio: 1,
         sampleStaffDays: [],
       };
       const samples: SampleStaffDay[] = [];
@@ -399,6 +411,16 @@ Deno.serve(async (req) => {
 
       day.compressionRatio = day.rawEvidenceBlocksCount > 0
         ? Math.round((day.presenceDayBlocksCount / day.rawEvidenceBlocksCount) * 1000) / 1000
+        : 1;
+      day.unknownEvidenceBlocksCount = day.evidenceBlocksByKind['unknown_place'] ?? 0;
+      day.unknownPresenceBlocksCount = day.blocksByKind['unknown_place'] ?? 0;
+      day.unknownCompressionRatio = day.unknownEvidenceBlocksCount > 0
+        ? Math.round((day.unknownPresenceBlocksCount / day.unknownEvidenceBlocksCount) * 1000) / 1000
+        : 1;
+      day.transportEvidenceBlocksCount = day.evidenceBlocksByKind['transport'] ?? 0;
+      day.transportPresenceBlocksCount = day.blocksByKind['transport'] ?? 0;
+      day.transportCompressionRatio = day.transportEvidenceBlocksCount > 0
+        ? Math.round((day.transportPresenceBlocksCount / day.transportEvidenceBlocksCount) * 1000) / 1000
         : 1;
 
       perDay.push(day);
