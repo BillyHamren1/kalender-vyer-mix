@@ -21,6 +21,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
   AlertTriangle,
   ArrowRight,
   ChevronRight,
@@ -94,9 +95,9 @@ interface StaffDayTimelineCardProps {
 const fmtHm = (iso: string | null): string => {
   if (!iso) return '—';
   try {
-    return format(new Date(iso), 'HH:mm');
+    return formatStockholmHm(iso);
   } catch {
-    return iso.slice(11, 16);
+    return formatStockholmHm(iso);
   }
 };
 

@@ -17,6 +17,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { AlertTriangle, ArrowRight, Clock, HelpCircle, MapPin, Plane } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 export type ReportBlockKind = 'work' | 'transport' | 'break' | 'unknown' | 'needs_review';
 export type ReportConfidence = 'high' | 'medium' | 'low';
@@ -68,7 +69,7 @@ const KIND_META: Record<
 
 const fmtHm = (iso: string | null | undefined): string => {
   if (!iso) return '—';
-  try { return format(new Date(iso), 'HH:mm'); } catch { return String(iso).slice(11, 16); }
+  try { return formatStockholmHm(iso); } catch { return formatStockholmHm(String(iso)); }
 };
 
 const fmtDur = (m: number): string => {

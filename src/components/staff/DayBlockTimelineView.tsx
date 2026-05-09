@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { Building2, ChevronDown, ChevronRight, Car, ArrowRight, HelpCircle, AlertTriangle, ExternalLink, Trash2 } from 'lucide-react';
 import type { DayBlock, PresenceBlock, JourneyBlock, GapBlock, GapReason } from '@/lib/staff/dayBlockTimeline';
 import {
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -80,7 +81,7 @@ const fmtHm = (iso?: string | null) => {
     return new Date(iso).toLocaleTimeString('sv-SE', {
       hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm',
     });
-  } catch { return iso.slice(11, 16); }
+  } catch { return formatStockholmHm(iso); }
 };
 
 const fmtDur = (m: number) => {
@@ -700,7 +701,7 @@ const GapRow: React.FC<{ block: GapBlock }> = ({ block }) => {
   // Saknad GPS-signal är INTE ett tidsglapp — visas som passiv signal-status
   // utan "GRANSKA"-badge och utan amber accent.
   const isSignalOnly = block.reason === 'no_signal';
-  const lastSignal = block.startIso.slice(11, 16);
+  const lastSignal = formatStockholmHm(block.startIso);
   return (
     <>
       <RowShell

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { Sparkles, ArrowRight, Check, X } from 'lucide-react';
 import {
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
   Dialog,
   DialogContent,
   DialogHeader,
@@ -54,9 +55,9 @@ interface Props {
 const fmtHm = (iso: string | null) => {
   if (!iso) return '—';
   try {
-    return format(new Date(iso), 'HH:mm');
+    return formatStockholmHm(iso);
   } catch {
-    return iso.slice(11, 16);
+    return formatStockholmHm(iso);
   }
 };
 const fmtMin = (m: number) => {

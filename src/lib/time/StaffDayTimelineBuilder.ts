@@ -34,6 +34,7 @@
  */
 
 import type {
+import { formatStockholmHm, formatStockholmHms } from '../staff/formatStockholmTime';
   StaffDayTimeline,
   StaffDaySegment,
   StaffDaySegmentKind,
@@ -320,7 +321,7 @@ function fillGapsAsUnknown(
         endIso,
         durationMin: Math.round((segStart - cursor) / MS_MIN),
         label: 'Signal saknas',
-        subtitle: `Senaste signal ${new Date(cursor).toISOString().slice(11, 16)}`,
+        subtitle: `Senaste signal ${new formatStockholmHm(Date(cursor).toISOString())}`,
         ongoing: false,
         reviewRequired: false,
         sourceBlockId: `signal:${cursor}`,
@@ -344,7 +345,7 @@ function fillGapsAsUnknown(
       endIso,
       durationMin: Math.round((envEndMs - cursor) / MS_MIN),
       label: 'Signal saknas',
-      subtitle: `Senaste signal ${new Date(cursor).toISOString().slice(11, 16)} · arbetsdag pågår`,
+      subtitle: `Senaste signal ${new formatStockholmHm(Date(cursor).toISOString())} · arbetsdag pågår`,
       ongoing: true,
       reviewRequired: false,
       sourceBlockId: `signal:${cursor}-end`,

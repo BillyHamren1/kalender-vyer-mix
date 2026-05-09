@@ -14,6 +14,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { Activity, Clock, Wifi, WifiOff } from 'lucide-react';
 import type { DayHeaderModel } from '@/lib/staff/dayHeaderModel';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 interface Props {
   header: DayHeaderModel;
@@ -23,7 +24,7 @@ interface Props {
 
 const fmtHm = (iso: string | null | undefined): string => {
   if (!iso) return '—';
-  try { return format(new Date(iso), 'HH:mm'); } catch { return iso.slice(11, 16); }
+  try { return formatStockholmHm(iso); } catch { return formatStockholmHm(iso); }
 };
 
 const fmtMin = (m: number): string => {
