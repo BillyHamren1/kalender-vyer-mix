@@ -6,9 +6,10 @@ import { useNavigate } from 'react-router-dom';
 /* ============================================================
  * MobileHeader — unified header system for EventFlow Time
  *
- * Single-timer policy: headern startar eller stoppar INTE arbetsdag.
- * Timer-styrning sker uteslutande i `WorkDayPanel`. Headern visar
- * navigation, titel och eventuella passiva actions.
+ * Timer styrs endast av godkända arbetsdagstimer-komponenter:
+ * CompactWorkDayTimer i jobb-headern och WorkDayPanel där den
+ * fortfarande används. Jobbkort, projektkort och platskort får
+ * inte starta/stoppa timer.
  *
  * Headers portal into #mobile-header-slot (rendered by TimeAppLayout)
  * so they sit OUTSIDE the scroll container — avoids iOS WKWebView
@@ -40,7 +41,8 @@ const useMobileHeaderSlot = (): HTMLElement | null => {
  *
  * Borttagen som interaktiv yta. Returnerar null för att behålla
  * import-kontraktet i sidor som fortfarande mountar den. All
- * arbetsdagsstart/-stopp sker i `WorkDayPanel`.
+ * arbetsdagsstart/-stopp sker via godkända timer-komponenter
+ * (CompactWorkDayTimer / WorkDayPanel).
  */
 export const HeaderStartEndDayButton: React.FC = () => null;
 

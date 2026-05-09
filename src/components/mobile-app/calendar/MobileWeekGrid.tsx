@@ -150,7 +150,8 @@ const MobileWeekGrid = ({
   }, [today, startHour]);
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
+    <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
+      <div className="min-w-[720px]">
       {/* Sticky day header */}
       <div className="sticky top-0 z-30 bg-card border-b border-border/60 flex">
         <div style={{ width: TIME_GUTTER_PX }} className="shrink-0" />
@@ -272,10 +273,10 @@ const MobileWeekGrid = ({
                         width: `calc(${widthPct}% - 2px)`,
                       }}
                     >
-                      <div className="text-[8px] font-mono opacity-75 leading-none">
+                      <div className="text-[9px] font-mono opacity-75 leading-none">
                         {extractUTCTime(startStr)}
                       </div>
-                      <div className="text-[9px] font-bold leading-tight truncate mt-0.5">
+                      <div className="text-[10px] font-semibold leading-tight truncate mt-0.5">
                         {title}
                       </div>
                     </button>
@@ -285,6 +286,7 @@ const MobileWeekGrid = ({
             );
           })}
         </div>
+      </div>
       </div>
     </div>
   );
