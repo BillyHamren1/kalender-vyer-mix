@@ -235,8 +235,33 @@ export const useRealTimeCalendarEvents = () => {
     const onManualRefresh = () => handleCalendarEventChange();
     window.addEventListener('planner-calendar-refresh', onManualRefresh);
     // `bookings.<phase>_time_locked` lives outside calendar_events realtime,
-    // so we listen for the explicit signal from setPhaseLock.
-    window.addEventListener('phase-lock-changed', onManualRefresh as EventListener);
+    // so we listen for the explicit signal from setPhaseLock. Patch local
+    // state OPTIMISTICALLY first so the red border appears immediately,
+    // then fall back to the debounced full reload for consistency.
+    const onPhaseLockChanged = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as
+        | { bookingId?: string; phase?: string; locked?: boolean; largeProjectId?: string | null }
+        | undefined;
+      if (detail && detail.bookingId && detail.phase) {
+        setEvents(prev => prev.map(e => {
+          const phase = e.eventType || (e.extendedProps as any)?.eventType;
+          const matchesBooking = e.bookingId === detail.bookingId
+            || (detail.largeProjectId && (e.extendedProps as any)?.largeProjectId === detail.largeProjectId);
+          if (matchesBooking && phase === detail.phase) {
+            return {
+              ...e,
+              extendedProps: {
+                ...(e.extendedProps || {}),
+                timeLocked: detail.locked === true,
+              },
+            };
+          }
+          return e;
+        }));
+      }
+      handleCalendarEventChange();
+    };
+    window.addEventListener('phase-lock-changed', onPhaseLockChanged as EventListener);
 
     console.log('Real-time calendar subscription established (read-only mode)');
 
@@ -246,7 +271,7 @@ export const useRealTimeCalendarEvents = () => {
         clearTimeout(reloadTimerRef.current);
       }
       window.removeEventListener('planner-calendar-refresh', onManualRefresh);
-      window.removeEventListener('phase-lock-changed', onManualRefresh as EventListener);
+      window.removeEventListener('phase-lock-changed', onPhaseLockChanged as EventListener);
       supabase.removeChannel(calendarChannel);
       console.log('Real-time subscriptions cleaned up');
     };
