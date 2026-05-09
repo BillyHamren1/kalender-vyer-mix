@@ -89,7 +89,8 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
         event_type,
         delivery_address,
         booking_number,
-        source_date
+        source_date,
+        times_locked
       `)
       .neq('event_type', 'event')
       .gte('start_time', windowFrom)
@@ -419,9 +420,18 @@ export const updateCalendarEvent = async (
   if (isTimeChange) {
     const { data: existingEvent } = await supabase
       .from('calendar_events')
-      .select('booking_id, event_type, source_date')
+      .select('booking_id, event_type, source_date, times_locked')
       .eq('id', eventId)
       .maybeSingle();
+
+    // Per-day lock (calendar_events.times_locked) takes precedence
+    if (existingEvent?.times_locked === true) {
+      const err = new Error('Tiden är låst för denna dag – lås upp i popovern för att flytta');
+      (err as any).code = 'TIME_LOCKED';
+      console.warn('[updateCalendarEvent] blocked by per-day lock', { eventId });
+      throw err;
+    }
+
     if (existingEvent?.booking_id && existingEvent?.event_type) {
       const phase = existingEvent.event_type as 'rig' | 'event' | 'rigDown';
       const lockCol = phase === 'rig'
@@ -612,4 +622,23 @@ export const deleteCalendarEvent = async (eventId: string): Promise<void> => {
     console.error('❌ Error deleting calendar event:', error);
     throw error;
   }
+};
+
+/**
+ * Toggle per-day time lock on a calendar_events row.
+ * Locked rows are protected from drag/resize and bulk time updates.
+ */
+export const setCalendarEventTimesLocked = async (
+  eventId: string,
+  locked: boolean
+): Promise<void> => {
+  const { error } = await supabase
+    .from('calendar_events')
+    .update({ times_locked: locked })
+    .eq('id', eventId);
+  if (error) {
+    console.error('❌ [setCalendarEventTimesLocked]', error);
+    throw error;
+  }
+  console.log(`🔒 [Planner UI] times_locked=${locked} for event ${eventId}`);
 };

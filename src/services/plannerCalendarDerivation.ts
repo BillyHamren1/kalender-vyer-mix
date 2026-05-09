@@ -14,6 +14,7 @@ interface RealCalendarEventRow {
   delivery_address: string | null;
   booking_number: string | null;
   source_date: string | null;
+  times_locked?: boolean | null;
 }
 
 interface BookingRow {
@@ -169,7 +170,8 @@ const mapRealRowToCalendarEvent = (
       largeProjectName: project?.name || undefined,
       isSyntheticFallback: false,
       manuallyAssigned: false,
-      timeLocked: getBookingPhaseLock(booking, normalizePhase(row.event_type) as PlannerPhase | null),
+      timeLocked: row.times_locked === true || getBookingPhaseLock(booking, normalizePhase(row.event_type) as PlannerPhase | null),
+      timesLocked: row.times_locked === true,
     },
   };
 };

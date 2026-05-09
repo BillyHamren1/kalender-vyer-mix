@@ -9,6 +9,7 @@ export interface BookingDayRow {
   end_time: string;
   source_date: string | null;
   resource_id: string | null;
+  times_locked: boolean;
 }
 
 /**
@@ -36,7 +37,7 @@ export function useEventBookingDays(event: CalendarEvent, refreshKey: number = 0
     (async () => {
       const { data, error } = await supabase
         .from('calendar_events')
-        .select('id, event_type, start_time, end_time, source_date, resource_id')
+        .select('id, event_type, start_time, end_time, source_date, resource_id, times_locked')
         .in('booking_id', bookingIds)
         .neq('event_type', 'activity')
         .order('start_time', { ascending: true });
