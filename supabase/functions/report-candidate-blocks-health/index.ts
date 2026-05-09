@@ -388,6 +388,8 @@ Deno.serve(async (req) => {
               metadata: r.metadata ?? null,
             };
           });
+          day.activeTimeRegistrationsCount += activeRegs.length;
+          day.openActiveTimeRegistrationsCount += activeOpenDiagnostics.length;
           if (activeOpenDiagnostics.length) {
             (day as any).activeOpenRegistrations =
               ((day as any).activeOpenRegistrations ?? []).concat(activeOpenDiagnostics);
@@ -396,6 +398,20 @@ Deno.serve(async (req) => {
           day.warnings.push(
             `active_time_registrations_read_failed:${s.id}:${(e as any)?.message ?? e}`,
           );
+        }
+
+        // Legacy LTE / travel — read-only diagnostics ONLY. NEVER fed to engine.
+        try {
+          const { count: lteCount } = await admin
+            .from('location_time_entries')
+            .select('id', { count: 'exact', head: true })
+            .eq('organization_id', orgId)
+            .eq('staff_id', s.id)
+            .gte('started_at', dayStart)
+            .lte('started_at', dayEnd);
+          day.legacyLocationTimeEntriesCount += lteCount ?? 0;
+        } catch {
+          // table missing / RLS — ignore, legacy is non-authoritative
         }
 
         let report;
