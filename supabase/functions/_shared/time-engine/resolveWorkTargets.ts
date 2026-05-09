@@ -447,6 +447,7 @@ export async function resolveWorkTargets(
           timeTrackingAllowed: true,
           dateRelevance: isPlannedToday ? 'today' : 'recent',
           status,
+          rawAddress: (r.deliveryaddress as string | null) ?? null,
           diagnostics: { notes },
         });
       }
