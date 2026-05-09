@@ -1004,6 +1004,7 @@ export function buildReportCandidateBlocks(
     shortCrossTargetTransportReviewCount,
     shortUnknownTransportReviewCount,
     shortUnknownTransportHiddenCount,
+    absorbedSameTargetTransportExamples,
   };
   for (const r of out) {
     if (r.kind === 'work') {
