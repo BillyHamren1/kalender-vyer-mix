@@ -334,6 +334,8 @@ export function buildReportDisplayBlocks(
       locationEvidence,
       displayTitle,
       displaySubtitle,
+      aiReviewContext: null,
+      aiHintLabel: null,
     };
   });
 
@@ -352,6 +354,90 @@ export function buildReportDisplayBlocks(
       next.displayTitle = 'Osäker platsperiod (forts.)';
       next.displaySubtitle = 'Signal saknades';
     }
+  }
+
+  // ── AI-prep (ingen AI körs här) ──
+  const currentPlannedAssignments = primaryTargets.map((t) => t.name);
+
+  const findKnownPlace = (start: number, dir: 1 | -1): string | null => {
+    for (let i = start; i >= 0 && i < enriched.length; i += dir) {
+      const b = enriched[i];
+      if (b.kind === 'work' && b.targetLabel) return b.targetLabel;
+      if (b.kind === 'transport' && dir === -1 && b.fromLabel && !looksLikeMissingSignal(b.fromLabel)) return b.fromLabel;
+      if (b.kind === 'transport' && dir === 1 && b.toLabel && !looksLikeMissingSignal(b.toLabel)) return b.toLabel;
+    }
+    return null;
+  };
+
+  const toNearest = (
+    list: TargetLite[],
+    blk: DisplayBlock,
+    isAssigned: boolean,
+  ): AiReviewNearestTarget[] => {
+    const lat = blk.locationEvidence?.lat ?? null;
+    const lng = blk.locationEvidence?.lng ?? null;
+    if (lat == null || lng == null) {
+      return list.slice(0, 3).map((t) => ({
+        id: t.id,
+        label: t.name,
+        type: t.type,
+        distanceMeters: null,
+        isAssigned,
+      }));
+    }
+    return list
+      .map((t) => ({ t, d: haversineMeters(lat, lng, t.latitude!, t.longitude!) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 3)
+      .map(({ t, d }) => ({
+        id: t.id,
+        label: t.name,
+        type: t.type,
+        distanceMeters: Math.round(d),
+        isAssigned,
+      }));
+  };
+
+  for (let i = 0; i < enriched.length; i++) {
+    const blk = enriched[i];
+    if (blk.kind !== 'unknown' && blk.kind !== 'needs_review') continue;
+
+    const haystack = `${blk.title} ${blk.subtitle ?? ''}`;
+    const missingTransition = /missing_transition|transition_evidence|signal/i.test(haystack);
+    const hasAddress = !!blk.locationEvidence?.reverseGeocodedAddress;
+    const hasNearbyUnassigned =
+      !!blk.locationEvidence?.nearestSecondaryCandidateLabel &&
+      (blk.locationEvidence?.nearestSecondaryCandidateDistanceMeters ?? Infinity) <
+        SECONDARY_PROXIMITY_M;
+
+    let questionType: AiReviewQuestionType;
+    if (blk.kind === 'needs_review' && missingTransition) {
+      questionType = 'explain_missing_transition';
+    } else if (hasAddress) {
+      questionType = 'match_unknown_address_to_booking';
+    } else if (hasNearbyUnassigned) {
+      questionType = 'suggest_assignment_link';
+    } else {
+      questionType = 'classify_unknown_stop';
+    }
+
+    blk.aiReviewContext = {
+      questionType,
+      knownAddress: blk.locationEvidence?.reverseGeocodedAddress ?? null,
+      coordinate:
+        blk.locationEvidence?.lat != null && blk.locationEvidence?.lng != null
+          ? { lat: blk.locationEvidence.lat, lng: blk.locationEvidence.lng }
+          : null,
+      nearestAssignedTargets: toNearest(primaryTargets, blk, true),
+      nearestUnassignedCandidates: toNearest(secondaryTargets, blk, false),
+      previousKnownPlace: findKnownPlace(i - 1, -1),
+      nextKnownPlace: findKnownPlace(i + 1, 1),
+      timeWindow: { startAt: blk.startAt, endAt: blk.endAt },
+      staffName: input.staffName ?? null,
+      date: input.date ?? null,
+      currentPlannedAssignments,
+    };
+    blk.aiHintLabel = 'Kan granskas med AI senare';
   }
 
   return enriched;
