@@ -236,14 +236,37 @@ const ProjectLayout = () => {
                   </h1>
                   <Badge variant="outline" className="text-xs">Medelprojekt</Badge>
                 </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 leading-none">
+                  {isEditingSubtitle ? (
+                    <Input
+                      ref={subtitleInputRef}
+                      value={editSubtitle}
+                      onChange={(e) => setEditSubtitle(e.target.value)}
+                      onBlur={handleSaveSubtitle}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveSubtitle();
+                        if (e.key === 'Escape') setIsEditingSubtitle(false);
+                      }}
+                      placeholder="Lägg till rubrik..."
+                      className="h-6 px-1.5 py-0 text-xs w-64 border-0 shadow-none focus-visible:ring-1 bg-transparent"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStartEditSubtitle}
+                      className={cn(
+                        "hover:text-foreground transition-colors text-left truncate max-w-[400px] inline-flex items-center gap-1 group",
+                        !((project as any).description) && "italic text-muted-foreground/70"
+                      )}
+                      title="Klicka för att ändra rubrik"
+                    >
+                      <span>{(project as any).description || "Lägg till rubrik..."}</span>
+                      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </button>
+                  )}
+                </div>
                 {booking && (
                   <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
-                    {(booking as any).title && (
-                      <>
-                        <span className="font-medium text-foreground">{(booking as any).title}</span>
-                        <span>·</span>
-                      </>
-                    )}
                     <span>{booking.client}</span>
                     <span>·</span>
                     <span>{booking.booking_number || booking.id}</span>
