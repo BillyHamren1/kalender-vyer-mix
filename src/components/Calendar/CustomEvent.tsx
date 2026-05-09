@@ -43,6 +43,24 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   
   const eventRef = useRef<HTMLDivElement>(null);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [consolidateOpen, setConsolidateOpen] = useState(false);
+  const [consolidateSource, setConsolidateSource] = useState<ConsolidationSource | null>(null);
+  const [consolidateName, setConsolidateName] = useState<string>('');
+
+  const handleOpenConsolidate = useCallback(async () => {
+    try {
+      const src = await resolveEventConsolidationSource(event);
+      if (!src) {
+        toast.info('Detta event är inte kopplat till ett projekt');
+        return;
+      }
+      setConsolidateSource(src);
+      setConsolidateName(event.title || '');
+      setConsolidateOpen(true);
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte öppna konsolidering');
+    }
+  }, [event]);
 
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
