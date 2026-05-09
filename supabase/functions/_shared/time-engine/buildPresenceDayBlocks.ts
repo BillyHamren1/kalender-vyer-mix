@@ -926,16 +926,26 @@ function mergeOnSite(
 function mergeTransport(
   newId: (k: PresenceBlockKind) => string,
   run: PresenceDayBlock[],
+  suppressed: PresenceDayBlock[] = [],
 ): PresenceDayBlock {
-  if (run.length === 1) return { ...run[0], id: newId('transport') };
+  if (run.length === 1 && suppressed.length === 0) {
+    return { ...run[0], id: newId('transport') };
+  }
   const first = run[0];
   const last = run[run.length - 1];
   const startAt = first.startAt;
   const endAt = last.endAt;
   const dur = durationMinutes(startAt, endAt);
+  // Distance/avgKmh come ONLY from real travel evidence — never from gap/jitter.
   const distance = run.reduce((a, m) => a + (m.evidence.distanceMeters ?? 0), 0);
   const pings = run.reduce((a, m) => a + (m.evidence.pingCount ?? 0), 0);
-  const avgKmh = dur > 0 ? Math.round((distance / 1000) / (dur / 60) * 10) / 10 : 0;
+  const movementMin = run.reduce((a, m) => a + m.durationMinutes, 0);
+  const avgKmh = movementMin > 0 ? Math.round((distance / 1000) / (movementMin / 60) * 10) / 10 : 0;
+  const suppressedKinds: Record<string, number> = {};
+  for (const s of suppressed) suppressedKinds[s.kind] = (suppressedKinds[s.kind] ?? 0) + 1;
+  const suppressedSignalGapMin = suppressed
+    .filter((s) => s.kind === 'signal_gap')
+    .reduce((a, s) => a + s.durationMinutes, 0);
   return {
     id: newId('transport'),
     kind: 'transport',
@@ -947,31 +957,65 @@ function mergeTransport(
     targetId: null,
     targetLabel: 'Transport',
     confidence: 'high',
-    confidenceReason: `Sammanslagen rörelse (${run.length} segment)`,
+    confidenceReason: `Sammanslagen rörelse (${run.length} segment${suppressed.length ? `, ${suppressed.length} broar` : ''})`,
     reviewState: 'ok',
     evidence: {
       pingCount: pings,
       distanceMeters: Math.round(distance),
       avgKmh,
       mergedBlockCount: run.length,
+      signalGapMinutes: suppressedSignalGapMin || undefined,
+      suppressedKinds: Object.keys(suppressedKinds).length ? suppressedKinds : undefined,
     },
     sourceSegmentIds: run.flatMap((m) => m.sourceSegmentIds),
-    hiddenRawSegmentIds: run.flatMap((m) => m.hiddenRawSegmentIds),
-    suppressedSegments: [],
+    hiddenRawSegmentIds: [
+      ...run.flatMap((m) => m.hiddenRawSegmentIds),
+      ...suppressed.flatMap((s) => s.sourceSegmentIds),
+    ],
+    signalGapMinutes: suppressedSignalGapMin || 0,
+    signalGapCount: suppressed.filter((s) => s.kind === 'signal_gap').length,
+    suppressedSegments: suppressed.map((s) => s.id),
   };
 }
 
 function mergeUnknown(
   newId: (k: PresenceBlockKind) => string,
-  run: PresenceDayBlock[],
+  anchors: PresenceDayBlock[],
+  suppressed: PresenceDayBlock[] = [],
 ): PresenceDayBlock {
-  if (run.length === 1) return { ...run[0], id: newId('unknown_place') };
-  const first = run[0];
-  const last = run[run.length - 1];
+  if (anchors.length === 1 && suppressed.length === 0) {
+    return { ...anchors[0], id: newId('unknown_place') };
+  }
+  const first = anchors[0];
+  const last = anchors[anchors.length - 1];
   const startAt = first.startAt;
   const endAt = last.endAt;
   const dur = durationMinutes(startAt, endAt);
-  const pings = run.reduce((a, m) => a + (m.evidence.pingCount ?? 0), 0);
+  const pings = anchors.reduce((a, m) => a + (m.evidence.pingCount ?? 0), 0);
+
+  const coords = anchors
+    .map((a) => ({ lat: a.evidence.centerLat, lng: a.evidence.centerLng }))
+    .filter((c): c is { lat: number; lng: number } => c.lat != null && c.lng != null);
+  let centerLat: number | null = null;
+  let centerLng: number | null = null;
+  let maxDist = 0;
+  if (coords.length > 0) {
+    centerLat = coords.reduce((a, c) => a + c.lat, 0) / coords.length;
+    centerLng = coords.reduce((a, c) => a + c.lng, 0) / coords.length;
+    for (let a = 0; a < coords.length; a++) {
+      for (let b = a + 1; b < coords.length; b++) {
+        const d = haversineM(coords[a].lat, coords[a].lng, coords[b].lat, coords[b].lng);
+        if (d > maxDist) maxDist = d;
+      }
+    }
+  }
+
+  const suppressedKinds: Record<string, number> = {};
+  for (const s of suppressed) suppressedKinds[s.kind] = (suppressedKinds[s.kind] ?? 0) + 1;
+  const suppressedSignalGapMin = suppressed
+    .filter((s) => s.kind === 'signal_gap')
+    .reduce((a, s) => a + s.durationMinutes, 0);
+
   return {
     id: newId('unknown_place'),
     kind: 'unknown_place',
@@ -983,14 +1027,24 @@ function mergeUnknown(
     targetId: null,
     targetLabel: 'Okänd plats',
     confidence: 'medium',
-    confidenceReason: `Sammanslagen okänd plats (${run.length} segment)`,
+    confidenceReason: `Sammanslagen okänd plats (${anchors.length} delar${suppressed.length ? `, ${suppressed.length} broar` : ''}, max ${Math.round(maxDist)} m)`,
     reviewState: 'needs_review',
     evidence: {
       pingCount: pings,
-      mergedBlockCount: run.length,
+      mergedBlockCount: anchors.length,
+      centerLat,
+      centerLng,
+      maxDistanceMeters: Math.round(maxDist),
+      signalGapMinutes: suppressedSignalGapMin || undefined,
+      suppressedKinds: Object.keys(suppressedKinds).length ? suppressedKinds : undefined,
     },
-    sourceSegmentIds: run.flatMap((m) => m.sourceSegmentIds),
-    hiddenRawSegmentIds: run.flatMap((m) => m.hiddenRawSegmentIds),
-    suppressedSegments: [],
+    sourceSegmentIds: anchors.flatMap((m) => m.sourceSegmentIds),
+    hiddenRawSegmentIds: [
+      ...anchors.flatMap((m) => m.hiddenRawSegmentIds),
+      ...suppressed.flatMap((s) => s.sourceSegmentIds),
+    ],
+    signalGapMinutes: suppressedSignalGapMin || 0,
+    signalGapCount: suppressed.filter((s) => s.kind === 'signal_gap').length,
+    suppressedSegments: suppressed.map((s) => s.id),
   };
 }
