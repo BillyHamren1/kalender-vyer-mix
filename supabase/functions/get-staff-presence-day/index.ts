@@ -704,6 +704,21 @@ Deno.serve(async (req) => {
     // `rawGpsTimeline` and `technicalTimeline` are only for the
     // "Visa tekniska GPS-segment" toggle.
     presenceDayBlocks: presenceDayBlocksResult?.blocks ?? [],
+    // ── Canonical report-candidate engine output (Tidrapporter UI) ──
+    // Default Tidrapporter timeline MUST consume `reportCandidateBlocks`.
+    reportCandidateBlocks: reportCandidateResult?.blocks ?? [],
+    reportCandidateSummary: reportCandidateResult?.summary ?? null,
+    reportCandidateDiagnostics: reportCandidateResult
+      ? {
+          presenceDayBlocksCount: presenceDayBlocksResult?.blocks?.length ?? 0,
+          reportCandidateBlocksCount: reportCandidateResult.blocks.length,
+          activeTimeRegistrationsCount: (timers ?? []).length,
+          openActiveTimeRegistrationsCount: (timers ?? []).filter(
+            (t: any) => !t.stopped_at && (t.status ?? '').toLowerCase() === 'active',
+          ).length,
+          error: null,
+        }
+      : { error: reportCandidateError, available: false },
     presenceDayBlocksRawEvidence: presenceDayBlocksResult?.evidenceBlocks ?? [],
     presenceDaySummary: presenceDayBlocksResult?.summary ?? null,
     presenceDayAggregation: presenceDayBlocksResult?.aggregation ?? null,
