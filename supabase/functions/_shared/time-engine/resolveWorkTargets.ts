@@ -615,6 +615,7 @@ export async function resolveWorkTargets(
             timeTrackingAllowed: true,
             dateRelevance,
             status: r.status ?? null,
+            rawAddress: (r.deliveryaddress as string | null) ?? null,
             diagnostics: { notes: bNotes },
           });
         }
