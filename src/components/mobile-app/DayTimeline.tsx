@@ -158,11 +158,11 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
   const items = useMemo(() => consolidateShifts(todaysShifts), [todaysShifts]);
 
   const positioned = useMemo(
-    () => layoutItems(items, dayStart, dayEnd),
-    [items, dayStart, dayEnd]
+    () => layoutItems(items, dayStart, dayEnd, PX_PER_MINUTE),
+    [items, dayStart, dayEnd, PX_PER_MINUTE]
   );
 
-  // Now-line tick (per minute) + initial auto-scroll.
+  // Now-line tick (per minute) + initial auto-scroll (detailed mode only).
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
@@ -175,6 +175,7 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
     : -1;
 
   useEffect(() => {
+    if (isCompact) return;
     if (!isShowingToday || !scrollRef.current) return;
     const container = scrollRef.current;
     const target = Math.max(nowTopPx - container.clientHeight / 3, 0);
