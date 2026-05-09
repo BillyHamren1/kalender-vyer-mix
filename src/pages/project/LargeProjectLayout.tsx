@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { propagateProjectDatesToBookings, arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
+import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 
 const navItems = [
   { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
@@ -38,6 +39,7 @@ const LargeProjectLayout = () => {
   const [bookingSearch, setBookingSearch] = useState("");
   const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
   const [bookingListSearch, setBookingListSearch] = useState("");
+  const [isConsolidateOpen, setIsConsolidateOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -423,9 +425,26 @@ const LargeProjectLayout = () => {
                 </div>
               </div>
             </div>
-            <ProjectStatusDropdown
-              status={statusMap[project.status] || "planning"}
-              onStatusChange={(status) => detail.updateStatus(status as any)}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsConsolidateOpen(true)}
+                className="gap-1.5"
+              >
+                <Combine className="h-4 w-4" />
+                Konsolidera
+              </Button>
+              <ProjectStatusDropdown
+                status={statusMap[project.status] || "planning"}
+                onStatusChange={(status) => detail.updateStatus(status as any)}
+              />
+            </div>
+            <ConsolidateProjectsDialog
+              open={isConsolidateOpen}
+              onOpenChange={setIsConsolidateOpen}
+              initialSelection={id ? { type: 'large', id } : null}
+              initialName={project?.name}
             />
           </div>
 
