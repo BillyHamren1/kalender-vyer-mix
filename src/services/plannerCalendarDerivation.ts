@@ -302,7 +302,7 @@ export const buildPlannerCalendarEvents = ({
       const existing = projectGroups.get(key);
       const rowBookingNumber = row.booking_number || booking?.booking_number || '';
       const rowClientName = booking?.client || '';
-      const rowLocked = getBookingPhaseLock(booking, phase);
+      const rowLocked = row.times_locked === true || getBookingPhaseLock(booking, phase);
       if (!existing) {
         projectGroups.set(key, {
           rep: row,
