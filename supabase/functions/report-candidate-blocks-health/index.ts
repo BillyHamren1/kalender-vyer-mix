@@ -77,6 +77,14 @@ interface DayHealth {
   signalGapMinutesHiddenInsideWorkBlocks: number;
   reportRowsWithSignalWarnings: number;
   needsReviewCount: number;
+  // Micro-suppression metrics (rules 1, 4, 5)
+  reportBlocksBeforeMicroSuppression: number;
+  reportBlocksAfterMicroSuppression: number;
+  microSuppressionRatio: number;
+  suppressedMicroTransportCount: number;
+  suppressedMicroTransportMinutes: number;
+  suppressedTinyWorkBlocksCount: number;
+  suppressedTinyWorkMinutes: number;
   warnings: string[];
   sampleStaffReports: SampleStaffReport[];
 }
@@ -152,6 +160,13 @@ Deno.serve(async (req) => {
         signalGapMinutesHiddenInsideWorkBlocks: 0,
         reportRowsWithSignalWarnings: 0,
         needsReviewCount: 0,
+        reportBlocksBeforeMicroSuppression: 0,
+        reportBlocksAfterMicroSuppression: 0,
+        microSuppressionRatio: 1,
+        suppressedMicroTransportCount: 0,
+        suppressedMicroTransportMinutes: 0,
+        suppressedTinyWorkBlocksCount: 0,
+        suppressedTinyWorkMinutes: 0,
         warnings: [],
         sampleStaffReports: [],
       };
@@ -250,6 +265,18 @@ Deno.serve(async (req) => {
           report.summary.signalGapMinutesHiddenInsideWorkBlocks;
         day.reportRowsWithSignalWarnings += report.summary.reportRowsWithSignalWarnings;
         day.needsReviewCount += report.summary.needsReviewBlocksCount;
+        day.reportBlocksBeforeMicroSuppression +=
+          (report.summary as any).reportBlocksBeforeMicroSuppression ?? 0;
+        day.reportBlocksAfterMicroSuppression +=
+          (report.summary as any).reportBlocksAfterMicroSuppression ?? report.blocks.length;
+        day.suppressedMicroTransportCount +=
+          (report.summary as any).suppressedMicroTransportCount ?? 0;
+        day.suppressedMicroTransportMinutes +=
+          (report.summary as any).suppressedMicroTransportMinutes ?? 0;
+        day.suppressedTinyWorkBlocksCount +=
+          (report.summary as any).suppressedTinyWorkBlocksCount ?? 0;
+        day.suppressedTinyWorkMinutes +=
+          (report.summary as any).suppressedTinyWorkMinutes ?? 0;
 
         for (const b of report.blocks) {
           day.reportBlocksByKind[b.kind] = (day.reportBlocksByKind[b.kind] ?? 0) + 1;
@@ -288,6 +315,9 @@ Deno.serve(async (req) => {
       day.sampleStaffReports = samples;
       day.compressionRatioFromPresenceToReport = day.presenceDayBlocksCount > 0
         ? Math.round((day.reportCandidateBlocksCount / day.presenceDayBlocksCount) * 1000) / 1000
+        : 1;
+      day.microSuppressionRatio = day.reportBlocksBeforeMicroSuppression > 0
+        ? Math.round((day.reportBlocksAfterMicroSuppression / day.reportBlocksBeforeMicroSuppression) * 1000) / 1000
         : 1;
 
       perDay.push(day);
