@@ -81,7 +81,39 @@ export interface ReportCandidateBlock {
   signalGapMinutes: number;
   firstConfirmedAt: ISODateTime | null;
   lastConfirmedAt: ISODateTime | null;
+  /**
+   * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
+   * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
+   */
+  aiReviewContext?: AiReviewContext | null;
 }
+
+export type AiReviewQuestionType =
+  | 'match_unknown_address_to_booking'
+  | 'classify_unknown_stop'
+  | 'explain_missing_transition'
+  | 'suggest_assignment_link';
+
+export interface AiReviewNearestTarget {
+  id: string | null;
+  label: string;
+  type: string | null;
+  distanceMeters: number | null;
+  isAssigned: boolean;
+}
+
+export interface AiReviewContext {
+  questionType: AiReviewQuestionType;
+  knownAddress: string | null;
+  coordinate: { lat: number; lng: number } | null;
+  nearestAssignedTargets: AiReviewNearestTarget[];
+  nearestUnassignedCandidates: AiReviewNearestTarget[];
+  previousKnownPlace: string | null;
+  nextKnownPlace: string | null;
+  timeWindow: { startAt: string; endAt: string };
+  staffName: string | null;
+  date: string | null;
+  currentPlannedAssignments: string[];
 
 export interface ReportCandidateSummary {
   reportCandidateBlocksCount: number;
