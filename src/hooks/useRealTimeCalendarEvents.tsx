@@ -121,13 +121,15 @@ export const useRealTimeCalendarEvents = () => {
               largeProjectName: projectName || event.extendedProps?.largeProjectName,
               isLargeProject: Boolean(largeProjectId) || event.extendedProps?.isLargeProject,
               timeLocked: (() => {
+                // Per-day lock (calendar_events.times_locked) tar alltid precedence
+                if (event.extendedProps?.timeLocked === true) return true;
                 const phase = event.eventType || event.extendedProps?.eventType;
                 if (booking) {
                   if (phase === 'rig') return booking.rig_time_locked === true;
                   if (phase === 'event') return booking.event_time_locked === true;
                   if (phase === 'rigDown') return booking.rigdown_time_locked === true;
                 }
-                return event.extendedProps?.timeLocked === true;
+                return false;
               })(),
             }
           };
