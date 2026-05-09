@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import { deleteCalendarEvent } from '@/services/eventService';
-import { Trash2, Combine } from 'lucide-react';
+import { Trash2, Combine, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
 import EventActionPopover from './EventActionPopover';
