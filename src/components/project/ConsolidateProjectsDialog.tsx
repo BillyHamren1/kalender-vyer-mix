@@ -42,6 +42,12 @@ const TYPE_LABEL: Record<string, string> = {
   large: 'Stort',
 };
 
+const TYPE_BADGE_CLASSES: Record<string, string> = {
+  small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
+  medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
+  large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
+};
+
 type Mode = 'create' | 'add';
 
 export const ConsolidateProjectsDialog: React.FC<Props> = ({
