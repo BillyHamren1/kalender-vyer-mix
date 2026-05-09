@@ -152,7 +152,7 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortBy(col);
-      setSortDir(col === 'date' ? 'desc' : 'asc');
+      setSortDir(col === 'date' ? 'asc' : 'asc');
     }
   };
 
