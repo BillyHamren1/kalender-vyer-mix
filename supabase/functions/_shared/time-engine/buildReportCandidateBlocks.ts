@@ -139,6 +139,17 @@ export interface ReportCandidateSummary {
     decision: 'kept_as_transport' | 'needs_review';
     reviewReasons: string[];
   }>;
+  /** Examples (max 20) of CROSS-TARGET transports that were kept as real
+   *  transport rows (work A → transport → work B). Used by health-check
+   *  regression to verify cross-target movement is never absorbed. */
+  keptCrossTargetTransportExamples: Array<{
+    fromLabel: string | null;
+    toLabel: string | null;
+    startAt: ISODateTime;
+    endAt: ISODateTime;
+    durationMinutes: number;
+    distanceMeters: number | null;
+  }>;
 }
 
 export interface ActiveTimeRegistrationInput {
