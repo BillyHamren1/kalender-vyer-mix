@@ -263,8 +263,7 @@ Deno.serve(async (req) => {
     const perDay: DayHealth[] = [];
 
     for (const date of dates) {
-      const dayStart = `${date}T00:00:00Z`;
-      const dayEnd = `${date}T23:59:59.999Z`;
+      const { startUtc: dayStart, endUtc: dayEnd } = getStockholmDayWindowUtc(date);
 
       const day: DayHealth = {
         date,
