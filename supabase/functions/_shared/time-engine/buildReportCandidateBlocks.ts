@@ -104,6 +104,15 @@ export interface ReportCandidateSummary {
   suppressedMicroTransportMinutes: number;
   suppressedTinyWorkBlocksCount: number;
   suppressedTinyWorkMinutes: number;
+  // Same-target transport absorption (rule 1 refinement)
+  transportRowsBeforeSameTargetAbsorption: number;
+  transportRowsAfterSameTargetAbsorption: number;
+  sameTargetTransportAbsorbedCount: number;
+  sameTargetTransportAbsorbedMinutes: number;
+  crossTargetTransportKeptCount: number;
+  shortCrossTargetTransportReviewCount: number;
+  shortUnknownTransportReviewCount: number;
+  shortUnknownTransportHiddenCount: number;
 }
 
 export interface ActiveTimeRegistrationInput {
