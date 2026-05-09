@@ -181,6 +181,28 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
               />
             </div>
 
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Sortera:</span>
+              <Button
+                type="button"
+                variant={sortBy === 'date' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => toggleSort('date')}
+              >
+                Datum {sortIcon('date')}
+              </Button>
+              <Button
+                type="button"
+                variant={sortBy === 'name' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => toggleSort('name')}
+              >
+                Namn {sortIcon('name')}
+              </Button>
+            </div>
+
             <div className="max-h-80 overflow-y-auto rounded-lg border divide-y">
               {isLoading ? (
                 <div className="p-3 space-y-2">
