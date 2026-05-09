@@ -20,12 +20,15 @@ interface DayTimelineProps {
   activeBookingIds?: Set<string>;
   /** Date to render. Defaults to today. */
   date?: Date;
+  /** 'compact' (default) shows whole day; 'detailed' uses larger PX_PER_HOUR + scroll-to-now. */
+  density?: 'compact' | 'detailed';
 }
 
 const DEFAULT_START_HOUR = 6;
 const DEFAULT_END_HOUR = 22;
-const PX_PER_HOUR = 40;
-const PX_PER_MINUTE = PX_PER_HOUR / 60;
+const PX_PER_HOUR_COMPACT = 24;
+const PX_PER_HOUR_DETAILED = 40;
+
 
 interface PositionedItem {
   item: MobileCalendarItem;
@@ -41,7 +44,7 @@ const itemStartStr = (it: MobileCalendarItem) =>
   it.kind === 'booking' ? it.shift.start_time : it.start_time;
 
 /** Assigns column slots so overlapping items render side-by-side. */
-function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date): PositionedItem[] {
+function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date, pxPerMinute: number): PositionedItem[] {
   const sorted = [...items].sort(
     (a, b) =>
       (parsePlannerDateTime(itemStartStr(a))?.getTime() ?? 0) -
@@ -70,8 +73,8 @@ function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date):
     const endMs = Math.min(endDate.getTime(), dayEnd.getTime());
     if (endMs <= startMs) continue;
 
-    const topPx = ((startMs - dayStart.getTime()) / 60000) * PX_PER_MINUTE;
-    const heightPx = Math.max(((endMs - startMs) / 60000) * PX_PER_MINUTE, 22);
+    const topPx = ((startMs - dayStart.getTime()) / 60000) * pxPerMinute;
+    const heightPx = Math.max(((endMs - startMs) / 60000) * pxPerMinute, 18);
 
     if (startMs >= clusterEnd && cluster.length > 0) {
       flushCluster();
@@ -108,12 +111,15 @@ const eventTypeI18nKey: Record<EventTypeKey, 'dayTimeline.rig' | 'dayTimeline.ev
   other: 'dayTimeline.other',
 };
 
-const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
+const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: DayTimelineProps) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const today = date ?? new Date();
   const dayStartBase = startOfDay(today);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const PX_PER_HOUR = density === 'detailed' ? PX_PER_HOUR_DETAILED : PX_PER_HOUR_COMPACT;
+  const PX_PER_MINUTE = PX_PER_HOUR / 60;
+  const isCompact = density === 'compact';
 
   // Auto-extend window if shifts fall outside default 06–22.
   const { dayStart, dayEnd, totalHours } = useMemo(() => {
@@ -152,11 +158,11 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
   const items = useMemo(() => consolidateShifts(todaysShifts), [todaysShifts]);
 
   const positioned = useMemo(
-    () => layoutItems(items, dayStart, dayEnd),
-    [items, dayStart, dayEnd]
+    () => layoutItems(items, dayStart, dayEnd, PX_PER_MINUTE),
+    [items, dayStart, dayEnd, PX_PER_MINUTE]
   );
 
-  // Now-line tick (per minute) + initial auto-scroll.
+  // Now-line tick (per minute) + initial auto-scroll (detailed mode only).
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
@@ -169,6 +175,7 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
     : -1;
 
   useEffect(() => {
+    if (isCompact) return;
     if (!isShowingToday || !scrollRef.current) return;
     const container = scrollRef.current;
     const target = Math.max(nowTopPx - container.clientHeight / 3, 0);
@@ -201,7 +208,11 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
   });
 
   return (
-    <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+    <div
+      ref={scrollRef}
+      className={isCompact ? '' : 'overflow-y-auto'}
+      style={isCompact ? undefined : { maxHeight: 'calc(100vh - 220px)' }}
+    >
       <div className="relative" style={{ height: totalHeight }}>
         {/* Hour grid */}
         {hourLabels.map((h, i) => (
@@ -252,7 +263,8 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
                 key={item.key}
                 onClick={handleClick}
                 className={cn(
-                  'absolute rounded-lg border px-2.5 py-1.5 text-left shadow-sm active:scale-[0.98] transition-all overflow-hidden',
+                  'absolute rounded-md border text-left shadow-sm active:scale-[0.98] transition-all overflow-hidden',
+                  isCompact ? 'px-1.5 py-0.5' : 'px-2.5 py-1.5',
                   eventTypeStyles[eventType],
                   isActive && 'ring-2 ring-primary'
                 )}
@@ -263,35 +275,49 @@ const DayTimeline = ({ shifts, activeBookingIds, date }: DayTimelineProps) => {
                   width: `calc(${widthPct}% - 4px)`,
                 }}
               >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  {isProject ? (
-                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider opacity-80">
-                      <FolderOpen className="w-2.5 h-2.5" />
-                      {t('project.fallback') || 'PROJEKT'}
+                {isCompact ? (
+                  <div className="flex items-center gap-1 leading-tight">
+                    <span className="text-[9px] font-mono opacity-70 shrink-0">
+                      {extractUTCTime(startStr)}
                     </span>
-                  ) : (
-                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
-                      {t(eventTypeI18nKey[eventType])}
-                    </span>
-                  )}
-                  <span className="text-[10px] font-mono opacity-70">
-                    {extractUTCTime(startStr)}–{extractUTCTime(endStr)}
-                  </span>
-                  {isActive && (
-                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  )}
-                </div>
-                <div className="text-[12px] font-bold leading-tight truncate">{title}</div>
-                {heightPx > 36 && address && (
-                  <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75 truncate">
-                    <MapPin className="w-2.5 h-2.5 shrink-0" />
-                    <span className="truncate">{address}</span>
+                    <span className="text-[10px] font-bold truncate">{title}</span>
+                    {isActive && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+                    )}
                   </div>
-                )}
-                {isProject && heightPx > 48 && (
-                  <div className="text-[10px] opacity-70 mt-0.5">
-                    {item.shifts.length} {item.shifts.length === 1 ? 'bokning' : 'bokningar'}
-                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      {isProject ? (
+                        <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider opacity-80">
+                          <FolderOpen className="w-2.5 h-2.5" />
+                          {t('project.fallback') || 'PROJEKT'}
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
+                          {t(eventTypeI18nKey[eventType])}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono opacity-70">
+                        {extractUTCTime(startStr)}–{extractUTCTime(endStr)}
+                      </span>
+                      {isActive && (
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      )}
+                    </div>
+                    <div className="text-[12px] font-bold leading-tight truncate">{title}</div>
+                    {heightPx > 36 && address && (
+                      <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75 truncate">
+                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                        <span className="truncate">{address}</span>
+                      </div>
+                    )}
+                    {isProject && heightPx > 48 && (
+                      <div className="text-[10px] opacity-70 mt-0.5">
+                        {item.shifts.length} {item.shifts.length === 1 ? 'bokning' : 'bokningar'}
+                      </div>
+                    )}
+                  </>
                 )}
               </button>
             );
