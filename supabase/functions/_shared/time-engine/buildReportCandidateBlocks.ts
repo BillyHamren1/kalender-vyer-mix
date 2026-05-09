@@ -113,6 +113,17 @@ export interface ReportCandidateSummary {
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
   shortUnknownTransportHiddenCount: number;
+  /** Examples (max 20) of same-target transports that were absorbed in PASS 2.
+   *  Used by health-check tooling to verify absorption only catches jitter. */
+  absorbedSameTargetTransportExamples: Array<{
+    targetLabel: string | null;
+    startAt: ISODateTime;
+    endAt: ISODateTime;
+    durationMinutes: number;
+    distanceMeters: number;
+    absorbedIntoWorkBlock: { startAt: ISODateTime; endAt: ISODateTime } | null;
+    reviewReasons: string[];
+  }>;
 }
 
 export interface ActiveTimeRegistrationInput {
