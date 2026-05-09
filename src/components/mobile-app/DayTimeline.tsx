@@ -276,34 +276,49 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
                 }}
               >
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  {isProject ? (
-                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider opacity-80">
-                      <FolderOpen className="w-2.5 h-2.5" />
-                      {t('project.fallback') || 'PROJEKT'}
+                {isCompact ? (
+                  <div className="flex items-center gap-1 leading-tight">
+                    <span className="text-[9px] font-mono opacity-70 shrink-0">
+                      {extractUTCTime(startStr)}
                     </span>
-                  ) : (
-                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
-                      {t(eventTypeI18nKey[eventType])}
-                    </span>
-                  )}
-                  <span className="text-[10px] font-mono opacity-70">
-                    {extractUTCTime(startStr)}–{extractUTCTime(endStr)}
-                  </span>
-                  {isActive && (
-                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  )}
-                </div>
-                <div className="text-[12px] font-bold leading-tight truncate">{title}</div>
-                {heightPx > 36 && address && (
-                  <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75 truncate">
-                    <MapPin className="w-2.5 h-2.5 shrink-0" />
-                    <span className="truncate">{address}</span>
+                    <span className="text-[10px] font-bold truncate">{title}</span>
+                    {isActive && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+                    )}
                   </div>
-                )}
-                {isProject && heightPx > 48 && (
-                  <div className="text-[10px] opacity-70 mt-0.5">
-                    {item.shifts.length} {item.shifts.length === 1 ? 'bokning' : 'bokningar'}
-                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      {isProject ? (
+                        <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider opacity-80">
+                          <FolderOpen className="w-2.5 h-2.5" />
+                          {t('project.fallback') || 'PROJEKT'}
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
+                          {t(eventTypeI18nKey[eventType])}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono opacity-70">
+                        {extractUTCTime(startStr)}–{extractUTCTime(endStr)}
+                      </span>
+                      {isActive && (
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      )}
+                    </div>
+                    <div className="text-[12px] font-bold leading-tight truncate">{title}</div>
+                    {heightPx > 36 && address && (
+                      <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75 truncate">
+                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                        <span className="truncate">{address}</span>
+                      </div>
+                    )}
+                    {isProject && heightPx > 48 && (
+                      <div className="text-[10px] opacity-70 mt-0.5">
+                        {item.shifts.length} {item.shifts.length === 1 ? 'bokning' : 'bokningar'}
+                      </div>
+                    )}
+                  </>
                 )}
               </button>
             );
