@@ -837,6 +837,114 @@ export function buildReportCandidateBlocks(
     }
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 2: Refined transport rules (rule 1/2/3 of refinement spec)
+  //  - work-A | transport ≤ sameTargetTransportAbsorbMaxMinutes | work-A
+  //      → absorb transport (and right-hand work) into work-A.
+  //      Marked with reviewReason "movement_inside_same_target".
+  //  - work-A | short transport (< shortCrossTargetReviewMaxMinutes) | work-B
+  //      where distance < realTripMinDistanceMeters → flip to needs_review
+  //      with reviewReason "short_cross_target_movement".
+  //  - transport adjacent to unknown:
+  //      < shortUnknownTransportHideMaxMinutes → hide as evidence on neighbour
+  //      else short → needs_review("short_transport_to_unknown")
+  // Real trips (distance ≥ realTripMinDistanceMeters, or long cross-target)
+  // are kept as-is.
+  // ───────────────────────────────────────────────────────────────────────
+  const transportRowsBeforeSameTargetAbsorption = out.filter((r) => r.kind === 'transport').length;
+  let sameTargetTransportAbsorbedCount = 0;
+  let sameTargetTransportAbsorbedMinutes = 0;
+  let crossTargetTransportKeptCount = 0;
+  let shortCrossTargetTransportReviewCount = 0;
+  let shortUnknownTransportReviewCount = 0;
+  let shortUnknownTransportHiddenCount = 0;
+
+  const flipToNeedsReview = (r: ReportCandidateBlock, reason: string) => {
+    r.kind = 'needs_review';
+    r.reviewState = 'needs_review';
+    r.confidence = 'low';
+    if (!r.reviewReasons.includes(reason)) r.reviewReasons.push(reason);
+    r.title = 'Behöver granskas';
+    r.subtitle = `${fmtClock(r.startAt)}–${fmtClock(r.endAt)} · ${fmtDuration(r.durationMinutes)}`;
+  };
+
+  let changed2 = true;
+  let safety2 = 0;
+  while (changed2 && safety2 < 50) {
+    changed2 = false;
+    safety2 += 1;
+    for (let k = 0; k < out.length; k++) {
+      const cur = out[k];
+      if (cur.kind !== 'transport') continue;
+      const dist = cur.evidenceSummary.distanceMeters ?? 0;
+      if (dist >= policy.realTripMinDistanceMeters) {
+        crossTargetTransportKeptCount += 1;
+        continue;
+      }
+
+      const prev = out[k - 1];
+      const next = out[k + 1];
+      const prevKey = targetKeyOf(prev);
+      const nextKey = targetKeyOf(next);
+      const prevWork = prev?.kind === 'work';
+      const nextWork = next?.kind === 'work';
+
+      // Rule 1 refinement: same-target absorption (any duration up to cap)
+      if (
+        prevWork && nextWork && prevKey && nextKey && prevKey === nextKey &&
+        cur.durationMinutes <= policy.sameTargetTransportAbsorbMaxMinutes
+      ) {
+        const transportMin = cur.durationMinutes;
+        absorbInto(prev, cur);
+        absorbInto(prev, next);
+        if (!prev.reviewReasons.includes('movement_inside_same_target')) {
+          prev.reviewReasons.push('movement_inside_same_target');
+        }
+        out.splice(k, 2);
+        sameTargetTransportAbsorbedCount += 1;
+        sameTargetTransportAbsorbedMinutes += transportMin;
+        changed2 = true;
+        break;
+      }
+
+      // Rule 3: adjacent to unknown
+      const touchesUnknown = prev?.kind === 'unknown' || next?.kind === 'unknown';
+      if (touchesUnknown) {
+        if (cur.durationMinutes < policy.shortUnknownTransportHideMaxMinutes) {
+          const host = prev?.kind === 'unknown' ? prev : next;
+          if (host) absorbInto(host, cur);
+          out.splice(k, 1);
+          shortUnknownTransportHiddenCount += 1;
+          changed2 = true;
+          break;
+        }
+        if (cur.durationMinutes < policy.shortCrossTargetReviewMaxMinutes) {
+          flipToNeedsReview(cur, 'short_transport_to_unknown');
+          shortUnknownTransportReviewCount += 1;
+          changed2 = true;
+          break;
+        }
+        crossTargetTransportKeptCount += 1;
+        continue;
+      }
+
+      // Rule 2: cross-target
+      if (
+        prevWork && nextWork && prevKey && nextKey && prevKey !== nextKey &&
+        cur.durationMinutes < policy.shortCrossTargetReviewMaxMinutes
+      ) {
+        flipToNeedsReview(cur, 'short_cross_target_movement');
+        shortCrossTargetTransportReviewCount += 1;
+        changed2 = true;
+        break;
+      }
+
+      crossTargetTransportKeptCount += 1;
+    }
+  }
+
+  const transportRowsAfterSameTargetAbsorption = out.filter((r) => r.kind === 'transport').length;
+
   // Re-id blocks so ids stay stable & sequential
   out.forEach((r, idx) => { r.id = `rc-${idx}-${r.startAt}`; });
 
