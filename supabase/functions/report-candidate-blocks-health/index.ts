@@ -77,6 +77,14 @@ interface DayHealth {
   signalGapMinutesHiddenInsideWorkBlocks: number;
   reportRowsWithSignalWarnings: number;
   needsReviewCount: number;
+  // Micro-suppression metrics (rules 1, 4, 5)
+  reportBlocksBeforeMicroSuppression: number;
+  reportBlocksAfterMicroSuppression: number;
+  microSuppressionRatio: number;
+  suppressedMicroTransportCount: number;
+  suppressedMicroTransportMinutes: number;
+  suppressedTinyWorkBlocksCount: number;
+  suppressedTinyWorkMinutes: number;
   warnings: string[];
   sampleStaffReports: SampleStaffReport[];
 }
