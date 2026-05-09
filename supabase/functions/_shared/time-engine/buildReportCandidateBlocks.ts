@@ -139,6 +139,17 @@ export interface ReportCandidateSummary {
     decision: 'kept_as_transport' | 'needs_review';
     reviewReasons: string[];
   }>;
+  /** Examples (max 20) of CROSS-TARGET transports that were kept as real
+   *  transport rows (work A → transport → work B). Used by health-check
+   *  regression to verify cross-target movement is never absorbed. */
+  keptCrossTargetTransportExamples: Array<{
+    fromLabel: string | null;
+    toLabel: string | null;
+    startAt: ISODateTime;
+    endAt: ISODateTime;
+    durationMinutes: number;
+    distanceMeters: number | null;
+  }>;
 }
 
 export interface ActiveTimeRegistrationInput {
@@ -967,6 +978,31 @@ export function buildReportCandidateBlocks(
   let shortUnknownTransportHiddenCount = 0;
   const absorbedSameTargetTransportExamples: ReportCandidateSummary['absorbedSameTargetTransportExamples'] = [];
   const sameTargetTransportRejectedExamples: ReportCandidateSummary['sameTargetTransportRejectedExamples'] = [];
+  const keptCrossTargetTransportExamples: ReportCandidateSummary['keptCrossTargetTransportExamples'] = [];
+
+  const collectCrossTargetExample = (
+    cur: ReportCandidateBlock,
+    prev: ReportCandidateBlock | undefined,
+    next: ReportCandidateBlock | undefined,
+    dist: number,
+    distMissing: boolean,
+  ) => {
+    const prevKey = prev ? `${prev.targetType ?? ''}::${prev.targetId ?? ''}` : null;
+    const nextKey = next ? `${next.targetType ?? ''}::${next.targetId ?? ''}` : null;
+    const isCrossTargetWork =
+      prev?.kind === 'work' && next?.kind === 'work' &&
+      prevKey && nextKey && prevKey !== nextKey;
+    if (!isCrossTargetWork) return;
+    if (keptCrossTargetTransportExamples.length >= 20) return;
+    keptCrossTargetTransportExamples.push({
+      fromLabel: prev.targetLabel ?? null,
+      toLabel: next.targetLabel ?? null,
+      startAt: cur.startAt,
+      endAt: cur.endAt,
+      durationMinutes: Math.round(cur.durationMinutes * 100) / 100,
+      distanceMeters: distMissing ? null : Math.round(dist),
+    });
+  };
 
   const flipToNeedsReview = (r: ReportCandidateBlock, reason: string) => {
     r.kind = 'needs_review';
@@ -1073,6 +1109,7 @@ export function buildReportCandidateBlocks(
 
       if (dist >= policy.realTripMinDistanceMeters) {
         crossTargetTransportKeptCount += 1;
+        collectCrossTargetExample(cur, prev, next, dist, distMissing);
         continue;
       }
 
@@ -1109,6 +1146,7 @@ export function buildReportCandidateBlocks(
       }
 
       crossTargetTransportKeptCount += 1;
+      collectCrossTargetExample(cur, prev, next, dist, distMissing);
     }
   }
 
@@ -1162,6 +1200,7 @@ export function buildReportCandidateBlocks(
     sameTargetTransportRejectedByDistanceCount,
     sameTargetTransportRejectedByDistanceMinutes,
     sameTargetTransportRejectedExamples,
+    keptCrossTargetTransportExamples,
   };
   for (const r of out) {
     if (r.kind === 'work') {
