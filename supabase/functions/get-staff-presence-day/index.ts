@@ -196,6 +196,7 @@ Deno.serve(async (req) => {
     .order('event_at', { ascending: true });
 
   const timeline: TimelineRow[] = [];
+  const timerMarkers: TimerMarkerInput[] = [];
 
   for (const r of presenceRows ?? []) {
     timeline.push({
