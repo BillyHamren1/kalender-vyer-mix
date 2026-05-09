@@ -160,6 +160,13 @@ Deno.serve(async (req) => {
         signalGapMinutesHiddenInsideWorkBlocks: 0,
         reportRowsWithSignalWarnings: 0,
         needsReviewCount: 0,
+        reportBlocksBeforeMicroSuppression: 0,
+        reportBlocksAfterMicroSuppression: 0,
+        microSuppressionRatio: 1,
+        suppressedMicroTransportCount: 0,
+        suppressedMicroTransportMinutes: 0,
+        suppressedTinyWorkBlocksCount: 0,
+        suppressedTinyWorkMinutes: 0,
         warnings: [],
         sampleStaffReports: [],
       };
