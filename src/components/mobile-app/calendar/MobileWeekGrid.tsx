@@ -150,7 +150,8 @@ const MobileWeekGrid = ({
   }, [today, startHour]);
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
+    <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
+      <div className="min-w-[720px]">
       {/* Sticky day header */}
       <div className="sticky top-0 z-30 bg-card border-b border-border/60 flex">
         <div style={{ width: TIME_GUTTER_PX }} className="shrink-0" />
