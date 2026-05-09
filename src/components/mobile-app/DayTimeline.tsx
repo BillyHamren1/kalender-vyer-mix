@@ -208,7 +208,11 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
   });
 
   return (
-    <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+    <div
+      ref={scrollRef}
+      className={isCompact ? '' : 'overflow-y-auto'}
+      style={isCompact ? undefined : { maxHeight: 'calc(100vh - 220px)' }}
+    >
       <div className="relative" style={{ height: totalHeight }}>
         {/* Hour grid */}
         {hourLabels.map((h, i) => (
