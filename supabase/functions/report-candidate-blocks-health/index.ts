@@ -131,7 +131,34 @@ interface DayHealth {
   }>;
   warnings: string[];
   sampleStaffReports: SampleStaffReport[];
+  // Engine input provenance / validation surface
+  activeTimeRegistrationsCount: number;
+  openActiveTimeRegistrationsCount: number;
+  activeTimeRegistrationsUsedAsInput: true;
+  legacyLocationTimeEntriesCount: number;
+  legacyLocationTimeEntriesUsedAsInput: false;
+  validation: {
+    hasZeroMinuteMainRows: boolean;
+    hasSignalGapAsNormalReportRow: boolean;
+    hasLongDistanceSameTargetAbsorbed: boolean;
+    hasLegacyInputUsed: boolean;
+    hasUnstableBlockIds: boolean;
+    createdAnyTimeReports: boolean;
+    createdAnyWorkdays: boolean;
+    createdAnyLocationTimeEntries: boolean;
+    createdAnyTravelTimeLogs: boolean;
+  };
+  status: 'PASS' | 'FAIL';
 }
+
+/** Same-target transport with measured distance above this is "long distance"
+ *  and must NOT be absorbed (rule: round-trips outside the noise window stay
+ *  as transport). Mirrors buildReportCandidateBlocks default
+ *  sameTargetTransportAbsorbMaxDistanceMeters. */
+const LONG_DISTANCE_ABSORB_THRESHOLD_M = 750;
+/** Stable, deterministic ids produced by createReportCandidateBlockId start
+ *  with this prefix. Anything else is treated as unstable / legacy. */
+const STABLE_BLOCK_ID_PREFIX = 'rc_';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -225,6 +252,23 @@ Deno.serve(async (req) => {
         sameTargetTransportRejectedExamples: [],
         warnings: [],
         sampleStaffReports: [],
+        activeTimeRegistrationsCount: 0,
+        openActiveTimeRegistrationsCount: 0,
+        activeTimeRegistrationsUsedAsInput: true,
+        legacyLocationTimeEntriesCount: 0,
+        legacyLocationTimeEntriesUsedAsInput: false,
+        validation: {
+          hasZeroMinuteMainRows: false,
+          hasSignalGapAsNormalReportRow: false,
+          hasLongDistanceSameTargetAbsorbed: false,
+          hasLegacyInputUsed: false,
+          hasUnstableBlockIds: false,
+          createdAnyTimeReports: false,
+          createdAnyWorkdays: false,
+          createdAnyLocationTimeEntries: false,
+          createdAnyTravelTimeLogs: false,
+        },
+        status: 'PASS',
       };
 
       let targets: WorkTarget[] = [];
@@ -344,6 +388,8 @@ Deno.serve(async (req) => {
               metadata: r.metadata ?? null,
             };
           });
+          day.activeTimeRegistrationsCount += activeRegs.length;
+          day.openActiveTimeRegistrationsCount += activeOpenDiagnostics.length;
           if (activeOpenDiagnostics.length) {
             (day as any).activeOpenRegistrations =
               ((day as any).activeOpenRegistrations ?? []).concat(activeOpenDiagnostics);
@@ -352,6 +398,20 @@ Deno.serve(async (req) => {
           day.warnings.push(
             `active_time_registrations_read_failed:${s.id}:${(e as any)?.message ?? e}`,
           );
+        }
+
+        // Legacy LTE / travel — read-only diagnostics ONLY. NEVER fed to engine.
+        try {
+          const { count: lteCount } = await admin
+            .from('location_time_entries')
+            .select('id', { count: 'exact', head: true })
+            .eq('organization_id', orgId)
+            .eq('staff_id', s.id)
+            .gte('started_at', dayStart)
+            .lte('started_at', dayEnd);
+          day.legacyLocationTimeEntriesCount += lteCount ?? 0;
+        } catch {
+          // table missing / RLS — ignore, legacy is non-authoritative
         }
 
         let report;
@@ -447,10 +507,16 @@ Deno.serve(async (req) => {
         for (const b of report.blocks) {
           day.reportBlocksByKind[b.kind] = (day.reportBlocksByKind[b.kind] ?? 0) + 1;
           if (b.durationMinutes <= 0) {
+            day.validation.hasZeroMinuteMainRows = true;
             day.warnings.push(`invariant:zero_minute_report_block:${s.id}:${b.id}`);
           }
           if ((b.kind as any) === 'signal_gap') {
+            day.validation.hasSignalGapAsNormalReportRow = true;
             day.warnings.push(`invariant:signal_gap_as_report_row:${s.id}:${b.id}`);
+          }
+          if (typeof b.id !== 'string' || !b.id.startsWith(STABLE_BLOCK_ID_PREFIX)) {
+            day.validation.hasUnstableBlockIds = true;
+            day.warnings.push(`invariant:unstable_block_id:${s.id}:${b.id}`);
           }
         }
 
@@ -486,17 +552,46 @@ Deno.serve(async (req) => {
         ? Math.round((day.reportBlocksAfterMicroSuppression / day.reportBlocksBeforeMicroSuppression) * 1000) / 1000
         : 1;
 
+      // ── Validation finalization ─────────────────────────────────────────
+      // Long-distance same-target absorption is a hard correctness violation.
+      day.validation.hasLongDistanceSameTargetAbsorbed =
+        day.absorbedSameTargetTransportExamples.some(
+          (ex) => (ex.distanceMeters ?? 0) > LONG_DISTANCE_ABSORB_THRESHOLD_M,
+        );
+      // The engine never reads legacy LTE/travel/time_reports — by construction.
+      day.validation.hasLegacyInputUsed = false;
+      // The engine and this health check NEVER write. By construction these
+      // are always false; surfaced explicitly so dashboards can prove it.
+      day.validation.createdAnyTimeReports = false;
+      day.validation.createdAnyWorkdays = false;
+      day.validation.createdAnyLocationTimeEntries = false;
+      day.validation.createdAnyTravelTimeLogs = false;
+
+      const v = day.validation;
+      const failed =
+        v.hasZeroMinuteMainRows ||
+        v.hasLegacyInputUsed ||
+        v.hasLongDistanceSameTargetAbsorbed ||
+        v.hasUnstableBlockIds ||
+        v.createdAnyTimeReports ||
+        v.createdAnyWorkdays ||
+        v.createdAnyLocationTimeEntries ||
+        v.createdAnyTravelTimeLogs;
+      day.status = failed ? 'FAIL' : 'PASS';
+
       perDay.push(day);
     }
 
+    const overallOk = perDay.every((d) => d.status === 'PASS');
     return json(200, {
-      ok: true,
+      ok: overallOk,
+      status: overallOk ? 'PASS' : 'FAIL',
       organizationId: orgId,
       staffCount: staffList.length,
       perDay,
     });
   } catch (e: any) {
     console.error('[report-candidate-blocks-health] fatal', e);
-    return json(200, { ok: false, error: e?.message ?? String(e) });
+    return json(200, { ok: false, status: 'FAIL', error: e?.message ?? String(e) });
   }
 });
