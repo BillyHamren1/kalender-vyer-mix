@@ -246,10 +246,8 @@ export function buildReportDisplayBlocks(
       }
     } else if (isReview) {
       // Regel needs_review (inkl. missing_transition_evidence)
-      const reasons = block.reasons ?? [];
-      const missingTransition =
-        reasons.some((r: string) => /missing_transition|transition_evidence|signal/i.test(r)) ||
-        /signal/i.test(`${block.title} ${block.subtitle ?? ''}`);
+      const haystack = `${block.title} ${block.subtitle ?? ''}`;
+      const missingTransition = /missing_transition|transition_evidence|signal/i.test(haystack);
       const lastKnown = !looksLikeMissingSignal(block.fromLabel) ? block.fromLabel : null;
       const nextKnown = !looksLikeMissingSignal(block.toLabel) ? block.toLabel : null;
       const parts: string[] = [];
