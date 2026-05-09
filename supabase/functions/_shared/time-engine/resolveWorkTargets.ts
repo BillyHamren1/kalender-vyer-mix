@@ -677,6 +677,7 @@ export async function resolveWorkTargets(
           timeTrackingAllowed,
           dateRelevance: 'permanent',
           status,
+          rawAddress: (r.name as string | null) ?? null,
           diagnostics: { notes: [] },
         });
       }
