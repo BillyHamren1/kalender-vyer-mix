@@ -60,7 +60,7 @@ export async function fetchConsolidationCandidates(): Promise<ConsolidationCandi
   // Small (jobs)
   const { data: jobs } = await supabase
     .from('jobs')
-    .select('id, title, deleted_at, status')
+    .select('id, name, deleted_at, status')
     .is('deleted_at', null)
     .neq('status', 'cancelled')
     .order('created_at', { ascending: false });
@@ -68,7 +68,7 @@ export async function fetchConsolidationCandidates(): Promise<ConsolidationCandi
     out.push({
       type: 'small',
       id: j.id,
-      name: (j as any).title || 'Litet projekt',
+      name: (j as any).name || 'Litet projekt',
       subtitle: 'Litet projekt',
     });
   }
