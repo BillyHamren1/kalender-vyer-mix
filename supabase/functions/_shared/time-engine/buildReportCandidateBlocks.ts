@@ -143,11 +143,22 @@ export interface ReportCandidateSummary {
 
 export interface ActiveTimeRegistrationInput {
   id: UUID;
+  staffId?: string | null;
+  organizationId?: UUID | null;
   startedAt: ISODateTime;
-  endedAt: ISODateTime | null;
+  /** Backward-compat alias. New callers SHOULD pass `stoppedAt`. */
+  endedAt?: ISODateTime | null;
+  stoppedAt?: ISODateTime | null;
+  /** Lifecycle status from active_time_registrations ('active' | 'stopped' | ...). */
+  status?: string | null;
+  /** Legacy alias for startSource. */
   source?: string | null;
+  startSource?: string | null;
+  stopSource?: string | null;
   targetType?: string | null;
-  targetId?: UUID | null;
+  targetId?: string | null;
+  targetLabel?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface StaffPresenceSessionInput {
