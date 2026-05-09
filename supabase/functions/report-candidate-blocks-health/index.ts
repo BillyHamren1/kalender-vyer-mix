@@ -484,6 +484,35 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Determinism check: same input → same block ids in same order.
+        // If ids drift between runs we cannot use them as stable contracts
+        // for AI/action layers, so this is a hard FAIL.
+        try {
+          const second = buildReportCandidateBlocks({
+            staffId: s.id,
+            organizationId: orgId,
+            date,
+            presenceDayBlocks: presence.blocks,
+            activeTimeRegistrations: activeRegs,
+          });
+          const a = report.blocks.map((b: any) => b.id);
+          const b2 = second.blocks.map((b: any) => b.id);
+          let unstable = a.length !== b2.length;
+          if (!unstable) {
+            for (let k = 0; k < a.length; k++) {
+              if (a[k] !== b2[k]) { unstable = true; break; }
+            }
+          }
+          if (unstable) {
+            day.validation.hasUnstableBlockIds = true;
+            day.warnings.push(`invariant:unstable_block_id_between_runs:${s.id}`);
+          }
+        } catch (e) {
+          day.warnings.push(
+            `report_blocks_stability_check_failed:${s.id}:${(e as any)?.message ?? e}`,
+          );
+        }
+
         day.presenceDayBlocksCount += presence.blocks.length;
         day.reportCandidateBlocksCount += report.blocks.length;
         day.workMinutes += report.summary.workMinutes;
