@@ -415,9 +415,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onSelect={handleOpenConsolidate}>
+          <ContextMenuItem onSelect={() => handleOpenConsolidate('create')}>
             <Combine className="h-4 w-4 mr-2" />
-            Konsolidera till stort projekt...
+            Konsolidera till nytt stort projekt...
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => handleOpenConsolidate('add')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Lägg till i stort projekt...
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -427,6 +431,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         onOpenChange={setConsolidateOpen}
         initialSelection={consolidateSource}
         initialName={consolidateName}
+        initialMode={consolidateMode}
       />
 
       {/* Date Move Dialog — LEGACY local state, gated by editController */}
