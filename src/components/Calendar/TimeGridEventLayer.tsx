@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { CalendarEvent, Resource } from './ResourceData';
 import CustomEvent from './CustomEvent';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
