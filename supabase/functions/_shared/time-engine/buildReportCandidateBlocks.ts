@@ -3,32 +3,26 @@
  * Time Engine — buildReportCandidateBlocks
  * ─────────────────────────────────────────
  *
- * Pure transformation: presenceDayBlocks (evidence layer) → reportCandidateBlocks
- * (time-report-friendly layer).
+ * Pure transformation: presenceDayBlocks (evidence layer)
+ *   → reportCandidateBlocks (time-report-friendly layer).
  *
- * presenceDayBlocks is correct for traceability — it can contain many
- * signal_gap blocks. That is NOT a good time report. This module collapses
- * those into work / transport / break / unknown / needs_review candidates.
- *
- * STRICT GUARANTEES:
- *   - This module never writes to the database.
- *   - It never creates time_reports, workdays, location_time_entries or
- *     travel_time_logs.
- *   - It never alters the underlying presenceDayBlocks input.
+ * GUARANTEES:
+ *   - Never writes to the database.
+ *   - Never creates time_reports / workdays / LTE / travel_logs.
+ *   - Never mutates the input.
  *   - GPS gaps NEVER become transport.
- *   - GPS gaps between two DIFFERENT targets NEVER become work.
- *   - Long signal_gap inside the same target → folded into a single work
- *     block with reduced confidence + reviewReasons.
+ *   - GPS gaps between two DIFFERENT stable targets NEVER become work.
+ *   - Long signal_gap inside same target → folded into ONE work block with
+ *     reviewReasons=["signal_gaps_inside_work_block"], confidence low/medium.
+ *   - 0-minute blocks are never emitted as report rows.
+ *   - Tiny unknown_place / signal_gap fragments are absorbed into evidence,
+ *     not exposed as report rows.
  *
- * INPUTS  (all optional except presenceDayBlocks):
- *   - presenceDayBlocks       (required)
- *   - activeTimeRegistrations (optional, used to keep an open day "alive"
- *                               while interpreting trailing gaps)
- *   - staffPresenceSessions   (optional, used the same way)
- *   - policy                  (optional thresholds)
- *
- * OUTPUT:
- *   ReportCandidateDayResult { blocks: ReportCandidateBlock[], summary }
+ * INPUTS:
+ *   - presenceDayBlocks                (required)
+ *   - activeTimeRegistrations          (optional — keeps day "open")
+ *   - staffPresenceSessions            (optional — keeps day "open")
+ *   - policy                           (optional thresholds)
  */
 
 import type {
@@ -57,13 +51,17 @@ export interface ReportCandidateBlock {
   startAt: ISODateTime;
   endAt: ISODateTime;
   durationMinutes: number;
+  durationLabel: string;
+  title: string;
+  subtitle: string;
   targetType: string | null;
   targetId: UUID | null;
   targetLabel: string | null;
+  fromLabel: string | null;
+  toLabel: string | null;
   confidence: ReportConfidence;
   reviewState: ReportReviewState;
   reviewReasons: string[];
-  /** Discreet warning text suitable for the time-report row, or null. */
   warningLabel: string | null;
   evidenceSummary: {
     confirmedMinutes: number;
@@ -73,25 +71,32 @@ export interface ReportCandidateBlock {
     unknownMinutes: number;
     presenceBlockCount: number;
     suppressedSignalGapBlockCount: number;
+    suppressedUnknownBlockCount: number;
+    suppressedZeroLengthBlockCount: number;
     distanceMeters?: number;
   };
   sourcePresenceBlockIds: string[];
   hiddenSignalGapIds: string[];
+  hiddenPresenceBlockIds: string[];
   signalGapMinutes: number;
   firstConfirmedAt: ISODateTime | null;
   lastConfirmedAt: ISODateTime | null;
 }
 
 export interface ReportCandidateSummary {
-  blocksCount: number;
+  reportCandidateBlocksCount: number;
+  workBlocksCount: number;
+  transportBlocksCount: number;
+  unknownBlocksCount: number;
+  needsReviewBlocksCount: number;
+  breakBlocksCount: number;
   workMinutes: number;
   transportMinutes: number;
-  breakMinutes: number;
   unknownMinutes: number;
   needsReviewMinutes: number;
-  needsReviewCount: number;
-  totalSignalGapMinutes: number;
-  suppressedSignalGapBlockCount: number;
+  breakMinutes: number;
+  signalGapMinutesHiddenInsideWorkBlocks: number;
+  reportRowsWithSignalWarnings: number;
 }
 
 export interface ActiveTimeRegistrationInput {
@@ -110,18 +115,21 @@ export interface StaffPresenceSessionInput {
 }
 
 export interface ReportCandidatePolicy {
-  /** Signal-gap inside same target is always folded into work, but if longer
-   *  than this it forces reviewState=needs_review. Default 20 min. */
+  /** Signal_gap inside same target longer than this → reviewState=needs_review.
+   *  Default 20 min. */
   longGapInsideWorkMinutes?: number;
-  /** Lone signal_gap NOT bridging same target longer than this becomes
-   *  needs_review (otherwise it is dropped/absorbed silently). Default 10. */
+  /** Lone signal_gap between unknown surroundings shorter than this is dropped
+   *  silently (presence still has it). Default 10 min. */
   loneGapNeedsReviewMinutes?: number;
-  /** Stable unknown_place shorter than this is dropped from the report
-   *  (kept in presence layer). Default 10 min. */
+  /** Stable unknown_place shorter than this is dropped from the report.
+   *  Default 10 min. */
   minUnknownMinutes?: number;
   /** Transport shorter than this is folded into surrounding work if same
    *  target on both sides. Default 3 min. */
   shortTransportMergeMinutes?: number;
+  /** Transport bridges (gap/unknown) shorter than this are absorbed when
+   *  chaining transport into a single trip. Default 5 min. */
+  transportChainBridgeMinutes?: number;
 }
 
 export interface BuildReportCandidateBlocksInput {
@@ -153,36 +161,50 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   loneGapNeedsReviewMinutes: 10,
   minUnknownMinutes: 10,
   shortTransportMergeMinutes: 3,
+  transportChainBridgeMinutes: 5,
 };
 
 function minutesBetween(a: string, b: string): number {
   return Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / 60_000);
 }
 
-function targetKey(b: PresenceDayBlock): string | null {
+function targetKey(b: { targetType: string | null; targetId: UUID | null }): string | null {
   if (!b.targetId && !b.targetType) return null;
   return `${b.targetType ?? ''}::${b.targetId ?? ''}`;
+}
+
+function sameTargetAs(a: { targetType: string | null; targetId: UUID | null }, b: PresenceDayBlock): boolean {
+  const ka = targetKey(a);
+  const kb = targetKey(b);
+  return ka !== null && kb !== null && ka === kb;
 }
 
 function isOnSite(b: PresenceDayBlock): boolean {
   return b.kind === 'confirmed_on_site' || b.kind === 'probable_on_site';
 }
 
-function downgrade(c: PresenceConfidence | ReportConfidence, to: ReportConfidence): ReportConfidence {
+function downgrade(c: ReportConfidence, to: ReportConfidence): ReportConfidence {
   const order: ReportConfidence[] = ['low', 'medium', 'high'];
-  const ai = order.indexOf(c as ReportConfidence);
+  const ai = order.indexOf(c);
   const bi = order.indexOf(to);
   if (ai < 0) return to;
-  return order[Math.min(ai, bi)] as ReportConfidence;
+  return order[Math.min(ai, bi)];
 }
 
-function fmtMinutes(min: number): string {
+function fmtDuration(min: number): string {
   const m = Math.round(min);
   const h = Math.floor(m / 60);
   const r = m % 60;
   if (h > 0 && r > 0) return `${h} h ${r} min`;
   if (h > 0) return `${h} h`;
   return `${r} min`;
+}
+
+function fmtClock(iso: string): string {
+  const d = new Date(iso);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
 }
 
 function isDayOpen(
@@ -200,7 +222,7 @@ function isDayOpen(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Core
+// Accumulator
 // ───────────────────────────────────────────────────────────────────────────
 
 interface AccumulatedBlock {
@@ -210,10 +232,15 @@ interface AccumulatedBlock {
   targetType: string | null;
   targetId: UUID | null;
   targetLabel: string | null;
+  fromLabel: string | null;
+  toLabel: string | null;
   sourceIds: string[];
   hiddenSignalGapIds: string[];
+  hiddenPresenceBlockIds: string[];
   signalGapMinutes: number;
   suppressedSignalGapBlockCount: number;
+  suppressedUnknownBlockCount: number;
+  suppressedZeroLengthBlockCount: number;
   confirmedMinutes: number;
   probableMinutes: number;
   transportMinutes: number;
@@ -222,7 +249,7 @@ interface AccumulatedBlock {
   reviewReasons: Set<string>;
   firstConfirmedAt: string | null;
   lastConfirmedAt: string | null;
-  confidence: ReportConfidence;
+  baseConfidence: ReportConfidence;
 }
 
 function newAcc(kind: ReportBlockKind, b: PresenceDayBlock): AccumulatedBlock {
@@ -233,10 +260,15 @@ function newAcc(kind: ReportBlockKind, b: PresenceDayBlock): AccumulatedBlock {
     targetType: b.targetType,
     targetId: b.targetId,
     targetLabel: b.targetLabel,
+    fromLabel: kind === 'transport' ? null : null,
+    toLabel: kind === 'transport' ? null : null,
     sourceIds: [b.id],
     hiddenSignalGapIds: [],
+    hiddenPresenceBlockIds: [],
     signalGapMinutes: b.signalGapMinutes ?? 0,
     suppressedSignalGapBlockCount: 0,
+    suppressedUnknownBlockCount: 0,
+    suppressedZeroLengthBlockCount: 0,
     confirmedMinutes: b.kind === 'confirmed_on_site' ? b.durationMinutes : 0,
     probableMinutes: b.kind === 'probable_on_site' ? b.durationMinutes : 0,
     transportMinutes: b.kind === 'transport' ? b.durationMinutes : 0,
@@ -245,14 +277,18 @@ function newAcc(kind: ReportBlockKind, b: PresenceDayBlock): AccumulatedBlock {
     reviewReasons: new Set<string>(),
     firstConfirmedAt: b.kind === 'confirmed_on_site' ? b.startAt : null,
     lastConfirmedAt: b.kind === 'confirmed_on_site' ? b.endAt : null,
-    confidence: b.confidence as ReportConfidence,
+    baseConfidence: (b.confidence as ReportConfidence) ?? 'medium',
   };
 }
 
 function absorb(acc: AccumulatedBlock, b: PresenceDayBlock, asSignalGap = false) {
   acc.endAt = b.endAt;
   acc.sourceIds.push(b.id);
-  if (asSignalGap || b.kind === 'signal_gap') {
+  if (b.durationMinutes <= 0) {
+    acc.suppressedZeroLengthBlockCount += 1;
+    acc.hiddenPresenceBlockIds.push(b.id);
+  }
+  if (asSignalGap || b.kind === 'signal_gap' || b.kind === 'uncertain_transition') {
     acc.hiddenSignalGapIds.push(b.id);
     acc.signalGapMinutes += b.durationMinutes;
     acc.suppressedSignalGapBlockCount += 1;
@@ -269,7 +305,34 @@ function absorb(acc: AccumulatedBlock, b: PresenceDayBlock, asSignalGap = false)
     acc.transportMinutes += b.durationMinutes;
     acc.distanceMeters += b.evidence?.distanceMeters ?? 0;
   } else if (b.kind === 'unknown_place') {
+    if (b.durationMinutes < 5) {
+      acc.suppressedUnknownBlockCount += 1;
+      acc.hiddenPresenceBlockIds.push(b.id);
+    }
     acc.unknownMinutes += b.durationMinutes;
+  }
+}
+
+function buildTitleSubtitle(acc: AccumulatedBlock): { title: string; subtitle: string } {
+  const dur = fmtDuration(minutesBetween(acc.startAt, acc.endAt));
+  const span = `${fmtClock(acc.startAt)}–${fmtClock(acc.endAt)}`;
+  switch (acc.kind) {
+    case 'work':
+      return { title: acc.targetLabel ?? 'Arbete', subtitle: `${span} · ${dur}` };
+    case 'transport':
+      return {
+        title: 'Resa',
+        subtitle:
+          acc.fromLabel && acc.toLabel
+            ? `${acc.fromLabel} → ${acc.toLabel} · ${span}`
+            : `${span} · ${dur}`,
+      };
+    case 'break':
+      return { title: 'Rast', subtitle: `${span} · ${dur}` };
+    case 'unknown':
+      return { title: 'Okänd plats', subtitle: `${span} · ${dur}` };
+    case 'needs_review':
+      return { title: 'Behöver granskas', subtitle: `${span} · ${dur}` };
   }
 }
 
@@ -277,40 +340,44 @@ function finalize(
   acc: AccumulatedBlock,
   policy: Required<ReportCandidatePolicy>,
   index: number,
-): ReportCandidateBlock {
+): ReportCandidateBlock | null {
   const duration = minutesBetween(acc.startAt, acc.endAt);
 
-  // Confidence rules
-  let confidence: ReportConfidence = acc.confidence;
+  // Rule 6: never emit 0-minute report rows
+  if (duration <= 0) return null;
+
+  let confidence: ReportConfidence = acc.baseConfidence;
   if (acc.kind === 'work') {
-    const onSite = acc.confirmedMinutes + acc.probableMinutes;
     const ratio = duration > 0 ? acc.signalGapMinutes / duration : 0;
     if (acc.signalGapMinutes >= policy.longGapInsideWorkMinutes || ratio > 0.4) {
       confidence = 'low';
       acc.reviewReasons.add('signal_gaps_inside_work_block');
     } else if (acc.signalGapMinutes > 0 || acc.probableMinutes > acc.confirmedMinutes) {
       confidence = downgrade(confidence, 'medium');
-    } else if (onSite > 0) {
+      if (acc.signalGapMinutes > 0) acc.reviewReasons.add('signal_gaps_inside_work_block');
+    } else if (acc.confirmedMinutes > 0) {
       confidence = 'high';
     }
   } else if (acc.kind === 'transport') {
     confidence = acc.distanceMeters > 0 ? 'high' : 'medium';
   } else if (acc.kind === 'unknown') {
     confidence = 'low';
+    acc.reviewReasons.add('unknown_place');
   } else if (acc.kind === 'needs_review') {
     confidence = 'low';
   }
 
-  let reviewState: ReportReviewState =
-    acc.reviewReasons.size > 0 || acc.kind === 'needs_review' || confidence === 'low'
+  const reviewState: ReportReviewState =
+    acc.kind === 'needs_review' || acc.kind === 'unknown' || acc.reviewReasons.size > 0 || confidence === 'low'
       ? 'needs_review'
       : 'ok';
-  if (acc.kind === 'needs_review') reviewState = 'needs_review';
 
   const warningLabel =
-    acc.signalGapMinutes > 0 && acc.kind === 'work'
-      ? `Signal saknades periodvis: ${fmtMinutes(acc.signalGapMinutes)}`
+    acc.kind === 'work' && acc.signalGapMinutes > 0
+      ? `Signal saknades periodvis: ${fmtDuration(acc.signalGapMinutes)}`
       : null;
+
+  const { title, subtitle } = buildTitleSubtitle(acc);
 
   return {
     id: `rc-${index}-${acc.startAt}`,
@@ -318,9 +385,14 @@ function finalize(
     startAt: acc.startAt,
     endAt: acc.endAt,
     durationMinutes: duration,
+    durationLabel: fmtDuration(duration),
+    title,
+    subtitle,
     targetType: acc.targetType,
     targetId: acc.targetId,
     targetLabel: acc.targetLabel,
+    fromLabel: acc.fromLabel,
+    toLabel: acc.toLabel,
     confidence,
     reviewState,
     reviewReasons: Array.from(acc.reviewReasons),
@@ -333,14 +405,63 @@ function finalize(
       unknownMinutes: acc.unknownMinutes,
       presenceBlockCount: acc.sourceIds.length,
       suppressedSignalGapBlockCount: acc.suppressedSignalGapBlockCount,
+      suppressedUnknownBlockCount: acc.suppressedUnknownBlockCount,
+      suppressedZeroLengthBlockCount: acc.suppressedZeroLengthBlockCount,
       distanceMeters: acc.distanceMeters || undefined,
     },
     sourcePresenceBlockIds: acc.sourceIds,
     hiddenSignalGapIds: acc.hiddenSignalGapIds,
+    hiddenPresenceBlockIds: acc.hiddenPresenceBlockIds,
     signalGapMinutes: acc.signalGapMinutes,
     firstConfirmedAt: acc.firstConfirmedAt,
     lastConfirmedAt: acc.lastConfirmedAt,
   };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Core
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Look ahead through bridge blocks (gap/unknown < threshold) to see if the
+ *  next stable on-site block has the same target as `acc`. Returns the index
+ *  of that on-site block, or -1. */
+function findSameTargetReturn(
+  blocks: PresenceDayBlock[],
+  fromIdx: number,
+  acc: AccumulatedBlock,
+  policy: Required<ReportCandidatePolicy>,
+): number {
+  let i = fromIdx;
+  let bridgeMinutes = 0;
+  while (i < blocks.length) {
+    const b = blocks[i];
+    if (isOnSite(b)) {
+      return sameTargetAs(acc, b) ? i : -1;
+    }
+    if (b.kind === 'signal_gap' || b.kind === 'uncertain_transition') {
+      bridgeMinutes += b.durationMinutes;
+      // Always allow bridging — long gaps still allowed if same target returns
+      // (rule 2). Confidence will drop accordingly.
+      i += 1;
+      continue;
+    }
+    if (b.kind === 'unknown_place') {
+      if (b.durationMinutes >= policy.minUnknownMinutes) return -1;
+      bridgeMinutes += b.durationMinutes;
+      i += 1;
+      continue;
+    }
+    if (b.kind === 'transport') {
+      // A real movement segment between ends the same-target chain.
+      return -1;
+    }
+    if (b.kind === 'timer_marker') {
+      i += 1;
+      continue;
+    }
+    return -1;
+  }
+  return -1;
 }
 
 export function buildReportCandidateBlocks(
@@ -349,7 +470,6 @@ export function buildReportCandidateBlocks(
   const policy: Required<ReportCandidatePolicy> = { ...DEFAULT_POLICY, ...(input.policy ?? {}) };
   const warnings: string[] = [];
 
-  // Filter out timer_marker — this layer is pure presence-derived.
   const blocks = (input.presenceDayBlocks ?? []).filter((b) => b.kind !== 'timer_marker');
   blocks.sort((a, b) => a.startAt.localeCompare(b.startAt));
 
@@ -358,52 +478,57 @@ export function buildReportCandidateBlocks(
 
   const flush = () => {
     if (acc) {
-      out.push(finalize(acc, policy, out.length));
+      const fin = finalize(acc, policy, out.length);
+      if (fin) out.push(fin);
       acc = null;
     }
   };
 
-  for (let i = 0; i < blocks.length; i++) {
+  let i = 0;
+  while (i < blocks.length) {
     const b = blocks[i];
-    const next = blocks[i + 1];
-    const prev = blocks[i - 1];
 
-    // ── ON-SITE (confirmed/probable) → work
+    // ── ON-SITE → work
     if (isOnSite(b)) {
-      if (acc && acc.kind === 'work' && targetKey(b) === `${acc.targetType ?? ''}::${acc.targetId ?? ''}`) {
+      if (acc && acc.kind === 'work' && sameTargetAs(acc, b)) {
         absorb(acc, b);
       } else {
         flush();
         acc = newAcc('work', b);
       }
+      i += 1;
       continue;
     }
 
     // ── SIGNAL_GAP / UNCERTAIN_TRANSITION
     if (b.kind === 'signal_gap' || b.kind === 'uncertain_transition') {
-      const sameTargetBridge =
-        acc && acc.kind === 'work' &&
-        next && isOnSite(next) &&
-        targetKey(next) === `${acc.targetType ?? ''}::${acc.targetId ?? ''}`;
-
-      if (sameTargetBridge) {
-        // Fold into current work block; will downgrade confidence at finalize().
-        absorb(acc!, b, true);
-        if (b.durationMinutes >= policy.longGapInsideWorkMinutes) {
-          acc!.reviewReasons.add('signal_gaps_inside_work_block');
+      // Try to bridge inside the current work block: same target returns later?
+      if (acc && acc.kind === 'work') {
+        const ret = findSameTargetReturn(blocks, i + 1, acc, policy);
+        if (ret >= 0) {
+          // Absorb everything from i..ret-1 as bridge inside work, then the
+          // returning on-site block also into the same work block.
+          for (let k = i; k < ret; k++) absorb(acc, blocks[k], true);
+          absorb(acc, blocks[ret]);
+          if (b.durationMinutes >= policy.longGapInsideWorkMinutes) {
+            acc.reviewReasons.add('signal_gaps_inside_work_block');
+          }
+          i = ret + 1;
+          continue;
         }
-        continue;
       }
 
-      // Different (or missing) surrounding targets → close current work first.
+      // No same-target return → close current work
       flush();
 
-      // Drop short lone gaps; keep long ones as needs_review.
+      // Drop short lone gaps; long ones become needs_review
       if (b.durationMinutes >= policy.loneGapNeedsReviewMinutes) {
         const candidate = newAcc('needs_review', b);
-        const beforeLabel = prev?.targetLabel ?? null;
-        const afterLabel = next?.targetLabel ?? null;
-        if (beforeLabel && afterLabel && beforeLabel !== afterLabel) {
+        const prev = blocks[i - 1];
+        const next = blocks[i + 1];
+        candidate.fromLabel = prev?.targetLabel ?? null;
+        candidate.toLabel = next?.targetLabel ?? null;
+        if (prev?.targetLabel && next?.targetLabel && prev.targetLabel !== next.targetLabel) {
           candidate.reviewReasons.add('missing_transition_evidence');
         } else if (
           isDayOpen(input.date, b.endAt, input.activeTimeRegistrations, input.staffPresenceSessions)
@@ -412,74 +537,125 @@ export function buildReportCandidateBlocks(
         } else {
           candidate.reviewReasons.add('signal_gap_unresolved');
         }
-        out.push(finalize(candidate, policy, out.length));
+        const fin = finalize(candidate, policy, out.length);
+        if (fin) out.push(fin);
       }
+      i += 1;
       continue;
     }
 
-    // ── TRANSPORT (real movement only — guaranteed by presence layer)
+    // ── TRANSPORT (real GPS movement only — guaranteed by presence layer)
     if (b.kind === 'transport') {
-      // Short transport between two on-site blocks of same target → fold into work
+      // Short transport bridging same-target work → fold in
       if (
         acc && acc.kind === 'work' &&
-        b.durationMinutes < policy.shortTransportMergeMinutes &&
-        next && isOnSite(next) &&
-        targetKey(next) === `${acc.targetType ?? ''}::${acc.targetId ?? ''}`
+        b.durationMinutes < policy.shortTransportMergeMinutes
       ) {
-        absorb(acc, b);
-        continue;
+        const ret = findSameTargetReturn(blocks, i + 1, acc, policy);
+        if (ret >= 0) {
+          absorb(acc, b);
+          for (let k = i + 1; k < ret; k++) absorb(acc, blocks[k], blocks[k].kind === 'signal_gap');
+          absorb(acc, blocks[ret]);
+          i = ret + 1;
+          continue;
+        }
       }
+
       flush();
       acc = newAcc('transport', b);
-      // Allow following transport segments to chain
-      while (
-        i + 1 < blocks.length &&
-        blocks[i + 1].kind === 'transport'
-      ) {
-        i += 1;
-        absorb(acc, blocks[i]);
+      acc.fromLabel = blocks[i - 1]?.targetLabel ?? null;
+
+      // Chain forward: consecutive transport, plus tiny non-stable bridges
+      let j = i + 1;
+      while (j < blocks.length) {
+        const nb = blocks[j];
+        if (nb.kind === 'transport') {
+          absorb(acc, nb);
+          j += 1;
+          continue;
+        }
+        // Tiny gap/unknown bridge between transport segments
+        if (
+          (nb.kind === 'signal_gap' || nb.kind === 'uncertain_transition') &&
+          nb.durationMinutes < policy.transportChainBridgeMinutes &&
+          j + 1 < blocks.length && blocks[j + 1].kind === 'transport'
+        ) {
+          absorb(acc, nb, true);
+          j += 1;
+          continue;
+        }
+        if (
+          nb.kind === 'unknown_place' &&
+          nb.durationMinutes < policy.transportChainBridgeMinutes &&
+          j + 1 < blocks.length && blocks[j + 1].kind === 'transport'
+        ) {
+          absorb(acc, nb);
+          j += 1;
+          continue;
+        }
+        break;
       }
+      acc.toLabel = blocks[j]?.targetLabel ?? null;
+      i = j;
       flush();
       continue;
     }
 
-    // ── UNKNOWN_PLACE (stable cluster only — guaranteed by presence layer)
+    // ── UNKNOWN_PLACE
     if (b.kind === 'unknown_place') {
       flush();
       if (b.durationMinutes < policy.minUnknownMinutes) {
         // Drop tiny unknowns from the report (still in presence layer).
+        i += 1;
         continue;
       }
       acc = newAcc('unknown', b);
-      acc.reviewReasons.add('unknown_place');
       flush();
+      i += 1;
       continue;
     }
+
+    // Fallback — unknown kind
+    i += 1;
   }
 
   flush();
 
   // ── Summary
   const summary: ReportCandidateSummary = {
-    blocksCount: out.length,
+    reportCandidateBlocksCount: out.length,
+    workBlocksCount: 0,
+    transportBlocksCount: 0,
+    unknownBlocksCount: 0,
+    needsReviewBlocksCount: 0,
+    breakBlocksCount: 0,
     workMinutes: 0,
     transportMinutes: 0,
-    breakMinutes: 0,
     unknownMinutes: 0,
     needsReviewMinutes: 0,
-    needsReviewCount: 0,
-    totalSignalGapMinutes: 0,
-    suppressedSignalGapBlockCount: 0,
+    breakMinutes: 0,
+    signalGapMinutesHiddenInsideWorkBlocks: 0,
+    reportRowsWithSignalWarnings: 0,
   };
   for (const r of out) {
-    if (r.kind === 'work') summary.workMinutes += r.durationMinutes;
-    else if (r.kind === 'transport') summary.transportMinutes += r.durationMinutes;
-    else if (r.kind === 'break') summary.breakMinutes += r.durationMinutes;
-    else if (r.kind === 'unknown') summary.unknownMinutes += r.durationMinutes;
-    else if (r.kind === 'needs_review') summary.needsReviewMinutes += r.durationMinutes;
-    if (r.reviewState === 'needs_review') summary.needsReviewCount += 1;
-    summary.totalSignalGapMinutes += r.signalGapMinutes;
-    summary.suppressedSignalGapBlockCount += r.evidenceSummary.suppressedSignalGapBlockCount;
+    if (r.kind === 'work') {
+      summary.workBlocksCount += 1;
+      summary.workMinutes += r.durationMinutes;
+      summary.signalGapMinutesHiddenInsideWorkBlocks += r.signalGapMinutes;
+    } else if (r.kind === 'transport') {
+      summary.transportBlocksCount += 1;
+      summary.transportMinutes += r.durationMinutes;
+    } else if (r.kind === 'unknown') {
+      summary.unknownBlocksCount += 1;
+      summary.unknownMinutes += r.durationMinutes;
+    } else if (r.kind === 'needs_review') {
+      summary.needsReviewBlocksCount += 1;
+      summary.needsReviewMinutes += r.durationMinutes;
+    } else if (r.kind === 'break') {
+      summary.breakBlocksCount += 1;
+      summary.breakMinutes += r.durationMinutes;
+    }
+    if (r.warningLabel) summary.reportRowsWithSignalWarnings += 1;
   }
 
   return {
