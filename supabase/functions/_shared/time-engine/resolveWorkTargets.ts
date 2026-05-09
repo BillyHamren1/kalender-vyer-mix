@@ -112,10 +112,10 @@ export interface ResolvedWorkTarget {
   timeTrackingAllowed: boolean;
   dateRelevance: 'today' | 'recent' | 'permanent' | 'unknown';
   status: string | null;
-  matchRole: WorkTargetMatchRole;
-  assignmentAnchor: WorkTargetAssignmentAnchor;
-  canAutoMatchAsWork: boolean;
-  addressAnchorKey: string | null;
+  matchRole?: WorkTargetMatchRole;
+  assignmentAnchor?: WorkTargetAssignmentAnchor;
+  canAutoMatchAsWork?: boolean;
+  addressAnchorKey?: string | null;
   diagnostics: {
     notes: string[];
   };
