@@ -1001,10 +1001,10 @@ const StaffTimeReports: React.FC = () => {
           a.reports_count += 1;
           if (isOpen) a.has_open_report = true;
         }
-        const startHHMM = format(new Date(e.entered_at), 'HH:mm:ss');
+        const startHHMM = formatStockholmHms(e.entered_at);
         if (!a.earliest_start || startHHMM < a.earliest_start) a.earliest_start = startHHMM;
         if (!isOpen && e.exited_at) {
-          const endHHMM = format(new Date(e.exited_at), 'HH:mm:ss');
+          const endHHMM = formatStockholmHms(e.exited_at);
           if (!a.latest_end || endHHMM > a.latest_end) a.latest_end = endHHMM;
         }
 
@@ -1074,7 +1074,7 @@ const StaffTimeReports: React.FC = () => {
           (Date.now() - new Date(wd.started_at).getTime()) / (1000 * 60 * 60);
         const isStaleOpen = !wd.ended_at && ageHours > 18;
         const isOpen = !wd.ended_at && !isStaleOpen;
-        const startHHMM = format(new Date(wd.started_at), 'HH:mm:ss');
+        const startHHMM = formatStockholmHms(wd.started_at);
 
         if (!a.earliest_start || startHHMM < a.earliest_start) {
           a.earliest_start = startHHMM;
@@ -1083,7 +1083,7 @@ const StaffTimeReports: React.FC = () => {
         if (isOpen) {
           a.has_open_report = true;
         } else if (wd.ended_at) {
-          const endHHMM = format(new Date(wd.ended_at), 'HH:mm:ss');
+          const endHHMM = formatStockholmHms(wd.ended_at);
           if (!a.latest_end || endHHMM > a.latest_end) {
             a.latest_end = endHHMM;
           }
