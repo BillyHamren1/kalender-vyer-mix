@@ -103,6 +103,12 @@ interface DayHealth {
   needsReviewCount: number;
   longestSignalGaps: LongGapEntry[];
   warnings: string[];
+  unknownEvidenceBlocksCount: number;
+  unknownPresenceBlocksCount: number;
+  unknownCompressionRatio: number;
+  transportEvidenceBlocksCount: number;
+  transportPresenceBlocksCount: number;
+  transportCompressionRatio: number;
   sampleStaffDays?: SampleStaffDay[];
 }
 
