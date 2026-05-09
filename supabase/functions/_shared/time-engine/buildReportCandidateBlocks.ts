@@ -113,6 +113,17 @@ export interface ReportCandidateSummary {
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
   shortUnknownTransportHiddenCount: number;
+  /** Examples (max 20) of same-target transports that were absorbed in PASS 2.
+   *  Used by health-check tooling to verify absorption only catches jitter. */
+  absorbedSameTargetTransportExamples: Array<{
+    targetLabel: string | null;
+    startAt: ISODateTime;
+    endAt: ISODateTime;
+    durationMinutes: number;
+    distanceMeters: number;
+    absorbedIntoWorkBlock: { startAt: ISODateTime; endAt: ISODateTime } | null;
+    reviewReasons: string[];
+  }>;
 }
 
 export interface ActiveTimeRegistrationInput {
@@ -858,6 +869,7 @@ export function buildReportCandidateBlocks(
   let shortCrossTargetTransportReviewCount = 0;
   let shortUnknownTransportReviewCount = 0;
   let shortUnknownTransportHiddenCount = 0;
+  const absorbedSameTargetTransportExamples: ReportCandidateSummary['absorbedSameTargetTransportExamples'] = [];
 
   const flipToNeedsReview = (r: ReportCandidateBlock, reason: string) => {
     r.kind = 'needs_review';
@@ -893,6 +905,15 @@ export function buildReportCandidateBlocks(
         cur.durationMinutes <= policy.sameTargetTransportAbsorbMaxMinutes
       ) {
         const transportMin = cur.durationMinutes;
+        const exampleSnapshot = {
+          targetLabel: prev.targetLabel ?? null,
+          startAt: cur.startAt,
+          endAt: cur.endAt,
+          durationMinutes: Math.round(transportMin * 100) / 100,
+          distanceMeters: Math.round(dist),
+          absorbedIntoWorkBlock: { startAt: prev.startAt, endAt: prev.endAt },
+          reviewReasons: ['movement_inside_same_target'],
+        };
         absorbInto(prev, cur);
         absorbInto(prev, next);
         if (!prev.reviewReasons.includes('movement_inside_same_target')) {
@@ -901,6 +922,9 @@ export function buildReportCandidateBlocks(
         out.splice(k, 2);
         sameTargetTransportAbsorbedCount += 1;
         sameTargetTransportAbsorbedMinutes += transportMin;
+        if (absorbedSameTargetTransportExamples.length < 20) {
+          absorbedSameTargetTransportExamples.push(exampleSnapshot);
+        }
         changed2 = true;
         break;
       }
@@ -980,6 +1004,7 @@ export function buildReportCandidateBlocks(
     shortCrossTargetTransportReviewCount,
     shortUnknownTransportReviewCount,
     shortUnknownTransportHiddenCount,
+    absorbedSameTargetTransportExamples,
   };
   for (const r of out) {
     if (r.kind === 'work') {

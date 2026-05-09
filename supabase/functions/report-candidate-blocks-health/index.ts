@@ -93,6 +93,17 @@ interface DayHealth {
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
   shortUnknownTransportHiddenCount: number;
+  absorbedSameTargetTransportExamples: Array<{
+    staffName: string;
+    staffId: string;
+    targetLabel: string | null;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    distanceMeters: number;
+    absorbedIntoWorkBlock: { startAt: string; endAt: string } | null;
+    reviewReasons: string[];
+  }>;
   warnings: string[];
   sampleStaffReports: SampleStaffReport[];
 }
@@ -183,6 +194,7 @@ Deno.serve(async (req) => {
         shortCrossTargetTransportReviewCount: 0,
         shortUnknownTransportReviewCount: 0,
         shortUnknownTransportHiddenCount: 0,
+        absorbedSameTargetTransportExamples: [],
         warnings: [],
         sampleStaffReports: [],
       };
@@ -309,6 +321,22 @@ Deno.serve(async (req) => {
           (report.summary as any).shortUnknownTransportReviewCount ?? 0;
         day.shortUnknownTransportHiddenCount +=
           (report.summary as any).shortUnknownTransportHiddenCount ?? 0;
+
+        const examples = (report.summary as any).absorbedSameTargetTransportExamples ?? [];
+        for (const ex of examples) {
+          if (day.absorbedSameTargetTransportExamples.length >= 25) break;
+          day.absorbedSameTargetTransportExamples.push({
+            staffName: s.name ?? s.id,
+            staffId: s.id,
+            targetLabel: ex.targetLabel ?? null,
+            startAt: ex.startAt,
+            endAt: ex.endAt,
+            durationMinutes: ex.durationMinutes,
+            distanceMeters: ex.distanceMeters,
+            absorbedIntoWorkBlock: ex.absorbedIntoWorkBlock ?? null,
+            reviewReasons: ex.reviewReasons ?? [],
+          });
+        }
 
         for (const b of report.blocks) {
           day.reportBlocksByKind[b.kind] = (day.reportBlocksByKind[b.kind] ?? 0) + 1;
