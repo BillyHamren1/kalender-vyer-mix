@@ -167,12 +167,13 @@ Deno.serve(async (req) => {
     }
     const orgId = [...orgIds][0];
 
-    // Verify caller is in org
+    // Verify caller is in org (membership = any user_roles row for org)
     const { data: membership } = await admin
-      .from('organization_members')
+      .from('user_roles')
       .select('role')
       .eq('organization_id', orgId)
       .eq('user_id', userId)
+      .limit(1)
       .maybeSingle();
     if (!membership) return badRequest('Forbidden: not a member of this organization');
 
