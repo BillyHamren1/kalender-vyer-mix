@@ -84,6 +84,8 @@ interface StaffTimeReportsListProps {
     {
       blocks: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
       summary: import('./ReportCandidateTimeline').ReportCandidateSummaryUI | null;
+      presenceBlocks?: import('@/lib/staff/buildReportDisplayBlocks').PresenceBlockLite[];
+      targets?: import('@/lib/staff/buildReportDisplayBlocks').TargetLite[];
       loading: boolean;
       missing?: boolean;
     } | undefined
