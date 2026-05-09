@@ -347,7 +347,10 @@ export async function resolveWorkTargets(
       diag.warnings.push(`projects: ${error.message}`);
     } else {
       for (const r of data ?? []) {
-        if (r.booking_id) projectLinkedBookingIds.add(r.booking_id);
+        if (r.booking_id) {
+          projectLinkedBookingIds.add(r.booking_id);
+          projectIdToBookingId.set(r.id, r.booking_id);
+        }
       }
       // Fallback: för projekt utan coords men med booking_id, hämta booking-coords.
       // Triggern (inherit_booking_coords_to_project) sköter normalfallet, men för
