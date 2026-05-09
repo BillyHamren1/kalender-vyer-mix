@@ -77,10 +77,46 @@ export interface LocationEvidence {
   addressConfidence: AddressConfidence;
 }
 
+export type AiReviewQuestionType =
+  | 'match_unknown_address_to_booking'
+  | 'classify_unknown_stop'
+  | 'explain_missing_transition'
+  | 'suggest_assignment_link';
+
+export interface AiReviewNearestTarget {
+  id: string | null;
+  label: string;
+  type: string | null;
+  distanceMeters: number | null;
+  isAssigned: boolean;
+}
+
+export interface AiReviewContext {
+  questionType: AiReviewQuestionType;
+  knownAddress: string | null;
+  coordinate: { lat: number; lng: number } | null;
+  nearestAssignedTargets: AiReviewNearestTarget[];
+  nearestUnassignedCandidates: AiReviewNearestTarget[];
+  previousKnownPlace: string | null;
+  nextKnownPlace: string | null;
+  timeWindow: { startAt: string; endAt: string };
+  staffName: string | null;
+  date: string | null;
+  currentPlannedAssignments: string[];
+}
+
 export interface DisplayBlock extends ReportCandidateBlockUI {
   locationEvidence: LocationEvidence | null;
   displayTitle: string;
   displaySubtitle: string | null;
+  /**
+   * Förberedd kontext för framtida AI-granskning.
+   * INGEN AI körs här. INGA writes. Endast deterministiska fält.
+   * Sätts bara på unknown / needs_review.
+   */
+  aiReviewContext: AiReviewContext | null;
+  /** Liten hint i UI; ingen knapp. */
+  aiHintLabel: string | null;
 }
 
 const SECONDARY_PROXIMITY_M = 500;
@@ -107,6 +143,9 @@ export interface BuildReportDisplayBlocksInput {
   blocks: ReportCandidateBlockUI[];
   presenceBlocks?: PresenceBlockLite[];
   targets?: TargetLite[];
+  /** Valfri kontext för AI-prep. Ingen AI körs. */
+  staffName?: string | null;
+  date?: string | null;
 }
 
 export function buildReportDisplayBlocks(
