@@ -1019,6 +1019,7 @@ export type Database = {
           resource_id: string
           source_date: string
           start_time: string
+          times_locked: boolean
           title: string
           viewed: boolean | null
         }
@@ -1034,6 +1035,7 @@ export type Database = {
           resource_id: string
           source_date: string
           start_time: string
+          times_locked?: boolean
           title: string
           viewed?: boolean | null
         }
@@ -1049,6 +1051,7 @@ export type Database = {
           resource_id?: string
           source_date?: string
           start_time?: string
+          times_locked?: boolean
           title?: string
           viewed?: boolean | null
         }
