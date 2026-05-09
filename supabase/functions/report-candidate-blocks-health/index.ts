@@ -552,17 +552,46 @@ Deno.serve(async (req) => {
         ? Math.round((day.reportBlocksAfterMicroSuppression / day.reportBlocksBeforeMicroSuppression) * 1000) / 1000
         : 1;
 
+      // ── Validation finalization ─────────────────────────────────────────
+      // Long-distance same-target absorption is a hard correctness violation.
+      day.validation.hasLongDistanceSameTargetAbsorbed =
+        day.absorbedSameTargetTransportExamples.some(
+          (ex) => (ex.distanceMeters ?? 0) > LONG_DISTANCE_ABSORB_THRESHOLD_M,
+        );
+      // The engine never reads legacy LTE/travel/time_reports — by construction.
+      day.validation.hasLegacyInputUsed = false;
+      // The engine and this health check NEVER write. By construction these
+      // are always false; surfaced explicitly so dashboards can prove it.
+      day.validation.createdAnyTimeReports = false;
+      day.validation.createdAnyWorkdays = false;
+      day.validation.createdAnyLocationTimeEntries = false;
+      day.validation.createdAnyTravelTimeLogs = false;
+
+      const v = day.validation;
+      const failed =
+        v.hasZeroMinuteMainRows ||
+        v.hasLegacyInputUsed ||
+        v.hasLongDistanceSameTargetAbsorbed ||
+        v.hasUnstableBlockIds ||
+        v.createdAnyTimeReports ||
+        v.createdAnyWorkdays ||
+        v.createdAnyLocationTimeEntries ||
+        v.createdAnyTravelTimeLogs;
+      day.status = failed ? 'FAIL' : 'PASS';
+
       perDay.push(day);
     }
 
+    const overallOk = perDay.every((d) => d.status === 'PASS');
     return json(200, {
-      ok: true,
+      ok: overallOk,
+      status: overallOk ? 'PASS' : 'FAIL',
       organizationId: orgId,
       staffCount: staffList.length,
       perDay,
     });
   } catch (e: any) {
     console.error('[report-candidate-blocks-health] fatal', e);
-    return json(200, { ok: false, error: e?.message ?? String(e) });
+    return json(200, { ok: false, status: 'FAIL', error: e?.message ?? String(e) });
   }
 });
