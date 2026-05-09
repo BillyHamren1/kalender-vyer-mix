@@ -15,6 +15,7 @@ export const EventWrapper: React.FC<{
   readOnly?: boolean;
   setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly, setEvents }) => {
+  const navigate = useNavigate();
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (readOnly) {
       e.preventDefault();
