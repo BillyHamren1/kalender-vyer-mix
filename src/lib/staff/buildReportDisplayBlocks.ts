@@ -220,43 +220,73 @@ export function buildReportDisplayBlocks(
       (nearestSecondaryCandidateDistanceMeters ?? Infinity) <
         SECONDARY_PROXIMITY_M;
 
+    const coordText =
+      lat != null && lng != null ? `Koordinat: ${fmtCoord(lat)}, ${fmtCoord(lng)}` : null;
+    const addressText = locationEvidence?.reverseGeocodedAddress ?? null;
+    const placeText = addressText ?? coordText;
+
     if (isUnknown) {
-      // Regel 1
-      if (locationEvidence?.reverseGeocodedAddress) {
-        displayTitle = locationEvidence.reverseGeocodedAddress;
-        displaySubtitle = secondaryClose
-          ? `Nära ${nearestSecondaryCandidateLabel} · ej kopplad till planerat jobb`
-          : displaySubtitle;
+      // Regel 1 — visa alltid något mänskligt
+      if (addressText) {
+        displayTitle = 'Okänd plats';
+        displaySubtitle = `${addressText} · granska`;
       } else if (secondaryClose) {
-        // Regel 2 — visas som närliggande kandidat, men förblir unknown
-        displayTitle = `Nära ${nearestSecondaryCandidateLabel}`;
-        displaySubtitle = 'Ej kopplad till planerat jobb';
-      } else if (lat != null && lng != null) {
-        displayTitle = `Koordinat: ${fmtCoord(lat)}, ${fmtCoord(lng)}`;
-        displaySubtitle = 'Ingen planerad arbetsplats matchar GPS-positionen';
+        const distTxt =
+          nearestSecondaryCandidateDistanceMeters != null
+            ? ` (${nearestSecondaryCandidateDistanceMeters} m)`
+            : '';
+        displayTitle = 'Ej kopplad plats';
+        displaySubtitle = `Nära ${nearestSecondaryCandidateLabel}${distTxt} · ej assignad · granska`;
+      } else if (coordText) {
+        displayTitle = 'Okänd plats';
+        displaySubtitle = `${coordText} · granska`;
       } else {
-        displayTitle = 'Osäker platsperiod';
-        displaySubtitle =
-          'GPS-position fanns delvis, därefter saknades signal';
+        displayTitle = 'Okänd plats';
+        displaySubtitle = 'GPS-signal saknas · granska';
       }
-    } else if (isReview && secondaryClose && !displaySubtitle) {
-      // Regel 2 (även för needs_review)
-      displaySubtitle = `Nära ${nearestSecondaryCandidateLabel} · ej kopplad till planerat jobb`;
+    } else if (isReview) {
+      // Regel needs_review (inkl. missing_transition_evidence)
+      const haystack = `${block.title} ${block.subtitle ?? ''}`;
+      const missingTransition = /missing_transition|transition_evidence|signal/i.test(haystack);
+      const lastKnown = !looksLikeMissingSignal(block.fromLabel) ? block.fromLabel : null;
+      const nextKnown = !looksLikeMissingSignal(block.toLabel) ? block.toLabel : null;
+      const parts: string[] = [];
+      if (lastKnown) parts.push(`från ${lastKnown}`);
+      if (nextKnown) parts.push(`till ${nextKnown}`);
+      if (missingTransition) parts.push('signal saknades');
+      if (placeText) parts.push(placeText);
+      if (secondaryClose && nearestSecondaryCandidateLabel) {
+        parts.push(`nära ${nearestSecondaryCandidateLabel}`);
+      }
+      displayTitle = 'Osäker period';
+      displaySubtitle = parts.length ? `${parts.join(' · ')} · granska` : 'Granska';
     }
 
     if (isTransport) {
-      // Regel 3
+      // Regel 3 — ersätt "Signal saknas"-labels med mänsklig text
       const fromMissing = looksLikeMissingSignal(block.fromLabel);
       const toMissing = looksLikeMissingSignal(block.toLabel);
+      const fromUnknown = !block.fromLabel || /okänd/i.test(block.fromLabel);
+      const toUnknown = !block.toLabel || /okänd/i.test(block.toLabel);
+      const subParts: string[] = [];
+
       if (fromMissing && toMissing) {
-        displayTitle = 'Resa mellan okända platser';
-        displaySubtitle = 'Mål saknas · signal saknades';
+        displayTitle = 'Resa · start och mål saknas';
       } else if (toMissing && !fromMissing) {
-        displayTitle = 'Resa mot okänd plats';
-        displaySubtitle = `Resa efter ${block.fromLabel} · mål saknas (signal saknades)`;
+        const fromTxt = fromUnknown ? 'okänd plats' : block.fromLabel;
+        displayTitle = `Resa efter ${fromTxt} · mål saknas`;
       } else if (fromMissing && !toMissing) {
-        displayTitle = `Resa mot ${block.toLabel}`;
-        displaySubtitle = 'Ursprung okänt (signal saknades)';
+        const toTxt = toUnknown ? 'okänd plats' : block.toLabel;
+        displayTitle = `Resa mot ${toTxt} · start saknas`;
+      }
+
+      if (fromMissing || toMissing) {
+        subParts.push('signal saknades');
+        if (placeText) subParts.push(placeText);
+        if (secondaryClose && nearestSecondaryCandidateLabel) {
+          subParts.push(`nära ${nearestSecondaryCandidateLabel}`);
+        }
+        displaySubtitle = subParts.join(' · ');
       }
     }
 
