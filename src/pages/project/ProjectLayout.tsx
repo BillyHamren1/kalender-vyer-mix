@@ -147,6 +147,27 @@ const ProjectLayout = () => {
   const rdStart = project.rigdown_start_time || bRef?.rigdown_start_time || null;
   const rdEnd = project.rigdown_end_time || bRef?.rigdown_end_time || null;
 
+  const handleStartEditSubtitle = () => {
+    setEditSubtitle(((project as any)?.description as string) || "");
+    setIsEditingSubtitle(true);
+    setTimeout(() => subtitleInputRef.current?.focus(), 50);
+  };
+
+  const handleSaveSubtitle = async () => {
+    const trimmed = editSubtitle.trim();
+    const current = (((project as any)?.description as string) || "").trim();
+    if (trimmed === current) {
+      setIsEditingSubtitle(false);
+      return;
+    }
+    try {
+      await detail.updateProject({ description: trimmed || null } as any);
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte uppdatera rubrik');
+    }
+    setIsEditingSubtitle(false);
+  };
+
   const handleScheduleUpdate = async (
     dateType: 'rig' | 'event' | 'rigDown',
     dates: string[],
