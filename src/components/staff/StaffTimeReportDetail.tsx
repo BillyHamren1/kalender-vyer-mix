@@ -17,6 +17,7 @@ import { WorkdayFlagsAdminSection } from './WorkdayFlagsAdminSection';
 import { DailyOverviewDialog } from './DailyOverviewDialog';
 import { StaffMovementMap } from './StaffMovementMap';
 import { StaffLatestPing, type LatestPing } from './StaffLatestPing';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 interface StaffTimeReportDetailProps {
   staffId: string;
@@ -423,7 +424,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
       .map(r => {
         const t = r.start_time;
         if (!t) return null;
-        const hhmm = t.includes('T') ? t.slice(11, 16) : t.slice(0, 5);
+        const hhmm = t.includes('T') ? formatStockholmHm(t) : t.slice(0, 5);
         return parseInt(hhmm.slice(0, 2), 10) * 60 + parseInt(hhmm.slice(3, 5), 10);
       })
       .filter((m): m is number => m !== null);
@@ -440,7 +441,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
     const lteRows = (dailyLocationEntries as any[])
       .filter(lte => {
         if (!lte.exited_at) return true; // ongoing — always include (will be capped below)
-        const hhmm = String(lte.entered_at).slice(11, 16);
+        const hhmm = formatStockholmHm(String(lte.entered_at));
         const lteMin = parseInt(hhmm.slice(0, 2), 10) * 60 + parseInt(hhmm.slice(3, 5), 10);
         return !reportStartMinutes.some(m => Math.abs(m - lteMin) <= 2);
       })

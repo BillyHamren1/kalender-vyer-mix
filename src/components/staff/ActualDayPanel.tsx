@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 import { format } from 'date-fns';
 import {
   Activity,
@@ -130,9 +131,9 @@ interface ActualDayPanelProps {
 
 const fmtHm = (iso: string) => {
   try {
-    return format(new Date(iso), 'HH:mm');
+    return formatStockholmHm(iso);
   } catch {
-    return iso.slice(11, 16);
+    return formatStockholmHm(iso);
   }
 };
 
@@ -527,8 +528,8 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
     const summary = plan
       .map(p => {
         switch (p.kind) {
-          case 'accept_workday_start': return `start → ${p.iso.slice(11, 16)}`;
-          case 'accept_workday_end': return `slut → ${p.iso.slice(11, 16)}`;
+          case 'accept_workday_start': return `start → ${formatStockholmHm(p.iso)}`;
+          case 'accept_workday_end': return `slut → ${formatStockholmHm(p.iso)}`;
           case 'create_distribution_from_visit': return 'fördelning från GPS-besök';
           case 'approve_travel': return 'godkänn restid';
           case 'ignore_anomaly': return 'ignorera avvikelse';
@@ -832,7 +833,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
             return new Date(iso).toLocaleTimeString('sv-SE', {
               hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm',
             });
-          } catch { return iso.slice(11, 16); }
+          } catch { return formatStockholmHm(iso); }
         };
 
         const inference = inferActivityFromPlace({
@@ -2208,7 +2209,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                       <input
                         type="time"
                         className="h-7 rounded border bg-background px-2 text-[11px]"
-                        value={customTimeByAnomaly[a.id] ?? a.action.plannedStartIso.slice(11, 16)}
+                        value={customTimeByAnomaly[a.id] ?? formatStockholmHm(a.action.plannedStartIso)}
                         onChange={(e) =>
                           setCustomTimeByAnomaly(prev => ({ ...prev, [a.id]: e.target.value }))
                         }
@@ -2220,7 +2221,7 @@ export const ActualDayPanel: React.FC<ActualDayPanelProps> = ({
                         className="h-7 text-[11px]"
                         onClick={async () => {
                           if (!a.action) return;
-                          const hhmm = customTimeByAnomaly[a.id] ?? a.action.plannedStartIso.slice(11, 16);
+                          const hhmm = customTimeByAnomaly[a.id] ?? formatStockholmHm(a.action.plannedStartIso);
                           const [hh, mm] = hhmm.split(':').map(v => parseInt(v, 10));
                           if (!Number.isFinite(hh) || !Number.isFinite(mm)) {
                             toast.error('Ogiltig tid');

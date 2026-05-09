@@ -29,6 +29,7 @@
 import type { PlaceVisit, TravelGap, KnownSite } from './pingPlaceSegments';
 import { haversineMeters, type Ping } from './movementDetection';
 import { classifyWorkStart, type WorkStartDecision } from './workStartDecisionMatrix';
+import { formatStockholmHm, formatStockholmHms } from './formatStockholmTime';
 
 // ── Inputs ───────────────────────────────────────────────────────────
 
@@ -591,7 +592,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
           kind: 'timer_end_estimated',
           severity: 'warning',
           label: `Timer saknar faktiskt stopp: ${e.label}`,
-          detail: `Föreslaget slut: ${e.exited_at.slice(11, 16)} · ${reason ?? 'Kräver granskning.'}`,
+          detail: `Föreslaget slut: ${formatStockholmHm(e.exited_at)} · ${reason ?? 'Kräver granskning.'}`,
           place: e.label,
           durationMin: minutesBetween(e.entered_at, e.exited_at),
           meta: {
@@ -787,7 +788,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
         timeZone: 'Europe/Stockholm',
       });
     } catch {
-      return iso.slice(11, 16);
+      return formatStockholmHm(iso);
     }
   };
   const hasDepartureEvidence = (v: PlaceVisit): { evidence: boolean; reason: string | null } => {
@@ -1201,7 +1202,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
           kind: 'planned_signal_gap',
           severity: 'warning',
           label: 'Ingen app/GPS-signal under planerad tid',
-          detail: `Planerad start ${pa.plannedStart.slice(11, 16)} på ${pa.label}, men ingen GPS-ping eller timer registrerad${firstSignalMs != null ? ` förrän ${new Date(firstSignalMs).toISOString().slice(11, 16)}` : ' under perioden'}.`,
+          detail: `Planerad start ${formatStockholmHm(pa.plannedStart)} på ${pa.label}, men ingen GPS-ping eller timer registrerad${firstSignalMs != null ? ` förrän ${new formatStockholmHm(Date(firstSignalMs).toISOString())}` : ' under perioden'}.`,
           durationMin: gapMin,
           meta: {
             assignmentId: pa.id,
@@ -1212,9 +1213,9 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
             isEvidence: false,
             requiresReview: true,
             suggestedActions: [
-              { id: 'create_workday_from_planned', label: `Skapa arbetsdag från planerad start ${pa.plannedStart.slice(11, 16)}` },
+              { id: 'create_workday_from_planned', label: `Skapa arbetsdag från planerad start ${formatStockholmHm(pa.plannedStart)}` },
               firstSignalMs != null
-                ? { id: 'start_from_first_signal', label: `Starta från första GPS ${new Date(firstSignalMs).toISOString().slice(11, 16)}` }
+                ? { id: 'start_from_first_signal', label: `Starta från första GPS ${new formatStockholmHm(Date(firstSignalMs).toISOString())}` }
                 : null,
               { id: 'set_custom_start', label: 'Ange annan starttid' },
               { id: 'mark_absence', label: 'Markera frånvaro / ignorera planerad tid' },
@@ -1356,10 +1357,10 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
       anomalies.push({
         id: `pre-wd:${earliestConfirmedWorksiteVisit.key}`,
         label: 'Bekräftad arbetsplats före arbetsdagens start',
-        detail: `Vistelse på ${earliestConfirmedWorksiteVisit.label} ${earliestConfirmedWorksiteVisit.start.slice(11, 16)} — workday startade ${input.workday.started_at.slice(11, 16)}.`,
+        detail: `Vistelse på ${earliestConfirmedWorksiteVisit.label} ${formatStockholmHm(earliestConfirmedWorksiteVisit.start)} — workday startade ${formatStockholmHm(input.workday.started_at)}.`,
         severity: 'warning',
         suggestion: hasHardEvidenceBeforeWorkday
-          ? `Start automatiskt justerad från ${input.workday.started_at.slice(11, 16)} till ${earliestConfirmedWorksiteVisit.start.slice(11, 16)} baserat på bekräftad projektnärvaro.`
+          ? `Start automatiskt justerad från ${formatStockholmHm(input.workday.started_at)} till ${formatStockholmHm(earliestConfirmedWorksiteVisit.start)} baserat på bekräftad projektnärvaro.`
           : `GPS visade aktivitet på ${earliestConfirmedWorksiteVisit.label} före arbetsdagens start, men inga timers eller tidrapporter stödjer arbete under den tiden. Justera arbetsdagens start manuellt om det var arbete, annars ignorera.`,
       });
       // Idempotent auto-justering: bara om

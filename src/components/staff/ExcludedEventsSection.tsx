@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import type { DayBlock } from '@/lib/staff/dayBlockTimeline';
 import type { ActualDayEventOverride } from '@/hooks/useActualDayEventOverrides';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 const fmtHm = (iso?: string | null) => {
   if (!iso) return '';
-  try { return format(new Date(iso), 'HH:mm'); } catch { return iso.slice(11, 16); }
+  try { return formatStockholmHm(iso); } catch { return formatStockholmHm(iso); }
 };
 
 const describeBlock = (b: DayBlock | undefined): { time: string; label: string; kind: string } => {

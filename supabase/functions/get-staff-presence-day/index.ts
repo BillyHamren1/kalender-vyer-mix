@@ -28,6 +28,7 @@ import {
   resolveWorkTargets,
   toWorkTarget,
 } from '../_shared/time-engine/resolveWorkTargets.ts';
+import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { smoothPresenceTimeline } from '../_shared/time-engine/smoothPresenceTimeline.ts';
 import {
@@ -181,8 +182,8 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!staff) return json(404, { ok: false, error: 'staff_not_found' });
 
-  const dayStart = `${date}T00:00:00Z`;
-  const dayEnd = `${date}T23:59:59.999Z`;
+  // Stockholm-lokal kalenderdag översatt till UTC-fönster (DST-säker)
+  const { startUtc: dayStart, endUtc: dayEnd } = getStockholmDayWindowUtc(date);
 
   // ── Presence events (arrival/departure/signal_lost/signal_resumed) ──
   const { data: presenceRows } = await admin
@@ -621,7 +622,7 @@ Deno.serve(async (req) => {
   if (presenceDayBlocksResult) {
     try {
       const nowIso = new Date().toISOString();
-      const dayCutoff = `${date}T23:59:59.999Z`;
+      const dayCutoff = dayEnd;
       const activeRegs = (timers ?? []).map((r: any) => {
         const isActive = (r.status ?? '').toLowerCase() === 'active';
         const stoppedAt: string | null =

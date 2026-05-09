@@ -32,6 +32,7 @@
  */
 
 import type {
+import { formatStockholmHm, formatStockholmHms } from './formatStockholmTime';
   ActualStaffDayModel,
   ActualWorkdayFlagInput,
 } from './actualStaffDayModel';
@@ -203,7 +204,7 @@ function gapToSegment(b: GapBlock): StaffDaySegment {
   // REGEL: ingen ping ≠ glapp. no_signal blir teknisk signal-status,
   // inte review-krävande "Ej fördelat".
   if (b.reason === 'no_signal') {
-    const lastSignal = b.startIso.slice(11, 16);
+    const lastSignal = formatStockholmHm(b.startIso);
     return {
       id: b.id,
       kind: 'signal_stale',

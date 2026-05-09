@@ -10,6 +10,7 @@ import React from 'react';
 import { Briefcase, Clock, Activity, MapPin, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { ActualEvent } from '@/lib/staff/actualStaffDayModel';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 export interface ProjectBlock {
   id: string;
@@ -48,7 +49,7 @@ const fmtHm = (iso?: string | null) => {
     return new Date(iso).toLocaleTimeString('sv-SE', {
       hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm',
     });
-  } catch { return iso.slice(11, 16); }
+  } catch { return formatStockholmHm(iso); }
 };
 
 const fmtDuration = (min: number): string => {

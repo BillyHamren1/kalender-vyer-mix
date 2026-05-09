@@ -37,6 +37,7 @@ import {
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
+import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -262,8 +263,7 @@ Deno.serve(async (req) => {
     const perDay: DayHealth[] = [];
 
     for (const date of dates) {
-      const dayStart = `${date}T00:00:00Z`;
-      const dayEnd = `${date}T23:59:59.999Z`;
+      const { startUtc: dayStart, endUtc: dayEnd } = getStockholmDayWindowUtc(date);
 
       const day: DayHealth = {
         date,
@@ -418,7 +418,7 @@ Deno.serve(async (req) => {
         }> = [];
         try {
           const nowIso = new Date().toISOString();
-          const dayCutoff = `${date}T23:59:59.999Z`;
+          const dayCutoff = dayEnd;
           const { data } = await admin
             .from('active_time_registrations')
             .select(

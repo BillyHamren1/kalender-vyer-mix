@@ -13,13 +13,14 @@ import React from 'react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import type { DayHeaderModel, DayHeaderStatus } from '@/lib/staff/dayHeaderModel';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 const fmtHm = (iso: string | null): string => {
   if (!iso) return '—';
   try {
-    return format(new Date(iso), 'HH:mm');
+    return formatStockholmHm(iso);
   } catch {
-    return iso.slice(11, 16);
+    return formatStockholmHm(iso);
   }
 };
 

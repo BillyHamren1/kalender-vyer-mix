@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { formatStockholmHm, formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -498,7 +499,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const firstGps = gpsPoints[0];
   const startAddress =
     firstTravel?.from_address ||
-    (firstGps ? `📍 ${firstGps.lat.toFixed(5)}, ${firstGps.lng.toFixed(5)} (GPS ${firstGps.recorded_at.slice(11, 16)})` : 'Okänd startplats');
+    (firstGps ? `📍 ${firstGps.lat.toFixed(5)}, ${firstGps.lng.toFixed(5)} (GPS ${formatStockholmHm(firstGps.recorded_at)})` : 'Okänd startplats');
   const startLat = firstTravel?.from_latitude ?? firstGps?.lat ?? null;
   const startLng = firstTravel?.from_longitude ?? firstGps?.lng ?? null;
 
@@ -644,8 +645,8 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
             ? formatDistanceToNow(recordedDate, { addSuffix: true, locale: sv })
             : null;
           const absolute = validDate
-            ? format(recordedDate, 'HH:mm:ss', { locale: sv })
-            : lastGps.recorded_at.slice(11, 19);
+            ? formatStockholmHms(recordedDate)
+            : formatStockholmHms(lastGps.recorded_at);
           const mapsUrl = `https://www.google.com/maps?q=${lastGps.lat},${lastGps.lng}`;
           return (
             <div className="flex items-center gap-2 text-sm bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/60 p-3 rounded-lg">
