@@ -493,6 +493,9 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   date={dateStr}
                   model={staff.actualModel}
                   lastPingIso={staff.latestPing?.updated_at ?? null}
+                  reportCandidateBlocks={reportCandidateByStaff?.[staff.id]?.blocks ?? null}
+                  reportCandidateSummary={reportCandidateByStaff?.[staff.id]?.summary ?? null}
+                  reportCandidateLoading={reportCandidateByStaff?.[staff.id]?.loading ?? false}
                   reportSlot={
                     <TimeReportReviewTable
                       date={dateStr}
