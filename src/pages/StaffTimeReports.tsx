@@ -1643,17 +1643,35 @@ const StaffTimeReports: React.FC = () => {
       blocks: any[];
       summary: any;
       loading: boolean;
+      missing: boolean;
     }> = {};
     staffList.forEach((s, idx) => {
       const q = reportCandidateQueries[idx];
+      // "Saknas" = query har felat eller (efter att den slutat ladda) inte
+      // returnerade någon data alls. Tom blocks-array är ett giltigt svar
+      // (dag utan aktivitet) och räknas INTE som saknad motor.
+      const data = q?.data as any | undefined;
+      const isLoading = !!q?.isLoading;
+      const hasError = !!q?.isError;
+      const missing = hasError || (!isLoading && !data);
       map[s.id] = {
-        blocks: (q?.data as any)?.reportCandidateBlocks ?? [],
-        summary: (q?.data as any)?.reportCandidateSummary ?? null,
-        loading: !!q?.isLoading,
+        blocks: data?.reportCandidateBlocks ?? [],
+        summary: data?.reportCandidateSummary ?? null,
+        loading: isLoading,
+        missing,
       };
     });
     return map;
   }, [staffList, reportCandidateQueries]);
+
+  // ── EngineMode: bestäms PÅ SIDNIVÅ. Ingen personrad får själv välja motor. ──
+  // Regel: om reportCandidateBlocks saknas för någon person → hela sidan visar
+  // fallback (actual_model_fallback). Annars använder ALLA report_candidate.
+  // Loading räknas inte som "saknas" — då visar vi laddtillstånd, inte fallback.
+  const anyStillLoading = staffList.some((s) => reportCandidateByStaff[s.id]?.loading);
+  const missingStaffCount = staffList.filter((s) => reportCandidateByStaff[s.id]?.missing).length;
+  const engineMode: 'report_candidate' | 'actual_model_fallback' =
+    !anyStillLoading && missingStaffCount > 0 ? 'actual_model_fallback' : 'report_candidate';
 
   if (selectedStaffId) {
     return (
