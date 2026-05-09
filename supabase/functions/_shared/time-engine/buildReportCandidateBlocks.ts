@@ -249,6 +249,61 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   shortUnknownTransportHideMaxMinutes: 3,
 };
 
+// ───────────────────────────────────────────────────────────────────────────
+// Deterministic block ID
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Small, sync, dependency-free 53-bit string hash (cyrb53). Stable across
+ *  runs and platforms — used to derive deterministic report-candidate IDs.
+ *  NOT a cryptographic hash. */
+function cyrb53(str: string, seed = 0): string {
+  let h1 = 0xdeadbeef ^ seed;
+  let h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch: number; i < str.length; i++) {
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const n = 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  return n.toString(36).padStart(11, '0');
+}
+
+export interface CreateReportCandidateBlockIdInput {
+  staffId: string;
+  date: string;
+  kind: ReportBlockKind;
+  startAt: string;
+  endAt: string;
+  targetType: string | null;
+  targetId: string | null;
+  sourcePresenceBlockIds: string[];
+}
+
+/**
+ * Deterministic, position-independent ID for a reportCandidateBlock.
+ *
+ * Same input (staff, day, kind, span, target, source presence blocks) →
+ * same id across runs. Any change in time/target/kind/source set yields a
+ * new id. Safe to reference later from AI/action contracts.
+ */
+export function createReportCandidateBlockId(
+  input: CreateReportCandidateBlockIdInput,
+): string {
+  const payload = JSON.stringify({
+    s: input.staffId,
+    d: input.date,
+    k: input.kind,
+    sa: input.startAt,
+    ea: input.endAt,
+    tt: input.targetType ?? null,
+    ti: input.targetId ?? null,
+    src: [...(input.sourcePresenceBlockIds ?? [])].sort(),
+  });
+  return `rc_${cyrb53(payload)}`;
+}
+
 function minutesBetween(a: string, b: string): number {
   return Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / 60_000);
 }
@@ -469,7 +524,9 @@ function finalize(
   const { title, subtitle } = buildTitleSubtitle(acc);
 
   return {
-    id: `rc-${index}-${acc.startAt}`,
+    // Placeholder — replaced with deterministic id at end of pipeline
+    // (see createReportCandidateBlockId call after all post-passes).
+    id: '',
     kind: acc.kind,
     startAt: acc.startAt,
     endAt: acc.endAt,
@@ -1057,8 +1114,20 @@ export function buildReportCandidateBlocks(
 
   const transportRowsAfterSameTargetAbsorption = out.filter((r) => r.kind === 'transport').length;
 
-  // Re-id blocks so ids stay stable & sequential
-  out.forEach((r, idx) => { r.id = `rc-${idx}-${r.startAt}`; });
+  // Assign deterministic, position-independent ids. Same staff+day+kind+span
+  // +target+source set ⇒ same id across runs. See createReportCandidateBlockId.
+  out.forEach((r) => {
+    r.id = createReportCandidateBlockId({
+      staffId: input.staffId,
+      date: input.date,
+      kind: r.kind,
+      startAt: r.startAt,
+      endAt: r.endAt,
+      targetType: r.targetType,
+      targetId: r.targetId,
+      sourcePresenceBlockIds: r.sourcePresenceBlockIds,
+    });
+  });
 
   // ── Summary
   const summary: ReportCandidateSummary = {
