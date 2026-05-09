@@ -324,17 +324,39 @@ Deno.serve(async (req) => {
       };
 
       let targets: WorkTarget[] = [];
+      const dayTargetResolution = {
+        primaryTargetsCount: 0,
+        secondaryTargetsCount: 0,
+        unsafeAutoMatchedTargetsCount: 0,
+        dateRelevantBookingsAsPrimaryCount: 0,
+        activeProjectsAsPrimaryCount: 0,
+        unassignedBookingsMatchedAsWorkCount: 0,
+        unassignedProjectsMatchedAsWorkCount: 0,
+        secondaryCandidatesNearGps: 0,
+        warnings: [] as string[],
+      };
       try {
-        const { targets: resolved } = await resolveWorkTargets({
+        const { targets: resolved, targetResolution } = await resolveWorkTargets({
           organizationId: orgId,
           staffId: staffList[0]?.id ?? '00000000-0000-0000-0000-000000000000',
           date,
           supabaseAdmin: admin,
         });
         targets = resolved.map(toWorkTarget).filter((t): t is WorkTarget => !!t);
+        if (targetResolution) {
+          dayTargetResolution.primaryTargetsCount = targetResolution.primaryTargetsCount;
+          dayTargetResolution.secondaryTargetsCount = targetResolution.secondaryTargetsCount;
+          dayTargetResolution.unsafeAutoMatchedTargetsCount = targetResolution.unsafeAutoMatchedTargetsCount;
+          dayTargetResolution.dateRelevantBookingsAsPrimaryCount = targetResolution.dateRelevantBookingsAsPrimaryCount;
+          dayTargetResolution.activeProjectsAsPrimaryCount = targetResolution.activeProjectsAsPrimaryCount;
+          dayTargetResolution.unassignedBookingsMatchedAsWorkCount = targetResolution.unassignedBookingsMatchedAsWorkCount;
+          dayTargetResolution.unassignedProjectsMatchedAsWorkCount = targetResolution.unassignedProjectsMatchedAsWorkCount;
+          dayTargetResolution.warnings = targetResolution.warnings ?? [];
+        }
       } catch (e) {
         day.warnings.push(`target_resolve_failed: ${(e as any)?.message ?? e}`);
       }
+      (day as any).targetResolution = dayTargetResolution;
 
       const samples: SampleStaffReport[] = [];
 
@@ -720,6 +742,7 @@ Deno.serve(async (req) => {
       day.validation.createdAnyTravelTimeLogs = false;
 
       const v = day.validation;
+      const tr = (day as any).targetResolution ?? {};
       const failed =
         v.hasZeroMinuteMainRows ||
         v.hasSignalGapAsNormalReportRow ||
@@ -729,7 +752,12 @@ Deno.serve(async (req) => {
         v.createdAnyTimeReports ||
         v.createdAnyWorkdays ||
         v.createdAnyLocationTimeEntries ||
-        v.createdAnyTravelTimeLogs;
+        v.createdAnyTravelTimeLogs ||
+        (tr.unsafeAutoMatchedTargetsCount ?? 0) > 0 ||
+        (tr.dateRelevantBookingsAsPrimaryCount ?? 0) > 0 ||
+        (tr.activeProjectsAsPrimaryCount ?? 0) > 0 ||
+        (tr.unassignedBookingsMatchedAsWorkCount ?? 0) > 0 ||
+        (tr.unassignedProjectsMatchedAsWorkCount ?? 0) > 0;
       day.status = failed ? 'FAIL' : 'PASS';
 
       perDay.push(day);

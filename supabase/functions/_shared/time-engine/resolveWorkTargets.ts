@@ -62,6 +62,43 @@ export type TargetValidity =
 
 export interface WorkTargetPolygonPoint { lat: number; lng: number }
 
+/**
+ * matchRole / assignmentAnchor / canAutoMatchAsWork
+ * --------------------------------------------------
+ * Tidigare matchade buildGpsDayTimeline GPS-pings mot ALLA returnerade
+ * targets, vilket gjorde att samma adress kunde få fel bokningsnamn (en
+ * "datumrelevant" booking utan staff-assignment vann över rätt rad).
+ *
+ * Nu klassar resolveWorkTargets varje target som PRIMARY eller SECONDARY:
+ *
+ *   PRIMARY  (canAutoMatchAsWork=true)  — får auto-matchas som arbete:
+ *     - warehouse / organization_locations
+ *     - booking där personen är direkt assignad på datumet (BSA staff_id)
+ *     - booking där personens team äger calendar_event för datumet
+ *     - large_project där personens team är assignad på datumet
+ *     - project vars booking är PRIMARY enligt ovan
+ *
+ *   SECONDARY (canAutoMatchAsWork=false) — visas bara som review/evidence:
+ *     - bokningar på samma datum utan staff-assignment
+ *     - aktiva projekt utan staff-assignment
+ *     - project-linked bookings utan staff-assignment
+ *     - bokningar på samma adress utan staff-assignment
+ *
+ * `addressAnchorKey` används för att gruppera secondary kandidater på
+ * samma adress som ett primary target (review-vyn kan då säga
+ * "samma adress, men ingen assignment").
+ */
+export type WorkTargetMatchRole = 'primary' | 'secondary';
+
+export type WorkTargetAssignmentAnchor =
+  | 'warehouse'
+  | 'direct_staff_assignment'
+  | 'team_calendar_event'
+  | 'large_project_staff_assignment'
+  | 'date_address_candidate'
+  | 'project_linked_unassigned'
+  | 'active_project_unassigned';
+
 export interface ResolvedWorkTarget {
   id: UUID;
   type: WorkTargetType;
@@ -75,9 +112,25 @@ export interface ResolvedWorkTarget {
   timeTrackingAllowed: boolean;
   dateRelevance: 'today' | 'recent' | 'permanent' | 'unknown';
   status: string | null;
+  matchRole?: WorkTargetMatchRole;
+  assignmentAnchor?: WorkTargetAssignmentAnchor;
+  canAutoMatchAsWork?: boolean;
+  addressAnchorKey?: string | null;
   diagnostics: {
     notes: string[];
   };
+}
+
+export interface TargetResolutionDiagnostics {
+  primaryTargetsCount: number;
+  secondaryTargetsCount: number;
+  unsafeAutoMatchedTargetsCount: number;
+  dateRelevantBookingsAsPrimaryCount: number;
+  activeProjectsAsPrimaryCount: number;
+  unassignedBookingsMatchedAsWorkCount: number;
+  unassignedProjectsMatchedAsWorkCount: number;
+  secondaryCandidatesNearGps: number;
+  warnings: string[];
 }
 
 export interface TargetDiagnostics {
@@ -99,6 +152,8 @@ export interface ResolveWorkTargetsInput {
 export interface ResolveWorkTargetsResult {
   targets: ResolvedWorkTarget[];
   targetDiagnostics: TargetDiagnostics;
+  /** Anchor-aware diagnostics. Health check failer på flera av dessa. */
+  targetResolution: TargetResolutionDiagnostics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,11 +230,45 @@ export async function resolveWorkTargets(
   const targets: ResolvedWorkTarget[] = [];
   const seenKey = new Set<string>(); // dedupe by `${type}:${id}`
 
-  // Compute "planned today" hints up-front (used to bump source for projects/bookings).
-  const todayProjectIds = new Set<UUID>();
-  const todayBookingIds = new Set<UUID>();
+  // ── Anchor sets — driver matchRole/canAutoMatchAsWork senare i funktionen ──
+  // direct_staff_assignment: bokningar där personen står direkt på BSA-raden
+  // team_calendar_event:      bokningar via personens team + calendar_event
+  // large_project_staff_assignment: stora projekt där personens team är assignat
+  const directlyAssignedBookingIds = new Set<UUID>();
+  const teamCalendarBookingIds = new Set<UUID>();
+  const todayProjectIds = new Set<UUID>(); // (kvar för planned_today-hint)
+  const todayBookingIds = new Set<UUID>(); // primary booking-set (union)
+  const assignedLargeProjectIds = new Set<UUID>();
 
-  // ── Hint A: BSA — staff_assignments + calendar_events for `date` ─────────
+  // Personens team_ids för datumet — används för att korrekt filtrera
+  // large_project_team_assignments per staff (tabellen saknar staff_id).
+  const myTeamIdsToday = new Set<string>();
+
+  // ── A1. Direkt staff↔booking via booking_staff_assignments ────────────────
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('booking_staff_assignments')
+      .select('booking_id, team_id, staff_id, assignment_date')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .eq('assignment_date', date);
+    if (error) {
+      diag.warnings.push(`booking_staff_assignments: ${error.message}`);
+    } else {
+      for (const r of data ?? []) {
+        if (r.team_id && r.team_id !== 'project') myTeamIdsToday.add(String(r.team_id));
+        if (r.booking_id && r.team_id && r.team_id !== 'project') {
+          // team_id='project' = projektmedlemskap, INTE dagsplanering. Får
+          // aldrig räknas som direct_staff_assignment.
+          directlyAssignedBookingIds.add(r.booking_id);
+        }
+      }
+    }
+  } catch (e) {
+    diag.warnings.push(`booking_staff_assignments failed: ${(e as Error).message}`);
+  }
+
+  // ── A2. Team-resurs via staff_assignments + calendar_events för datumet ──
   try {
     const { data: bsa, error } = await supabaseAdmin
       .from('staff_assignments')
@@ -190,6 +279,7 @@ export async function resolveWorkTargets(
     if (error) {
       diag.warnings.push(`staff_assignments: ${error.message}`);
     } else if (bsa && bsa.length > 0) {
+      for (const r of bsa) if (r.team_id) myTeamIdsToday.add(String(r.team_id));
       const teamIds = bsa.map((r) => r.team_id).filter(Boolean);
       if (teamIds.length > 0) {
         const { data: ce, error: ceErr } = await supabaseAdmin
@@ -199,23 +289,39 @@ export async function resolveWorkTargets(
           .eq('source_date', date)
           .in('resource_id', teamIds);
         if (ceErr) diag.warnings.push(`calendar_events: ${ceErr.message}`);
-        else (ce ?? []).forEach((r) => r.booking_id && todayBookingIds.add(r.booking_id));
+        else (ce ?? []).forEach((r) => r.booking_id && teamCalendarBookingIds.add(r.booking_id));
       }
     }
   } catch (e) {
     diag.warnings.push(`bsa hint failed: ${(e as Error).message}`);
   }
 
-  // ── Hint B: large_project_team_assignments for `date` ────────────────────
-  const todayLargeProjectIds = new Set<UUID>();
+  // Union → primary booking-set (för senare PRIMARY-klassning).
+  for (const id of directlyAssignedBookingIds) todayBookingIds.add(id);
+  for (const id of teamCalendarBookingIds) todayBookingIds.add(id);
+
+  // ── B. large_project_team_assignments för datumet — FILTRERA PÅ PERSONENS TEAM ─
+  // Tabellen saknar staff_id; staff↔team-relationen kommer från staff_assignments.
+  // Att hämta alla LP-team-rader för datumet (gamla beteendet) gjorde att stora
+  // projekt utan personens team flaggades som planned_today.
+  const todayLargeProjectIds = new Set<UUID>(); // alla LP-team-rader datumet (för secondary)
   try {
     const { data, error } = await supabaseAdmin
       .from('large_project_team_assignments')
-      .select('large_project_id')
+      .select('large_project_id, team_id')
       .eq('organization_id', organizationId)
       .eq('assignment_date', date);
-    if (error) diag.warnings.push(`large_project_team_assignments: ${error.message}`);
-    else (data ?? []).forEach((r) => r.large_project_id && todayLargeProjectIds.add(r.large_project_id));
+    if (error) {
+      diag.warnings.push(`large_project_team_assignments: ${error.message}`);
+    } else {
+      for (const r of (data ?? [])) {
+        if (!r.large_project_id) continue;
+        todayLargeProjectIds.add(r.large_project_id);
+        if (r.team_id && myTeamIdsToday.has(String(r.team_id))) {
+          assignedLargeProjectIds.add(r.large_project_id);
+        }
+      }
+    }
   } catch (e) {
     diag.warnings.push(`large bsa hint failed: ${(e as Error).message}`);
   }
@@ -223,6 +329,9 @@ export async function resolveWorkTargets(
   // Track booking_ids referenced by local projects → resolved as bookings later
   // even if they are not "planned today" via BSA.
   const projectLinkedBookingIds = new Set<UUID>();
+  // Map projectId → booking_id (för anchor-klassning av projekt: projekt blir
+  // PRIMARY endast om dess underliggande booking är PRIMARY).
+  const projectIdToBookingId = new Map<UUID, UUID>();
 
   // ─────────────────────────── Projects ────────────────────────────────────
   try {
@@ -238,7 +347,10 @@ export async function resolveWorkTargets(
       diag.warnings.push(`projects: ${error.message}`);
     } else {
       for (const r of data ?? []) {
-        if (r.booking_id) projectLinkedBookingIds.add(r.booking_id);
+        if (r.booking_id) {
+          projectLinkedBookingIds.add(r.booking_id);
+          projectIdToBookingId.set(r.id, r.booking_id);
+        }
       }
       // Fallback: för projekt utan coords men med booking_id, hämta booking-coords.
       // Triggern (inherit_booking_coords_to_project) sköter normalfallet, men för
@@ -568,7 +680,102 @@ export async function resolveWorkTargets(
     diag.warnings.push(`organization_locations fetch failed: ${(e as Error).message}`);
   }
 
-  return { targets, targetDiagnostics: diag };
+  // ─────────── Post-process: matchRole / assignmentAnchor / canAutoMatchAsWork ─
+  // resolveWorkTargets är medvetet generös i datalagret (för att kunna visa
+  // secondary-kandidater i review/evidence). Här klassar vi varje target som
+  // PRIMARY (auto-matchbar arbete) eller SECONDARY (review only).
+  const resolution: TargetResolutionDiagnostics = {
+    primaryTargetsCount: 0,
+    secondaryTargetsCount: 0,
+    unsafeAutoMatchedTargetsCount: 0,
+    dateRelevantBookingsAsPrimaryCount: 0,
+    activeProjectsAsPrimaryCount: 0,
+    unassignedBookingsMatchedAsWorkCount: 0,
+    unassignedProjectsMatchedAsWorkCount: 0,
+    secondaryCandidatesNearGps: 0, // populeras inte här (kräver pings)
+    warnings: [],
+  };
+
+  for (const t of targets) {
+    // Address anchor: ~5 decimaler ≈ 1.1 m, räcker för att gruppera på adress.
+    const addressAnchorKey = (t.latitude != null && t.longitude != null)
+      ? `${t.latitude.toFixed(5)},${t.longitude.toFixed(5)}`
+      : null;
+    t.addressAnchorKey = addressAnchorKey;
+
+    let role: WorkTargetMatchRole = 'secondary';
+    let anchor: WorkTargetAssignmentAnchor;
+
+    if (t.type === 'warehouse' || t.type === 'location') {
+      role = 'primary';
+      anchor = 'warehouse';
+    } else if (t.type === 'booking') {
+      if (directlyAssignedBookingIds.has(t.id)) {
+        role = 'primary';
+        anchor = 'direct_staff_assignment';
+      } else if (teamCalendarBookingIds.has(t.id)) {
+        role = 'primary';
+        anchor = 'team_calendar_event';
+      } else if (t.targetSource === 'date_relevant_booking') {
+        anchor = 'date_address_candidate';
+      } else if (t.targetSource === 'project_linked_booking') {
+        anchor = 'project_linked_unassigned';
+      } else if (t.targetSource === 'large_project_linked_booking') {
+        anchor = 'project_linked_unassigned';
+      } else {
+        anchor = 'date_address_candidate';
+      }
+    } else {
+      // type === 'project' — täcker både vanliga projekt och large_projects
+      // (de pushas båda som type='project' i datalagret ovan).
+      const linkedBookingId = projectIdToBookingId.get(t.id);
+      if (assignedLargeProjectIds.has(t.id)) {
+        role = 'primary';
+        anchor = 'large_project_staff_assignment';
+      } else if (linkedBookingId && directlyAssignedBookingIds.has(linkedBookingId)) {
+        role = 'primary';
+        anchor = 'direct_staff_assignment';
+      } else if (linkedBookingId && teamCalendarBookingIds.has(linkedBookingId)) {
+        role = 'primary';
+        anchor = 'team_calendar_event';
+      } else if (linkedBookingId) {
+        anchor = 'project_linked_unassigned';
+      } else {
+        anchor = 'active_project_unassigned';
+      }
+    }
+
+    t.matchRole = role;
+    t.assignmentAnchor = anchor;
+    t.canAutoMatchAsWork = role === 'primary';
+
+    if (role === 'primary') resolution.primaryTargetsCount += 1;
+    else resolution.secondaryTargetsCount += 1;
+
+    // Hard-fail-detektorer för health check ───────────────────────────────
+    if (role === 'primary' && t.targetSource === 'date_relevant_booking') {
+      resolution.dateRelevantBookingsAsPrimaryCount += 1;
+      resolution.unsafeAutoMatchedTargetsCount += 1;
+    }
+    if (role === 'primary' && t.targetSource === 'active_project') {
+      resolution.activeProjectsAsPrimaryCount += 1;
+      resolution.unsafeAutoMatchedTargetsCount += 1;
+    }
+    if (role === 'primary' && t.type === 'booking' && anchor === 'date_address_candidate') {
+      resolution.unassignedBookingsMatchedAsWorkCount += 1;
+      resolution.unsafeAutoMatchedTargetsCount += 1;
+    }
+    if (
+      role === 'primary' &&
+      t.type === 'project' &&
+      (anchor === 'active_project_unassigned' || anchor === 'project_linked_unassigned')
+    ) {
+      resolution.unassignedProjectsMatchedAsWorkCount += 1;
+      resolution.unsafeAutoMatchedTargetsCount += 1;
+    }
+  }
+
+  return { targets, targetDiagnostics: diag, targetResolution: resolution };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -580,6 +787,10 @@ import type { WorkTarget, WorkTargetKind } from './contracts.ts';
 export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
   if (rt.targetValidity !== 'valid') return null;
   if (rt.latitude == null || rt.longitude == null) return null;
+  // SECONDARY targets får inte auto-matchas som arbete — de exponeras bara via
+  // diagnostics/reviewSuggestions. buildGpsDayTimeline tar emot resultatet
+  // från `targets.map(toWorkTarget).filter(Boolean)`, så vi blockar här.
+  if (rt.canAutoMatchAsWork === false) return null;
   const kind: WorkTargetKind =
     rt.type === 'project' ? 'project'
     : rt.type === 'booking' ? 'booking'
