@@ -5,13 +5,22 @@ import { useNavigate } from 'react-router-dom';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import { deleteCalendarEvent } from '@/services/eventService';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Combine } from 'lucide-react';
 import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
 import EventActionPopover from './EventActionPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { DeleteDayButton } from './DeleteDayButton';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import ConsolidateProjectsDialog from '@/components/project/ConsolidateProjectsDialog';
+import { resolveEventConsolidationSource } from '@/services/eventConsolidationResolver';
+import type { ConsolidationSource } from '@/services/projectConsolidationService';
 import './CustomEvent.css';
 
 interface CustomEventProps {
