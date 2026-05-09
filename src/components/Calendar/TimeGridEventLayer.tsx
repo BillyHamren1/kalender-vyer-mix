@@ -47,12 +47,13 @@ export const EventWrapper: React.FC<{
     : 0;
   const horizontalInset = 4;
   const baseZ = hasOverlap ? 25 + overlapColumn : 25;
+  const isLocked = event.extendedProps?.timeLocked === true;
 
   return (
     <div
       draggable={!readOnly}
       onDragStart={handleDragStart}
-      className={hasOverlap ? 'cascaded-event' : undefined}
+      className={`${hasOverlap ? 'cascaded-event ' : ''}${isLocked ? 'locked-event-wrapper' : ''}`.trim() || undefined}
       style={{
         position: 'absolute',
         top: `${position.top}px`,
@@ -62,6 +63,8 @@ export const EventWrapper: React.FC<{
         zIndex: baseZ,
         pointerEvents: 'auto',
         cursor: readOnly ? 'default' : 'grab',
+        borderRadius: isLocked ? '6px' : undefined,
+        boxShadow: isLocked ? '0 0 0 3px hsl(var(--destructive))' : undefined,
       }}
     >
       <CustomEvent
