@@ -263,7 +263,8 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
                 key={item.key}
                 onClick={handleClick}
                 className={cn(
-                  'absolute rounded-lg border px-2.5 py-1.5 text-left shadow-sm active:scale-[0.98] transition-all overflow-hidden',
+                  'absolute rounded-md border text-left shadow-sm active:scale-[0.98] transition-all overflow-hidden',
+                  isCompact ? 'px-1.5 py-0.5' : 'px-2.5 py-1.5',
                   eventTypeStyles[eventType],
                   isActive && 'ring-2 ring-primary'
                 )}
