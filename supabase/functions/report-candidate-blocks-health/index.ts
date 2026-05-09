@@ -722,6 +722,7 @@ Deno.serve(async (req) => {
       const v = day.validation;
       const failed =
         v.hasZeroMinuteMainRows ||
+        v.hasSignalGapAsNormalReportRow ||
         v.hasLegacyInputUsed ||
         v.hasLongDistanceSameTargetAbsorbed ||
         v.hasUnstableBlockIds ||
