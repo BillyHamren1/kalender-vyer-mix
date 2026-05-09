@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Combine, Search, ArrowUpDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import {
   consolidateProjects,
@@ -31,6 +32,8 @@ interface Props {
   initialSelection?: ConsolidationSource | null;
   /** Suggested project name (defaults to initial selection's name). */
   initialName?: string;
+  /** Force initial mode (overrides inferred mode). */
+  initialMode?: 'create' | 'add';
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -46,6 +49,7 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
   onOpenChange,
   initialSelection,
   initialName,
+  initialMode,
 }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -79,14 +83,17 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
       next.set(`${initialSelection.type}:${initialSelection.id}`, initialSelection);
     }
     setSelected(next);
-    if (initialSelection?.type === 'large') {
+    if (initialMode) {
+      setMode(initialMode);
+      setTargetLargeId(initialSelection?.type === 'large' ? initialSelection.id : '');
+    } else if (initialSelection?.type === 'large') {
       setMode('add');
       setTargetLargeId(initialSelection.id);
     } else {
       setMode('create');
       setTargetLargeId('');
     }
-  }, [open, initialSelection, initialName]);
+  }, [open, initialSelection, initialName, initialMode]);
 
   // Pre-fill name from initial selection's candidate name when known
   useEffect(() => {
@@ -202,29 +209,18 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Mode toggle */}
-        <div className="inline-flex rounded-lg border p-0.5 bg-muted/40 self-start">
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'create' ? 'default' : 'ghost'}
-            className="h-8"
-            onClick={() => setMode('create')}
-          >
-            <Combine className="h-4 w-4 mr-1.5" />
-            Konsolidera till nytt stort projekt
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'add' ? 'default' : 'ghost'}
-            className="h-8"
-            onClick={() => setMode('add')}
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Lägg till i stort projekt
-          </Button>
-        </div>
+        <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)} className="w-full">
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="create" className="gap-1.5">
+              <Combine className="h-4 w-4" />
+              Skapa nytt stort projekt
+            </TabsTrigger>
+            <TabsTrigger value="add" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Lägg till i stort projekt
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         <div className="space-y-4">
           {mode === 'create' ? (

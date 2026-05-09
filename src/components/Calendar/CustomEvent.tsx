@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import { deleteCalendarEvent } from '@/services/eventService';
-import { Trash2, Combine } from 'lucide-react';
+import { Trash2, Combine, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
 import EventActionPopover from './EventActionPopover';
@@ -46,8 +46,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const [consolidateOpen, setConsolidateOpen] = useState(false);
   const [consolidateSource, setConsolidateSource] = useState<ConsolidationSource | null>(null);
   const [consolidateName, setConsolidateName] = useState<string>('');
+  const [consolidateMode, setConsolidateMode] = useState<'create' | 'add'>('create');
 
-  const handleOpenConsolidate = useCallback(async () => {
+  const handleOpenConsolidate = useCallback(async (mode: 'create' | 'add') => {
     try {
       const src = await resolveEventConsolidationSource(event);
       if (!src) {
@@ -56,6 +57,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       }
       setConsolidateSource(src);
       setConsolidateName(event.title || '');
+      setConsolidateMode(mode);
       setConsolidateOpen(true);
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte öppna konsolidering');
@@ -413,9 +415,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onSelect={handleOpenConsolidate}>
+          <ContextMenuItem onSelect={() => handleOpenConsolidate('create')}>
             <Combine className="h-4 w-4 mr-2" />
-            Konsolidera till stort projekt...
+            Konsolidera till nytt stort projekt...
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => handleOpenConsolidate('add')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Lägg till i stort projekt...
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -425,6 +431,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         onOpenChange={setConsolidateOpen}
         initialSelection={consolidateSource}
         initialName={consolidateName}
+        initialMode={consolidateMode}
       />
 
       {/* Date Move Dialog — LEGACY local state, gated by editController */}
