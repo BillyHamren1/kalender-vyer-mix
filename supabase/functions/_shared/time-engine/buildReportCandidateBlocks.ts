@@ -969,6 +969,14 @@ export function buildReportCandidateBlocks(
     suppressedMicroTransportMinutes,
     suppressedTinyWorkBlocksCount,
     suppressedTinyWorkMinutes,
+    transportRowsBeforeSameTargetAbsorption,
+    transportRowsAfterSameTargetAbsorption,
+    sameTargetTransportAbsorbedCount,
+    sameTargetTransportAbsorbedMinutes,
+    crossTargetTransportKeptCount,
+    shortCrossTargetTransportReviewCount,
+    shortUnknownTransportReviewCount,
+    shortUnknownTransportHiddenCount,
   };
   for (const r of out) {
     if (r.kind === 'work') {
