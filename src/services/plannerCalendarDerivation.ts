@@ -14,6 +14,7 @@ interface RealCalendarEventRow {
   delivery_address: string | null;
   booking_number: string | null;
   source_date: string | null;
+  times_locked?: boolean | null;
 }
 
 interface BookingRow {
