@@ -293,6 +293,22 @@ Deno.serve(async (req) => {
           (report.summary as any).suppressedTinyWorkBlocksCount ?? 0;
         day.suppressedTinyWorkMinutes +=
           (report.summary as any).suppressedTinyWorkMinutes ?? 0;
+        day.transportRowsBeforeSameTargetAbsorption +=
+          (report.summary as any).transportRowsBeforeSameTargetAbsorption ?? 0;
+        day.transportRowsAfterSameTargetAbsorption +=
+          (report.summary as any).transportRowsAfterSameTargetAbsorption ?? 0;
+        day.sameTargetTransportAbsorbedCount +=
+          (report.summary as any).sameTargetTransportAbsorbedCount ?? 0;
+        day.sameTargetTransportAbsorbedMinutes +=
+          (report.summary as any).sameTargetTransportAbsorbedMinutes ?? 0;
+        day.crossTargetTransportKeptCount +=
+          (report.summary as any).crossTargetTransportKeptCount ?? 0;
+        day.shortCrossTargetTransportReviewCount +=
+          (report.summary as any).shortCrossTargetTransportReviewCount ?? 0;
+        day.shortUnknownTransportReviewCount +=
+          (report.summary as any).shortUnknownTransportReviewCount ?? 0;
+        day.shortUnknownTransportHiddenCount +=
+          (report.summary as any).shortUnknownTransportHiddenCount ?? 0;
 
         for (const b of report.blocks) {
           day.reportBlocksByKind[b.kind] = (day.reportBlocksByKind[b.kind] ?? 0) + 1;
