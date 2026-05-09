@@ -1,5 +1,5 @@
 import React from 'react';
-import { MoreHorizontal, ArrowRightLeft, Trash2 } from 'lucide-react';
+import { MoreHorizontal, ArrowRightLeft, Trash2, Combine } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,7 @@ interface ProjectActionMenuProps {
   currentType: ProjectType;
   onConvert: (targetType: ProjectType) => void;
   onDelete: () => void;
+  onConsolidate?: () => void;
   triggerClassName?: string;
   disabled?: boolean;
 }
@@ -24,7 +25,7 @@ const TYPE_LABELS: Record<ProjectType, string> = {
   large: 'Stort projekt',
 };
 
-const ProjectActionMenu = ({ currentType, onConvert, onDelete, triggerClassName, disabled }: ProjectActionMenuProps) => {
+const ProjectActionMenu = ({ currentType, onConvert, onDelete, onConsolidate, triggerClassName, disabled }: ProjectActionMenuProps) => {
   const otherTypes = (['medium', 'large'] as ProjectType[]).filter(t => t !== currentType);
 
   return (
@@ -41,6 +42,12 @@ const ProjectActionMenu = ({ currentType, onConvert, onDelete, triggerClassName,
             Ändra till {TYPE_LABELS[type]}
           </DropdownMenuItem>
         ))}
+        {onConsolidate && (
+          <DropdownMenuItem onSelect={onConsolidate}>
+            <Combine className="h-4 w-4 mr-2" />
+            Konsolidera med andra projekt...
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
