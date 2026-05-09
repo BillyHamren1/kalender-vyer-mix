@@ -273,10 +273,10 @@ const MobileWeekGrid = ({
                         width: `calc(${widthPct}% - 2px)`,
                       }}
                     >
-                      <div className="text-[8px] font-mono opacity-75 leading-none">
+                      <div className="text-[9px] font-mono opacity-75 leading-none">
                         {extractUTCTime(startStr)}
                       </div>
-                      <div className="text-[9px] font-bold leading-tight truncate mt-0.5">
+                      <div className="text-[10px] font-semibold leading-tight truncate mt-0.5">
                         {title}
                       </div>
                     </button>
