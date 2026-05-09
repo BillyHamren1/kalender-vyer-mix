@@ -97,6 +97,13 @@ export interface ReportCandidateSummary {
   breakMinutes: number;
   signalGapMinutesHiddenInsideWorkBlocks: number;
   reportRowsWithSignalWarnings: number;
+  // Micro-suppression metrics (rule 1, 4, 5)
+  reportBlocksBeforeMicroSuppression: number;
+  reportBlocksAfterMicroSuppression: number;
+  suppressedMicroTransportCount: number;
+  suppressedMicroTransportMinutes: number;
+  suppressedTinyWorkBlocksCount: number;
+  suppressedTinyWorkMinutes: number;
 }
 
 export interface ActiveTimeRegistrationInput {
