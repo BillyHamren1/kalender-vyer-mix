@@ -345,24 +345,8 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
         );
       })()}
 
-      {/* Rådata / bevisning — öppnas i en sidopanel (drawer).
-          OBS: reportSlot (rad-tabellen) renderas EJ i huvudvyn längre.
-          time_reports är segment-/fördelningsdata och visas i drawern. */}
-      <div className="border-t pt-2">
-        <button
-          type="button"
-          onClick={() => setShowRaw(true)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronRight className="h-3.5 w-3.5" />
-          <span>Visa rådata / bevisning{props.reportSlot ? ' · rapportrader' : ''}</span>
-        </button>
-      </div>
-
-      {/* Action-rad utanför rådata om props.extraActions skickats */}
-      {props.extraActions && (
-        <div className="flex items-center pt-1">{props.extraActions}</div>
-      )}
+      {/* Rådata-expander och full detaljvy-länken är borttagna 2026-05-10.
+          Ersatta av per-block "Bevisning" inne i ReportCandidateTimeline. */}
 
       <RawEvidenceDrawer
         open={showRaw}
