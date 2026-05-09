@@ -76,13 +76,42 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.subtitle || '').toLowerCase().includes(q),
+    const base = !q
+      ? candidates
+      : candidates.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.subtitle || '').toLowerCase().includes(q),
+        );
+    const dirMul = sortDir === 'asc' ? 1 : -1;
+    const sorted = [...base].sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name, 'sv') * dirMul;
+      }
+      const ad = a.sortDate ? new Date(a.sortDate).getTime() : 0;
+      const bd = b.sortDate ? new Date(b.sortDate).getTime() : 0;
+      return (ad - bd) * dirMul;
+    });
+    return sorted;
+  }, [candidates, search, sortBy, sortDir]);
+
+  const toggleSort = (col: 'date' | 'name') => {
+    if (sortBy === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(col);
+      setSortDir(col === 'date' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortIcon = (col: 'date' | 'name') => {
+    if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortDir === 'asc' ? (
+      <ArrowUp className="h-3 w-3 ml-1" />
+    ) : (
+      <ArrowDown className="h-3 w-3 ml-1" />
     );
-  }, [candidates, search]);
+  };
 
   const toggle = (c: ConsolidationCandidate) => {
     const key = `${c.type}:${c.id}`;
