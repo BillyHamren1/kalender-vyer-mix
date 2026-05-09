@@ -887,11 +887,14 @@ export function buildReportCandidateBlocks(
   const transportRowsBeforeSameTargetAbsorption = out.filter((r) => r.kind === 'transport').length;
   let sameTargetTransportAbsorbedCount = 0;
   let sameTargetTransportAbsorbedMinutes = 0;
+  let sameTargetTransportRejectedByDistanceCount = 0;
+  let sameTargetTransportRejectedByDistanceMinutes = 0;
   let crossTargetTransportKeptCount = 0;
   let shortCrossTargetTransportReviewCount = 0;
   let shortUnknownTransportReviewCount = 0;
   let shortUnknownTransportHiddenCount = 0;
   const absorbedSameTargetTransportExamples: ReportCandidateSummary['absorbedSameTargetTransportExamples'] = [];
+  const sameTargetTransportRejectedExamples: ReportCandidateSummary['sameTargetTransportRejectedExamples'] = [];
 
   const flipToNeedsReview = (r: ReportCandidateBlock, reason: string) => {
     r.kind = 'needs_review';
