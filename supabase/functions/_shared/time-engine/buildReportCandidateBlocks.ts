@@ -913,7 +913,9 @@ export function buildReportCandidateBlocks(
     for (let k = 0; k < out.length; k++) {
       const cur = out[k];
       if (cur.kind !== 'transport') continue;
-      const dist = cur.evidenceSummary.distanceMeters ?? 0;
+      const distRaw = cur.evidenceSummary.distanceMeters;
+      const distMissing = distRaw === undefined || distRaw === null;
+      const dist = distRaw ?? 0;
 
       const prev = out[k - 1];
       const next = out[k + 1];
@@ -922,13 +924,56 @@ export function buildReportCandidateBlocks(
       const prevWork = prev?.kind === 'work';
       const nextWork = next?.kind === 'work';
 
-      // Rule 1 refinement: same-target absorption (any duration up to cap).
-      // This runs BEFORE the realTripMinDistanceMeters early-return so a long
-      // GPS loop that returns to the same warehouse is still folded in.
-      if (
+      // Rule 1 refinement: same-target absorption (any duration up to cap)
+      // GATED by distance — only fold true jitter (≤ sameTargetTransportAbsorbMaxDistanceMeters).
+      // Real round-trips (e.g. drive away from warehouse and back) stay as transport.
+      const sameTargetCandidate =
         prevWork && nextWork && prevKey && nextKey && prevKey === nextKey &&
-        cur.durationMinutes <= policy.sameTargetTransportAbsorbMaxMinutes
-      ) {
+        cur.durationMinutes <= policy.sameTargetTransportAbsorbMaxMinutes;
+
+      if (sameTargetCandidate) {
+        if (distMissing) {
+          // No distance → cannot prove jitter. Keep as transport, mark for review.
+          if (!cur.reviewReasons.includes('same_target_transport_missing_distance')) {
+            cur.reviewReasons.push('same_target_transport_missing_distance');
+          }
+          if (sameTargetTransportRejectedExamples.length < 20) {
+            sameTargetTransportRejectedExamples.push({
+              targetLabel: prev.targetLabel ?? null,
+              startAt: cur.startAt,
+              endAt: cur.endAt,
+              durationMinutes: Math.round(cur.durationMinutes * 100) / 100,
+              distanceMeters: null,
+              decision: 'kept_as_transport',
+              reviewReasons: [...cur.reviewReasons],
+            });
+          }
+          crossTargetTransportKeptCount += 1;
+          continue;
+        }
+
+        if (dist > policy.sameTargetTransportAbsorbMaxDistanceMeters) {
+          // Real round-trip — too far to be jitter. Flip to needs_review so an
+          // operator can decide whether it was a real errand.
+          flipToNeedsReview(cur, 'same_target_roundtrip_distance_too_large');
+          sameTargetTransportRejectedByDistanceCount += 1;
+          sameTargetTransportRejectedByDistanceMinutes += cur.durationMinutes;
+          if (sameTargetTransportRejectedExamples.length < 20) {
+            sameTargetTransportRejectedExamples.push({
+              targetLabel: prev.targetLabel ?? null,
+              startAt: cur.startAt,
+              endAt: cur.endAt,
+              durationMinutes: Math.round(cur.durationMinutes * 100) / 100,
+              distanceMeters: Math.round(dist),
+              decision: 'needs_review',
+              reviewReasons: [...cur.reviewReasons],
+            });
+          }
+          changed2 = true;
+          break;
+        }
+
+        // Pure jitter — absorb.
         const transportMin = cur.durationMinutes;
         const exampleSnapshot = {
           targetLabel: prev.targetLabel ?? null,
