@@ -842,6 +842,17 @@ export async function resolveWorkTargets(
   }
 
   // Steg 3: sätt addressAnchorKey (med datum + tier) och bumpa diagnostics.
+  // Unsafe-räknarna baseras på assignmentAnchor — INTE targetSource ensam.
+  // Säkra anchors: warehouse, direct_staff_assignment, team_calendar_event,
+  // large_project_staff_assignment.
+  // Osäkra anchors: date_address_candidate, project_linked_unassigned,
+  // active_project_unassigned.
+  const UNSAFE_ANCHORS = new Set<WorkTargetAssignmentAnchor>([
+    'date_address_candidate',
+    'project_linked_unassigned',
+    'active_project_unassigned',
+  ]);
+
   for (const t of targets) {
     const lk = locationKey(t);
     const tier = t.matchRole === 'primary' ? 'assigned' : 'secondary';
@@ -851,30 +862,27 @@ export async function resolveWorkTargets(
     else resolution.secondaryTargetsCount += 1;
 
     // Hard-fail-detektorer för health check ───────────────────────────────
-    if (t.matchRole === 'primary' && t.targetSource === 'date_relevant_booking') {
-      resolution.dateRelevantBookingsAsPrimaryCount += 1;
+    // Endast primary targets med osäker anchor räknas — det innebär att en
+    // booking som råkar ha targetSource='date_relevant_booking' MEN är
+    // direct_staff_assignment / team_calendar_event INTE flaggas.
+    if (t.canAutoMatchAsWork === true && t.assignmentAnchor && UNSAFE_ANCHORS.has(t.assignmentAnchor)) {
       resolution.unsafeAutoMatchedTargetsCount += 1;
-    }
-    if (t.matchRole === 'primary' && t.targetSource === 'active_project') {
-      resolution.activeProjectsAsPrimaryCount += 1;
-      resolution.unsafeAutoMatchedTargetsCount += 1;
-    }
-    if (
-      t.matchRole === 'primary' &&
-      t.type === 'booking' &&
-      t.assignmentAnchor === 'date_address_candidate'
-    ) {
-      resolution.unassignedBookingsMatchedAsWorkCount += 1;
-      resolution.unsafeAutoMatchedTargetsCount += 1;
-    }
-    if (
-      t.matchRole === 'primary' &&
-      t.type === 'project' &&
-      (t.assignmentAnchor === 'active_project_unassigned' ||
-        t.assignmentAnchor === 'project_linked_unassigned')
-    ) {
-      resolution.unassignedProjectsMatchedAsWorkCount += 1;
-      resolution.unsafeAutoMatchedTargetsCount += 1;
+      if (t.type === 'booking' && t.assignmentAnchor === 'date_address_candidate') {
+        resolution.unassignedBookingsMatchedAsWorkCount += 1;
+        if (t.targetSource === 'date_relevant_booking') {
+          resolution.dateRelevantBookingsAsPrimaryCount += 1;
+        }
+      }
+      if (
+        t.type === 'project' &&
+        (t.assignmentAnchor === 'active_project_unassigned' ||
+          t.assignmentAnchor === 'project_linked_unassigned')
+      ) {
+        resolution.unassignedProjectsMatchedAsWorkCount += 1;
+        if (t.targetSource === 'active_project') {
+          resolution.activeProjectsAsPrimaryCount += 1;
+        }
+      }
     }
   }
 

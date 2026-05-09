@@ -10,6 +10,7 @@ import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail'
 
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { format } from 'date-fns';
+import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import {
   buildStaffDayJournal,
   type RawTimeReport,
@@ -1000,10 +1001,10 @@ const StaffTimeReports: React.FC = () => {
           a.reports_count += 1;
           if (isOpen) a.has_open_report = true;
         }
-        const startHHMM = format(new Date(e.entered_at), 'HH:mm:ss');
+        const startHHMM = formatStockholmHms(e.entered_at);
         if (!a.earliest_start || startHHMM < a.earliest_start) a.earliest_start = startHHMM;
         if (!isOpen && e.exited_at) {
-          const endHHMM = format(new Date(e.exited_at), 'HH:mm:ss');
+          const endHHMM = formatStockholmHms(e.exited_at);
           if (!a.latest_end || endHHMM > a.latest_end) a.latest_end = endHHMM;
         }
 
@@ -1073,7 +1074,7 @@ const StaffTimeReports: React.FC = () => {
           (Date.now() - new Date(wd.started_at).getTime()) / (1000 * 60 * 60);
         const isStaleOpen = !wd.ended_at && ageHours > 18;
         const isOpen = !wd.ended_at && !isStaleOpen;
-        const startHHMM = format(new Date(wd.started_at), 'HH:mm:ss');
+        const startHHMM = formatStockholmHms(wd.started_at);
 
         if (!a.earliest_start || startHHMM < a.earliest_start) {
           a.earliest_start = startHHMM;
@@ -1082,7 +1083,7 @@ const StaffTimeReports: React.FC = () => {
         if (isOpen) {
           a.has_open_report = true;
         } else if (wd.ended_at) {
-          const endHHMM = format(new Date(wd.ended_at), 'HH:mm:ss');
+          const endHHMM = formatStockholmHms(wd.ended_at);
           if (!a.latest_end || endHHMM > a.latest_end) {
             a.latest_end = endHHMM;
           }
@@ -1672,45 +1673,32 @@ const StaffTimeReports: React.FC = () => {
   const missingStaffCount = staffList.filter((s) => reportCandidateByStaff[s.id]?.missing).length;
 
   // ── TILLFÄLLIG GUARD: pausa ny motor om underlaget innehåller osäkra targets. ──
-  // resolveWorkTargets är fortfarande för bred: den matchar bokningar via
-  // date_relevant_booking, active_project, project_linked_booking och
-  // large_project_linked_booking utan staff-assignment. Det leder till FEL
-  // bokningsnamn i huvudtimeline. Vi vägrar visa ny motor som "säker huvudvy"
-  // tills resolveWorkTargets är fixad.
-  const UNSAFE_TARGET_SOURCES = new Set<string>([
-    'date_relevant_booking',
-    'active_project',
-    'project_linked_booking',
-    // large_project_linked_booking utan staff-assignment är osäker; backend
-    // exponerar inte assignment-flagga per target ännu, så vi behandlar hela
-    // källan som osäker tillsvidare.
-    'large_project_linked_booking',
-  ]);
+  // Vi gissar inte själva från data.targets — vi läser den auktoritativa
+  // targetResolution-räknaren som resolveWorkTargets returnerar. Räknaren är
+  // redan baserad på assignmentAnchor (inte targetSource ensam).
   let unsafeStaffCount = 0;
   let unsafeExampleSources: string[] = [];
   for (const s of staffList) {
     const q = reportCandidateQueries[staffList.indexOf(s)];
     const data = q?.data as any | undefined;
     if (!data) continue;
-    const targets: any[] = Array.isArray(data.targets) ? data.targets : [];
-    if (targets.length === 0) continue;
-    const sourceById = new Map<string, string>();
-    for (const t of targets) {
-      const key = `${t.type ?? ''}::${t.id ?? ''}`;
-      sourceById.set(key, String(t.targetSource ?? ''));
-    }
-    const blocks: any[] = Array.isArray(data.reportCandidateBlocks) ? data.reportCandidateBlocks : [];
-    const hasUnsafe = blocks.some((b) => {
-      if (!b?.targetId && !b?.targetType) return false;
-      const key = `${b.targetType ?? ''}::${b.targetId ?? ''}`;
-      const src = sourceById.get(key);
-      if (src && UNSAFE_TARGET_SOURCES.has(src)) {
-        if (unsafeExampleSources.length < 3) unsafeExampleSources.push(src);
-        return true;
+    const resolution =
+      data.reportCandidateDiagnostics?.targetResolution ?? data.targetResolution ?? null;
+    if (!resolution) continue;
+    const unsafeCount = Number(resolution.unsafeAutoMatchedTargetsCount ?? 0);
+    if (unsafeCount > 0) {
+      unsafeStaffCount += 1;
+      if (unsafeExampleSources.length < 3) {
+        if (Number(resolution.dateRelevantBookingsAsPrimaryCount ?? 0) > 0)
+          unsafeExampleSources.push('date_relevant_booking');
+        if (Number(resolution.activeProjectsAsPrimaryCount ?? 0) > 0)
+          unsafeExampleSources.push('active_project');
+        if (Number(resolution.unassignedBookingsMatchedAsWorkCount ?? 0) > 0)
+          unsafeExampleSources.push('unassigned_booking');
+        if (Number(resolution.unassignedProjectsMatchedAsWorkCount ?? 0) > 0)
+          unsafeExampleSources.push('unassigned_project');
       }
-      return false;
-    });
-    if (hasUnsafe) unsafeStaffCount += 1;
+    }
   }
   const hasUnsafeTargets = unsafeStaffCount > 0;
 

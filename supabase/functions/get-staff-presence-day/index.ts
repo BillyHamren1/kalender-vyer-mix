@@ -213,12 +213,16 @@ Deno.serve(async (req) => {
   }
 
   // ── Active timers (started/stopped) ──
+  // Overlap-intervall: started_at <= dayEnd AND (stopped_at IS NULL OR stopped_at >= dayStart).
+  // Speglar exakt det fönster som health-checken använder, så att samma timers
+  // syns på båda ställena.
   const { data: timers, error: timersErr } = await admin
     .from('active_time_registrations')
     .select('id, started_at, stopped_at, status, stop_source, metadata, start_target_type, start_target_id, start_target_label, current_label, current_target_type, current_target_id, start_source, auto_started')
     .eq('organization_id', orgId)
     .eq('staff_id', staffId)
-    .or(`started_at.gte.${dayStart},stopped_at.gte.${dayStart}`)
+    .lte('started_at', dayEnd)
+    .or(`stopped_at.is.null,stopped_at.gte.${dayStart}`)
     .order('started_at', { ascending: true });
   if (timersErr) console.error('[presence-day] timers err', timersErr);
 
@@ -329,13 +333,14 @@ Deno.serve(async (req) => {
 
   let resolvedTargetsAll: any[] = [];
   let targetDiagnostics: any = null;
+  let targetResolution: any = null;
   let targetMatchSummary: any = null;
   let gpsTimelineResult: any = null;
   let presenceDayBlocksResult: PresenceDayBlocksResult | null = null;
   const timerMarkers: TimerMarkerInput[] = [];
 
   try {
-    const { targets: resolved, targetDiagnostics: tdiag } = await resolveWorkTargets({
+    const { targets: resolved, targetDiagnostics: tdiag, targetResolution: tres } = await resolveWorkTargets({
       organizationId: orgId,
       staffId,
       date,
@@ -343,6 +348,7 @@ Deno.serve(async (req) => {
     });
     resolvedTargetsAll = resolved;
     targetDiagnostics = tdiag;
+    targetResolution = tres;
 
     const workTargets: WorkTarget[] = resolved
       .map(toWorkTarget)
@@ -717,9 +723,12 @@ Deno.serve(async (req) => {
           openActiveTimeRegistrationsCount: (timers ?? []).filter(
             (t: any) => !t.stopped_at && (t.status ?? '').toLowerCase() === 'active',
           ).length,
+          targetResolution,
+          legacyLocationTimeEntriesUsedAsInput: false,
           error: null,
         }
-      : { error: reportCandidateError, available: false },
+      : { error: reportCandidateError, available: false, targetResolution, legacyLocationTimeEntriesUsedAsInput: false },
+    targetResolution,
     presenceDayBlocksRawEvidence: presenceDayBlocksResult?.evidenceBlocks ?? [],
     presenceDaySummary: presenceDayBlocksResult?.summary ?? null,
     presenceDayAggregation: presenceDayBlocksResult?.aggregation ?? null,
