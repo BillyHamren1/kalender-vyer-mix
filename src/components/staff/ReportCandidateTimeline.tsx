@@ -239,6 +239,11 @@ function BlockRow({ block }: { block: ReportCandidateBlockUI & { displayTitle?: 
               {block.reviewReasons.join(' · ')}
             </div>
           )}
+          {block.aiHintLabel && (
+            <div className="text-[10px] text-muted-foreground/80 italic truncate">
+              {block.aiHintLabel}
+            </div>
+          )}
         </div>
         <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap flex items-center gap-1">
           <span>{fmtHm(block.startAt)}</span>
