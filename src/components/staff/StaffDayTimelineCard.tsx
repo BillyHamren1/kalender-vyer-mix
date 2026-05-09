@@ -71,6 +71,10 @@ interface StaffDayTimelineCardProps {
   reportCandidateBlocks?: ReportCandidateBlockUI[] | null;
   reportCandidateSummary?: ReportCandidateSummaryUI | null;
   reportCandidateLoading?: boolean;
+  /** Råa presenceDayBlocks från get-staff-presence-day (för locationEvidence-överlagring). */
+  reportCandidatePresenceBlocks?: import('@/lib/staff/buildReportDisplayBlocks').PresenceBlockLite[] | null;
+  /** Resolved targets från get-staff-presence-day (för nearest primary/secondary). */
+  reportCandidateTargets?: import('@/lib/staff/buildReportDisplayBlocks').TargetLite[] | null;
   /**
    * Sidnivå-engineMode. Kortet får ALDRIG välja motor själv — det här är
    * sanningen för raden. 'report_candidate' = ny motor (även om blocks är
@@ -320,6 +324,8 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
                 blocks={props.reportCandidateBlocks ?? []}
                 summary={props.reportCandidateSummary ?? null}
                 loading={props.reportCandidateLoading}
+                presenceBlocks={props.reportCandidatePresenceBlocks ?? null}
+                targets={props.reportCandidateTargets ?? null}
               />
             </>
           );

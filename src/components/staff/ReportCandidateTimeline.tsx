@@ -197,11 +197,13 @@ function EvidencePanel({ block }: { block: ReportCandidateBlockUI }) {
   );
 }
 
-function BlockRow({ block }: { block: ReportCandidateBlockUI }) {
+function BlockRow({ block }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null } }) {
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
-  const subtitle = block.subtitle
+  const title = block.displayTitle ?? block.title;
+  const subtitle = block.displaySubtitle
+    ?? block.subtitle
     ?? (block.fromLabel && block.toLabel ? `${block.fromLabel} → ${block.toLabel}` : block.targetLabel ?? null);
   return (
     <div className={`rounded-md border ${meta.bg}`}>
@@ -214,7 +216,7 @@ function BlockRow({ block }: { block: ReportCandidateBlockUI }) {
         <Icon className={`h-4 w-4 shrink-0 ${meta.tone}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium truncate">
-            <span className="truncate">{block.title}</span>
+            <span className="truncate">{title}</span>
             {block.reviewState === 'needs_review' && (
               <Badge variant="outline" className="text-[10px] py-0 h-4 border-amber-400 text-amber-700">
                 granska
@@ -259,16 +261,26 @@ function BlockRow({ block }: { block: ReportCandidateBlockUI }) {
   );
 }
 
+import {
+  buildReportDisplayBlocks,
+  type PresenceBlockLite,
+  type TargetLite,
+} from '@/lib/staff/buildReportDisplayBlocks';
+
 export interface ReportCandidateTimelineProps {
   blocks: ReportCandidateBlockUI[];
   summary?: ReportCandidateSummaryUI | null;
   loading?: boolean;
+  presenceBlocks?: PresenceBlockLite[] | null;
+  targets?: TargetLite[] | null;
 }
 
 export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = ({
   blocks,
   summary,
   loading,
+  presenceBlocks,
+  targets,
 }) => {
   if (loading) {
     return (
@@ -284,9 +296,16 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
       </div>
     );
   }
+  // Deterministisk display-överlagring (locationEvidence + Regel 1–4).
+  // Rör inte motorns klassificering.
+  const display = buildReportDisplayBlocks({
+    blocks,
+    presenceBlocks: presenceBlocks ?? [],
+    targets: targets ?? [],
+  });
   // Default-vyn: visa endast work / transport / unknown / needs_review.
   const visibleKinds = new Set<ReportBlockKind>(['work', 'transport', 'unknown', 'needs_review']);
-  const visible = blocks.filter((b) => visibleKinds.has(b.kind));
+  const visible = display.filter((b) => visibleKinds.has(b.kind));
   return (
     <div className="space-y-1.5">
       {visible.map((b) => (
