@@ -329,6 +329,9 @@ export async function resolveWorkTargets(
   // Track booking_ids referenced by local projects → resolved as bookings later
   // even if they are not "planned today" via BSA.
   const projectLinkedBookingIds = new Set<UUID>();
+  // Map projectId → booking_id (för anchor-klassning av projekt: projekt blir
+  // PRIMARY endast om dess underliggande booking är PRIMARY).
+  const projectIdToBookingId = new Map<UUID, UUID>();
 
   // ─────────────────────────── Projects ────────────────────────────────────
   try {
