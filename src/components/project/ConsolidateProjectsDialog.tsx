@@ -48,6 +48,7 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
   onOpenChange,
   initialSelection,
   initialName,
+  initialMode,
 }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
