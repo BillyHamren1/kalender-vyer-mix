@@ -85,8 +85,11 @@ interface StaffTimeReportsListProps {
       blocks: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
       summary: import('./ReportCandidateTimeline').ReportCandidateSummaryUI | null;
       loading: boolean;
+      missing?: boolean;
     } | undefined
   >;
+  /** Sidnivå-engineMode. ALLA personrader renderas med detta läge. */
+  engineMode?: 'report_candidate' | 'actual_model_fallback';
 }
 
 const formatRelativeDate = (date: Date): string => {
@@ -102,6 +105,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   selectedDate,
   onDateChange,
   reportCandidateByStaff,
+  engineMode = 'report_candidate',
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -496,6 +500,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   reportCandidateBlocks={reportCandidateByStaff?.[staff.id]?.blocks ?? null}
                   reportCandidateSummary={reportCandidateByStaff?.[staff.id]?.summary ?? null}
                   reportCandidateLoading={reportCandidateByStaff?.[staff.id]?.loading ?? false}
+                  engineMode={engineMode}
                   reportSlot={
                     <TimeReportReviewTable
                       date={dateStr}

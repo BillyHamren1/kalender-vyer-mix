@@ -1643,17 +1643,35 @@ const StaffTimeReports: React.FC = () => {
       blocks: any[];
       summary: any;
       loading: boolean;
+      missing: boolean;
     }> = {};
     staffList.forEach((s, idx) => {
       const q = reportCandidateQueries[idx];
+      // "Saknas" = query har felat eller (efter att den slutat ladda) inte
+      // returnerade någon data alls. Tom blocks-array är ett giltigt svar
+      // (dag utan aktivitet) och räknas INTE som saknad motor.
+      const data = q?.data as any | undefined;
+      const isLoading = !!q?.isLoading;
+      const hasError = !!q?.isError;
+      const missing = hasError || (!isLoading && !data);
       map[s.id] = {
-        blocks: (q?.data as any)?.reportCandidateBlocks ?? [],
-        summary: (q?.data as any)?.reportCandidateSummary ?? null,
-        loading: !!q?.isLoading,
+        blocks: data?.reportCandidateBlocks ?? [],
+        summary: data?.reportCandidateSummary ?? null,
+        loading: isLoading,
+        missing,
       };
     });
     return map;
   }, [staffList, reportCandidateQueries]);
+
+  // ── EngineMode: bestäms PÅ SIDNIVÅ. Ingen personrad får själv välja motor. ──
+  // Regel: om reportCandidateBlocks saknas för någon person → hela sidan visar
+  // fallback (actual_model_fallback). Annars använder ALLA report_candidate.
+  // Loading räknas inte som "saknas" — då visar vi laddtillstånd, inte fallback.
+  const anyStillLoading = staffList.some((s) => reportCandidateByStaff[s.id]?.loading);
+  const missingStaffCount = staffList.filter((s) => reportCandidateByStaff[s.id]?.missing).length;
+  const engineMode: 'report_candidate' | 'actual_model_fallback' =
+    !anyStillLoading && missingStaffCount > 0 ? 'actual_model_fallback' : 'report_candidate';
 
   if (selectedStaffId) {
     return (
@@ -1687,6 +1705,29 @@ const StaffTimeReports: React.FC = () => {
         subtitle="Översikt av rapporterad tid per personal"
         variant="purple"
       />
+      {/* Tillfällig debug-banner — visar vilken motor sidan använder för valt
+          datum, så vi snabbt ser att sidan inte blandar motorer per person. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+        <span
+          className={
+            engineMode === 'report_candidate'
+              ? 'inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1 font-medium text-primary'
+              : 'inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+          }
+          title="Vilken motor som driver hela sidan för valt datum"
+        >
+          Engine: {engineMode === 'report_candidate' ? 'reportCandidate' : 'actualModel fallback'}
+        </span>
+        {engineMode === 'actual_model_fallback' && (
+          <span className="text-amber-800 dark:text-amber-200">
+            Ny tidrapportmotor saknas för {missingStaffCount}{' '}
+            {missingStaffCount === 1 ? 'person' : 'personer'}. Visar fallback för hela dagen.
+          </span>
+        )}
+        {anyStillLoading && engineMode === 'report_candidate' && (
+          <span className="text-muted-foreground">Bygger tidrapporter…</span>
+        )}
+      </div>
       <StaffTimeReportsList
         staffList={staffList}
         isLoading={isLoading}
@@ -1697,6 +1738,7 @@ const StaffTimeReports: React.FC = () => {
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
         reportCandidateByStaff={reportCandidateByStaff}
+        engineMode={engineMode}
       />
     </PageContainer>
   );
