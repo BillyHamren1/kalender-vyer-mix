@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MapPin, Pencil, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,6 +31,9 @@ const ProjectLayout = () => {
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
+  const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
+  const [editSubtitle, setEditSubtitle] = useState("");
+  const subtitleInputRef = useRef<HTMLInputElement>(null);
 
   const detail = useProjectDetail(projectId || "");
   const { project, isLoading } = detail;
@@ -143,6 +147,27 @@ const ProjectLayout = () => {
   const rdStart = project.rigdown_start_time || bRef?.rigdown_start_time || null;
   const rdEnd = project.rigdown_end_time || bRef?.rigdown_end_time || null;
 
+  const handleStartEditSubtitle = () => {
+    setEditSubtitle(((project as any)?.description as string) || "");
+    setIsEditingSubtitle(true);
+    setTimeout(() => subtitleInputRef.current?.focus(), 50);
+  };
+
+  const handleSaveSubtitle = async () => {
+    const trimmed = editSubtitle.trim();
+    const current = (((project as any)?.description as string) || "").trim();
+    if (trimmed === current) {
+      setIsEditingSubtitle(false);
+      return;
+    }
+    try {
+      await detail.updateProject({ description: trimmed || null } as any);
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte uppdatera rubrik');
+    }
+    setIsEditingSubtitle(false);
+  };
+
   const handleScheduleUpdate = async (
     dateType: 'rig' | 'event' | 'rigDown',
     dates: string[],
@@ -211,14 +236,37 @@ const ProjectLayout = () => {
                   </h1>
                   <Badge variant="outline" className="text-xs">Medelprojekt</Badge>
                 </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 leading-none">
+                  {isEditingSubtitle ? (
+                    <Input
+                      ref={subtitleInputRef}
+                      value={editSubtitle}
+                      onChange={(e) => setEditSubtitle(e.target.value)}
+                      onBlur={handleSaveSubtitle}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveSubtitle();
+                        if (e.key === 'Escape') setIsEditingSubtitle(false);
+                      }}
+                      placeholder="Lägg till rubrik..."
+                      className="h-6 px-1.5 py-0 text-xs w-64 border-0 shadow-none focus-visible:ring-1 bg-transparent"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStartEditSubtitle}
+                      className={cn(
+                        "hover:text-foreground transition-colors text-left truncate max-w-[400px] inline-flex items-center gap-1 group",
+                        !((project as any).description) && "italic text-muted-foreground/70"
+                      )}
+                      title="Klicka för att ändra rubrik"
+                    >
+                      <span>{(project as any).description || "Lägg till rubrik..."}</span>
+                      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </button>
+                  )}
+                </div>
                 {booking && (
                   <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
-                    {(booking as any).title && (
-                      <>
-                        <span className="font-medium text-foreground">{(booking as any).title}</span>
-                        <span>·</span>
-                      </>
-                    )}
                     <span>{booking.client}</span>
                     <span>·</span>
                     <span>{booking.booking_number || booking.id}</span>
