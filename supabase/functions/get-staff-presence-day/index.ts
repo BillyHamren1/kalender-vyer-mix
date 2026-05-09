@@ -723,9 +723,12 @@ Deno.serve(async (req) => {
           openActiveTimeRegistrationsCount: (timers ?? []).filter(
             (t: any) => !t.stopped_at && (t.status ?? '').toLowerCase() === 'active',
           ).length,
+          targetResolution,
+          legacyLocationTimeEntriesUsedAsInput: false,
           error: null,
         }
-      : { error: reportCandidateError, available: false },
+      : { error: reportCandidateError, available: false, targetResolution, legacyLocationTimeEntriesUsedAsInput: false },
+    targetResolution,
     presenceDayBlocksRawEvidence: presenceDayBlocksResult?.evidenceBlocks ?? [],
     presenceDaySummary: presenceDayBlocksResult?.summary ?? null,
     presenceDayAggregation: presenceDayBlocksResult?.aggregation ?? null,
