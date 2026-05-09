@@ -155,6 +155,16 @@ export interface ReportCandidatePolicy {
   /** Transport with measured distance ≥ this is always a real trip and is
    *  never micro-suppressed. Default 1000 m. */
   realTripMinDistanceMeters?: number;
+  /** Same-target absorption: if work-A | transport ≤ this | work-A then the
+   *  transport is folded into work-A even when the transport is longer than
+   *  shortTransportMergeMinutes. Default 25 min. */
+  sameTargetTransportAbsorbMaxMinutes?: number;
+  /** Short cross-target transport (different work targets) shorter than this
+   *  is downgraded to needs_review instead of being a real trip. Default 5 min. */
+  shortCrossTargetReviewMaxMinutes?: number;
+  /** Short transport adjacent to an unknown row that is shorter than this is
+   *  hidden as evidence rather than emitted. Default 3 min. */
+  shortUnknownTransportHideMaxMinutes?: number;
 }
 
 export interface BuildReportCandidateBlocksInput {
