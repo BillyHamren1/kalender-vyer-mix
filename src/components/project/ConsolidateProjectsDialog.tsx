@@ -66,7 +66,7 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
   const [targetLargeId, setTargetLargeId] = useState<string>('');
   const [selected, setSelected] = useState<Map<string, ConsolidationSource>>(new Map());
   const [sortBy, setSortBy] = useState<'date' | 'name'>('date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const { data: candidates = [], isLoading } = useQuery({
     queryKey: ['consolidation-candidates'],
@@ -110,6 +110,15 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
     if (match && !name) setName(match.name);
   }, [candidates, initialSelection, initialName, open, name]);
 
+  const referenceDate = useMemo(() => {
+    if (!initialSelection) return null;
+    const match = candidates.find(
+      (c) => c.type === initialSelection.type && c.id === initialSelection.id,
+    );
+    const iso = match?.sortDate;
+    return iso ? new Date(iso).getTime() : null;
+  }, [candidates, initialSelection]);
+
   const filtered = useMemo(() => {
     // Always exclude large from selectable list — large can't be merged INTO another.
     const pool = candidates.filter((c) => c.type !== 'large');
@@ -126,18 +135,24 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
       if (sortBy === 'name') {
         return a.name.localeCompare(b.name, 'sv') * dirMul;
       }
-      const ad = a.sortDate ? new Date(a.sortDate).getTime() : 0;
-      const bd = b.sortDate ? new Date(b.sortDate).getTime() : 0;
-      return (ad - bd) * dirMul;
+      const ad = a.sortDate ? new Date(a.sortDate).getTime() : null;
+      const bd = b.sortDate ? new Date(b.sortDate).getTime() : null;
+      // Proximity sort: closest to reference date first (asc) / farthest first (desc).
+      if (referenceDate != null) {
+        const da = ad != null ? Math.abs(ad - referenceDate) : Number.POSITIVE_INFINITY;
+        const db = bd != null ? Math.abs(bd - referenceDate) : Number.POSITIVE_INFINITY;
+        return (da - db) * dirMul;
+      }
+      return ((ad ?? 0) - (bd ?? 0)) * dirMul;
     });
-  }, [candidates, search, sortBy, sortDir]);
+  }, [candidates, search, sortBy, sortDir, referenceDate]);
 
   const toggleSort = (col: 'date' | 'name') => {
     if (sortBy === col) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortBy(col);
-      setSortDir(col === 'date' ? 'desc' : 'asc');
+      setSortDir(col === 'date' ? 'asc' : 'asc');
     }
   };
 
