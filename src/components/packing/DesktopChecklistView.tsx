@@ -62,7 +62,13 @@ interface BookingGroupInfo {
 }
 
 const cleanProductName = (name: string): string => {
-  return name.replace(/^[↳└⦿\s,L\-–—]+/, '').trim();
+  // Strip accessory prefixes like "└", "↳", "⦿", "L," or leading dashes/commas/whitespace.
+  // IMPORTANT: do not include a bare "L" in the character class — it would eat the first
+  // letter of real product names like "Lätt lastbil" or "Ljusslinga".
+  return name
+    .replace(/^(?:L,\s*)+/, '')
+    .replace(/^[↳└⦿\s,\-–—]+/, '')
+    .trim();
 };
 
 const formatToTitleCase = (text: string): string => {
