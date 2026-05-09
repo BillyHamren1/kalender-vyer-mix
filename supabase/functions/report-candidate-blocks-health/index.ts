@@ -5,8 +5,20 @@
  * Read-only health check for buildReportCandidateBlocks.
  *
  * Pipeline per staff/day:
- *   pings → buildGpsDayTimeline → buildPresenceDayBlocks
- *         → buildReportCandidateBlocks
+ *   pings                        → buildGpsDayTimeline
+ *                                → buildPresenceDayBlocks
+ *   active_time_registrations  ─┐
+ *                                ├→ buildReportCandidateBlocks
+ *   presenceDayBlocks ──────────┘
+ *
+ * SOURCES OF TRUTH (engine inputs):
+ *   - staff_location_history       (GPS pings)
+ *   - active_time_registrations    (active timer context — NEW canonical source)
+ *
+ * NOT used as engine inputs (legacy, do NOT re-introduce here):
+ *   - location_time_entries        (legacy active timer table)
+ *   - travel_time_logs             (legacy travel entries)
+ *   - time_reports                 (output, not truth)
  *
  * NEVER writes anything. NEVER creates time_reports.
  *
