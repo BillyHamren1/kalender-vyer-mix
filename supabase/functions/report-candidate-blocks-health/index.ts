@@ -316,6 +316,9 @@ Deno.serve(async (req) => {
       day.compressionRatioFromPresenceToReport = day.presenceDayBlocksCount > 0
         ? Math.round((day.reportCandidateBlocksCount / day.presenceDayBlocksCount) * 1000) / 1000
         : 1;
+      day.microSuppressionRatio = day.reportBlocksBeforeMicroSuppression > 0
+        ? Math.round((day.reportBlocksAfterMicroSuppression / day.reportBlocksBeforeMicroSuppression) * 1000) / 1000
+        : 1;
 
       perDay.push(day);
     }
