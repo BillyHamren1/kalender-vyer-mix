@@ -46,7 +46,7 @@ export async function fetchConsolidationCandidates(): Promise<ConsolidationCandi
   // Medium
   const { data: meds } = await supabase
     .from('projects')
-    .select('id, name, client, description, deleted_at, status')
+    .select('id, name, client, description, deleted_at, status, eventdate, created_at')
     .is('deleted_at', null)
     .neq('status', 'cancelled')
     .order('created_at', { ascending: false });
@@ -56,13 +56,14 @@ export async function fetchConsolidationCandidates(): Promise<ConsolidationCandi
       id: p.id,
       name: p.name,
       subtitle: (p as any).description || (p as any).client || null,
+      sortDate: (p as any).eventdate || (p as any).created_at || null,
     });
   }
 
   // Small (jobs)
   const { data: jobs } = await supabase
     .from('jobs')
-    .select('id, name, deleted_at, status')
+    .select('id, name, deleted_at, status, created_at')
     .is('deleted_at', null)
     .neq('status', 'cancelled')
     .order('created_at', { ascending: false });
@@ -72,13 +73,14 @@ export async function fetchConsolidationCandidates(): Promise<ConsolidationCandi
       id: j.id,
       name: (j as any).name || 'Litet projekt',
       subtitle: 'Litet projekt',
+      sortDate: (j as any).created_at || null,
     });
   }
 
   // Large
   const { data: larges } = await supabase
     .from('large_projects')
-    .select('id, name, description, project_number, large_project_bookings(booking_id)')
+    .select('id, name, description, project_number, event_date, start_date, created_at, large_project_bookings(booking_id)')
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
   for (const lp of larges || []) {
@@ -90,6 +92,7 @@ export async function fetchConsolidationCandidates(): Promise<ConsolidationCandi
         (lp as any).project_number ||
         ((lp as any).description ? String((lp as any).description) : null),
       bookingCount: (lp as any).large_project_bookings?.length || 0,
+      sortDate: (lp as any).event_date || (lp as any).start_date || (lp as any).created_at || null,
     });
   }
 
