@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import { Clock, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/ui/PageContainer';
@@ -1618,6 +1618,43 @@ const StaffTimeReports: React.FC = () => {
     },
   });
 
+  // ── Parallel per-staff hämtning av reportCandidateBlocks ──
+  // Backend (get-staff-presence-day) kör samma motor som
+  // report-candidate-blocks-health validerar som PASS. Read-only.
+  const reportCandidateQueries = useQueries({
+    queries: staffList.map((s) => ({
+      queryKey: ['staff-report-candidates', dateStr, s.id],
+      queryFn: async () => {
+        const { data, error } = await supabase.functions.invoke('get-staff-presence-day', {
+          body: { staffId: s.id, date: dateStr },
+        });
+        if (error) throw new Error(error.message);
+        if (data && (data as any).ok === false) {
+          throw new Error((data as any).error ?? 'presence_day_failed');
+        }
+        return data as any;
+      },
+      staleTime: 30_000,
+      refetchInterval: 60_000,
+    })),
+  });
+  const reportCandidateByStaff = useMemo(() => {
+    const map: Record<string, {
+      blocks: any[];
+      summary: any;
+      loading: boolean;
+    }> = {};
+    staffList.forEach((s, idx) => {
+      const q = reportCandidateQueries[idx];
+      map[s.id] = {
+        blocks: (q?.data as any)?.reportCandidateBlocks ?? [],
+        summary: (q?.data as any)?.reportCandidateSummary ?? null,
+        loading: !!q?.isLoading,
+      };
+    });
+    return map;
+  }, [staffList, reportCandidateQueries]);
+
   if (selectedStaffId) {
     return (
       <PageContainer theme="purple">
@@ -1659,6 +1696,7 @@ const StaffTimeReports: React.FC = () => {
         }}
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
+        reportCandidateByStaff={reportCandidateByStaff}
       />
     </PageContainer>
   );

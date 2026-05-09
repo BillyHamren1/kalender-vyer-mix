@@ -34,6 +34,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ActualDayPanel } from './ActualDayPanel';
 import { RawEvidenceDrawer } from './RawEvidenceDrawer';
+import {
+  ReportCandidateTimeline,
+  type ReportCandidateBlockUI,
+  type ReportCandidateSummaryUI,
+} from './ReportCandidateTimeline';
 import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import {
@@ -57,6 +62,14 @@ interface StaffDayTimelineCardProps {
   reportSlot?: React.ReactNode;
   extraActions?: React.ReactNode;
   rawGpsSlot?: React.ReactNode;
+  /**
+   * Canonical report-candidate blocks från get-staff-presence-day.
+   * När dessa finns används de som huvudtimeline. Saknas de visas
+   * en fallback från actualModel + tydlig märkning.
+   */
+  reportCandidateBlocks?: ReportCandidateBlockUI[] | null;
+  reportCandidateSummary?: ReportCandidateSummaryUI | null;
+  reportCandidateLoading?: boolean;
   // Pass-through till ActualDayPanel (rådatasektionen)
   onAdjustWorkday?: () => void;
   onCreateDistributionFromGps?: (visitKey: string) => void;
@@ -285,17 +298,32 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
         </div>
       </header>
 
-      {/* Segments — systemets bästa tolkning */}
-      {timeline.segments.length === 0 ? (
-        <div className="rounded-md border border-dashed bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">
-          Ingen registrerad aktivitet för dagen.
-        </div>
+      {/* Huvudtimeline — reportCandidateBlocks (canonical engine) om de finns,
+          annars fallback från actualModel med tydlig märkning. */}
+      {props.reportCandidateBlocks && props.reportCandidateBlocks.length > 0 ? (
+        <ReportCandidateTimeline
+          blocks={props.reportCandidateBlocks}
+          summary={props.reportCandidateSummary ?? null}
+        />
+      ) : props.reportCandidateLoading ? (
+        <ReportCandidateTimeline blocks={[]} loading />
       ) : (
-        <div className="space-y-1.5">
-          {timeline.segments.map((seg) => (
-            <SegmentRow key={seg.id} seg={seg} />
-          ))}
-        </div>
+        <>
+          <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/40 px-3 py-1.5 text-[11px] text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            Fallback: ny tidrapportmotor saknas — visar tolkning från actualModel.
+          </div>
+          {timeline.segments.length === 0 ? (
+            <div className="rounded-md border border-dashed bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">
+              Ingen registrerad aktivitet för dagen.
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {timeline.segments.map((seg) => (
+                <SegmentRow key={seg.id} seg={seg} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Rådata / bevisning — öppnas i en sidopanel (drawer).

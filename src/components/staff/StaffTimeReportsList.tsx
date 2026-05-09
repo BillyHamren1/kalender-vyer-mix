@@ -78,6 +78,15 @@ interface StaffTimeReportsListProps {
   onSelectStaff: (id: string, name: string) => void;
   selectedDate: Date;
   onDateChange: (date: Date) => void;
+  /** Map staffId → reportCandidateBlocks/summary från get-staff-presence-day. */
+  reportCandidateByStaff?: Record<
+    string,
+    {
+      blocks: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
+      summary: import('./ReportCandidateTimeline').ReportCandidateSummaryUI | null;
+      loading: boolean;
+    } | undefined
+  >;
 }
 
 const formatRelativeDate = (date: Date): string => {
@@ -92,6 +101,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   onSelectStaff,
   selectedDate,
   onDateChange,
+  reportCandidateByStaff,
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -483,6 +493,9 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   date={dateStr}
                   model={staff.actualModel}
                   lastPingIso={staff.latestPing?.updated_at ?? null}
+                  reportCandidateBlocks={reportCandidateByStaff?.[staff.id]?.blocks ?? null}
+                  reportCandidateSummary={reportCandidateByStaff?.[staff.id]?.summary ?? null}
+                  reportCandidateLoading={reportCandidateByStaff?.[staff.id]?.loading ?? false}
                   reportSlot={
                     <TimeReportReviewTable
                       date={dateStr}

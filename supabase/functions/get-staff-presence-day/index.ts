@@ -35,6 +35,7 @@ import {
   type PresenceDayBlocksResult,
   type TimerMarkerInput,
 } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
+import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -611,7 +612,48 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── Header summary ──
+  // ── Report candidate blocks (canonical engine for Tidrapporter UI) ──
+  // Pure transform on top of presenceDayBlocks + active_time_registrations.
+  // Same engine that report-candidate-blocks-health validates as PASS.
+  // Never writes anything. Never reads legacy LTE/travel/time_reports.
+  let reportCandidateResult: any = null;
+  let reportCandidateError: string | null = null;
+  if (presenceDayBlocksResult) {
+    try {
+      const nowIso = new Date().toISOString();
+      const dayCutoff = `${date}T23:59:59.999Z`;
+      const activeRegs = (timers ?? []).map((r: any) => {
+        const isActive = (r.status ?? '').toLowerCase() === 'active';
+        const stoppedAt: string | null =
+          r.stopped_at ?? (isActive ? (nowIso < dayCutoff ? nowIso : dayCutoff) : null);
+        return {
+          id: r.id,
+          staffId: staffId,
+          organizationId: orgId,
+          startedAt: r.started_at,
+          stoppedAt,
+          status: r.status ?? null,
+          startSource: r.start_source ?? null,
+          stopSource: r.stop_source ?? null,
+          targetType: r.start_target_type ?? null,
+          targetId: r.start_target_id ?? null,
+          targetLabel: r.start_target_label ?? null,
+          metadata: r.metadata ?? null,
+        };
+      });
+      reportCandidateResult = buildReportCandidateBlocks({
+        staffId,
+        organizationId: orgId,
+        date,
+        presenceDayBlocks: presenceDayBlocksResult.blocks,
+        activeTimeRegistrations: activeRegs,
+      });
+    } catch (e: any) {
+      reportCandidateError = e?.message ?? String(e);
+      console.error('[presence-day] buildReportCandidateBlocks failed', e);
+    }
+  }
+
   const ageSec = lastPingAt
     ? Math.floor((Date.now() - new Date(lastPingAt).getTime()) / 1000)
     : null;
@@ -662,6 +704,21 @@ Deno.serve(async (req) => {
     // `rawGpsTimeline` and `technicalTimeline` are only for the
     // "Visa tekniska GPS-segment" toggle.
     presenceDayBlocks: presenceDayBlocksResult?.blocks ?? [],
+    // ── Canonical report-candidate engine output (Tidrapporter UI) ──
+    // Default Tidrapporter timeline MUST consume `reportCandidateBlocks`.
+    reportCandidateBlocks: reportCandidateResult?.blocks ?? [],
+    reportCandidateSummary: reportCandidateResult?.summary ?? null,
+    reportCandidateDiagnostics: reportCandidateResult
+      ? {
+          presenceDayBlocksCount: presenceDayBlocksResult?.blocks?.length ?? 0,
+          reportCandidateBlocksCount: reportCandidateResult.blocks.length,
+          activeTimeRegistrationsCount: (timers ?? []).length,
+          openActiveTimeRegistrationsCount: (timers ?? []).filter(
+            (t: any) => !t.stopped_at && (t.status ?? '').toLowerCase() === 'active',
+          ).length,
+          error: null,
+        }
+      : { error: reportCandidateError, available: false },
     presenceDayBlocksRawEvidence: presenceDayBlocksResult?.evidenceBlocks ?? [],
     presenceDaySummary: presenceDayBlocksResult?.summary ?? null,
     presenceDayAggregation: presenceDayBlocksResult?.aggregation ?? null,
