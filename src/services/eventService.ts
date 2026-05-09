@@ -420,9 +420,18 @@ export const updateCalendarEvent = async (
   if (isTimeChange) {
     const { data: existingEvent } = await supabase
       .from('calendar_events')
-      .select('booking_id, event_type, source_date')
+      .select('booking_id, event_type, source_date, times_locked')
       .eq('id', eventId)
       .maybeSingle();
+
+    // Per-day lock (calendar_events.times_locked) takes precedence
+    if (existingEvent?.times_locked === true) {
+      const err = new Error('Tiden är låst för denna dag – lås upp i popovern för att flytta');
+      (err as any).code = 'TIME_LOCKED';
+      console.warn('[updateCalendarEvent] blocked by per-day lock', { eventId });
+      throw err;
+    }
+
     if (existingEvent?.booking_id && existingEvent?.event_type) {
       const phase = existingEvent.event_type as 'rig' | 'event' | 'rigDown';
       const lockCol = phase === 'rig'
