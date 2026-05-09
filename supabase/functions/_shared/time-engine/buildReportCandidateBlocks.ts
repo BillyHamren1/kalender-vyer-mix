@@ -1109,6 +1109,7 @@ export function buildReportCandidateBlocks(
 
       if (dist >= policy.realTripMinDistanceMeters) {
         crossTargetTransportKeptCount += 1;
+        collectCrossTargetExample(cur, prev, next, dist, distMissing);
         continue;
       }
 
