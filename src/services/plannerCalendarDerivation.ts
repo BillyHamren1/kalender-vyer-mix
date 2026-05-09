@@ -170,7 +170,8 @@ const mapRealRowToCalendarEvent = (
       largeProjectName: project?.name || undefined,
       isSyntheticFallback: false,
       manuallyAssigned: false,
-      timeLocked: getBookingPhaseLock(booking, normalizePhase(row.event_type) as PlannerPhase | null),
+      timeLocked: row.times_locked === true || getBookingPhaseLock(booking, normalizePhase(row.event_type) as PlannerPhase | null),
+      timesLocked: row.times_locked === true,
     },
   };
 };
