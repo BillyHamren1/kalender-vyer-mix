@@ -259,16 +259,26 @@ function BlockRow({ block }: { block: ReportCandidateBlockUI }) {
   );
 }
 
+import {
+  buildReportDisplayBlocks,
+  type PresenceBlockLite,
+  type TargetLite,
+} from '@/lib/staff/buildReportDisplayBlocks';
+
 export interface ReportCandidateTimelineProps {
   blocks: ReportCandidateBlockUI[];
   summary?: ReportCandidateSummaryUI | null;
   loading?: boolean;
+  presenceBlocks?: PresenceBlockLite[] | null;
+  targets?: TargetLite[] | null;
 }
 
 export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = ({
   blocks,
   summary,
   loading,
+  presenceBlocks,
+  targets,
 }) => {
   if (loading) {
     return (
@@ -284,9 +294,16 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
       </div>
     );
   }
+  // Deterministisk display-överlagring (locationEvidence + Regel 1–4).
+  // Rör inte motorns klassificering.
+  const display = buildReportDisplayBlocks({
+    blocks,
+    presenceBlocks: presenceBlocks ?? [],
+    targets: targets ?? [],
+  });
   // Default-vyn: visa endast work / transport / unknown / needs_review.
   const visibleKinds = new Set<ReportBlockKind>(['work', 'transport', 'unknown', 'needs_review']);
-  const visible = blocks.filter((b) => visibleKinds.has(b.kind));
+  const visible = display.filter((b) => visibleKinds.has(b.kind));
   return (
     <div className="space-y-1.5">
       {visible.map((b) => (
