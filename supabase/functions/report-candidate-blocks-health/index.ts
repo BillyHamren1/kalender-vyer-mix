@@ -507,10 +507,16 @@ Deno.serve(async (req) => {
         for (const b of report.blocks) {
           day.reportBlocksByKind[b.kind] = (day.reportBlocksByKind[b.kind] ?? 0) + 1;
           if (b.durationMinutes <= 0) {
+            day.validation.hasZeroMinuteMainRows = true;
             day.warnings.push(`invariant:zero_minute_report_block:${s.id}:${b.id}`);
           }
           if ((b.kind as any) === 'signal_gap') {
+            day.validation.hasSignalGapAsNormalReportRow = true;
             day.warnings.push(`invariant:signal_gap_as_report_row:${s.id}:${b.id}`);
+          }
+          if (typeof b.id !== 'string' || !b.id.startsWith(STABLE_BLOCK_ID_PREFIX)) {
+            day.validation.hasUnstableBlockIds = true;
+            day.warnings.push(`invariant:unstable_block_id:${s.id}:${b.id}`);
           }
         }
 
