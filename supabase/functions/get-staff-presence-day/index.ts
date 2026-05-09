@@ -622,7 +622,7 @@ Deno.serve(async (req) => {
   if (presenceDayBlocksResult) {
     try {
       const nowIso = new Date().toISOString();
-      const dayCutoff = `${date}T23:59:59.999Z`;
+      const dayCutoff = dayEnd;
       const activeRegs = (timers ?? []).map((r: any) => {
         const isActive = (r.status ?? '').toLowerCase() === 'active';
         const stoppedAt: string | null =
