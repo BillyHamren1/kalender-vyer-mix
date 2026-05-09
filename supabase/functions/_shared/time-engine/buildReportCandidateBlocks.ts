@@ -1200,6 +1200,7 @@ export function buildReportCandidateBlocks(
     sameTargetTransportRejectedByDistanceCount,
     sameTargetTransportRejectedByDistanceMinutes,
     sameTargetTransportRejectedExamples,
+    keptCrossTargetTransportExamples,
   };
   for (const r of out) {
     if (r.kind === 'work') {
