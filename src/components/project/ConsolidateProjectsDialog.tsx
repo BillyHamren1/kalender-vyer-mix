@@ -31,6 +31,8 @@ interface Props {
   initialSelection?: ConsolidationSource | null;
   /** Suggested project name (defaults to initial selection's name). */
   initialName?: string;
+  /** Force initial mode (overrides inferred mode). */
+  initialMode?: 'create' | 'add';
 }
 
 const TYPE_LABEL: Record<string, string> = {
