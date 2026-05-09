@@ -500,6 +500,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   reportCandidateBlocks={reportCandidateByStaff?.[staff.id]?.blocks ?? null}
                   reportCandidateSummary={reportCandidateByStaff?.[staff.id]?.summary ?? null}
                   reportCandidateLoading={reportCandidateByStaff?.[staff.id]?.loading ?? false}
+                  engineMode={engineMode}
                   reportSlot={
                     <TimeReportReviewTable
                       date={dateStr}
