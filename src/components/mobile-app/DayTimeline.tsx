@@ -44,7 +44,7 @@ const itemStartStr = (it: MobileCalendarItem) =>
   it.kind === 'booking' ? it.shift.start_time : it.start_time;
 
 /** Assigns column slots so overlapping items render side-by-side. */
-function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date): PositionedItem[] {
+function layoutItems(items: MobileCalendarItem[], dayStart: Date, dayEnd: Date, pxPerMinute: number): PositionedItem[] {
   const sorted = [...items].sort(
     (a, b) =>
       (parsePlannerDateTime(itemStartStr(a))?.getTime() ?? 0) -
