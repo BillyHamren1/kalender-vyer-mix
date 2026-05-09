@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
       } else if (s.type === 'small') {
         const { data, error } = await admin
           .from('jobs')
-          .select('id, organization_id, booking_id, title, description, internalnotes')
+          .select('id, organization_id, booking_id, name')
           .eq('id', s.id)
           .is('deleted_at', null)
           .maybeSingle();
@@ -131,9 +131,9 @@ Deno.serve(async (req) => {
           id: data.id,
           organization_id: data.organization_id,
           booking_id: data.booking_id,
-          name: (data as any).title ?? null,
-          description: (data as any).description ?? null,
-          internalnotes: (data as any).internalnotes ?? null,
+          name: (data as any).name ?? null,
+          description: null,
+          internalnotes: null,
         });
       } else {
         const { data, error } = await admin
