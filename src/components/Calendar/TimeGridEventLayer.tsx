@@ -57,13 +57,13 @@ export const EventWrapper: React.FC<{
     const ext: any = event.extendedProps || {};
     const largeProjectId = ext.largeProjectId;
     if (ext.isLargeProject && largeProjectId) {
-      window.location.assign(`/large-project/${largeProjectId}`);
+      navigate(`/large-project/${largeProjectId}`);
       return;
     }
     if (event.bookingId) {
-      window.location.assign(`/booking/${event.bookingId}`);
+      navigate(`/booking/${event.bookingId}`);
     }
-  }, [event]);
+  }, [event, navigate]);
 
   return (
     <div
