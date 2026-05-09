@@ -129,6 +129,54 @@ interface DayHealth {
     decision: 'kept_as_transport' | 'needs_review';
     reviewReasons: string[];
   }>;
+  // ── Same-target transport regression buckets (per-day, max 25 each) ──
+  /** A) work A → transport ≤25 min, distance ≤750 m → folded into work-A. */
+  sameTargetTransportRegression_absorbed: Array<{
+    staffName: string;
+    staffId: string;
+    targetLabel: string | null;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    distanceMeters: number;
+    absorbedIntoWorkBlock: { startAt: string; endAt: string } | null;
+  }>;
+  /** B) work A → transport, distance > 750 m → kept, needs_review,
+   *     reviewReason `same_target_roundtrip_distance_too_large`. */
+  sameTargetTransportRegression_rejectedByDistance: Array<{
+    staffName: string;
+    staffId: string;
+    targetLabel: string | null;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    distanceMeters: number;
+    decision: 'needs_review';
+    reviewReasons: string[];
+  }>;
+  /** C) work A → transport with no distance → kept as transport,
+   *     reviewReason `same_target_transport_missing_distance`. */
+  sameTargetTransportRegression_rejectedMissingDistance: Array<{
+    staffName: string;
+    staffId: string;
+    targetLabel: string | null;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    decision: 'kept_as_transport';
+    reviewReasons: string[];
+  }>;
+  /** D) work A → transport → work B (different targets) → transport stays. */
+  sameTargetTransportRegression_keptCrossTarget: Array<{
+    staffName: string;
+    staffId: string;
+    fromLabel: string | null;
+    toLabel: string | null;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    distanceMeters: number | null;
+  }>;
   warnings: string[];
   sampleStaffReports: SampleStaffReport[];
   // Engine input provenance / validation surface
