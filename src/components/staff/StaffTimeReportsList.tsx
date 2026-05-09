@@ -105,6 +105,7 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
   selectedDate,
   onDateChange,
   reportCandidateByStaff,
+  engineMode = 'report_candidate',
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
