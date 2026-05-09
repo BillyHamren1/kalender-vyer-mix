@@ -338,7 +338,6 @@ Deno.serve(async (req) => {
   let targetMatchSummary: any = null;
   let gpsTimelineResult: any = null;
   let presenceDayBlocksResult: PresenceDayBlocksResult | null = null;
-  const timerMarkers: TimerMarkerInput[] = [];
 
   try {
     const { targets: resolved, targetDiagnostics: tdiag, targetResolution: tres } = await resolveWorkTargets({
