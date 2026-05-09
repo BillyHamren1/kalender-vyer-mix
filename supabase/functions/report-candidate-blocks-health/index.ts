@@ -342,6 +342,20 @@ Deno.serve(async (req) => {
           );
         }
 
+        let report;
+        try {
+          report = buildReportCandidateBlocks({
+            staffId: s.id,
+            organizationId: orgId,
+            date,
+            presenceDayBlocks: presence.blocks,
+            activeTimeRegistrations: activeRegs,
+          });
+        } catch (e) {
+          day.warnings.push(`report_blocks_failed:${s.id}:${(e as any)?.message ?? e}`);
+          continue;
+        }
+
         day.presenceDayBlocksCount += presence.blocks.length;
         day.reportCandidateBlocksCount += report.blocks.length;
         day.workMinutes += report.summary.workMinutes;
