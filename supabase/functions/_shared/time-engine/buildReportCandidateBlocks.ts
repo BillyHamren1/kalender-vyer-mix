@@ -640,6 +640,184 @@ export function buildReportCandidateBlocks(
 
   flush();
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS: Micro-movement suppression (rules 1, 4, 5)
+  //
+  // The presence/main-loop already absorbs short transport that round-trips
+  // to the same target. This pass cleans up cases where two work blocks at
+  // the SAME target are still separated by a tiny transport row (e.g. GPS
+  // jitter, walking inside a warehouse) and removes any leftover
+  // 0–2 min work fragments that should never be a top-level row.
+  //
+  // Rule 4: transport <microTransportMaxMinutes is never own row.
+  // Rule 1 (post-fold): work-A | tiny transport | work-A → one work-A.
+  // Rule 5: work <tinyWorkMaxMinutes is hidden as evidence on a neighbour.
+  //
+  // Real trips (distance ≥ realTripMinDistanceMeters or between two
+  // DIFFERENT targets and ≥ shortTransportMergeMinutes) are preserved.
+  // ───────────────────────────────────────────────────────────────────────
+  const reportBlocksBeforeMicroSuppression = out.length;
+  let suppressedMicroTransportCount = 0;
+  let suppressedMicroTransportMinutes = 0;
+  let suppressedTinyWorkBlocksCount = 0;
+  let suppressedTinyWorkMinutes = 0;
+
+  const targetKeyOf = (r: ReportCandidateBlock | undefined): string | null => {
+    if (!r) return null;
+    if (!r.targetId && !r.targetType) return null;
+    return `${r.targetType ?? ''}::${r.targetId ?? ''}`;
+  };
+
+  const absorbInto = (host: ReportCandidateBlock, victim: ReportCandidateBlock) => {
+    // Extend the host time-span to cover the victim
+    if (victim.startAt < host.startAt) host.startAt = victim.startAt;
+    if (victim.endAt > host.endAt) host.endAt = victim.endAt;
+    host.durationMinutes = minutesBetween(host.startAt, host.endAt);
+    host.durationLabel = fmtDuration(host.durationMinutes);
+    // Record provenance
+    host.sourcePresenceBlockIds.push(...victim.sourcePresenceBlockIds);
+    host.hiddenPresenceBlockIds.push(
+      ...victim.sourcePresenceBlockIds,
+      ...victim.hiddenPresenceBlockIds,
+    );
+    host.hiddenSignalGapIds.push(...victim.hiddenSignalGapIds);
+    host.signalGapMinutes += victim.signalGapMinutes;
+    // Counters
+    host.evidenceSummary.confirmedMinutes += victim.evidenceSummary.confirmedMinutes;
+    host.evidenceSummary.probableMinutes += victim.evidenceSummary.probableMinutes;
+    host.evidenceSummary.signalGapMinutes += victim.evidenceSummary.signalGapMinutes;
+    host.evidenceSummary.transportMinutes += victim.evidenceSummary.transportMinutes;
+    host.evidenceSummary.unknownMinutes += victim.evidenceSummary.unknownMinutes;
+    host.evidenceSummary.presenceBlockCount += victim.evidenceSummary.presenceBlockCount;
+    host.evidenceSummary.suppressedSignalGapBlockCount +=
+      victim.evidenceSummary.suppressedSignalGapBlockCount;
+    host.evidenceSummary.suppressedUnknownBlockCount +=
+      victim.evidenceSummary.suppressedUnknownBlockCount;
+    host.evidenceSummary.suppressedZeroLengthBlockCount +=
+      victim.evidenceSummary.suppressedZeroLengthBlockCount;
+    if (victim.evidenceSummary.distanceMeters) {
+      host.evidenceSummary.distanceMeters =
+        (host.evidenceSummary.distanceMeters ?? 0) + victim.evidenceSummary.distanceMeters;
+    }
+    // Confidence drops one notch when we fold movement evidence in
+    if (host.kind === 'work' && victim.kind === 'transport' && host.confidence === 'high') {
+      host.confidence = 'medium';
+    }
+    if (victim.warningLabel) {
+      host.reviewReasons = Array.from(new Set([...host.reviewReasons, 'absorbed_micro_movement']));
+    }
+    // Refresh subtitle
+    const ts = buildTitleSubtitle({
+      kind: host.kind,
+      startAt: host.startAt,
+      endAt: host.endAt,
+      targetLabel: host.targetLabel,
+      fromLabel: host.fromLabel,
+      toLabel: host.toLabel,
+    } as AccumulatedBlock);
+    host.subtitle = ts.subtitle;
+  };
+
+  // Walk the list and apply suppression in-place
+  let changed = true;
+  let safety = 0;
+  while (changed && safety < 50) {
+    changed = false;
+    safety += 1;
+
+    for (let k = 0; k < out.length; k++) {
+      const cur = out[k];
+
+      // Rule 4 + post-rule-1: tiny transport
+      if (cur.kind === 'transport' && cur.durationMinutes < policy.microTransportMaxMinutes) {
+        const dist = cur.evidenceSummary.distanceMeters ?? 0;
+        if (dist >= policy.realTripMinDistanceMeters) continue; // real trip, leave it
+
+        const prev = out[k - 1];
+        const next = out[k + 1];
+        const prevKey = targetKeyOf(prev);
+        const nextKey = targetKeyOf(next);
+        const sameAround = prevKey && nextKey && prevKey === nextKey
+          && prev?.kind === 'work' && next?.kind === 'work';
+
+        if (sameAround) {
+          // Fold: prev ⟵ cur ⟵ next
+          absorbInto(prev, cur);
+          absorbInto(prev, next);
+          out.splice(k, 2); // remove cur and next
+          suppressedMicroTransportCount += 1;
+          suppressedMicroTransportMinutes += cur.durationMinutes;
+          changed = true;
+          break;
+        }
+        if (prev?.kind === 'work') {
+          absorbInto(prev, cur);
+          out.splice(k, 1);
+          suppressedMicroTransportCount += 1;
+          suppressedMicroTransportMinutes += cur.durationMinutes;
+          changed = true;
+          break;
+        }
+        if (next?.kind === 'work') {
+          absorbInto(next, cur);
+          out.splice(k, 1);
+          suppressedMicroTransportCount += 1;
+          suppressedMicroTransportMinutes += cur.durationMinutes;
+          changed = true;
+          break;
+        }
+        // No work neighbour — drop silently as evidence (no host to attach
+        // to, but still don't show as a 3 min "Resa" row).
+        out.splice(k, 1);
+        suppressedMicroTransportCount += 1;
+        suppressedMicroTransportMinutes += cur.durationMinutes;
+        changed = true;
+        break;
+      }
+
+      // Rule 5: tiny work block
+      if (cur.kind === 'work' && cur.durationMinutes < policy.tinyWorkMaxMinutes) {
+        const prev = out[k - 1];
+        const next = out[k + 1];
+        const prevSame = prev?.kind === 'work' && targetKeyOf(prev) === targetKeyOf(cur);
+        const nextSame = next?.kind === 'work' && targetKeyOf(next) === targetKeyOf(cur);
+        if (prevSame) {
+          absorbInto(prev, cur);
+          out.splice(k, 1);
+          suppressedTinyWorkBlocksCount += 1;
+          suppressedTinyWorkMinutes += cur.durationMinutes;
+          changed = true;
+          break;
+        }
+        if (nextSame) {
+          absorbInto(next, cur);
+          out.splice(k, 1);
+          suppressedTinyWorkBlocksCount += 1;
+          suppressedTinyWorkMinutes += cur.durationMinutes;
+          changed = true;
+          break;
+        }
+        // Lone tiny work — hide as evidence on closest neighbour, else drop
+        const host = (prev && prev.kind !== 'needs_review' && prev.kind !== 'unknown')
+          ? prev
+          : (next && next.kind !== 'needs_review' && next.kind !== 'unknown')
+            ? next
+            : null;
+        if (host) {
+          absorbInto(host, cur);
+        }
+        out.splice(k, 1);
+        suppressedTinyWorkBlocksCount += 1;
+        suppressedTinyWorkMinutes += cur.durationMinutes;
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  // Re-id blocks so ids stay stable & sequential
+  out.forEach((r, idx) => { r.id = `rc-${idx}-${r.startAt}`; });
+
   // ── Summary
   const summary: ReportCandidateSummary = {
     reportCandidateBlocksCount: out.length,
@@ -655,6 +833,12 @@ export function buildReportCandidateBlocks(
     breakMinutes: 0,
     signalGapMinutesHiddenInsideWorkBlocks: 0,
     reportRowsWithSignalWarnings: 0,
+    reportBlocksBeforeMicroSuppression,
+    reportBlocksAfterMicroSuppression: out.length,
+    suppressedMicroTransportCount,
+    suppressedMicroTransportMinutes,
+    suppressedTinyWorkBlocksCount,
+    suppressedTinyWorkMinutes,
   };
   for (const r of out) {
     if (r.kind === 'work') {
