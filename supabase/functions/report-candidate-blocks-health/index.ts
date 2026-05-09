@@ -525,34 +525,101 @@ Deno.serve(async (req) => {
 
         const examples = (report.summary as any).absorbedSameTargetTransportExamples ?? [];
         for (const ex of examples) {
-          if (day.absorbedSameTargetTransportExamples.length >= 25) break;
-          day.absorbedSameTargetTransportExamples.push({
-            staffName: s.name ?? s.id,
-            staffId: s.id,
-            targetLabel: ex.targetLabel ?? null,
-            startAt: ex.startAt,
-            endAt: ex.endAt,
-            durationMinutes: ex.durationMinutes,
-            distanceMeters: ex.distanceMeters,
-            absorbedIntoWorkBlock: ex.absorbedIntoWorkBlock ?? null,
-            reviewReasons: ex.reviewReasons ?? [],
-          });
+          if (day.absorbedSameTargetTransportExamples.length < 25) {
+            day.absorbedSameTargetTransportExamples.push({
+              staffName: s.name ?? s.id,
+              staffId: s.id,
+              targetLabel: ex.targetLabel ?? null,
+              startAt: ex.startAt,
+              endAt: ex.endAt,
+              durationMinutes: ex.durationMinutes,
+              distanceMeters: ex.distanceMeters,
+              absorbedIntoWorkBlock: ex.absorbedIntoWorkBlock ?? null,
+              reviewReasons: ex.reviewReasons ?? [],
+            });
+          }
+          // Regression bucket A: absorbed (same-target, short distance)
+          if (day.sameTargetTransportRegression_absorbed.length < 25) {
+            day.sameTargetTransportRegression_absorbed.push({
+              staffName: s.name ?? s.id,
+              staffId: s.id,
+              targetLabel: ex.targetLabel ?? null,
+              startAt: ex.startAt,
+              endAt: ex.endAt,
+              durationMinutes: ex.durationMinutes,
+              distanceMeters: ex.distanceMeters,
+              absorbedIntoWorkBlock: ex.absorbedIntoWorkBlock ?? null,
+            });
+          }
         }
 
         const rejectedExamples =
           (report.summary as any).sameTargetTransportRejectedExamples ?? [];
         for (const ex of rejectedExamples) {
-          if (day.sameTargetTransportRejectedExamples.length >= 25) break;
-          day.sameTargetTransportRejectedExamples.push({
+          if (day.sameTargetTransportRejectedExamples.length < 25) {
+            day.sameTargetTransportRejectedExamples.push({
+              staffName: s.name ?? s.id,
+              staffId: s.id,
+              targetLabel: ex.targetLabel ?? null,
+              startAt: ex.startAt,
+              endAt: ex.endAt,
+              durationMinutes: ex.durationMinutes,
+              distanceMeters: ex.distanceMeters ?? null,
+              decision: ex.decision,
+              reviewReasons: ex.reviewReasons ?? [],
+            });
+          }
+          const reasons: string[] = ex.reviewReasons ?? [];
+          // Regression bucket B: rejected by distance (>750 m)
+          if (
+            ex.decision === 'needs_review' &&
+            reasons.includes('same_target_roundtrip_distance_too_large') &&
+            day.sameTargetTransportRegression_rejectedByDistance.length < 25
+          ) {
+            day.sameTargetTransportRegression_rejectedByDistance.push({
+              staffName: s.name ?? s.id,
+              staffId: s.id,
+              targetLabel: ex.targetLabel ?? null,
+              startAt: ex.startAt,
+              endAt: ex.endAt,
+              durationMinutes: ex.durationMinutes,
+              distanceMeters: ex.distanceMeters,
+              decision: 'needs_review',
+              reviewReasons: reasons,
+            });
+          }
+          // Regression bucket C: rejected because distance is missing
+          if (
+            ex.decision === 'kept_as_transport' &&
+            reasons.includes('same_target_transport_missing_distance') &&
+            day.sameTargetTransportRegression_rejectedMissingDistance.length < 25
+          ) {
+            day.sameTargetTransportRegression_rejectedMissingDistance.push({
+              staffName: s.name ?? s.id,
+              staffId: s.id,
+              targetLabel: ex.targetLabel ?? null,
+              startAt: ex.startAt,
+              endAt: ex.endAt,
+              durationMinutes: ex.durationMinutes,
+              decision: 'kept_as_transport',
+              reviewReasons: reasons,
+            });
+          }
+        }
+
+        // Regression bucket D: cross-target transport kept (work A → work B)
+        const crossKept = (report.summary as any).keptCrossTargetTransportExamples ?? [];
+        for (const ex of crossKept) {
+          if (day.sameTargetTransportRegression_keptCrossTarget.length >= 25) break;
+          day.sameTargetTransportRegression_keptCrossTarget.push({
             staffName: s.name ?? s.id,
             staffId: s.id,
-            targetLabel: ex.targetLabel ?? null,
+            fromLabel: ex.fromLabel ?? null,
+            toLabel: ex.toLabel ?? null,
             startAt: ex.startAt,
             endAt: ex.endAt,
             durationMinutes: ex.durationMinutes,
             distanceMeters: ex.distanceMeters ?? null,
-            decision: ex.decision,
-            reviewReasons: ex.reviewReasons ?? [],
           });
         }
 
