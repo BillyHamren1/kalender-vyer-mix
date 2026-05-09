@@ -200,6 +200,9 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   microTransportMaxMinutes: 5,
   tinyWorkMaxMinutes: 2,
   realTripMinDistanceMeters: 1000,
+  sameTargetTransportAbsorbMaxMinutes: 25,
+  shortCrossTargetReviewMaxMinutes: 5,
+  shortUnknownTransportHideMaxMinutes: 3,
 };
 
 function minutesBetween(a: string, b: string): number {
