@@ -406,8 +406,12 @@ Deno.serve(async (req) => {
             )
             .eq('organization_id', orgId)
             .eq('staff_id', s.id)
-            .gte('started_at', dayStart)
-            .lte('started_at', dayEnd);
+            // Overlap query: registration intersects [dayStart, dayEnd] when
+            // started_at <= dayEnd AND (stopped_at IS NULL OR stopped_at >= dayStart).
+            // Previous version used started_at >= dayStart which dropped any
+            // registration that started yesterday and continued into today.
+            .lte('started_at', dayEnd)
+            .or(`stopped_at.is.null,stopped_at.gte.${dayStart}`);
           activeRegs = (data ?? []).map((r: any) => {
             const isActive = (r.status ?? '').toLowerCase() === 'active';
             const stoppedAt: string | null =
@@ -478,6 +482,35 @@ Deno.serve(async (req) => {
         } catch (e) {
           day.warnings.push(`report_blocks_failed:${s.id}:${(e as any)?.message ?? e}`);
           continue;
+        }
+
+        // Determinism check: same input → same block ids in same order.
+        // If ids drift between runs we cannot use them as stable contracts
+        // for AI/action layers, so this is a hard FAIL.
+        try {
+          const second = buildReportCandidateBlocks({
+            staffId: s.id,
+            organizationId: orgId,
+            date,
+            presenceDayBlocks: presence.blocks,
+            activeTimeRegistrations: activeRegs,
+          });
+          const a = report.blocks.map((b: any) => b.id);
+          const b2 = second.blocks.map((b: any) => b.id);
+          let unstable = a.length !== b2.length;
+          if (!unstable) {
+            for (let k = 0; k < a.length; k++) {
+              if (a[k] !== b2[k]) { unstable = true; break; }
+            }
+          }
+          if (unstable) {
+            day.validation.hasUnstableBlockIds = true;
+            day.warnings.push(`invariant:unstable_block_id_between_runs:${s.id}`);
+          }
+        } catch (e) {
+          day.warnings.push(
+            `report_blocks_stability_check_failed:${s.id}:${(e as any)?.message ?? e}`,
+          );
         }
 
         day.presenceDayBlocksCount += presence.blocks.length;
@@ -689,6 +722,7 @@ Deno.serve(async (req) => {
       const v = day.validation;
       const failed =
         v.hasZeroMinuteMainRows ||
+        v.hasSignalGapAsNormalReportRow ||
         v.hasLegacyInputUsed ||
         v.hasLongDistanceSameTargetAbsorbed ||
         v.hasUnstableBlockIds ||

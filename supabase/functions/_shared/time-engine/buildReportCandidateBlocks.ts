@@ -703,20 +703,14 @@ export function buildReportCandidateBlocks(
 
     // ── TRANSPORT (real GPS movement only — guaranteed by presence layer)
     if (b.kind === 'transport') {
-      // Short transport bridging same-target work → fold in
-      if (
-        acc && acc.kind === 'work' &&
-        b.durationMinutes < policy.shortTransportMergeMinutes
-      ) {
-        const ret = findSameTargetReturn(blocks, i + 1, acc, policy);
-        if (ret >= 0) {
-          absorb(acc, b);
-          for (let k = i + 1; k < ret; k++) absorb(acc, blocks[k], blocks[k].kind === 'signal_gap');
-          absorb(acc, blocks[ret]);
-          i = ret + 1;
-          continue;
-        }
-      }
+      // NOTE: Same-target round-trip absorption was previously done here in
+      // the main loop based only on duration (< shortTransportMergeMinutes).
+      // That bypassed the distance guard and could fold real round-trips into
+      // work. It is now exclusively handled by PASS 2 below, which gates
+      // absorption on policy.sameTargetTransportAbsorbMaxDistanceMeters and
+      // emits needs_review (same_target_roundtrip_distance_too_large) or
+      // same_target_transport_missing_distance otherwise.
+
 
       flush();
       acc = newAcc('transport', b);
