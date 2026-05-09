@@ -252,6 +252,23 @@ Deno.serve(async (req) => {
         sameTargetTransportRejectedExamples: [],
         warnings: [],
         sampleStaffReports: [],
+        activeTimeRegistrationsCount: 0,
+        openActiveTimeRegistrationsCount: 0,
+        activeTimeRegistrationsUsedAsInput: true,
+        legacyLocationTimeEntriesCount: 0,
+        legacyLocationTimeEntriesUsedAsInput: false,
+        validation: {
+          hasZeroMinuteMainRows: false,
+          hasSignalGapAsNormalReportRow: false,
+          hasLongDistanceSameTargetAbsorbed: false,
+          hasLegacyInputUsed: false,
+          hasUnstableBlockIds: false,
+          createdAnyTimeReports: false,
+          createdAnyWorkdays: false,
+          createdAnyLocationTimeEntries: false,
+          createdAnyTravelTimeLogs: false,
+        },
+        status: 'PASS',
       };
 
       let targets: WorkTarget[] = [];
