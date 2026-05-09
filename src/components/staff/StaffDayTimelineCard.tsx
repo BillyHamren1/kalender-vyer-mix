@@ -324,6 +324,8 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
                 blocks={props.reportCandidateBlocks ?? []}
                 summary={props.reportCandidateSummary ?? null}
                 loading={props.reportCandidateLoading}
+                presenceBlocks={props.reportCandidatePresenceBlocks ?? null}
+                targets={props.reportCandidateTargets ?? null}
               />
             </>
           );
