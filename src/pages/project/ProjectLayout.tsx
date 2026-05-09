@@ -31,6 +31,9 @@ const ProjectLayout = () => {
   const queryClient = useQueryClient();
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
+  const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
+  const [editSubtitle, setEditSubtitle] = useState("");
+  const subtitleInputRef = useRef<HTMLInputElement>(null);
 
   const detail = useProjectDetail(projectId || "");
   const { project, isLoading } = detail;
