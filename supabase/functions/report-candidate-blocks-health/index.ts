@@ -5,8 +5,20 @@
  * Read-only health check for buildReportCandidateBlocks.
  *
  * Pipeline per staff/day:
- *   pings → buildGpsDayTimeline → buildPresenceDayBlocks
- *         → buildReportCandidateBlocks
+ *   pings                        → buildGpsDayTimeline
+ *                                → buildPresenceDayBlocks
+ *   active_time_registrations  ─┐
+ *                                ├→ buildReportCandidateBlocks
+ *   presenceDayBlocks ──────────┘
+ *
+ * SOURCES OF TRUTH (engine inputs):
+ *   - staff_location_history       (GPS pings)
+ *   - active_time_registrations    (active timer context — NEW canonical source)
+ *
+ * NOT used as engine inputs (legacy, do NOT re-introduce here):
+ *   - location_time_entries        (legacy active timer table)
+ *   - travel_time_logs             (legacy travel entries)
+ *   - time_reports                 (output, not truth)
  *
  * NEVER writes anything. NEVER creates time_reports.
  *
@@ -270,20 +282,77 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Active timer context for the engine — NEW SOURCE OF TRUTH.
+        // Engine input MUST come from `active_time_registrations`. Legacy
+        // `location_time_entries` / `travel_time_logs` / `time_reports` are
+        // intentionally NOT read here.
         let activeRegs: any[] = [];
+        const activeOpenDiagnostics: Array<{
+          id: string;
+          staffId: string;
+          startedAt: string;
+          status: string | null;
+          startSource: string | null;
+          targetType: string | null;
+          targetId: string | null;
+          targetLabel: string | null;
+          assumedStoppedAt: string;
+        }> = [];
         try {
+          const nowIso = new Date().toISOString();
+          const dayCutoff = `${date}T23:59:59.999Z`;
           const { data } = await admin
-            .from('location_time_entries')
-            .select('id, started_at, ended_at, source, target_type, target_id')
+            .from('active_time_registrations')
+            .select(
+              'id, staff_id, organization_id, started_at, stopped_at, status, ' +
+              'start_source, stop_source, start_target_type, start_target_id, ' +
+              'start_target_label, metadata',
+            )
             .eq('organization_id', orgId)
             .eq('staff_id', s.id)
             .gte('started_at', dayStart)
             .lte('started_at', dayEnd);
-          activeRegs = (data ?? []).map((r: any) => ({
-            id: r.id, startedAt: r.started_at, endedAt: r.ended_at,
-            source: r.source, targetType: r.target_type, targetId: r.target_id,
-          }));
-        } catch { /* table optional */ }
+          activeRegs = (data ?? []).map((r: any) => {
+            const isActive = (r.status ?? '').toLowerCase() === 'active';
+            const stoppedAt: string | null =
+              r.stopped_at ?? (isActive ? (nowIso < dayCutoff ? nowIso : dayCutoff) : null);
+            if (isActive || !r.stopped_at) {
+              activeOpenDiagnostics.push({
+                id: r.id,
+                staffId: r.staff_id,
+                startedAt: r.started_at,
+                status: r.status ?? null,
+                startSource: r.start_source ?? null,
+                targetType: r.start_target_type ?? null,
+                targetId: r.start_target_id ?? null,
+                targetLabel: r.start_target_label ?? null,
+                assumedStoppedAt: stoppedAt ?? dayCutoff,
+              });
+            }
+            return {
+              id: r.id,
+              staffId: r.staff_id,
+              organizationId: r.organization_id,
+              startedAt: r.started_at,
+              stoppedAt,
+              status: r.status ?? null,
+              startSource: r.start_source ?? null,
+              stopSource: r.stop_source ?? null,
+              targetType: r.start_target_type ?? null,
+              targetId: r.start_target_id ?? null,
+              targetLabel: r.start_target_label ?? null,
+              metadata: r.metadata ?? null,
+            };
+          });
+          if (activeOpenDiagnostics.length) {
+            (day as any).activeOpenRegistrations =
+              ((day as any).activeOpenRegistrations ?? []).concat(activeOpenDiagnostics);
+          }
+        } catch (e) {
+          day.warnings.push(
+            `active_time_registrations_read_failed:${s.id}:${(e as any)?.message ?? e}`,
+          );
+        }
 
         let report;
         try {

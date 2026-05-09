@@ -143,11 +143,22 @@ export interface ReportCandidateSummary {
 
 export interface ActiveTimeRegistrationInput {
   id: UUID;
+  staffId?: string | null;
+  organizationId?: UUID | null;
   startedAt: ISODateTime;
-  endedAt: ISODateTime | null;
+  /** Backward-compat alias. New callers SHOULD pass `stoppedAt`. */
+  endedAt?: ISODateTime | null;
+  stoppedAt?: ISODateTime | null;
+  /** Lifecycle status from active_time_registrations ('active' | 'stopped' | ...). */
+  status?: string | null;
+  /** Legacy alias for startSource. */
   source?: string | null;
+  startSource?: string | null;
+  stopSource?: string | null;
   targetType?: string | null;
-  targetId?: UUID | null;
+  targetId?: string | null;
+  targetLabel?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface StaffPresenceSessionInput {
@@ -290,7 +301,11 @@ function isDayOpen(
   const cutoff = new Date(`${date}T23:59:59Z`).getTime();
   const end = new Date(endAt).getTime();
   if (end >= cutoff) return true;
-  if (active?.some((r) => !r.endedAt || new Date(r.endedAt).getTime() > end)) return true;
+  if (active?.some((r) => {
+    if ((r.status ?? '').toLowerCase() === 'active') return true;
+    const stop = r.stoppedAt ?? r.endedAt ?? null;
+    return !stop || new Date(stop).getTime() > end;
+  })) return true;
   if (sessions?.some((s) => !s.endedAt || new Date(s.endedAt).getTime() > end)) return true;
   return false;
 }
