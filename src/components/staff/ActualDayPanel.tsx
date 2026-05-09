@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 import { format } from 'date-fns';
 import {
   Activity,
@@ -379,6 +378,7 @@ import {
   hiddenReasonLabel,
   type TimelineHiddenReason,
 } from '@/lib/staff/timelineVisibility';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 type PlanningItemView = {
   id: string;

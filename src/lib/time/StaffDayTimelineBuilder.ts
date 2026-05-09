@@ -34,13 +34,13 @@
  */
 
 import type {
-import { formatStockholmHm, formatStockholmHms } from '../staff/formatStockholmTime';
   StaffDayTimeline,
   StaffDaySegment,
   StaffDaySegmentKind,
   StaffDayStatus,
   StaffDayEvidence,
 } from '@/lib/staff/staffDayTimeline';
+import { formatStockholmHm, formatStockholmHms } from '../staff/formatStockholmTime';
 
 // ── Råa input-typer ──────────────────────────────────────────────────
 
