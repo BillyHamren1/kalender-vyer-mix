@@ -233,6 +233,7 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   tinyWorkMaxMinutes: 2,
   realTripMinDistanceMeters: 1000,
   sameTargetTransportAbsorbMaxMinutes: 25,
+  sameTargetTransportAbsorbMaxDistanceMeters: 750,
   shortCrossTargetReviewMaxMinutes: 5,
   shortUnknownTransportHideMaxMinutes: 3,
 };
