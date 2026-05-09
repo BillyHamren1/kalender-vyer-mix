@@ -35,6 +35,7 @@ import {
   type PresenceDayBlocksResult,
   type TimerMarkerInput,
 } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
+import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
