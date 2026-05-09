@@ -34,6 +34,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ActualDayPanel } from './ActualDayPanel';
 import { RawEvidenceDrawer } from './RawEvidenceDrawer';
+import {
+  ReportCandidateTimeline,
+  type ReportCandidateBlockUI,
+  type ReportCandidateSummaryUI,
+} from './ReportCandidateTimeline';
 import { useApproveTimeReport } from '@/hooks/useApproveTimeReport';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import {
