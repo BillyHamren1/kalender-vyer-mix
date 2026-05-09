@@ -185,6 +185,12 @@ export interface ReportCandidatePolicy {
    *  transport is folded into work-A even when the transport is longer than
    *  shortTransportMergeMinutes. Default 25 min. */
   sameTargetTransportAbsorbMaxMinutes?: number;
+  /** Same-target absorption distance gate. Even when prev/next target match,
+   *  the transport is only absorbed if measured distance ≤ this. Above this
+   *  it is treated as a real round-trip (kept as transport, possibly
+   *  needs_review). If distance is missing the transport is NOT absorbed.
+   *  Default 750 m. */
+  sameTargetTransportAbsorbMaxDistanceMeters?: number;
   /** Short cross-target transport (different work targets) shorter than this
    *  is downgraded to needs_review instead of being a real trip. Default 5 min. */
   shortCrossTargetReviewMaxMinutes?: number;
