@@ -680,7 +680,102 @@ export async function resolveWorkTargets(
     diag.warnings.push(`organization_locations fetch failed: ${(e as Error).message}`);
   }
 
-  return { targets, targetDiagnostics: diag };
+  // ─────────── Post-process: matchRole / assignmentAnchor / canAutoMatchAsWork ─
+  // resolveWorkTargets är medvetet generös i datalagret (för att kunna visa
+  // secondary-kandidater i review/evidence). Här klassar vi varje target som
+  // PRIMARY (auto-matchbar arbete) eller SECONDARY (review only).
+  const resolution: TargetResolutionDiagnostics = {
+    primaryTargetsCount: 0,
+    secondaryTargetsCount: 0,
+    unsafeAutoMatchedTargetsCount: 0,
+    dateRelevantBookingsAsPrimaryCount: 0,
+    activeProjectsAsPrimaryCount: 0,
+    unassignedBookingsMatchedAsWorkCount: 0,
+    unassignedProjectsMatchedAsWorkCount: 0,
+    secondaryCandidatesNearGps: 0, // populeras inte här (kräver pings)
+    warnings: [],
+  };
+
+  for (const t of targets) {
+    // Address anchor: ~5 decimaler ≈ 1.1 m, räcker för att gruppera på adress.
+    const addressAnchorKey = (t.latitude != null && t.longitude != null)
+      ? `${t.latitude.toFixed(5)},${t.longitude.toFixed(5)}`
+      : null;
+    t.addressAnchorKey = addressAnchorKey;
+
+    let role: WorkTargetMatchRole = 'secondary';
+    let anchor: WorkTargetAssignmentAnchor;
+
+    if (t.type === 'warehouse' || t.type === 'location') {
+      role = 'primary';
+      anchor = 'warehouse';
+    } else if (t.type === 'booking') {
+      if (directlyAssignedBookingIds.has(t.id)) {
+        role = 'primary';
+        anchor = 'direct_staff_assignment';
+      } else if (teamCalendarBookingIds.has(t.id)) {
+        role = 'primary';
+        anchor = 'team_calendar_event';
+      } else if (t.targetSource === 'date_relevant_booking') {
+        anchor = 'date_address_candidate';
+      } else if (t.targetSource === 'project_linked_booking') {
+        anchor = 'project_linked_unassigned';
+      } else if (t.targetSource === 'large_project_linked_booking') {
+        anchor = 'project_linked_unassigned';
+      } else {
+        anchor = 'date_address_candidate';
+      }
+    } else {
+      // type === 'project' — täcker både vanliga projekt och large_projects
+      // (de pushas båda som type='project' i datalagret ovan).
+      const linkedBookingId = projectIdToBookingId.get(t.id);
+      if (assignedLargeProjectIds.has(t.id)) {
+        role = 'primary';
+        anchor = 'large_project_staff_assignment';
+      } else if (linkedBookingId && directlyAssignedBookingIds.has(linkedBookingId)) {
+        role = 'primary';
+        anchor = 'direct_staff_assignment';
+      } else if (linkedBookingId && teamCalendarBookingIds.has(linkedBookingId)) {
+        role = 'primary';
+        anchor = 'team_calendar_event';
+      } else if (linkedBookingId) {
+        anchor = 'project_linked_unassigned';
+      } else {
+        anchor = 'active_project_unassigned';
+      }
+    }
+
+    t.matchRole = role;
+    t.assignmentAnchor = anchor;
+    t.canAutoMatchAsWork = role === 'primary';
+
+    if (role === 'primary') resolution.primaryTargetsCount += 1;
+    else resolution.secondaryTargetsCount += 1;
+
+    // Hard-fail-detektorer för health check ───────────────────────────────
+    if (role === 'primary' && t.targetSource === 'date_relevant_booking') {
+      resolution.dateRelevantBookingsAsPrimaryCount += 1;
+      resolution.unsafeAutoMatchedTargetsCount += 1;
+    }
+    if (role === 'primary' && t.targetSource === 'active_project') {
+      resolution.activeProjectsAsPrimaryCount += 1;
+      resolution.unsafeAutoMatchedTargetsCount += 1;
+    }
+    if (role === 'primary' && t.type === 'booking' && anchor === 'date_address_candidate') {
+      resolution.unassignedBookingsMatchedAsWorkCount += 1;
+      resolution.unsafeAutoMatchedTargetsCount += 1;
+    }
+    if (
+      role === 'primary' &&
+      t.type === 'project' &&
+      (anchor === 'active_project_unassigned' || anchor === 'project_linked_unassigned')
+    ) {
+      resolution.unassignedProjectsMatchedAsWorkCount += 1;
+      resolution.unsafeAutoMatchedTargetsCount += 1;
+    }
+  }
+
+  return { targets, targetDiagnostics: diag, targetResolution: resolution };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
