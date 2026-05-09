@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
+import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 import { format } from 'date-fns';
 import { Sparkles, ArrowRight, Check, X } from 'lucide-react';
 import {
-import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
   Dialog,
   DialogContent,
   DialogHeader,
