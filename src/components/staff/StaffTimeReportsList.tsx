@@ -85,8 +85,11 @@ interface StaffTimeReportsListProps {
       blocks: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
       summary: import('./ReportCandidateTimeline').ReportCandidateSummaryUI | null;
       loading: boolean;
+      missing?: boolean;
     } | undefined
   >;
+  /** Sidnivå-engineMode. ALLA personrader renderas med detta läge. */
+  engineMode?: 'report_candidate' | 'actual_model_fallback';
 }
 
 const formatRelativeDate = (date: Date): string => {
