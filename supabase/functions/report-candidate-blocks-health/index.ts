@@ -265,6 +265,18 @@ Deno.serve(async (req) => {
           report.summary.signalGapMinutesHiddenInsideWorkBlocks;
         day.reportRowsWithSignalWarnings += report.summary.reportRowsWithSignalWarnings;
         day.needsReviewCount += report.summary.needsReviewBlocksCount;
+        day.reportBlocksBeforeMicroSuppression +=
+          (report.summary as any).reportBlocksBeforeMicroSuppression ?? 0;
+        day.reportBlocksAfterMicroSuppression +=
+          (report.summary as any).reportBlocksAfterMicroSuppression ?? report.blocks.length;
+        day.suppressedMicroTransportCount +=
+          (report.summary as any).suppressedMicroTransportCount ?? 0;
+        day.suppressedMicroTransportMinutes +=
+          (report.summary as any).suppressedMicroTransportMinutes ?? 0;
+        day.suppressedTinyWorkBlocksCount +=
+          (report.summary as any).suppressedTinyWorkBlocksCount ?? 0;
+        day.suppressedTinyWorkMinutes +=
+          (report.summary as any).suppressedTinyWorkMinutes ?? 0;
 
         for (const b of report.blocks) {
           day.reportBlocksByKind[b.kind] = (day.reportBlocksByKind[b.kind] ?? 0) + 1;
