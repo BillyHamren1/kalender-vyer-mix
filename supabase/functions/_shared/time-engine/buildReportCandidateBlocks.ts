@@ -109,6 +109,10 @@ export interface ReportCandidateSummary {
   transportRowsAfterSameTargetAbsorption: number;
   sameTargetTransportAbsorbedCount: number;
   sameTargetTransportAbsorbedMinutes: number;
+  /** Same-target transports rejected because measured distance exceeded
+   *  sameTargetTransportAbsorbMaxDistanceMeters (real round-trip). */
+  sameTargetTransportRejectedByDistanceCount: number;
+  sameTargetTransportRejectedByDistanceMinutes: number;
   crossTargetTransportKeptCount: number;
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
@@ -122,6 +126,17 @@ export interface ReportCandidateSummary {
     durationMinutes: number;
     distanceMeters: number;
     absorbedIntoWorkBlock: { startAt: ISODateTime; endAt: ISODateTime } | null;
+    reviewReasons: string[];
+  }>;
+  /** Examples (max 20) of same-target transports that were REJECTED for
+   *  absorption (distance too large or missing). Kept as transport/needs_review. */
+  sameTargetTransportRejectedExamples: Array<{
+    targetLabel: string | null;
+    startAt: ISODateTime;
+    endAt: ISODateTime;
+    durationMinutes: number;
+    distanceMeters: number | null;
+    decision: 'kept_as_transport' | 'needs_review';
     reviewReasons: string[];
   }>;
 }
