@@ -305,33 +305,44 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
         </div>
       </header>
 
-      {/* Huvudtimeline — reportCandidateBlocks (canonical engine) om de finns,
-          annars fallback från actualModel med tydlig märkning. */}
-      {props.reportCandidateBlocks && props.reportCandidateBlocks.length > 0 ? (
-        <ReportCandidateTimeline
-          blocks={props.reportCandidateBlocks}
-          summary={props.reportCandidateSummary ?? null}
-        />
-      ) : props.reportCandidateLoading ? (
-        <ReportCandidateTimeline blocks={[]} loading />
-      ) : (
-        <>
-          <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/40 px-3 py-1.5 text-[11px] text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            Fallback: ny tidrapportmotor saknas — visar tolkning från actualModel.
-          </div>
-          {timeline.segments.length === 0 ? (
-            <div className="rounded-md border border-dashed bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">
-              Ingen registrerad aktivitet för dagen.
+      {/* Huvudtimeline — STRIKT styrd av sidnivå-engineMode. Personraden
+          får aldrig själv välja motor; valet görs i StaffTimeReports.tsx. */}
+      {(() => {
+        const mode = props.engineMode ?? 'report_candidate';
+        if (mode === 'report_candidate') {
+          return (
+            <>
+              <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-primary">
+                Engine: reportCandidate
+              </div>
+              <ReportCandidateTimeline
+                blocks={props.reportCandidateBlocks ?? []}
+                summary={props.reportCandidateSummary ?? null}
+                loading={props.reportCandidateLoading}
+              />
+            </>
+          );
+        }
+        // actual_model_fallback — alla rader renderas med actualModel.
+        return (
+          <>
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              Engine: actualModel fallback
             </div>
-          ) : (
-            <div className="space-y-1.5">
-              {timeline.segments.map((seg) => (
-                <SegmentRow key={seg.id} seg={seg} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+            {timeline.segments.length === 0 ? (
+              <div className="rounded-md border border-dashed bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">
+                Ingen registrerad aktivitet för dagen.
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {timeline.segments.map((seg) => (
+                  <SegmentRow key={seg.id} seg={seg} />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Rådata / bevisning — öppnas i en sidopanel (drawer).
           OBS: reportSlot (rad-tabellen) renderas EJ i huvudvyn längre.
