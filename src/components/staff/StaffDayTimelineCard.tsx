@@ -178,6 +178,7 @@ function SegmentRow({ seg }: { seg: StaffDaySegment }) {
 export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props) => {
   const { staffName, date, model } = props;
   const [showRaw, setShowRaw] = useState(false);
+  const [showDecisionTrace, setShowDecisionTrace] = useState(false);
   const { approveMutation } = useApproveTimeReport();
 
   // 1Hz tick so any pågående arbetsdag/segment räknar upp i realtid utan
