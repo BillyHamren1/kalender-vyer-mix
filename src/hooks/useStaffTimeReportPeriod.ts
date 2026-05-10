@@ -36,6 +36,17 @@ export interface StaffTimeReportPeriodTotals {
   manualDeductionMinutes: number;
   payableMinutes: number;
   approvedPayableMinutes: number;
+  /**
+   * Inskickat av användare men ej godkänt av admin.
+   */
+  submittedPayableMinutes: number;
+  /**
+   * Ej inskickat av användare (brutto > 0, ingen day_attestation).
+   */
+  awaitingUserAttestPayableMinutes: number;
+  /**
+   * Alias/fallback (deprecated) — speglar awaitingUserAttestPayableMinutes.
+   */
   awaitingAttestPayableMinutes: number;
   daysWithActions: number;
   daysWithWork: number;
@@ -102,6 +113,8 @@ const EMPTY_TOTALS: StaffTimeReportPeriodTotals = {
   manualDeductionMinutes: 0,
   payableMinutes: 0,
   approvedPayableMinutes: 0,
+  submittedPayableMinutes: 0,
+  awaitingUserAttestPayableMinutes: 0,
   awaitingAttestPayableMinutes: 0,
   daysWithActions: 0,
   daysWithWork: 0,
@@ -178,7 +191,15 @@ export function useStaffTimeReportPeriod(
           manualDeductionMinutes: t.manualDeductionMinutes ?? 0,
           payableMinutes: t.payableMinutes ?? 0,
           approvedPayableMinutes: t.approvedPayableMinutes ?? 0,
-          awaitingAttestPayableMinutes: t.awaitingAttestPayableMinutes ?? 0,
+          submittedPayableMinutes: t.submittedPayableMinutes ?? 0,
+          awaitingUserAttestPayableMinutes:
+            t.awaitingUserAttestPayableMinutes ??
+            t.awaitingAttestPayableMinutes ??
+            0,
+          awaitingAttestPayableMinutes:
+            t.awaitingAttestPayableMinutes ??
+            t.awaitingUserAttestPayableMinutes ??
+            0,
           daysWithActions: t.daysWithActions ?? 0,
           daysWithWork: t.daysWithWork ?? 0,
           projectMinutes: t.projectMinutes ?? 0,

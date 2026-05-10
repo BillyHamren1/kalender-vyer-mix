@@ -135,15 +135,20 @@ const DayView = ({ date, onOpen }: { date: string; onOpen: (d: string) => void }
     const payable = totals?.payableMinutes ?? 0;
     const transport = totals?.transportMinutes ?? totals?.travelMinutes ?? 0;
     const approved = !!snapshot?.workday?.approved;
+    const attested = !!snapshot?.attestation;
     return {
       grossWorkdayMinutes: gross,
       breakMinutes: breaks,
       payableMinutes: payable,
       transportMinutes: transport,
       approvedPayableMinutes: approved ? payable : 0,
-      awaitingAttestPayableMinutes: !approved && payable > 0 ? payable : 0,
+      submittedPayableMinutes: !approved && attested ? payable : 0,
+      awaitingUserAttestPayableMinutes:
+        !approved && !attested && payable > 0 ? payable : 0,
+      awaitingAttestPayableMinutes:
+        !approved && !attested && payable > 0 ? payable : 0,
     };
-  }, [totals, snapshot?.workday?.approved]);
+  }, [totals, snapshot?.workday?.approved, snapshot?.attestation]);
 
   return (
     <div className="space-y-4">
@@ -195,7 +200,13 @@ const PeriodView = ({
     payableMinutes: totals?.payableMinutes ?? 0,
     transportMinutes: totals?.transportMinutes ?? 0,
     approvedPayableMinutes: totals?.approvedPayableMinutes ?? 0,
-    awaitingAttestPayableMinutes: totals?.awaitingAttestPayableMinutes ?? 0,
+    submittedPayableMinutes: totals?.submittedPayableMinutes ?? 0,
+    awaitingUserAttestPayableMinutes:
+      totals?.awaitingUserAttestPayableMinutes ??
+      totals?.awaitingAttestPayableMinutes ?? 0,
+    awaitingAttestPayableMinutes:
+      totals?.awaitingAttestPayableMinutes ??
+      totals?.awaitingUserAttestPayableMinutes ?? 0,
   };
 
   return (
