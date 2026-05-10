@@ -221,6 +221,22 @@ interface DayHealth {
     knownSiteSegments: number;
     transportSegments: number;
     unknownPlaceSegments: number;
+    movementInsideGeofenceReclassifiedCount: number;
+    movementInsideGeofenceReclassifiedMinutes: number;
+    movementInsideGeofenceExamples: Array<{
+      staffName: string;
+      staffId: string;
+      segmentStart: string;
+      segmentEnd: string;
+      durationMinutes: number;
+      targetLabel: string | null;
+      pingsInsideSameTargetRatio: number | null;
+      computedKmh: number | null;
+      movementReason: string | null;
+      nearestTargetDistanceMeters: number | null;
+      nearestTargetRadiusMeters: number | null;
+      clearExitDetected: boolean;
+    }>;
   };
 }
 
