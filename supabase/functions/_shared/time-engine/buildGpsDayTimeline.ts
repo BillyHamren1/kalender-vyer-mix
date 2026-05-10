@@ -594,6 +594,17 @@ export function buildGpsDayTimeline(
           examples: [],
         },
       },
+      geoAnchorDiagnostics: {
+        hardAnchorCount: 0,
+        hardEntryCount: 0,
+        hardExitCount: 0,
+        entriesAppliedToSticky: 0,
+        entriesSeededStickyEarly: 0,
+        entriesIgnoredNoMatchingTarget: 0,
+        exitsObservedWithoutStrongExit: 0,
+        transportSegmentsAfterGeoEntryWithoutStrongExitMinutes: 0,
+        examples: [],
+      },
     };
   }
 
