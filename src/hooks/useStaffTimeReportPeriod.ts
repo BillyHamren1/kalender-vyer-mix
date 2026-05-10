@@ -2,15 +2,9 @@
  * useStaffTimeReportPeriod(period)
  * ================================
  * Single official entrypoint the Time-page "Tidrapport" tab uses for the
- * **per-period summary** (week or month) the user submits / reviews. Truth
- * is owned by backend (`get-staff-time-report-period` Edge Function).
- *
- * Until that endpoint exists this hook is a **forward-compatible stub**:
- * it exposes the shape (totals, status, rows) that the UI binds to, but
- * returns an empty stable result. UI must NOT recombine raw tables.
- *
- * When backend lands, swap the implementation to call the function — no
- * UI changes needed.
+ * **per-period summary** (week or month). Truth is owned by backend
+ * (`get-staff-time-report-period` Edge Function — same engine as
+ * `get-staff-day-status`). UI must NEVER recompute totals from raw tables.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -32,28 +26,49 @@ export interface StaffTimeReportPeriodInput {
   anchor: Date | string;
 }
 
+/**
+ * Canonical period totals — matches `SummarizedTotals` from
+ * `supabase/functions/_shared/day-snapshot-range.ts`.
+ */
 export interface StaffTimeReportPeriodTotals {
-  workMinutes: number;
-  overtimeMinutes: number;
-  travelMinutes: number;
-  unallocatedMinutes: number;
+  grossWorkdayMinutes: number;
+  breakMinutes: number;
+  manualDeductionMinutes: number;
+  payableMinutes: number;
+  approvedPayableMinutes: number;
+  awaitingAttestPayableMinutes: number;
+  daysWithActions: number;
+  daysWithWork: number;
+  projectMinutes: number;
+  warehouseMinutes: number;
+  transportMinutes: number;
+  otherPlaceMinutes: number;
 }
 
-export interface StaffTimeReportRow {
-  /** Stable backend id — never rebuilt client-side. */
-  id: string;
+/**
+ * Per-day summary — matches backend `DaySummary` from `day-snapshot-range.ts`.
+ */
+export interface StaffPeriodDaySummary {
   date: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  hoursWorked: number;
-  overtimeHours: number;
-  breakHours: number;
+  weekday: number;
+  grossWorkdayMinutes: number;
+  breakMinutes: number;
+  payableMinutes: number;
+  projectMinutes: number;
+  warehouseMinutes: number;
+  transportMinutes: number;
+  otherPlaceMinutes: number;
+  isWorkdayOpen: boolean;
   approved: boolean;
-  jobLabel: string;
-  jobKind: 'booking' | 'project' | 'location' | 'unknown';
-  bookingId: string | null;
-  largeProjectId: string | null;
-  description: string | null;
+  attested: boolean;
+  actionsCount: number;
+  status:
+    | 'empty'
+    | 'open'
+    | 'needs_attest'
+    | 'needs_action'
+    | 'attested'
+    | 'approved';
 }
 
 export interface StaffTimeReportPeriod {
@@ -63,13 +78,12 @@ export interface StaffTimeReportPeriod {
   /** yyyy-MM-dd inclusive */
   endDate: string;
   staffId: string;
-  status: 'draft' | 'submitted' | 'approved' | 'mixed' | 'empty';
+  status: 'draft' | 'submitted' | 'approved' | 'empty';
   totals: StaffTimeReportPeriodTotals;
-  rows: StaffTimeReportRow[];
   /** Per-day list from backend snapshot. UI binds, never recomputes. */
-  days?: Array<Record<string, unknown>>;
+  days: StaffPeriodDaySummary[];
   /** Reasons the period is not yet ready to submit. */
-  blockers?: Array<{ date: string; type: string; message: string }>;
+  blockers: Array<{ date: string; type: string; message: string }>;
   lastUpdatedAt: string;
 }
 
@@ -81,6 +95,21 @@ interface Result {
 }
 
 const POLL_MS = 60_000;
+
+const EMPTY_TOTALS: StaffTimeReportPeriodTotals = {
+  grossWorkdayMinutes: 0,
+  breakMinutes: 0,
+  manualDeductionMinutes: 0,
+  payableMinutes: 0,
+  approvedPayableMinutes: 0,
+  awaitingAttestPayableMinutes: 0,
+  daysWithActions: 0,
+  daysWithWork: 0,
+  projectMinutes: 0,
+  warehouseMinutes: 0,
+  transportMinutes: 0,
+  otherPlaceMinutes: 0,
+};
 
 function periodBounds(input: StaffTimeReportPeriodInput): {
   startDate: string;
@@ -99,6 +128,16 @@ function periodBounds(input: StaffTimeReportPeriodInput): {
     endDate: format(endOfMonth(anchor), 'yyyy-MM-dd'),
   };
 }
+
+const REALTIME_TABLES = [
+  'workdays',
+  'time_reports',
+  'travel_time_logs',
+  'location_time_entries',
+  'workday_flags',
+  'assistant_events',
+  'day_attestations',
+] as const;
 
 export function useStaffTimeReportPeriod(
   input: StaffTimeReportPeriodInput,
@@ -126,8 +165,7 @@ export function useStaffTimeReportPeriod(
         'get-staff-time-report-period',
         { staffId, kind: input.kind, startDate, endDate },
       );
-      // Backend returns { period:{kind,startDate,endDate}, staffId, totals, days, blockers, status, lastUpdatedAt }.
-      // Flatten into the consumer shape — UI must NOT recompute totals.
+      const t = data?.totals ?? {};
       setPeriod({
         kind: data?.period?.kind ?? input.kind,
         startDate: data?.period?.startDate ?? startDate,
@@ -135,16 +173,23 @@ export function useStaffTimeReportPeriod(
         staffId,
         status: data?.status ?? 'empty',
         totals: {
-          workMinutes: data?.totals?.workMinutes ?? 0,
-          overtimeMinutes: data?.totals?.overtimeMinutes ?? 0,
-          travelMinutes: data?.totals?.travelMinutes ?? 0,
-          unallocatedMinutes: data?.totals?.unallocatedMinutes ?? 0,
+          grossWorkdayMinutes: t.grossWorkdayMinutes ?? 0,
+          breakMinutes: t.breakMinutes ?? 0,
+          manualDeductionMinutes: t.manualDeductionMinutes ?? 0,
+          payableMinutes: t.payableMinutes ?? 0,
+          approvedPayableMinutes: t.approvedPayableMinutes ?? 0,
+          awaitingAttestPayableMinutes: t.awaitingAttestPayableMinutes ?? 0,
+          daysWithActions: t.daysWithActions ?? 0,
+          daysWithWork: t.daysWithWork ?? 0,
+          projectMinutes: t.projectMinutes ?? 0,
+          warehouseMinutes: t.warehouseMinutes ?? 0,
+          transportMinutes: t.transportMinutes ?? 0,
+          otherPlaceMinutes: t.otherPlaceMinutes ?? 0,
         },
-        rows: [],
-        days: data?.days ?? [],
+        days: (data?.days ?? []) as StaffPeriodDaySummary[],
         blockers: data?.blockers ?? [],
         lastUpdatedAt: data?.lastUpdatedAt ?? new Date().toISOString(),
-      } as StaffTimeReportPeriod);
+      });
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Kunde inte ladda perioden');
@@ -182,14 +227,7 @@ export function useStaffTimeReportPeriod(
     const channel = supabase.channel(
       `staff-period:${staffId}:${input.kind}:${startDate}`,
     );
-    for (const table of [
-      'workdays',
-      'time_reports',
-      'travel_time_logs',
-      'location_time_entries',
-      'workday_flags',
-      'assistant_events',
-    ] as const) {
+    for (const table of REALTIME_TABLES) {
       (channel as any).on(
         'postgres_changes',
         { event: '*', schema: 'public', table, filter: `staff_id=eq.${staffId}` },
@@ -205,3 +243,5 @@ export function useStaffTimeReportPeriod(
 
   return { period, isLoading, error, refresh };
 }
+
+export const _EMPTY_PERIOD_TOTALS = EMPTY_TOTALS;
