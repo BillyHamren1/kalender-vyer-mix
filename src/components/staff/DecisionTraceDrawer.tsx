@@ -136,10 +136,65 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 // ── tab contents ───────────────────────────────────────────────────
+type RiskTone = 'red' | 'amber' | 'ok';
+
+function RiskCard({
+  title,
+  tone,
+  items,
+  hint,
+}: {
+  title: string;
+  tone: RiskTone;
+  items: Array<{ label: string; value: React.ReactNode; bad?: boolean }>;
+  hint?: string;
+}) {
+  const toneCls =
+    tone === 'red'
+      ? 'border-destructive/50 bg-destructive/5'
+      : tone === 'amber'
+        ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/30'
+        : 'border-emerald-300/60 bg-emerald-50/60 dark:bg-emerald-950/20';
+  const Icon = tone === 'ok' ? CheckCircle2 : AlertTriangle;
+  const iconCls =
+    tone === 'red'
+      ? 'text-destructive'
+      : tone === 'amber'
+        ? 'text-amber-700 dark:text-amber-300'
+        : 'text-emerald-700 dark:text-emerald-300';
+  return (
+    <div className={`rounded-md border p-3 ${toneCls}`}>
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold">
+        <Icon className={`h-3.5 w-3.5 ${iconCls}`} />
+        <span>{title}</span>
+      </div>
+      <div className="grid grid-cols-1 gap-x-3 gap-y-0.5 text-[11px] sm:grid-cols-2">
+        {items.map((it, i) => (
+          <div key={i} className="flex justify-between gap-2 border-b border-border/30 py-0.5 last:border-b-0">
+            <span className="truncate text-muted-foreground">{it.label}</span>
+            <span className={`font-mono tabular-nums ${it.bad ? 'font-semibold text-destructive' : ''}`}>
+              {it.value}
+            </span>
+          </div>
+        ))}
+      </div>
+      {hint && <div className="mt-2 text-[10px] italic text-muted-foreground">{hint}</div>}
+    </div>
+  );
+}
+
+function num(v: any): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function OverviewTab(props: DecisionTraceDrawerProps) {
   const s = props.reportCandidateSummary;
-  const tr = props.targetResolution;
-  const diag = props.reportCandidateDiagnostics;
+  const tr = props.targetResolution ?? {};
+  const tms = props.targetMatchSummary ?? {};
+  const diag = props.reportCandidateDiagnostics ?? {};
+  const counts = props.counts ?? {};
+
   const rawGpsCount = Array.isArray(props.rawGpsTimeline?.segments)
     ? props.rawGpsTimeline.segments.length
     : Array.isArray(props.rawGpsTimeline)
@@ -148,14 +203,62 @@ function OverviewTab(props: DecisionTraceDrawerProps) {
   const pingsCount = Array.isArray(props.rawGpsTimeline?.pings)
     ? props.rawGpsTimeline.pings.length
     : null;
+
   const warnings: string[] = [];
-  if (diag?.warnings && Array.isArray(diag.warnings)) warnings.push(...diag.warnings.map(String));
-  if (tr?.warnings && Array.isArray(tr.warnings)) warnings.push(...tr.warnings.map(String));
+  if (Array.isArray(diag?.warnings)) warnings.push(...diag.warnings.map(String));
+  if (Array.isArray(tr?.warnings)) warnings.push(...tr.warnings.map(String));
+
+  // ── 1. Target-risk ─────────────────────────────────────────────
+  const unsafeAuto = num(tr.unsafeAutoMatchedTargetsCount);
+  const dateRelevantPrimary = num(tr.dateRelevantBookingsAsPrimaryCount);
+  const unassignedAsWork = num(tr.unassignedBookingsMatchedAsWorkCount);
+  const activeProjectsPrimary = num(tr.activeProjectsAsPrimaryCount);
+  const targetIssues = unsafeAuto + dateRelevantPrimary + unassignedAsWork + activeProjectsPrimary;
+  const targetTone: RiskTone = targetIssues === 0 ? 'ok' : unsafeAuto > 0 ? 'red' : 'amber';
+
+  // ── 2. Signal-risk ─────────────────────────────────────────────
+  const signalGapHidden = num(diag.signalGapMinutesHiddenInsideWorkBlocks);
+  const signalGapBlocks = props.presenceDayBlocks.filter((b: any) => b?.signalGap === true || b?.kind === 'signal_gap').length;
+  const rawGpsMissingMin = num(diag.rawGpsMissingMinutes ?? diag.gpsCoverageGapMinutes);
+  const signalIssues = signalGapHidden + signalGapBlocks + rawGpsMissingMin;
+  const signalTone: RiskTone = signalIssues === 0 ? 'ok' : signalGapHidden > 30 || rawGpsMissingMin > 60 ? 'red' : 'amber';
+
+  // ── 3. Review-risk ─────────────────────────────────────────────
+  const reviewBlocks = props.reportCandidateBlocks.filter((b) => b.reviewState && b.reviewState !== 'ok');
+  const reasonCounts = new Map<string, number>();
+  for (const b of reviewBlocks) {
+    for (const r of b.reviewReasons ?? []) {
+      reasonCounts.set(r, (reasonCounts.get(r) ?? 0) + 1);
+    }
+  }
+  const reviewTone: RiskTone = reviewBlocks.length === 0 ? 'ok' : reviewBlocks.length > 3 ? 'red' : 'amber';
+
+  // ── 4. Motorstatus ─────────────────────────────────────────────
+  const reportN = props.reportCandidateBlocks.length;
+  const presenceN = props.presenceDayBlocks.length;
+  const ratio = presenceN > 0 ? (reportN / presenceN).toFixed(2) : '—';
+  const flags = {
+    hasZeroMinuteMainRows: !!diag.hasZeroMinuteMainRows,
+    hasSignalGapAsNormalReportRow: !!diag.hasSignalGapAsNormalReportRow,
+    hasLongDistanceSameTargetAbsorbed: !!diag.hasLongDistanceSameTargetAbsorbed,
+    hasUnstableBlockIds: !!diag.hasUnstableBlockIds,
+  };
+  const flagCount = Object.values(flags).filter(Boolean).length;
+  const engineTone: RiskTone = flagCount === 0 ? 'ok' : flagCount >= 2 ? 'red' : 'amber';
+
+  // ── 5. Assignment/target summary ───────────────────────────────
+  const primaryN = num(tms.primaryTargetsCount ?? tr.primaryTargetsCount);
+  const secondaryN = num(tms.secondaryTargetsCount ?? tr.secondaryTargetsCount);
+  const matchedPrimaryN = num(tms.matchedPrimaryTargetsCount ?? tr.matchedPrimaryTargetsCount);
+  const secondaryNearGps = num(tms.secondaryCandidatesNearGpsCount ?? tms.secondaryCandidatesNearGps);
+  const assignTone: RiskTone =
+    primaryN > 0 && matchedPrimaryN === 0 ? 'red' : primaryN === 0 && secondaryN === 0 ? 'amber' : 'ok';
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <Stat label="Report candidates" value={props.reportCandidateBlocks.length} />
-        <Stat label="Presence blocks" value={props.presenceDayBlocks.length} />
+        <Stat label="Report candidates" value={reportN} />
+        <Stat label="Presence blocks" value={presenceN} />
         <Stat label="Raw GPS-segment" value={rawGpsCount} />
         {pingsCount != null && <Stat label="GPS-pings" value={pingsCount} />}
         <Stat label="Tekniska events" value={props.technicalTimeline.length} />
@@ -171,23 +274,76 @@ function OverviewTab(props: DecisionTraceDrawerProps) {
         </div>
       )}
 
-      {tr && (
-        <div className="rounded-md border bg-muted/10 p-3">
-          <div className="mb-2 text-xs font-semibold">Target resolution</div>
-          <div className="grid grid-cols-2 gap-1 text-[11px] sm:grid-cols-3">
-            {Object.entries(tr).slice(0, 24).map(([k, v]) => {
-              if (v === null || v === undefined) return null;
-              if (typeof v === 'object') return null;
-              return (
-                <div key={k} className="flex justify-between gap-2 border-b border-border/40 py-0.5">
-                  <span className="text-muted-foreground truncate">{k}</span>
-                  <span className="font-mono tabular-nums">{String(v)}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <RiskCard
+          title="1. Target-risk"
+          tone={targetTone}
+          hint="Är det target/assignment som är problemet?"
+          items={[
+            { label: 'unsafeAutoMatchedTargets', value: unsafeAuto, bad: unsafeAuto > 0 },
+            { label: 'dateRelevantBookingsAsPrimary', value: dateRelevantPrimary, bad: dateRelevantPrimary > 0 },
+            { label: 'unassignedBookingsMatchedAsWork', value: unassignedAsWork, bad: unassignedAsWork > 0 },
+            { label: 'activeProjectsAsPrimary', value: activeProjectsPrimary, bad: activeProjectsPrimary > 0 },
+          ]}
+        />
+
+        <RiskCard
+          title="2. Signal-risk"
+          tone={signalTone}
+          hint="Är det GPS / signalglapp som är problemet?"
+          items={[
+            { label: 'signalGapHiddenInWork', value: fmtMin(signalGapHidden), bad: signalGapHidden > 0 },
+            { label: 'signal_gap presence-blocks', value: signalGapBlocks, bad: signalGapBlocks > 0 },
+            { label: 'raw GPS saknas', value: fmtMin(rawGpsMissingMin), bad: rawGpsMissingMin > 60 },
+            { label: 'GPS-pings', value: pingsCount ?? '—' },
+          ]}
+        />
+
+        <RiskCard
+          title="3. Review-risk"
+          tone={reviewTone}
+          hint="Hur mycket behöver manuell granskning?"
+          items={[
+            { label: 'needs_review blocks', value: reviewBlocks.length, bad: reviewBlocks.length > 0 },
+            ...(reasonCounts.size > 0
+              ? Array.from(reasonCounts.entries()).map(([reason, n]) => ({
+                  label: reason,
+                  value: n,
+                  bad: true,
+                }))
+              : [{ label: 'reasons', value: '—' }]),
+          ]}
+        />
+
+        <RiskCard
+          title="4. Motorstatus"
+          tone={engineTone}
+          hint="Är det motorns regel som beter sig fel?"
+          items={[
+            { label: 'reportCandidateBlocks', value: reportN },
+            { label: 'presenceDayBlocks', value: presenceN },
+            { label: 'compression ratio', value: ratio },
+            { label: 'hasZeroMinuteMainRows', value: String(flags.hasZeroMinuteMainRows), bad: flags.hasZeroMinuteMainRows },
+            { label: 'hasSignalGapAsNormalReportRow', value: String(flags.hasSignalGapAsNormalReportRow), bad: flags.hasSignalGapAsNormalReportRow },
+            { label: 'hasLongDistanceSameTargetAbsorbed', value: String(flags.hasLongDistanceSameTargetAbsorbed), bad: flags.hasLongDistanceSameTargetAbsorbed },
+            { label: 'hasUnstableBlockIds', value: String(flags.hasUnstableBlockIds), bad: flags.hasUnstableBlockIds },
+          ]}
+        />
+
+        <RiskCard
+          title="5. Assignment / target summary"
+          tone={assignTone}
+          hint="Finns rätt targets över huvud taget?"
+          items={[
+            { label: 'primaryTargets', value: primaryN },
+            { label: 'matchedPrimaryTargets', value: matchedPrimaryN, bad: primaryN > 0 && matchedPrimaryN === 0 },
+            { label: 'secondaryTargets', value: secondaryN },
+            { label: 'secondaryCandidatesNearGps', value: secondaryNearGps },
+            { label: 'counts.targets', value: num(counts?.targets) || '—' },
+            { label: 'counts.presence', value: num(counts?.presence) || '—' },
+          ]}
+        />
+      </div>
 
       {warnings.length > 0 && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:bg-amber-950/30">
