@@ -1215,7 +1215,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
             suggestedActions: [
               { id: 'create_workday_from_planned', label: `Skapa arbetsdag från planerad start ${formatStockholmHm(pa.plannedStart)}` },
               firstSignalMs != null
-                ? { id: 'start_from_first_signal', label: `Starta från första GPS ${formatStockholmHm(new Date(firstSignalMs).toISOString())}` }
+                ? { id: 'start_from_first_signal', label: `Starta från första GPS ${formatStockholmHm(firstSignalMs)}` }
                 : null,
               { id: 'set_custom_start', label: 'Ange annan starttid' },
               { id: 'mark_absence', label: 'Markera frånvaro / ignorera planerad tid' },
