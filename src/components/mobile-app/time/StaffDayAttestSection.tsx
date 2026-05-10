@@ -22,6 +22,10 @@ interface Props {
   staffId: string | null;
   date: string;
   snapshot: StaffDaySnapshot;
+  /** Hindrar attest även om workday är klar (t.ex. olösta frågor). */
+  attestBlocked?: boolean;
+  /** Mänskligt skäl till blockeringen som visas i UI. */
+  attestBlockedReason?: string;
 }
 
 function clampBreak(n: number): number {
@@ -29,7 +33,7 @@ function clampBreak(n: number): number {
   return Math.max(0, Math.min(600, Math.round(n)));
 }
 
-const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot }) => {
+const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attestBlocked, attestBlockedReason }) => {
   const wd = snapshot.workday;
   const att = snapshot.attestation ?? null;
 
@@ -185,14 +189,20 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
         </div>
       )}
 
+      {attestBlocked && attestBlockedReason && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-[12px] text-amber-800 dark:text-amber-300">
+          {attestBlockedReason}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={isSaving || !staffId}
+        disabled={isSaving || !staffId || attestBlocked}
         className={cn(
           'w-full rounded-xl bg-primary text-primary-foreground font-extrabold py-3 text-sm',
           'flex items-center justify-center gap-2 active:opacity-80 transition-opacity',
-          (isSaving || !staffId) && 'opacity-60',
+          (isSaving || !staffId || attestBlocked) && 'opacity-60',
         )}
       >
         {isSaving ? (
