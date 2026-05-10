@@ -28,6 +28,7 @@ import {
   resolveWorkTargets,
   toWorkTarget,
 } from '../_shared/time-engine/resolveWorkTargets.ts';
+import { loadGeoAnchors } from '../_shared/time-engine/loadGeoAnchors.ts';
 import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { smoothPresenceTimeline } from '../_shared/time-engine/smoothPresenceTimeline.ts';
