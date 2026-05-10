@@ -42,15 +42,26 @@ const MobileLagerPage = () => {
   const window = dayTimeWindow(assignments);
   const summary = summarizeTypes(assignments);
 
+  const buildScannerLink = (item: LagerAssignmentItem, mode: 'out' | 'in') => {
+    const params = new URLSearchParams();
+    if (item.packing_id) params.set('packingId', item.packing_id);
+    else if (item.packlist_id) params.set('packlistId', item.packlist_id);
+    else if (item.booking_id) params.set('bookingId', item.booking_id);
+    params.set('mode', mode);
+    return `/m/tools/scanner?${params.toString()}`;
+  };
+
   const handleAction = async (item: LagerAssignmentItem) => {
     const action = resolveAction(item);
     switch (action) {
       case 'open_scanner':
+        navigate(buildScannerLink(item, 'out'));
+        return;
       case 'open_return_scanner':
-        navigate('/m/tools/scanner');
+        navigate(buildScannerLink(item, 'in'));
         return;
       case 'open_inventory':
-        navigate('/m/tools/scanner');
+        navigate(buildScannerLink(item, 'out'));
         return;
       case 'complete_task':
         if (item.project_task_id) {
