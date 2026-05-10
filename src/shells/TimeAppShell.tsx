@@ -12,6 +12,7 @@ import MobileJobs from '@/pages/mobile/MobileJobs';
 import MobileJobDetail from '@/pages/mobile/MobileJobDetail';
 import MobileProjectDetail from '@/pages/mobile/MobileProjectDetail';
 import MobileLocationDetail from '@/pages/mobile/MobileLocationDetail';
+import MobileLagerPage from '@/pages/mobile/MobileLagerPage';
 import MobileTimeReport from '@/pages/mobile/MobileTimeReport';
 import MobileEditTimeReport from '@/pages/mobile/MobileEditTimeReport';
 import MobileExpenses from '@/pages/mobile/MobileExpenses';
