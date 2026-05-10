@@ -1643,8 +1643,17 @@ const StaffTimeReports: React.FC = () => {
     const map: Record<string, {
       blocks: any[];
       summary: any;
+      diagnostics: any;
+      targetResolution: any;
       presenceBlocks: any[];
+      presenceRawEvidence: any[];
+      rawGpsTimeline: any;
+      technicalTimeline: any[];
+      presenceDaySummary: any;
+      presenceDayAggregation: any;
+      targetMatchSummary: any;
       targets: any[];
+      counts: any;
       loading: boolean;
       missing: boolean;
     }> = {};
@@ -1660,8 +1669,18 @@ const StaffTimeReports: React.FC = () => {
       map[s.id] = {
         blocks: data?.reportCandidateBlocks ?? [],
         summary: data?.reportCandidateSummary ?? null,
+        diagnostics: data?.reportCandidateDiagnostics ?? null,
+        targetResolution:
+          data?.targetResolution ?? data?.reportCandidateDiagnostics?.targetResolution ?? null,
         presenceBlocks: data?.presenceDayBlocks ?? [],
+        presenceRawEvidence: data?.presenceDayBlocksRawEvidence ?? [],
+        rawGpsTimeline: data?.rawGpsTimeline ?? null,
+        technicalTimeline: data?.technicalTimeline ?? [],
+        presenceDaySummary: data?.presenceDaySummary ?? null,
+        presenceDayAggregation: data?.presenceDayAggregation ?? null,
+        targetMatchSummary: data?.targetMatchSummary ?? null,
         targets: data?.targets ?? [],
+        counts: data?.counts ?? null,
         loading: isLoading,
         missing,
       };
