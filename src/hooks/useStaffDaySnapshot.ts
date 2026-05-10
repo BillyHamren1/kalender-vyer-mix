@@ -188,6 +188,7 @@ const REALTIME_TABLES = [
   'location_time_entries',
   'workday_flags',
   'assistant_events',
+  'day_attestations',
 ] as const;
 
 export function useStaffDaySnapshot(date?: string): Result {
