@@ -570,19 +570,25 @@ export function buildGpsDayTimeline(
       ? validTargets.find((t) => t.key === primaryKey) ?? null
       : null;
     const ratio = pings.length > 0 && primaryCount > 0 ? primaryCount / pings.length : 0;
+    const medianAccM = median(pings.map((p) => p.accuracyM ?? NaN));
 
     return {
-      nearestTargetLabel: nearest?.target.label ?? null,
-      nearestTargetId: nearest?.target.refId ?? null,
-      nearestTargetType: nearest?.target.kind ?? null,
-      nearestTargetDistanceMeters: nearest ? Math.round(nearest.distanceM) : null,
-      nearestTargetRadiusMeters: nearest?.target.radiusM ?? null,
-      insideNearestTarget: nearest ? nearest.distanceM <= nearest.target.radiusM : false,
-      pingsInsideAnyTarget: pingsInsideAny,
-      pingsInsidePrimaryTarget: primaryCount,
-      pingsInsideSameTargetRatio: Number(ratio.toFixed(3)),
-      travelInsideTargetCandidate: false,
-      travelInsideTargetLabel: primaryTarget?.label ?? null,
+      diag: {
+        nearestTargetLabel: nearest?.target.label ?? null,
+        nearestTargetId: nearest?.target.refId ?? null,
+        nearestTargetType: nearest?.target.kind ?? null,
+        nearestTargetDistanceMeters: nearest ? Math.round(nearest.distanceM) : null,
+        nearestTargetRadiusMeters: nearest?.target.radiusM ?? null,
+        insideNearestTarget: nearest ? nearest.distanceM <= nearest.target.radiusM : false,
+        pingsInsideAnyTarget: pingsInsideAny,
+        pingsInsidePrimaryTarget: primaryCount,
+        pingsInsideSameTargetRatio: Number(ratio.toFixed(3)),
+        travelInsideTargetCandidate: false,
+        travelInsideTargetLabel: primaryTarget?.label ?? null,
+        medianAccuracyMeters: medianAccM != null ? Math.round(medianAccM) : null,
+      },
+      primaryTarget,
+      medianAccM,
     };
   };
 
