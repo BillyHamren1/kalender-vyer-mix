@@ -173,8 +173,10 @@ export function summarizeSnapshots(snaps: StaffDaySnapshot[]): SummarizedTotals 
     if (t.grossWorkdayMinutes > 0) out.daysWithWork += 1;
     if (s.workday?.approved) {
       out.approvedPayableMinutes += t.payableMinutes;
-    } else if (t.grossWorkdayMinutes > 0 && !s.attestation) {
-      out.awaitingAttestPayableMinutes += t.payableMinutes;
+    } else if (s.attestation) {
+      out.submittedPayableMinutes += t.payableMinutes;
+    } else if (t.grossWorkdayMinutes > 0) {
+      out.awaitingUserAttestPayableMinutes += t.payableMinutes;
     }
     if ((s.actionsNeeded ?? []).some((a) => a.needsUserInput)) {
       out.daysWithActions += 1;
