@@ -514,13 +514,24 @@ export function buildGpsDayTimeline(
   let travelInsideTargetMinutes = 0;
   const travelByReason: Record<string, number> = {};
 
+  // Track per-travel-segment metadata used by the post-pass reclassifier.
+  const travelMeta = new Map<string, { pings: GpsPing[]; primaryTarget: WorkTarget | null; medianAccM: number | null }>();
+
+  // Helper: median of finite numbers
+  const median = (nums: number[]): number | null => {
+    const arr = nums.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+    if (arr.length === 0) return null;
+    const mid = Math.floor(arr.length / 2);
+    return arr.length % 2 === 0 ? (arr[mid - 1] + arr[mid]) / 2 : arr[mid];
+  };
+
   // Helper: compute target diagnostics for a stay/travel based on pings + center
   const computeTargetDiagnostics = (
     pings: GpsPing[],
     centerLat: number | null,
     centerLng: number | null,
     atIso: ISODateTime,
-  ): SegmentTargetDiagnostics => {
+  ): { diag: SegmentTargetDiagnostics; primaryTarget: WorkTarget | null; medianAccM: number | null } => {
     const at = Date.parse(atIso);
     const validTargets = input.targets.filter((t) => {
       if (t.validFrom && Date.parse(t.validFrom) > at) return false;
