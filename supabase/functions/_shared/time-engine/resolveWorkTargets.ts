@@ -928,6 +928,18 @@ export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
     : rt.type === 'booking' ? 'booking'
     : rt.type === 'warehouse' ? 'warehouse'
     : 'organization_location';
+
+  // Convert internal {lat,lng}[] outer ring to GeoJSON Polygon ([lng,lat] pairs,
+  // closed ring). buildGpsDayTimeline / geofenceEval expect this shape.
+  let polygonGeoJSON: { type: 'Polygon'; coordinates: number[][][] } | null = null;
+  if (rt.polygon && rt.polygon.length >= 3) {
+    const ring: number[][] = rt.polygon.map((p) => [p.lng, p.lat]);
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push([first[0], first[1]]);
+    polygonGeoJSON = { type: 'Polygon', coordinates: [ring] };
+  }
+
   return {
     key: `${kind}:${rt.id}`,
     kind,
@@ -935,6 +947,7 @@ export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
     label: rt.name,
     center: { lat: rt.latitude, lng: rt.longitude },
     radiusM: rt.radiusMeters ?? 100,
+    polygon: polygonGeoJSON,
     assignedToUserToday: rt.dateRelevance === 'today',
   };
 }
