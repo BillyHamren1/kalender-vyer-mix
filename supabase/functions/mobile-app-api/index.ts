@@ -6759,12 +6759,17 @@ async function handleGetLagerAssignments(
             description: null,
             start_time: w.start_time,
             end_time: w.end_time,
-            event_type: w.event_type || 'warehouse',
+            event_type: evType,
+            assignment_type: aType,
+            action,
             booking_id: w.booking_id ?? null,
             booking_number: w.booking_number ?? null,
             delivery_address: w.delivery_address ?? null,
+            customer_name: w.title ?? null,
+            warehouse_event_id: w.id,
+            source: 'warehouse_calendar_event',
             completed: false,
-            status: 'scheduled',
+            status: 'planned',
           })
         }
       }
