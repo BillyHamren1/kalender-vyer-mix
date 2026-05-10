@@ -240,16 +240,17 @@ const ActiveNowCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) =
 const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
   const t = snapshot.totals;
   // Visa bara fält som backend faktiskt skickat värde för (>0 eller satt).
+  const grossMin = t.grossWorkdayMinutes ?? t.workdayMinutes ?? 0;
+  const transportMin = t.transportMinutes ?? t.travelMinutes ?? 0;
+  const projectMin = (t.projectMinutes ?? t.allocatedProjectMinutes ?? 0) + (t.warehouseMinutes ?? 0);
   const rows: Array<{ label: string; value: string; muted?: boolean; strong?: boolean }> = [
-    { label: 'Brutto', value: fmtMinutes(t.workdayMinutes), strong: true },
+    { label: 'Brutto', value: fmtMinutes(grossMin), strong: true },
     { label: 'Rast', value: t.breakMinutes != null
         ? fmtMinutes(t.breakMinutes)
         : 'ej angiven', muted: t.breakMinutes == null },
-    { label: 'Lönegrundande', value: fmtMinutes(t.payableMinutes ?? t.workdayMinutes), strong: true },
-    { label: 'Projekt/lager', value: fmtMinutes(
-        (t.allocatedProjectMinutes ?? 0) + (t.warehouseMinutes ?? 0),
-      ) },
-    { label: 'Transport', value: fmtMinutes(t.travelMinutes) },
+    { label: 'Lönegrundande', value: fmtMinutes(t.payableMinutes ?? grossMin), strong: true },
+    { label: 'Projekt/lager', value: fmtMinutes(projectMin) },
+    { label: 'Transport', value: fmtMinutes(transportMin) },
     { label: 'Annan plats', value: fmtMinutes(t.otherPlaceMinutes ?? 0) },
   ];
 
