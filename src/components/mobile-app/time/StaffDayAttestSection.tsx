@@ -22,6 +22,10 @@ interface Props {
   staffId: string | null;
   date: string;
   snapshot: StaffDaySnapshot;
+  /** Hindrar attest även om workday är klar (t.ex. olösta frågor). */
+  attestBlocked?: boolean;
+  /** Mänskligt skäl till blockeringen som visas i UI. */
+  attestBlockedReason?: string;
 }
 
 function clampBreak(n: number): number {
