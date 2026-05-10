@@ -263,6 +263,37 @@ function haversine(aLat: number, aLng: number, bLat: number, bLng: number): numb
   return 2 * EARTH_R * Math.asin(Math.sqrt(s));
 }
 
+/**
+ * Adapter so we can call shared isInsideGeofence/distanceToGeofenceEdge
+ * (defined over GeofenceTarget) on a Time-Engine WorkTarget.
+ * When `polygon` is set, the polygon takes precedence; otherwise circle.
+ */
+function asGeofenceTarget(t: WorkTarget): GeofenceTarget {
+  return {
+    latitude: t.center.lat,
+    longitude: t.center.lng,
+    radius_meters: t.radiusM,
+    geofence_mode: t.polygon ? 'polygon' : 'circle',
+    geofence_polygon: t.polygon ?? null,
+  };
+}
+
+/**
+ * True iff (lat,lng) is inside the target's geofence (polygon when present, else circle).
+ */
+function pointInsideTarget(lat: number, lng: number, t: WorkTarget): boolean {
+  return isInsideGeofence(lat, lng, asGeofenceTarget(t));
+}
+
+/**
+ * Signed distance to the target's geofence edge in meters.
+ * Positive = inside (meters until you'd leave), negative = outside (meters away).
+ * For circle targets this equals (radiusM − haversine_to_center).
+ */
+function signedDistanceToTargetEdge(lat: number, lng: number, t: WorkTarget): number {
+  return distanceToGeofenceEdge(lat, lng, asGeofenceTarget(t));
+}
+
 const minutesBetween = (a: ISODateTime, b: ISODateTime) =>
   Math.max(0, (Date.parse(b) - Date.parse(a)) / 60000);
 
