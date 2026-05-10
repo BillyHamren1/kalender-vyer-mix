@@ -949,5 +949,6 @@ export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
     radiusM: rt.radiusMeters ?? 100,
     polygon: polygonGeoJSON,
     assignedToUserToday: rt.dateRelevance === 'today',
+    assignmentAnchor: rt.assignmentAnchor ?? undefined,
   };
 }
