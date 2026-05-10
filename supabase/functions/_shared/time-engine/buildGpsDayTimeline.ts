@@ -586,8 +586,7 @@ export function buildGpsDayTimeline(
     for (const p of pings) {
       let insideThisPing = false;
       for (const t of validTargets) {
-        const d = haversine(p.lat, p.lng, t.center.lat, t.center.lng);
-        if (d <= t.radiusM) {
+        if (pointInsideTarget(p.lat, p.lng, t)) {
           insideThisPing = true;
           perTarget.set(t.key, (perTarget.get(t.key) ?? 0) + 1);
         }
