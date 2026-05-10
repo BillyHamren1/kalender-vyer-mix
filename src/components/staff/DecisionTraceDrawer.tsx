@@ -36,6 +36,7 @@ import type {
   ReportCandidateBlockUI,
   ReportCandidateSummaryUI,
 } from './ReportCandidateTimeline';
+import { DecisionMapTab } from './DecisionMapTab';
 
 export interface DecisionTraceDrawerProps {
   open: boolean;
