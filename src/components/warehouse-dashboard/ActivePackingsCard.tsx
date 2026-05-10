@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import PackingStaffStatusRow from "./PackingStaffStatusRow";
 
 interface ActivePacking {
   id: string;
@@ -111,6 +112,13 @@ const ActivePackingsCard = ({ packings, isLoading }: ActivePackingsCardProps) =>
                         {packing.packedItems}/{packing.totalItems}
                       </span>
                     </div>
+
+                    <PackingStaffStatusRow
+                      packingId={packing.id}
+                      packingName={packing.name}
+                      packingStatus={packing.status}
+                      compact
+                    />
                   </div>
                 </div>
               ))}

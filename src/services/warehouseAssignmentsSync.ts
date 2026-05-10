@@ -296,3 +296,109 @@ export async function assignStaffToWarehouseEvent(params: {
   const teamId = getWarehouseTeamId(ev.resource_id);
   await syncWarehouseAssignmentsForStaffTeamDay({ staffId, teamId, date });
 }
+
+/**
+ * Assign a staff member directly to a packing project (no calendar event).
+ *
+ * - Upserts a warehouse_assignments row for (staff_id, packing_id).
+ * - Mirrors the staff into staff_assignments on the default Lager team so the
+ *   personal calendar shows them in the Lager column.
+ *
+ * Used from warehouse UI ("Tilldela person till denna packning").
+ */
+export async function assignStaffToPacking(params: {
+  staffId: string;
+  packingId: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { staffId, packingId } = params;
+  if (!staffId || !packingId) return { ok: false, error: 'missing_params' };
+
+  const { data: pk, error: pErr } = await supabase
+    .from('packing_projects')
+    .select('id, name, status, booking_id, organization_id, start_date, end_date, client_name, delivery_address')
+    .eq('id', packingId)
+    .maybeSingle();
+
+  if (pErr || !pk) {
+    console.error('[warehouseAssignmentsSync] assignStaffToPacking: packing not found', { packingId, pErr });
+    return { ok: false, error: 'packing_not_found' };
+  }
+
+  const isReturn = pk.status === 'returning' || pk.status === 'back' || pk.status === 'returned';
+  const type: WarehouseAssignmentType = isReturn ? 'return' : 'packing';
+  const action = deriveAction(type);
+
+  let bookingNumber: string | null = null;
+  if (pk.booking_id) {
+    const { data: bk } = await supabase
+      .from('bookings')
+      .select('booking_number')
+      .eq('id', pk.booking_id)
+      .maybeSingle();
+    bookingNumber = (bk as any)?.booking_number ?? null;
+  }
+
+  const dateStr = (pk.start_date as string | null) ?? format(new Date(), 'yyyy-MM-dd');
+  const teamId = getWarehouseTeamId(null);
+
+  const row = {
+    staff_id: staffId,
+    organization_id: pk.organization_id,
+    assignment_date: dateStr,
+    assignment_type: type,
+    action,
+    title: pk.name || 'Lageruppgift',
+    description: null,
+    status: 'planned' as const,
+    start_time: null,
+    end_time: null,
+    packing_id: pk.id,
+    booking_id: pk.booking_id,
+    booking_number: bookingNumber,
+    delivery_address: pk.delivery_address,
+    customer_name: pk.client_name,
+    source: 'manual_packing_assign',
+    metadata: { resource_id: teamId, packing_status: pk.status },
+  };
+
+  const { error: upErr } = await supabase
+    .from('warehouse_assignments')
+    .upsert(row as any, { onConflict: 'staff_id,packing_id' });
+  if (upErr) {
+    console.error('[warehouseAssignmentsSync] assignStaffToPacking upsert failed', upErr);
+    return { ok: false, error: upErr.message };
+  }
+
+  try {
+    await assignStaffToTeamCore(staffId, teamId, new Date(dateStr));
+  } catch (e) {
+    console.warn('[warehouseAssignmentsSync] mirror to staff_assignments failed', e);
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Remove a staff member's direct packing assignment.
+ * Only deletes warehouse_assignments rows linked via packing_id (not via warehouse_event_id).
+ */
+export async function removeStaffFromPacking(params: {
+  staffId: string;
+  packingId: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { staffId, packingId } = params;
+  if (!staffId || !packingId) return { ok: false, error: 'missing_params' };
+
+  const { error } = await supabase
+    .from('warehouse_assignments')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('packing_id', packingId)
+    .is('warehouse_event_id', null);
+
+  if (error) {
+    console.error('[warehouseAssignmentsSync] removeStaffFromPacking failed', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
