@@ -345,7 +345,7 @@ function fillGapsAsUnknown(
       endIso,
       durationMin: Math.round((envEndMs - cursor) / MS_MIN),
       label: 'Signal saknas',
-      subtitle: `Senaste signal ${formatStockholmHm(new Date(cursor).toISOString())} · arbetsdag pågår`,
+      subtitle: `Senaste signal ${formatStockholmHm(cursor)} · arbetsdag pågår`,
       ongoing: true,
       reviewRequired: false,
       sourceBlockId: `signal:${cursor}-end`,
