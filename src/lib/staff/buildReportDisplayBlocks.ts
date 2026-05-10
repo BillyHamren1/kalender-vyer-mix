@@ -123,6 +123,24 @@ export interface DisplayBlock extends ReportCandidateBlockUI {
   aiReviewContext: AiReviewContext | null;
   /** Liten hint i UI; ingen knapp. */
   aiHintLabel: string | null;
+  /** Källblockens id:n (för bevisning + grupperade rader). */
+  sourceBlockIds: string[];
+  /** True om raden är en sammanslagen "Osäker period" av flera källblock. */
+  isGrouped?: boolean;
+}
+
+export interface DisplayDebugSummary {
+  rawReportCandidateBlocksCount: number;
+  displayBlocksCount: number;
+  groupedUncertainBlocksCount: number;
+  signalAsPlaceLabelsRemovedCount: number;
+  unknownBlocksWithAddressOrCoordinateCount: number;
+  unknownBlocksWithoutEvidenceCount: number;
+}
+
+export interface BuildReportDisplayResult {
+  blocks: DisplayBlock[];
+  debug: DisplayDebugSummary;
 }
 
 const SECONDARY_PROXIMITY_M = 500;
@@ -346,38 +364,213 @@ export function buildReportDisplayBlocks(
       displaySubtitle,
       aiReviewContext: null,
       aiHintLabel: null,
+      sourceBlockIds: [block.id],
     };
   });
 
-  // Regel 4 — gruppera unknown→signal_gap-par till "Osäker platsperiod".
-  for (let i = 0; i < enriched.length - 1; i++) {
-    const cur = enriched[i];
-    const next = enriched[i + 1];
-    const curIsUnknown = cur.kind === 'unknown';
-    const nextSignalGap =
-      (next.kind === 'unknown' || next.kind === 'needs_review') &&
-      /signal/i.test(`${next.title} ${next.subtitle ?? ''}`);
-    if (curIsUnknown && nextSignalGap) {
-      cur.displayTitle = 'Osäker platsperiod';
-      cur.displaySubtitle =
-        'GPS-position fanns delvis, därefter saknades signal';
-      next.displayTitle = 'Osäker platsperiod (forts.)';
-      next.displaySubtitle = 'Signal saknades';
+  // ──────────────────────────────────────────────────────────────────────
+  // Regel 1 (på riktigt) — gruppera kedjor av osäkra block till "Osäker period".
+  // En kedja är 2+ uncertain-block i rad med kort mellanrum (≤ 5 min).
+  // Originalblockens id:n bevaras i sourceBlockIds (för bevisning).
+  // ──────────────────────────────────────────────────────────────────────
+  const GROUP_GAP_MS = 5 * 60 * 1000;
+
+  const isUncertain = (b: DisplayBlock): boolean => {
+    const haystack = `${b.title} ${b.subtitle ?? ''} ${(b.reviewReasons ?? []).join(' ')} ${b.displayTitle} ${b.displaySubtitle ?? ''}`;
+    const flavor =
+      /missing_transition|transition_evidence|signal saknas|signal_gap|signal lost|okänd|start saknas|mål saknas|osäker/i.test(
+        haystack,
+      );
+    if (!flavor) return false;
+    if (b.kind === 'unknown' || b.kind === 'needs_review') return true;
+    if (b.kind === 'transport') {
+      return looksLikeMissingSignal(b.fromLabel) || looksLikeMissingSignal(b.toLabel);
     }
-  }
+    return false;
+  };
 
-  // ── AI-prep (ingen AI körs här) ──
-  const currentPlannedAssignments = primaryTargets.map((t) => t.name);
-
-  const findKnownPlace = (start: number, dir: 1 | -1): string | null => {
-    for (let i = start; i >= 0 && i < enriched.length; i += dir) {
-      const b = enriched[i];
+  const findKnownPlaceLocal = (
+    src: DisplayBlock[],
+    start: number,
+    dir: 1 | -1,
+  ): string | null => {
+    for (let i = start; i >= 0 && i < src.length; i += dir) {
+      const b = src[i];
       if (b.kind === 'work' && b.targetLabel) return b.targetLabel;
       if (b.kind === 'transport' && dir === -1 && b.fromLabel && !looksLikeMissingSignal(b.fromLabel)) return b.fromLabel;
       if (b.kind === 'transport' && dir === 1 && b.toLabel && !looksLikeMissingSignal(b.toLabel)) return b.toLabel;
     }
     return null;
   };
+
+  let groupedUncertainBlocksCount = 0;
+  const grouped: DisplayBlock[] = [];
+  let i = 0;
+  while (i < enriched.length) {
+    const cur = enriched[i];
+    if (!isUncertain(cur)) {
+      grouped.push(cur);
+      i++;
+      continue;
+    }
+    // Samla en sammanhängande kedja
+    let j = i;
+    while (
+      j + 1 < enriched.length &&
+      isUncertain(enriched[j + 1]) &&
+      new Date(enriched[j + 1].startAt).getTime() -
+        new Date(enriched[j].endAt).getTime() <=
+        GROUP_GAP_MS
+    ) {
+      j++;
+    }
+    if (j === i) {
+      // Ensam — låt bli att gruppera, behåll som-är
+      grouped.push(cur);
+      i++;
+      continue;
+    }
+    // Slå ihop enriched[i..j]
+    const run = enriched.slice(i, j + 1);
+    const startAt = run[0].startAt;
+    const endAt = run[run.length - 1].endAt;
+    const durationMinutes = run.reduce((s, b) => s + (b.durationMinutes ?? 0), 0);
+    const sourceBlockIds = run.flatMap((b) => b.sourceBlockIds);
+    const sourcePresenceBlockIds = Array.from(
+      new Set(run.flatMap((b) => b.sourcePresenceBlockIds ?? [])),
+    );
+    const hiddenPresenceBlockIds = Array.from(
+      new Set(run.flatMap((b) => b.hiddenPresenceBlockIds ?? [])),
+    );
+    const hiddenSignalGapIds = Array.from(
+      new Set(run.flatMap((b) => b.hiddenSignalGapIds ?? [])),
+    );
+    const reviewReasons = Array.from(
+      new Set(run.flatMap((b) => b.reviewReasons ?? [])),
+    );
+
+    const prevKnown = findKnownPlaceLocal(enriched, i - 1, -1);
+    const nextKnown = findKnownPlaceLocal(enriched, j + 1, 1);
+    const evidenceWithAddress = run.find(
+      (b) => b.locationEvidence?.reverseGeocodedAddress,
+    );
+    const evidenceWithSecondary = run.find(
+      (b) =>
+        b.locationEvidence?.nearestSecondaryCandidateLabel &&
+        (b.locationEvidence.nearestSecondaryCandidateDistanceMeters ?? Infinity) <
+          SECONDARY_PROXIMITY_M,
+    );
+    const evidenceWithCoord = run.find(
+      (b) => b.locationEvidence?.lat != null && b.locationEvidence?.lng != null,
+    );
+    const subParts: string[] = ['Signal saknades / övergång saknas'];
+    if (prevKnown) subParts.push(`Senaste kända plats: ${prevKnown}`);
+    if (nextKnown) subParts.push(`Nästa kända plats: ${nextKnown}`);
+    if (evidenceWithAddress?.locationEvidence?.reverseGeocodedAddress) {
+      subParts.push(
+        `Närmaste adress: ${evidenceWithAddress.locationEvidence.reverseGeocodedAddress}`,
+      );
+    } else if (evidenceWithSecondary?.locationEvidence?.nearestSecondaryCandidateLabel) {
+      const ev = evidenceWithSecondary.locationEvidence;
+      const distTxt =
+        ev.nearestSecondaryCandidateDistanceMeters != null
+          ? ` (${ev.nearestSecondaryCandidateDistanceMeters} m)`
+          : '';
+      const labelTxt =
+        ev.nearestSecondaryCandidateAddress ?? ev.nearestSecondaryCandidateLabel;
+      subParts.push(`Närmaste kandidat: ${labelTxt}${distTxt}`);
+    } else if (
+      evidenceWithCoord?.locationEvidence?.lat != null &&
+      evidenceWithCoord?.locationEvidence?.lng != null
+    ) {
+      subParts.push(
+        `Koordinat: ${fmtCoord(evidenceWithCoord.locationEvidence.lat)}, ${fmtCoord(
+          evidenceWithCoord.locationEvidence.lng,
+        )}`,
+      );
+    }
+
+    const merged: DisplayBlock = {
+      // Bas: ärv från första blocket men override
+      ...run[0],
+      id: `grp:${run[0].id}:${run.length}`,
+      kind: 'needs_review',
+      startAt,
+      endAt,
+      durationMinutes,
+      durationLabel: undefined,
+      title: 'Osäker period',
+      subtitle: subParts.join(' · '),
+      targetType: null,
+      targetId: null,
+      targetLabel: null,
+      fromLabel: prevKnown ?? null,
+      toLabel: nextKnown ?? null,
+      confidence: 'low',
+      reviewState: 'needs_review',
+      reviewReasons,
+      warningLabel: null,
+      sourcePresenceBlockIds,
+      hiddenPresenceBlockIds,
+      hiddenSignalGapIds,
+      firstConfirmedAt: null,
+      lastConfirmedAt: null,
+      evidenceSummary: null,
+      // Display-fält
+      locationEvidence:
+        evidenceWithAddress?.locationEvidence ??
+        evidenceWithSecondary?.locationEvidence ??
+        evidenceWithCoord?.locationEvidence ??
+        null,
+      displayTitle: 'Osäker period',
+      displaySubtitle: subParts.join(' · '),
+      aiReviewContext: null,
+      aiHintLabel: null,
+      sourceBlockIds,
+      isGrouped: true,
+    };
+    grouped.push(merged);
+    groupedUncertainBlocksCount++;
+    i = j + 1;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Regel 2 — "Signal saknas" får aldrig vara platsnamn i huvudvyn.
+  // Exakt token "Signal saknas" → "signal saknades"; "→ Signal saknas" → "→ mål saknas".
+  // ──────────────────────────────────────────────────────────────────────
+  let signalAsPlaceLabelsRemovedCount = 0;
+  const cleanSignalAsPlace = (s: string | null): string | null => {
+    if (s == null) return s;
+    let out = s;
+    // "X → Signal saknas" → "X · mål saknas"
+    out = out.replace(/(\s)(?:→|->)\s*Signal saknas/g, (_m, ws) => {
+      signalAsPlaceLabelsRemovedCount++;
+      return `${ws}· mål saknas`;
+    });
+    // "Signal saknas → X" → "start saknas · X"
+    out = out.replace(/^Signal saknas\s*(?:→|->)\s*/g, () => {
+      signalAsPlaceLabelsRemovedCount++;
+      return 'start saknas · ';
+    });
+    // Fristående "Signal saknas" → "signal saknades"
+    out = out.replace(/\bSignal saknas\b/g, () => {
+      signalAsPlaceLabelsRemovedCount++;
+      return 'signal saknades';
+    });
+    return out;
+  };
+  for (const b of grouped) {
+    b.displayTitle = cleanSignalAsPlace(b.displayTitle) ?? b.displayTitle;
+    b.displaySubtitle = cleanSignalAsPlace(b.displaySubtitle);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // AI-prep (ingen AI körs här) — körs på den slutliga (eventuellt grupperade) listan
+  // ──────────────────────────────────────────────────────────────────────
+  const currentPlannedAssignments = primaryTargets.map((t) => t.name);
+
+  const findKnownPlace = (start: number, dir: 1 | -1): string | null =>
+    findKnownPlaceLocal(grouped, start, dir);
 
   const toNearest = (
     list: TargetLite[],
@@ -408,17 +601,30 @@ export function buildReportDisplayBlocks(
       }));
   };
 
-  for (let i = 0; i < enriched.length; i++) {
-    const blk = enriched[i];
+  let unknownBlocksWithAddressOrCoordinateCount = 0;
+  let unknownBlocksWithoutEvidenceCount = 0;
+
+  for (let k = 0; k < grouped.length; k++) {
+    const blk = grouped[k];
     if (blk.kind !== 'unknown' && blk.kind !== 'needs_review') continue;
 
     const haystack = `${blk.title} ${blk.subtitle ?? ''}`;
     const missingTransition = /missing_transition|transition_evidence|signal/i.test(haystack);
     const hasAddress = !!blk.locationEvidence?.reverseGeocodedAddress;
+    const hasCoord =
+      blk.locationEvidence?.lat != null && blk.locationEvidence?.lng != null;
     const hasNearbyUnassigned =
       !!blk.locationEvidence?.nearestSecondaryCandidateLabel &&
       (blk.locationEvidence?.nearestSecondaryCandidateDistanceMeters ?? Infinity) <
         SECONDARY_PROXIMITY_M;
+
+    if (blk.kind === 'unknown') {
+      if (hasAddress || hasCoord || hasNearbyUnassigned) {
+        unknownBlocksWithAddressOrCoordinateCount++;
+      } else {
+        unknownBlocksWithoutEvidenceCount++;
+      }
+    }
 
     let questionType: AiReviewQuestionType;
     if (blk.kind === 'needs_review' && missingTransition) {
@@ -440,8 +646,8 @@ export function buildReportDisplayBlocks(
           : null,
       nearestAssignedTargets: toNearest(primaryTargets, blk, true),
       nearestUnassignedCandidates: toNearest(secondaryTargets, blk, false),
-      previousKnownPlace: findKnownPlace(i - 1, -1),
-      nextKnownPlace: findKnownPlace(i + 1, 1),
+      previousKnownPlace: findKnownPlace(k - 1, -1),
+      nextKnownPlace: findKnownPlace(k + 1, 1),
       timeWindow: { startAt: blk.startAt, endAt: blk.endAt },
       staffName: input.staffName ?? null,
       date: input.date ?? null,
@@ -450,5 +656,40 @@ export function buildReportDisplayBlocks(
     blk.aiHintLabel = 'Kan granskas med AI senare';
   }
 
-  return enriched;
+  const debug: DisplayDebugSummary = {
+    rawReportCandidateBlocksCount: input.blocks.length,
+    displayBlocksCount: grouped.length,
+    groupedUncertainBlocksCount,
+    signalAsPlaceLabelsRemovedCount,
+    unknownBlocksWithAddressOrCoordinateCount,
+    unknownBlocksWithoutEvidenceCount,
+  };
+
+  if (typeof console !== 'undefined' && console.debug) {
+    console.debug('[buildReportDisplayBlocks] debug summary', debug);
+  }
+
+  // Stash debug på array (för callers som vill läsa utan att byta API).
+  (grouped as DisplayBlock[] & { debug?: DisplayDebugSummary }).debug = debug;
+  return grouped;
+}
+
+/**
+ * Tunn wrapper som returnerar både blocks och debug-summering.
+ * Används av evidence-/raw-vyer som vill visa siffrorna explicit.
+ */
+export function buildReportDisplay(
+  input: BuildReportDisplayBlocksInput,
+): BuildReportDisplayResult {
+  const blocks = buildReportDisplayBlocks(input);
+  const debug =
+    (blocks as DisplayBlock[] & { debug?: DisplayDebugSummary }).debug ?? {
+      rawReportCandidateBlocksCount: input.blocks.length,
+      displayBlocksCount: blocks.length,
+      groupedUncertainBlocksCount: 0,
+      signalAsPlaceLabelsRemovedCount: 0,
+      unknownBlocksWithAddressOrCoordinateCount: 0,
+      unknownBlocksWithoutEvidenceCount: 0,
+    };
+  return { blocks, debug };
 }
