@@ -197,7 +197,31 @@ interface DayHealth {
     createdAnyLocationTimeEntries: boolean;
     createdAnyTravelTimeLogs: boolean;
   };
-  status: 'PASS' | 'FAIL';
+  status: 'PASS' | 'WARNING' | 'FAIL';
+  geofenceDiagnostics?: {
+    transportSegmentsInsidePrimaryTargetCount: number;
+    transportMinutesInsidePrimaryTarget: number;
+    transportInsidePrimaryTargetExamples: Array<{
+      staffName: string;
+      staffId: string;
+      segmentStart: string;
+      segmentEnd: string;
+      durationMinutes: number;
+      travelInsideTargetLabel: string | null;
+      pingsInsideSameTargetRatio: number | null;
+      computedKmh: number | null;
+      distanceMeters: number;
+      nearestTargetDistanceMeters: number | null;
+      nearestTargetRadiusMeters: number | null;
+      movementReason: string | null;
+    }>;
+    travelInsideTargetCandidateCount: number;
+    travelInsideTargetCandidateMinutes: number;
+    targetsAvailableToGpsTimeline: number;
+    knownSiteSegments: number;
+    transportSegments: number;
+    unknownPlaceSegments: number;
+  };
 }
 
 /** Same-target transport with measured distance above this is "long distance"
@@ -244,7 +268,7 @@ Deno.serve(async (req) => {
 
     const dates: string[] = Array.isArray(body?.dates) && body.dates.length > 0
       ? body.dates.filter((d: any) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
-      : ['2026-05-06', '2026-05-07'];
+      : ['2026-05-06', '2026-05-07', '2026-05-08'];
     const orgId: string | null = okSvc ? (body?.organizationId ?? null) : userOrgId;
     if (!orgId) return json(400, { ok: false, error: 'organizationId_required' });
 
@@ -321,6 +345,17 @@ Deno.serve(async (req) => {
           createdAnyTravelTimeLogs: false,
         },
         status: 'PASS',
+        geofenceDiagnostics: {
+          transportSegmentsInsidePrimaryTargetCount: 0,
+          transportMinutesInsidePrimaryTarget: 0,
+          transportInsidePrimaryTargetExamples: [],
+          travelInsideTargetCandidateCount: 0,
+          travelInsideTargetCandidateMinutes: 0,
+          targetsAvailableToGpsTimeline: 0,
+          knownSiteSegments: 0,
+          transportSegments: 0,
+          unknownPlaceSegments: 0,
+        },
       };
 
       let targets: WorkTarget[] = [];
@@ -388,6 +423,52 @@ Deno.serve(async (req) => {
         } catch (e) {
           day.warnings.push(`gps_timeline_failed:${s.id}:${(e as any)?.message ?? e}`);
           continue;
+        }
+
+        // ── Geofence diagnostics: aggregate across staff for the day ──
+        try {
+          const gd = day.geofenceDiagnostics!;
+          const cls = (gpsTimeline as any).classificationDiagnostics ?? {};
+          const tms = (gpsTimeline as any).targetMatchSummary ?? {};
+          gd.travelInsideTargetCandidateCount += Number(cls.travelSegmentsInsideTargetCandidateCount ?? 0);
+          gd.travelInsideTargetCandidateMinutes += Number(cls.travelSegmentsInsideTargetCandidateMinutes ?? 0);
+          gd.targetsAvailableToGpsTimeline = Math.max(
+            gd.targetsAvailableToGpsTimeline,
+            Number(cls.targetsAvailableToGpsTimeline ?? targets.length),
+          );
+          gd.knownSiteSegments += Number(tms.knownSiteSegments ?? 0);
+          gd.transportSegments += Number(tms.transportSegments ?? 0);
+          gd.unknownPlaceSegments += Number(tms.unknownPlaceSegments ?? 0);
+
+          for (const seg of (gpsTimeline as any).segments ?? []) {
+            if (seg.kind !== 'travel' && seg.type !== 'transport') continue;
+            const td = seg.targetDiagnostics ?? {};
+            if (!td.travelInsideTargetCandidate) continue;
+            gd.transportSegmentsInsidePrimaryTargetCount += 1;
+            gd.transportMinutesInsidePrimaryTarget += Number(seg.durationMin ?? 0);
+            if (gd.transportInsidePrimaryTargetExamples.length < 25) {
+              const m = seg.movementDecision ?? {};
+              gd.transportInsidePrimaryTargetExamples.push({
+                staffName: s.name ?? s.id,
+                staffId: s.id,
+                segmentStart: seg.startTs,
+                segmentEnd: seg.endTs,
+                durationMinutes: Math.round(Number(seg.durationMin ?? 0) * 100) / 100,
+                travelInsideTargetLabel: td.travelInsideTargetLabel ?? null,
+                pingsInsideSameTargetRatio:
+                  td.pingsInsideSameTargetRatio != null ? Number(td.pingsInsideSameTargetRatio) : null,
+                computedKmh: m.computedKmh != null ? Number(m.computedKmh) : null,
+                distanceMeters: Math.round(Number(seg.distanceMeters ?? 0)),
+                nearestTargetDistanceMeters:
+                  td.nearestTargetDistanceMeters != null ? Number(td.nearestTargetDistanceMeters) : null,
+                nearestTargetRadiusMeters:
+                  td.nearestTargetRadiusMeters != null ? Number(td.nearestTargetRadiusMeters) : null,
+                movementReason: m.reason ?? null,
+              });
+            }
+          }
+        } catch (e) {
+          day.warnings.push(`geofence_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
         }
 
         let presence;
@@ -758,15 +839,38 @@ Deno.serve(async (req) => {
         (tr.activeProjectsAsPrimaryCount ?? 0) > 0 ||
         (tr.unassignedBookingsMatchedAsWorkCount ?? 0) > 0 ||
         (tr.unassignedProjectsMatchedAsWorkCount ?? 0) > 0;
-      day.status = failed ? 'FAIL' : 'PASS';
+      // Round geofence diagnostics minutes
+      if (day.geofenceDiagnostics) {
+        day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget =
+          Math.round(day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget * 100) / 100;
+        day.geofenceDiagnostics.travelInsideTargetCandidateMinutes =
+          Math.round(day.geofenceDiagnostics.travelInsideTargetCandidateMinutes * 100) / 100;
+      }
+
+      // WARNING (not FAIL): GPS classified as transport while inside geofence.
+      // Does not break report rules, but the dashboard must surface it.
+      const transportInsideGeofenceMin = day.geofenceDiagnostics?.transportMinutesInsidePrimaryTarget ?? 0;
+      const geofenceWarning = transportInsideGeofenceMin > 30;
+      if (geofenceWarning) {
+        day.warnings.push(
+          `geofence:transport_inside_primary_target_minutes=${transportInsideGeofenceMin} ` +
+            `(${day.geofenceDiagnostics?.transportSegmentsInsidePrimaryTargetCount ?? 0} segment) — ` +
+            `GPS klassas som transport trots att den verkar vara inom geofence.`,
+        );
+      }
+
+      day.status = failed ? 'FAIL' : geofenceWarning ? 'WARNING' : 'PASS';
 
       perDay.push(day);
     }
 
-    const overallOk = perDay.every((d) => d.status === 'PASS');
+    const anyFail = perDay.some((d) => d.status === 'FAIL');
+    const anyWarning = perDay.some((d) => d.status === 'WARNING');
+    const overallStatus: 'PASS' | 'WARNING' | 'FAIL' =
+      anyFail ? 'FAIL' : anyWarning ? 'WARNING' : 'PASS';
     return json(200, {
-      ok: overallOk,
-      status: overallOk ? 'PASS' : 'FAIL',
+      ok: overallStatus !== 'FAIL',
+      status: overallStatus,
       organizationId: orgId,
       staffCount: staffList.length,
       perDay,
