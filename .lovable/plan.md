@@ -1,108 +1,53 @@
-# Fix 1 — Syntax och target-metadata för tidrapport-display
+## Mål
 
-Sju små, isolerade fixar. Endast frontend + två edge-fält. Inga writes, ingen AI, inget i mobilappen.
+Visa exakt var en person har varit på en given dag i felsökningsdrawern på `/staff-management/time-reports`, och låt admin filtrera trailen med ett tidsfönster (från–till) för att se var de var mellan specifika klockslag.
 
----
+## Lösning
 
-## Filer som rörs
+Lägg till en ny flik **"Karta"** i `DecisionTraceDrawer` som renderar den befintliga `StaffMovementMap` med en tidsfönster-kontroll ovanför. Allt sker i frontend, read-only, utan ändringar i motorn eller mobilappen.
 
-1. `supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts`
-2. `supabase/functions/get-staff-presence-day/index.ts`
-3. `src/lib/staff/buildReportDisplayBlocks.ts`
-4. `src/components/staff/ReportCandidateTimeline.tsx`
+## Filer att ändra
 
----
+- `src/components/staff/DecisionTraceDrawer.tsx` — ny flik + tidsfilter-UI
+- (ny) `src/components/staff/DecisionMapTab.tsx` — håller filter-state och renderar `StaffMovementMap`
 
-## 1. Stäng `interface AiReviewContext`
+`StaffMovementMap` finns redan och stödjer `fromIso`/`toIso`-filter, så ingen ändring behövs där. Den läser pings via `mobileApi.getMovementForDay(staffId, date)`.
 
-`buildReportCandidateBlocks.ts` rad 105–117 saknar avslutande `}`. Idag glider definitionen rakt in i `ReportCandidateSummary` på rad 118 — bara `// @ts-nocheck` döljer felet. Lägg in `}` på en egen rad direkt efter `currentPlannedAssignments: string[];`.
+## UI-design
 
-## 2. Berika target-mapping i `get-staff-presence-day`
+Ny tab "Karta" i `TabsList` mellan "Rå GPS" och "Diagnostik" (eller före "Rå GPS"):
 
-I rad 757–770 mappas `resolvedTargetsAll` till response. `resolveWorkTargets.ts` exponerar redan `matchRole`, `assignmentAnchor`, `canAutoMatchAsWork`, `addressAnchorKey`, `rawAddress` på varje target. Lägg till de fem fälten i mappningen, ovanför `notes`:
-
-```ts
-matchRole: r.matchRole,
-assignmentAnchor: r.assignmentAnchor,
-canAutoMatchAsWork: r.canAutoMatchAsWork,
-addressAnchorKey: r.addressAnchorKey,
-rawAddress: r.rawAddress,
+```
+[ Översikt ] [ Beslutskedja ] [ Närvaro ] [ Targets ] [ Karta ] [ Rå GPS ] [ Diagnostik ]
 ```
 
-Inga andra ändringar i edge-funktionen.
+`DecisionMapTab` innehåller:
 
-## 3. Justera `TargetLite` i `buildReportDisplayBlocks.ts`
+1. **Filterrad** (sticky överst i tab-innehållet)
+   - Två `<Input type="time">` fält: "Från" och "Till" (default tomma = hela dagen)
+   - Snabb-chips: `Hela dagen`, `Förmiddag (06–12)`, `Eftermiddag (12–18)`, `Kväll (18–24)`
+   - Chips för varje `reportCandidateBlock` med tider, t.ex. `08:12–11:45 · Projekt X` — klick fyller fönstret med blockets start/slut
+   - "Rensa"-knapp
+   - Liten räknare: "X positioner i fönstret"
 
-Rad 49–59. Ersätt `dateRelevance` med string-formen som backend faktiskt skickar och lägg till de nya fälten:
+2. **Karta**
+   - `<StaffMovementMap staffId date fromIso toIso className="h-[520px]" />`
+   - Polylinje + start/slut-markörer finns redan; tidsfönstret begränsar punkter och markörer flyttas till filtrerat första/sista ping.
 
-```ts
-export interface TargetLite {
-  id: string;
-  name: string;
-  type: string;
-  latitude: number | null;
-  longitude: number | null;
-  radiusMeters?: number | null;
-  timeTrackingAllowed?: boolean | null;
-  dateRelevance?: 'today' | 'recent' | 'permanent' | 'unknown' | null;
-  matchRole?: 'primary' | 'secondary' | null;
-  assignmentAnchor?: string | null;
-  canAutoMatchAsWork?: boolean | null;
-  addressAnchorKey?: string | null;
-  rawAddress?: string | null;
-  targetSource?: string | null;
-}
-```
+3. **Tom-state**
+   - Ärver `StaffMovementMap`s "Ingen rörelsehistorik"-meddelande (inkl. notisen att data rensas ~7 dagar efter godkänd rapport).
 
-## 4. Klassa primary/secondary från backendfält, inte `dateRelevance.relevant`
+## Tekniska detaljer
 
-Rad 163–169. Ersätt `primarySet`-blocket med:
+- Tidsfönstret konverteras till ISO genom att kombinera `props.date` (YYYY-MM-DD) + valt klockslag i lokal tidszon: `new Date(`${date}T${hh}:${mm}:00`).toISOString()`.
+- Block-chips byggs från `reportCandidateBlocks` som redan finns som prop på drawern (start/end + label från target/title).
+- State är lokal i `DecisionMapTab` (useState), nollställs när drawer stängs (komponenten unmountas via tab-byte är OK — filtret återställs).
+- Inga nya hooks, inga nya endpoints, inga writes. Mapbox-token hämtas redan internt av `StaffMovementMap` via befintlig `mapbox-token` edge function.
 
-```ts
-const primaryTargets = allTargets.filter(
-  (t) => t.matchRole === 'primary' && t.canAutoMatchAsWork === true,
-);
-const secondaryTargets = allTargets.filter(
-  (t) => !(t.matchRole === 'primary' && t.canAutoMatchAsWork === true),
-);
-```
+## Constraint-respekt
 
-Inga övriga rader som idag läser `primarySet` ska vara kvar — `primaryTargets`/`secondaryTargets` används redan nedanför.
-
-## 5. Sätt `nearestSecondaryCandidateAddress` (och primary motsvarighet) från target
-
-Rad 188–212.
-- Ändra `const nearestSecondaryCandidateAddress: string | null = null;` → `let nearestSecondaryCandidateAddress: string | null = null;`
-- Lägg till en motsvarande `let nearestPrimaryTargetAddress: string | null = null;` bredvid label/distance-deklarationerna.
-- I `if (bestP)`: `nearestPrimaryTargetAddress = bestP.t.rawAddress ?? bestP.t.name ?? null;`
-- I `if (bestS)`: `nearestSecondaryCandidateAddress = bestS.t.rawAddress ?? bestS.t.name ?? null;`
-
-`LocationEvidence` har redan `nearestSecondaryCandidateAddress`. Lägg till `nearestPrimaryTargetAddress: string | null;` i interfacet och fyll i båda byggnaderna av `locationEvidence` (rad 217–246).
-
-## 6. Skicka `staffName` / `date` från `ReportCandidateTimeline`
-
-`src/components/staff/ReportCandidateTimeline.tsx`:
-- Lägg `staffName?: string | null;` och `date?: string | null;` i `ReportCandidateTimelineProps`.
-- Plocka ut dem i komponentens `props`.
-- Skicka vidare till `buildReportDisplayBlocks({ blocks, presenceBlocks, targets, staffName, date })`.
-
-Inga call-sites behöver ändras — props är frivilliga.
-
-## 7. Städa oanvända imports
-
-I `ReportCandidateTimeline.tsx`:
-- Ta bort `import { format } from 'date-fns';` (rad 17) — `format(` förekommer inte i filen.
-- Behåll `formatStockholmHm` och `formatStockholmHms` — `formatStockholmHms` används i `EvidencePanel` rad 123/124/127/130. Ingen ändring där.
-
----
-
-## Efter ändring
-
-- Inga DB-writes, ingen AI-anrop, ingen mobilkod-ändring.
-- Bygget körs automatiskt av harness; jag rapporterar eventuella TS/lint-fel direkt.
-- Ingen testdata behövs — ändringarna är typer + ren mappning.
-
-## Risker
-
-- `buildReportDisplayBlocks` läser nu `matchRole`/`canAutoMatchAsWork` från backend; gamla snapshots/cache som inte har fälten klassas som secondary (säker fallback — inget blir auto-arbete utan explicit primary).
-- `get-staff-presence-day` lägger till fem fält i sin response → bredare payload, men bakåtkompatibelt.
+- Read-only: enbart visning av befintliga GPS-pings.
+- Motorn orörd.
+- Mobilappen orörd.
+- Ingen AI körs.
+- Huvudvyn (StaffDayTimelineCard) orörd; allt ligger bakom "Visa tolkning"-drawern.
