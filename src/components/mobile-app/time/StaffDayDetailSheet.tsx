@@ -34,6 +34,7 @@ interface Props {
 
 export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
   const { snapshot, isLoading } = useStaffDayStatus(date ?? undefined);
+  const { staff } = useMobileAuth();
   const open = !!date;
   const wd = snapshot?.workday;
   const t = snapshot?.totals;
