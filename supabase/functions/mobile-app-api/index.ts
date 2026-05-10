@@ -1094,9 +1094,16 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // Source of truth: staff_assignments × calendar_events (resource_id=team-Y).
   // BSA-rader behålls som ytterligare källa (explicit per-person scheduling).
   // ────────────────────────────────────────────────────────────────────
+  // OBS: Warehouse-team (Lager) hoppas över här. Bokningar kopplade till
+  // warehouse_calendar_events ska aldrig visas som egna huvudkort i
+  // dagsvyn — de exponeras enbart via Lager-kortet och Lager-detaljsidan.
+  // Se rule #2/#3 i Lager-flödet.
   const teamDateKeys = new Set<string>()  // "team_id|date"
   for (const [date, teamSet] of Object.entries(staffTeamsByDate)) {
-    for (const teamId of teamSet) teamDateKeys.add(`${teamId}|${date}`)
+    for (const teamId of teamSet) {
+      if (isWarehouseTeam(teamId)) continue
+      teamDateKeys.add(`${teamId}|${date}`)
+    }
   }
 
   const derivedBookingDates: Record<string, Set<string>> = {} // booking_id → Set<date>
