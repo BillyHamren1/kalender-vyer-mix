@@ -263,9 +263,22 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       if (resourceId) {
         await assignStaffToTeamCore(staffId, resourceId, effectiveDate);
         toast.success(`Personal tilldelad`);
+        // Bridge into concrete warehouse_assignments when assigned to a lager column.
+        try {
+          const { syncWarehouseAssignmentsForStaffTeamDay } = await import('@/services/warehouseAssignmentsSync');
+          await syncWarehouseAssignmentsForStaffTeamDay({ staffId, teamId: resourceId, date: effectiveDate });
+        } catch (e) {
+          console.warn('[useUnifiedStaffOperations] warehouse assignment sync failed', e);
+        }
       } else {
         await removeStaffAssignmentCore(staffId, effectiveDate, fromTeamId);
         toast.success(`Tilldelning borttagen`);
+        try {
+          const { removeWarehouseAssignmentsForStaffTeamDay } = await import('@/services/warehouseAssignmentsSync');
+          await removeWarehouseAssignmentsForStaffTeamDay({ staffId, teamId: fromTeamId ?? null, date: effectiveDate });
+        } catch (e) {
+          console.warn('[useUnifiedStaffOperations] warehouse assignment cleanup failed', e);
+        }
       }
     } catch (error) {
       toast.error((error as any)?.message || 'Kunde inte uppdatera tilldelning');
