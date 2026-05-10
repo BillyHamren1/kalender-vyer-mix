@@ -17,6 +17,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { assignStaffToTeamCore } from '@/services/staffAssignmentCore';
+import { getWarehouseTeamId, isWarehouseTeam } from '@/lib/warehouse/warehouseTeam';
 import {
   DEFAULT_WAREHOUSE_ACTION_BY_TYPE,
   type WarehouseAssignmentAction,
