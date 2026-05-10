@@ -189,9 +189,22 @@ export interface SegmentTargetDiagnostics {
     | 'transport_to_other_primary_target'
     | null;
   /** Confidence reason for sticky-reclassified segments with partial GPS outside. */
-  confidenceReason?: 'near_sticky_primary_target_no_strong_exit' | null;
+  confidenceReason?:
+    | 'near_sticky_primary_target_no_strong_exit'
+    | 'geo_entry_primary_target'
+    | null;
   /** Human-readable warning label propagated to the report row. */
   warningLabel?: string | null;
+
+  // ── Geo-anchor (assistant_events / staff_presence_events) diagnostics ─
+  /** Set on a stay/travel that is owned by a sticky from a hard entry-anchor. */
+  stickyAnchorSource?: 'geo_entry' | 'gps_known_site' | null;
+  /** Local-time string (Europe/Stockholm) of the entry-anchor that seeded sticky. */
+  stickyAnchorEntryAtLocal?: string | null;
+  /** Source table of the entry-anchor. */
+  stickyAnchorTable?: 'assistant_events' | 'staff_presence_events' | null;
+  /** True iff a geo-exit anchor occurred in this segment's window without strong exit. */
+  geoExitWithoutStrongExitObserved?: boolean | null;
 }
 
 export interface GpsTimelineSegment {
