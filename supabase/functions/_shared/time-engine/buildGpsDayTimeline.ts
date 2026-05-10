@@ -1758,29 +1758,28 @@ export function buildGpsDayTimeline(
         remainingTransportNearStickyTargetMinutes: Math.round(remainingTransportNearStickyMinutes * 100) / 100,
         examples: stickyExamples,
       },
+      geoAnchorDiagnostics: {
+        hardAnchorCount: hardAnchors.length,
+        hardEntryCount: hardAnchors.filter((a) => a.type === 'entry').length,
+        hardExitCount: hardAnchors.filter((a) => a.type === 'exit').length,
+        entriesAppliedToSticky: geoAnchorEntriesApplied,
+        entriesSeededStickyEarly: geoAnchorEntriesSeededStickyEarly,
+        entriesIgnoredNoMatchingTarget: geoAnchorEntriesIgnoredNoTarget,
+        exitsObservedWithoutStrongExit: geoAnchorExitsObserved,
+        transportSegmentsAfterGeoEntryWithoutStrongExitMinutes:
+          Math.round(transportAfterGeoEntryWithoutStrongExitMinutes * 100) / 100,
+        examples: geoAnchorExamples,
+      },
+      stationaryGeofenceOverride: {
+        rescuedStayCount: overrideRescuedCount,
+        rescuedStayMinutes: Math.round(overrideRescuedMinutes * 100) / 100,
+        pingsInsidePrimaryCount,
+        pingsInsidePrimaryRatio: overridePingsRatio,
+        examples: overrideExamples,
+      },
+      remainingTransportInsidePrimaryGeofenceCount: remainingTransportInsidePrimaryCount,
+      remainingTransportInsidePrimaryGeofenceMinutes:
+        Math.round(remainingTransportInsidePrimaryMinutes * 100) / 100,
     },
-    geoAnchorDiagnostics: {
-      hardAnchorCount: hardAnchors.length,
-      hardEntryCount: hardAnchors.filter((a) => a.type === 'entry').length,
-      hardExitCount: hardAnchors.filter((a) => a.type === 'exit').length,
-      entriesAppliedToSticky: geoAnchorEntriesApplied,
-      entriesSeededStickyEarly: geoAnchorEntriesSeededStickyEarly,
-      entriesIgnoredNoMatchingTarget: geoAnchorEntriesIgnoredNoTarget,
-      exitsObservedWithoutStrongExit: geoAnchorExitsObserved,
-      transportSegmentsAfterGeoEntryWithoutStrongExitMinutes:
-        Math.round(transportAfterGeoEntryWithoutStrongExitMinutes * 100) / 100,
-      examples: geoAnchorExamples,
-    },
-    stationaryGeofenceOverride: {
-      rescuedStayCount: overrideRescuedCount,
-      rescuedStayMinutes: Math.round(overrideRescuedMinutes * 100) / 100,
-      pingsInsidePrimaryCount,
-      pingsInsidePrimaryRatio: overridePingsRatio,
-      examples: overrideExamples,
-    },
-    remainingTransportInsidePrimaryGeofenceCount: remainingTransportInsidePrimaryCount,
-    remainingTransportInsidePrimaryGeofenceMinutes:
-      Math.round(remainingTransportInsidePrimaryMinutes * 100) / 100,
-  },
-};
+  };
 }
