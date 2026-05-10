@@ -123,6 +123,25 @@ export interface WorkTarget {
   validFrom?: ISODateTime | null;
   validUntil?: ISODateTime | null;
   assignedToUserToday?: boolean;
+  /**
+   * Why this target counts as primary (resolveWorkTargets.assignmentAnchor).
+   * Used by the inside-geofence override to prioritize when a ping sits
+   * inside multiple primary-eligible geofences. Higher priority wins:
+   *   1 direct_staff_assignment
+   *   2 team_calendar_event
+   *   3 large_project_staff_assignment
+   *   4 warehouse  (and organization_location, see kind)
+   *   5 everything else primary-eligible
+   *   6 nearest-center tiebreaker
+   */
+  assignmentAnchor?:
+    | 'warehouse'
+    | 'direct_staff_assignment'
+    | 'team_calendar_event'
+    | 'large_project_staff_assignment'
+    | 'date_address_candidate'
+    | 'project_linked_unassigned'
+    | 'active_project_unassigned';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
