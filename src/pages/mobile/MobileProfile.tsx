@@ -136,9 +136,9 @@ const MobileProfile = () => {
           </div>
         </div>
 
-        {/* Time reports button */}
+        {/* Time reports button — backend-driven sammanfattning av månaden */}
         <button
-          onClick={() => navigate('/m/time-history')}
+          onClick={() => navigate('/m/report')}
           className="w-full rounded-2xl border border-primary/20 bg-card px-4 py-3 shadow-md flex items-center gap-3 active:scale-[0.98] transition-all"
         >
           <div className="p-1.5 rounded-lg bg-primary/8">
@@ -147,47 +147,29 @@ const MobileProfile = () => {
           <div className="flex-1 text-left">
             <p className="text-sm font-semibold text-foreground">{t('profile.timeReports')}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {isLoadingReports ? t('profile.loading') : `${timeReports.length} ${t('common.st')} · ${formatHoursMinutes(totalHours)} ${t('profile.totalSuffix')}`}
+              {isLoadingMonth
+                ? t('profile.loading')
+                : `${daysWithWork} ${t('profile.trips')} · ${formatHoursMinutes(grossMinutes / 60)} ${t('profile.totalSuffix')}`}
             </p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
 
-        {/* Travel history */}
+        {/* Travel summary — kanonisk transporttid från månads-snapshot */}
         <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 shadow-md">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3">
             <div className="p-1.5 rounded-lg bg-primary/8">
               <Car className="w-4 h-4 text-primary" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-foreground">{t('profile.travel')}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                {isLoadingTravel ? t('profile.loading') : `${travelCount} ${t('profile.trips')} · ${Math.round(totalTravelHours * 10) / 10}h ${t('profile.totalSuffix')}`}
+                {isLoadingMonth
+                  ? t('profile.loading')
+                  : `${formatHoursMinutes(transportMinutes / 60)} ${t('profile.totalSuffix')}`}
               </p>
             </div>
           </div>
-
-          {/* Recent travel logs */}
-          {travelLogs.filter(l => l.end_time).slice(0, 3).map(log => (
-            <div key={log.id} className="border-t border-border/50 py-2 first:mt-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-foreground">
-                  {format(parseISO(log.report_date), 'd MMM', { locale: dateFnsLocale })}
-                </span>
-                <span className="text-xs font-bold text-primary tabular-nums">{formatHoursMinutes(log.hours_worked)}</span>
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5 space-y-0.5">
-                {log.from_address && <p className="truncate">{t('profile.from')}: {log.from_address}</p>}
-                {log.to_address && <p className="truncate">{t('profile.to')}: {log.to_address}</p>}
-              </div>
-            </div>
-          ))}
-
-          {travelLogs.filter(l => l.end_time).length === 0 && !isLoadingTravel && (
-            <p className="text-[11px] text-muted-foreground/60 text-center py-2 border-t border-border/50">
-              {t('profile.noTrips')}
-            </p>
-          )}
         </div>
 
 
