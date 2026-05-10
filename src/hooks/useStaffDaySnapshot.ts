@@ -170,6 +170,16 @@ export interface StaffDaySnapshot {
     resolutionStatus: string | null;
     stale: boolean;
   }>;
+  /** User/admin attestation row from `day_attestations`. Backend authority. */
+  attestation?: {
+    id: string;
+    breakMinutes: number;
+    comment: string | null;
+    status: 'attested' | 'locked' | string;
+    attestedAt: string | null;
+    attestedBy: string | null;
+    locked: boolean;
+  } | null;
   lastUpdatedAt: string;
 }
 
