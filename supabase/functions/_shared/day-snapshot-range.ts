@@ -112,9 +112,25 @@ export interface SummarizedTotals {
   manualDeductionMinutes: number;
   /** Lönegrundande = brutto − rast − manual. */
   payableMinutes: number;
-  /** Godkänd lönegrundande tid (workday.approved). */
+  /**
+   * Godkänd lönegrundande tid — admin/lön har approvat workday.
+   * "approval" = admin-flöde, skild från användarens "attest".
+   */
   approvedPayableMinutes: number;
-  /** Lönegrundande tid som väntar på attest (ingen day_attestation och ej godkänd). */
+  /**
+   * Användaren har attesterat dagen (day_attestation finns) men
+   * admin har ännu inte approvat. Bucket: "Inskickat".
+   */
+  submittedPayableMinutes: number;
+  /**
+   * Dagen har brutto men ingen day_attestation och är inte approved.
+   * Bucket: "Ej inskickat" — väntar på användarattest.
+   */
+  awaitingUserAttestPayableMinutes: number;
+  /**
+   * Bakåtkompatibel alias för awaitingUserAttestPayableMinutes.
+   * @deprecated använd awaitingUserAttestPayableMinutes.
+   */
   awaitingAttestPayableMinutes: number;
   /** Antal dagar med actionsNeeded > 0 (oresolved input behövs). */
   daysWithActions: number;
@@ -134,6 +150,8 @@ export function summarizeSnapshots(snaps: StaffDaySnapshot[]): SummarizedTotals 
     manualDeductionMinutes: 0,
     payableMinutes: 0,
     approvedPayableMinutes: 0,
+    submittedPayableMinutes: 0,
+    awaitingUserAttestPayableMinutes: 0,
     awaitingAttestPayableMinutes: 0,
     daysWithActions: 0,
     daysWithWork: 0,
@@ -155,13 +173,18 @@ export function summarizeSnapshots(snaps: StaffDaySnapshot[]): SummarizedTotals 
     if (t.grossWorkdayMinutes > 0) out.daysWithWork += 1;
     if (s.workday?.approved) {
       out.approvedPayableMinutes += t.payableMinutes;
-    } else if (t.grossWorkdayMinutes > 0 && !s.attestation) {
-      out.awaitingAttestPayableMinutes += t.payableMinutes;
+    } else if (s.attestation) {
+      out.submittedPayableMinutes += t.payableMinutes;
+    } else if (t.grossWorkdayMinutes > 0) {
+      out.awaitingUserAttestPayableMinutes += t.payableMinutes;
     }
     if ((s.actionsNeeded ?? []).some((a) => a.needsUserInput)) {
       out.daysWithActions += 1;
     }
   }
+  // Bakåtkompatibel alias — UI som ännu läser awaitingAttestPayableMinutes
+  // får samma värde som "Ej inskickat".
+  out.awaitingAttestPayableMinutes = out.awaitingUserAttestPayableMinutes;
   return out;
 }
 
