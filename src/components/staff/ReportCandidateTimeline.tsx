@@ -448,7 +448,7 @@ function BlockRow({ block, lookups }: { block: ReportCandidateBlockUI & { displa
       </button>
       {open && (
         <div className="px-3 pb-2">
-          <EvidencePanel block={block} />
+          <EvidencePanel block={block} lookups={lookups} />
         </div>
       )}
     </div>
