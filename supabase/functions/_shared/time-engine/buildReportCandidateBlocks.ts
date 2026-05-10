@@ -114,6 +114,7 @@ export interface AiReviewContext {
   staffName: string | null;
   date: string | null;
   currentPlannedAssignments: string[];
+}
 
 export interface ReportCandidateSummary {
   reportCandidateBlocksCount: number;
