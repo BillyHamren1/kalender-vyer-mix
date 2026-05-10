@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QrCode, Search, Package, Camera, Bug, Loader2, Tag, MapPin, CalendarDays } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { VerificationView } from '@/components/scanner/VerificationView';
 import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
 import { ScannerDebugPanel } from '@/components/scanner/ScannerDebugPanel';
