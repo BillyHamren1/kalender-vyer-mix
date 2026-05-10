@@ -349,6 +349,14 @@ export function buildGpsDayTimeline(
         gapSegments: 0,
         uniqueTargetsHit: 0,
       },
+      classificationDiagnostics: {
+        travelSegmentsInsideTargetCandidateCount: 0,
+        travelSegmentsInsideTargetCandidateMinutes: 0,
+        travelSegmentsByMovementReason: {},
+        rejectedPingsByAccuracyCount: rejectedPings,
+        acceptedPingsCount: 0,
+        targetsAvailableToGpsTimeline: input.targets.length,
+      },
     };
   }
 
