@@ -126,6 +126,62 @@ export interface WorkTarget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 2b. GeoAnchor
+//     A hard signal (geofence ENTER / EXIT) tied to a specific WorkTarget.
+//     Treated as ground truth at the same trust level as a GPS ping.
+//     Used by buildGpsDayTimeline to seed sticky ownership of a primary
+//     project/warehouse/location even before any GPS stay establishes it.
+//
+//     ONLY entry-anchors that match a primary-eligible WorkTarget
+//     (canAutoMatchAsWork=true, validity=valid) become "hard" anchors.
+//     Anchors against secondary or unknown targets are kept as `weak` and
+//     never alter classification.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GeoAnchorSource =
+  | 'assistant_events'
+  | 'staff_presence_events';
+
+export type GeoAnchorType = 'entry' | 'exit';
+
+/** Confidence tier as a discrete label. Always 'high' for now. */
+export type GeoAnchorConfidence = 'high' | 'medium' | 'low';
+
+/** Strength after cross-matching against resolved WorkTargets. */
+export type GeoAnchorStrength = 'hard' | 'weak';
+
+export interface GeoAnchor {
+  id: string;
+  staffId: UUID;
+  organizationId: UUID;
+  type: GeoAnchorType;
+  source: GeoAnchorSource;
+  /** Raw label from the source row (e.g. 'geofence_foreground'). */
+  rawSourceLabel: string | null;
+  /** Target type as stored in the source row. */
+  targetType: 'project' | 'large_project' | 'booking' | 'location' | string;
+  /** Target id as stored in the source row. */
+  targetId: string;
+  targetLabel: string | null;
+  /** Anchor moment in UTC ISO. */
+  timestampUtc: ISODateTime;
+  /** Same moment formatted as "YYYY-MM-DD HH:MM" Europe/Stockholm (display). */
+  timestampLocalStockholm: string;
+  confidence: GeoAnchorConfidence;
+  /** Set after matching against WorkTargets. */
+  strength?: GeoAnchorStrength;
+  /** WorkTarget.refId of the matched primary target (when strength='hard'). */
+  matchedTargetRefId?: UUID | null;
+  /** WorkTarget.kind of the matched primary target. */
+  matchedTargetKind?: WorkTargetKind | null;
+  /** Reason this anchor was demoted to 'weak'. */
+  weakReason?:
+    | 'no_matching_worktarget'
+    | 'target_not_primary'
+    | 'target_not_today'
+    | null;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 3. TargetMatch
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -17,6 +17,34 @@ export function minutesBetween(aIso: string, bIso: string): number {
   return Math.abs(new Date(bIso).getTime() - new Date(aIso).getTime()) / 60000;
 }
 
+/**
+ * Format an ISO timestamp as Europe/Stockholm local time.
+ * - mode='time'      → "HH:MM"
+ * - mode='datetime'  → "YYYY-MM-DD HH:MM"
+ * Used for ALL human-facing timestamps in the time engine: health-check
+ * responses, decision trace, examples. UTC is reserved for internal
+ * comparisons and never leaks into UI text.
+ */
+export function formatStockholm(
+  iso: string | null | undefined,
+  mode: 'time' | 'datetime' = 'time',
+): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const fmt = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    year: mode === 'datetime' ? 'numeric' : undefined,
+    month: mode === 'datetime' ? '2-digit' : undefined,
+    day: mode === 'datetime' ? '2-digit' : undefined,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  // sv-SE renders datetime as "YYYY-MM-DD HH:MM" already.
+  return fmt.format(d);
+}
+
 // Convert ISO timestamp to HH:MM:SS in Europe/Stockholm
 export function isoToLocalTime(iso: string): string {
   const fmt = new Intl.DateTimeFormat("sv-SE", {
