@@ -132,6 +132,24 @@ export interface SegmentTargetDiagnostics {
   medianAccuracyMeters?: number | null;
   /** Set during post-pass when evaluating movement_inside_geofence rule. */
   clearExitDetected?: boolean | null;
+  /**
+   * Why a transport-inside-primary-candidate segment was NOT reclassified by
+   * the movement_inside_geofence rule. Only set on transport segments that
+   * still satisfy `travelInsideTargetCandidate` after the post-pass.
+   *  - 'clear_exit'              tydlig exit upptäcktes (rule A/B/C)
+   *  - 'ratio_below_threshold'   ratio i [0.6, 0.7)
+   *  - 'secondary_or_unsafe'     primaryTarget saknas / inte auto-matchningsbar
+   *  - 'duration_too_long'       segment > 240 min
+   *  - 'reclassifiable'          uppfyller alla villkor men reklassades inte
+   *                              (motorfel — ska normalt vara 0)
+   */
+  keptInsidePrimaryReason?:
+    | 'clear_exit'
+    | 'ratio_below_threshold'
+    | 'secondary_or_unsafe'
+    | 'duration_too_long'
+    | 'reclassifiable'
+    | null;
 }
 
 export interface GpsTimelineSegment {
