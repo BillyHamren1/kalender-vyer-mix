@@ -1362,6 +1362,10 @@ export function buildGpsDayTimeline(
 
       // Strong exit → release sticky; the next known_site stay reseats it.
       sticky = null;
+      stickyAnchorSource = null;
+      stickyAnchorEntryAtLocal = null;
+      stickyAnchorTable = null;
+      geoExitPending = false;
       continue;
     }
 
