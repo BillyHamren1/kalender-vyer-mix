@@ -493,6 +493,20 @@ Deno.serve(async (req) => {
             Number(cls.movementInsideGeofenceReclassifiedCount ?? 0);
           gd.movementInsideGeofenceReclassifiedMinutes +=
             Number(cls.movementInsideGeofenceReclassifiedMinutes ?? 0);
+
+          // Per-bucket breakdown av kvarvarande transport-inside-primary
+          gd.transportInsidePrimaryTotalCount += Number(cls.transportInsidePrimaryTotalCount ?? 0);
+          gd.transportInsidePrimaryTotalMinutes += Number(cls.transportInsidePrimaryTotalMinutes ?? 0);
+          gd.reclassifiableTransportInsidePrimaryCount += Number(cls.reclassifiableTransportInsidePrimaryCount ?? 0);
+          gd.reclassifiableTransportInsidePrimaryMinutes += Number(cls.reclassifiableTransportInsidePrimaryMinutes ?? 0);
+          gd.keptBecauseClearExitCount += Number(cls.keptBecauseClearExitCount ?? 0);
+          gd.keptBecauseClearExitMinutes += Number(cls.keptBecauseClearExitMinutes ?? 0);
+          gd.keptBecauseRatioBelowThresholdCount += Number(cls.keptBecauseRatioBelowThresholdCount ?? 0);
+          gd.keptBecauseRatioBelowThresholdMinutes += Number(cls.keptBecauseRatioBelowThresholdMinutes ?? 0);
+          gd.keptBecauseSecondaryOrUnsafeTargetCount += Number(cls.keptBecauseSecondaryOrUnsafeTargetCount ?? 0);
+          gd.keptBecauseSecondaryOrUnsafeTargetMinutes += Number(cls.keptBecauseSecondaryOrUnsafeTargetMinutes ?? 0);
+          gd.keptBecauseDurationTooLongCount += Number(cls.keptBecauseDurationTooLongCount ?? 0);
+          gd.keptBecauseDurationTooLongMinutes += Number(cls.keptBecauseDurationTooLongMinutes ?? 0);
           for (const ex of (cls.movementInsideGeofenceExamples ?? []) as any[]) {
             if (gd.movementInsideGeofenceExamples.length >= 25) break;
             gd.movementInsideGeofenceExamples.push({
