@@ -438,6 +438,15 @@ interface AccumulatedBlock {
   firstConfirmedAt: string | null;
   lastConfirmedAt: string | null;
   baseConfidence: ReportConfidence;
+  stickyWarningLabel: string | null;
+}
+
+function pickStickyWarning(b: PresenceDayBlock): string | null {
+  const ev: any = b.evidence ?? {};
+  if (ev.partialOutsideStickyGeofence && typeof ev.warningLabel === 'string' && ev.warningLabel.length > 0) {
+    return ev.warningLabel;
+  }
+  return null;
 }
 
 function newAcc(kind: ReportBlockKind, b: PresenceDayBlock): AccumulatedBlock {
@@ -466,12 +475,14 @@ function newAcc(kind: ReportBlockKind, b: PresenceDayBlock): AccumulatedBlock {
     firstConfirmedAt: b.kind === 'confirmed_on_site' ? b.startAt : null,
     lastConfirmedAt: b.kind === 'confirmed_on_site' ? b.endAt : null,
     baseConfidence: (b.confidence as ReportConfidence) ?? 'medium',
+    stickyWarningLabel: pickStickyWarning(b),
   };
 }
 
 function absorb(acc: AccumulatedBlock, b: PresenceDayBlock, asSignalGap = false) {
   acc.endAt = b.endAt;
   acc.sourceIds.push(b.id);
+  if (!acc.stickyWarningLabel) acc.stickyWarningLabel = pickStickyWarning(b);
   if (b.durationMinutes <= 0) {
     acc.suppressedZeroLengthBlockCount += 1;
     acc.hiddenPresenceBlockIds.push(b.id);
@@ -560,10 +571,12 @@ function finalize(
       ? 'needs_review'
       : 'ok';
 
-  const warningLabel =
+  const signalGapWarning =
     acc.kind === 'work' && acc.signalGapMinutes > 0
       ? `Signal saknades periodvis: ${fmtDuration(acc.signalGapMinutes)}`
       : null;
+  // Sticky-warning ("GPS låg delvis utanför arbetsområdet") har prio över signal-gap.
+  const warningLabel = acc.stickyWarningLabel ?? signalGapWarning;
 
   const { title, subtitle } = buildTitleSubtitle(acc);
 

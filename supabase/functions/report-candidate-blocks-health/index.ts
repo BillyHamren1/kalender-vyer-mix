@@ -443,6 +443,29 @@ Deno.serve(async (req) => {
 
       const samples: SampleStaffReport[] = [];
 
+      // Sticky primary target diagnostics — aggregated per day/org
+      const stickyAgg = {
+        stickyReclassifiedCount: 0,
+        stickyReclassifiedMinutes: 0,
+        strongExitCount: 0,
+        strongExitMinutes: 0,
+        exitRejectedBecauseUnder1kmCount: 0,
+        exitRejectedBecauseUnder1kmMinutes: 0,
+        arrivedAtOtherPrimaryTargetCount: 0,
+        longClearExitCount: 0,
+        remainingTransportNearStickyTargetCount: 0,
+        remainingTransportNearStickyTargetMinutes: 0,
+        examples: [] as Array<{
+          staffId: string; staffName: string;
+          segmentStart: string; segmentEnd: string; durationMinutes: number;
+          stickyTargetLabel: string | null;
+          distanceFromStickyCenterMeters: number | null;
+          distanceOutsideStickyGeofenceMeters: number | null;
+          decision: string; longClearExit: boolean; reasonNotReclassified: string | null;
+        }>,
+      };
+      (day as any).stickyTargetDiagnostics = stickyAgg;
+
       for (const s of staffList) {
         const { data: pingRows } = await admin
           .from('staff_location_history')
@@ -557,6 +580,43 @@ Deno.serve(async (req) => {
           }
         } catch (e) {
           day.warnings.push(`geofence_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
+        }
+
+        // Sticky primary target diagnostics aggregation
+        try {
+          const std = (gpsTimeline as any).classificationDiagnostics?.stickyTargetDiagnostics;
+          if (std) {
+            stickyAgg.stickyReclassifiedCount += Number(std.stickyReclassifiedCount ?? 0);
+            stickyAgg.stickyReclassifiedMinutes += Number(std.stickyReclassifiedMinutes ?? 0);
+            stickyAgg.strongExitCount += Number(std.strongExitCount ?? 0);
+            stickyAgg.strongExitMinutes += Number(std.strongExitMinutes ?? 0);
+            stickyAgg.exitRejectedBecauseUnder1kmCount += Number(std.exitRejectedBecauseUnder1kmCount ?? 0);
+            stickyAgg.exitRejectedBecauseUnder1kmMinutes += Number(std.exitRejectedBecauseUnder1kmMinutes ?? 0);
+            stickyAgg.arrivedAtOtherPrimaryTargetCount += Number(std.arrivedAtOtherPrimaryTargetCount ?? 0);
+            stickyAgg.longClearExitCount += Number(std.longClearExitCount ?? 0);
+            stickyAgg.remainingTransportNearStickyTargetCount += Number(std.remainingTransportNearStickyTargetCount ?? 0);
+            stickyAgg.remainingTransportNearStickyTargetMinutes += Number(std.remainingTransportNearStickyTargetMinutes ?? 0);
+            for (const ex of (std.examples ?? []) as any[]) {
+              if (stickyAgg.examples.length >= 50) break;
+              stickyAgg.examples.push({
+                staffId: s.id,
+                staffName: s.name ?? s.id,
+                segmentStart: ex.segmentStart,
+                segmentEnd: ex.segmentEnd,
+                durationMinutes: Number(ex.durationMinutes ?? 0),
+                stickyTargetLabel: ex.stickyTargetLabel ?? null,
+                distanceFromStickyCenterMeters:
+                  ex.distanceFromStickyCenterMeters != null ? Number(ex.distanceFromStickyCenterMeters) : null,
+                distanceOutsideStickyGeofenceMeters:
+                  ex.distanceOutsideStickyGeofenceMeters != null ? Number(ex.distanceOutsideStickyGeofenceMeters) : null,
+                decision: String(ex.decision ?? ''),
+                longClearExit: !!ex.longClearExit,
+                reasonNotReclassified: ex.reasonNotReclassified ?? null,
+              });
+            }
+          }
+        } catch (e) {
+          day.warnings.push(`sticky_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
         }
 
         let presence;
@@ -960,7 +1020,27 @@ Deno.serve(async (req) => {
         );
       }
 
-      day.status = failed ? 'FAIL' : geofenceWarning ? 'WARNING' : 'PASS';
+      // Round + WARNING for sticky primary target
+      const std: any = (day as any).stickyTargetDiagnostics;
+      let stickyWarning = false;
+      if (std) {
+        const r = (n: number) => Math.round(n * 100) / 100;
+        std.stickyReclassifiedMinutes = r(std.stickyReclassifiedMinutes);
+        std.strongExitMinutes = r(std.strongExitMinutes);
+        std.exitRejectedBecauseUnder1kmMinutes = r(std.exitRejectedBecauseUnder1kmMinutes);
+        std.remainingTransportNearStickyTargetMinutes = r(std.remainingTransportNearStickyTargetMinutes);
+        if (std.remainingTransportNearStickyTargetMinutes > 30) {
+          stickyWarning = true;
+          day.warnings.push(
+            `transport_near_sticky_primary_without_strong_exit:` +
+              `${std.remainingTransportNearStickyTargetMinutes} min ` +
+              `(${std.remainingTransportNearStickyTargetCount} segment) — ` +
+              `Transport kvar inom 1 km från sticky primary target utan strong exit.`,
+          );
+        }
+      }
+
+      day.status = failed ? 'FAIL' : (geofenceWarning || stickyWarning) ? 'WARNING' : 'PASS';
 
       perDay.push(day);
     }
