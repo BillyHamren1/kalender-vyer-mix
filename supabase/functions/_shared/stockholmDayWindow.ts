@@ -52,3 +52,35 @@ export function getStockholmDayWindowUtc(date: string): StockholmDayWindow {
     endUtcMs: finalEndMs,
   };
 }
+
+/**
+ * Returnera YYYY-MM-DD för en ISO-timestamp tolkad i Europe/Stockholm.
+ * Används för att partitionera timestamptz-rader på svensk kalenderdag
+ * (ersätter osäker `iso.slice(0, 10)` som ger UTC-dag).
+ */
+export function stockholmDateKey(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** Antal minuter ett intervall överlappar [winStart, winEnd]. */
+export function overlapMinutesUtc(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  winStartMs: number,
+  winEndMs: number,
+): number {
+  if (!start) return 0;
+  const s = new Date(start).getTime();
+  const e = end ? new Date(end).getTime() : winEndMs;
+  const lo = Math.max(s, winStartMs);
+  const hi = Math.min(e, winEndMs);
+  return hi > lo ? Math.round((hi - lo) / 60_000) : 0;
+}
