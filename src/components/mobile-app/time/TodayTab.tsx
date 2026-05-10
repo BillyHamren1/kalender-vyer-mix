@@ -71,11 +71,11 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
   // skriver inte över backendens värde, vi visar bara "live underminute"
   // baserat på serverns startedAt.
   const liveBruttoMin = useMemo(() => {
-    const base = snapshot.totals?.workdayMinutes ?? 0;
+    const base = snapshot.totals?.grossWorkdayMinutes ?? snapshot.totals?.workdayMinutes ?? 0;
     if (!isOpen || !wd?.startedAt) return base;
     const elapsed = Math.max(0, (Date.now() - new Date(wd.startedAt).getTime()) / 60_000);
     return Math.max(base, elapsed);
-  }, [isOpen, wd?.startedAt, snapshot.totals?.workdayMinutes]);
+  }, [isOpen, wd?.startedAt, snapshot.totals?.grossWorkdayMinutes, snapshot.totals?.workdayMinutes]);
 
   const tracking = snapshot.trackingPolicy ?? null;
   const lastSignalLabel = tracking?.lastSignalAt
