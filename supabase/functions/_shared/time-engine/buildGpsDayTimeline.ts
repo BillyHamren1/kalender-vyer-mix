@@ -107,7 +107,8 @@ export type GpsTimelineSegmentReason =
   | 'no_target_match'
   | 'movement_cluster'
   | 'gap_exceeds_threshold'
-  | 'too_few_pings_for_stay';
+  | 'too_few_pings_for_stay'
+  | 'stationary_inside_geofence_override';
 
 export type MovementReason =
   | 'speed_threshold'
@@ -115,6 +116,7 @@ export type MovementReason =
   | 'distance_from_previous_ping'
   | 'outside_stay_radius'
   | 'stationary'
+  | 'inside_geofence_override'
   | 'gap';
 
 export interface MovementDecision {
