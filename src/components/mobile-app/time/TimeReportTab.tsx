@@ -127,14 +127,23 @@ const DayView = ({ date, onOpen }: { date: string; onOpen: (d: string) => void }
   const { snapshot, isLoading, error } = useStaffDayStatus(date);
   const totals = snapshot?.totals;
 
-  const figures = useMemo(() => ({
-    grossWorkdayMinutes: totals?.workdayMinutes ?? 0,
-    breakMinutes: totals?.breakMinutes ?? 0,
-    payableMinutes: totals?.payableMinutes ?? 0,
-    transportMinutes: totals?.travelMinutes ?? 0,
-    approvedPayableMinutes: snapshot?.workday?.approved ? (totals?.payableMinutes ?? 0) : 0,
-    awaitingAttestPayableMinutes: !snapshot?.workday?.approved ? (totals?.payableMinutes ?? 0) : 0,
-  }), [totals, snapshot?.workday?.approved]);
+  const figures = useMemo(() => {
+    // Canonical fields från snapshot.totals (backend-byggda).
+    // Legacy workdayMinutes/travelMinutes används endast som typ-fallback.
+    const gross = totals?.grossWorkdayMinutes ?? totals?.workdayMinutes ?? 0;
+    const breaks = totals?.breakMinutes ?? 0;
+    const payable = totals?.payableMinutes ?? 0;
+    const transport = totals?.transportMinutes ?? totals?.travelMinutes ?? 0;
+    const approved = !!snapshot?.workday?.approved;
+    return {
+      grossWorkdayMinutes: gross,
+      breakMinutes: breaks,
+      payableMinutes: payable,
+      transportMinutes: transport,
+      approvedPayableMinutes: approved ? payable : 0,
+      awaitingAttestPayableMinutes: !approved && payable > 0 ? payable : 0,
+    };
+  }, [totals, snapshot?.workday?.approved]);
 
   return (
     <div className="space-y-4">
