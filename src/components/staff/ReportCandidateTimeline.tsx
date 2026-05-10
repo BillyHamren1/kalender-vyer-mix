@@ -506,10 +506,15 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   // Default-vyn: visa endast work / transport / unknown / needs_review.
   const visibleKinds = new Set<ReportBlockKind>(['work', 'transport', 'unknown', 'needs_review']);
   const visible = display.filter((b) => visibleKinds.has(b.kind));
+  // Lookups så EvidencePanel kan rendera faktiska källblock + target istället för ID-listor.
+  const lookups: EvidenceLookups = {
+    presenceById: new Map((presenceBlocks ?? []).map((p) => [p.id, p])),
+    targetById: new Map((targets ?? []).map((t) => [t.id, t])),
+  };
   return (
     <div className="space-y-1.5">
       {visible.map((b) => (
-        <BlockRow key={b.id} block={b} />
+        <BlockRow key={b.id} block={b} lookups={lookups} />
       ))}
       {summary && (
         <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 text-[11px] text-muted-foreground">
