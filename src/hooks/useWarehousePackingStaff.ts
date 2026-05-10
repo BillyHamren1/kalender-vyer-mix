@@ -58,7 +58,7 @@ export function useWarehousePackingStaff(packingId: string | null | undefined): 
       let nameById = new Map<string, string>();
       if (staffIds.length > 0) {
         const { data: staff } = await supabase
-          .from('staff')
+          .from('staff_members')
           .select('id, name')
           .in('id', staffIds);
         nameById = new Map((staff || []).map((s: any) => [s.id, s.name as string]));
