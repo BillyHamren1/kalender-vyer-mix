@@ -3,6 +3,7 @@
  *
  * SANNINGSREGEL: backend snapshot från `get-staff-time-report-period` är
  * ENDA källan. UI får inte aggregera, summera eller tolka råtabeller.
+ * Alla totals/dagar är canonical fält från `day-snapshot-range.ts`.
  */
 import { useMemo, useState } from 'react';
 import {
@@ -10,29 +11,40 @@ import {
 } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import {
-  ChevronLeft, ChevronRight, Loader2, Check, AlertTriangle,
+  ChevronLeft, ChevronRight, Loader2, AlertTriangle,
   CalendarDays, FileCheck2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useStaffTimeReportPeriod } from '@/hooks/useStaffTimeReportPeriod';
+import {
+  useStaffTimeReportPeriod,
+  type StaffPeriodDaySummary,
+} from '@/hooks/useStaffTimeReportPeriod';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import StaffDayDetailSheet from './StaffDayDetailSheet';
 
-interface PeriodDay {
-  date: string;
-  status?: string;
-  statusLabel?: string;
-  workdayMinutes?: number;
-  payableMinutes?: number;
-  hasFlags?: boolean;
-  blockerMessage?: string | null;
-}
+const DAY_STATUS_LABEL: Record<StaffPeriodDaySummary['status'], string> = {
+  empty: '—',
+  open: 'Pågår',
+  needs_attest: 'Väntar attest',
+  needs_action: 'Behöver åtgärd',
+  attested: 'Attesterad',
+  approved: 'Godkänd',
+};
+
+const DAY_STATUS_TONE: Record<StaffPeriodDaySummary['status'], string> = {
+  empty: 'bg-muted text-muted-foreground border-border',
+  open: 'bg-primary/10 text-primary border-primary/20',
+  needs_attest: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
+  needs_action: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30',
+  attested: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+  approved: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+};
 
 export const TimeReportTab = () => {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const { period, isLoading, error, refresh } = useStaffTimeReportPeriod({
+  const { period, isLoading, error } = useStaffTimeReportPeriod({
     kind: 'month',
     anchor: month,
   });
@@ -42,7 +54,7 @@ export const TimeReportTab = () => {
     [month],
   );
 
-  const days = (period?.days ?? []) as unknown as PeriodDay[];
+  const days = period?.days ?? [];
   const visibleDays = useMemo(
     () => [...days].sort((a, b) => (a.date < b.date ? 1 : -1)),
     [days],
@@ -87,7 +99,7 @@ export const TimeReportTab = () => {
         </p>
       </div>
 
-      {/* Period summary */}
+      {/* Period summary — canonical totals only */}
       <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
           Periodsummering
@@ -95,31 +107,45 @@ export const TimeReportTab = () => {
         <div className="grid grid-cols-2 gap-3">
           <SummaryCell
             label="Brutto"
-            value={formatHoursMinutes(((totals as any)?.workdayMinutes ?? totals?.workMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((totals?.grossWorkdayMinutes ?? 0) / 60)}
             primary
           />
           <SummaryCell
             label="Rast"
-            value={formatHoursMinutes(((totals as any)?.breakMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((totals?.breakMinutes ?? 0) / 60)}
           />
           <SummaryCell
             label="Lönegrundande"
-            value={formatHoursMinutes(((totals as any)?.payableMinutes ?? totals?.workMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((totals?.payableMinutes ?? 0) / 60)}
           />
           <SummaryCell
             label="Godkänt"
-            value={formatHoursMinutes(((totals as any)?.approvedMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((totals?.approvedPayableMinutes ?? 0) / 60)}
             tone="emerald"
           />
           <SummaryCell
             label="Väntar attest"
-            value={formatHoursMinutes(((totals as any)?.pendingReviewMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((totals?.awaitingAttestPayableMinutes ?? 0) / 60)}
             tone="amber"
           />
           <SummaryCell
             label="Transport"
-            value={formatHoursMinutes((totals?.travelMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((totals?.transportMinutes ?? 0) / 60)}
           />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+          <span>
+            <span className="font-semibold text-foreground tabular-nums">
+              {totals?.daysWithActions ?? 0}
+            </span>{' '}
+            dagar med frågor
+          </span>
+          <span>
+            <span className="font-semibold text-foreground tabular-nums">
+              {totals?.daysWithWork ?? 0}
+            </span>{' '}
+            dagar med arbete
+          </span>
         </div>
         {blockers.length > 0 && (
           <p className="mt-3 text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
@@ -191,12 +217,11 @@ const DayRow = ({
   day,
   onOpen,
 }: {
-  day: PeriodDay;
+  day: StaffPeriodDaySummary;
   onOpen: (date: string) => void;
 }) => {
   const date = parseISO(day.date);
-  const minutes = day.workdayMinutes ?? 0;
-  const statusLabel = day.statusLabel ?? day.status ?? '';
+  const minutes = day.grossWorkdayMinutes ?? 0;
   return (
     <button
       type="button"
@@ -215,17 +240,17 @@ const DayRow = ({
         <p className="text-sm font-bold tabular-nums text-foreground">
           {formatHoursMinutes(minutes / 60)}
         </p>
-        {day.blockerMessage && (
+        {day.actionsCount > 0 && (
           <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 truncate">
-            {day.blockerMessage}
+            {day.actionsCount} frågor
           </p>
         )}
       </div>
       <span className={cn(
         'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border',
-        'bg-muted text-muted-foreground border-border',
+        DAY_STATUS_TONE[day.status],
       )}>
-        {statusLabel}
+        {DAY_STATUS_LABEL[day.status]}
       </span>
     </button>
   );
