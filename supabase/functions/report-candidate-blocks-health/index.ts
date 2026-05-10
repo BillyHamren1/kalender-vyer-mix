@@ -237,6 +237,21 @@ interface DayHealth {
       nearestTargetRadiusMeters: number | null;
       clearExitDetected: boolean;
     }>;
+    // Buckets för transport-inside-primary (efter post-pass)
+    transportInsidePrimaryTotalMinutes: number;
+    transportInsidePrimaryTotalCount: number;
+    reclassifiableTransportInsidePrimaryCount: number;
+    reclassifiableTransportInsidePrimaryMinutes: number;
+    keptBecauseClearExitCount: number;
+    keptBecauseClearExitMinutes: number;
+    keptBecauseRatioBelowThresholdCount: number;
+    keptBecauseRatioBelowThresholdMinutes: number;
+    keptBecauseSecondaryOrUnsafeTargetCount: number;
+    keptBecauseSecondaryOrUnsafeTargetMinutes: number;
+    keptBecauseDurationTooLongCount: number;
+    keptBecauseDurationTooLongMinutes: number;
+    remainingGeofenceWarningCount: number;
+    remainingGeofenceWarningMinutes: number;
   };
 }
 
