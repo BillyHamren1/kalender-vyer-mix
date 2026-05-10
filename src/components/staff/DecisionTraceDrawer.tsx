@@ -637,8 +637,62 @@ function RawTab(props: DecisionTraceDrawerProps) {
       ? props.rawGpsTimeline
       : [];
   const pings = Array.isArray(props.rawGpsTimeline?.pings) ? props.rawGpsTimeline.pings : [];
+  const transportSegs = segs.filter((s: any) => (s.type ?? s.kind) === 'transport' || s.kind === 'travel');
   return (
     <div className="space-y-3">
+      {transportSegs.length > 0 && (
+        <div>
+          <div className="mb-1 text-xs font-semibold">
+            Transport-segment — varför? ({transportSegs.length})
+          </div>
+          <div className="space-y-2">
+            {transportSegs.map((s: any, i: number) => {
+              const m = s.movementDecision ?? {};
+              const td = s.targetDiagnostics ?? {};
+              const ratioPct = td.pingsInsideSameTargetRatio != null
+                ? `${Math.round(Number(td.pingsInsideSameTargetRatio) * 100)}%`
+                : '—';
+              return (
+                <div key={s.id ?? i} className="rounded-md border bg-muted/10 p-2 text-[11px]">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="font-mono tabular-nums">
+                      {fmtHm(s.startTs ?? s.startAt)} – {fmtHm(s.endTs ?? s.endAt)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {Math.round(Number(s.durationMin ?? 0))}m · {Math.round(Number(s.distanceMeters ?? 0))}m · ø{(Number(s.avgKmh ?? 0)).toFixed(1)} km/h
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                    <span className="text-muted-foreground">movement reason</span>
+                    <span className={`font-mono ${td.travelInsideTargetCandidate ? 'font-semibold text-destructive' : ''}`}>
+                      {m.reason ?? '—'}
+                    </span>
+                    <span className="text-muted-foreground">computed km/h</span>
+                    <span className="font-mono">{m.computedKmh != null ? Number(m.computedKmh).toFixed(1) : '—'}</span>
+                    <span className="text-muted-foreground">reported km/h</span>
+                    <span className="font-mono">{m.reportedKmh != null ? Number(m.reportedKmh).toFixed(1) : '—'}</span>
+                    <span className="text-muted-foreground">distance from prev ping</span>
+                    <span className="font-mono">{m.distanceFromPreviousMeters != null ? `${Math.round(m.distanceFromPreviousMeters)}m` : '—'}</span>
+                    <span className="text-muted-foreground">nearest target</span>
+                    <span className="truncate">
+                      {td.nearestTargetLabel ?? '—'}
+                      {td.nearestTargetDistanceMeters != null ? ` (${td.nearestTargetDistanceMeters}m / r=${td.nearestTargetRadiusMeters ?? '—'})` : ''}
+                    </span>
+                    <span className="text-muted-foreground">pings inne i primary target</span>
+                    <span className="font-mono">{td.pingsInsidePrimaryTarget ?? 0} / {s.pingCount ?? '—'} ({ratioPct})</span>
+                    <span className="text-muted-foreground">travelInsideTargetCandidate</span>
+                    <span className={`font-mono ${td.travelInsideTargetCandidate ? 'font-semibold text-destructive' : ''}`}>
+                      {String(td.travelInsideTargetCandidate ?? false)}
+                      {td.travelInsideTargetLabel ? ` · ${td.travelInsideTargetLabel}` : ''}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div>
         <div className="mb-1 text-xs font-semibold">rawGpsTimeline ({segs.length} segment, {pings.length} pings)</div>
         {segs.length === 0 ? (
@@ -652,28 +706,28 @@ function RawTab(props: DecisionTraceDrawerProps) {
                 <tr>
                   <th className="px-2 py-1 font-medium">Tid</th>
                   <th className="px-2 py-1 font-medium">Typ</th>
-                  <th className="px-2 py-1 font-medium">Lat/Lng</th>
-                  <th className="px-2 py-1 font-medium">Acc</th>
+                  <th className="px-2 py-1 font-medium">Center</th>
+                  <th className="px-2 py-1 font-medium">Pings</th>
                   <th className="px-2 py-1 font-medium">Target</th>
-                  <th className="px-2 py-1 font-medium">Status</th>
+                  <th className="px-2 py-1 font-medium">Reason</th>
                 </tr>
               </thead>
               <tbody>
                 {segs.map((s: any, i: number) => (
                   <tr key={s.id ?? i} className="border-t">
                     <td className="px-2 py-1 font-mono tabular-nums">
-                      {fmtHm(s.startAt ?? s.start_at ?? s.start)} – {fmtHm(s.endAt ?? s.end_at ?? s.end)}
+                      {fmtHm(s.startTs ?? s.startAt ?? s.start)} – {fmtHm(s.endTs ?? s.endAt ?? s.end)}
                     </td>
                     <td className="px-2 py-1"><KindBadge kind={s.type ?? s.kind} /></td>
                     <td className="px-2 py-1 font-mono">
-                      {s.lat != null ? Number(s.lat).toFixed(4) : '—'},{' '}
-                      {s.lng != null ? Number(s.lng).toFixed(4) : '—'}
+                      {s.centerLat != null ? Number(s.centerLat).toFixed(4) : '—'},{' '}
+                      {s.centerLng != null ? Number(s.centerLng).toFixed(4) : '—'}
                     </td>
-                    <td className="px-2 py-1">{s.accuracy != null ? `${Math.round(s.accuracy)}m` : '—'}</td>
+                    <td className="px-2 py-1">{s.pingCount ?? '—'}</td>
                     <td className="px-2 py-1 truncate max-w-[140px]">
-                      {s.matchedTargetLabel ?? s.targetLabel ?? s.targetId ?? '—'}
+                      {s.matchedTargetName ?? s.matchedTargetLabel ?? s.targetLabel ?? s.targetId ?? '—'}
                     </td>
-                    <td className="px-2 py-1 text-muted-foreground">{s.status ?? s.reason ?? '—'}</td>
+                    <td className="px-2 py-1 text-muted-foreground">{s.reason ?? s.status ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
