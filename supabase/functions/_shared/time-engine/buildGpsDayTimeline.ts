@@ -1321,6 +1321,10 @@ export function buildGpsDayTimeline(
     td.arrivedAtOtherPrimaryTarget = arrivedAtOther;
     td.transportToOtherPrimaryTarget = transportToOther;
     td.longClearExit = longClearExit;
+    td.stickyAnchorSource = stickyAnchorSource;
+    td.stickyAnchorEntryAtLocal = stickyAnchorEntryAtLocal;
+    td.stickyAnchorTable = stickyAnchorTable;
+    td.geoExitWithoutStrongExitObserved = geoExitPending;
 
     if (longClearExit) longClearExitDiagCount++;
 
