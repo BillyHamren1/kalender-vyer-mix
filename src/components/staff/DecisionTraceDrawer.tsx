@@ -709,6 +709,39 @@ function RawTab(props: DecisionTraceDrawerProps) {
               const ratioPct = td.pingsInsideSameTargetRatio != null
                 ? `${Math.round(Number(td.pingsInsideSameTargetRatio) * 100)}%`
                 : '—';
+              const isReclassified = s.reclassificationReason === 'movement_inside_geofence';
+              const showWhyNot = !!td.travelInsideTargetCandidate && !isReclassified;
+              const ratioNum =
+                td.pingsInsideSameTargetRatio != null ? Number(td.pingsInsideSameTargetRatio) : null;
+              const targetLabel =
+                td.travelInsideTargetLabel ?? td.nearestTargetLabel ?? null;
+              const durationMin = Math.round(Number(s.durationMin ?? 0));
+              const reasonNotReclassified: string = !showWhyNot
+                ? 'n/a'
+                : td.keptInsidePrimaryReason === 'clear_exit'
+                ? 'clear_exit_detected'
+                : td.keptInsidePrimaryReason === 'ratio_below_threshold'
+                ? 'ratio_below_threshold'
+                : td.keptInsidePrimaryReason === 'duration_too_long'
+                ? 'duration_too_long'
+                : td.keptInsidePrimaryReason === 'secondary_or_unsafe'
+                ? targetLabel
+                  ? 'target_not_primary'
+                  : 'missing_target'
+                : 'unknown';
+              const explainText = !showWhyNot
+                ? null
+                : reasonNotReclassified === 'clear_exit_detected'
+                ? `Segmentet låg delvis inom ${targetLabel ?? 'geofence'}, men behölls som transport eftersom flera GPS-punkter visar tydlig exit från geofence.`
+                : reasonNotReclassified === 'ratio_below_threshold'
+                ? `Endast ${ratioNum != null ? Math.round(ratioNum * 100) : '—'} % av pingarna låg inom samma geofence (${targetLabel ?? 'okänd target'}). Därför klassas segmentet inte automatiskt som arbete.`
+                : reasonNotReclassified === 'duration_too_long'
+                ? `Segmentet är ${durationMin} min långt (>240 min). Långa pass reklassas inte automatiskt — kontrollera manuellt om det är arbete eller transport.`
+                : reasonNotReclassified === 'target_not_primary'
+                ? `Targeten "${targetLabel}" är sekundär eller inte auto-matchningsbar för denna person/dag. Därför reklassas inte segmentet automatiskt.`
+                : reasonNotReclassified === 'missing_target'
+                ? 'Ingen primary target kunde knytas till segmentet. Reklassificering kräver en känd, auto-matchningsbar target.'
+                : 'Detta ser ut som en kandidat för regeljustering — alla villkor verkar uppfyllda men reklassificering skedde inte.';
               return (
                 <div key={s.id ?? i} className="rounded-md border bg-muted/10 p-2 text-[11px]">
                   <div className="mb-1 flex items-center justify-between gap-2">
@@ -716,9 +749,41 @@ function RawTab(props: DecisionTraceDrawerProps) {
                       {fmtHm(s.startTs ?? s.startAt)} – {fmtHm(s.endTs ?? s.endAt)}
                     </span>
                     <span className="text-muted-foreground">
-                      {Math.round(Number(s.durationMin ?? 0))}m · {Math.round(Number(s.distanceMeters ?? 0))}m · ø{(Number(s.avgKmh ?? 0)).toFixed(1)} km/h
+                      {durationMin}m · {Math.round(Number(s.distanceMeters ?? 0))}m · ø{(Number(s.avgKmh ?? 0)).toFixed(1)} km/h
                     </span>
                   </div>
+                  {showWhyNot && (
+                    <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-900">
+                      <div className="mb-1 font-semibold">Varför blev detta fortfarande transport?</div>
+                      <div className="mb-1.5">{explainText}</div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 font-mono">
+                        <span className="text-amber-900/70">reasonNotReclassified</span>
+                        <span className="font-semibold">{reasonNotReclassified}</span>
+                        <span className="text-amber-900/70">targetLabel</span>
+                        <span>{targetLabel ?? '—'}</span>
+                        <span className="text-amber-900/70">target matchRole</span>
+                        <span>{td.nearestTargetType ?? '—'}</span>
+                        <span className="text-amber-900/70">target canAutoMatchAsWork</span>
+                        <span>{td.travelInsideTargetCandidate ? 'true (kandidat)' : 'false'}</span>
+                        <span className="text-amber-900/70">pingsInsideSameTargetRatio</span>
+                        <span>{ratioNum != null ? `${(ratioNum * 100).toFixed(1)}%` : '—'}</span>
+                        <span className="text-amber-900/70">durationMinutes</span>
+                        <span>{durationMin}</span>
+                        <span className="text-amber-900/70">clearExitDetected</span>
+                        <span>{String(td.clearExitDetected ?? false)}</span>
+                        <span className="text-amber-900/70">movementReason</span>
+                        <span>{m.reason ?? '—'}</span>
+                        <span className="text-amber-900/70">computedKmh</span>
+                        <span>{m.computedKmh != null ? Number(m.computedKmh).toFixed(1) : '—'}</span>
+                        <span className="text-amber-900/70">reportedKmh</span>
+                        <span>{m.reportedKmh != null ? Number(m.reportedKmh).toFixed(1) : '—'}</span>
+                        <span className="text-amber-900/70">nearestTargetDistanceMeters</span>
+                        <span>{td.nearestTargetDistanceMeters ?? '—'}</span>
+                        <span className="text-amber-900/70">nearestTargetRadiusMeters</span>
+                        <span>{td.nearestTargetRadiusMeters ?? '—'}</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                     <span className="text-muted-foreground">movement reason</span>
                     <span className={`font-mono ${td.travelInsideTargetCandidate ? 'font-semibold text-destructive' : ''}`}>
