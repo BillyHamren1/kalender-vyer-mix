@@ -112,9 +112,25 @@ export interface SummarizedTotals {
   manualDeductionMinutes: number;
   /** Lönegrundande = brutto − rast − manual. */
   payableMinutes: number;
-  /** Godkänd lönegrundande tid (workday.approved). */
+  /**
+   * Godkänd lönegrundande tid — admin/lön har approvat workday.
+   * "approval" = admin-flöde, skild från användarens "attest".
+   */
   approvedPayableMinutes: number;
-  /** Lönegrundande tid som väntar på attest (ingen day_attestation och ej godkänd). */
+  /**
+   * Användaren har attesterat dagen (day_attestation finns) men
+   * admin har ännu inte approvat. Bucket: "Inskickat".
+   */
+  submittedPayableMinutes: number;
+  /**
+   * Dagen har brutto men ingen day_attestation och är inte approved.
+   * Bucket: "Ej inskickat" — väntar på användarattest.
+   */
+  awaitingUserAttestPayableMinutes: number;
+  /**
+   * Bakåtkompatibel alias för awaitingUserAttestPayableMinutes.
+   * @deprecated använd awaitingUserAttestPayableMinutes.
+   */
   awaitingAttestPayableMinutes: number;
   /** Antal dagar med actionsNeeded > 0 (oresolved input behövs). */
   daysWithActions: number;
