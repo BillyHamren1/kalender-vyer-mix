@@ -182,6 +182,9 @@ export function summarizeSnapshots(snaps: StaffDaySnapshot[]): SummarizedTotals 
       out.daysWithActions += 1;
     }
   }
+  // Bakåtkompatibel alias — UI som ännu läser awaitingAttestPayableMinutes
+  // får samma värde som "Ej inskickat".
+  out.awaitingAttestPayableMinutes = out.awaitingUserAttestPayableMinutes;
   return out;
 }
 
