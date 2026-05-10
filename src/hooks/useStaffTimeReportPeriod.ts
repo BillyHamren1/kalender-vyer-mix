@@ -191,7 +191,15 @@ export function useStaffTimeReportPeriod(
           manualDeductionMinutes: t.manualDeductionMinutes ?? 0,
           payableMinutes: t.payableMinutes ?? 0,
           approvedPayableMinutes: t.approvedPayableMinutes ?? 0,
-          awaitingAttestPayableMinutes: t.awaitingAttestPayableMinutes ?? 0,
+          submittedPayableMinutes: t.submittedPayableMinutes ?? 0,
+          awaitingUserAttestPayableMinutes:
+            t.awaitingUserAttestPayableMinutes ??
+            t.awaitingAttestPayableMinutes ??
+            0,
+          awaitingAttestPayableMinutes:
+            t.awaitingAttestPayableMinutes ??
+            t.awaitingUserAttestPayableMinutes ??
+            0,
           daysWithActions: t.daysWithActions ?? 0,
           daysWithWork: t.daysWithWork ?? 0,
           projectMinutes: t.projectMinutes ?? 0,
