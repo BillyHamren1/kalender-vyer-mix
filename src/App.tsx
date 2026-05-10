@@ -345,6 +345,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/admin/time-intelligence-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/time-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/legacy-incoming-packing" element={<LegacyIncomingPackingDebug />} />
+              <Route path="/admin/warehouse-assignments-debug" element={<WarehouseAssignmentsDebug />} />
             </Route>
 
             {/* Bare protected routes (no sidebar layout) */}
