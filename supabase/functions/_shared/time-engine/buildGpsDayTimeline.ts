@@ -888,12 +888,35 @@ export function buildGpsDayTimeline(
     if (seg.kind !== 'travel') continue;
     const td = seg.targetDiagnostics;
     if (!td?.travelInsideTargetCandidate) continue;
-    if ((td.pingsInsideSameTargetRatio ?? 0) < 0.7) continue;
-    if (seg.durationMin > 240) continue;
 
+    transportInsidePrimaryTotalCount++;
+    transportInsidePrimaryTotalMinutes += seg.durationMin;
+
+    const ratio = td.pingsInsideSameTargetRatio ?? 0;
     const meta = travelMeta.get(seg.id);
-    if (!meta || !meta.primaryTarget) continue;
-    const target = meta.primaryTarget;
+    const target = meta?.primaryTarget ?? null;
+
+    // ── Bucket A: secondary / unsafe / missing primary target
+    if (!meta || !target) {
+      td.keptInsidePrimaryReason = 'secondary_or_unsafe';
+      keptSecondaryUnsafeCount++;
+      keptSecondaryUnsafeMinutes += seg.durationMin;
+      continue;
+    }
+    // ── Bucket B: ratio i [0.6, 0.7) — gränsfall, motorfel ej
+    if (ratio < 0.7) {
+      td.keptInsidePrimaryReason = 'ratio_below_threshold';
+      keptRatioBelowCount++;
+      keptRatioBelowMinutes += seg.durationMin;
+      continue;
+    }
+    // ── Bucket C: duration > 240 min
+    if (seg.durationMin > 240) {
+      td.keptInsidePrimaryReason = 'duration_too_long';
+      keptDurationTooLongCount++;
+      keptDurationTooLongMinutes += seg.durationMin;
+      continue;
+    }
 
     // Primary / canAutoMatchAsWork: in this contract layer the only signal
     // we have is `assignedToUserToday`. The resolver sets it to false when
@@ -909,7 +932,18 @@ export function buildGpsDayTimeline(
     const next = segments[si + 1];
     const clearExit = hasClearExitFromTarget(meta.pings, target, meta.medianAccM, next);
     td.clearExitDetected = clearExit;
-    if (clearExit) continue;
+
+    // ── Bucket D: clear exit upptäcktes — segmentet ÄR transport, korrekt
+    if (clearExit) {
+      td.keptInsidePrimaryReason = 'clear_exit';
+      keptClearExitCount++;
+      keptClearExitMinutes += seg.durationMin;
+      continue;
+    }
+
+    // ── Bucket E (motorfel): uppfyller alla villkor men reklassades inte.
+    // Vi reklassificerar nedan; counter ökas bara om något skulle ha hindrat
+    // det (bör inte hända). Denna räknare är health-check-WARNING-grunden.
 
     // Reclassify travel → known_site stay. Keep originals for audit.
     seg.originalKind = 'travel';
@@ -922,6 +956,10 @@ export function buildGpsDayTimeline(
     seg.matchedTargetName = target.label;
     seg.reclassificationReason = 'movement_inside_geofence';
     seg.reason = 'matched_valid_target';
+    // Segment lämnar transport-inside-primary-bucketen helt — nollställ
+    // bidraget vi nyss adderade högst upp i loopen.
+    transportInsidePrimaryTotalCount = Math.max(0, transportInsidePrimaryTotalCount - 1);
+    transportInsidePrimaryTotalMinutes = Math.max(0, transportInsidePrimaryTotalMinutes - seg.durationMin);
 
     targetsHit.add(target.key);
     knownSite++;
@@ -946,6 +984,9 @@ export function buildGpsDayTimeline(
       });
     }
   }
+  // (`reclassifiable` är 0 så länge motorn fungerar; behålls i kontraktet
+  // som tidig varningssignal om en framtida ändring råkar bryta loopen.)
+  void reclassifiableCount; void reclassifiableMinutes;
 
   const avgAccuracyM = avg(
     accepted.map((p) => p.accuracyM ?? NaN).filter((n) => Number.isFinite(n)) as number[],
