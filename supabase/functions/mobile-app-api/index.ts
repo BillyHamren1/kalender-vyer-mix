@@ -1367,22 +1367,25 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   }
 
   // ─── LAGER BRIDGE ────────────────────────────────────────────────
-  // Personalkalenderns "Lager"-kolumn använder team_id='transport'.
-  // Om användaren har staff_assignments med team_id='transport' på ett datum
-  // ska Time-appen visa det interna Lager-projektet + ett 07–16 pass den dagen,
-  // även utan booking_staff_assignments.
+  // Personalkalenderns "Lager"-kolumn kan ha team_id 'transport',
+  // 'warehouse' eller 'lager-N'. Alla räknas som Lager via
+  // isWarehouseTeam(). Om personen har minst en sådan staff_assignments-rad
+  // på ett datum visar Time-appen det interna Lager-projektet + ett 07–16
+  // pass den dagen, även utan booking_staff_assignments. Det säkerställer
+  // att packningar/returer/interna lageruppgifter samlas under EN enda
+  // Lager-vy istället för flera huvudkort i jobblistan.
   // ──────────────────────────────────────────────────────────────────
-  const transportRows = (staffTeamAssignments || []).filter(
-    (r: any) => r.team_id === 'transport',
+  const lagerTeamRows = (staffTeamAssignments || []).filter(
+    (r: any) => isWarehouseTeam(r.team_id),
   )
-  const transportDates = Array.from(
-    new Set(transportRows.map((r: any) => String(r.assignment_date))),
+  const lagerDates = Array.from(
+    new Set(lagerTeamRows.map((r: any) => String(r.assignment_date))),
   ).sort()
 
   let lagerShifts: any[] = []
   let lagerBookingId: string | null = null
 
-  if (transportDates.length > 0) {
+  if (lagerDates.length > 0) {
     const { data: lagerProject, error: lagerErr } = await supabase
       .from('projects')
       .select('id, name, booking_id')
@@ -1415,23 +1418,23 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         delivery_longitude: null,
         is_internal: true,
         internal_type: 'lager',
-        assignment_dates: transportDates,
+        assignment_dates: lagerDates,
         assignment_type: 'scheduled',
       })
     } else {
-      // Merge transport dates into the existing row
+      // Merge lager dates into the existing row
       const existing = bookingsWithAssignments.find(
         (b: any) => String(b.id) === String(lagerBookingId),
       )
       if (existing) {
-        const merged = new Set<string>([...(existing.assignment_dates || []), ...transportDates])
+        const merged = new Set<string>([...(existing.assignment_dates || []), ...lagerDates])
         existing.assignment_dates = Array.from(merged).sort()
         existing.is_internal = true
         existing.internal_type = existing.internal_type || 'lager'
       }
     }
 
-    for (const d of transportDates) {
+    for (const d of lagerDates) {
       lagerShifts.push({
         shift_id: `lager-${lagerBookingId}-${d}`,
         booking_id: lagerBookingId,
@@ -1453,8 +1456,8 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
     console.log('[get_bookings][lager] bridge applied', {
       staffId,
-      transportAssignmentCount: transportRows.length,
-      transportDates,
+      lagerTeamRowCount: lagerTeamRows.length,
+      lagerDates,
       lagerBookingId,
       lagerProjectFound: !!lagerProject,
       lagerShiftsCreated: lagerShifts.length,
