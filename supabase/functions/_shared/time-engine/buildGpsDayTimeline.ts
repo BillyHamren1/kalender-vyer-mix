@@ -284,6 +284,42 @@ export interface GpsClassificationDiagnostics {
   keptBecauseSecondaryOrUnsafeTargetMinutes: number;
   keptBecauseDurationTooLongCount: number;
   keptBecauseDurationTooLongMinutes: number;
+
+  /**
+   * Sticky-target post-pass diagnostics. Sticky regel: ett primary project/
+   * warehouse "äger" personen tills strong exit bevisas. Strong exit kräver
+   * ankomst till annat primary target ELLER ≥2 konsekutiva pings ≥1000m
+   * UTANFÖR sticky-targetens geofence-edge ELLER transport som slutar nära
+   * annat primary target. longClearExit är diagnostic-only och släpper
+   * aldrig sticky ensamt.
+   */
+  stickyTargetDiagnostics: {
+    stickyReclassifiedCount: number;
+    stickyReclassifiedMinutes: number;
+    strongExitCount: number;
+    strongExitMinutes: number;
+    exitRejectedBecauseUnder1kmCount: number;
+    exitRejectedBecauseUnder1kmMinutes: number;
+    arrivedAtOtherPrimaryTargetCount: number;
+    longClearExitCount: number;
+    remainingTransportNearStickyTargetCount: number;
+    remainingTransportNearStickyTargetMinutes: number;
+    examples: Array<{
+      segmentStart: ISODateTime;
+      segmentEnd: ISODateTime;
+      durationMinutes: number;
+      stickyTargetLabel: string | null;
+      distanceFromStickyCenterMeters: number | null;
+      distanceOutsideStickyGeofenceMeters: number | null;
+      decision:
+        | 'reclassified_no_strong_exit'
+        | 'kept_arrived_other_primary'
+        | 'kept_distance_over_1000m_outside_geofence'
+        | 'kept_transport_to_other_primary';
+      longClearExit: boolean;
+      reasonNotReclassified: string | null;
+    }>;
+  };
 }
 
 export interface GpsDayTimelineResult {
