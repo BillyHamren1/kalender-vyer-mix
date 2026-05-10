@@ -1781,5 +1781,29 @@ export function buildGpsDayTimeline(
       remainingTransportInsidePrimaryGeofenceMinutes:
         Math.round(remainingTransportInsidePrimaryMinutes * 100) / 100,
     },
-  };
+    // Back-compat top-level mirrors (consumers like report-candidate-blocks-health
+    // read these at the result root). Same values as inside classificationDiagnostics.
+    geoAnchorDiagnostics: {
+      hardAnchorCount: hardAnchors.length,
+      hardEntryCount: hardAnchors.filter((a) => a.type === 'entry').length,
+      hardExitCount: hardAnchors.filter((a) => a.type === 'exit').length,
+      entriesAppliedToSticky: geoAnchorEntriesApplied,
+      entriesSeededStickyEarly: geoAnchorEntriesSeededStickyEarly,
+      entriesIgnoredNoMatchingTarget: geoAnchorEntriesIgnoredNoTarget,
+      exitsObservedWithoutStrongExit: geoAnchorExitsObserved,
+      transportSegmentsAfterGeoEntryWithoutStrongExitMinutes:
+        Math.round(transportAfterGeoEntryWithoutStrongExitMinutes * 100) / 100,
+      examples: geoAnchorExamples,
+    },
+    stationaryGeofenceOverride: {
+      rescuedStayCount: overrideRescuedCount,
+      rescuedStayMinutes: Math.round(overrideRescuedMinutes * 100) / 100,
+      pingsInsidePrimaryCount,
+      pingsInsidePrimaryRatio: overridePingsRatio,
+      examples: overrideExamples,
+    },
+    remainingTransportInsidePrimaryGeofenceCount: remainingTransportInsidePrimaryCount,
+    remainingTransportInsidePrimaryGeofenceMinutes:
+      Math.round(remainingTransportInsidePrimaryMinutes * 100) / 100,
+  } as GpsDayTimelineResult;
 }
