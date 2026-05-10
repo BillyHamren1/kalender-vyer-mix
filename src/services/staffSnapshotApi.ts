@@ -8,8 +8,23 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getToken } from '@/services/mobileApiService';
 
+/**
+ * Snapshot/read endpoints AND user-driven mutations (e.g. attest-staff-day)
+ * share the same dual-auth path: prefer mobile token if present, otherwise
+ * fall back to Supabase JWT via supabase.functions.invoke.
+ */
+export type StaffSnapshotFunctionName =
+  | 'get-staff-day-status'
+  | 'get-staff-month-status'
+  | 'get-staff-time-report-period'
+  | 'get-current-time-registration'
+  | 'get-active-timer-status'
+  | 'get-active-time-registration-status'
+  | 'get-timer-time-segments'
+  | 'attest-staff-day';
+
 export async function callStaffSnapshotFunction<T>(
-  name: 'get-staff-day-status' | 'get-staff-month-status' | 'get-staff-time-report-period' | 'get-current-time-registration' | 'get-active-timer-status' | 'get-active-time-registration-status' | 'get-timer-time-segments',
+  name: StaffSnapshotFunctionName,
   body: Record<string, unknown>,
 ): Promise<T> {
   const mobileToken = getToken();
