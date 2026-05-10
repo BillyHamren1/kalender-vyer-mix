@@ -34,6 +34,7 @@ import {
   resolveWorkTargets,
   toWorkTarget,
 } from '../_shared/time-engine/resolveWorkTargets.ts';
+import { loadGeoAnchors } from '../_shared/time-engine/loadGeoAnchors.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
