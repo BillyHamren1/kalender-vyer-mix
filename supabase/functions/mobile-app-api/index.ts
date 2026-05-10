@@ -6585,6 +6585,54 @@ async function handleStartLocationTimerLegacyDisabled(supabase: any, staffId: st
  * koppling (t.ex. warehouse_event_assignments), filtrera direkt på den
  * istället för dag/team-härledning.
  */
+type LagerAssignmentDTO = {
+  id: string
+  type: 'packing' | 'return' | 'inventory' | 'internal_task' | 'other'
+  title: string
+  description: string | null
+  date: string | null
+  start_time: string | null
+  end_time: string | null
+  status: string
+  action: 'open_scanner' | 'open_return_scanner' | 'open_inventory' | 'complete_task' | 'open_details'
+  packing_id: string | null
+  packlist_id: string | null
+  booking_id: string | null
+  booking_number: string | null
+  delivery_address: string | null
+  customer_name: string | null
+  project_task_id: string | null
+  warehouse_event_id: string | null
+  source: string
+  metadata: Record<string, unknown> | null
+  // Legacy/back-compat fields kept so existing mobile builds keep working:
+  event_type: string
+  assignment_type: 'packing' | 'return' | 'inventory' | 'internal_task' | 'other'
+  completed: boolean
+}
+
+function deriveLagerType(raw: string | null | undefined): LagerAssignmentDTO['type'] {
+  const t = (raw || '').toLowerCase()
+  if (t === 'packing' || t === 'return' || t === 'inventory' || t === 'internal_task') return t
+  if (t === 'unpacking') return 'return'
+  return 'other'
+}
+
+function deriveLagerAction(
+  type: LagerAssignmentDTO['type'],
+  raw: string | null | undefined,
+): LagerAssignmentDTO['action'] {
+  const a = (raw || '').toLowerCase()
+  if (a === 'open_scanner' || a === 'open_return_scanner' || a === 'open_inventory' || a === 'complete_task' || a === 'open_details') {
+    return a as LagerAssignmentDTO['action']
+  }
+  if (type === 'packing') return 'open_scanner'
+  if (type === 'return') return 'open_return_scanner'
+  if (type === 'inventory') return 'open_inventory'
+  if (type === 'internal_task') return 'complete_task'
+  return 'open_details'
+}
+
 async function handleGetLagerAssignments(
   supabase: any,
   staffId: string,
@@ -6596,11 +6644,11 @@ async function handleGetLagerAssignments(
   const dateTo: string = (data?.date_to as string) ||
     new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString().slice(0, 10)
 
-  const assignments: any[] = []
+  const assignments: LagerAssignmentDTO[] = []
   const seenWarehouseEventIds = new Set<string>()
+  let canonicalCount = 0
 
-  // 0) Canonical: explicit warehouse_assignments rows for this staff_id.
-  //    These are the authoritative person↔task links going forward.
+  // 1) Canonical: warehouse_assignments rows for this staff_id (PRIMARY SOURCE)
   try {
     const { data: wa, error: waErr } = await supabase
       .from('warehouse_assignments')
@@ -6620,39 +6668,40 @@ async function handleGetLagerAssignments(
     } else {
       for (const r of wa || []) {
         if (r.warehouse_event_id) seenWarehouseEventIds.add(r.warehouse_event_id)
-        const startIso = r.start_time
-          ? r.start_time
-          : r.assignment_date
-            ? `${r.assignment_date}T00:00:00`
-            : null
+        const type = deriveLagerType(r.assignment_type)
+        const action = deriveLagerAction(type, r.action)
         assignments.push({
           id: `wa-${r.id}`,
+          type,
           title: r.title || r.customer_name || 'Lageruppgift',
           description: r.description ?? null,
-          start_time: startIso,
+          date: r.assignment_date ?? (r.start_time ? String(r.start_time).slice(0, 10) : null),
+          start_time: r.start_time ?? null,
           end_time: r.end_time ?? null,
-          event_type: r.assignment_type || 'other',
-          assignment_type: r.assignment_type || 'other',
-          action: r.action || 'open_details',
           status: r.status || 'planned',
+          action,
+          packing_id: r.packing_id ?? null,
+          packlist_id: r.packlist_id ?? null,
           booking_id: r.booking_id ?? null,
           booking_number: r.booking_number ?? null,
           delivery_address: r.delivery_address ?? null,
           customer_name: r.customer_name ?? null,
-          packing_id: r.packing_id ?? null,
-          packlist_id: r.packlist_id ?? null,
           project_task_id: r.project_task_id ?? null,
           warehouse_event_id: r.warehouse_event_id ?? null,
-          source: r.source || 'warehouse_calendar_event',
+          source: r.source || 'warehouse_assignments',
+          metadata: (r.metadata as Record<string, unknown>) ?? null,
+          event_type: type,
+          assignment_type: type,
           completed: r.status === 'completed',
         })
+        canonicalCount += 1
       }
     }
   } catch (e) {
     console.error('[get_lager_assignments] warehouse_assignments block failed:', e)
   }
 
-  // 1) Internal lager project tasks assigned to this staff
+  // 2) Internal lager project tasks assigned to this staff
   try {
     const { data: project } = await supabase
       .from('projects')
@@ -6673,23 +6722,30 @@ async function handleGetLagerAssignments(
         console.warn('[get_lager_assignments] project_tasks err:', tErr)
       } else {
         for (const t of tasks || []) {
+          const startIso = t.deadline ?? t.created_at
           assignments.push({
             id: `task-${t.id}`,
+            type: 'internal_task',
             title: t.title,
             description: t.description ?? null,
-            start_time: t.deadline ?? t.created_at,
+            date: startIso ? String(startIso).slice(0, 10) : null,
+            start_time: startIso ?? null,
             end_time: t.deadline ?? null,
-            event_type: 'internal_task',
-            assignment_type: 'internal_task',
+            status: t.completed ? 'completed' : 'planned',
             action: 'complete_task',
+            packing_id: null,
+            packlist_id: null,
             booking_id: project.booking_id ?? null,
             booking_number: null,
             delivery_address: null,
             customer_name: null,
             project_task_id: t.id,
+            warehouse_event_id: null,
             source: 'project_task',
+            metadata: null,
+            event_type: 'internal_task',
+            assignment_type: 'internal_task',
             completed: !!t.completed,
-            status: t.completed ? 'completed' : 'planned',
           })
         }
       }
@@ -6700,7 +6756,10 @@ async function handleGetLagerAssignments(
     console.error('[get_lager_assignments] tasks block failed:', e)
   }
 
-  // 2) warehouse_calendar_events on dates where the staff is assigned to a lager/transport team
+  // 3) FALLBACK: warehouse_calendar_events on dates where staff has lager team placement
+  //    Only used to back-fill events not already represented in warehouse_assignments.
+  let lagerDates = new Set<string>()
+  let lagerTeams = new Set<string>()
   try {
     const { data: sa, error: saErr } = await supabase
       .from('staff_assignments')
@@ -6713,19 +6772,15 @@ async function handleGetLagerAssignments(
       console.warn('[get_lager_assignments] staff_assignments err:', saErr)
     }
 
-    const lagerDates = new Set<string>()
-    const lagerTeams = new Set<string>()
     for (const row of sa || []) {
       const tid = String(row.team_id || '')
-      if (tid === 'transport' || tid.startsWith('lager-')) {
+      if (tid === 'transport' || tid === 'warehouse' || tid.startsWith('lager-')) {
         lagerDates.add(row.assignment_date)
         if (tid.startsWith('lager-')) lagerTeams.add(tid)
       }
     }
 
     if (lagerDates.size > 0) {
-      // TODO(next): När warehouse_calendar_events får explicit person-koppling,
-      // filtrera per staff_id istället för per team/datum.
       let q = supabase
         .from('warehouse_calendar_events')
         .select('id, title, booking_id, booking_number, start_time, end_time, event_type, delivery_address, resource_id')
@@ -6745,42 +6800,74 @@ async function handleGetLagerAssignments(
           const day = (w.start_time as string)?.slice(0, 10)
           if (!day || !lagerDates.has(day)) continue
           if (seenWarehouseEventIds.has(w.id)) continue
-          const evType = w.event_type || 'warehouse'
-          const aType = evType === 'packing' || evType === 'return' || evType === 'inventory' || evType === 'internal_task'
-            ? evType
-            : 'other'
-          const action = aType === 'packing'
-            ? 'open_scanner'
-            : aType === 'return'
-              ? 'open_return_scanner'
-              : aType === 'inventory'
-                ? 'open_inventory'
-                : aType === 'internal_task'
-                  ? 'complete_task'
-                  : 'open_details'
+          const type = deriveLagerType(w.event_type)
+          const action = deriveLagerAction(type, null)
           assignments.push({
             id: `wce-${w.id}`,
+            type,
             title: w.title || w.booking_number || 'Lageruppgift',
             description: null,
-            start_time: w.start_time,
-            end_time: w.end_time,
-            event_type: evType,
-            assignment_type: aType,
+            date: day,
+            start_time: w.start_time ?? null,
+            end_time: w.end_time ?? null,
+            status: 'planned',
             action,
+            packing_id: null,
+            packlist_id: null,
             booking_id: w.booking_id ?? null,
             booking_number: w.booking_number ?? null,
             delivery_address: w.delivery_address ?? null,
             customer_name: w.title ?? null,
+            project_task_id: null,
             warehouse_event_id: w.id,
             source: 'warehouse_calendar_event',
+            metadata: null,
+            event_type: w.event_type || 'warehouse',
+            assignment_type: type,
             completed: false,
-            status: 'planned',
           })
         }
       }
     }
   } catch (e) {
     console.error('[get_lager_assignments] warehouse block failed:', e)
+  }
+
+  // 4) FINAL FALLBACK: legacy lager-team placement without details — show a placeholder per day
+  //    so the user still sees "Lager" in the Time-app even if no concrete tasks have been linked yet.
+  try {
+    const datesWithAssignments = new Set(
+      assignments.map((a) => a.date).filter((d): d is string => !!d),
+    )
+    for (const day of lagerDates) {
+      if (datesWithAssignments.has(day)) continue
+      assignments.push({
+        id: `placeholder-${day}`,
+        type: 'other',
+        title: 'Lagerpass',
+        description: 'Inga detaljerade lageruppgifter tilldelade ännu.',
+        date: day,
+        start_time: null,
+        end_time: null,
+        status: 'planned',
+        action: 'open_details',
+        packing_id: null,
+        packlist_id: null,
+        booking_id: null,
+        booking_number: null,
+        delivery_address: null,
+        customer_name: null,
+        project_task_id: null,
+        warehouse_event_id: null,
+        source: 'staff_assignment_fallback',
+        metadata: { reason: 'no_detailed_warehouse_assignments' },
+        event_type: 'warehouse',
+        assignment_type: 'other',
+        completed: false,
+      })
+    }
+  } catch (e) {
+    console.error('[get_lager_assignments] placeholder block failed:', e)
   }
 
   // Sort: scheduled times first (asc), tasks without time last
@@ -6790,10 +6877,23 @@ async function handleGetLagerAssignments(
     return ta - tb
   })
 
-  console.log('[get_lager_assignments] returning', { staffId, count: assignments.length })
+  // Build summary
+  const startTimes = assignments.map((a) => a.start_time).filter((x): x is string => !!x).sort()
+  const endTimes = assignments.map((a) => a.end_time).filter((x): x is string => !!x).sort()
+  const types = Array.from(new Set(assignments.map((a) => a.type)))
+  const summary = {
+    has_warehouse_work: assignments.length > 0,
+    assignment_count: assignments.length,
+    canonical_count: canonicalCount,
+    first_start_time: startTimes[0] ?? null,
+    last_end_time: endTimes[endTimes.length - 1] ?? null,
+    types,
+  }
+
+  console.log('[get_lager_assignments] returning', { staffId, count: assignments.length, canonicalCount })
 
   return new Response(
-    JSON.stringify({ assignments }),
+    JSON.stringify({ assignments, summary }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }

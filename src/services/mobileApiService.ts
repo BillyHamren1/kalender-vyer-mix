@@ -717,27 +717,37 @@ export const mobileApi = {
     callApi<{
       assignments: Array<{
         id: string;
+        type: 'packing' | 'return' | 'inventory' | 'internal_task' | 'other';
         title: string;
         description: string | null;
+        date: string | null;
         start_time: string | null;
         end_time: string | null;
-        event_type: string;
-        /** Canonical normalized type from warehouse_assignments. */
-        assignment_type?: 'packing' | 'return' | 'inventory' | 'internal_task' | 'other';
-        /** Primary CTA action. */
-        action?: 'open_scanner' | 'open_return_scanner' | 'open_inventory' | 'complete_task' | 'open_details';
+        status: string;
+        action: 'open_scanner' | 'open_return_scanner' | 'open_inventory' | 'complete_task' | 'open_details';
+        packing_id: string | null;
+        packlist_id: string | null;
         booking_id: string | null;
         booking_number: string | null;
         delivery_address: string | null;
-        customer_name?: string | null;
-        packing_id?: string | null;
-        packlist_id?: string | null;
-        project_task_id?: string | null;
-        warehouse_event_id?: string | null;
-        source?: string;
+        customer_name: string | null;
+        project_task_id: string | null;
+        warehouse_event_id: string | null;
+        source: string;
+        metadata: Record<string, unknown> | null;
+        // Back-compat (older mobile builds):
+        event_type?: string;
+        assignment_type?: 'packing' | 'return' | 'inventory' | 'internal_task' | 'other';
         completed?: boolean;
-        status?: string;
       }>;
+      summary: {
+        has_warehouse_work: boolean;
+        assignment_count: number;
+        canonical_count?: number;
+        first_start_time: string | null;
+        last_end_time: string | null;
+        types: Array<'packing' | 'return' | 'inventory' | 'internal_task' | 'other'>;
+      };
     }>('get_lager_assignments', data),
 
   createLagerTask: (data: { title: string; description?: string; deadline?: string; assign_to_me?: boolean }) =>
