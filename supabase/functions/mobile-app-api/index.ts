@@ -2,6 +2,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 
 import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts'
+import { isWarehouseTeam } from '../_shared/warehouseTeam.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1093,9 +1094,16 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   // Source of truth: staff_assignments × calendar_events (resource_id=team-Y).
   // BSA-rader behålls som ytterligare källa (explicit per-person scheduling).
   // ────────────────────────────────────────────────────────────────────
+  // OBS: Warehouse-team (Lager) hoppas över här. Bokningar kopplade till
+  // warehouse_calendar_events ska aldrig visas som egna huvudkort i
+  // dagsvyn — de exponeras enbart via Lager-kortet och Lager-detaljsidan.
+  // Se rule #2/#3 i Lager-flödet.
   const teamDateKeys = new Set<string>()  // "team_id|date"
   for (const [date, teamSet] of Object.entries(staffTeamsByDate)) {
-    for (const teamId of teamSet) teamDateKeys.add(`${teamId}|${date}`)
+    for (const teamId of teamSet) {
+      if (isWarehouseTeam(teamId)) continue
+      teamDateKeys.add(`${teamId}|${date}`)
+    }
   }
 
   const derivedBookingDates: Record<string, Set<string>> = {} // booking_id → Set<date>
@@ -1359,22 +1367,25 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   }
 
   // ─── LAGER BRIDGE ────────────────────────────────────────────────
-  // Personalkalenderns "Lager"-kolumn använder team_id='transport'.
-  // Om användaren har staff_assignments med team_id='transport' på ett datum
-  // ska Time-appen visa det interna Lager-projektet + ett 07–16 pass den dagen,
-  // även utan booking_staff_assignments.
+  // Personalkalenderns "Lager"-kolumn kan ha team_id 'transport',
+  // 'warehouse' eller 'lager-N'. Alla räknas som Lager via
+  // isWarehouseTeam(). Om personen har minst en sådan staff_assignments-rad
+  // på ett datum visar Time-appen det interna Lager-projektet + ett 07–16
+  // pass den dagen, även utan booking_staff_assignments. Det säkerställer
+  // att packningar/returer/interna lageruppgifter samlas under EN enda
+  // Lager-vy istället för flera huvudkort i jobblistan.
   // ──────────────────────────────────────────────────────────────────
-  const transportRows = (staffTeamAssignments || []).filter(
-    (r: any) => r.team_id === 'transport',
+  const lagerTeamRows = (staffTeamAssignments || []).filter(
+    (r: any) => isWarehouseTeam(r.team_id),
   )
-  const transportDates = Array.from(
-    new Set(transportRows.map((r: any) => String(r.assignment_date))),
+  const lagerDates = Array.from(
+    new Set(lagerTeamRows.map((r: any) => String(r.assignment_date))),
   ).sort()
 
   let lagerShifts: any[] = []
   let lagerBookingId: string | null = null
 
-  if (transportDates.length > 0) {
+  if (lagerDates.length > 0) {
     const { data: lagerProject, error: lagerErr } = await supabase
       .from('projects')
       .select('id, name, booking_id')
@@ -1407,23 +1418,23 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
         delivery_longitude: null,
         is_internal: true,
         internal_type: 'lager',
-        assignment_dates: transportDates,
+        assignment_dates: lagerDates,
         assignment_type: 'scheduled',
       })
     } else {
-      // Merge transport dates into the existing row
+      // Merge lager dates into the existing row
       const existing = bookingsWithAssignments.find(
         (b: any) => String(b.id) === String(lagerBookingId),
       )
       if (existing) {
-        const merged = new Set<string>([...(existing.assignment_dates || []), ...transportDates])
+        const merged = new Set<string>([...(existing.assignment_dates || []), ...lagerDates])
         existing.assignment_dates = Array.from(merged).sort()
         existing.is_internal = true
         existing.internal_type = existing.internal_type || 'lager'
       }
     }
 
-    for (const d of transportDates) {
+    for (const d of lagerDates) {
       lagerShifts.push({
         shift_id: `lager-${lagerBookingId}-${d}`,
         booking_id: lagerBookingId,
@@ -1445,8 +1456,8 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
 
     console.log('[get_bookings][lager] bridge applied', {
       staffId,
-      transportAssignmentCount: transportRows.length,
-      transportDates,
+      lagerTeamRowCount: lagerTeamRows.length,
+      lagerDates,
       lagerBookingId,
       lagerProjectFound: !!lagerProject,
       lagerShiftsCreated: lagerShifts.length,
@@ -1481,6 +1492,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       (a: any) =>
         a.team_id !== 'project' &&
         a.team_id !== 'location' &&
+        !isWarehouseTeam(a.team_id) && // warehouse-team BSAs samlas i Lager-kortet
         !String(a.booking_id).startsWith('location-')
     )
 
@@ -6774,7 +6786,7 @@ async function handleGetLagerAssignments(
 
     for (const row of sa || []) {
       const tid = String(row.team_id || '')
-      if (tid === 'transport' || tid === 'warehouse' || tid.startsWith('lager-')) {
+      if (isWarehouseTeam(tid)) {
         lagerDates.add(row.assignment_date)
         if (tid.startsWith('lager-')) lagerTeams.add(tid)
       }
