@@ -475,6 +475,7 @@ function newAcc(kind: ReportBlockKind, b: PresenceDayBlock): AccumulatedBlock {
     firstConfirmedAt: b.kind === 'confirmed_on_site' ? b.startAt : null,
     lastConfirmedAt: b.kind === 'confirmed_on_site' ? b.endAt : null,
     baseConfidence: (b.confidence as ReportConfidence) ?? 'medium',
+    stickyWarningLabel: pickStickyWarning(b),
   };
 }
 
