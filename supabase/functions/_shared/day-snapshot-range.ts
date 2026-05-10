@@ -14,6 +14,11 @@ import {
   type AssistantEventRow,
   type DayAttestationRow,
 } from "./staff-day-status.ts";
+import {
+  getStockholmDayWindowUtc,
+  stockholmDateKey,
+  overlapMinutesUtc,
+} from "./stockholmDayWindow.ts";
 
 export interface RangeRows {
   workdays: WorkdayRow[];
@@ -44,24 +49,45 @@ export function buildDayRangeSnapshots(
   rows: RangeRows,
   now: Date = new Date(),
 ): StaffDaySnapshot[] {
-  // Pre-partition once for O(N) instead of O(N*D).
-  const wdByDate = partitionByDate(rows.workdays, (w) => w.started_at.slice(0, 10));
+  // Pre-partition once för O(N) istället för O(N*D).
+  // VIKTIGT: timestamptz-kolumner partitioneras på Stockholm-kalenderdag
+  // (inte UTC-dag), annars hamnar rader runt midnatt på fel dag.
+  // *_date-kolumner är redan kalenderdatum.
   const trByDate = partitionByDate(rows.timeReports, (t) => t.report_date);
-  const tlByDate = partitionByDate(rows.travelLogs, (t) => t.start_time.slice(0, 10));
+  const tlByDate = partitionByDate(rows.travelLogs, (t) => stockholmDateKey(t.start_time));
   const leByDate = partitionByDate(rows.locationEntries, (l) => l.entry_date);
   const flByDate = partitionByDate(rows.flags, (f) => f.flag_date);
-  const evByDate = partitionByDate(rows.assistantEvents, (e) => e.happened_at.slice(0, 10));
+  const evByDate = partitionByDate(rows.assistantEvents, (e) => stockholmDateKey(e.happened_at));
   const atByDate = new Map<string, DayAttestationRow>();
   for (const a of rows.attestations) atByDate.set(a.date, a);
 
   return dates.map((date) => {
-    const dayWorkdays = wdByDate.get(date) ?? [];
-    const workday = dayWorkdays[0] ?? null;
+    // Workdays: välj raden vars window täcker denna Stockholm-dag.
+    // Samma overlap-regel som get-staff-day-status:
+    //   1) started_at inom [dayStart, dayEnd]
+    //   2) annars störst överlapp
+    //   3) annars första
+    const win = getStockholmDayWindowUtc(date);
+    const startedToday = rows.workdays.find((w) => {
+      const s = new Date(w.started_at).getTime();
+      return s >= win.startUtcMs && s <= win.endUtcMs;
+    });
+    let workday: WorkdayRow | null = startedToday ?? null;
+    if (!workday) {
+      let best: WorkdayRow | null = null;
+      let bestOverlap = 0;
+      for (const w of rows.workdays) {
+        const ov = overlapMinutesUtc(w.started_at, w.ended_at ?? null, win.startUtcMs, win.endUtcMs);
+        if (ov > bestOverlap) { best = w; bestOverlap = ov; }
+      }
+      workday = best;
+    }
+
     return buildStaffDaySnapshot(
       {
         staffId,
         date,
-        workday: workday as WorkdayRow | null,
+        workday,
         timeReports: trByDate.get(date) ?? [],
         travelLogs: tlByDate.get(date) ?? [],
         locationEntries: leByDate.get(date) ?? [],
