@@ -443,6 +443,29 @@ Deno.serve(async (req) => {
 
       const samples: SampleStaffReport[] = [];
 
+      // Sticky primary target diagnostics — aggregated per day/org
+      const stickyAgg = {
+        stickyReclassifiedCount: 0,
+        stickyReclassifiedMinutes: 0,
+        strongExitCount: 0,
+        strongExitMinutes: 0,
+        exitRejectedBecauseUnder1kmCount: 0,
+        exitRejectedBecauseUnder1kmMinutes: 0,
+        arrivedAtOtherPrimaryTargetCount: 0,
+        longClearExitCount: 0,
+        remainingTransportNearStickyTargetCount: 0,
+        remainingTransportNearStickyTargetMinutes: 0,
+        examples: [] as Array<{
+          staffId: string; staffName: string;
+          segmentStart: string; segmentEnd: string; durationMinutes: number;
+          stickyTargetLabel: string | null;
+          distanceFromStickyCenterMeters: number | null;
+          distanceOutsideStickyGeofenceMeters: number | null;
+          decision: string; longClearExit: boolean; reasonNotReclassified: string | null;
+        }>,
+      };
+      (day as any).stickyTargetDiagnostics = stickyAgg;
+
       for (const s of staffList) {
         const { data: pingRows } = await admin
           .from('staff_location_history')
