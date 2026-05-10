@@ -237,6 +237,20 @@ export interface GpsClassificationDiagnostics {
   movementInsideGeofenceReclassifiedCount: number;
   movementInsideGeofenceReclassifiedMinutes: number;
   movementInsideGeofenceExamples: MovementInsideGeofenceExample[];
+  /** Per-bucket breakdown of transport-inside-primary segments that survived
+   *  the post-pass (i.e. were NOT reclassified by movement_inside_geofence). */
+  transportInsidePrimaryTotalCount: number;
+  transportInsidePrimaryTotalMinutes: number;
+  reclassifiableTransportInsidePrimaryCount: number;
+  reclassifiableTransportInsidePrimaryMinutes: number;
+  keptBecauseClearExitCount: number;
+  keptBecauseClearExitMinutes: number;
+  keptBecauseRatioBelowThresholdCount: number;
+  keptBecauseRatioBelowThresholdMinutes: number;
+  keptBecauseSecondaryOrUnsafeTargetCount: number;
+  keptBecauseSecondaryOrUnsafeTargetMinutes: number;
+  keptBecauseDurationTooLongCount: number;
+  keptBecauseDurationTooLongMinutes: number;
 }
 
 export interface GpsDayTimelineResult {
