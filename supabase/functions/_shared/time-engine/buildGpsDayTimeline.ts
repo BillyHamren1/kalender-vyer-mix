@@ -359,27 +359,44 @@ export function buildGpsDayTimeline(
     pings: GpsPing[];
     centerLat: number;
     centerLng: number;
+    triggerDecision?: MovementDecision;
   }
   const runs: Array<Run | { kind: 'gps_gap'; startTs: ISODateTime; endTs: ISODateTime }> = [];
 
-  const beginRun = (kind: RunKind, p: GpsPing): Run => ({
+  const beginRun = (kind: RunKind, p: GpsPing, triggerDecision?: MovementDecision): Run => ({
     kind,
     pings: [p],
     centerLat: p.lat,
     centerLng: p.lng,
+    triggerDecision,
   });
 
   let current: Run | null = null;
 
-  const isMovement = (prev: GpsPing, p: GpsPing): boolean => {
+  const classifyMovement = (prev: GpsPing, p: GpsPing): MovementDecision => {
     const dt = (Date.parse(p.ts) - Date.parse(prev.ts)) / 1000;
-    if (dt <= 0) return false;
     const d = haversine(prev.lat, prev.lng, p.lat, p.lng);
-    const kmh = (d / dt) * 3.6;
-    if (kmh >= cfg.movementSpeedKmh) return true;
-    if ((p.speedMps ?? 0) * 3.6 >= cfg.movementSpeedKmh) return true;
-    // If point is far outside the current cluster radius, treat as movement.
-    return d > cfg.stayRadiusM * 2;
+    const computedKmh = dt > 0 ? (d / dt) * 3.6 : null;
+    const reportedKmh = p.speedMps != null ? p.speedMps * 3.6 : null;
+    const base = {
+      distanceFromPreviousMeters: d,
+      secondsFromPrevious: dt,
+      computedKmh,
+      reportedKmh,
+      stayRadiusM: cfg.stayRadiusM,
+      movementSpeedKmh: cfg.movementSpeedKmh,
+    };
+    if (dt <= 0) return { movement: false, reason: 'stationary', ...base };
+    if (computedKmh != null && computedKmh >= cfg.movementSpeedKmh) {
+      return { movement: true, reason: 'speed_threshold', ...base };
+    }
+    if (reportedKmh != null && reportedKmh >= cfg.movementSpeedKmh) {
+      return { movement: true, reason: 'reported_speed_threshold', ...base };
+    }
+    if (d > cfg.stayRadiusM * 2) {
+      return { movement: true, reason: 'distance_from_previous_ping', ...base };
+    }
+    return { movement: false, reason: 'stationary', ...base };
   };
 
   for (let i = 0; i < accepted.length; i++) {
@@ -401,10 +418,11 @@ export function buildGpsDayTimeline(
       continue;
     }
 
-    const movement = isMovement(prev, p);
+    const decision = classifyMovement(prev, p);
+    const movement = decision.movement;
 
     if (!current) {
-      current = beginRun(movement ? 'travel' : 'stay', p);
+      current = beginRun(movement ? 'travel' : 'stay', p, movement ? decision : undefined);
       continue;
     }
 
@@ -417,7 +435,7 @@ export function buildGpsDayTimeline(
       } else {
         // close stay, open travel
         runs.push(current);
-        current = beginRun('travel', p);
+        current = beginRun('travel', p, decision);
       }
     } else {
       // stationary candidate
@@ -430,7 +448,13 @@ export function buildGpsDayTimeline(
           current.centerLng = c.lng;
         } else {
           runs.push(current);
-          current = beginRun('stay', p);
+          current = beginRun('stay', p, {
+            movement: false,
+            reason: 'outside_stay_radius',
+            distanceFromPreviousMeters: dToCenter,
+            stayRadiusM: cfg.stayRadiusM,
+            movementSpeedKmh: cfg.movementSpeedKmh,
+          });
         }
       } else {
         // travel ended → start new stay
