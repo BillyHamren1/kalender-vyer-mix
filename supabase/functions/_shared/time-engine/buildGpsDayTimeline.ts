@@ -1467,6 +1467,29 @@ export function buildGpsDayTimeline(
     }
   }
 
+  // Drain any remaining hard anchors (after the final segment) — for diag totals.
+  if (anchorIdx < hardAnchors.length) {
+    advanceAnchorsUpTo(Number.POSITIVE_INFINITY);
+  }
+
+  // Aggregate: minutes of transport-segments that *survived* sticky-pass
+  // while a geo entry was active and no strong exit was observed.
+  let transportAfterGeoEntryWithoutStrongExitMinutes = 0;
+  for (const seg of segments) {
+    if (seg.kind !== 'travel') continue;
+    const td = seg.targetDiagnostics;
+    if (!td) continue;
+    if (td.stickyAnchorSource === 'geo_entry' && td.geoExitWithoutStrongExitObserved !== true && !td.arrivedAtOtherPrimaryTarget && !td.transportToOtherPrimaryTarget) {
+      transportAfterGeoEntryWithoutStrongExitMinutes += seg.durationMin;
+    }
+  }
+
+  const geoAnchorExamples = hardAnchors.slice(0, 25).map((a) => ({
+    type: a.type as 'entry' | 'exit',
+    atLocalStockholm: a.timestampLocalStockholm,
+    targetLabel: a.targetLabel,
+    source: a.source,
+  }));
 
   const avgAccuracyM = avg(
     accepted.map((p) => p.accuracyM ?? NaN).filter((n) => Number.isFinite(n)) as number[],
