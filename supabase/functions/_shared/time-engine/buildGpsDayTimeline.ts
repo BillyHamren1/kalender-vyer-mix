@@ -96,6 +96,39 @@ export type GpsTimelineSegmentReason =
   | 'gap_exceeds_threshold'
   | 'too_few_pings_for_stay';
 
+export type MovementReason =
+  | 'speed_threshold'
+  | 'reported_speed_threshold'
+  | 'distance_from_previous_ping'
+  | 'outside_stay_radius'
+  | 'stationary'
+  | 'gap';
+
+export interface MovementDecision {
+  movement: boolean;
+  reason: MovementReason;
+  distanceFromPreviousMeters?: number | null;
+  secondsFromPrevious?: number | null;
+  computedKmh?: number | null;
+  reportedKmh?: number | null;
+  stayRadiusM?: number;
+  movementSpeedKmh?: number;
+}
+
+export interface SegmentTargetDiagnostics {
+  nearestTargetLabel?: string | null;
+  nearestTargetId?: string | null;
+  nearestTargetType?: string | null;
+  nearestTargetDistanceMeters?: number | null;
+  nearestTargetRadiusMeters?: number | null;
+  insideNearestTarget?: boolean;
+  pingsInsideAnyTarget?: number;
+  pingsInsidePrimaryTarget?: number;
+  pingsInsideSameTargetRatio?: number;
+  travelInsideTargetCandidate?: boolean;
+  travelInsideTargetLabel?: string | null;
+}
+
 export interface GpsTimelineSegment {
   id: string;
   startTs: ISODateTime;
@@ -122,6 +155,9 @@ export interface GpsTimelineSegment {
   avgKmh: number;
   confidence: Confidence;
   reason: GpsTimelineSegmentReason;
+
+  movementDecision?: MovementDecision;
+  targetDiagnostics?: SegmentTargetDiagnostics;
 }
 
 export interface GpsTimelineGap {
@@ -148,6 +184,15 @@ export interface GpsTimelineTargetMatchSummary {
   uniqueTargetsHit: number;
 }
 
+export interface GpsClassificationDiagnostics {
+  travelSegmentsInsideTargetCandidateCount: number;
+  travelSegmentsInsideTargetCandidateMinutes: number;
+  travelSegmentsByMovementReason: Record<string, number>;
+  rejectedPingsByAccuracyCount: number;
+  acceptedPingsCount: number;
+  targetsAvailableToGpsTimeline: number;
+}
+
 export interface GpsDayTimelineResult {
   staffId: UUID;
   organizationId: UUID;
@@ -162,6 +207,7 @@ export interface GpsDayTimelineResult {
   segments: GpsTimelineSegment[];
   qualitySummary: GpsTimelineQualitySummary;
   targetMatchSummary: GpsTimelineTargetMatchSummary;
+  classificationDiagnostics: GpsClassificationDiagnostics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -303,6 +349,14 @@ export function buildGpsDayTimeline(
         gapSegments: 0,
         uniqueTargetsHit: 0,
       },
+      classificationDiagnostics: {
+        travelSegmentsInsideTargetCandidateCount: 0,
+        travelSegmentsInsideTargetCandidateMinutes: 0,
+        travelSegmentsByMovementReason: {},
+        rejectedPingsByAccuracyCount: rejectedPings,
+        acceptedPingsCount: 0,
+        targetsAvailableToGpsTimeline: input.targets.length,
+      },
     };
   }
 
@@ -313,27 +367,44 @@ export function buildGpsDayTimeline(
     pings: GpsPing[];
     centerLat: number;
     centerLng: number;
+    triggerDecision?: MovementDecision;
   }
   const runs: Array<Run | { kind: 'gps_gap'; startTs: ISODateTime; endTs: ISODateTime }> = [];
 
-  const beginRun = (kind: RunKind, p: GpsPing): Run => ({
+  const beginRun = (kind: RunKind, p: GpsPing, triggerDecision?: MovementDecision): Run => ({
     kind,
     pings: [p],
     centerLat: p.lat,
     centerLng: p.lng,
+    triggerDecision,
   });
 
   let current: Run | null = null;
 
-  const isMovement = (prev: GpsPing, p: GpsPing): boolean => {
+  const classifyMovement = (prev: GpsPing, p: GpsPing): MovementDecision => {
     const dt = (Date.parse(p.ts) - Date.parse(prev.ts)) / 1000;
-    if (dt <= 0) return false;
     const d = haversine(prev.lat, prev.lng, p.lat, p.lng);
-    const kmh = (d / dt) * 3.6;
-    if (kmh >= cfg.movementSpeedKmh) return true;
-    if ((p.speedMps ?? 0) * 3.6 >= cfg.movementSpeedKmh) return true;
-    // If point is far outside the current cluster radius, treat as movement.
-    return d > cfg.stayRadiusM * 2;
+    const computedKmh = dt > 0 ? (d / dt) * 3.6 : null;
+    const reportedKmh = p.speedMps != null ? p.speedMps * 3.6 : null;
+    const base = {
+      distanceFromPreviousMeters: d,
+      secondsFromPrevious: dt,
+      computedKmh,
+      reportedKmh,
+      stayRadiusM: cfg.stayRadiusM,
+      movementSpeedKmh: cfg.movementSpeedKmh,
+    };
+    if (dt <= 0) return { movement: false, reason: 'stationary', ...base };
+    if (computedKmh != null && computedKmh >= cfg.movementSpeedKmh) {
+      return { movement: true, reason: 'speed_threshold', ...base };
+    }
+    if (reportedKmh != null && reportedKmh >= cfg.movementSpeedKmh) {
+      return { movement: true, reason: 'reported_speed_threshold', ...base };
+    }
+    if (d > cfg.stayRadiusM * 2) {
+      return { movement: true, reason: 'distance_from_previous_ping', ...base };
+    }
+    return { movement: false, reason: 'stationary', ...base };
   };
 
   for (let i = 0; i < accepted.length; i++) {
@@ -355,10 +426,11 @@ export function buildGpsDayTimeline(
       continue;
     }
 
-    const movement = isMovement(prev, p);
+    const decision = classifyMovement(prev, p);
+    const movement = decision.movement;
 
     if (!current) {
-      current = beginRun(movement ? 'travel' : 'stay', p);
+      current = beginRun(movement ? 'travel' : 'stay', p, movement ? decision : undefined);
       continue;
     }
 
@@ -371,7 +443,7 @@ export function buildGpsDayTimeline(
       } else {
         // close stay, open travel
         runs.push(current);
-        current = beginRun('travel', p);
+        current = beginRun('travel', p, decision);
       }
     } else {
       // stationary candidate
@@ -384,7 +456,13 @@ export function buildGpsDayTimeline(
           current.centerLng = c.lng;
         } else {
           runs.push(current);
-          current = beginRun('stay', p);
+          current = beginRun('stay', p, {
+            movement: false,
+            reason: 'outside_stay_radius',
+            distanceFromPreviousMeters: dToCenter,
+            stayRadiusM: cfg.stayRadiusM,
+            movementSpeedKmh: cfg.movementSpeedKmh,
+          });
         }
       } else {
         // travel ended → start new stay
@@ -402,6 +480,70 @@ export function buildGpsDayTimeline(
   let totalGapMin = 0;
   const targetsHit = new Set<string>();
   let knownSite = 0, unknownPlace = 0, transport = 0, gapSegs = 0;
+  let travelInsideTargetCount = 0;
+  let travelInsideTargetMinutes = 0;
+  const travelByReason: Record<string, number> = {};
+
+  // Helper: compute target diagnostics for a stay/travel based on pings + center
+  const computeTargetDiagnostics = (
+    pings: GpsPing[],
+    centerLat: number | null,
+    centerLng: number | null,
+    atIso: ISODateTime,
+  ): SegmentTargetDiagnostics => {
+    const at = Date.parse(atIso);
+    const validTargets = input.targets.filter((t) => {
+      if (t.validFrom && Date.parse(t.validFrom) > at) return false;
+      if (t.validUntil && Date.parse(t.validUntil) < at) return false;
+      return true;
+    });
+    // Nearest target from center
+    let nearest: { target: WorkTarget; distanceM: number } | null = null;
+    if (centerLat != null && centerLng != null) {
+      for (const t of validTargets) {
+        const d = haversine(centerLat, centerLng, t.center.lat, t.center.lng);
+        if (nearest == null || d < nearest.distanceM) nearest = { target: t, distanceM: d };
+      }
+    }
+    // Per-ping inside-any-target & per-target counts
+    const perTarget = new Map<string, number>();
+    let pingsInsideAny = 0;
+    for (const p of pings) {
+      let insideThisPing = false;
+      for (const t of validTargets) {
+        const d = haversine(p.lat, p.lng, t.center.lat, t.center.lng);
+        if (d <= t.radiusM) {
+          insideThisPing = true;
+          perTarget.set(t.key, (perTarget.get(t.key) ?? 0) + 1);
+        }
+      }
+      if (insideThisPing) pingsInsideAny++;
+    }
+    // Pick the dominant target (most pings inside)
+    let primaryKey: string | null = null;
+    let primaryCount = 0;
+    for (const [k, c] of perTarget) {
+      if (c > primaryCount) { primaryKey = k; primaryCount = c; }
+    }
+    const primaryTarget = primaryKey
+      ? validTargets.find((t) => t.key === primaryKey) ?? null
+      : null;
+    const ratio = pings.length > 0 && primaryCount > 0 ? primaryCount / pings.length : 0;
+
+    return {
+      nearestTargetLabel: nearest?.target.label ?? null,
+      nearestTargetId: nearest?.target.refId ?? null,
+      nearestTargetType: nearest?.target.kind ?? null,
+      nearestTargetDistanceMeters: nearest ? Math.round(nearest.distanceM) : null,
+      nearestTargetRadiusMeters: nearest?.target.radiusM ?? null,
+      insideNearestTarget: nearest ? nearest.distanceM <= nearest.target.radiusM : false,
+      pingsInsideAnyTarget: pingsInsideAny,
+      pingsInsidePrimaryTarget: primaryCount,
+      pingsInsideSameTargetRatio: Number(ratio.toFixed(3)),
+      travelInsideTargetCandidate: false,
+      travelInsideTargetLabel: primaryTarget?.label ?? null,
+    };
+  };
 
   for (const run of runs) {
     if (run.kind === 'gps_gap') {
@@ -432,6 +574,7 @@ export function buildGpsDayTimeline(
         avgKmh: 0,
         confidence: 0,
         reason: 'gap_exceeds_threshold',
+        movementDecision: { movement: false, reason: 'gap' },
       });
       gapSegs++;
       continue;
@@ -446,6 +589,20 @@ export function buildGpsDayTimeline(
     const avgKmh = (distanceMeters / dtSec) * 3.6;
 
     if (run.kind === 'travel') {
+      const targetDiag = computeTargetDiagnostics(run.pings, run.centerLat, run.centerLng, first.ts);
+      // Decide if this travel happened inside a single target candidate (majority of pings).
+      const insideCandidate =
+        (targetDiag.pingsInsideSameTargetRatio ?? 0) >= 0.6 &&
+        (targetDiag.pingsInsidePrimaryTarget ?? 0) >= 2;
+      targetDiag.travelInsideTargetCandidate = insideCandidate;
+      if (!insideCandidate) targetDiag.travelInsideTargetLabel = null;
+      if (insideCandidate) {
+        travelInsideTargetCount++;
+        travelInsideTargetMinutes += durationMin;
+      }
+      const reasonKey = run.triggerDecision?.reason ?? 'unknown';
+      travelByReason[reasonKey] = (travelByReason[reasonKey] ?? 0) + 1;
+
       segments.push({
         id: makeId('seg', idx++),
         startTs: first.ts,
@@ -466,6 +623,8 @@ export function buildGpsDayTimeline(
         avgKmh,
         confidence: Math.min(1, 0.5 + Math.min(run.pings.length, 10) / 20),
         reason: 'movement_cluster',
+        movementDecision: run.triggerDecision ?? { movement: true, reason: 'speed_threshold' },
+        targetDiagnostics: targetDiag,
       });
       transport++;
       continue;
@@ -475,6 +634,7 @@ export function buildGpsDayTimeline(
     const center = clusterCenter(run.pings);
     const tooFew = run.pings.length < cfg.minStayPings;
     const match = matchTarget(center.lat, center.lng, first.ts, input.targets);
+    const targetDiag = computeTargetDiagnostics(run.pings, center.lat, center.lng, first.ts);
 
     let type: GpsTimelineSegmentType;
     let label: string;
@@ -523,6 +683,8 @@ export function buildGpsDayTimeline(
       avgKmh,
       confidence,
       reason,
+      movementDecision: run.triggerDecision ?? { movement: false, reason: 'stationary' },
+      targetDiagnostics: targetDiag,
     });
   }
 
@@ -554,6 +716,14 @@ export function buildGpsDayTimeline(
       transportSegments: transport,
       gapSegments: gapSegs,
       uniqueTargetsHit: targetsHit.size,
+    },
+    classificationDiagnostics: {
+      travelSegmentsInsideTargetCandidateCount: travelInsideTargetCount,
+      travelSegmentsInsideTargetCandidateMinutes: Math.round(travelInsideTargetMinutes),
+      travelSegmentsByMovementReason: travelByReason,
+      rejectedPingsByAccuracyCount: rejectedPings,
+      acceptedPingsCount: accepted.length,
+      targetsAvailableToGpsTimeline: input.targets.length,
     },
   };
 }

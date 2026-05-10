@@ -738,8 +738,10 @@ Deno.serve(async (req) => {
           gaps: gpsTimelineResult.gaps,
           qualitySummary: gpsTimelineResult.qualitySummary,
           targetMatchSummary: gpsTimelineResult.targetMatchSummary,
+          classificationDiagnostics: gpsTimelineResult.classificationDiagnostics,
         }
       : null,
+    classificationDiagnostics: gpsTimelineResult?.classificationDiagnostics ?? null,
     technicalTimeline: dedupedTimeline,
     counts: {
       total: smoothedTimeline.length,
