@@ -33,7 +33,7 @@ function clampBreak(n: number): number {
   return Math.max(0, Math.min(600, Math.round(n)));
 }
 
-const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot }) => {
+const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attestBlocked, attestBlockedReason }) => {
   const wd = snapshot.workday;
   const att = snapshot.attestation ?? null;
 
