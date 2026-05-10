@@ -36,6 +36,17 @@ export interface StaffTimeReportPeriodTotals {
   manualDeductionMinutes: number;
   payableMinutes: number;
   approvedPayableMinutes: number;
+  /**
+   * Inskickat av användare men ej godkänt av admin.
+   */
+  submittedPayableMinutes: number;
+  /**
+   * Ej inskickat av användare (brutto > 0, ingen day_attestation).
+   */
+  awaitingUserAttestPayableMinutes: number;
+  /**
+   * Alias/fallback (deprecated) — speglar awaitingUserAttestPayableMinutes.
+   */
   awaitingAttestPayableMinutes: number;
   daysWithActions: number;
   daysWithWork: number;
