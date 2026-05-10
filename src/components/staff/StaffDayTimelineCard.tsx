@@ -406,6 +406,26 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
           onWorkdayChanged: props.onWorkdayChanged,
         }}
       />
+
+      <DecisionTraceDrawer
+        open={showDecisionTrace}
+        onOpenChange={setShowDecisionTrace}
+        staffName={props.staffName}
+        staffId={props.staffId ?? 'unknown'}
+        date={props.date}
+        engineMode={props.engineMode}
+        reportCandidateBlocks={props.reportCandidateBlocks ?? []}
+        reportCandidateSummary={props.reportCandidateSummary ?? null}
+        presenceDayBlocks={(props.reportCandidatePresenceBlocks ?? []) as any[]}
+        presenceDayBlocksRawEvidence={(props.reportCandidatePresenceRawEvidence ?? []) as any[]}
+        rawGpsTimeline={props.reportCandidateRawGpsTimeline ?? null}
+        technicalTimeline={(props.reportCandidateTechnicalTimeline ?? []) as any[]}
+        targets={(props.reportCandidateTargets ?? []) as any[]}
+        targetResolution={props.reportCandidateTargetResolution ?? null}
+        reportCandidateDiagnostics={props.reportCandidateDiagnostics ?? null}
+        targetMatchSummary={props.reportCandidateTargetMatchSummary ?? null}
+        counts={props.reportCandidateCounts ?? null}
+      />
     </section>
   );
 };
