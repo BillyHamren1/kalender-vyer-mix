@@ -651,6 +651,59 @@ export function buildGpsDayTimeline(
     };
   }
 
+  // ── Inside-geofence override pre-pass ──────────────────────────────────
+  // For each accepted ping, decide which primary-eligible WorkTarget (if
+  // any) "owns" the ping by virtue of being inside its geofence. If non-null,
+  // the ping is forced into a stay run for that target — speed/distance
+  // movement classification is bypassed. Geofence membership > movement.
+  //
+  // Multi-target tiebreaker (priority lower number wins, then nearest center):
+  //   1 direct_staff_assignment
+  //   2 team_calendar_event
+  //   3 large_project_staff_assignment
+  //   4 warehouse / organization_location
+  //   5 other primary-eligible target
+  //   6 nearest center (final tiebreaker, same priority)
+  //
+  // Targets where assignedToUserToday === false are excluded — secondary /
+  // wrong-date / unassigned targets must never grant override ownership.
+  const ANCHOR_PRIORITY: Record<string, number> = {
+    direct_staff_assignment: 1,
+    team_calendar_event: 2,
+    large_project_staff_assignment: 3,
+    warehouse: 4,
+  };
+  const targetOverridePriority = (t: WorkTarget): number => {
+    if (t.assignmentAnchor && ANCHOR_PRIORITY[t.assignmentAnchor] != null) {
+      return ANCHOR_PRIORITY[t.assignmentAnchor];
+    }
+    if (t.kind === 'organization_location' || t.kind === 'warehouse') return 4;
+    return 5;
+  };
+  const pickOverrideTargetForPing = (p: GpsPing): WorkTarget | null => {
+    const at = Date.parse(p.ts);
+    let best: { t: WorkTarget; pri: number; dist: number } | null = null;
+    for (const t of input.targets) {
+      if (t.assignedToUserToday === false) continue;
+      if (t.validFrom && Date.parse(t.validFrom) > at) continue;
+      if (t.validUntil && Date.parse(t.validUntil) < at) continue;
+      if (!pointInsideTarget(p.lat, p.lng, t)) continue;
+      const pri = targetOverridePriority(t);
+      const dist = haversine(p.lat, p.lng, t.center.lat, t.center.lng);
+      if (
+        best == null ||
+        pri < best.pri ||
+        (pri === best.pri && dist < best.dist)
+      ) {
+        best = { t, pri, dist };
+      }
+    }
+    return best?.t ?? null;
+  };
+  const insideOwners: Array<WorkTarget | null> = accepted.map(pickOverrideTargetForPing);
+  const insideKeys: Array<string | null> = insideOwners.map((t) => t?.key ?? null);
+  const pingsInsidePrimaryCount = insideKeys.reduce((n, k) => n + (k ? 1 : 0), 0);
+
   // 2) Walk pings, building runs of {stay | travel} interrupted by gps_gap.
   type RunKind = 'stay' | 'travel';
   interface Run {
@@ -659,15 +712,26 @@ export function buildGpsDayTimeline(
     centerLat: number;
     centerLng: number;
     triggerDecision?: MovementDecision;
+    /** When set, this stay run is owned by an inside-geofence override and
+     *  must materialize as known_site on that target. Set on stays only. */
+    geofenceOwnerKey?: string | null;
+    geofenceOwner?: WorkTarget | null;
   }
   const runs: Array<Run | { kind: 'gps_gap'; startTs: ISODateTime; endTs: ISODateTime }> = [];
 
-  const beginRun = (kind: RunKind, p: GpsPing, triggerDecision?: MovementDecision): Run => ({
+  const beginRun = (
+    kind: RunKind,
+    p: GpsPing,
+    triggerDecision?: MovementDecision,
+    owner?: WorkTarget | null,
+  ): Run => ({
     kind,
     pings: [p],
     centerLat: p.lat,
     centerLng: p.lng,
     triggerDecision,
+    geofenceOwnerKey: owner?.key ?? null,
+    geofenceOwner: owner ?? null,
   });
 
   let current: Run | null = null;
@@ -700,27 +764,65 @@ export function buildGpsDayTimeline(
 
   for (let i = 0; i < accepted.length; i++) {
     const p = accepted[i];
+    const insideOwner = insideOwners[i];
+    const insideKey = insideKeys[i];
 
     if (i === 0) {
-      current = beginRun('stay', p);
+      current = beginRun('stay', p, undefined, insideOwner);
       continue;
     }
 
     const prev = accepted[i - 1];
     const dtMs = Date.parse(p.ts) - Date.parse(prev.ts);
 
-    // Long quiet period → gps_gap (NEVER travel).
+    // Long quiet period → gps_gap (NEVER travel). The gap exists regardless
+    // of override membership — it is honest evidence that GPS was silent.
+    // If both sides of the gap are inside the same primary geofence, the
+    // post-gap stay still inherits that owner so the gap does NOT split a
+    // genuine on-site visit into two transport-bookended pieces.
     if (dtMs > seconds(cfg.maxPingIntervalSeconds)) {
       if (current) runs.push(current);
       runs.push({ kind: 'gps_gap', startTs: prev.ts, endTs: p.ts });
-      current = beginRun('stay', p);
+      current = beginRun('stay', p, undefined, insideOwner);
       continue;
     }
 
+    // ── Inside-geofence override ─────────────────────────────────────────
+    // If the ping is inside a primary geofence, geofence membership wins
+    // over the speed/distance classification.
+    if (insideKey != null) {
+      if (current && current.kind === 'stay' && current.geofenceOwnerKey === insideKey) {
+        // Continue the same overridden stay — bypass stayRadius check.
+        current.pings.push(p);
+        const c = clusterCenter(current.pings);
+        current.centerLat = c.lat;
+        current.centerLng = c.lng;
+      } else {
+        // Transition (from no owner, different owner, or travel) → open a
+        // new stay owned by this primary target.
+        if (current) runs.push(current);
+        current = beginRun('stay', p, {
+          movement: false,
+          reason: 'inside_geofence_override',
+          stayRadiusM: cfg.stayRadiusM,
+          movementSpeedKmh: cfg.movementSpeedKmh,
+        }, insideOwner);
+      }
+      continue;
+    }
+
+    // ── Outside any primary geofence: original speed/distance logic ─────
     const decision = classifyMovement(prev, p);
     const movement = decision.movement;
 
     if (!current) {
+      current = beginRun(movement ? 'travel' : 'stay', p, movement ? decision : undefined);
+      continue;
+    }
+
+    // Leaving an overridden stay → close it cleanly before applying movement.
+    if (current.kind === 'stay' && current.geofenceOwnerKey != null) {
+      runs.push(current);
       current = beginRun(movement ? 'travel' : 'stay', p, movement ? decision : undefined);
       continue;
     }
