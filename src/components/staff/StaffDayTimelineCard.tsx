@@ -301,6 +301,15 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setShowDecisionTrace(true)}
+            title="Öppna full beslutskedja (read-only audit)"
+          >
+            Visa tolkning
+          </Button>
           {timeline.review_required && (
             <button
               type="button"
