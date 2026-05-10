@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
-import { Sun, CalendarDays, FileText } from 'lucide-react';
+import { Sun, FileText, History } from 'lucide-react';
 
-export type TimeTabId = 'today' | 'calendar' | 'report';
+export type TimeTabId = 'today' | 'report' | 'history';
 
 interface Props {
   value: TimeTabId;
@@ -10,14 +10,13 @@ interface Props {
 
 const TABS: { id: TimeTabId; label: string; icon: typeof Sun }[] = [
   { id: 'today', label: 'Idag', icon: Sun },
-  { id: 'calendar', label: 'Kalender', icon: CalendarDays },
   { id: 'report', label: 'Tidrapport', icon: FileText },
+  { id: 'history', label: 'Historik', icon: History },
 ];
 
 /**
- * MobileTimeTabs — three tabs at the top of the Time page (Idag / Kalender /
- * Tidrapport). Mobile-friendly: 44px tap targets, visible active state,
- * sticky-able by parent.
+ * MobileTimeTabs — three tabs at the top of the Time page (Idag / Tidrapport
+ * / Historik). Mobile-friendly: 44px tap targets, visible active state.
  */
 export const MobileTimeTabs = ({ value, onChange }: Props) => {
   return (

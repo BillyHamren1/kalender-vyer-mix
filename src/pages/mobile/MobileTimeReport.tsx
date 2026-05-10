@@ -53,8 +53,8 @@ const MobileTimeReport = () => {
         <MobileTimeTabs value={activeTab} onChange={setActiveTab} />
 
         {activeTab === 'today' && <TodayTab />}
-        {activeTab === 'calendar' && <TimeCalendarTab />}
         {activeTab === 'report' && <TimeReportTab />}
+        {activeTab === 'history' && <TimeCalendarTab />}
       </div>
 
       {dialogs}
