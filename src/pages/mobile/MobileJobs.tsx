@@ -13,6 +13,7 @@ import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
 import MobileJobListView from '@/components/mobile-app/calendar/MobileJobListView';
+import LagerDayCard from '@/components/mobile-app/LagerDayCard';
 import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
