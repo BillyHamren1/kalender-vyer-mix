@@ -1192,7 +1192,37 @@ Deno.serve(async (req) => {
         }
       }
 
-      day.status = failed ? 'FAIL' : (geofenceWarning || stickyWarning || geoAnchorWarning) ? 'WARNING' : 'PASS';
+      // Round + WARNING for stationary inside-geofence override (only the
+      // remaining-transport bucket is a warning; rescued stays are INFO).
+      const sga: any = (day as any).stationaryGeofenceOverride;
+      let stationaryOverrideWarning = false;
+      if (sga) {
+        sga.rescuedStayMinutes = Math.round(sga.rescuedStayMinutes * 100) / 100;
+        sga.remainingTransportInsidePrimaryGeofenceMinutes =
+          Math.round(sga.remainingTransportInsidePrimaryGeofenceMinutes * 100) / 100;
+        sga.pingsInsidePrimaryRatio = sga.pingsInsidePrimaryRatioStaffCount > 0
+          ? Math.round(
+              (sga.pingsInsidePrimaryRatioSum / sga.pingsInsidePrimaryRatioStaffCount) * 1000,
+            ) / 1000
+          : 0;
+        delete sga.pingsInsidePrimaryRatioSum;
+        delete sga.pingsInsidePrimaryRatioStaffCount;
+        if (sga.remainingTransportInsidePrimaryGeofenceMinutes > 0) {
+          stationaryOverrideWarning = true;
+          day.warnings.push(
+            `transport_inside_primary_geofence_not_rescued:` +
+              `${sga.remainingTransportInsidePrimaryGeofenceMinutes} min ` +
+              `(${sga.remainingTransportInsidePrimaryGeofenceCount} segment) — ` +
+              `Transport inom primary geofence överlevde override (motorfel eller suppressad eligibility).`,
+          );
+        }
+      }
+
+      day.status = failed
+        ? 'FAIL'
+        : (geofenceWarning || stickyWarning || geoAnchorWarning || stationaryOverrideWarning)
+          ? 'WARNING'
+          : 'PASS';
 
       perDay.push(day);
     }
