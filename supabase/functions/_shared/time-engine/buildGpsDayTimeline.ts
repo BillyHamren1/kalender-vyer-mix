@@ -243,6 +243,7 @@ export interface GpsTimelineSegment {
   reclassificationReason?:
     | 'movement_inside_geofence'
     | 'sticky_primary_target_no_strong_exit'
+    | 'stationary_inside_geofence_override'
     | null;
   /** Original kind before reclassification (audit). */
   originalKind?: GpsTimelineSegmentKind | null;
