@@ -39,7 +39,7 @@ type WarehouseEventRow = {
 };
 
 const isLagerTeamId = (teamId: string | null | undefined): boolean =>
-  !!teamId && (teamId === 'transport' || teamId === 'warehouse' || teamId.startsWith('lager-'));
+  isWarehouseTeam(teamId);
 
 /** event_type → assignment_type */
 function deriveType(eventType: string | null | undefined): WarehouseAssignmentType {
