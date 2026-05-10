@@ -78,6 +78,17 @@ export interface BuildGpsDayTimelineInput {
   pings: GpsPing[];
   targets: WorkTarget[];
   policy?: BuildGpsDayTimelinePolicy;
+  /**
+   * Optional hard signals from geofence event tables (assistant_events,
+   * staff_presence_events). Loaded by `loadGeoAnchors`. Only anchors with
+   * `strength='hard'` participate in sticky seeding; weak anchors are ignored
+   * by the engine but kept for diagnostics in the caller.
+   *
+   * NOT a legacy source: treated as ground-truth signal at the same trust
+   * level as a GPS ping. Anchors NEVER write anything and NEVER subtract
+   * time — they only seed sticky ownership of a primary target.
+   */
+  geoAnchors?: GeoAnchor[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
