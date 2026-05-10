@@ -1771,5 +1771,16 @@ export function buildGpsDayTimeline(
         Math.round(transportAfterGeoEntryWithoutStrongExitMinutes * 100) / 100,
       examples: geoAnchorExamples,
     },
-  };
+    stationaryGeofenceOverride: {
+      rescuedStayCount: overrideRescuedCount,
+      rescuedStayMinutes: Math.round(overrideRescuedMinutes * 100) / 100,
+      pingsInsidePrimaryCount,
+      pingsInsidePrimaryRatio: overridePingsRatio,
+      examples: overrideExamples,
+    },
+    remainingTransportInsidePrimaryGeofenceCount: remainingTransportInsidePrimaryCount,
+    remainingTransportInsidePrimaryGeofenceMinutes:
+      Math.round(remainingTransportInsidePrimaryMinutes * 100) / 100,
+  },
+};
 }
