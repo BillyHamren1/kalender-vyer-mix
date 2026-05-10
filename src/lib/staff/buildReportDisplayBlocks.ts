@@ -44,6 +44,21 @@ export interface PresenceBlockLite {
     maxDistanceMeters?: number | null;
     pingCount?: number | null;
   } | null;
+  // Optional rich fields (när get-staff-presence-day inkluderar dem) — används
+  // av EvidencePanel för att rendera faktiska källblock istället för bara ID:n.
+  // Aldrig krav, aldrig fallback i motorlogiken — endast UI-render.
+  startAt?: string | null;
+  endAt?: string | null;
+  kind?: string | null;
+  status?: string | null;
+  targetId?: string | null;
+  targetLabel?: string | null;
+  confidence?: string | null;
+  signalGapMinutes?: number | null;
+  confirmedMinutes?: number | null;
+  durationMinutes?: number | null;
+  reason?: string | null;
+  source?: string | null;
 }
 
 export interface TargetLite {
