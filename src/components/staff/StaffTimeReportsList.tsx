@@ -78,14 +78,23 @@ interface StaffTimeReportsListProps {
   onSelectStaff: (id: string, name: string) => void;
   selectedDate: Date;
   onDateChange: (date: Date) => void;
-  /** Map staffId → reportCandidateBlocks/summary från get-staff-presence-day. */
+  /** Map staffId → hela beslutspayloaden från get-staff-presence-day. */
   reportCandidateByStaff?: Record<
     string,
     {
       blocks: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
       summary: import('./ReportCandidateTimeline').ReportCandidateSummaryUI | null;
+      diagnostics?: any;
+      targetResolution?: any;
       presenceBlocks?: import('@/lib/staff/buildReportDisplayBlocks').PresenceBlockLite[];
+      presenceRawEvidence?: any[];
+      rawGpsTimeline?: any;
+      technicalTimeline?: any[];
+      presenceDaySummary?: any;
+      presenceDayAggregation?: any;
+      targetMatchSummary?: any;
       targets?: import('@/lib/staff/buildReportDisplayBlocks').TargetLite[];
+      counts?: any;
       loading: boolean;
       missing?: boolean;
     } | undefined
