@@ -58,12 +58,12 @@ export const DecisionMapTab: React.FC<Props> = ({
 
   const blockChips = useMemo(() => {
     return (reportCandidateBlocks || [])
-      .filter((b) => b?.startTs && b?.endTs)
+      .filter((b) => b?.startAt && b?.endAt)
       .slice(0, 12)
       .map((b) => ({
         id: b.id,
-        from: isoToHm(b.startTs),
-        to: isoToHm(b.endTs),
+        from: isoToHm(b.startAt),
+        to: isoToHm(b.endAt),
         label:
           (b as any).primaryTargetLabel ||
           (b as any).targetLabel ||
