@@ -260,3 +260,39 @@ export async function syncWarehouseAssignmentsForEvents(
     await syncWarehouseAssignmentsForTeamDay({ teamId: ev.resource_id, date });
   }
 }
+
+/**
+ * Assign a staff member directly to a single warehouse_calendar_event.
+ *
+ * - Looks up the event to discover its date and resource_id (lager-N / generic).
+ * - Mirrors the staff into staff_assignments on the right Lager team for the
+ *   day, so the personal calendar reflects the placement automatically.
+ * - Upserts the concrete warehouse_assignments row(s) for that (staff, day).
+ *
+ * Use this from warehouse-side dialogs where the user picks "assign person to
+ * THIS event" without first dragging them into the Lager column.
+ */
+export async function assignStaffToWarehouseEvent(params: {
+  staffId: string;
+  warehouseEventId: string;
+}): Promise<void> {
+  const { staffId, warehouseEventId } = params;
+  if (!staffId || !warehouseEventId) return;
+
+  const { data: ev, error } = await supabase
+    .from('warehouse_calendar_events')
+    .select('id, start_time, resource_id')
+    .eq('id', warehouseEventId)
+    .maybeSingle();
+
+  if (error || !ev || !ev.start_time) {
+    console.error('[warehouseAssignmentsSync] assign: event not found', { warehouseEventId, error });
+    return;
+  }
+
+  const date = new Date(ev.start_time);
+  if (isNaN(date.getTime())) return;
+
+  const teamId = getWarehouseTeamId(ev.resource_id);
+  await syncWarehouseAssignmentsForStaffTeamDay({ staffId, teamId, date });
+}
