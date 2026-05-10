@@ -571,10 +571,12 @@ function finalize(
       ? 'needs_review'
       : 'ok';
 
-  const warningLabel =
+  const signalGapWarning =
     acc.kind === 'work' && acc.signalGapMinutes > 0
       ? `Signal saknades periodvis: ${fmtDuration(acc.signalGapMinutes)}`
       : null;
+  // Sticky-warning ("GPS låg delvis utanför arbetsområdet") har prio över signal-gap.
+  const warningLabel = acc.stickyWarningLabel ?? signalGapWarning;
 
   const { title, subtitle } = buildTitleSubtitle(acc);
 
