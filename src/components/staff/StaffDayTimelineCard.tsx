@@ -34,6 +34,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ActualDayPanel } from './ActualDayPanel';
 import { RawEvidenceDrawer } from './RawEvidenceDrawer';
+import { DecisionTraceDrawer } from './DecisionTraceDrawer';
 import {
   ReportCandidateTimeline,
   type ReportCandidateBlockUI,
