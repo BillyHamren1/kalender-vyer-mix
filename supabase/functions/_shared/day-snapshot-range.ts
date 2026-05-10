@@ -150,6 +150,8 @@ export function summarizeSnapshots(snaps: StaffDaySnapshot[]): SummarizedTotals 
     manualDeductionMinutes: 0,
     payableMinutes: 0,
     approvedPayableMinutes: 0,
+    submittedPayableMinutes: 0,
+    awaitingUserAttestPayableMinutes: 0,
     awaitingAttestPayableMinutes: 0,
     daysWithActions: 0,
     daysWithWork: 0,
