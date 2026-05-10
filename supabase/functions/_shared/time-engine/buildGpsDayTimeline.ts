@@ -684,7 +684,7 @@ export function buildGpsDayTimeline(
     const center = clusterCenter(run.pings);
     const tooFew = run.pings.length < cfg.minStayPings;
     const match = matchTarget(center.lat, center.lng, first.ts, input.targets);
-    const targetDiag = computeTargetDiagnostics(run.pings, center.lat, center.lng, first.ts);
+    const { diag: targetDiag } = computeTargetDiagnostics(run.pings, center.lat, center.lng, first.ts);
 
     let type: GpsTimelineSegmentType;
     let label: string;
