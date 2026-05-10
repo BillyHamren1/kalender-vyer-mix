@@ -40,6 +40,7 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
   const isOpen = !!wd?.isOpen;
   const isApproved = !!wd?.approved;
   const isLocked = !!att?.locked;
+  const isAttested = att?.status === 'attested';
 
   const initialBreak = useMemo(() => {
     if (att?.breakMinutes != null) return clampBreak(att.breakMinutes);
