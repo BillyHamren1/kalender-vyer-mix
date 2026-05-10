@@ -638,6 +638,10 @@ function RawTab(props: DecisionTraceDrawerProps) {
       : [];
   const pings = Array.isArray(props.rawGpsTimeline?.pings) ? props.rawGpsTimeline.pings : [];
   const transportSegs = segs.filter((s: any) => (s.type ?? s.kind) === 'transport' || s.kind === 'travel');
+  const reclassifiedSegs = segs.filter(
+    (s: any) => s.reclassificationReason === 'movement_inside_geofence',
+  );
+  const cls = (props.rawGpsTimeline?.classificationDiagnostics ?? {}) as any;
   return (
     <div className="space-y-3">
       {transportSegs.length > 0 && (
