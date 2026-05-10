@@ -60,6 +60,7 @@ const PresenceHub = lazyWithRecovery(() => import("./pages/admin/PresenceHub"));
 const StaffPresenceDay = lazyWithRecovery(() => import("./pages/admin/StaffPresenceDay"));
 const TimeIntelligenceDebug = lazyWithRecovery(() => import("./pages/admin/TimeIntelligenceDebug"));
 const LegacyIncomingPackingDebug = lazyWithRecovery(() => import("./pages/admin/LegacyIncomingPackingDebug"));
+const WarehouseAssignmentsDebug = lazyWithRecovery(() => import("./pages/admin/WarehouseAssignmentsDebug"));
 const TransportResponse = lazyWithRecovery(() => import("./pages/TransportResponse"));
 const SuppliersPage = lazyWithRecovery(() => import("./pages/SuppliersPage"));
 
@@ -344,6 +345,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/admin/time-intelligence-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/time-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/legacy-incoming-packing" element={<LegacyIncomingPackingDebug />} />
+              <Route path="/admin/warehouse-assignments-debug" element={<WarehouseAssignmentsDebug />} />
             </Route>
 
             {/* Bare protected routes (no sidebar layout) */}
