@@ -76,13 +76,40 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
     );
   }
 
-  // ── State 2: locked or approved ─────────────────────────────────────
+  // ── State 2: locked or approved (admin har låst/godkänt) ────────────
   if (isApproved || isLocked) {
     return (
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 flex items-start gap-2 text-emerald-700 dark:text-emerald-400">
         <Lock className="w-4 h-4 shrink-0 mt-0.5" />
         <p className="text-xs font-semibold">Dagen är godkänd och låst.</p>
       </div>
+    );
+  }
+
+  // ── State 2b: redan inskickad av användaren, väntar på admin ────────
+  if (isAttested) {
+    return (
+      <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
+        <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-extrabold">Dagen är inskickad</p>
+        </div>
+        <div className="text-[12px] text-foreground/80 space-y-1">
+          <p className="tabular-nums">
+            <span className="font-semibold">Rast/lunch:</span>{' '}
+            {clampBreak(att?.breakMinutes ?? 0)} min
+          </p>
+          {att?.comment && (
+            <p>
+              <span className="font-semibold">Kommentar:</span> {att.comment}
+            </p>
+          )}
+          <p className="text-muted-foreground">Väntar på attest/godkännande.</p>
+          <p className="text-[11px] text-muted-foreground">
+            Behöver du ändra något? Använd "Begär korrigering" ovan.
+          </p>
+        </div>
+      </section>
     );
   }
 
