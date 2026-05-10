@@ -103,7 +103,7 @@ const LagerMyAssignmentsSection = () => {
                     {a.title}
                   </h3>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {EVENT_TYPE_LABEL[a.event_type] || a.event_type}
+                    {EVENT_TYPE_LABEL[a.type || a.event_type || ''] || a.event_type || a.type || 'Lager'}
                     {a.booking_number ? ` · ${a.booking_number}` : ''}
                   </p>
                 </div>
