@@ -162,6 +162,13 @@ export interface GpsTimelineSegment {
 
   movementDecision?: MovementDecision;
   targetDiagnostics?: SegmentTargetDiagnostics;
+
+  /** Set when post-pass moved a travel segment into a known site. */
+  reclassificationReason?: 'movement_inside_geofence' | null;
+  /** Original kind before reclassification (audit). */
+  originalKind?: GpsTimelineSegmentKind | null;
+  /** Original type before reclassification (audit). */
+  originalType?: GpsTimelineSegmentType | null;
 }
 
 export interface GpsTimelineGap {
