@@ -355,6 +355,26 @@ function OverviewTab(props: DecisionTraceDrawerProps) {
             { label: 'counts.presence', value: num(counts?.presence) || '—' },
           ]}
         />
+
+        <RiskCard
+          title="6. Transport-klassificering (GPS)"
+          tone={transportTone}
+          hint="Varför blir så mycket transport?"
+          items={[
+            {
+              label: 'transport inne i target-kandidat',
+              value: `${travelInsideTargetN} seg / ${fmtMin(travelInsideTargetMin)}`,
+              bad: travelInsideTargetN > 0,
+            },
+            ...Object.entries(travelByReason).map(([reason, n]) => ({
+              label: `reason: ${reason}`,
+              value: n,
+            })),
+            { label: 'rejected pings (accuracy)', value: rejectedAccPings, bad: rejectedAccPings > 20 },
+            { label: 'accepted pings', value: acceptedPings },
+            { label: 'targets till GPS-timeline', value: targetsAvailGps, bad: targetsAvailGps === 0 },
+          ]}
+        />
       </div>
 
       {warnings.length > 0 && (
