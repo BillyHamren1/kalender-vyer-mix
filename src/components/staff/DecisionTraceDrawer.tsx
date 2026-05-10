@@ -777,6 +777,13 @@ function DiagnosticsTab(props: DecisionTraceDrawerProps) {
   return (
     <div className="space-y-2">
       <CollapsibleJson title="reportCandidateDiagnostics" value={props.reportCandidateDiagnostics} defaultOpen />
+      <CollapsibleJson
+        title="gpsTimeline.classificationDiagnostics"
+        value={props.rawGpsTimeline?.classificationDiagnostics ?? null}
+        defaultOpen
+      />
+      <CollapsibleJson title="gpsTimeline.qualitySummary" value={props.rawGpsTimeline?.qualitySummary ?? null} />
+      <CollapsibleJson title="gpsTimeline.targetMatchSummary" value={props.rawGpsTimeline?.targetMatchSummary ?? null} />
       <CollapsibleJson title="targetResolution" value={props.targetResolution} />
       <CollapsibleJson title="targetMatchSummary" value={props.targetMatchSummary} />
       <CollapsibleJson title="counts" value={props.counts} />
