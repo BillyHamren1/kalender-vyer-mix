@@ -371,6 +371,9 @@ Deno.serve(async (req) => {
           knownSiteSegments: 0,
           transportSegments: 0,
           unknownPlaceSegments: 0,
+          movementInsideGeofenceReclassifiedCount: 0,
+          movementInsideGeofenceReclassifiedMinutes: 0,
+          movementInsideGeofenceExamples: [],
         },
       };
 
