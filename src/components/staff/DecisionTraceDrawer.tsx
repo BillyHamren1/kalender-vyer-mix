@@ -742,6 +742,26 @@ function RawTab(props: DecisionTraceDrawerProps) {
                       {String(td.travelInsideTargetCandidate ?? false)}
                       {td.travelInsideTargetLabel ? ` · ${td.travelInsideTargetLabel}` : ''}
                     </span>
+                    {td.travelInsideTargetCandidate && (
+                      <>
+                        <span className="text-muted-foreground">behölls som transport pga</span>
+                        <span className="font-mono">
+                          {td.keptInsidePrimaryReason === 'clear_exit'
+                            ? 'tydlig exit upptäcktes'
+                            : td.keptInsidePrimaryReason === 'ratio_below_threshold'
+                            ? `gränsfall (ratio ${ratioPct} < 70%)`
+                            : td.keptInsidePrimaryReason === 'secondary_or_unsafe'
+                            ? 'sekundär / osäker target'
+                            : td.keptInsidePrimaryReason === 'duration_too_long'
+                            ? `segment > 240 min (${Math.round(Number(s.durationMin ?? 0))}m)`
+                            : td.keptInsidePrimaryReason === 'reclassifiable'
+                            ? '⚠ borde reklassats (motorfel)'
+                            : '—'}
+                        </span>
+                        <span className="text-muted-foreground">clearExitDetected</span>
+                        <span className="font-mono">{String(td.clearExitDetected ?? false)}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               );

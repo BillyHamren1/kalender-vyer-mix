@@ -237,6 +237,21 @@ interface DayHealth {
       nearestTargetRadiusMeters: number | null;
       clearExitDetected: boolean;
     }>;
+    // Buckets för transport-inside-primary (efter post-pass)
+    transportInsidePrimaryTotalMinutes: number;
+    transportInsidePrimaryTotalCount: number;
+    reclassifiableTransportInsidePrimaryCount: number;
+    reclassifiableTransportInsidePrimaryMinutes: number;
+    keptBecauseClearExitCount: number;
+    keptBecauseClearExitMinutes: number;
+    keptBecauseRatioBelowThresholdCount: number;
+    keptBecauseRatioBelowThresholdMinutes: number;
+    keptBecauseSecondaryOrUnsafeTargetCount: number;
+    keptBecauseSecondaryOrUnsafeTargetMinutes: number;
+    keptBecauseDurationTooLongCount: number;
+    keptBecauseDurationTooLongMinutes: number;
+    remainingGeofenceWarningCount: number;
+    remainingGeofenceWarningMinutes: number;
   };
 }
 
@@ -374,6 +389,20 @@ Deno.serve(async (req) => {
           movementInsideGeofenceReclassifiedCount: 0,
           movementInsideGeofenceReclassifiedMinutes: 0,
           movementInsideGeofenceExamples: [],
+          transportInsidePrimaryTotalMinutes: 0,
+          transportInsidePrimaryTotalCount: 0,
+          reclassifiableTransportInsidePrimaryCount: 0,
+          reclassifiableTransportInsidePrimaryMinutes: 0,
+          keptBecauseClearExitCount: 0,
+          keptBecauseClearExitMinutes: 0,
+          keptBecauseRatioBelowThresholdCount: 0,
+          keptBecauseRatioBelowThresholdMinutes: 0,
+          keptBecauseSecondaryOrUnsafeTargetCount: 0,
+          keptBecauseSecondaryOrUnsafeTargetMinutes: 0,
+          keptBecauseDurationTooLongCount: 0,
+          keptBecauseDurationTooLongMinutes: 0,
+          remainingGeofenceWarningCount: 0,
+          remainingGeofenceWarningMinutes: 0,
         },
       };
 
@@ -464,6 +493,20 @@ Deno.serve(async (req) => {
             Number(cls.movementInsideGeofenceReclassifiedCount ?? 0);
           gd.movementInsideGeofenceReclassifiedMinutes +=
             Number(cls.movementInsideGeofenceReclassifiedMinutes ?? 0);
+
+          // Per-bucket breakdown av kvarvarande transport-inside-primary
+          gd.transportInsidePrimaryTotalCount += Number(cls.transportInsidePrimaryTotalCount ?? 0);
+          gd.transportInsidePrimaryTotalMinutes += Number(cls.transportInsidePrimaryTotalMinutes ?? 0);
+          gd.reclassifiableTransportInsidePrimaryCount += Number(cls.reclassifiableTransportInsidePrimaryCount ?? 0);
+          gd.reclassifiableTransportInsidePrimaryMinutes += Number(cls.reclassifiableTransportInsidePrimaryMinutes ?? 0);
+          gd.keptBecauseClearExitCount += Number(cls.keptBecauseClearExitCount ?? 0);
+          gd.keptBecauseClearExitMinutes += Number(cls.keptBecauseClearExitMinutes ?? 0);
+          gd.keptBecauseRatioBelowThresholdCount += Number(cls.keptBecauseRatioBelowThresholdCount ?? 0);
+          gd.keptBecauseRatioBelowThresholdMinutes += Number(cls.keptBecauseRatioBelowThresholdMinutes ?? 0);
+          gd.keptBecauseSecondaryOrUnsafeTargetCount += Number(cls.keptBecauseSecondaryOrUnsafeTargetCount ?? 0);
+          gd.keptBecauseSecondaryOrUnsafeTargetMinutes += Number(cls.keptBecauseSecondaryOrUnsafeTargetMinutes ?? 0);
+          gd.keptBecauseDurationTooLongCount += Number(cls.keptBecauseDurationTooLongCount ?? 0);
+          gd.keptBecauseDurationTooLongMinutes += Number(cls.keptBecauseDurationTooLongMinutes ?? 0);
           for (const ex of (cls.movementInsideGeofenceExamples ?? []) as any[]) {
             if (gd.movementInsideGeofenceExamples.length >= 25) break;
             gd.movementInsideGeofenceExamples.push({
@@ -886,23 +929,34 @@ Deno.serve(async (req) => {
         (tr.unassignedProjectsMatchedAsWorkCount ?? 0) > 0;
       // Round geofence diagnostics minutes
       if (day.geofenceDiagnostics) {
-        day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget =
-          Math.round(day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget * 100) / 100;
-        day.geofenceDiagnostics.travelInsideTargetCandidateMinutes =
-          Math.round(day.geofenceDiagnostics.travelInsideTargetCandidateMinutes * 100) / 100;
-        day.geofenceDiagnostics.movementInsideGeofenceReclassifiedMinutes =
-          Math.round(day.geofenceDiagnostics.movementInsideGeofenceReclassifiedMinutes * 100) / 100;
+        const gd = day.geofenceDiagnostics;
+        const r = (n: number) => Math.round(n * 100) / 100;
+        gd.transportMinutesInsidePrimaryTarget = r(gd.transportMinutesInsidePrimaryTarget);
+        gd.travelInsideTargetCandidateMinutes = r(gd.travelInsideTargetCandidateMinutes);
+        gd.movementInsideGeofenceReclassifiedMinutes = r(gd.movementInsideGeofenceReclassifiedMinutes);
+        gd.transportInsidePrimaryTotalMinutes = r(gd.transportInsidePrimaryTotalMinutes);
+        gd.reclassifiableTransportInsidePrimaryMinutes = r(gd.reclassifiableTransportInsidePrimaryMinutes);
+        gd.keptBecauseClearExitMinutes = r(gd.keptBecauseClearExitMinutes);
+        gd.keptBecauseRatioBelowThresholdMinutes = r(gd.keptBecauseRatioBelowThresholdMinutes);
+        gd.keptBecauseSecondaryOrUnsafeTargetMinutes = r(gd.keptBecauseSecondaryOrUnsafeTargetMinutes);
+        gd.keptBecauseDurationTooLongMinutes = r(gd.keptBecauseDurationTooLongMinutes);
+        // remainingGeofenceWarning summerar ENDAST verkliga motorfel
+        gd.remainingGeofenceWarningCount = gd.reclassifiableTransportInsidePrimaryCount;
+        gd.remainingGeofenceWarningMinutes = gd.reclassifiableTransportInsidePrimaryMinutes;
       }
 
-      // WARNING (not FAIL): GPS classified as transport while inside geofence.
-      // Does not break report rules, but the dashboard must surface it.
-      const transportInsideGeofenceMin = day.geofenceDiagnostics?.transportMinutesInsidePrimaryTarget ?? 0;
-      const geofenceWarning = transportInsideGeofenceMin > 30;
+      // WARNING (not FAIL): bara segment där motorn borde reklassat men inte
+      // gjorde det räknas. Transport behållen pga clearExit / låg ratio /
+      // för långt segment / sekundär target visas som diagnostik men triggar
+      // INTE WARNING — det är inget motorfel.
+      const reclassifiableMin =
+        day.geofenceDiagnostics?.reclassifiableTransportInsidePrimaryMinutes ?? 0;
+      const geofenceWarning = reclassifiableMin > 30;
       if (geofenceWarning) {
         day.warnings.push(
-          `geofence:transport_inside_primary_target_minutes=${transportInsideGeofenceMin} ` +
-            `(${day.geofenceDiagnostics?.transportSegmentsInsidePrimaryTargetCount ?? 0} segment) — ` +
-            `GPS klassas som transport trots att den verkar vara inom geofence.`,
+          `geofence:reclassifiable_transport_inside_primary_minutes=${reclassifiableMin} ` +
+            `(${day.geofenceDiagnostics?.reclassifiableTransportInsidePrimaryCount ?? 0} segment) — ` +
+            `GPS klassas som transport inom geofence trots att alla villkor för reklassificering är uppfyllda.`,
         );
       }
 
