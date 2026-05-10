@@ -487,6 +487,27 @@ Deno.serve(async (req) => {
       };
       (day as any).geoAnchorDiagnostics = geoAnchorAgg;
 
+      // Stationary inside-geofence override diagnostics — aggregated per day/org
+      const stationaryOverrideAgg = {
+        rescuedStayCount: 0,
+        rescuedStayMinutes: 0,
+        pingsInsidePrimaryCount: 0,
+        pingsInsidePrimaryRatioSum: 0,
+        pingsInsidePrimaryRatioStaffCount: 0,
+        remainingTransportInsidePrimaryGeofenceCount: 0,
+        remainingTransportInsidePrimaryGeofenceMinutes: 0,
+        examples: [] as Array<{
+          staffId: string; staffName: string;
+          targetLabel: string;
+          startLocalStockholm: string;
+          endLocalStockholm: string;
+          durationMinutes: number;
+          pingCount: number;
+          medianAccuracyMeters: number | null;
+        }>,
+      };
+      (day as any).stationaryGeofenceOverride = stationaryOverrideAgg;
+
       for (const s of staffList) {
         const { data: pingRows } = await admin
           .from('staff_location_history')
@@ -571,6 +592,44 @@ Deno.serve(async (req) => {
           }
         } catch (e) {
           day.warnings.push(`geo_anchor_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
+        }
+
+        // ── Stationary inside-geofence override: aggregate across staff ──
+        try {
+          const sgo = (gpsTimeline as any).stationaryGeofenceOverride;
+          if (sgo) {
+            stationaryOverrideAgg.rescuedStayCount += Number(sgo.rescuedStayCount ?? 0);
+            stationaryOverrideAgg.rescuedStayMinutes += Number(sgo.rescuedStayMinutes ?? 0);
+            stationaryOverrideAgg.pingsInsidePrimaryCount += Number(sgo.pingsInsidePrimaryCount ?? 0);
+            if (sgo.pingsInsidePrimaryRatio != null) {
+              stationaryOverrideAgg.pingsInsidePrimaryRatioSum += Number(sgo.pingsInsidePrimaryRatio);
+              stationaryOverrideAgg.pingsInsidePrimaryRatioStaffCount += 1;
+            }
+            for (const ex of (sgo.examples ?? []) as any[]) {
+              if (stationaryOverrideAgg.examples.length >= 50) break;
+              stationaryOverrideAgg.examples.push({
+                staffId: s.id,
+                staffName: s.name ?? s.id,
+                targetLabel: String(ex.targetLabel ?? ''),
+                startLocalStockholm: String(ex.startLocalStockholm ?? ''),
+                endLocalStockholm: String(ex.endLocalStockholm ?? ''),
+                durationMinutes: Number(ex.durationMinutes ?? 0),
+                pingCount: Number(ex.pingCount ?? 0),
+                medianAccuracyMeters:
+                  ex.medianAccuracyMeters != null ? Number(ex.medianAccuracyMeters) : null,
+              });
+            }
+          }
+          const remCount = Number(
+            (gpsTimeline as any).remainingTransportInsidePrimaryGeofenceCount ?? 0,
+          );
+          const remMin = Number(
+            (gpsTimeline as any).remainingTransportInsidePrimaryGeofenceMinutes ?? 0,
+          );
+          stationaryOverrideAgg.remainingTransportInsidePrimaryGeofenceCount += remCount;
+          stationaryOverrideAgg.remainingTransportInsidePrimaryGeofenceMinutes += remMin;
+        } catch (e) {
+          day.warnings.push(`stationary_override_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
         }
 
         // ── Geofence diagnostics: aggregate across staff for the day ──
@@ -1133,7 +1192,37 @@ Deno.serve(async (req) => {
         }
       }
 
-      day.status = failed ? 'FAIL' : (geofenceWarning || stickyWarning || geoAnchorWarning) ? 'WARNING' : 'PASS';
+      // Round + WARNING for stationary inside-geofence override (only the
+      // remaining-transport bucket is a warning; rescued stays are INFO).
+      const sga: any = (day as any).stationaryGeofenceOverride;
+      let stationaryOverrideWarning = false;
+      if (sga) {
+        sga.rescuedStayMinutes = Math.round(sga.rescuedStayMinutes * 100) / 100;
+        sga.remainingTransportInsidePrimaryGeofenceMinutes =
+          Math.round(sga.remainingTransportInsidePrimaryGeofenceMinutes * 100) / 100;
+        sga.pingsInsidePrimaryRatio = sga.pingsInsidePrimaryRatioStaffCount > 0
+          ? Math.round(
+              (sga.pingsInsidePrimaryRatioSum / sga.pingsInsidePrimaryRatioStaffCount) * 1000,
+            ) / 1000
+          : 0;
+        delete sga.pingsInsidePrimaryRatioSum;
+        delete sga.pingsInsidePrimaryRatioStaffCount;
+        if (sga.remainingTransportInsidePrimaryGeofenceMinutes > 0) {
+          stationaryOverrideWarning = true;
+          day.warnings.push(
+            `transport_inside_primary_geofence_not_rescued:` +
+              `${sga.remainingTransportInsidePrimaryGeofenceMinutes} min ` +
+              `(${sga.remainingTransportInsidePrimaryGeofenceCount} segment) — ` +
+              `Transport inom primary geofence överlevde override (motorfel eller suppressad eligibility).`,
+          );
+        }
+      }
+
+      day.status = failed
+        ? 'FAIL'
+        : (geofenceWarning || stickyWarning || geoAnchorWarning || stationaryOverrideWarning)
+          ? 'WARNING'
+          : 'PASS';
 
       perDay.push(day);
     }
