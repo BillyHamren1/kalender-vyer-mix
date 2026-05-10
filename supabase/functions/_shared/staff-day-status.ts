@@ -922,16 +922,19 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     }
   }
 
-  // ---- Canonical payable model: bruttotid → manuellt avdrag → lönegrundande ----
-  // Rast (attestation/time_reports.break_time) räknas separat och dras INTE
-  // automatiskt av här (step 4 — payable should not auto-deduct break).
+  // ---- Canonical payable model: bruttotid → rast → manuellt avdrag → lönegrundande ----
+  // breakMinutes dras AV från payable när den finns (attestation eller
+  // time_reports.break_time). Rast dras aldrig automatiskt utan explicit källa.
   // Other_place + transport drar ALDRIG av lönegrundande tid.
   const trBreakMin = timeReports.reduce((s, t) => s + hoursToMin(t.break_time), 0);
   const breakMin = attestation ? Math.max(0, attestation.break_minutes | 0) : trBreakMin;
   const meta = (workday?.metadata ?? {}) as Record<string, unknown>;
   const manualDeductionMinTotal = Math.max(0, Number(meta.manual_deduction_minutes ?? 0) | 0);
   const grossWorkdayMin = wdMin;
-  const payableMin = Math.max(0, grossWorkdayMin - manualDeductionMinTotal);
+  const payableMin = Math.max(
+    0,
+    grossWorkdayMin - breakMin - manualDeductionMinTotal,
+  );
 
   const unallocated = Math.max(0, wdMin - projectMin - warehouseMin - travelMin);
 
