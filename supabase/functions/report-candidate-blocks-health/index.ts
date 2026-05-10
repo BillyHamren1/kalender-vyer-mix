@@ -268,7 +268,7 @@ Deno.serve(async (req) => {
 
     const dates: string[] = Array.isArray(body?.dates) && body.dates.length > 0
       ? body.dates.filter((d: any) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
-      : ['2026-05-06', '2026-05-07'];
+      : ['2026-05-06', '2026-05-07', '2026-05-08'];
     const orgId: string | null = okSvc ? (body?.organizationId ?? null) : userOrgId;
     if (!orgId) return json(400, { ok: false, error: 'organizationId_required' });
 
