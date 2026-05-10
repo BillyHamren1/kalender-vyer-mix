@@ -323,8 +323,10 @@ function matchTarget(
   for (const t of targets) {
     if (t.validFrom && Date.parse(t.validFrom) > at) continue;
     if (t.validUntil && Date.parse(t.validUntil) < at) continue;
+    // Distance metric for "best" ordering stays haversine-to-center; the inside
+    // gate honors polygon when present.
     const d = haversine(centerLat, centerLng, t.center.lat, t.center.lng);
-    if (d <= t.radiusM && (best == null || d < best.distanceM)) {
+    if (pointInsideTarget(centerLat, centerLng, t) && (best == null || d < best.distanceM)) {
       best = { target: t, distanceM: d };
     }
   }
