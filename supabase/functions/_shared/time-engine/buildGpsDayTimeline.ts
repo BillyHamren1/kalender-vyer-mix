@@ -1650,6 +1650,50 @@ export function buildGpsDayTimeline(
     source: a.source,
   }));
 
+  // ── INFO: stationary-inside-geofence override aggregates ────────────
+  let overrideRescuedCount = 0;
+  let overrideRescuedMinutes = 0;
+  const overrideExamples: GpsClassificationDiagnostics['stationaryGeofenceOverride']['examples'] = [];
+  for (const seg of segments) {
+    if (seg.reclassificationReason !== 'stationary_inside_geofence_override') continue;
+    overrideRescuedCount++;
+    overrideRescuedMinutes += seg.durationMin;
+    if (overrideExamples.length < 25) {
+      overrideExamples.push({
+        targetLabel: seg.label,
+        startLocalStockholm: formatStockholm(seg.startTs, 'datetime'),
+        endLocalStockholm: formatStockholm(seg.endTs, 'datetime'),
+        durationMinutes: Math.round(seg.durationMin * 100) / 100,
+        pingCount: seg.pingCount,
+        medianAccuracyMeters: seg.targetDiagnostics?.medianAccuracyMeters ?? null,
+      });
+    }
+  }
+  const overridePingsRatio =
+    accepted.length > 0 ? Number((pingsInsidePrimaryCount / accepted.length).toFixed(3)) : 0;
+
+  // ── WARNING basis: travel segments that survived even though their
+  // pings sit (almost) entirely inside the same primary-eligible geofence.
+  // The override pre-pass should have rescued them — non-zero = engine bug.
+  let remainingTransportInsidePrimaryCount = 0;
+  let remainingTransportInsidePrimaryMinutes = 0;
+  for (const seg of segments) {
+    if (seg.kind !== 'travel') continue;
+    const td = seg.targetDiagnostics;
+    if (!td) continue;
+    const ratio = td.pingsInsideSameTargetRatio ?? 0;
+    if (ratio < 0.7) continue; // not "almost entirely inside"
+    if (!td.travelInsideTargetCandidate) continue;
+    // Only count when the candidate target is primary-eligible (i.e. would
+    // have been a valid override owner). Find it in input.targets.
+    const cand = td.travelInsideTargetLabel
+      ? input.targets.find((t) => t.label === td.travelInsideTargetLabel)
+      : null;
+    if (!cand || cand.assignedToUserToday === false) continue;
+    remainingTransportInsidePrimaryCount++;
+    remainingTransportInsidePrimaryMinutes += seg.durationMin;
+  }
+
   const avgAccuracyM = avg(
     accepted.map((p) => p.accuracyM ?? NaN).filter((n) => Number.isFinite(n)) as number[],
   );
