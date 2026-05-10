@@ -890,6 +890,8 @@ Deno.serve(async (req) => {
           Math.round(day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget * 100) / 100;
         day.geofenceDiagnostics.travelInsideTargetCandidateMinutes =
           Math.round(day.geofenceDiagnostics.travelInsideTargetCandidateMinutes * 100) / 100;
+        day.geofenceDiagnostics.movementInsideGeofenceReclassifiedMinutes =
+          Math.round(day.geofenceDiagnostics.movementInsideGeofenceReclassifiedMinutes * 100) / 100;
       }
 
       // WARNING (not FAIL): GPS classified as transport while inside geofence.
