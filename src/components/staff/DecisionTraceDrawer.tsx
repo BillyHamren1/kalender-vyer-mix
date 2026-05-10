@@ -644,6 +644,59 @@ function RawTab(props: DecisionTraceDrawerProps) {
   const cls = (props.rawGpsTimeline?.classificationDiagnostics ?? {}) as any;
   return (
     <div className="space-y-3">
+      {(reclassifiedSegs.length > 0 ||
+        Number(cls.movementInsideGeofenceReclassifiedCount ?? 0) > 0) && (
+        <div>
+          <div className="mb-1 text-xs font-semibold">
+            Omklassade segment — movement_inside_geofence ({reclassifiedSegs.length})
+          </div>
+          <div className="mb-2 rounded-md border border-emerald-300 bg-emerald-50 p-2 text-[11px] text-emerald-900">
+            Först klassad som transport p.g.a. GPS-rörelse, men omklassad till arbete eftersom
+            pingarna låg inom primary geofence.{' '}
+            <span className="font-mono">
+              {Number(cls.movementInsideGeofenceReclassifiedMinutes ?? 0)} min /{' '}
+              {Number(cls.movementInsideGeofenceReclassifiedCount ?? 0)} segment
+            </span>
+          </div>
+          <div className="space-y-2">
+            {reclassifiedSegs.map((s: any, i: number) => {
+              const td = s.targetDiagnostics ?? {};
+              const m = s.movementDecision ?? {};
+              return (
+                <div key={`rc-${s.id ?? i}`} className="rounded-md border border-emerald-200 bg-emerald-50/40 p-2 text-[11px]">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="font-mono tabular-nums">
+                      {fmtHm(s.startTs ?? s.startAt)} – {fmtHm(s.endTs ?? s.endAt)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {Math.round(Number(s.durationMin ?? 0))}m · {s.label ?? '—'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                    <span className="text-muted-foreground">original</span>
+                    <span className="font-mono">{s.originalKind ?? '—'} / {s.originalType ?? '—'}</span>
+                    <span className="text-muted-foreground">reclassificationReason</span>
+                    <span className="font-mono font-semibold text-emerald-700">{s.reclassificationReason}</span>
+                    <span className="text-muted-foreground">movement reason</span>
+                    <span className="font-mono">{m.reason ?? '—'}</span>
+                    <span className="text-muted-foreground">computed km/h</span>
+                    <span className="font-mono">{m.computedKmh != null ? Number(m.computedKmh).toFixed(1) : '—'}</span>
+                    <span className="text-muted-foreground">pings inside primary</span>
+                    <span className="font-mono">
+                      {td.pingsInsidePrimaryTarget ?? 0} / {s.pingCount ?? '—'}
+                      {td.pingsInsideSameTargetRatio != null
+                        ? ` (${Math.round(Number(td.pingsInsideSameTargetRatio) * 100)}%)`
+                        : ''}
+                    </span>
+                    <span className="text-muted-foreground">clearExitDetected</span>
+                    <span className="font-mono">{String(td.clearExitDetected ?? false)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {transportSegs.length > 0 && (
         <div>
           <div className="mb-1 text-xs font-semibold">
