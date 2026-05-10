@@ -1020,7 +1020,27 @@ Deno.serve(async (req) => {
         );
       }
 
-      day.status = failed ? 'FAIL' : geofenceWarning ? 'WARNING' : 'PASS';
+      // Round + WARNING for sticky primary target
+      const std: any = (day as any).stickyTargetDiagnostics;
+      let stickyWarning = false;
+      if (std) {
+        const r = (n: number) => Math.round(n * 100) / 100;
+        std.stickyReclassifiedMinutes = r(std.stickyReclassifiedMinutes);
+        std.strongExitMinutes = r(std.strongExitMinutes);
+        std.exitRejectedBecauseUnder1kmMinutes = r(std.exitRejectedBecauseUnder1kmMinutes);
+        std.remainingTransportNearStickyTargetMinutes = r(std.remainingTransportNearStickyTargetMinutes);
+        if (std.remainingTransportNearStickyTargetMinutes > 30) {
+          stickyWarning = true;
+          day.warnings.push(
+            `transport_near_sticky_primary_without_strong_exit:` +
+              `${std.remainingTransportNearStickyTargetMinutes} min ` +
+              `(${std.remainingTransportNearStickyTargetCount} segment) — ` +
+              `Transport kvar inom 1 km från sticky primary target utan strong exit.`,
+          );
+        }
+      }
+
+      day.status = failed ? 'FAIL' : (geofenceWarning || stickyWarning) ? 'WARNING' : 'PASS';
 
       perDay.push(day);
     }
