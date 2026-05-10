@@ -929,23 +929,34 @@ Deno.serve(async (req) => {
         (tr.unassignedProjectsMatchedAsWorkCount ?? 0) > 0;
       // Round geofence diagnostics minutes
       if (day.geofenceDiagnostics) {
-        day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget =
-          Math.round(day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget * 100) / 100;
-        day.geofenceDiagnostics.travelInsideTargetCandidateMinutes =
-          Math.round(day.geofenceDiagnostics.travelInsideTargetCandidateMinutes * 100) / 100;
-        day.geofenceDiagnostics.movementInsideGeofenceReclassifiedMinutes =
-          Math.round(day.geofenceDiagnostics.movementInsideGeofenceReclassifiedMinutes * 100) / 100;
+        const gd = day.geofenceDiagnostics;
+        const r = (n: number) => Math.round(n * 100) / 100;
+        gd.transportMinutesInsidePrimaryTarget = r(gd.transportMinutesInsidePrimaryTarget);
+        gd.travelInsideTargetCandidateMinutes = r(gd.travelInsideTargetCandidateMinutes);
+        gd.movementInsideGeofenceReclassifiedMinutes = r(gd.movementInsideGeofenceReclassifiedMinutes);
+        gd.transportInsidePrimaryTotalMinutes = r(gd.transportInsidePrimaryTotalMinutes);
+        gd.reclassifiableTransportInsidePrimaryMinutes = r(gd.reclassifiableTransportInsidePrimaryMinutes);
+        gd.keptBecauseClearExitMinutes = r(gd.keptBecauseClearExitMinutes);
+        gd.keptBecauseRatioBelowThresholdMinutes = r(gd.keptBecauseRatioBelowThresholdMinutes);
+        gd.keptBecauseSecondaryOrUnsafeTargetMinutes = r(gd.keptBecauseSecondaryOrUnsafeTargetMinutes);
+        gd.keptBecauseDurationTooLongMinutes = r(gd.keptBecauseDurationTooLongMinutes);
+        // remainingGeofenceWarning summerar ENDAST verkliga motorfel
+        gd.remainingGeofenceWarningCount = gd.reclassifiableTransportInsidePrimaryCount;
+        gd.remainingGeofenceWarningMinutes = gd.reclassifiableTransportInsidePrimaryMinutes;
       }
 
-      // WARNING (not FAIL): GPS classified as transport while inside geofence.
-      // Does not break report rules, but the dashboard must surface it.
-      const transportInsideGeofenceMin = day.geofenceDiagnostics?.transportMinutesInsidePrimaryTarget ?? 0;
-      const geofenceWarning = transportInsideGeofenceMin > 30;
+      // WARNING (not FAIL): bara segment där motorn borde reklassat men inte
+      // gjorde det räknas. Transport behållen pga clearExit / låg ratio /
+      // för långt segment / sekundär target visas som diagnostik men triggar
+      // INTE WARNING — det är inget motorfel.
+      const reclassifiableMin =
+        day.geofenceDiagnostics?.reclassifiableTransportInsidePrimaryMinutes ?? 0;
+      const geofenceWarning = reclassifiableMin > 30;
       if (geofenceWarning) {
         day.warnings.push(
-          `geofence:transport_inside_primary_target_minutes=${transportInsideGeofenceMin} ` +
-            `(${day.geofenceDiagnostics?.transportSegmentsInsidePrimaryTargetCount ?? 0} segment) — ` +
-            `GPS klassas som transport trots att den verkar vara inom geofence.`,
+          `geofence:reclassifiable_transport_inside_primary_minutes=${reclassifiableMin} ` +
+            `(${day.geofenceDiagnostics?.reclassifiableTransportInsidePrimaryCount ?? 0} segment) — ` +
+            `GPS klassas som transport inom geofence trots att alla villkor för reklassificering är uppfyllda.`,
         );
       }
 
