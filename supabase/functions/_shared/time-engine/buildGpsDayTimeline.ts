@@ -1027,6 +1027,18 @@ export function buildGpsDayTimeline(
       movementInsideGeofenceReclassifiedCount: movementInsideGeofenceCount,
       movementInsideGeofenceReclassifiedMinutes: Math.round(movementInsideGeofenceMinutes),
       movementInsideGeofenceExamples,
+      transportInsidePrimaryTotalCount,
+      transportInsidePrimaryTotalMinutes: Math.round(transportInsidePrimaryTotalMinutes * 100) / 100,
+      reclassifiableTransportInsidePrimaryCount: reclassifiableCount,
+      reclassifiableTransportInsidePrimaryMinutes: Math.round(reclassifiableMinutes * 100) / 100,
+      keptBecauseClearExitCount: keptClearExitCount,
+      keptBecauseClearExitMinutes: Math.round(keptClearExitMinutes * 100) / 100,
+      keptBecauseRatioBelowThresholdCount: keptRatioBelowCount,
+      keptBecauseRatioBelowThresholdMinutes: Math.round(keptRatioBelowMinutes * 100) / 100,
+      keptBecauseSecondaryOrUnsafeTargetCount: keptSecondaryUnsafeCount,
+      keptBecauseSecondaryOrUnsafeTargetMinutes: Math.round(keptSecondaryUnsafeMinutes * 100) / 100,
+      keptBecauseDurationTooLongCount: keptDurationTooLongCount,
+      keptBecauseDurationTooLongMinutes: Math.round(keptDurationTooLongMinutes * 100) / 100,
     },
   };
 }
