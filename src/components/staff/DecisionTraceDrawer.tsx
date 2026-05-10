@@ -36,6 +36,7 @@ import type {
   ReportCandidateBlockUI,
   ReportCandidateSummaryUI,
 } from './ReportCandidateTimeline';
+import { DecisionMapTab } from './DecisionMapTab';
 
 export interface DecisionTraceDrawerProps {
   open: boolean;
@@ -754,6 +755,7 @@ export const DecisionTraceDrawer: React.FC<DecisionTraceDrawerProps> = (props) =
             <TabsTrigger value="presence" className="text-xs">Närvaro</TabsTrigger>
             <TabsTrigger value="targets" className="text-xs">Targets</TabsTrigger>
             <TabsTrigger value="raw" className="text-xs">Rå GPS</TabsTrigger>
+            <TabsTrigger value="map" className="text-xs">Karta</TabsTrigger>
             <TabsTrigger value="diag" className="text-xs">Diagnostik</TabsTrigger>
           </TabsList>
           <div className="flex-1 overflow-auto px-4 py-3">
@@ -762,6 +764,13 @@ export const DecisionTraceDrawer: React.FC<DecisionTraceDrawerProps> = (props) =
             <TabsContent value="presence" className="mt-0"><PresenceTab {...props} /></TabsContent>
             <TabsContent value="targets" className="mt-0"><TargetsTab {...props} /></TabsContent>
             <TabsContent value="raw" className="mt-0"><RawTab {...props} /></TabsContent>
+            <TabsContent value="map" className="mt-0">
+              <DecisionMapTab
+                staffId={props.staffId}
+                date={props.date}
+                reportCandidateBlocks={props.reportCandidateBlocks}
+              />
+            </TabsContent>
             <TabsContent value="diag" className="mt-0"><DiagnosticsTab {...props} /></TabsContent>
           </div>
         </Tabs>
