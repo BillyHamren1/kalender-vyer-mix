@@ -34,6 +34,7 @@ import {
   resolveWorkTargets,
   toWorkTarget,
 } from '../_shared/time-engine/resolveWorkTargets.ts';
+import { loadGeoAnchors } from '../_shared/time-engine/loadGeoAnchors.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
@@ -466,6 +467,26 @@ Deno.serve(async (req) => {
       };
       (day as any).stickyTargetDiagnostics = stickyAgg;
 
+      // Geo-anchor diagnostics — aggregated per day/org
+      const geoAnchorAgg = {
+        hardAnchorCount: 0,
+        hardEntryCount: 0,
+        hardExitCount: 0,
+        entriesAppliedToSticky: 0,
+        entriesSeededStickyEarly: 0,
+        entriesIgnoredNoMatchingTarget: 0,
+        exitsObservedWithoutStrongExit: 0,
+        transportSegmentsAfterGeoEntryWithoutStrongExitMinutes: 0,
+        weakAnchorCount: 0,
+        weakReasons: {} as Record<string, number>,
+        examples: [] as Array<{
+          staffId: string; staffName: string;
+          type: 'entry' | 'exit'; atLocalStockholm: string;
+          targetLabel: string | null; source: string;
+        }>,
+      };
+      (day as any).geoAnchorDiagnostics = geoAnchorAgg;
+
       for (const s of staffList) {
         const { data: pingRows } = await admin
           .from('staff_location_history')
@@ -486,14 +507,70 @@ Deno.serve(async (req) => {
         }));
         if (pings.length === 0) continue;
 
+        // Load hard geo anchors for this staff/day (read-only).
+        let geoAnchorsForStaff: any[] = [];
+        try {
+          const ga = await loadGeoAnchors({
+            supabaseAdmin: admin,
+            organizationId: orgId,
+            staffId: s.id,
+            startUtc: dayStart,
+            endUtc: dayEnd,
+            targets,
+          });
+          geoAnchorsForStaff = ga.anchors;
+          // Aggregate weak counts (engine ignores them; surface them for ops).
+          for (const a of ga.anchors) {
+            if (a.strength !== 'hard') {
+              geoAnchorAgg.weakAnchorCount++;
+              if (a.weakReason) {
+                geoAnchorAgg.weakReasons[a.weakReason] =
+                  (geoAnchorAgg.weakReasons[a.weakReason] ?? 0) + 1;
+              }
+            }
+          }
+        } catch (e) {
+          day.warnings.push(`geo_anchors_failed:${s.id}:${(e as any)?.message ?? e}`);
+        }
+
         let gpsTimeline;
         try {
           gpsTimeline = buildGpsDayTimeline({
             staffId: s.id, organizationId: orgId, date, pings, targets,
+            geoAnchors: geoAnchorsForStaff,
           });
         } catch (e) {
           day.warnings.push(`gps_timeline_failed:${s.id}:${(e as any)?.message ?? e}`);
           continue;
+        }
+
+        // ── Geo anchor diagnostics: aggregate across staff for the day ──
+        try {
+          const gad = (gpsTimeline as any).geoAnchorDiagnostics;
+          if (gad) {
+            geoAnchorAgg.hardAnchorCount += Number(gad.hardAnchorCount ?? 0);
+            geoAnchorAgg.hardEntryCount += Number(gad.hardEntryCount ?? 0);
+            geoAnchorAgg.hardExitCount += Number(gad.hardExitCount ?? 0);
+            geoAnchorAgg.entriesAppliedToSticky += Number(gad.entriesAppliedToSticky ?? 0);
+            geoAnchorAgg.entriesSeededStickyEarly += Number(gad.entriesSeededStickyEarly ?? 0);
+            geoAnchorAgg.entriesIgnoredNoMatchingTarget += Number(gad.entriesIgnoredNoMatchingTarget ?? 0);
+            geoAnchorAgg.exitsObservedWithoutStrongExit += Number(gad.exitsObservedWithoutStrongExit ?? 0);
+            geoAnchorAgg.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes +=
+              Number(gad.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes ?? 0);
+            for (const ex of gad.examples ?? []) {
+              if (geoAnchorAgg.examples.length >= 50) break;
+              geoAnchorAgg.examples.push({
+                staffId: s.id,
+                staffName: s.name ?? s.id,
+                type: ex.type,
+                atLocalStockholm: ex.atLocalStockholm,
+                targetLabel: ex.targetLabel ?? null,
+                source: ex.source,
+              });
+            }
+          }
+        } catch (e) {
+          day.warnings.push(`geo_anchor_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
         }
 
         // ── Geofence diagnostics: aggregate across staff for the day ──
@@ -1040,7 +1117,23 @@ Deno.serve(async (req) => {
         }
       }
 
-      day.status = failed ? 'FAIL' : (geofenceWarning || stickyWarning) ? 'WARNING' : 'PASS';
+      // Round + WARNING for geo-anchor sticky engine
+      const gaa: any = (day as any).geoAnchorDiagnostics;
+      let geoAnchorWarning = false;
+      if (gaa) {
+        gaa.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes =
+          Math.round(gaa.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes * 100) / 100;
+        if (gaa.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes > 0) {
+          geoAnchorWarning = true;
+          day.warnings.push(
+            `transport_after_geo_entry_without_strong_exit:` +
+              `${gaa.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes} min — ` +
+              `Transport efter geo entry på primary target utan stark exit (geo exit räknas inte ensamt).`,
+          );
+        }
+      }
+
+      day.status = failed ? 'FAIL' : (geofenceWarning || stickyWarning || geoAnchorWarning) ? 'WARNING' : 'PASS';
 
       perDay.push(day);
     }
