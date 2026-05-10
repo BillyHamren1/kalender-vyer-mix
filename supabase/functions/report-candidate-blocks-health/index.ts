@@ -197,7 +197,31 @@ interface DayHealth {
     createdAnyLocationTimeEntries: boolean;
     createdAnyTravelTimeLogs: boolean;
   };
-  status: 'PASS' | 'FAIL';
+  status: 'PASS' | 'WARNING' | 'FAIL';
+  geofenceDiagnostics?: {
+    transportSegmentsInsidePrimaryTargetCount: number;
+    transportMinutesInsidePrimaryTarget: number;
+    transportInsidePrimaryTargetExamples: Array<{
+      staffName: string;
+      staffId: string;
+      segmentStart: string;
+      segmentEnd: string;
+      durationMinutes: number;
+      travelInsideTargetLabel: string | null;
+      pingsInsideSameTargetRatio: number | null;
+      computedKmh: number | null;
+      distanceMeters: number;
+      nearestTargetDistanceMeters: number | null;
+      nearestTargetRadiusMeters: number | null;
+      movementReason: string | null;
+    }>;
+    travelInsideTargetCandidateCount: number;
+    travelInsideTargetCandidateMinutes: number;
+    targetsAvailableToGpsTimeline: number;
+    knownSiteSegments: number;
+    transportSegments: number;
+    unknownPlaceSegments: number;
+  };
 }
 
 /** Same-target transport with measured distance above this is "long distance"
