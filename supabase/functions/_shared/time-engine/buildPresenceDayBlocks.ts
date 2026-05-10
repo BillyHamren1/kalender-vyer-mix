@@ -282,7 +282,13 @@ export function buildPresenceDayBlocks(
 
       // Plain confirmed on-site block.
       const dur = durationMinutes(seg.startTs, seg.endTs);
-      const reclassified = (seg as any).reclassificationReason === 'movement_inside_geofence';
+      const recReason = (seg as any).reclassificationReason as string | null | undefined;
+      const reclassified =
+        recReason === 'movement_inside_geofence' ||
+        recReason === 'sticky_primary_target_no_strong_exit';
+      const stickyTd = (seg as any).targetDiagnostics ?? {};
+      const stickyConfReason: string | null = stickyTd.confidenceReason ?? null;
+      const stickyWarning: string | null = stickyTd.warningLabel ?? null;
       blocks.push({
         id: newId('confirmed_on_site'),
         kind: 'confirmed_on_site',
@@ -296,11 +302,16 @@ export function buildPresenceDayBlocks(
         confidence: reclassified
           ? 'medium'
           : seg.confidence >= 0.8 ? 'high' : seg.confidence >= 0.5 ? 'medium' : 'low',
-        confidenceReason: reclassified
-          ? 'movement_inside_geofence'
-          : 'GPS bekräftat innanför geofence',
+        confidenceReason: stickyConfReason
+          ? stickyConfReason
+          : reclassified
+            ? (recReason as string)
+            : 'GPS bekräftat innanför geofence',
         reviewState: reclassified ? 'ok' : seg.confidence >= 0.5 ? 'ok' : 'needs_review',
-        evidence: { pingCount: seg.pingCount },
+        evidence: {
+          pingCount: seg.pingCount,
+          ...(stickyWarning ? { partialOutsideStickyGeofence: true, warningLabel: stickyWarning } as any : {}),
+        },
         sourceSegmentIds: [seg.id],
         hiddenRawSegmentIds: [],
       });
