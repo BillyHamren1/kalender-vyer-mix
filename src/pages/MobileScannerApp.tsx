@@ -208,6 +208,50 @@ const MobileScannerApp: React.FC = () => {
     [filteredPackings],
   );
 
+  // Deep-link from Lager: /m/tools/scanner?packingId=...&mode=out|in
+  // Also accepts packlistId (alias) and bookingId (resolved via loaded packings).
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandled.current) return;
+    if (isLoading) return;
+    if (state !== 'home') return;
+
+    const packingIdParam = searchParams.get('packingId') || searchParams.get('packlistId');
+    const bookingIdParam = searchParams.get('bookingId');
+    const modeParam = (searchParams.get('mode') || 'out').toLowerCase();
+    const flowParam: Flow = modeParam === 'in' ? 'in' : 'out';
+
+    if (!packingIdParam && !bookingIdParam) return;
+
+    deepLinkHandled.current = true;
+
+    let resolvedPackingId: string | null = packingIdParam;
+    if (!resolvedPackingId && bookingIdParam) {
+      const match = packings.find((p) => p.booking_id === bookingIdParam);
+      resolvedPackingId = match?.id ?? null;
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('packingId');
+    next.delete('packlistId');
+    next.delete('bookingId');
+    next.delete('mode');
+    setSearchParams(next, { replace: true });
+
+    if (!resolvedPackingId) {
+      toast.error(
+        bookingIdParam && !packingIdParam
+          ? 'Packningen kunde inte laddas.'
+          : 'Den här lageruppgiften saknar packnings-ID. Öppna packningen från warehouse eller kontakta planering.',
+      );
+      return;
+    }
+
+    setSelectedPackingId(resolvedPackingId);
+    setFlow(flowParam);
+    setState(flowParam === 'in' ? 'returning' : 'verifying');
+  }, [isLoading, packings, searchParams, setSearchParams, state]);
+
   // Handle packing selection with mode + flow direction
   const handleSelectPacking = (
     packingId: string,
