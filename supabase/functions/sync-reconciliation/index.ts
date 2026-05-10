@@ -765,6 +765,34 @@ Deno.serve(async (req) => {
           locProducts.map((p: any) => [p.name?.trim(), p]),
         );
 
+        // GUARD (mirrors import-bookings transient_empty_source guard):
+        // Treat an empty external products array as a transient/missing source,
+        // NOT as deletion intent. The upstream Booking system can momentarily
+        // return products: [] during its own delete+reinsert cycle. We must
+        // NEVER wipe local products in that window — that's exactly how
+        // bookings like GOPA end up suddenly empty after a sync.
+        const extTopLevelCount = extProducts.length;
+        const extRawCount = Array.isArray(ext.products) ? ext.products.length : 0;
+        const localTopLevelCount = locProducts.length;
+        if (extTopLevelCount === 0 && extRawCount === 0 && localTopLevelCount > 0) {
+          console.warn(
+            `[sync-recon GUARD] booking ${bookingId} (${bookingNumber}): external products empty but ${localTopLevelCount} top-level local products exist — treating as transient_empty_source, skipping all product mutations and product comparison.`,
+          );
+          discrepancies.push({
+            bookingId,
+            bookingNumber,
+            client: clientName,
+            bookingStatus,
+            field: "_products_transient_empty_source",
+            category: "products",
+            localValue: `${localTopLevelCount} produkter lokalt`,
+            externalValue: null,
+            label:
+              "Externa Booking-API:et returnerade 0 produkter (transient) — inga lokala produkter rörda",
+          });
+          continue; // skip both delete-loop and field comparison
+        }
+
         // STEP 1: Delete extra local products FIRST (before comparison)
         for (const [name, localP] of localProductNames) {
           if (!extProductNames.has(name)) {
