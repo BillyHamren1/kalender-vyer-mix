@@ -370,6 +370,37 @@ export interface GpsClassificationDiagnostics {
       seededStickyEarly?: boolean;
     }>;
   };
+
+  /**
+   * INFO/diagnostic: pings that lay inside a primary-eligible geofence and
+   * therefore had movement (speed/distance) classification overridden into
+   * a stationary stay. Never a WARNING — this is the engine working as
+   * intended. (WARNING is `transport_inside_primary_geofence_not_rescued`,
+   * surfaced from `remainingTransportInsidePrimaryGeofenceCount`.)
+   */
+  stationaryGeofenceOverride: {
+    rescuedStayCount: number;
+    rescuedStayMinutes: number;
+    pingsInsidePrimaryCount: number;
+    pingsInsidePrimaryRatio: number;
+    examples: Array<{
+      targetLabel: string;
+      startLocalStockholm: string;
+      endLocalStockholm: string;
+      durationMinutes: number;
+      pingCount: number;
+      medianAccuracyMeters: number | null;
+    }>;
+  };
+
+  /**
+   * WARNING basis: travel segments that survived the override (i.e. still
+   * `kind=travel` despite all of their pings sitting inside the same
+   * primary-eligible geofence). Should normally be 0 — non-zero indicates
+   * an engine bug or a target whose primary-eligibility was suppressed.
+   */
+  remainingTransportInsidePrimaryGeofenceCount: number;
+  remainingTransportInsidePrimaryGeofenceMinutes: number;
 }
 
 export interface GpsDayTimelineResult {
