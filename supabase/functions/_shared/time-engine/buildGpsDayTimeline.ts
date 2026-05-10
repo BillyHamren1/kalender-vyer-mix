@@ -383,6 +383,9 @@ export function buildGpsDayTimeline(
         rejectedPingsByAccuracyCount: rejectedPings,
         acceptedPingsCount: 0,
         targetsAvailableToGpsTimeline: input.targets.length,
+        movementInsideGeofenceReclassifiedCount: 0,
+        movementInsideGeofenceReclassifiedMinutes: 0,
+        movementInsideGeofenceExamples: [],
       },
     };
   }
