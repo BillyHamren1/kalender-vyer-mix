@@ -137,6 +137,14 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
       .upsert(rows as any, { onConflict: 'staff_id,warehouse_event_id' });
     if (error) {
       console.error('[warehouseAssignmentsSync] upsert failed', error);
+    } else {
+      // Mirror Lager-placement into staff_assignments so the personal calendar
+      // automatically shows this person in the Lager column on this day.
+      try {
+        await assignStaffToTeamCore(staffId, teamId, date);
+      } catch (e) {
+        console.warn('[warehouseAssignmentsSync] could not mirror staff_assignments', e);
+      }
     }
   }
 
