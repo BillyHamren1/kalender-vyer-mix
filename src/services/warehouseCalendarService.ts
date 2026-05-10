@@ -180,11 +180,32 @@ export async function syncBookingToWarehouseCalendar(booking: BookingData): Prom
     }
     
     console.log(`[WarehouseCalendar] Created ${eventsToCreate.length} warehouse events for booking ${booking.id}`);
+
+    // Bridge: refresh concrete warehouse_assignments for any (date, team)
+    // that was touched by these events.
+    try {
+      const { syncWarehouseAssignmentsForEvents } = await import('./warehouseAssignmentsSync');
+      await syncWarehouseAssignmentsForEvents(eventsToCreate);
+    } catch (e) {
+      console.warn('[WarehouseCalendar] assignment sync after insert failed', e);
+    }
   }
 }
 
 // Remove all warehouse events for a booking
 export async function removeWarehouseEventsForBooking(bookingId: string): Promise<void> {
+  // Capture affected (date, team) before deleting so we can refresh assignments.
+  const { data: existing } = await supabase
+    .from('warehouse_calendar_events')
+    .select('id, start_time, resource_id')
+    .eq('booking_id', bookingId);
+
+  // Delete dependent warehouse_assignments first to avoid orphans.
+  const eventIds = (existing || []).map((e: any) => e.id).filter(Boolean);
+  if (eventIds.length > 0) {
+    await supabase.from('warehouse_assignments').delete().in('warehouse_event_id', eventIds);
+  }
+
   const { error } = await supabase
     .from('warehouse_calendar_events')
     .delete()
@@ -193,6 +214,16 @@ export async function removeWarehouseEventsForBooking(bookingId: string): Promis
   if (error) {
     console.error('[WarehouseCalendar] Error removing events:', error);
     throw error;
+  }
+
+  // Recompute remaining staff assignments for the affected (date, team)s.
+  try {
+    const { syncWarehouseAssignmentsForEvents } = await import('./warehouseAssignmentsSync');
+    await syncWarehouseAssignmentsForEvents(
+      (existing || []).map((e: any) => ({ start_time: e.start_time, resource_id: e.resource_id })),
+    );
+  } catch (e) {
+    console.warn('[WarehouseCalendar] assignment sync after delete failed', e);
   }
 }
 
