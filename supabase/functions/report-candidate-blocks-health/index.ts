@@ -582,6 +582,43 @@ Deno.serve(async (req) => {
           day.warnings.push(`geofence_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
         }
 
+        // Sticky primary target diagnostics aggregation
+        try {
+          const std = (gpsTimeline as any).classificationDiagnostics?.stickyTargetDiagnostics;
+          if (std) {
+            stickyAgg.stickyReclassifiedCount += Number(std.stickyReclassifiedCount ?? 0);
+            stickyAgg.stickyReclassifiedMinutes += Number(std.stickyReclassifiedMinutes ?? 0);
+            stickyAgg.strongExitCount += Number(std.strongExitCount ?? 0);
+            stickyAgg.strongExitMinutes += Number(std.strongExitMinutes ?? 0);
+            stickyAgg.exitRejectedBecauseUnder1kmCount += Number(std.exitRejectedBecauseUnder1kmCount ?? 0);
+            stickyAgg.exitRejectedBecauseUnder1kmMinutes += Number(std.exitRejectedBecauseUnder1kmMinutes ?? 0);
+            stickyAgg.arrivedAtOtherPrimaryTargetCount += Number(std.arrivedAtOtherPrimaryTargetCount ?? 0);
+            stickyAgg.longClearExitCount += Number(std.longClearExitCount ?? 0);
+            stickyAgg.remainingTransportNearStickyTargetCount += Number(std.remainingTransportNearStickyTargetCount ?? 0);
+            stickyAgg.remainingTransportNearStickyTargetMinutes += Number(std.remainingTransportNearStickyTargetMinutes ?? 0);
+            for (const ex of (std.examples ?? []) as any[]) {
+              if (stickyAgg.examples.length >= 50) break;
+              stickyAgg.examples.push({
+                staffId: s.id,
+                staffName: s.name ?? s.id,
+                segmentStart: ex.segmentStart,
+                segmentEnd: ex.segmentEnd,
+                durationMinutes: Number(ex.durationMinutes ?? 0),
+                stickyTargetLabel: ex.stickyTargetLabel ?? null,
+                distanceFromStickyCenterMeters:
+                  ex.distanceFromStickyCenterMeters != null ? Number(ex.distanceFromStickyCenterMeters) : null,
+                distanceOutsideStickyGeofenceMeters:
+                  ex.distanceOutsideStickyGeofenceMeters != null ? Number(ex.distanceOutsideStickyGeofenceMeters) : null,
+                decision: String(ex.decision ?? ''),
+                longClearExit: !!ex.longClearExit,
+                reasonNotReclassified: ex.reasonNotReclassified ?? null,
+              });
+            }
+          }
+        } catch (e) {
+          day.warnings.push(`sticky_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
+        }
+
         let presence;
         try {
           presence = buildPresenceDayBlocks({
