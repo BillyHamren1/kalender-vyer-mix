@@ -1492,6 +1492,7 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
       (a: any) =>
         a.team_id !== 'project' &&
         a.team_id !== 'location' &&
+        !isWarehouseTeam(a.team_id) && // warehouse-team BSAs samlas i Lager-kortet
         !String(a.booking_id).startsWith('location-')
     )
 
