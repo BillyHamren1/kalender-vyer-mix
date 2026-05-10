@@ -507,14 +507,70 @@ Deno.serve(async (req) => {
         }));
         if (pings.length === 0) continue;
 
+        // Load hard geo anchors for this staff/day (read-only).
+        let geoAnchorsForStaff: any[] = [];
+        try {
+          const ga = await loadGeoAnchors({
+            supabaseAdmin: admin,
+            organizationId: orgId,
+            staffId: s.id,
+            startUtc: dayStart,
+            endUtc: dayEnd,
+            targets,
+          });
+          geoAnchorsForStaff = ga.anchors;
+          // Aggregate weak counts (engine ignores them; surface them for ops).
+          for (const a of ga.anchors) {
+            if (a.strength !== 'hard') {
+              geoAnchorAgg.weakAnchorCount++;
+              if (a.weakReason) {
+                geoAnchorAgg.weakReasons[a.weakReason] =
+                  (geoAnchorAgg.weakReasons[a.weakReason] ?? 0) + 1;
+              }
+            }
+          }
+        } catch (e) {
+          day.warnings.push(`geo_anchors_failed:${s.id}:${(e as any)?.message ?? e}`);
+        }
+
         let gpsTimeline;
         try {
           gpsTimeline = buildGpsDayTimeline({
             staffId: s.id, organizationId: orgId, date, pings, targets,
+            geoAnchors: geoAnchorsForStaff,
           });
         } catch (e) {
           day.warnings.push(`gps_timeline_failed:${s.id}:${(e as any)?.message ?? e}`);
           continue;
+        }
+
+        // ── Geo anchor diagnostics: aggregate across staff for the day ──
+        try {
+          const gad = (gpsTimeline as any).geoAnchorDiagnostics;
+          if (gad) {
+            geoAnchorAgg.hardAnchorCount += Number(gad.hardAnchorCount ?? 0);
+            geoAnchorAgg.hardEntryCount += Number(gad.hardEntryCount ?? 0);
+            geoAnchorAgg.hardExitCount += Number(gad.hardExitCount ?? 0);
+            geoAnchorAgg.entriesAppliedToSticky += Number(gad.entriesAppliedToSticky ?? 0);
+            geoAnchorAgg.entriesSeededStickyEarly += Number(gad.entriesSeededStickyEarly ?? 0);
+            geoAnchorAgg.entriesIgnoredNoMatchingTarget += Number(gad.entriesIgnoredNoMatchingTarget ?? 0);
+            geoAnchorAgg.exitsObservedWithoutStrongExit += Number(gad.exitsObservedWithoutStrongExit ?? 0);
+            geoAnchorAgg.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes +=
+              Number(gad.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes ?? 0);
+            for (const ex of gad.examples ?? []) {
+              if (geoAnchorAgg.examples.length >= 50) break;
+              geoAnchorAgg.examples.push({
+                staffId: s.id,
+                staffName: s.name ?? s.id,
+                type: ex.type,
+                atLocalStockholm: ex.atLocalStockholm,
+                targetLabel: ex.targetLabel ?? null,
+                source: ex.source,
+              });
+            }
+          }
+        } catch (e) {
+          day.warnings.push(`geo_anchor_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
         }
 
         // ── Geofence diagnostics: aggregate across staff for the day ──
