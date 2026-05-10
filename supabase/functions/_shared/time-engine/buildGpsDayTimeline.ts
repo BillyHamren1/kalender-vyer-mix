@@ -345,6 +345,28 @@ export interface GpsClassificationDiagnostics {
       reasonNotReclassified: string | null;
     }>;
   };
+
+  /**
+   * Diagnostics about hard geo anchors loaded from assistant_events /
+   * staff_presence_events. Pure read; never mutated.
+   */
+  geoAnchorDiagnostics: {
+    hardAnchorCount: number;
+    hardEntryCount: number;
+    hardExitCount: number;
+    entriesAppliedToSticky: number;
+    entriesSeededStickyEarly: number;
+    entriesIgnoredNoMatchingTarget: number;
+    exitsObservedWithoutStrongExit: number;
+    transportSegmentsAfterGeoEntryWithoutStrongExitMinutes: number;
+    examples: Array<{
+      type: 'entry' | 'exit';
+      atLocalStockholm: string;
+      targetLabel: string | null;
+      source: 'assistant_events' | 'staff_presence_events';
+      seededStickyEarly?: boolean;
+    }>;
+  };
 }
 
 export interface GpsDayTimelineResult {
