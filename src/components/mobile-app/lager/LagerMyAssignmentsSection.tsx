@@ -8,7 +8,8 @@ type Assignment = {
   description: string | null;
   start_time: string | null;
   end_time: string | null;
-  event_type: string;
+  event_type?: string;
+  type?: string;
   booking_id: string | null;
   booking_number: string | null;
   delivery_address: string | null;
