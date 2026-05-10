@@ -839,15 +839,38 @@ Deno.serve(async (req) => {
         (tr.activeProjectsAsPrimaryCount ?? 0) > 0 ||
         (tr.unassignedBookingsMatchedAsWorkCount ?? 0) > 0 ||
         (tr.unassignedProjectsMatchedAsWorkCount ?? 0) > 0;
-      day.status = failed ? 'FAIL' : 'PASS';
+      // Round geofence diagnostics minutes
+      if (day.geofenceDiagnostics) {
+        day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget =
+          Math.round(day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget * 100) / 100;
+        day.geofenceDiagnostics.travelInsideTargetCandidateMinutes =
+          Math.round(day.geofenceDiagnostics.travelInsideTargetCandidateMinutes * 100) / 100;
+      }
+
+      // WARNING (not FAIL): GPS classified as transport while inside geofence.
+      // Does not break report rules, but the dashboard must surface it.
+      const transportInsideGeofenceMin = day.geofenceDiagnostics?.transportMinutesInsidePrimaryTarget ?? 0;
+      const geofenceWarning = transportInsideGeofenceMin > 30;
+      if (geofenceWarning) {
+        day.warnings.push(
+          `geofence:transport_inside_primary_target_minutes=${transportInsideGeofenceMin} ` +
+            `(${day.geofenceDiagnostics?.transportSegmentsInsidePrimaryTargetCount ?? 0} segment) — ` +
+            `GPS klassas som transport trots att den verkar vara inom geofence.`,
+        );
+      }
+
+      day.status = failed ? 'FAIL' : geofenceWarning ? 'WARNING' : 'PASS';
 
       perDay.push(day);
     }
 
-    const overallOk = perDay.every((d) => d.status === 'PASS');
+    const anyFail = perDay.some((d) => d.status === 'FAIL');
+    const anyWarning = perDay.some((d) => d.status === 'WARNING');
+    const overallStatus: 'PASS' | 'WARNING' | 'FAIL' =
+      anyFail ? 'FAIL' : anyWarning ? 'WARNING' : 'PASS';
     return json(200, {
-      ok: overallOk,
-      status: overallOk ? 'PASS' : 'FAIL',
+      ok: overallStatus !== 'FAIL',
+      status: overallStatus,
       organizationId: orgId,
       staffCount: staffList.length,
       perDay,
