@@ -1398,6 +1398,19 @@ export function buildGpsDayTimeline(
       keptBecauseSecondaryOrUnsafeTargetMinutes: Math.round(keptSecondaryUnsafeMinutes * 100) / 100,
       keptBecauseDurationTooLongCount: keptDurationTooLongCount,
       keptBecauseDurationTooLongMinutes: Math.round(keptDurationTooLongMinutes * 100) / 100,
+      stickyTargetDiagnostics: {
+        stickyReclassifiedCount,
+        stickyReclassifiedMinutes: Math.round(stickyReclassifiedMinutes * 100) / 100,
+        strongExitCount,
+        strongExitMinutes: Math.round(strongExitMinutes * 100) / 100,
+        exitRejectedBecauseUnder1kmCount: exitRejectedUnder1kmCount,
+        exitRejectedBecauseUnder1kmMinutes: Math.round(exitRejectedUnder1kmMinutes * 100) / 100,
+        arrivedAtOtherPrimaryTargetCount: arrivedAtOtherPrimaryCount,
+        longClearExitCount: longClearExitDiagCount,
+        remainingTransportNearStickyTargetCount: remainingTransportNearStickyCount,
+        remainingTransportNearStickyTargetMinutes: Math.round(remainingTransportNearStickyMinutes * 100) / 100,
+        examples: stickyExamples,
+      },
     },
   };
 }
