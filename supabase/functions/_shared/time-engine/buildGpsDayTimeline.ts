@@ -195,6 +195,19 @@ export interface GpsTimelineTargetMatchSummary {
   uniqueTargetsHit: number;
 }
 
+export interface MovementInsideGeofenceExample {
+  segmentStart: ISODateTime;
+  segmentEnd: ISODateTime;
+  durationMinutes: number;
+  targetLabel: string | null;
+  pingsInsideSameTargetRatio: number | null;
+  computedKmh: number | null;
+  movementReason: string | null;
+  nearestTargetDistanceMeters: number | null;
+  nearestTargetRadiusMeters: number | null;
+  clearExitDetected: boolean;
+}
+
 export interface GpsClassificationDiagnostics {
   travelSegmentsInsideTargetCandidateCount: number;
   travelSegmentsInsideTargetCandidateMinutes: number;
@@ -202,6 +215,9 @@ export interface GpsClassificationDiagnostics {
   rejectedPingsByAccuracyCount: number;
   acceptedPingsCount: number;
   targetsAvailableToGpsTimeline: number;
+  movementInsideGeofenceReclassifiedCount: number;
+  movementInsideGeofenceReclassifiedMinutes: number;
+  movementInsideGeofenceExamples: MovementInsideGeofenceExample[];
 }
 
 export interface GpsDayTimelineResult {
