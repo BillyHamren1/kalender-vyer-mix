@@ -78,14 +78,23 @@ interface StaffTimeReportsListProps {
   onSelectStaff: (id: string, name: string) => void;
   selectedDate: Date;
   onDateChange: (date: Date) => void;
-  /** Map staffId → reportCandidateBlocks/summary från get-staff-presence-day. */
+  /** Map staffId → hela beslutspayloaden från get-staff-presence-day. */
   reportCandidateByStaff?: Record<
     string,
     {
       blocks: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
       summary: import('./ReportCandidateTimeline').ReportCandidateSummaryUI | null;
+      diagnostics?: any;
+      targetResolution?: any;
       presenceBlocks?: import('@/lib/staff/buildReportDisplayBlocks').PresenceBlockLite[];
+      presenceRawEvidence?: any[];
+      rawGpsTimeline?: any;
+      technicalTimeline?: any[];
+      presenceDaySummary?: any;
+      presenceDayAggregation?: any;
+      targetMatchSummary?: any;
       targets?: import('@/lib/staff/buildReportDisplayBlocks').TargetLite[];
+      counts?: any;
       loading: boolean;
       missing?: boolean;
     } | undefined
@@ -504,6 +513,15 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   reportCandidateLoading={reportCandidateByStaff?.[staff.id]?.loading ?? false}
                   reportCandidatePresenceBlocks={reportCandidateByStaff?.[staff.id]?.presenceBlocks ?? null}
                   reportCandidateTargets={reportCandidateByStaff?.[staff.id]?.targets ?? null}
+                  reportCandidateDiagnostics={reportCandidateByStaff?.[staff.id]?.diagnostics ?? null}
+                  reportCandidateTargetResolution={reportCandidateByStaff?.[staff.id]?.targetResolution ?? null}
+                  reportCandidatePresenceRawEvidence={reportCandidateByStaff?.[staff.id]?.presenceRawEvidence ?? null}
+                  reportCandidateRawGpsTimeline={reportCandidateByStaff?.[staff.id]?.rawGpsTimeline ?? null}
+                  reportCandidateTechnicalTimeline={reportCandidateByStaff?.[staff.id]?.technicalTimeline ?? null}
+                  reportCandidatePresenceDaySummary={reportCandidateByStaff?.[staff.id]?.presenceDaySummary ?? null}
+                  reportCandidatePresenceDayAggregation={reportCandidateByStaff?.[staff.id]?.presenceDayAggregation ?? null}
+                  reportCandidateTargetMatchSummary={reportCandidateByStaff?.[staff.id]?.targetMatchSummary ?? null}
+                  reportCandidateCounts={reportCandidateByStaff?.[staff.id]?.counts ?? null}
                   engineMode={engineMode}
                   reportSlot={
                     <TimeReportReviewTable

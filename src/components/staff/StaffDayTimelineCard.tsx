@@ -76,6 +76,21 @@ interface StaffDayTimelineCardProps {
   /** Resolved targets från get-staff-presence-day (för nearest primary/secondary). */
   reportCandidateTargets?: import('@/lib/staff/buildReportDisplayBlocks').TargetLite[] | null;
   /**
+   * Hela beslutspayloaden från get-staff-presence-day (read-only).
+   * Sparas på personnivå så att admin kan inspektera GPS → presenceDayBlocks
+   * → reportCandidateBlocks → displayBlocks utan att rebuilda motorn.
+   * Fälten är medvetet `any` — formen ägs av edge-funktionen.
+   */
+  reportCandidateDiagnostics?: any;
+  reportCandidateTargetResolution?: any;
+  reportCandidatePresenceRawEvidence?: any[] | null;
+  reportCandidateRawGpsTimeline?: any;
+  reportCandidateTechnicalTimeline?: any[] | null;
+  reportCandidatePresenceDaySummary?: any;
+  reportCandidatePresenceDayAggregation?: any;
+  reportCandidateTargetMatchSummary?: any;
+  reportCandidateCounts?: any;
+  /**
    * Sidnivå-engineMode. Kortet får ALDRIG välja motor själv — det här är
    * sanningen för raden. 'report_candidate' = ny motor (även om blocks är
    * tom array). 'actual_model_fallback' = renderas alltid med actualModel,
