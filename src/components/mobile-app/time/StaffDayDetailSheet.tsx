@@ -167,6 +167,15 @@ export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
                 Inga registrerade aktiviteter denna dag.
               </p>
             )}
+
+            {/* Bottom action: user attestation (godkänn dagen) */}
+            {date && (
+              <StaffDayAttestSection
+                staffId={staff?.id ?? null}
+                date={date}
+                snapshot={snapshot}
+              />
+            )}
           </div>
         )}
       </SheetContent>
