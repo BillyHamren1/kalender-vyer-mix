@@ -513,6 +513,15 @@ export const StaffTimeReportsList: React.FC<StaffTimeReportsListProps> = ({
                   reportCandidateLoading={reportCandidateByStaff?.[staff.id]?.loading ?? false}
                   reportCandidatePresenceBlocks={reportCandidateByStaff?.[staff.id]?.presenceBlocks ?? null}
                   reportCandidateTargets={reportCandidateByStaff?.[staff.id]?.targets ?? null}
+                  reportCandidateDiagnostics={reportCandidateByStaff?.[staff.id]?.diagnostics ?? null}
+                  reportCandidateTargetResolution={reportCandidateByStaff?.[staff.id]?.targetResolution ?? null}
+                  reportCandidatePresenceRawEvidence={reportCandidateByStaff?.[staff.id]?.presenceRawEvidence ?? null}
+                  reportCandidateRawGpsTimeline={reportCandidateByStaff?.[staff.id]?.rawGpsTimeline ?? null}
+                  reportCandidateTechnicalTimeline={reportCandidateByStaff?.[staff.id]?.technicalTimeline ?? null}
+                  reportCandidatePresenceDaySummary={reportCandidateByStaff?.[staff.id]?.presenceDaySummary ?? null}
+                  reportCandidatePresenceDayAggregation={reportCandidateByStaff?.[staff.id]?.presenceDayAggregation ?? null}
+                  reportCandidateTargetMatchSummary={reportCandidateByStaff?.[staff.id]?.targetMatchSummary ?? null}
+                  reportCandidateCounts={reportCandidateByStaff?.[staff.id]?.counts ?? null}
                   engineMode={engineMode}
                   reportSlot={
                     <TimeReportReviewTable
