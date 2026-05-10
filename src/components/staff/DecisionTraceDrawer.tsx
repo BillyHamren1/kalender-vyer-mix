@@ -255,6 +255,17 @@ function OverviewTab(props: DecisionTraceDrawerProps) {
   const assignTone: RiskTone =
     primaryN > 0 && matchedPrimaryN === 0 ? 'red' : primaryN === 0 && secondaryN === 0 ? 'amber' : 'ok';
 
+  // ── 6. Transport-klassificering (gps_day_timeline) ─────────────
+  const gcd: any = props.rawGpsTimeline?.classificationDiagnostics ?? null;
+  const travelInsideTargetN = num(gcd?.travelSegmentsInsideTargetCandidateCount);
+  const travelInsideTargetMin = num(gcd?.travelSegmentsInsideTargetCandidateMinutes);
+  const travelByReason: Record<string, number> = gcd?.travelSegmentsByMovementReason ?? {};
+  const rejectedAccPings = num(gcd?.rejectedPingsByAccuracyCount);
+  const acceptedPings = num(gcd?.acceptedPingsCount);
+  const targetsAvailGps = num(gcd?.targetsAvailableToGpsTimeline);
+  const transportTone: RiskTone =
+    travelInsideTargetN > 0 ? 'red' : rejectedAccPings > 20 ? 'amber' : 'ok';
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
