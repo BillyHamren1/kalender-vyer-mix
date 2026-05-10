@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { extractUTCTime } from '@/utils/dateUtils';
+import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import {
   useStaffDayStatus,
@@ -49,9 +49,9 @@ function fmtMinutes(totalMin: number | null | undefined) {
 }
 
 function segmentRange(s: StaffDaySegment) {
-  const start = extractUTCTime(s.startedAt);
+  const start = formatStockholmHm(s.startedAt);
   if (s.isActive || !s.endedAt) return `${start}–pågår`;
-  return `${start}–${extractUTCTime(s.endedAt)}`;
+  return `${start}–${formatStockholmHm(s.endedAt)}`;
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
 
   const tracking = snapshot.trackingPolicy ?? null;
   const lastSignalLabel = tracking?.lastSignalAt
-    ? extractUTCTime(tracking.lastSignalAt)
+    ? formatStockholmHm(tracking.lastSignalAt)
     : null;
 
   return (
@@ -96,12 +96,12 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
           {wd && (
             <p className="text-[12px] text-muted-foreground tabular-nums mt-0.5">
               <span className="font-semibold text-foreground/80">
-                {extractUTCTime(wd.startedAt)}
+                {formatStockholmHm(wd.startedAt)}
               </span>{' '}
               →{' '}
               {wd.endedAt ? (
                 <span className="font-semibold text-foreground/80">
-                  {extractUTCTime(wd.endedAt)}
+                  {formatStockholmHm(wd.endedAt)}
                 </span>
               ) : (
                 <span className="text-primary font-semibold">pågår</span>
@@ -147,7 +147,7 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
           )}
           {tracking.expiresAt && (
             <span className="font-mono tabular-nums">
-              t/m {extractUTCTime(tracking.expiresAt)}
+              t/m {formatStockholmHm(tracking.expiresAt)}
             </span>
           )}
           {tracking.reason && (
@@ -213,7 +213,7 @@ const ActiveNowCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) =
           <p className="text-[12px] text-muted-foreground mt-1">
             Sedan{' '}
             <span className="tabular-nums font-semibold text-foreground/80">
-              {extractUTCTime(active.startedAt)}
+              {formatStockholmHm(active.startedAt)}
             </span>
           </p>
         </div>
