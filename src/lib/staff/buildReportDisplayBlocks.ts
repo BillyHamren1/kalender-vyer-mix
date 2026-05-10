@@ -123,6 +123,24 @@ export interface DisplayBlock extends ReportCandidateBlockUI {
   aiReviewContext: AiReviewContext | null;
   /** Liten hint i UI; ingen knapp. */
   aiHintLabel: string | null;
+  /** Källblockens id:n (för bevisning + grupperade rader). */
+  sourceBlockIds: string[];
+  /** True om raden är en sammanslagen "Osäker period" av flera källblock. */
+  isGrouped?: boolean;
+}
+
+export interface DisplayDebugSummary {
+  rawReportCandidateBlocksCount: number;
+  displayBlocksCount: number;
+  groupedUncertainBlocksCount: number;
+  signalAsPlaceLabelsRemovedCount: number;
+  unknownBlocksWithAddressOrCoordinateCount: number;
+  unknownBlocksWithoutEvidenceCount: number;
+}
+
+export interface BuildReportDisplayResult {
+  blocks: DisplayBlock[];
+  debug: DisplayDebugSummary;
 }
 
 const SECONDARY_PROXIMITY_M = 500;
