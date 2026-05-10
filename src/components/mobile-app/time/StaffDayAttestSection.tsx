@@ -189,14 +189,20 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
         </div>
       )}
 
+      {attestBlocked && attestBlockedReason && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-[12px] text-amber-800 dark:text-amber-300">
+          {attestBlockedReason}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={isSaving || !staffId}
+        disabled={isSaving || !staffId || attestBlocked}
         className={cn(
           'w-full rounded-xl bg-primary text-primary-foreground font-extrabold py-3 text-sm',
           'flex items-center justify-center gap-2 active:opacity-80 transition-opacity',
-          (isSaving || !staffId) && 'opacity-60',
+          (isSaving || !staffId || attestBlocked) && 'opacity-60',
         )}
       >
         {isSaving ? (
