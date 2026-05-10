@@ -355,15 +355,23 @@ Deno.serve(async (req) => {
       .map(toWorkTarget)
       .filter((t): t is WorkTarget => !!t);
 
-    const gpsTimeline = buildGpsDayTimeline({
-      // capture also for the new presence-day-blocks engine
-      // (assigned below to gpsTimelineResult outside the try)
+    // Load hard geo anchors (assistant_events + staff_presence_events).
+    const geoAnchorsRes = await loadGeoAnchors({
+      supabaseAdmin: admin,
+      organizationId: orgId,
+      staffId,
+      startUtc: dayStart,
+      endUtc: dayEnd,
+      targets: workTargets,
+    });
 
+    const gpsTimeline = buildGpsDayTimeline({
       staffId,
       organizationId: orgId,
       date,
       pings,
       targets: workTargets,
+      geoAnchors: geoAnchorsRes.anchors,
     });
     gpsTimelineResult = gpsTimeline;
 
