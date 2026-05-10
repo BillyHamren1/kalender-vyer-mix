@@ -31,6 +31,7 @@ const REALTIME_TABLES = ['packing_projects', 'packing_list_items', 'bookings'];
 
 const MobileScannerApp: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [state, setState] = useState<AppState>('home');
   const [selectedPackingId, setSelectedPackingId] = useState<string | null>(null);
   const [flow, setFlow] = useState<Flow>('out');
