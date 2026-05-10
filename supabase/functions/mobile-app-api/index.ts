@@ -6680,11 +6680,16 @@ async function handleGetLagerAssignments(
             start_time: t.deadline ?? t.created_at,
             end_time: t.deadline ?? null,
             event_type: 'internal_task',
+            assignment_type: 'internal_task',
+            action: 'complete_task',
             booking_id: project.booking_id ?? null,
             booking_number: null,
             delivery_address: null,
+            customer_name: null,
+            project_task_id: t.id,
+            source: 'project_task',
             completed: !!t.completed,
-            status: t.completed ? 'completed' : 'open',
+            status: t.completed ? 'completed' : 'planned',
           })
         }
       }
