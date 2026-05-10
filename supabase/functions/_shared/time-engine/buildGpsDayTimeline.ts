@@ -127,6 +127,10 @@ export interface SegmentTargetDiagnostics {
   pingsInsideSameTargetRatio?: number;
   travelInsideTargetCandidate?: boolean;
   travelInsideTargetLabel?: string | null;
+  /** Median GPS horizontal accuracy across the segment's pings. */
+  medianAccuracyMeters?: number | null;
+  /** Set during post-pass when evaluating movement_inside_geofence rule. */
+  clearExitDetected?: boolean | null;
 }
 
 export interface GpsTimelineSegment {
