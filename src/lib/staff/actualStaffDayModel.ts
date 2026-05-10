@@ -1202,7 +1202,7 @@ export function buildActualStaffDayModel(input: BuildActualStaffDayInput): Actua
           kind: 'planned_signal_gap',
           severity: 'warning',
           label: 'Ingen app/GPS-signal under planerad tid',
-          detail: `Planerad start ${formatStockholmHm(pa.plannedStart)} på ${pa.label}, men ingen GPS-ping eller timer registrerad${firstSignalMs != null ? ` förrän ${formatStockholmHm(new Date(firstSignalMs).toISOString())}` : ' under perioden'}.`,
+          detail: `Planerad start ${formatStockholmHm(pa.plannedStart)} på ${pa.label}, men ingen GPS-ping eller timer registrerad${firstSignalMs != null ? ` förrän ${formatStockholmHm(firstSignalMs)}` : ' under perioden'}.`,
           durationMin: gapMin,
           meta: {
             assignmentId: pa.id,
