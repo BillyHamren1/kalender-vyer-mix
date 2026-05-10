@@ -1473,15 +1473,20 @@ export function buildGpsDayTimeline(
   }
 
   // Aggregate: minutes of transport-segments that *survived* sticky-pass
-  // while a geo entry was active and no strong exit was observed.
+  // (i.e. kept as travel) where sticky was seeded by a geo entry AND the
+  // segment is still near the sticky target's geofence. Strong-exit segments
+  // (arrived elsewhere, transport-to-other-primary, distance>1km) are excluded
+  // because those reflect real movement away from the entry target.
   let transportAfterGeoEntryWithoutStrongExitMinutes = 0;
   for (const seg of segments) {
     if (seg.kind !== 'travel') continue;
     const td = seg.targetDiagnostics;
     if (!td) continue;
-    if (td.stickyAnchorSource === 'geo_entry' && td.geoExitWithoutStrongExitObserved !== true && !td.arrivedAtOtherPrimaryTarget && !td.transportToOtherPrimaryTarget) {
-      transportAfterGeoEntryWithoutStrongExitMinutes += seg.durationMin;
-    }
+    if (td.stickyAnchorSource !== 'geo_entry') continue;
+    if (td.reasonNotReclassified) continue; // strong exit kept transport
+    const out = td.distanceOutsideStickyGeofenceMeters ?? null;
+    if (out != null && out >= STICKY_DIST_OUTSIDE_M) continue;
+    transportAfterGeoEntryWithoutStrongExitMinutes += seg.durationMin;
   }
 
   const geoAnchorExamples = hardAnchors.slice(0, 25).map((a) => ({
