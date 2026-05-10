@@ -83,6 +83,15 @@ export interface StaffDayTotals {
   transportMinutes?: number | null;
   otherPlaceMinutes?: number | null;
   gpsGapMinutes?: number | null;
+  // Canonical attest/approve buckets (preferred — built server-side).
+  // - awaitingUserAttestPayableMinutes: ej inskickat (ingen day_attestation, brutto > 0)
+  // - submittedPayableMinutes: inskickat av användare men ej godkänt av admin
+  // - approvedPayableMinutes: godkänt av admin
+  // - awaitingAttestPayableMinutes: alias/fallback (deprecated, == awaitingUserAttest…)
+  awaitingUserAttestPayableMinutes?: number | null;
+  submittedPayableMinutes?: number | null;
+  approvedPayableMinutes?: number | null;
+  awaitingAttestPayableMinutes?: number | null;
 }
 
 export interface StaffDayFlag {
