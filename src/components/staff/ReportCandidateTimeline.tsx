@@ -107,48 +107,233 @@ function fmtDistance(m?: number): string | null {
   return `${(m / 1000).toFixed(m < 10000 ? 2 : 1)} km`;
 }
 
-function EvidencePanel({ block }: { block: ReportCandidateBlockUI }) {
+interface EvidenceLookups {
+  presenceById: Map<string, import('@/lib/staff/buildReportDisplayBlocks').PresenceBlockLite>;
+  targetById: Map<string, import('@/lib/staff/buildReportDisplayBlocks').TargetLite>;
+}
+
+function PresenceRow({
+  id,
+  block,
+  variant,
+}: {
+  id: string;
+  block: import('@/lib/staff/buildReportDisplayBlocks').PresenceBlockLite | undefined;
+  variant: 'source' | 'hidden_gap' | 'hidden';
+}) {
+  const tone =
+    variant === 'hidden_gap'
+      ? 'border-amber-300/50 bg-amber-50/50 dark:bg-amber-950/20'
+      : variant === 'hidden'
+        ? 'border-dashed bg-muted/20'
+        : 'bg-background';
+  if (!block) {
+    return (
+      <div className={`rounded border px-2 py-1 text-[10px] ${tone}`}>
+        <span className="font-mono">{id}</span>
+        <span className="ml-2 text-muted-foreground italic">(presence-block saknas i payload)</span>
+      </div>
+    );
+  }
+  const start = block.startAt ?? null;
+  const end = block.endAt ?? null;
+  return (
+    <div className={`rounded border px-2 py-1 text-[10px] ${tone}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {(block.kind || block.status) && (
+            <span className="rounded border bg-muted/40 px-1 py-0 text-[9px] uppercase tracking-wide">
+              {block.kind ?? block.status}
+            </span>
+          )}
+          <span className="font-mono tabular-nums">
+            {start ? formatStockholmHm(start) : '—'} – {end ? formatStockholmHm(end) : '—'}
+          </span>
+          {block.durationMinutes != null && (
+            <span className="text-muted-foreground">({fmtDur(block.durationMinutes)})</span>
+          )}
+          {block.targetLabel && (
+            <span className="truncate text-foreground">· {block.targetLabel}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {block.confidence && (
+            <Badge variant="outline" className="h-4 py-0 text-[9px]">{block.confidence}</Badge>
+          )}
+        </div>
+      </div>
+      {(block.confirmedMinutes != null || block.signalGapMinutes != null || block.reason || block.source) && (
+        <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0 text-[9px] text-muted-foreground">
+          {block.confirmedMinutes != null && <span>conf: {block.confirmedMinutes}m</span>}
+          {block.signalGapMinutes != null && <span>gap: {block.signalGapMinutes}m</span>}
+          {block.source && <span>src: {block.source}</span>}
+          {block.reason && <span className="truncate">· {block.reason}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TargetCard({
+  target,
+  block,
+}: {
+  target: import('@/lib/staff/buildReportDisplayBlocks').TargetLite | undefined;
+  block: ReportCandidateBlockUI;
+}) {
+  if (!target) {
+    if (!block.targetLabel && !block.targetId) return null;
+    return (
+      <div className="rounded border bg-background/60 px-2 py-1.5 text-[10px]">
+        <div className="font-medium text-foreground">{block.targetLabel ?? '(okänt target)'}</div>
+        {block.targetId && (
+          <div className="font-mono text-[9px] text-muted-foreground">id: {block.targetId}</div>
+        )}
+      </div>
+    );
+  }
+  const isPrimary = target.matchRole === 'primary' || target.canAutoMatchAsWork === true;
+  return (
+    <div
+      className={`rounded border px-2 py-1.5 text-[10px] ${
+        isPrimary ? 'border-primary/30 bg-primary/5' : 'bg-background/60'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-medium text-foreground truncate">{target.name}</div>
+        <div className="flex items-center gap-1">
+          {target.matchRole && (
+            <Badge variant="outline" className="h-4 py-0 text-[9px]">{target.matchRole}</Badge>
+          )}
+          {target.canAutoMatchAsWork === true && (
+            <Badge variant="outline" className="h-4 py-0 text-[9px] border-emerald-400 text-emerald-700">
+              auto-match
+            </Badge>
+          )}
+        </div>
+      </div>
+      {target.rawAddress && (
+        <div className="text-[9px] text-muted-foreground truncate">{target.rawAddress}</div>
+      )}
+      <div className="mt-0.5 flex flex-wrap gap-x-2 text-[9px] text-muted-foreground">
+        {target.assignmentAnchor && <span>anchor: {target.assignmentAnchor}</span>}
+        {target.targetSource && <span>source: {target.targetSource}</span>}
+        {target.addressAnchorKey && (
+          <span className="truncate">addr: {target.addressAnchorKey}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WhyReview({ block }: { block: ReportCandidateBlockUI }) {
+  if (block.reviewState !== 'needs_review') return null;
+  const reasons = block.reviewReasons ?? [];
+  const ev = block.evidenceSummary ?? {};
+  const hints: string[] = [];
+  if (!block.targetId && !block.targetLabel) hints.push('Inget target kunde matchas.');
+  if ((ev.confirmedMinutes ?? 0) === 0) hints.push('Inga bekräftade minuter (alla pings sannolika/saknas).');
+  if ((ev.signalGapMinutes ?? 0) > 0) hints.push(`Signalglapp inom blocket: ${ev.signalGapMinutes}m.`);
+  if ((ev.presenceBlockCount ?? 0) === 0) hints.push('Inga underliggande närvaro-block.');
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50/70 p-2 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+      <div className="mb-1 flex items-center gap-1.5 font-medium">
+        <AlertTriangle className="h-3 w-3" /> Varför behöver granskas?
+      </div>
+      {reasons.length > 0 && (
+        <ul className="ml-4 list-disc">
+          {reasons.map((r, i) => <li key={`r-${i}`}>{r}</li>)}
+        </ul>
+      )}
+      {hints.length > 0 && (
+        <ul className="ml-4 mt-1 list-disc opacity-80">
+          {hints.map((h, i) => <li key={`h-${i}`}>{h}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function EvidencePanel({ block, lookups }: { block: ReportCandidateBlockUI; lookups: EvidenceLookups }) {
   const ev = block.evidenceSummary ?? {};
   const hasAnySuppressed =
     (ev.suppressedSignalGapBlockCount ?? 0) > 0 ||
     (ev.suppressedUnknownBlockCount ?? 0) > 0 ||
     (ev.suppressedZeroLengthBlockCount ?? 0) > 0;
   const dist = fmtDistance(ev.distanceMeters);
+  const sourceIds = block.sourcePresenceBlockIds ?? [];
+  const hiddenGapIds = block.hiddenSignalGapIds ?? [];
+  const hiddenIds = block.hiddenPresenceBlockIds ?? [];
+  const target = block.targetId ? lookups.targetById.get(block.targetId) : undefined;
+
   return (
     <div className="mt-2 space-y-2 rounded-md border bg-background/60 px-3 py-2 text-[11px] text-muted-foreground">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-        <div><span className="text-foreground font-medium">Klassificering:</span> {block.kind}</div>
-        <div><span className="text-foreground font-medium">Konfidens:</span> {block.confidence}</div>
-        <div><span className="text-foreground font-medium">Granskning:</span> {block.reviewState}</div>
-        <div><span className="text-foreground font-medium">Start:</span> {formatStockholmHms(block.startAt)}</div>
-        <div><span className="text-foreground font-medium">Slut:</span> {formatStockholmHms(block.endAt)}</div>
-        <div><span className="text-foreground font-medium">Längd:</span> {block.durationLabel ?? `${block.durationMinutes} min`}</div>
-        {block.firstConfirmedAt && (
-          <div><span className="text-foreground font-medium">Första bekräftad ping:</span> {formatStockholmHms(block.firstConfirmedAt)}</div>
-        )}
-        {block.lastConfirmedAt && (
-          <div><span className="text-foreground font-medium">Sista bekräftad ping:</span> {formatStockholmHms(block.lastConfirmedAt)}</div>
-        )}
-        {block.targetType && (
-          <div><span className="text-foreground font-medium">Target-typ:</span> {block.targetType}</div>
-        )}
-        {block.targetId && (
-          <div className="truncate" title={block.targetId}><span className="text-foreground font-medium">Target-ID:</span> {block.targetId}</div>
-        )}
-        {block.targetLabel && (
-          <div className="truncate" title={block.targetLabel}><span className="text-foreground font-medium">Target-label:</span> {block.targetLabel}</div>
-        )}
-        {block.fromLabel && (
-          <div className="truncate"><span className="text-foreground font-medium">Från:</span> {block.fromLabel}</div>
-        )}
-        {block.toLabel && (
-          <div className="truncate"><span className="text-foreground font-medium">Till:</span> {block.toLabel}</div>
-        )}
-        {dist && (
-          <div><span className="text-foreground font-medium">Avstånd:</span> {dist}</div>
-        )}
+      <WhyReview block={block} />
+
+      {/* Target-detalj */}
+      <div>
+        <div className="mb-1 text-foreground font-medium">Target</div>
+        <TargetCard target={target} block={block} />
       </div>
 
+      {/* Källblock — riktiga presence-block, inte bara ID */}
+      {sourceIds.length > 0 && (
+        <div>
+          <div className="mb-1 text-foreground font-medium">
+            Källblock ({sourceIds.length})
+          </div>
+          <div className="space-y-1">
+            {sourceIds.map((id) => (
+              <PresenceRow
+                key={id}
+                id={id}
+                block={lookups.presenceById.get(id)}
+                variant="source"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Dolda signalglapp */}
+      {hiddenGapIds.length > 0 && (
+        <div>
+          <div className="mb-1 text-foreground font-medium">
+            Dolda signalglapp ({hiddenGapIds.length})
+          </div>
+          <div className="space-y-1">
+            {hiddenGapIds.map((id) => (
+              <PresenceRow
+                key={id}
+                id={id}
+                block={lookups.presenceById.get(id)}
+                variant="hidden_gap"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Övriga dolda block */}
+      {hiddenIds.length > 0 && (
+        <div>
+          <div className="mb-1 text-foreground font-medium">
+            Övriga dolda block ({hiddenIds.length})
+          </div>
+          <div className="space-y-1">
+            {hiddenIds.map((id) => (
+              <PresenceRow
+                key={id}
+                id={id}
+                block={lookups.presenceById.get(id)}
+                variant="hidden"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Evidens (siffror) */}
       <div className="border-t pt-2">
         <div className="text-foreground font-medium mb-1">Evidens (minuter)</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
@@ -158,6 +343,7 @@ function EvidencePanel({ block }: { block: ReportCandidateBlockUI }) {
           <div>Transport: <span className="tabular-nums">{ev.transportMinutes ?? 0}</span></div>
           <div>Okänt: <span className="tabular-nums">{ev.unknownMinutes ?? 0}</span></div>
           <div>Närvaro-block: <span className="tabular-nums">{ev.presenceBlockCount ?? 0}</span></div>
+          {dist && <div>Avstånd: <span className="tabular-nums">{dist}</span></div>}
         </div>
       </div>
 
@@ -172,27 +358,30 @@ function EvidencePanel({ block }: { block: ReportCandidateBlockUI }) {
         </div>
       )}
 
-      {block.reviewReasons && block.reviewReasons.length > 0 && (
-        <div className="border-t pt-2">
-          <div className="text-foreground font-medium mb-1">Granska-skäl</div>
-          <ul className="list-disc pl-4 space-y-0.5">
-            {block.reviewReasons.map((r, i) => <li key={i}>{r}</li>)}
-          </ul>
-        </div>
-      )}
-
-      {block.sourcePresenceBlockIds && block.sourcePresenceBlockIds.length > 0 && (
-        <div className="border-t pt-2">
-          <div className="text-foreground font-medium mb-1">Källblock ({block.sourcePresenceBlockIds.length})</div>
-          <div className="font-mono text-[10px] break-all leading-snug">
-            {block.sourcePresenceBlockIds.join(', ')}
-          </div>
-        </div>
-      )}
-
-      <div className="border-t pt-1 text-[10px]">
-        Block-ID: <span className="font-mono">{block.id}</span>
+      {/* Tidsdetaljer */}
+      <div className="border-t pt-2 grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
+        <div><span className="text-foreground font-medium">Start:</span> {formatStockholmHms(block.startAt)}</div>
+        <div><span className="text-foreground font-medium">Slut:</span> {formatStockholmHms(block.endAt)}</div>
+        <div><span className="text-foreground font-medium">Längd:</span> {block.durationLabel ?? `${block.durationMinutes} min`}</div>
+        {block.firstConfirmedAt && (
+          <div><span className="text-foreground font-medium">Första bekräftad:</span> {formatStockholmHms(block.firstConfirmedAt)}</div>
+        )}
+        {block.lastConfirmedAt && (
+          <div><span className="text-foreground font-medium">Sista bekräftad:</span> {formatStockholmHms(block.lastConfirmedAt)}</div>
+        )}
       </div>
+
+      {/* Käll-ID:n längst ner — inte primär information */}
+      <details className="border-t pt-1 text-[10px]">
+        <summary className="cursor-pointer text-muted-foreground/80">Debug-ID:n</summary>
+        <div className="mt-1 space-y-1 font-mono text-[10px] break-all leading-snug">
+          <div>block: {block.id}</div>
+          {block.targetId && <div>target: {block.targetId}</div>}
+          {sourceIds.length > 0 && <div>source: {sourceIds.join(', ')}</div>}
+          {hiddenGapIds.length > 0 && <div>hidden_gaps: {hiddenGapIds.join(', ')}</div>}
+          {hiddenIds.length > 0 && <div>hidden: {hiddenIds.join(', ')}</div>}
+        </div>
+      </details>
     </div>
   );
 }
