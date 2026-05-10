@@ -482,6 +482,7 @@ function newAcc(kind: ReportBlockKind, b: PresenceDayBlock): AccumulatedBlock {
 function absorb(acc: AccumulatedBlock, b: PresenceDayBlock, asSignalGap = false) {
   acc.endAt = b.endAt;
   acc.sourceIds.push(b.id);
+  if (!acc.stickyWarningLabel) acc.stickyWarningLabel = pickStickyWarning(b);
   if (b.durationMinutes <= 0) {
     acc.suppressedZeroLengthBlockCount += 1;
     acc.hiddenPresenceBlockIds.push(b.id);
