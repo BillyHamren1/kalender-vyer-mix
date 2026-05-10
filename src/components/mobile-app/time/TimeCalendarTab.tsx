@@ -112,20 +112,28 @@ export const TimeCalendarTab = () => {
             strong
           />
           <SummaryCell
-            icon={<Check className="w-3 h-3" />}
-            label="Godkänt"
-            value={formatHoursMinutes((status?.totals.approvedPayableMinutes ?? 0) / 60)}
-          />
-          <SummaryCell
-            icon={<Clock className="w-3 h-3" />}
-            label="Väntar"
-            value={formatHoursMinutes((status?.totals.awaitingAttestPayableMinutes ?? 0) / 60)}
-          />
-          <SummaryCell
             icon={<AlertTriangle className="w-3 h-3" />}
             label="Frågor"
             value={`${status?.totals.daysWithActions ?? 0} dagar`}
             tone="warning"
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-2">
+          <SummaryCell
+            icon={<Clock className="w-3 h-3" />}
+            label="Ej inskickat"
+            value={formatHoursMinutes(((status?.totals.awaitingUserAttestPayableMinutes ?? status?.totals.awaitingAttestPayableMinutes) ?? 0) / 60)}
+            tone="warning"
+          />
+          <SummaryCell
+            icon={<Check className="w-3 h-3" />}
+            label="Inskickat"
+            value={formatHoursMinutes((status?.totals.submittedPayableMinutes ?? 0) / 60)}
+          />
+          <SummaryCell
+            icon={<Lock className="w-3 h-3" />}
+            label="Godkänt"
+            value={formatHoursMinutes((status?.totals.approvedPayableMinutes ?? 0) / 60)}
           />
         </div>
       </section>
