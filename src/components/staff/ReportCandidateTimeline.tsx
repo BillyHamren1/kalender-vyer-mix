@@ -386,7 +386,7 @@ function EvidencePanel({ block, lookups }: { block: ReportCandidateBlockUI; look
   );
 }
 
-function BlockRow({ block }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null } }) {
+function BlockRow({ block, lookups }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups }) {
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
