@@ -438,6 +438,15 @@ interface AccumulatedBlock {
   firstConfirmedAt: string | null;
   lastConfirmedAt: string | null;
   baseConfidence: ReportConfidence;
+  stickyWarningLabel: string | null;
+}
+
+function pickStickyWarning(b: PresenceDayBlock): string | null {
+  const ev: any = b.evidence ?? {};
+  if (ev.partialOutsideStickyGeofence && typeof ev.warningLabel === 'string' && ev.warningLabel.length > 0) {
+    return ev.warningLabel;
+  }
+  return null;
 }
 
 function newAcc(kind: ReportBlockKind, b: PresenceDayBlock): AccumulatedBlock {
