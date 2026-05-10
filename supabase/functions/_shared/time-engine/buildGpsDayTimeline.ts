@@ -150,6 +150,36 @@ export interface SegmentTargetDiagnostics {
     | 'duration_too_long'
     | 'reclassifiable'
     | null;
+
+  // ── Sticky-target post-pass diagnostics (audit-only) ────────────────
+  /** ID of the active sticky primary target when this segment was evaluated. */
+  stickyTargetId?: string | null;
+  /** Label of the active sticky primary target. */
+  stickyTargetLabel?: string | null;
+  /** Min haversine distance from any segment ping to sticky-target center (m). */
+  distanceFromStickyCenterMeters?: number | null;
+  /** Max distance OUTSIDE the sticky target's geofence edge (m, 0 = inside). */
+  distanceOutsideStickyGeofenceMeters?: number | null;
+  /** Strong-exit signal A: next/current stay matches another primary target. */
+  arrivedAtOtherPrimaryTarget?: boolean;
+  /** Strong-exit signal D: last pings near another primary target. */
+  transportToOtherPrimaryTarget?: boolean;
+  /** Diagnostic-only: long clear exit (≥10 min, ≥5 pings outside radius+buffer). */
+  longClearExit?: boolean;
+  /**
+   * Why a transport-segment was NOT sticky-reclassified (only set when sticky
+   * target was active and strong exit was detected). longClearExit alone is
+   * NEVER a reasonNotReclassified — it is diagnostic only.
+   */
+  reasonNotReclassified?:
+    | 'arrived_at_other_primary_target'
+    | 'distance_over_1000m_outside_sticky_geofence'
+    | 'transport_to_other_primary_target'
+    | null;
+  /** Confidence reason for sticky-reclassified segments with partial GPS outside. */
+  confidenceReason?: 'near_sticky_primary_target_no_strong_exit' | null;
+  /** Human-readable warning label propagated to the report row. */
+  warningLabel?: string | null;
 }
 
 export interface GpsTimelineSegment {
