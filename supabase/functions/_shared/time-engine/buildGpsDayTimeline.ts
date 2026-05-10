@@ -1157,6 +1157,10 @@ export function buildGpsDayTimeline(
   };
 
   let sticky: StickyState | null = null;
+  let stickyAnchorSource: 'geo_entry' | 'gps_known_site' | null = null;
+  let stickyAnchorEntryAtLocal: string | null = null;
+  let stickyAnchorTable: 'assistant_events' | 'staff_presence_events' | null = null;
+  let geoExitPending = false;
 
   let stickyReclassifiedCount = 0;
   let stickyReclassifiedMinutes = 0;
@@ -1168,14 +1172,65 @@ export function buildGpsDayTimeline(
   let longClearExitDiagCount = 0;
   const stickyExamples: GpsClassificationDiagnostics['stickyTargetDiagnostics']['examples'] = [];
 
+  // Pre-build sorted hard geo anchors for chronological consumption.
+  const hardAnchors: GeoAnchor[] = (input.geoAnchors ?? [])
+    .filter((a) => a.strength === 'hard' && !!a.matchedTargetRefId)
+    .slice()
+    .sort((a, b) => Date.parse(a.timestampUtc) - Date.parse(b.timestampUtc));
+  let anchorIdx = 0;
+  let geoAnchorEntriesApplied = 0;
+  let geoAnchorExitsObserved = 0;
+  let geoAnchorEntriesIgnoredNoTarget = 0;
+  let geoAnchorEntriesSeededStickyEarly = 0;
+
+  const advanceAnchorsUpTo = (cutoffUtcMs: number) => {
+    while (anchorIdx < hardAnchors.length) {
+      const a = hardAnchors[anchorIdx];
+      if (Date.parse(a.timestampUtc) > cutoffUtcMs) break;
+      const matchedRef = a.matchedTargetRefId!;
+      const target = input.targets.find((t) => t.refId === matchedRef);
+      if (!target || !isPrimaryEligibleTarget(target)) {
+        geoAnchorEntriesIgnoredNoTarget++;
+        anchorIdx++;
+        continue;
+      }
+      if (a.type === 'entry') {
+        const wasEarlySeed = sticky === null || sticky.refId !== target.refId;
+        sticky = { refId: target.refId, label: target.label, kind: target.kind, target };
+        stickyAnchorSource = 'geo_entry';
+        stickyAnchorEntryAtLocal = a.timestampLocalStockholm;
+        stickyAnchorTable = a.source;
+        geoExitPending = false;
+        geoAnchorEntriesApplied++;
+        if (wasEarlySeed) geoAnchorEntriesSeededStickyEarly++;
+      } else if (a.type === 'exit') {
+        // Geo exit alone NEVER releases sticky — only mark pending.
+        if (sticky && sticky.refId === target.refId) {
+          geoExitPending = true;
+          geoAnchorExitsObserved++;
+        }
+      }
+      anchorIdx++;
+    }
+  };
+
   for (let si = 0; si < segments.length; si++) {
     const seg = segments[si];
+
+    // Apply any geo anchors that fall up to the start of this segment.
+    advanceAnchorsUpTo(Date.parse(seg.startTs));
 
     // Adopt sticky on every primary-eligible known_site stay (including
     // those reclassified by movement_inside_geofence).
     if (seg.kind === 'stay' && seg.type === 'known_site') {
       const t = findEligibleTargetForStay(seg);
-      if (t) sticky = { refId: t.refId, label: t.label, kind: t.kind, target: t };
+      if (t) {
+        sticky = { refId: t.refId, label: t.label, kind: t.kind, target: t };
+        stickyAnchorSource = 'gps_known_site';
+        stickyAnchorEntryAtLocal = formatStockholm(seg.startTs, 'datetime');
+        stickyAnchorTable = null;
+        geoExitPending = false;
+      }
       continue;
     }
 
