@@ -13,6 +13,7 @@ import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
 import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
 import MobileJobListView from '@/components/mobile-app/calendar/MobileJobListView';
+import LagerDayCard from '@/components/mobile-app/LagerDayCard';
 import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -171,6 +172,9 @@ const MobileJobs = () => {
               />
             )}
           </div>
+
+          {/* Lager day card — internal warehouse hub for the selected day */}
+          <LagerDayCard date={selectedDate} />
 
           {/* Fixed location jobs (e.g. Lager) — read-only, opens detail. */}
           {locationJobs.length > 0 && (

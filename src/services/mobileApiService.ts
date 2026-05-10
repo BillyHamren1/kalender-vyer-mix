@@ -722,9 +722,19 @@ export const mobileApi = {
         start_time: string | null;
         end_time: string | null;
         event_type: string;
+        /** Canonical normalized type from warehouse_assignments. */
+        assignment_type?: 'packing' | 'return' | 'inventory' | 'internal_task' | 'other';
+        /** Primary CTA action. */
+        action?: 'open_scanner' | 'open_return_scanner' | 'open_inventory' | 'complete_task' | 'open_details';
         booking_id: string | null;
         booking_number: string | null;
         delivery_address: string | null;
+        customer_name?: string | null;
+        packing_id?: string | null;
+        packlist_id?: string | null;
+        project_task_id?: string | null;
+        warehouse_event_id?: string | null;
+        source?: string;
         completed?: boolean;
         status?: string;
       }>;

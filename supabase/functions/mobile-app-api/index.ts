@@ -6597,6 +6597,60 @@ async function handleGetLagerAssignments(
     new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString().slice(0, 10)
 
   const assignments: any[] = []
+  const seenWarehouseEventIds = new Set<string>()
+
+  // 0) Canonical: explicit warehouse_assignments rows for this staff_id.
+  //    These are the authoritative person↔task links going forward.
+  try {
+    const { data: wa, error: waErr } = await supabase
+      .from('warehouse_assignments')
+      .select(
+        'id, assignment_date, assignment_type, action, title, description, status, start_time, end_time, ' +
+        'warehouse_event_id, packing_id, packlist_id, booking_id, booking_number, delivery_address, ' +
+        'customer_name, project_task_id, source, metadata',
+      )
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .gte('assignment_date', dateFrom)
+      .lte('assignment_date', dateTo)
+      .order('start_time', { ascending: true, nullsFirst: false })
+
+    if (waErr) {
+      console.warn('[get_lager_assignments] warehouse_assignments err:', waErr)
+    } else {
+      for (const r of wa || []) {
+        if (r.warehouse_event_id) seenWarehouseEventIds.add(r.warehouse_event_id)
+        const startIso = r.start_time
+          ? r.start_time
+          : r.assignment_date
+            ? `${r.assignment_date}T00:00:00`
+            : null
+        assignments.push({
+          id: `wa-${r.id}`,
+          title: r.title || r.customer_name || 'Lageruppgift',
+          description: r.description ?? null,
+          start_time: startIso,
+          end_time: r.end_time ?? null,
+          event_type: r.assignment_type || 'other',
+          assignment_type: r.assignment_type || 'other',
+          action: r.action || 'open_details',
+          status: r.status || 'planned',
+          booking_id: r.booking_id ?? null,
+          booking_number: r.booking_number ?? null,
+          delivery_address: r.delivery_address ?? null,
+          customer_name: r.customer_name ?? null,
+          packing_id: r.packing_id ?? null,
+          packlist_id: r.packlist_id ?? null,
+          project_task_id: r.project_task_id ?? null,
+          warehouse_event_id: r.warehouse_event_id ?? null,
+          source: r.source || 'warehouse_calendar_event',
+          completed: r.status === 'completed',
+        })
+      }
+    }
+  } catch (e) {
+    console.error('[get_lager_assignments] warehouse_assignments block failed:', e)
+  }
 
   // 1) Internal lager project tasks assigned to this staff
   try {
@@ -6626,11 +6680,16 @@ async function handleGetLagerAssignments(
             start_time: t.deadline ?? t.created_at,
             end_time: t.deadline ?? null,
             event_type: 'internal_task',
+            assignment_type: 'internal_task',
+            action: 'complete_task',
             booking_id: project.booking_id ?? null,
             booking_number: null,
             delivery_address: null,
+            customer_name: null,
+            project_task_id: t.id,
+            source: 'project_task',
             completed: !!t.completed,
-            status: t.completed ? 'completed' : 'open',
+            status: t.completed ? 'completed' : 'planned',
           })
         }
       }
@@ -6685,18 +6744,37 @@ async function handleGetLagerAssignments(
         for (const w of wEvents || []) {
           const day = (w.start_time as string)?.slice(0, 10)
           if (!day || !lagerDates.has(day)) continue
+          if (seenWarehouseEventIds.has(w.id)) continue
+          const evType = w.event_type || 'warehouse'
+          const aType = evType === 'packing' || evType === 'return' || evType === 'inventory' || evType === 'internal_task'
+            ? evType
+            : 'other'
+          const action = aType === 'packing'
+            ? 'open_scanner'
+            : aType === 'return'
+              ? 'open_return_scanner'
+              : aType === 'inventory'
+                ? 'open_inventory'
+                : aType === 'internal_task'
+                  ? 'complete_task'
+                  : 'open_details'
           assignments.push({
             id: `wce-${w.id}`,
             title: w.title || w.booking_number || 'Lageruppgift',
             description: null,
             start_time: w.start_time,
             end_time: w.end_time,
-            event_type: w.event_type || 'warehouse',
+            event_type: evType,
+            assignment_type: aType,
+            action,
             booking_id: w.booking_id ?? null,
             booking_number: w.booking_number ?? null,
             delivery_address: w.delivery_address ?? null,
+            customer_name: w.title ?? null,
+            warehouse_event_id: w.id,
+            source: 'warehouse_calendar_event',
             completed: false,
-            status: 'scheduled',
+            status: 'planned',
           })
         }
       }
