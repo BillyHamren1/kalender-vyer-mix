@@ -6739,6 +6739,20 @@ async function handleGetLagerAssignments(
         for (const w of wEvents || []) {
           const day = (w.start_time as string)?.slice(0, 10)
           if (!day || !lagerDates.has(day)) continue
+          if (seenWarehouseEventIds.has(w.id)) continue
+          const evType = w.event_type || 'warehouse'
+          const aType = evType === 'packing' || evType === 'return' || evType === 'inventory' || evType === 'internal_task'
+            ? evType
+            : 'other'
+          const action = aType === 'packing'
+            ? 'open_scanner'
+            : aType === 'return'
+              ? 'open_return_scanner'
+              : aType === 'inventory'
+                ? 'open_inventory'
+                : aType === 'internal_task'
+                  ? 'complete_task'
+                  : 'open_details'
           assignments.push({
             id: `wce-${w.id}`,
             title: w.title || w.booking_number || 'Lageruppgift',
