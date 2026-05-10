@@ -20,8 +20,9 @@ const MobileProfile = () => {
   const { staff, logout } = useMobileAuth();
   const navigate = useNavigate();
   const gps = getGpsSettings();
-  const { data: timeReports = [], isLoading: isLoadingReports } = useMobileTimeReports();
-  const { data: travelLogs = [], isLoading: isLoadingTravel } = useMobileTravelLogs();
+  // Backend snapshot är enda källan för rapporterad tid och resor i profilen.
+  // Lokala reduce över time_reports/travel_time_logs är förbjudna här.
+  const { status: monthStatus, isLoading: isLoadingMonth } = useStaffMonthStatus(startOfMonth(new Date()));
   const { t, locale, setLocale } = useLanguage();
   const { current: currentWorkday } = useWorkDay();
   const [endDayConfirm, setEndDayConfirm] = useState(false);
@@ -47,11 +48,9 @@ const MobileProfile = () => {
 
   if (!staff) return null;
 
-  const totalHours = timeReports.reduce((sum, r) => sum + r.hours_worked, 0);
-  const totalTravelHours = travelLogs
-    .filter(l => l.end_time)
-    .reduce((sum, l) => sum + l.hours_worked, 0);
-  const travelCount = travelLogs.filter(l => l.end_time).length;
+  const grossMinutes = monthStatus?.totals.grossWorkdayMinutes ?? 0;
+  const transportMinutes = monthStatus?.totals.transportMinutes ?? 0;
+  const daysWithWork = monthStatus?.totals.daysWithWork ?? 0;
 
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
