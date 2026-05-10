@@ -150,6 +150,36 @@ export interface SegmentTargetDiagnostics {
     | 'duration_too_long'
     | 'reclassifiable'
     | null;
+
+  // ── Sticky-target post-pass diagnostics (audit-only) ────────────────
+  /** ID of the active sticky primary target when this segment was evaluated. */
+  stickyTargetId?: string | null;
+  /** Label of the active sticky primary target. */
+  stickyTargetLabel?: string | null;
+  /** Min haversine distance from any segment ping to sticky-target center (m). */
+  distanceFromStickyCenterMeters?: number | null;
+  /** Max distance OUTSIDE the sticky target's geofence edge (m, 0 = inside). */
+  distanceOutsideStickyGeofenceMeters?: number | null;
+  /** Strong-exit signal A: next/current stay matches another primary target. */
+  arrivedAtOtherPrimaryTarget?: boolean;
+  /** Strong-exit signal D: last pings near another primary target. */
+  transportToOtherPrimaryTarget?: boolean;
+  /** Diagnostic-only: long clear exit (≥10 min, ≥5 pings outside radius+buffer). */
+  longClearExit?: boolean;
+  /**
+   * Why a transport-segment was NOT sticky-reclassified (only set when sticky
+   * target was active and strong exit was detected). longClearExit alone is
+   * NEVER a reasonNotReclassified — it is diagnostic only.
+   */
+  reasonNotReclassified?:
+    | 'arrived_at_other_primary_target'
+    | 'distance_over_1000m_outside_sticky_geofence'
+    | 'transport_to_other_primary_target'
+    | null;
+  /** Confidence reason for sticky-reclassified segments with partial GPS outside. */
+  confidenceReason?: 'near_sticky_primary_target_no_strong_exit' | null;
+  /** Human-readable warning label propagated to the report row. */
+  warningLabel?: string | null;
 }
 
 export interface GpsTimelineSegment {
@@ -183,7 +213,10 @@ export interface GpsTimelineSegment {
   targetDiagnostics?: SegmentTargetDiagnostics;
 
   /** Set when post-pass moved a travel segment into a known site. */
-  reclassificationReason?: 'movement_inside_geofence' | null;
+  reclassificationReason?:
+    | 'movement_inside_geofence'
+    | 'sticky_primary_target_no_strong_exit'
+    | null;
   /** Original kind before reclassification (audit). */
   originalKind?: GpsTimelineSegmentKind | null;
   /** Original type before reclassification (audit). */
@@ -251,6 +284,42 @@ export interface GpsClassificationDiagnostics {
   keptBecauseSecondaryOrUnsafeTargetMinutes: number;
   keptBecauseDurationTooLongCount: number;
   keptBecauseDurationTooLongMinutes: number;
+
+  /**
+   * Sticky-target post-pass diagnostics. Sticky regel: ett primary project/
+   * warehouse "äger" personen tills strong exit bevisas. Strong exit kräver
+   * ankomst till annat primary target ELLER ≥2 konsekutiva pings ≥1000m
+   * UTANFÖR sticky-targetens geofence-edge ELLER transport som slutar nära
+   * annat primary target. longClearExit är diagnostic-only och släpper
+   * aldrig sticky ensamt.
+   */
+  stickyTargetDiagnostics: {
+    stickyReclassifiedCount: number;
+    stickyReclassifiedMinutes: number;
+    strongExitCount: number;
+    strongExitMinutes: number;
+    exitRejectedBecauseUnder1kmCount: number;
+    exitRejectedBecauseUnder1kmMinutes: number;
+    arrivedAtOtherPrimaryTargetCount: number;
+    longClearExitCount: number;
+    remainingTransportNearStickyTargetCount: number;
+    remainingTransportNearStickyTargetMinutes: number;
+    examples: Array<{
+      segmentStart: ISODateTime;
+      segmentEnd: ISODateTime;
+      durationMinutes: number;
+      stickyTargetLabel: string | null;
+      distanceFromStickyCenterMeters: number | null;
+      distanceOutsideStickyGeofenceMeters: number | null;
+      decision:
+        | 'reclassified_no_strong_exit'
+        | 'kept_arrived_other_primary'
+        | 'kept_distance_over_1000m_outside_geofence'
+        | 'kept_transport_to_other_primary';
+      longClearExit: boolean;
+      reasonNotReclassified: string | null;
+    }>;
+  };
 }
 
 export interface GpsDayTimelineResult {
@@ -452,6 +521,31 @@ export function buildGpsDayTimeline(
         movementInsideGeofenceReclassifiedCount: 0,
         movementInsideGeofenceReclassifiedMinutes: 0,
         movementInsideGeofenceExamples: [],
+        transportInsidePrimaryTotalCount: 0,
+        transportInsidePrimaryTotalMinutes: 0,
+        reclassifiableTransportInsidePrimaryCount: 0,
+        reclassifiableTransportInsidePrimaryMinutes: 0,
+        keptBecauseClearExitCount: 0,
+        keptBecauseClearExitMinutes: 0,
+        keptBecauseRatioBelowThresholdCount: 0,
+        keptBecauseRatioBelowThresholdMinutes: 0,
+        keptBecauseSecondaryOrUnsafeTargetCount: 0,
+        keptBecauseSecondaryOrUnsafeTargetMinutes: 0,
+        keptBecauseDurationTooLongCount: 0,
+        keptBecauseDurationTooLongMinutes: 0,
+        stickyTargetDiagnostics: {
+          stickyReclassifiedCount: 0,
+          stickyReclassifiedMinutes: 0,
+          strongExitCount: 0,
+          strongExitMinutes: 0,
+          exitRejectedBecauseUnder1kmCount: 0,
+          exitRejectedBecauseUnder1kmMinutes: 0,
+          arrivedAtOtherPrimaryTargetCount: 0,
+          longClearExitCount: 0,
+          remainingTransportNearStickyTargetCount: 0,
+          remainingTransportNearStickyTargetMinutes: 0,
+          examples: [],
+        },
       },
     };
   }
@@ -988,6 +1082,271 @@ export function buildGpsDayTimeline(
   // som tidig varningssignal om en framtida ändring råkar bryta loopen.)
   void reclassifiableCount; void reclassifiableMinutes;
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 5) POST-PASS #2: STICKY PRIMARY TARGET
+  //
+  // Regel: när användaren är knuten till en primary target (warehouse /
+  // location / project / booking — alla matchade targets gäller om
+  // assignedToUserToday !== false) "äger" projektet personen tills STRONG
+  // EXIT bevisas. Geofence-exit räcker INTE.
+  //
+  // Strong exit = någon av:
+  //   A. arrivedAtOtherPrimaryTarget — nästa stay är known_site på annan
+  //      primary target.
+  //   B. distanceOver1km — ≥2 konsekutiva accepterade pings ligger
+  //      ≥1000 m UTANFÖR sticky-targetens geofence-edge (inte centrum).
+  //   D. transportToOtherPrimaryTarget — segmentets sista ping ligger
+  //      inom annan primary targets radie + 250 m buffer.
+  //
+  // longClearExit (≥10 min, ≥5 pings utanför radius+max(250, medianAcc*3))
+  // är DIAGNOSTIC ONLY. Den släpper aldrig sticky ensam.
+  //
+  // Om strong exit = false och segmentet är en travel som inte redan
+  // reklassats av movement_inside_geofence → reklassificera till
+  // known_site på sticky target med reason 'sticky_primary_target_no_strong_exit'.
+  // Om någon ping låg utanför geofence (men <1 km) får segmentet
+  // confidenceReason='near_sticky_primary_target_no_strong_exit' +
+  // warningLabel='GPS låg delvis utanför arbetsområdet'.
+  // ───────────────────────────────────────────────────────────────────────
+
+  const STICKY_DIST_OUTSIDE_M = 1000;
+  const OTHER_PRIMARY_BUFFER_M = 250;
+
+  type StickyState = {
+    refId: string;
+    label: string;
+    kind: WorkTarget['kind'];
+    target: WorkTarget;
+  };
+
+  const isPrimaryEligibleTarget = (t: WorkTarget | undefined | null): boolean => {
+    if (!t) return false;
+    if (t.assignedToUserToday === false) return false;
+    return true;
+  };
+
+  const findEligibleTargetForStay = (s: GpsTimelineSegment): WorkTarget | null => {
+    if (s.kind !== 'stay' || s.type !== 'known_site' || !s.matchedTargetId) return null;
+    const t = input.targets.find((x) => x.refId === s.matchedTargetId);
+    return isPrimaryEligibleTarget(t) ? (t as WorkTarget) : null;
+  };
+
+  let sticky: StickyState | null = null;
+
+  let stickyReclassifiedCount = 0;
+  let stickyReclassifiedMinutes = 0;
+  let strongExitCount = 0;
+  let strongExitMinutes = 0;
+  let exitRejectedUnder1kmCount = 0;
+  let exitRejectedUnder1kmMinutes = 0;
+  let arrivedAtOtherPrimaryCount = 0;
+  let longClearExitDiagCount = 0;
+  const stickyExamples: GpsClassificationDiagnostics['stickyTargetDiagnostics']['examples'] = [];
+
+  for (let si = 0; si < segments.length; si++) {
+    const seg = segments[si];
+
+    // Adopt sticky on every primary-eligible known_site stay (including
+    // those reclassified by movement_inside_geofence).
+    if (seg.kind === 'stay' && seg.type === 'known_site') {
+      const t = findEligibleTargetForStay(seg);
+      if (t) sticky = { refId: t.refId, label: t.label, kind: t.kind, target: t };
+      continue;
+    }
+
+    // Don't touch gps_gap or unknown_place stays.
+    if (seg.kind !== 'travel') continue;
+    // No sticky owner yet → leave segment untouched.
+    if (!sticky) continue;
+
+    const meta = travelMeta.get(seg.id);
+    const pings = meta?.pings ?? [];
+
+    // Compute distance metrics relative to sticky target.
+    let minDistFromCenter = Infinity;
+    let maxOutsideEdge = 0;
+    let consecOutside1km = 0;
+    let maxConsecOutside1km = 0;
+    for (const p of pings) {
+      const d = haversine(p.lat, p.lng, sticky.target.center.lat, sticky.target.center.lng);
+      if (d < minDistFromCenter) minDistFromCenter = d;
+      const signed = signedDistanceToTargetEdge(p.lat, p.lng, sticky.target);
+      const outsideBy = -signed; // positive when outside
+      if (outsideBy > maxOutsideEdge) maxOutsideEdge = outsideBy;
+      if (outsideBy >= STICKY_DIST_OUTSIDE_M) {
+        consecOutside1km++;
+        if (consecOutside1km > maxConsecOutside1km) maxConsecOutside1km = consecOutside1km;
+      } else {
+        consecOutside1km = 0;
+      }
+    }
+    if (!Number.isFinite(minDistFromCenter)) minDistFromCenter = 0;
+
+    // (A) arrived at other primary target — next stay known_site on a
+    // different primary-eligible target.
+    let arrivedAtOther = false;
+    for (let j = si + 1; j < segments.length; j++) {
+      const n = segments[j];
+      if (n.kind === 'gps_gap') continue;
+      if (n.kind === 'stay' && n.type === 'known_site') {
+        const nt = findEligibleTargetForStay(n);
+        if (nt && nt.refId !== sticky.refId) arrivedAtOther = true;
+      }
+      break;
+    }
+
+    // (D) transport to other primary target — last accepted ping is within
+    // another primary target's radius + buffer.
+    let transportToOther = false;
+    if (pings.length > 0) {
+      const lastPing = pings[pings.length - 1];
+      const at = Date.parse(lastPing.ts);
+      for (const t of input.targets) {
+        if (t.refId === sticky.refId) continue;
+        if (!isPrimaryEligibleTarget(t)) continue;
+        if (t.validFrom && Date.parse(t.validFrom) > at) continue;
+        if (t.validUntil && Date.parse(t.validUntil) < at) continue;
+        const signed = signedDistanceToTargetEdge(lastPing.lat, lastPing.lng, t);
+        // signed >= 0 inside; signed < 0 = outside by |signed| meters.
+        if (signed >= -OTHER_PRIMARY_BUFFER_M) {
+          transportToOther = true;
+          break;
+        }
+      }
+    }
+
+    // Diagnostic-only: long clear exit (NEVER a strong-exit reason alone).
+    let longClearExit = false;
+    if (seg.durationMin >= 10 && pings.length > 0) {
+      const baseAcc =
+        meta?.medianAccM != null && Number.isFinite(meta.medianAccM) ? meta.medianAccM : 0;
+      const tol = sticky.target.radiusM + Math.max(250, baseAcc * 3);
+      let outsideCount = 0;
+      for (const p of pings) {
+        const d = haversine(p.lat, p.lng, sticky.target.center.lat, sticky.target.center.lng);
+        if (d > tol) outsideCount++;
+      }
+      longClearExit = outsideCount >= 5;
+    }
+
+    const distanceOver1km = maxConsecOutside1km >= 2;
+    const strongExit = arrivedAtOther || distanceOver1km || transportToOther;
+
+    // Write per-segment sticky diagnostics.
+    const td = (seg.targetDiagnostics ??= {} as SegmentTargetDiagnostics);
+    td.stickyTargetId = sticky.refId;
+    td.stickyTargetLabel = sticky.label;
+    td.distanceFromStickyCenterMeters = Math.round(minDistFromCenter);
+    td.distanceOutsideStickyGeofenceMeters = Math.round(Math.max(0, maxOutsideEdge));
+    td.arrivedAtOtherPrimaryTarget = arrivedAtOther;
+    td.transportToOtherPrimaryTarget = transportToOther;
+    td.longClearExit = longClearExit;
+
+    if (longClearExit) longClearExitDiagCount++;
+
+    if (strongExit) {
+      strongExitCount++;
+      strongExitMinutes += seg.durationMin;
+      if (arrivedAtOther) arrivedAtOtherPrimaryCount++;
+
+      const reason: NonNullable<SegmentTargetDiagnostics['reasonNotReclassified']> =
+        arrivedAtOther
+          ? 'arrived_at_other_primary_target'
+          : distanceOver1km
+            ? 'distance_over_1000m_outside_sticky_geofence'
+            : 'transport_to_other_primary_target';
+      td.reasonNotReclassified = reason;
+
+      if (stickyExamples.length < 25) {
+        stickyExamples.push({
+          segmentStart: seg.startTs,
+          segmentEnd: seg.endTs,
+          durationMinutes: Math.round(seg.durationMin * 100) / 100,
+          stickyTargetLabel: sticky.label,
+          distanceFromStickyCenterMeters: td.distanceFromStickyCenterMeters,
+          distanceOutsideStickyGeofenceMeters: td.distanceOutsideStickyGeofenceMeters,
+          decision:
+            arrivedAtOther
+              ? 'kept_arrived_other_primary'
+              : distanceOver1km
+                ? 'kept_distance_over_1000m_outside_geofence'
+                : 'kept_transport_to_other_primary',
+          longClearExit,
+          reasonNotReclassified: reason,
+        });
+      }
+
+      // Strong exit → release sticky; the next known_site stay reseats it.
+      sticky = null;
+      continue;
+    }
+
+    // No strong exit → reclassify this travel into a sticky stay.
+    exitRejectedUnder1kmCount++;
+    exitRejectedUnder1kmMinutes += seg.durationMin;
+
+    const partialOutside = (td.distanceOutsideStickyGeofenceMeters ?? 0) > 0;
+
+    seg.originalKind = seg.originalKind ?? 'travel';
+    seg.originalType = seg.originalType ?? 'transport';
+    seg.kind = 'stay';
+    seg.type = 'known_site';
+    seg.label = sticky.label;
+    seg.matchedTargetId = sticky.refId;
+    seg.matchedTargetType = sticky.kind;
+    seg.matchedTargetName = sticky.label;
+    seg.reclassificationReason = 'sticky_primary_target_no_strong_exit';
+    seg.reason = 'matched_valid_target';
+    seg.confidence = 0.5; // medium
+
+    if (partialOutside) {
+      td.confidenceReason = 'near_sticky_primary_target_no_strong_exit';
+      td.warningLabel = 'GPS låg delvis utanför arbetsområdet';
+    }
+
+    targetsHit.add(sticky.target.key);
+    knownSite++;
+    transport = Math.max(0, transport - 1);
+    stickyReclassifiedCount++;
+    stickyReclassifiedMinutes += seg.durationMin;
+
+    if (stickyExamples.length < 25) {
+      stickyExamples.push({
+        segmentStart: seg.startTs,
+        segmentEnd: seg.endTs,
+        durationMinutes: Math.round(seg.durationMin * 100) / 100,
+        stickyTargetLabel: sticky.label,
+        distanceFromStickyCenterMeters: td.distanceFromStickyCenterMeters,
+        distanceOutsideStickyGeofenceMeters: td.distanceOutsideStickyGeofenceMeters,
+        decision: 'reclassified_no_strong_exit',
+        longClearExit,
+        reasonNotReclassified: null,
+      });
+    }
+  }
+
+  // Aggregated diagnostic: remaining travel/transport segments that still
+  // sit inside 1km of the (last seen) sticky target. These are warnings the
+  // health-check surfaces.
+  let remainingTransportNearStickyCount = 0;
+  let remainingTransportNearStickyMinutes = 0;
+  for (const seg of segments) {
+    if (seg.kind !== 'travel') continue;
+    const td = seg.targetDiagnostics;
+    if (!td?.stickyTargetLabel) continue;
+    const out = td.distanceOutsideStickyGeofenceMeters ?? null;
+    if (out != null && out < STICKY_DIST_OUTSIDE_M) {
+      // Strong exit flagged or not, this is a "transport near sticky" that
+      // was kept as transport due to other_primary signals; still surface
+      // the warning because operators may want to verify.
+      if (!td.arrivedAtOtherPrimaryTarget && !td.transportToOtherPrimaryTarget) {
+        remainingTransportNearStickyCount++;
+        remainingTransportNearStickyMinutes += seg.durationMin;
+      }
+    }
+  }
+
+
   const avgAccuracyM = avg(
     accepted.map((p) => p.accuracyM ?? NaN).filter((n) => Number.isFinite(n)) as number[],
   );
@@ -1039,6 +1398,19 @@ export function buildGpsDayTimeline(
       keptBecauseSecondaryOrUnsafeTargetMinutes: Math.round(keptSecondaryUnsafeMinutes * 100) / 100,
       keptBecauseDurationTooLongCount: keptDurationTooLongCount,
       keptBecauseDurationTooLongMinutes: Math.round(keptDurationTooLongMinutes * 100) / 100,
+      stickyTargetDiagnostics: {
+        stickyReclassifiedCount,
+        stickyReclassifiedMinutes: Math.round(stickyReclassifiedMinutes * 100) / 100,
+        strongExitCount,
+        strongExitMinutes: Math.round(strongExitMinutes * 100) / 100,
+        exitRejectedBecauseUnder1kmCount: exitRejectedUnder1kmCount,
+        exitRejectedBecauseUnder1kmMinutes: Math.round(exitRejectedUnder1kmMinutes * 100) / 100,
+        arrivedAtOtherPrimaryTargetCount: arrivedAtOtherPrimaryCount,
+        longClearExitCount: longClearExitDiagCount,
+        remainingTransportNearStickyTargetCount: remainingTransportNearStickyCount,
+        remainingTransportNearStickyTargetMinutes: Math.round(remainingTransportNearStickyMinutes * 100) / 100,
+        examples: stickyExamples,
+      },
     },
   };
 }
