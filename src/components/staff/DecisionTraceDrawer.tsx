@@ -834,6 +834,144 @@ function RawTab(props: DecisionTraceDrawerProps) {
           </div>
         </div>
       )}
+      {(() => {
+        const std = (cls.stickyTargetDiagnostics ?? {}) as any;
+        const stickySegs = segs.filter(
+          (s: any) => s.reclassificationReason === 'sticky_primary_target_no_strong_exit',
+        );
+        const strongExitSegs = segs.filter((s: any) => {
+          const td = s.targetDiagnostics ?? {};
+          return (
+            (s.kind === 'travel' || s.type === 'transport') &&
+            td.stickyTargetLabel &&
+            (td.arrivedAtOtherPrimaryTarget ||
+              td.transportToOtherPrimaryTarget ||
+              (td.distanceOutsideStickyGeofenceMeters != null &&
+                Number(td.distanceOutsideStickyGeofenceMeters) >= 1000))
+          );
+        });
+        if (
+          stickySegs.length === 0 &&
+          strongExitSegs.length === 0 &&
+          !(Number(std.stickyReclassifiedCount ?? 0) || Number(std.strongExitCount ?? 0))
+        ) {
+          return null;
+        }
+        return (
+          <div>
+            <div className="mb-1 text-xs font-semibold">
+              Sticky primary target — projektets ägarskap
+            </div>
+            <div className="mb-2 rounded-md border border-sky-300 bg-sky-50 p-2 text-[11px] text-sky-900">
+              Projekt/lager "äger" personen tills strong exit bevisas (annan primary target,
+              transport till annan primary target, eller ≥1 km utanför geofence-edge).
+              <div className="mt-1 font-mono">
+                stickyReclassified={Number(std.stickyReclassifiedMinutes ?? 0)} min /{' '}
+                {Number(std.stickyReclassifiedCount ?? 0)} seg ·
+                strongExit={Number(std.strongExitMinutes ?? 0)} min /{' '}
+                {Number(std.strongExitCount ?? 0)} seg ·
+                exitRejected&lt;1km={Number(std.exitRejectedBecauseUnder1kmMinutes ?? 0)} min ·
+                remainingTransportNearSticky=
+                {Number(std.remainingTransportNearStickyTargetMinutes ?? 0)} min
+              </div>
+            </div>
+            {stickySegs.length > 0 && (
+              <div className="mb-2 space-y-2">
+                {stickySegs.map((s: any, i: number) => {
+                  const td = s.targetDiagnostics ?? {};
+                  return (
+                    <div
+                      key={`sticky-${s.id ?? i}`}
+                      className="rounded-md border border-sky-200 bg-sky-50/50 p-2 text-[11px]"
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="font-mono tabular-nums">
+                          {fmtHm(s.startTs ?? s.startAt)} – {fmtHm(s.endTs ?? s.endAt)}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {Math.round(Number(s.durationMin ?? 0))}m · {td.stickyTargetLabel ?? '—'}
+                        </span>
+                      </div>
+                      <div className="mb-1 text-sky-800">
+                        Projektet behöll användaren — ingen strong exit upptäcktes.
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                        <span className="text-muted-foreground">distanceFromStickyCenter</span>
+                        <span className="font-mono">
+                          {td.distanceFromStickyCenterMeters != null
+                            ? `${Math.round(Number(td.distanceFromStickyCenterMeters))} m`
+                            : '—'}
+                        </span>
+                        <span className="text-muted-foreground">distanceOutsideStickyGeofence</span>
+                        <span className="font-mono">
+                          {td.distanceOutsideStickyGeofenceMeters != null
+                            ? `${Math.round(Number(td.distanceOutsideStickyGeofenceMeters))} m`
+                            : '0 m'}
+                        </span>
+                        <span className="text-muted-foreground">arrivedAtOtherPrimaryTarget</span>
+                        <span className="font-mono">{String(td.arrivedAtOtherPrimaryTarget ?? false)}</span>
+                        <span className="text-muted-foreground">transportToOtherPrimaryTarget</span>
+                        <span className="font-mono">{String(td.transportToOtherPrimaryTarget ?? false)}</span>
+                        <span className="text-muted-foreground">longClearExit</span>
+                        <span className="font-mono">{String(td.longClearExit ?? false)}</span>
+                        <span className="text-muted-foreground">reclassificationReason</span>
+                        <span className="font-mono font-semibold text-sky-700">
+                          {s.reclassificationReason}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {strongExitSegs.length > 0 && (
+              <div className="space-y-2">
+                {strongExitSegs.map((s: any, i: number) => {
+                  const td = s.targetDiagnostics ?? {};
+                  return (
+                    <div
+                      key={`strong-${s.id ?? i}`}
+                      className="rounded-md border border-amber-200 bg-amber-50/50 p-2 text-[11px]"
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="font-mono tabular-nums">
+                          {fmtHm(s.startTs ?? s.startAt)} – {fmtHm(s.endTs ?? s.endAt)}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {Math.round(Number(s.durationMin ?? 0))}m · sticky: {td.stickyTargetLabel ?? '—'}
+                        </span>
+                      </div>
+                      <div className="mb-1 text-amber-800">
+                        Transport behölls eftersom strong exit upptäcktes.
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                        <span className="text-muted-foreground">distanceFromStickyCenter</span>
+                        <span className="font-mono">
+                          {td.distanceFromStickyCenterMeters != null
+                            ? `${Math.round(Number(td.distanceFromStickyCenterMeters))} m`
+                            : '—'}
+                        </span>
+                        <span className="text-muted-foreground">distanceOutsideStickyGeofence</span>
+                        <span className="font-mono">
+                          {td.distanceOutsideStickyGeofenceMeters != null
+                            ? `${Math.round(Number(td.distanceOutsideStickyGeofenceMeters))} m`
+                            : '—'}
+                        </span>
+                        <span className="text-muted-foreground">arrivedAtOtherPrimaryTarget</span>
+                        <span className="font-mono">{String(td.arrivedAtOtherPrimaryTarget ?? false)}</span>
+                        <span className="text-muted-foreground">transportToOtherPrimaryTarget</span>
+                        <span className="font-mono">{String(td.transportToOtherPrimaryTarget ?? false)}</span>
+                        <span className="text-muted-foreground">longClearExit</span>
+                        <span className="font-mono">{String(td.longClearExit ?? false)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div>
         <div className="mb-1 text-xs font-semibold">rawGpsTimeline ({segs.length} segment, {pings.length} pings)</div>
