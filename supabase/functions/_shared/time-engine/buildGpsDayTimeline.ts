@@ -636,7 +636,8 @@ export function buildGpsDayTimeline(
     const avgKmh = (distanceMeters / dtSec) * 3.6;
 
     if (run.kind === 'travel') {
-      const targetDiag = computeTargetDiagnostics(run.pings, run.centerLat, run.centerLng, first.ts);
+      const { diag: targetDiag, primaryTarget, medianAccM } =
+        computeTargetDiagnostics(run.pings, run.centerLat, run.centerLng, first.ts);
       // Decide if this travel happened inside a single target candidate (majority of pings).
       const insideCandidate =
         (targetDiag.pingsInsideSameTargetRatio ?? 0) >= 0.6 &&
@@ -650,8 +651,10 @@ export function buildGpsDayTimeline(
       const reasonKey = run.triggerDecision?.reason ?? 'unknown';
       travelByReason[reasonKey] = (travelByReason[reasonKey] ?? 0) + 1;
 
+      const segId = makeId('seg', idx++);
+      travelMeta.set(segId, { pings: run.pings, primaryTarget, medianAccM });
       segments.push({
-        id: makeId('seg', idx++),
+        id: segId,
         startTs: first.ts,
         endTs: last.ts,
         durationMin,
