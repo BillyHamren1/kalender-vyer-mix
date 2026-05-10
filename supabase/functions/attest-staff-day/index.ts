@@ -74,16 +74,28 @@ Deno.serve(async (req) => {
   }
 
   // Also block if workday is approved and caller isn't admin.
-  // Attest gäller svensk kalenderdag (Stockholm), inte UTC-dag — använd Stockholm day window.
-  const { startUtc, endUtc } = getStockholmDayWindowUtc(date);
-  const { data: workday } = await admin
+  // Attest gäller svensk kalenderdag (Stockholm) — använd Stockholm day window
+  // och hämta workdays som ÖVERLAPPAR fönstret (inte bara started_at i fönstret),
+  // så att pass över midnatt fångas. Om flera matchar, välj den med störst överlapp.
+  const { startUtc, endUtc, startUtcMs, endUtcMs } = getStockholmDayWindowUtc(date);
+  const { data: workdayRows } = await admin
     .from("workdays")
-    .select("id, approved_at, ended_at")
+    .select("id, approved_at, ended_at, started_at")
     .eq("organization_id", orgId)
     .eq("staff_id", staffId)
-    .gte("started_at", startUtc)
     .lte("started_at", endUtc)
-    .maybeSingle();
+    .or(`ended_at.is.null,ended_at.gte.${startUtc}`);
+
+  let workday: { id: string; approved_at: string | null; ended_at: string | null; started_at: string } | null = null;
+  if (workdayRows && workdayRows.length) {
+    let bestOverlap = -1;
+    for (const w of workdayRows as Array<{ id: string; approved_at: string | null; ended_at: string | null; started_at: string }>) {
+      const s = new Date(w.started_at).getTime();
+      const e = w.ended_at ? new Date(w.ended_at).getTime() : endUtcMs;
+      const ov = Math.max(0, Math.min(e, endUtcMs) - Math.max(s, startUtcMs));
+      if (ov > bestOverlap) { bestOverlap = ov; workday = w; }
+    }
+  }
   if (workday?.approved_at && !isAdmin) {
     return bad(409, "Workday is approved — admin override required");
   }
