@@ -1556,5 +1556,17 @@ export function buildGpsDayTimeline(
         examples: stickyExamples,
       },
     },
+    geoAnchorDiagnostics: {
+      hardAnchorCount: hardAnchors.length,
+      hardEntryCount: hardAnchors.filter((a) => a.type === 'entry').length,
+      hardExitCount: hardAnchors.filter((a) => a.type === 'exit').length,
+      entriesAppliedToSticky: geoAnchorEntriesApplied,
+      entriesSeededStickyEarly: geoAnchorEntriesSeededStickyEarly,
+      entriesIgnoredNoMatchingTarget: geoAnchorEntriesIgnoredNoTarget,
+      exitsObservedWithoutStrongExit: geoAnchorExitsObserved,
+      transportSegmentsAfterGeoEntryWithoutStrongExitMinutes:
+        Math.round(transportAfterGeoEntryWithoutStrongExitMinutes * 100) / 100,
+      examples: geoAnchorExamples,
+    },
   };
 }
