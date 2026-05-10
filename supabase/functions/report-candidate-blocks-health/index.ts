@@ -1117,7 +1117,23 @@ Deno.serve(async (req) => {
         }
       }
 
-      day.status = failed ? 'FAIL' : (geofenceWarning || stickyWarning) ? 'WARNING' : 'PASS';
+      // Round + WARNING for geo-anchor sticky engine
+      const gaa: any = (day as any).geoAnchorDiagnostics;
+      let geoAnchorWarning = false;
+      if (gaa) {
+        gaa.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes =
+          Math.round(gaa.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes * 100) / 100;
+        if (gaa.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes > 0) {
+          geoAnchorWarning = true;
+          day.warnings.push(
+            `transport_after_geo_entry_without_strong_exit:` +
+              `${gaa.transportSegmentsAfterGeoEntryWithoutStrongExitMinutes} min — ` +
+              `Transport efter geo entry på primary target utan stark exit (geo exit räknas inte ensamt).`,
+          );
+        }
+      }
+
+      day.status = failed ? 'FAIL' : (geofenceWarning || stickyWarning || geoAnchorWarning) ? 'WARNING' : 'PASS';
 
       perDay.push(day);
     }
