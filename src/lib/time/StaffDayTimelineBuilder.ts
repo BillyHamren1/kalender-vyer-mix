@@ -321,7 +321,7 @@ function fillGapsAsUnknown(
         endIso,
         durationMin: Math.round((segStart - cursor) / MS_MIN),
         label: 'Signal saknas',
-        subtitle: `Senaste signal ${formatStockholmHm(new Date(cursor).toISOString())}`,
+        subtitle: `Senaste signal ${formatStockholmHm(cursor)}`,
         ongoing: false,
         reviewRequired: false,
         sourceBlockId: `signal:${cursor}`,
