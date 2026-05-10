@@ -425,6 +425,52 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // ── Geofence diagnostics: aggregate across staff for the day ──
+        try {
+          const gd = day.geofenceDiagnostics!;
+          const cls = (gpsTimeline as any).classificationDiagnostics ?? {};
+          const tms = (gpsTimeline as any).targetMatchSummary ?? {};
+          gd.travelInsideTargetCandidateCount += Number(cls.travelSegmentsInsideTargetCandidateCount ?? 0);
+          gd.travelInsideTargetCandidateMinutes += Number(cls.travelSegmentsInsideTargetCandidateMinutes ?? 0);
+          gd.targetsAvailableToGpsTimeline = Math.max(
+            gd.targetsAvailableToGpsTimeline,
+            Number(cls.targetsAvailableToGpsTimeline ?? targets.length),
+          );
+          gd.knownSiteSegments += Number(tms.knownSiteSegments ?? 0);
+          gd.transportSegments += Number(tms.transportSegments ?? 0);
+          gd.unknownPlaceSegments += Number(tms.unknownPlaceSegments ?? 0);
+
+          for (const seg of (gpsTimeline as any).segments ?? []) {
+            if (seg.kind !== 'travel' && seg.type !== 'transport') continue;
+            const td = seg.targetDiagnostics ?? {};
+            if (!td.travelInsideTargetCandidate) continue;
+            gd.transportSegmentsInsidePrimaryTargetCount += 1;
+            gd.transportMinutesInsidePrimaryTarget += Number(seg.durationMin ?? 0);
+            if (gd.transportInsidePrimaryTargetExamples.length < 25) {
+              const m = seg.movementDecision ?? {};
+              gd.transportInsidePrimaryTargetExamples.push({
+                staffName: s.name ?? s.id,
+                staffId: s.id,
+                segmentStart: seg.startTs,
+                segmentEnd: seg.endTs,
+                durationMinutes: Math.round(Number(seg.durationMin ?? 0) * 100) / 100,
+                travelInsideTargetLabel: td.travelInsideTargetLabel ?? null,
+                pingsInsideSameTargetRatio:
+                  td.pingsInsideSameTargetRatio != null ? Number(td.pingsInsideSameTargetRatio) : null,
+                computedKmh: m.computedKmh != null ? Number(m.computedKmh) : null,
+                distanceMeters: Math.round(Number(seg.distanceMeters ?? 0)),
+                nearestTargetDistanceMeters:
+                  td.nearestTargetDistanceMeters != null ? Number(td.nearestTargetDistanceMeters) : null,
+                nearestTargetRadiusMeters:
+                  td.nearestTargetRadiusMeters != null ? Number(td.nearestTargetRadiusMeters) : null,
+                movementReason: m.reason ?? null,
+              });
+            }
+          }
+        } catch (e) {
+          day.warnings.push(`geofence_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
+        }
+
         let presence;
         try {
           presence = buildPresenceDayBlocks({
