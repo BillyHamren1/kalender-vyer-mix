@@ -14,10 +14,12 @@ import {
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useStaffDayStatus, type StaffDaySegment } from '@/hooks/useStaffDayStatus';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { extractUTCTime } from '@/utils/dateUtils';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
+import StaffDayAttestSection from './StaffDayAttestSection';
 
 function segmentRange(s: StaffDaySegment) {
   const start = extractUTCTime(s.startedAt);
