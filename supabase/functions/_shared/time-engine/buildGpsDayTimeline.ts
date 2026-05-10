@@ -96,6 +96,39 @@ export type GpsTimelineSegmentReason =
   | 'gap_exceeds_threshold'
   | 'too_few_pings_for_stay';
 
+export type MovementReason =
+  | 'speed_threshold'
+  | 'reported_speed_threshold'
+  | 'distance_from_previous_ping'
+  | 'outside_stay_radius'
+  | 'stationary'
+  | 'gap';
+
+export interface MovementDecision {
+  movement: boolean;
+  reason: MovementReason;
+  distanceFromPreviousMeters?: number | null;
+  secondsFromPrevious?: number | null;
+  computedKmh?: number | null;
+  reportedKmh?: number | null;
+  stayRadiusM?: number;
+  movementSpeedKmh?: number;
+}
+
+export interface SegmentTargetDiagnostics {
+  nearestTargetLabel?: string | null;
+  nearestTargetId?: string | null;
+  nearestTargetType?: string | null;
+  nearestTargetDistanceMeters?: number | null;
+  nearestTargetRadiusMeters?: number | null;
+  insideNearestTarget?: boolean;
+  pingsInsideAnyTarget?: number;
+  pingsInsidePrimaryTarget?: number;
+  pingsInsideSameTargetRatio?: number;
+  travelInsideTargetCandidate?: boolean;
+  travelInsideTargetLabel?: string | null;
+}
+
 export interface GpsTimelineSegment {
   id: string;
   startTs: ISODateTime;
@@ -122,6 +155,9 @@ export interface GpsTimelineSegment {
   avgKmh: number;
   confidence: Confidence;
   reason: GpsTimelineSegmentReason;
+
+  movementDecision?: MovementDecision;
+  targetDiagnostics?: SegmentTargetDiagnostics;
 }
 
 export interface GpsTimelineGap {
