@@ -1045,7 +1045,10 @@ export function buildGpsDayTimeline(
     // STAY
     const center = clusterCenter(run.pings);
     const tooFew = run.pings.length < cfg.minStayPings;
-    const match = matchTarget(center.lat, center.lng, first.ts, input.targets);
+    const overrideOwner = (run as { geofenceOwner?: WorkTarget | null }).geofenceOwner ?? null;
+    const match = overrideOwner
+      ? { target: overrideOwner, distanceM: haversine(center.lat, center.lng, overrideOwner.center.lat, overrideOwner.center.lng) }
+      : matchTarget(center.lat, center.lng, first.ts, input.targets);
     const { diag: targetDiag } = computeTargetDiagnostics(run.pings, center.lat, center.lng, first.ts);
 
     let type: GpsTimelineSegmentType;
@@ -1055,17 +1058,22 @@ export function buildGpsDayTimeline(
     let matchedTargetType: WorkTarget['kind'] | null = null;
     let matchedTargetName: string | null = null;
     let confidence: Confidence;
+    let reclassReason: GpsTimelineSegment['reclassificationReason'] = null;
 
     if (match) {
       type = 'known_site';
       label = match.target.label;
-      reason = 'matched_valid_target';
+      reason = overrideOwner ? 'stationary_inside_geofence_override' : 'matched_valid_target';
       matchedTargetId = match.target.refId;
       matchedTargetType = match.target.kind;
       matchedTargetName = match.target.label;
-      confidence = Math.min(1, 0.6 + Math.min(run.pings.length, 10) / 25);
+      confidence = overrideOwner ? 0.9 : Math.min(1, 0.6 + Math.min(run.pings.length, 10) / 25);
       targetsHit.add(match.target.key);
       knownSite++;
+      if (overrideOwner) {
+        reclassReason = 'stationary_inside_geofence_override';
+        targetDiag.warningLabel = targetDiag.warningLabel ?? null;
+      }
     } else {
       // Unknown place MUST NEVER be named from a previous timer/report.
       type = 'unknown_place';
@@ -1097,6 +1105,7 @@ export function buildGpsDayTimeline(
       reason,
       movementDecision: run.triggerDecision ?? { movement: false, reason: 'stationary' },
       targetDiagnostics: targetDiag,
+      reclassificationReason: reclassReason,
     });
   }
 
