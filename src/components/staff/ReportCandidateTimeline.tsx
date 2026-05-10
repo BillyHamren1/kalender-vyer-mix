@@ -278,6 +278,8 @@ export interface ReportCandidateTimelineProps {
   loading?: boolean;
   presenceBlocks?: PresenceBlockLite[] | null;
   targets?: TargetLite[] | null;
+  staffName?: string | null;
+  date?: string | null;
 }
 
 export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = ({
@@ -286,6 +288,8 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   loading,
   presenceBlocks,
   targets,
+  staffName,
+  date,
 }) => {
   if (loading) {
     return (
@@ -307,6 +311,8 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
     blocks,
     presenceBlocks: presenceBlocks ?? [],
     targets: targets ?? [],
+    staffName: staffName ?? null,
+    date: date ?? null,
   });
   // Default-vyn: visa endast work / transport / unknown / needs_review.
   const visibleKinds = new Set<ReportBlockKind>(['work', 'transport', 'unknown', 'needs_review']);

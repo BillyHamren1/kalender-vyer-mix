@@ -766,6 +766,11 @@ Deno.serve(async (req) => {
       radiusMeters: r.radiusMeters,
       status: r.status,
       dateRelevance: r.dateRelevance,
+      matchRole: r.matchRole,
+      assignmentAnchor: r.assignmentAnchor,
+      canAutoMatchAsWork: r.canAutoMatchAsWork,
+      addressAnchorKey: r.addressAnchorKey,
+      rawAddress: r.rawAddress,
       notes: r.diagnostics?.notes ?? [],
     })),
   });

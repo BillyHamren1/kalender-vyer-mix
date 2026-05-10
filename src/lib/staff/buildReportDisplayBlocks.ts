@@ -54,7 +54,12 @@ export interface TargetLite {
   longitude: number | null;
   radiusMeters?: number | null;
   timeTrackingAllowed?: boolean | null;
-  dateRelevance?: { relevant?: boolean | null } | null;
+  dateRelevance?: 'today' | 'recent' | 'permanent' | 'unknown' | null;
+  matchRole?: 'primary' | 'secondary' | null;
+  assignmentAnchor?: string | null;
+  canAutoMatchAsWork?: boolean | null;
+  addressAnchorKey?: string | null;
+  rawAddress?: string | null;
   targetSource?: string | null;
 }
 
@@ -71,6 +76,7 @@ export interface LocationEvidence {
   reverseGeocodedAddress: string | null;
   nearestPrimaryTargetLabel: string | null;
   nearestPrimaryTargetDistanceMeters: number | null;
+  nearestPrimaryTargetAddress: string | null;
   nearestSecondaryCandidateLabel: string | null;
   nearestSecondaryCandidateAddress: string | null;
   nearestSecondaryCandidateDistanceMeters: number | null;
@@ -160,13 +166,12 @@ export function buildReportDisplayBlocks(
   const allTargets = (input.targets ?? []).filter(
     (t) => t.latitude != null && t.longitude != null,
   );
-  const primarySet = new Set(
-    allTargets
-      .filter((t) => !!t.timeTrackingAllowed && !!t.dateRelevance?.relevant)
-      .map((t) => t.id),
+  const primaryTargets = allTargets.filter(
+    (t) => t.matchRole === 'primary' && t.canAutoMatchAsWork === true,
   );
-  const primaryTargets = allTargets.filter((t) => primarySet.has(t.id));
-  const secondaryTargets = allTargets.filter((t) => !primarySet.has(t.id));
+  const secondaryTargets = allTargets.filter(
+    (t) => !(t.matchRole === 'primary' && t.canAutoMatchAsWork === true),
+  );
 
   const enriched: DisplayBlock[] = input.blocks.map((block) => {
     // 1) Hitta koordinat-center från första källblocket som har lat/lng.
@@ -186,9 +191,10 @@ export function buildReportDisplayBlocks(
     }
 
     let nearestPrimaryTargetLabel: string | null = null;
+    let nearestPrimaryTargetAddress: string | null = null;
     let nearestPrimaryTargetDistanceMeters: number | null = null;
     let nearestSecondaryCandidateLabel: string | null = null;
-    const nearestSecondaryCandidateAddress: string | null = null;
+    let nearestSecondaryCandidateAddress: string | null = null;
     let nearestSecondaryCandidateDistanceMeters: number | null = null;
 
     if (lat != null && lng != null) {
@@ -199,6 +205,7 @@ export function buildReportDisplayBlocks(
       }
       if (bestP) {
         nearestPrimaryTargetLabel = bestP.t.name;
+        nearestPrimaryTargetAddress = bestP.t.rawAddress ?? bestP.t.name ?? null;
         nearestPrimaryTargetDistanceMeters = Math.round(bestP.d);
       }
       let bestS: { t: TargetLite; d: number } | null = null;
@@ -208,6 +215,7 @@ export function buildReportDisplayBlocks(
       }
       if (bestS) {
         nearestSecondaryCandidateLabel = bestS.t.name;
+        nearestSecondaryCandidateAddress = bestS.t.rawAddress ?? bestS.t.name ?? null;
         nearestSecondaryCandidateDistanceMeters = Math.round(bestS.d);
       }
     }
@@ -220,6 +228,7 @@ export function buildReportDisplayBlocks(
         accuracyMeters,
         reverseGeocodedAddress: null, // reserverat för framtida geokodning
         nearestPrimaryTargetLabel,
+        nearestPrimaryTargetAddress,
         nearestPrimaryTargetDistanceMeters,
         nearestSecondaryCandidateLabel,
         nearestSecondaryCandidateAddress,
@@ -235,6 +244,7 @@ export function buildReportDisplayBlocks(
         accuracyMeters: null,
         reverseGeocodedAddress: null,
         nearestPrimaryTargetLabel,
+        nearestPrimaryTargetAddress,
         nearestPrimaryTargetDistanceMeters,
         nearestSecondaryCandidateLabel,
         nearestSecondaryCandidateAddress,
