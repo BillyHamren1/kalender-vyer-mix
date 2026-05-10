@@ -200,7 +200,13 @@ const PeriodView = ({
     payableMinutes: totals?.payableMinutes ?? 0,
     transportMinutes: totals?.transportMinutes ?? 0,
     approvedPayableMinutes: totals?.approvedPayableMinutes ?? 0,
-    awaitingAttestPayableMinutes: totals?.awaitingAttestPayableMinutes ?? 0,
+    submittedPayableMinutes: totals?.submittedPayableMinutes ?? 0,
+    awaitingUserAttestPayableMinutes:
+      totals?.awaitingUserAttestPayableMinutes ??
+      totals?.awaitingAttestPayableMinutes ?? 0,
+    awaitingAttestPayableMinutes:
+      totals?.awaitingAttestPayableMinutes ??
+      totals?.awaitingUserAttestPayableMinutes ?? 0,
   };
 
   return (
