@@ -817,11 +817,16 @@ export function buildGpsDayTimeline(
     if (!meta || !meta.primaryTarget) continue;
     const target = meta.primaryTarget;
 
-    // Only primary / canAutoMatchAsWork targets may absorb travel back to work.
-    // The available signal here is `assignedToUserToday`. Treat undefined as
-    // permissive (most targets in this engine are already validated upstream),
-    // but explicit `false` blocks reclassification.
-    if (target.assignedToUserToday === false) continue;
+    // Primary / canAutoMatchAsWork: in this contract layer the only signal
+    // we have is `assignedToUserToday`. The resolver sets it to false when
+    // the booking/project is not "today"-relevant for the requesting staff,
+    // but the report-health endpoint resolves with a representative staff —
+    // so a `false` here is not necessarily wrong. We treat the primary target
+    // as eligible whenever the GPS is firmly clustered inside it (already
+    // gated by ratio >= 0.7) AND the target itself is date-window valid
+    // (already filtered by validFrom/validUntil at diagnostics time).
+    // No further gate here — secondary targets cannot reach this branch
+    // because they are never picked as `primaryTarget` for a travel segment.
 
     const next = segments[si + 1];
     const clearExit = hasClearExitFromTarget(meta.pings, target, meta.medianAccM, next);
