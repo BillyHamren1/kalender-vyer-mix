@@ -364,6 +364,7 @@ export function buildReportDisplayBlocks(
       displaySubtitle,
       aiReviewContext: null,
       aiHintLabel: null,
+      sourceBlockIds: [block.id],
     };
   });
 
