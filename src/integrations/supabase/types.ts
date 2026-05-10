@@ -7257,6 +7257,84 @@ export type Database = {
           },
         ]
       }
+      warehouse_assignments: {
+        Row: {
+          action: string
+          assignment_date: string
+          assignment_type: string
+          booking_id: string | null
+          booking_number: string | null
+          created_at: string
+          customer_name: string | null
+          delivery_address: string | null
+          description: string | null
+          end_time: string | null
+          id: string
+          metadata: Json
+          organization_id: string
+          packing_id: string | null
+          packlist_id: string | null
+          project_task_id: string | null
+          source: string | null
+          staff_id: string
+          start_time: string | null
+          status: string
+          title: string
+          updated_at: string
+          warehouse_event_id: string | null
+        }
+        Insert: {
+          action: string
+          assignment_date: string
+          assignment_type: string
+          booking_id?: string | null
+          booking_number?: string | null
+          created_at?: string
+          customer_name?: string | null
+          delivery_address?: string | null
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          metadata?: Json
+          organization_id: string
+          packing_id?: string | null
+          packlist_id?: string | null
+          project_task_id?: string | null
+          source?: string | null
+          staff_id: string
+          start_time?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          warehouse_event_id?: string | null
+        }
+        Update: {
+          action?: string
+          assignment_date?: string
+          assignment_type?: string
+          booking_id?: string | null
+          booking_number?: string | null
+          created_at?: string
+          customer_name?: string | null
+          delivery_address?: string | null
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          packing_id?: string | null
+          packlist_id?: string | null
+          project_task_id?: string | null
+          source?: string | null
+          staff_id?: string
+          start_time?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          warehouse_event_id?: string | null
+        }
+        Relationships: []
+      }
       warehouse_calendar_events: {
         Row: {
           booking_id: string | null
