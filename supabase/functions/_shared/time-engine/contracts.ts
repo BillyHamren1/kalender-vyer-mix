@@ -100,13 +100,26 @@ export type WorkTargetKind =
   | 'warehouse'
   | 'organization_location';
 
+/**
+ * GeoJSON Polygon. coordinates: [ring][point][lng, lat]. Outer ring first; inner rings = holes.
+ * Mirrors src/lib/geofenceEval.ts and supabase/functions/_shared/geofenceEval.ts.
+ */
+export interface GeoJSONPolygon {
+  type: 'Polygon';
+  coordinates: number[][][];
+}
+
 export interface WorkTarget {
   key: string;
   kind: WorkTargetKind;
   refId: UUID;
   label: string;
+  /** Centroid (polygon centroid when polygon is set; otherwise circle center). */
   center: GeoPoint;
+  /** Circle radius. Used as fallback when polygon is null. */
   radiusM: number;
+  /** Optional polygon. When set, takes precedence over the circle (center,radiusM). */
+  polygon?: GeoJSONPolygon | null;
   validFrom?: ISODateTime | null;
   validUntil?: ISODateTime | null;
   assignedToUserToday?: boolean;

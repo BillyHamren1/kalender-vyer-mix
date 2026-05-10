@@ -38,6 +38,7 @@
 import type { DwellPolicy, NightPolicy } from './timePolicy.ts';
 import { dayPolicy as defaultDayPolicy, nightPolicy as defaultNightPolicy } from './timePolicy.ts';
 import type { Confidence, ISODate, ISODateTime, UUID, WorkTarget } from './contracts.ts';
+import { isInsideGeofence, distanceToGeofenceEdge, type GeofenceTarget } from '../geofenceEval.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs
@@ -262,6 +263,37 @@ function haversine(aLat: number, aLng: number, bLat: number, bLng: number): numb
   return 2 * EARTH_R * Math.asin(Math.sqrt(s));
 }
 
+/**
+ * Adapter so we can call shared isInsideGeofence/distanceToGeofenceEdge
+ * (defined over GeofenceTarget) on a Time-Engine WorkTarget.
+ * When `polygon` is set, the polygon takes precedence; otherwise circle.
+ */
+function asGeofenceTarget(t: WorkTarget): GeofenceTarget {
+  return {
+    latitude: t.center.lat,
+    longitude: t.center.lng,
+    radius_meters: t.radiusM,
+    geofence_mode: t.polygon ? 'polygon' : 'circle',
+    geofence_polygon: t.polygon ?? null,
+  };
+}
+
+/**
+ * True iff (lat,lng) is inside the target's geofence (polygon when present, else circle).
+ */
+function pointInsideTarget(lat: number, lng: number, t: WorkTarget): boolean {
+  return isInsideGeofence(lat, lng, asGeofenceTarget(t));
+}
+
+/**
+ * Signed distance to the target's geofence edge in meters.
+ * Positive = inside (meters until you'd leave), negative = outside (meters away).
+ * For circle targets this equals (radiusM − haversine_to_center).
+ */
+function signedDistanceToTargetEdge(lat: number, lng: number, t: WorkTarget): number {
+  return distanceToGeofenceEdge(lat, lng, asGeofenceTarget(t));
+}
+
 const minutesBetween = (a: ISODateTime, b: ISODateTime) =>
   Math.max(0, (Date.parse(b) - Date.parse(a)) / 60000);
 
@@ -291,8 +323,10 @@ function matchTarget(
   for (const t of targets) {
     if (t.validFrom && Date.parse(t.validFrom) > at) continue;
     if (t.validUntil && Date.parse(t.validUntil) < at) continue;
+    // Distance metric for "best" ordering stays haversine-to-center; the inside
+    // gate honors polygon when present.
     const d = haversine(centerLat, centerLng, t.center.lat, t.center.lng);
-    if (d <= t.radiusM && (best == null || d < best.distanceM)) {
+    if (pointInsideTarget(centerLat, centerLng, t) && (best == null || d < best.distanceM)) {
       best = { target: t, distanceM: d };
     }
   }
@@ -552,8 +586,7 @@ export function buildGpsDayTimeline(
     for (const p of pings) {
       let insideThisPing = false;
       for (const t of validTargets) {
-        const d = haversine(p.lat, p.lng, t.center.lat, t.center.lng);
-        if (d <= t.radiusM) {
+        if (pointInsideTarget(p.lat, p.lng, t)) {
           insideThisPing = true;
           perTarget.set(t.key, (perTarget.get(t.key) ?? 0) + 1);
         }
@@ -579,7 +612,7 @@ export function buildGpsDayTimeline(
         nearestTargetType: nearest?.target.kind ?? null,
         nearestTargetDistanceMeters: nearest ? Math.round(nearest.distanceM) : null,
         nearestTargetRadiusMeters: nearest?.target.radiusM ?? null,
-        insideNearestTarget: nearest ? nearest.distanceM <= nearest.target.radiusM : false,
+        insideNearestTarget: nearest ? pointInsideTarget(centerLat ?? nearest.target.center.lat, centerLng ?? nearest.target.center.lng, nearest.target) : false,
         pingsInsideAnyTarget: pingsInsideAny,
         pingsInsidePrimaryTarget: primaryCount,
         pingsInsideSameTargetRatio: Number(ratio.toFixed(3)),
@@ -771,11 +804,13 @@ export function buildGpsDayTimeline(
     const tolA = Math.max(50, baseAcc);
     const tolB = Math.max(100, baseAcc);
 
-    // (A) ≥3 consecutive pings outside target.radiusM + tolA
+    // (A) ≥3 consecutive pings >tolA meters OUTSIDE the target's geofence edge.
+    // For polygon targets this measures distance to the polygon edge, not centroid.
     let consec = 0;
     for (const p of pings) {
-      const d = haversine(p.lat, p.lng, target.center.lat, target.center.lng);
-      if (d > target.radiusM + tolA) {
+      const signed = signedDistanceToTargetEdge(p.lat, p.lng, target);
+      const outsideBy = -signed; // positive when outside
+      if (outsideBy > tolA) {
         consec++;
         if (consec >= 3) return true;
       } else {
@@ -783,13 +818,13 @@ export function buildGpsDayTimeline(
       }
     }
 
-    // (B) last 2 accepted pings outside target.radiusM + tolB
+    // (B) last 2 accepted pings >tolB meters outside the geofence edge
     if (pings.length >= 2) {
       const last = pings[pings.length - 1];
       const prev = pings[pings.length - 2];
-      const dL = haversine(last.lat, last.lng, target.center.lat, target.center.lng);
-      const dP = haversine(prev.lat, prev.lng, target.center.lat, target.center.lng);
-      if (dL > target.radiusM + tolB && dP > target.radiusM + tolB) return true;
+      const oL = -signedDistanceToTargetEdge(last.lat, last.lng, target);
+      const oP = -signedDistanceToTargetEdge(prev.lat, prev.lng, target);
+      if (oL > tolB && oP > tolB) return true;
     }
 
     // (C) next segment matches a different known_site primary target
