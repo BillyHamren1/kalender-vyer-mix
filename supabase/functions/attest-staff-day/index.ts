@@ -5,6 +5,7 @@
 // using day_attestations.break_minutes (overrides time_reports.break_time sum).
 
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
+import { getStockholmDayWindowUtc } from "../_shared/stockholmDayWindow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,14 +73,16 @@ Deno.serve(async (req) => {
     return bad(409, "Day is locked — admin override required");
   }
 
-  // Also block if workday is approved and caller isn't admin
+  // Also block if workday is approved and caller isn't admin.
+  // Attest gäller svensk kalenderdag (Stockholm), inte UTC-dag — använd Stockholm day window.
+  const { startUtc, endUtc } = getStockholmDayWindowUtc(date);
   const { data: workday } = await admin
     .from("workdays")
     .select("id, approved_at, ended_at")
     .eq("organization_id", orgId)
     .eq("staff_id", staffId)
-    .gte("started_at", `${date}T00:00:00Z`)
-    .lte("started_at", `${date}T23:59:59.999Z`)
+    .gte("started_at", startUtc)
+    .lte("started_at", endUtc)
     .maybeSingle();
   if (workday?.approved_at && !isAdmin) {
     return bad(409, "Workday is approved — admin override required");
