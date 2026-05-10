@@ -92,11 +92,13 @@ const DayBody: React.FC<{
   const wd = snapshot.workday;
   const t = snapshot.totals;
   const isLocked = !!wd?.approved;
-  const grossMin = t?.workdayMinutes ?? 0;
+  const grossMin = t?.grossWorkdayMinutes ?? t?.workdayMinutes ?? 0;
   const breakMin = t?.breakMinutes ?? 0;
   const payableMin = t?.payableMinutes ?? grossMin;
-  const transportMin = t?.travelMinutes ?? 0;
-  const projectMin = (t?.allocatedProjectMinutes ?? 0) + (t?.warehouseMinutes ?? 0);
+  const transportMin = t?.transportMinutes ?? t?.travelMinutes ?? 0;
+  const projectMin =
+    (t?.projectMinutes ?? t?.allocatedProjectMinutes ?? 0) +
+    (t?.warehouseMinutes ?? 0);
   const otherPlaceMin = t?.otherPlaceMinutes ?? 0;
 
   const openFlags = useMemo(
