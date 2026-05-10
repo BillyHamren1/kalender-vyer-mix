@@ -5,6 +5,7 @@
 
 import { buildStaffDaySnapshot } from "../_shared/staff-day-status.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
+import { getStockholmDayWindowUtc } from "../_shared/stockholmDayWindow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,18 +58,28 @@ Deno.serve(async (req) => {
   const orgId = access.orgId;
   const admin = authResult.auth.admin;
 
-  // Day window in Europe/Stockholm
-  // For workdays/travel/location_entries we filter by overlap with [dayStart, dayEnd).
-  // For *_date columns we filter by equality.
-  const dayStart = new Date(`${date}T00:00:00+01:00`); // approx; queries use both date= and overlap
-  const dayEnd = new Date(`${date}T00:00:00+01:00`);
-  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+  // Day window in Europe/Stockholm — single source of truth.
+  // All timestamptz queries (workdays, travel, assistant_events, pings) använder
+  // [dayStart, dayEnd] som täcker exakt den svenska kalenderdagen.
+  // *_date-kolumner (time_reports, location_time_entries, workday_flags,
+  // day_attestations) filtreras fortsatt med equality på `date`.
+  const { startUtc: dayStart, endUtc: dayEnd } = getStockholmDayWindowUtc(date);
 
-  const startIso = new Date(`${date}T00:00:00Z`).toISOString();
-  const endIso = new Date(`${date}T23:59:59.999Z`).toISOString();
-  // Pad +/- 1 day to capture cross-midnight rows
-  const padStart = new Date(new Date(startIso).getTime() - 24 * 3600 * 1000).toISOString();
-  const padEnd = new Date(new Date(endIso).getTime() + 24 * 3600 * 1000).toISOString();
+  // Helper: minutes overlap mellan ett intervall och dagsfönstret.
+  function overlapMinutes(start: string | null | undefined, end: string | null | undefined, winStart: string, winEnd: string): number {
+    if (!start) return 0;
+    const s = new Date(start).getTime();
+    const e = end ? new Date(end).getTime() : new Date(winEnd).getTime();
+    const ws = new Date(winStart).getTime();
+    const we = new Date(winEnd).getTime();
+    const lo = Math.max(s, ws);
+    const hi = Math.min(e, we);
+    return hi > lo ? Math.round((hi - lo) / 60_000) : 0;
+  }
+
+  // Pad +/- 1 day kring Stockholm-fönstret för att fånga cross-midnight pings/rader.
+  const padStart = new Date(new Date(dayStart).getTime() - 24 * 3600 * 1000).toISOString();
+  const padEnd = new Date(new Date(dayEnd).getTime() + 24 * 3600 * 1000).toISOString();
 
   // Paginated ping fetch — no global limit. Same principle as
   // StaffTimeReports.fetchAllPingsForStaff: page in 1000-row batches up to
@@ -123,8 +134,9 @@ Deno.serve(async (req) => {
       .select("id, staff_id, started_at, ended_at, review_status, review_reasons, approved_at, admin_note, metadata")
       .eq("organization_id", orgId)
       .eq("staff_id", staffId)
-      .gte("started_at", padStart)
-      .lte("started_at", padEnd)
+      // Overlap med Stockholm-dagen: started_at <= dayEnd AND (ended_at IS NULL OR ended_at >= dayStart)
+      .lte("started_at", dayEnd)
+      .or(`ended_at.is.null,ended_at.gte.${dayStart}`)
       .order("started_at", { ascending: true }),
     admin
       .from("time_reports")
@@ -137,8 +149,9 @@ Deno.serve(async (req) => {
       .select("id, staff_id, start_time, end_time, hours_worked, from_address, to_address, destination_booking_id, related_booking_id, manual_project_name, classification, approved, needs_review, description")
       .eq("organization_id", orgId)
       .eq("staff_id", staffId)
-      .gte("start_time", padStart)
-      .lte("start_time", padEnd),
+      // Overlap: start_time <= dayEnd AND (end_time IS NULL OR end_time >= dayStart)
+      .lte("start_time", dayEnd)
+      .or(`end_time.is.null,end_time.gte.${dayStart}`),
     admin
       .from("location_time_entries")
       .select("id, staff_id, location_id, booking_id, large_project_id, task_id, entry_date, entered_at, exited_at, total_minutes, source, metadata")
@@ -156,8 +169,8 @@ Deno.serve(async (req) => {
       .select("id, staff_id, event_type, target_type, target_id, target_label, happened_at, resolution_status, stale_for_prompt")
       .eq("organization_id", orgId)
       .eq("staff_id", staffId)
-      .gte("happened_at", padStart)
-      .lte("happened_at", padEnd)
+      .gte("happened_at", dayStart)
+      .lte("happened_at", dayEnd)
       .order("happened_at", { ascending: true }),
     admin
       .from("day_attestations")
