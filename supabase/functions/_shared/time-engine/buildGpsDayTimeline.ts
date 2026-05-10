@@ -213,7 +213,10 @@ export interface GpsTimelineSegment {
   targetDiagnostics?: SegmentTargetDiagnostics;
 
   /** Set when post-pass moved a travel segment into a known site. */
-  reclassificationReason?: 'movement_inside_geofence' | null;
+  reclassificationReason?:
+    | 'movement_inside_geofence'
+    | 'sticky_primary_target_no_strong_exit'
+    | null;
   /** Original kind before reclassification (audit). */
   originalKind?: GpsTimelineSegmentKind | null;
   /** Original type before reclassification (audit). */
