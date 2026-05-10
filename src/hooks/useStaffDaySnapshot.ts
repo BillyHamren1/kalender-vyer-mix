@@ -66,17 +66,23 @@ export interface StaffDayActive {
 }
 
 export interface StaffDayTotals {
+  // Legacy fields (kept for backward compat)
   workdayMinutes: number;
   allocatedProjectMinutes: number;
   travelMinutes: number;
   unallocatedMinutes: number;
   liveMinutes: number;
   isWorkdayOpen: boolean;
-  /** Optional new totals that backend may send. UI never derives them. */
+  // Canonical v2 fields (preferred — built server-side, UI never derives them).
+  grossWorkdayMinutes?: number | null;
   breakMinutes?: number | null;
+  manualDeductionMinutes?: number | null;
   payableMinutes?: number | null;
-  otherPlaceMinutes?: number | null;
+  projectMinutes?: number | null;
   warehouseMinutes?: number | null;
+  transportMinutes?: number | null;
+  otherPlaceMinutes?: number | null;
+  gpsGapMinutes?: number | null;
 }
 
 export interface StaffDayFlag {
