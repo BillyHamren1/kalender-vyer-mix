@@ -642,8 +642,121 @@ function RawTab(props: DecisionTraceDrawerProps) {
     (s: any) => s.reclassificationReason === 'movement_inside_geofence',
   );
   const cls = (props.rawGpsTimeline?.classificationDiagnostics ?? {}) as any;
+  const sgo: any =
+    props.rawGpsTimeline?.stationaryGeofenceOverride ??
+    cls.stationaryGeofenceOverride ??
+    null;
+  const remainingTransportInsidePrimaryCount = Number(
+    props.rawGpsTimeline?.remainingTransportInsidePrimaryGeofenceCount ??
+      cls.remainingTransportInsidePrimaryGeofenceCount ??
+      0,
+  );
+  const remainingTransportInsidePrimaryMinutes = Number(
+    props.rawGpsTimeline?.remainingTransportInsidePrimaryGeofenceMinutes ??
+      cls.remainingTransportInsidePrimaryGeofenceMinutes ??
+      0,
+  );
+  const stationaryOverrideSegs = segs.filter(
+    (s: any) => s.reclassificationReason === 'stationary_inside_geofence_override',
+  );
   return (
     <div className="space-y-3">
+      {(stationaryOverrideSegs.length > 0 ||
+        Number(sgo?.rescuedStayMinutes ?? 0) > 0 ||
+        remainingTransportInsidePrimaryMinutes > 0) && (
+        <div>
+          <div className="mb-1 text-xs font-semibold">
+            Stationär inom geofence — parkerad telefon räddad ({stationaryOverrideSegs.length})
+          </div>
+          <div className="mb-2 rounded-md border border-violet-300 bg-violet-50 p-2 text-[11px] text-violet-900">
+            Pingar inom samma primary-eligible geofence tvingas till en sammanhängande
+            stationär stay — speed/distance-klassningen kringgås helt. Skyddar mot att en
+            parkerad telefon (GPS-jitter) felklassas som transport.
+            <div className="mt-1 font-mono">
+              rescued={Number(sgo?.rescuedStayMinutes ?? 0)} min /{' '}
+              {Number(sgo?.rescuedStayCount ?? 0)} stay ·
+              pingsInsidePrimary={Number(sgo?.pingsInsidePrimaryCount ?? 0)}
+              {sgo?.pingsInsidePrimaryRatio != null
+                ? ` (${Math.round(Number(sgo.pingsInsidePrimaryRatio) * 100)}%)`
+                : ''}
+              {remainingTransportInsidePrimaryMinutes > 0 && (
+                <>
+                  {' · '}
+                  <span className="font-semibold text-amber-700">
+                    remainingTransportNotRescued={remainingTransportInsidePrimaryMinutes} min /{' '}
+                    {remainingTransportInsidePrimaryCount} seg
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+          {stationaryOverrideSegs.length > 0 && (
+            <div className="space-y-2">
+              {stationaryOverrideSegs.map((s: any, i: number) => {
+                const td = s.targetDiagnostics ?? {};
+                return (
+                  <div
+                    key={`sgo-${s.id ?? i}`}
+                    className="rounded-md border border-violet-200 bg-violet-50/50 p-2 text-[11px]"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="font-mono tabular-nums">
+                        {fmtHm(s.startTs ?? s.startAt)} – {fmtHm(s.endTs ?? s.endAt)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {Math.round(Number(s.durationMin ?? 0))}m ·{' '}
+                        {td.geofenceOwnerLabel ?? td.matchedTargetLabel ?? s.label ?? '—'}
+                      </span>
+                    </div>
+                    <div className="mb-1 text-violet-800">
+                      Override: pingar låg inom samma primary-eligible geofence — movement
+                      ignorerades och segmentet blev en stay.
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                      <span className="text-muted-foreground">geofenceOwner</span>
+                      <span className="font-mono">
+                        {td.geofenceOwnerLabel ?? td.matchedTargetLabel ?? '—'}
+                      </span>
+                      <span className="text-muted-foreground">pings inside primary</span>
+                      <span className="font-mono">
+                        {td.pingsInsidePrimaryTarget ?? s.pingCount ?? '—'} / {s.pingCount ?? '—'}
+                        {td.pingsInsideSameTargetRatio != null
+                          ? ` (${Math.round(Number(td.pingsInsideSameTargetRatio) * 100)}%)`
+                          : ''}
+                      </span>
+                      <span className="text-muted-foreground">original</span>
+                      <span className="font-mono">
+                        {s.originalKind ?? '—'} / {s.originalType ?? '—'}
+                      </span>
+                      <span className="text-muted-foreground">reclassificationReason</span>
+                      <span className="font-mono font-semibold text-violet-700">
+                        {s.reclassificationReason}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {sgo?.examples?.length > 0 && stationaryOverrideSegs.length === 0 && (
+            <div className="space-y-1">
+              {sgo.examples.slice(0, 5).map((ex: any, i: number) => (
+                <div
+                  key={`sgo-ex-${i}`}
+                  className="rounded-md border border-violet-200 bg-violet-50/40 p-2 text-[11px] font-mono"
+                >
+                  {ex.startLocalStockholm} – {ex.endLocalStockholm} ·{' '}
+                  {Math.round(Number(ex.durationMinutes ?? 0))}m · {ex.targetLabel} ·
+                  pings={ex.pingCount}
+                  {ex.medianAccuracyMeters != null
+                    ? ` · medAcc=${Math.round(Number(ex.medianAccuracyMeters))}m`
+                    : ''}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {(reclassifiedSegs.length > 0 ||
         Number(cls.movementInsideGeofenceReclassifiedCount ?? 0) > 0) && (
         <div>
