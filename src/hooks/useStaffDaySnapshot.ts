@@ -170,6 +170,16 @@ export interface StaffDaySnapshot {
     resolutionStatus: string | null;
     stale: boolean;
   }>;
+  /** User/admin attestation row from `day_attestations`. Backend authority. */
+  attestation?: {
+    id: string;
+    breakMinutes: number;
+    comment: string | null;
+    status: 'attested' | 'locked' | string;
+    attestedAt: string | null;
+    attestedBy: string | null;
+    locked: boolean;
+  } | null;
   lastUpdatedAt: string;
 }
 
@@ -247,12 +257,14 @@ export function useStaffDaySnapshot(date?: string): Result {
     window.addEventListener('timer-state-changed', scheduleRefresh);
     window.addEventListener('workday-started', scheduleRefresh);
     window.addEventListener('workday-ended', scheduleRefresh);
+    window.addEventListener('staff-day-attested', scheduleRefresh);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('timer-state-changed', scheduleRefresh);
       window.removeEventListener('workday-started', scheduleRefresh);
       window.removeEventListener('workday-ended', scheduleRefresh);
+      window.removeEventListener('staff-day-attested', scheduleRefresh);
     };
   }, [staffId, refresh, scheduleRefresh]);
 

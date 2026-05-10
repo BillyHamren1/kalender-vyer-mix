@@ -14,10 +14,12 @@ import {
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useStaffDayStatus, type StaffDaySegment } from '@/hooks/useStaffDayStatus';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { extractUTCTime } from '@/utils/dateUtils';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
+import StaffDayAttestSection from './StaffDayAttestSection';
 
 function segmentRange(s: StaffDaySegment) {
   const start = extractUTCTime(s.startedAt);
@@ -32,6 +34,7 @@ interface Props {
 
 export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
   const { snapshot, isLoading } = useStaffDayStatus(date ?? undefined);
+  const { staff } = useMobileAuth();
   const open = !!date;
   const wd = snapshot?.workday;
   const t = snapshot?.totals;
@@ -163,6 +166,15 @@ export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
               <p className="text-sm text-muted-foreground text-center py-4">
                 Inga registrerade aktiviteter denna dag.
               </p>
+            )}
+
+            {/* Bottom action: user attestation (godkänn dagen) */}
+            {date && (
+              <StaffDayAttestSection
+                staffId={staff?.id ?? null}
+                date={date}
+                snapshot={snapshot}
+              />
             )}
           </div>
         )}
