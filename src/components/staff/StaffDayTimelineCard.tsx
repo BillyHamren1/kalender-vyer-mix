@@ -34,6 +34,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ActualDayPanel } from './ActualDayPanel';
 import { RawEvidenceDrawer } from './RawEvidenceDrawer';
+import { DecisionTraceDrawer } from './DecisionTraceDrawer';
 import {
   ReportCandidateTimeline,
   type ReportCandidateBlockUI,
@@ -177,6 +178,7 @@ function SegmentRow({ seg }: { seg: StaffDaySegment }) {
 export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props) => {
   const { staffName, date, model } = props;
   const [showRaw, setShowRaw] = useState(false);
+  const [showDecisionTrace, setShowDecisionTrace] = useState(false);
   const { approveMutation } = useApproveTimeReport();
 
   // 1Hz tick so any pågående arbetsdag/segment räknar upp i realtid utan
@@ -299,6 +301,15 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setShowDecisionTrace(true)}
+            title="Öppna full beslutskedja (read-only audit)"
+          >
+            Visa tolkning
+          </Button>
           {timeline.review_required && (
             <button
               type="button"
@@ -394,6 +405,26 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
           autoRepairEnabled: props.autoRepairEnabled,
           onWorkdayChanged: props.onWorkdayChanged,
         }}
+      />
+
+      <DecisionTraceDrawer
+        open={showDecisionTrace}
+        onOpenChange={setShowDecisionTrace}
+        staffName={props.staffName}
+        staffId={props.staffId ?? 'unknown'}
+        date={props.date}
+        engineMode={props.engineMode}
+        reportCandidateBlocks={props.reportCandidateBlocks ?? []}
+        reportCandidateSummary={props.reportCandidateSummary ?? null}
+        presenceDayBlocks={(props.reportCandidatePresenceBlocks ?? []) as any[]}
+        presenceDayBlocksRawEvidence={(props.reportCandidatePresenceRawEvidence ?? []) as any[]}
+        rawGpsTimeline={props.reportCandidateRawGpsTimeline ?? null}
+        technicalTimeline={(props.reportCandidateTechnicalTimeline ?? []) as any[]}
+        targets={(props.reportCandidateTargets ?? []) as any[]}
+        targetResolution={props.reportCandidateTargetResolution ?? null}
+        reportCandidateDiagnostics={props.reportCandidateDiagnostics ?? null}
+        targetMatchSummary={props.reportCandidateTargetMatchSummary ?? null}
+        counts={props.reportCandidateCounts ?? null}
       />
     </section>
   );
