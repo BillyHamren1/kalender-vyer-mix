@@ -459,6 +459,32 @@ Deno.serve(async (req) => {
           gd.transportSegments += Number(tms.transportSegments ?? 0);
           gd.unknownPlaceSegments += Number(tms.unknownPlaceSegments ?? 0);
 
+          // Reclassified (movement_inside_geofence) — promoted from travel to known_site
+          gd.movementInsideGeofenceReclassifiedCount +=
+            Number(cls.movementInsideGeofenceReclassifiedCount ?? 0);
+          gd.movementInsideGeofenceReclassifiedMinutes +=
+            Number(cls.movementInsideGeofenceReclassifiedMinutes ?? 0);
+          for (const ex of (cls.movementInsideGeofenceExamples ?? []) as any[]) {
+            if (gd.movementInsideGeofenceExamples.length >= 25) break;
+            gd.movementInsideGeofenceExamples.push({
+              staffName: s.name ?? s.id,
+              staffId: s.id,
+              segmentStart: ex.segmentStart,
+              segmentEnd: ex.segmentEnd,
+              durationMinutes: Number(ex.durationMinutes ?? 0),
+              targetLabel: ex.targetLabel ?? null,
+              pingsInsideSameTargetRatio:
+                ex.pingsInsideSameTargetRatio != null ? Number(ex.pingsInsideSameTargetRatio) : null,
+              computedKmh: ex.computedKmh != null ? Number(ex.computedKmh) : null,
+              movementReason: ex.movementReason ?? null,
+              nearestTargetDistanceMeters:
+                ex.nearestTargetDistanceMeters != null ? Number(ex.nearestTargetDistanceMeters) : null,
+              nearestTargetRadiusMeters:
+                ex.nearestTargetRadiusMeters != null ? Number(ex.nearestTargetRadiusMeters) : null,
+              clearExitDetected: !!ex.clearExitDetected,
+            });
+          }
+
           for (const seg of (gpsTimeline as any).segments ?? []) {
             if (seg.kind !== 'travel' && seg.type !== 'transport') continue;
             const td = seg.targetDiagnostics ?? {};
