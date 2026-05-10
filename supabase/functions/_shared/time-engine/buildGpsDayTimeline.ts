@@ -38,6 +38,7 @@
 import type { DwellPolicy, NightPolicy } from './timePolicy.ts';
 import { dayPolicy as defaultDayPolicy, nightPolicy as defaultNightPolicy } from './timePolicy.ts';
 import type { Confidence, ISODate, ISODateTime, UUID, WorkTarget } from './contracts.ts';
+import { isInsideGeofence, distanceToGeofenceEdge, type GeofenceTarget } from '../geofenceEval.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs
