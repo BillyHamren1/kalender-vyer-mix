@@ -639,6 +639,15 @@ export function buildGpsDayTimeline(
         transportSegmentsAfterGeoEntryWithoutStrongExitMinutes: 0,
         examples: [],
       },
+      stationaryGeofenceOverride: {
+        rescuedStayCount: 0,
+        rescuedStayMinutes: 0,
+        pingsInsidePrimaryCount: 0,
+        pingsInsidePrimaryRatio: 0,
+        examples: [],
+      },
+      remainingTransportInsidePrimaryGeofenceCount: 0,
+      remainingTransportInsidePrimaryGeofenceMinutes: 0,
     };
   }
 
