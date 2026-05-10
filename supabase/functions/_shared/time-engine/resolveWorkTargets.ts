@@ -174,6 +174,27 @@ function isFiniteNumber(n: unknown): n is number {
 }
 
 function normalizePolygon(raw: unknown): WorkTargetPolygonPoint[] | null {
+  if (!raw) return null;
+  // Accept GeoJSON Polygon: { type: 'Polygon', coordinates: [[[lng,lat], ...], ...] }
+  if (
+    typeof raw === 'object' &&
+    raw !== null &&
+    (raw as { type?: string }).type === 'Polygon' &&
+    Array.isArray((raw as { coordinates?: unknown }).coordinates)
+  ) {
+    const rings = (raw as { coordinates: unknown[] }).coordinates;
+    const outer = Array.isArray(rings[0]) ? (rings[0] as unknown[]) : [];
+    const out: WorkTargetPolygonPoint[] = [];
+    for (const pt of outer) {
+      if (Array.isArray(pt) && pt.length >= 2) {
+        const lng = pt[0];
+        const lat = pt[1];
+        if (isFiniteNumber(lat) && isFiniteNumber(lng)) out.push({ lat, lng });
+      }
+    }
+    return out.length >= 3 ? out : null;
+  }
+  // Accept legacy array of {lat,lng} (or {latitude,longitude})
   if (!Array.isArray(raw) || raw.length < 3) return null;
   const out: WorkTargetPolygonPoint[] = [];
   for (const p of raw) {
