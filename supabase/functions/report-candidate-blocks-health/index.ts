@@ -467,6 +467,26 @@ Deno.serve(async (req) => {
       };
       (day as any).stickyTargetDiagnostics = stickyAgg;
 
+      // Geo-anchor diagnostics — aggregated per day/org
+      const geoAnchorAgg = {
+        hardAnchorCount: 0,
+        hardEntryCount: 0,
+        hardExitCount: 0,
+        entriesAppliedToSticky: 0,
+        entriesSeededStickyEarly: 0,
+        entriesIgnoredNoMatchingTarget: 0,
+        exitsObservedWithoutStrongExit: 0,
+        transportSegmentsAfterGeoEntryWithoutStrongExitMinutes: 0,
+        weakAnchorCount: 0,
+        weakReasons: {} as Record<string, number>,
+        examples: [] as Array<{
+          staffId: string; staffName: string;
+          type: 'entry' | 'exit'; atLocalStockholm: string;
+          targetLabel: string | null; source: string;
+        }>,
+      };
+      (day as any).geoAnchorDiagnostics = geoAnchorAgg;
+
       for (const s of staffList) {
         const { data: pingRows } = await admin
           .from('staff_location_history')
