@@ -345,6 +345,17 @@ Deno.serve(async (req) => {
           createdAnyTravelTimeLogs: false,
         },
         status: 'PASS',
+        geofenceDiagnostics: {
+          transportSegmentsInsidePrimaryTargetCount: 0,
+          transportMinutesInsidePrimaryTarget: 0,
+          transportInsidePrimaryTargetExamples: [],
+          travelInsideTargetCandidateCount: 0,
+          travelInsideTargetCandidateMinutes: 0,
+          targetsAvailableToGpsTimeline: 0,
+          knownSiteSegments: 0,
+          transportSegments: 0,
+          unknownPlaceSegments: 0,
+        },
       };
 
       let targets: WorkTarget[] = [];
