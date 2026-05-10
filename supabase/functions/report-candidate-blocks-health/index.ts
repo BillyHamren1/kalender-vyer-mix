@@ -487,6 +487,27 @@ Deno.serve(async (req) => {
       };
       (day as any).geoAnchorDiagnostics = geoAnchorAgg;
 
+      // Stationary inside-geofence override diagnostics — aggregated per day/org
+      const stationaryOverrideAgg = {
+        rescuedStayCount: 0,
+        rescuedStayMinutes: 0,
+        pingsInsidePrimaryCount: 0,
+        pingsInsidePrimaryRatioSum: 0,
+        pingsInsidePrimaryRatioStaffCount: 0,
+        remainingTransportInsidePrimaryGeofenceCount: 0,
+        remainingTransportInsidePrimaryGeofenceMinutes: 0,
+        examples: [] as Array<{
+          staffId: string; staffName: string;
+          targetLabel: string;
+          startLocalStockholm: string;
+          endLocalStockholm: string;
+          durationMinutes: number;
+          pingCount: number;
+          medianAccuracyMeters: number | null;
+        }>,
+      };
+      (day as any).stationaryGeofenceOverride = stationaryOverrideAgg;
+
       for (const s of staffList) {
         const { data: pingRows } = await admin
           .from('staff_location_history')
