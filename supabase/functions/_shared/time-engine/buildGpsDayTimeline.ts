@@ -127,6 +127,10 @@ export interface SegmentTargetDiagnostics {
   pingsInsideSameTargetRatio?: number;
   travelInsideTargetCandidate?: boolean;
   travelInsideTargetLabel?: string | null;
+  /** Median GPS horizontal accuracy across the segment's pings. */
+  medianAccuracyMeters?: number | null;
+  /** Set during post-pass when evaluating movement_inside_geofence rule. */
+  clearExitDetected?: boolean | null;
 }
 
 export interface GpsTimelineSegment {
@@ -158,6 +162,13 @@ export interface GpsTimelineSegment {
 
   movementDecision?: MovementDecision;
   targetDiagnostics?: SegmentTargetDiagnostics;
+
+  /** Set when post-pass moved a travel segment into a known site. */
+  reclassificationReason?: 'movement_inside_geofence' | null;
+  /** Original kind before reclassification (audit). */
+  originalKind?: GpsTimelineSegmentKind | null;
+  /** Original type before reclassification (audit). */
+  originalType?: GpsTimelineSegmentType | null;
 }
 
 export interface GpsTimelineGap {
@@ -184,6 +195,19 @@ export interface GpsTimelineTargetMatchSummary {
   uniqueTargetsHit: number;
 }
 
+export interface MovementInsideGeofenceExample {
+  segmentStart: ISODateTime;
+  segmentEnd: ISODateTime;
+  durationMinutes: number;
+  targetLabel: string | null;
+  pingsInsideSameTargetRatio: number | null;
+  computedKmh: number | null;
+  movementReason: string | null;
+  nearestTargetDistanceMeters: number | null;
+  nearestTargetRadiusMeters: number | null;
+  clearExitDetected: boolean;
+}
+
 export interface GpsClassificationDiagnostics {
   travelSegmentsInsideTargetCandidateCount: number;
   travelSegmentsInsideTargetCandidateMinutes: number;
@@ -191,6 +215,9 @@ export interface GpsClassificationDiagnostics {
   rejectedPingsByAccuracyCount: number;
   acceptedPingsCount: number;
   targetsAvailableToGpsTimeline: number;
+  movementInsideGeofenceReclassifiedCount: number;
+  movementInsideGeofenceReclassifiedMinutes: number;
+  movementInsideGeofenceExamples: MovementInsideGeofenceExample[];
 }
 
 export interface GpsDayTimelineResult {
@@ -356,6 +383,9 @@ export function buildGpsDayTimeline(
         rejectedPingsByAccuracyCount: rejectedPings,
         acceptedPingsCount: 0,
         targetsAvailableToGpsTimeline: input.targets.length,
+        movementInsideGeofenceReclassifiedCount: 0,
+        movementInsideGeofenceReclassifiedMinutes: 0,
+        movementInsideGeofenceExamples: [],
       },
     };
   }
@@ -484,13 +514,24 @@ export function buildGpsDayTimeline(
   let travelInsideTargetMinutes = 0;
   const travelByReason: Record<string, number> = {};
 
+  // Track per-travel-segment metadata used by the post-pass reclassifier.
+  const travelMeta = new Map<string, { pings: GpsPing[]; primaryTarget: WorkTarget | null; medianAccM: number | null }>();
+
+  // Helper: median of finite numbers
+  const median = (nums: number[]): number | null => {
+    const arr = nums.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+    if (arr.length === 0) return null;
+    const mid = Math.floor(arr.length / 2);
+    return arr.length % 2 === 0 ? (arr[mid - 1] + arr[mid]) / 2 : arr[mid];
+  };
+
   // Helper: compute target diagnostics for a stay/travel based on pings + center
   const computeTargetDiagnostics = (
     pings: GpsPing[],
     centerLat: number | null,
     centerLng: number | null,
     atIso: ISODateTime,
-  ): SegmentTargetDiagnostics => {
+  ): { diag: SegmentTargetDiagnostics; primaryTarget: WorkTarget | null; medianAccM: number | null } => {
     const at = Date.parse(atIso);
     const validTargets = input.targets.filter((t) => {
       if (t.validFrom && Date.parse(t.validFrom) > at) return false;
@@ -529,19 +570,25 @@ export function buildGpsDayTimeline(
       ? validTargets.find((t) => t.key === primaryKey) ?? null
       : null;
     const ratio = pings.length > 0 && primaryCount > 0 ? primaryCount / pings.length : 0;
+    const medianAccM = median(pings.map((p) => p.accuracyM ?? NaN));
 
     return {
-      nearestTargetLabel: nearest?.target.label ?? null,
-      nearestTargetId: nearest?.target.refId ?? null,
-      nearestTargetType: nearest?.target.kind ?? null,
-      nearestTargetDistanceMeters: nearest ? Math.round(nearest.distanceM) : null,
-      nearestTargetRadiusMeters: nearest?.target.radiusM ?? null,
-      insideNearestTarget: nearest ? nearest.distanceM <= nearest.target.radiusM : false,
-      pingsInsideAnyTarget: pingsInsideAny,
-      pingsInsidePrimaryTarget: primaryCount,
-      pingsInsideSameTargetRatio: Number(ratio.toFixed(3)),
-      travelInsideTargetCandidate: false,
-      travelInsideTargetLabel: primaryTarget?.label ?? null,
+      diag: {
+        nearestTargetLabel: nearest?.target.label ?? null,
+        nearestTargetId: nearest?.target.refId ?? null,
+        nearestTargetType: nearest?.target.kind ?? null,
+        nearestTargetDistanceMeters: nearest ? Math.round(nearest.distanceM) : null,
+        nearestTargetRadiusMeters: nearest?.target.radiusM ?? null,
+        insideNearestTarget: nearest ? nearest.distanceM <= nearest.target.radiusM : false,
+        pingsInsideAnyTarget: pingsInsideAny,
+        pingsInsidePrimaryTarget: primaryCount,
+        pingsInsideSameTargetRatio: Number(ratio.toFixed(3)),
+        travelInsideTargetCandidate: false,
+        travelInsideTargetLabel: primaryTarget?.label ?? null,
+        medianAccuracyMeters: medianAccM != null ? Math.round(medianAccM) : null,
+      },
+      primaryTarget,
+      medianAccM,
     };
   };
 
@@ -589,7 +636,8 @@ export function buildGpsDayTimeline(
     const avgKmh = (distanceMeters / dtSec) * 3.6;
 
     if (run.kind === 'travel') {
-      const targetDiag = computeTargetDiagnostics(run.pings, run.centerLat, run.centerLng, first.ts);
+      const { diag: targetDiag, primaryTarget, medianAccM } =
+        computeTargetDiagnostics(run.pings, run.centerLat, run.centerLng, first.ts);
       // Decide if this travel happened inside a single target candidate (majority of pings).
       const insideCandidate =
         (targetDiag.pingsInsideSameTargetRatio ?? 0) >= 0.6 &&
@@ -603,8 +651,10 @@ export function buildGpsDayTimeline(
       const reasonKey = run.triggerDecision?.reason ?? 'unknown';
       travelByReason[reasonKey] = (travelByReason[reasonKey] ?? 0) + 1;
 
+      const segId = makeId('seg', idx++);
+      travelMeta.set(segId, { pings: run.pings, primaryTarget, medianAccM });
       segments.push({
-        id: makeId('seg', idx++),
+        id: segId,
         startTs: first.ts,
         endTs: last.ts,
         durationMin,
@@ -634,7 +684,7 @@ export function buildGpsDayTimeline(
     const center = clusterCenter(run.pings);
     const tooFew = run.pings.length < cfg.minStayPings;
     const match = matchTarget(center.lat, center.lng, first.ts, input.targets);
-    const targetDiag = computeTargetDiagnostics(run.pings, center.lat, center.lng, first.ts);
+    const { diag: targetDiag } = computeTargetDiagnostics(run.pings, center.lat, center.lng, first.ts);
 
     let type: GpsTimelineSegmentType;
     let label: string;
@@ -688,6 +738,132 @@ export function buildGpsDayTimeline(
     });
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 4) POST-PASS: movement_inside_geofence reclassification
+  //
+  // A travel segment that actually happened INSIDE the same primary geofence
+  // (e.g. walking around a venue, GPS noise creating false speed spikes)
+  // must not be reported as transport. We promote it to a known_site stay
+  // when the evidence is strong and there is no clear exit from the target.
+  //
+  // Guards:
+  //   - travelInsideTargetCandidate === true
+  //   - pingsInsideSameTargetRatio >= 0.7
+  //   - durationMin <= 240
+  //   - target is primary / canAutoMatchAsWork (assignedToUserToday !== false)
+  //   - !hasClearExitFromTarget(...)
+  //
+  // We deliberately do NOT block on computedKmh — diagnostics show the
+  // speed_threshold trigger is exactly what causes this false-positive.
+  // ───────────────────────────────────────────────────────────────────────
+
+  let movementInsideGeofenceCount = 0;
+  let movementInsideGeofenceMinutes = 0;
+  const movementInsideGeofenceExamples: MovementInsideGeofenceExample[] = [];
+
+  const hasClearExitFromTarget = (
+    pings: GpsPing[],
+    target: WorkTarget,
+    medianAccM: number | null,
+    nextSegment: GpsTimelineSegment | undefined,
+  ): boolean => {
+    const baseAcc = medianAccM != null && Number.isFinite(medianAccM) ? medianAccM : 0;
+    const tolA = Math.max(50, baseAcc);
+    const tolB = Math.max(100, baseAcc);
+
+    // (A) ≥3 consecutive pings outside target.radiusM + tolA
+    let consec = 0;
+    for (const p of pings) {
+      const d = haversine(p.lat, p.lng, target.center.lat, target.center.lng);
+      if (d > target.radiusM + tolA) {
+        consec++;
+        if (consec >= 3) return true;
+      } else {
+        consec = 0;
+      }
+    }
+
+    // (B) last 2 accepted pings outside target.radiusM + tolB
+    if (pings.length >= 2) {
+      const last = pings[pings.length - 1];
+      const prev = pings[pings.length - 2];
+      const dL = haversine(last.lat, last.lng, target.center.lat, target.center.lng);
+      const dP = haversine(prev.lat, prev.lng, target.center.lat, target.center.lng);
+      if (dL > target.radiusM + tolB && dP > target.radiusM + tolB) return true;
+    }
+
+    // (C) next segment matches a different known_site primary target
+    if (
+      nextSegment &&
+      nextSegment.kind === 'stay' &&
+      nextSegment.type === 'known_site' &&
+      nextSegment.matchedTargetId &&
+      nextSegment.matchedTargetId !== target.refId
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  for (let si = 0; si < segments.length; si++) {
+    const seg = segments[si];
+    if (seg.kind !== 'travel') continue;
+    const td = seg.targetDiagnostics;
+    if (!td?.travelInsideTargetCandidate) continue;
+    if ((td.pingsInsideSameTargetRatio ?? 0) < 0.7) continue;
+    if (seg.durationMin > 240) continue;
+
+    const meta = travelMeta.get(seg.id);
+    if (!meta || !meta.primaryTarget) continue;
+    const target = meta.primaryTarget;
+
+    // Only primary / canAutoMatchAsWork targets may absorb travel back to work.
+    // The available signal here is `assignedToUserToday`. Treat undefined as
+    // permissive (most targets in this engine are already validated upstream),
+    // but explicit `false` blocks reclassification.
+    if (target.assignedToUserToday === false) continue;
+
+    const next = segments[si + 1];
+    const clearExit = hasClearExitFromTarget(meta.pings, target, meta.medianAccM, next);
+    td.clearExitDetected = clearExit;
+    if (clearExit) continue;
+
+    // Reclassify travel → known_site stay. Keep originals for audit.
+    seg.originalKind = 'travel';
+    seg.originalType = 'transport';
+    seg.kind = 'stay';
+    seg.type = 'known_site';
+    seg.label = target.label;
+    seg.matchedTargetId = target.refId;
+    seg.matchedTargetType = target.kind;
+    seg.matchedTargetName = target.label;
+    seg.reclassificationReason = 'movement_inside_geofence';
+    seg.reason = 'matched_valid_target';
+
+    targetsHit.add(target.key);
+    knownSite++;
+    transport = Math.max(0, transport - 1);
+
+    movementInsideGeofenceCount++;
+    movementInsideGeofenceMinutes += seg.durationMin;
+    if (movementInsideGeofenceExamples.length < 25) {
+      movementInsideGeofenceExamples.push({
+        segmentStart: seg.startTs,
+        segmentEnd: seg.endTs,
+        durationMinutes: Math.round(seg.durationMin * 100) / 100,
+        targetLabel: target.label,
+        pingsInsideSameTargetRatio:
+          td.pingsInsideSameTargetRatio != null ? Number(td.pingsInsideSameTargetRatio) : null,
+        computedKmh:
+          seg.movementDecision?.computedKmh != null ? Number(seg.movementDecision.computedKmh) : null,
+        movementReason: seg.movementDecision?.reason ?? null,
+        nearestTargetDistanceMeters: td.nearestTargetDistanceMeters ?? null,
+        nearestTargetRadiusMeters: td.nearestTargetRadiusMeters ?? null,
+        clearExitDetected: false,
+      });
+    }
+  }
+
   const avgAccuracyM = avg(
     accepted.map((p) => p.accuracyM ?? NaN).filter((n) => Number.isFinite(n)) as number[],
   );
@@ -724,6 +900,9 @@ export function buildGpsDayTimeline(
       rejectedPingsByAccuracyCount: rejectedPings,
       acceptedPingsCount: accepted.length,
       targetsAvailableToGpsTimeline: input.targets.length,
+      movementInsideGeofenceReclassifiedCount: movementInsideGeofenceCount,
+      movementInsideGeofenceReclassifiedMinutes: Math.round(movementInsideGeofenceMinutes),
+      movementInsideGeofenceExamples,
     },
   };
 }

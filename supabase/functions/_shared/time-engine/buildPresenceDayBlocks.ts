@@ -282,6 +282,7 @@ export function buildPresenceDayBlocks(
 
       // Plain confirmed on-site block.
       const dur = durationMinutes(seg.startTs, seg.endTs);
+      const reclassified = (seg as any).reclassificationReason === 'movement_inside_geofence';
       blocks.push({
         id: newId('confirmed_on_site'),
         kind: 'confirmed_on_site',
@@ -292,9 +293,13 @@ export function buildPresenceDayBlocks(
         targetType: seg.matchedTargetType,
         targetId: seg.matchedTargetId,
         targetLabel: seg.matchedTargetName ?? seg.label,
-        confidence: seg.confidence >= 0.8 ? 'high' : seg.confidence >= 0.5 ? 'medium' : 'low',
-        confidenceReason: 'GPS bekräftat innanför geofence',
-        reviewState: seg.confidence >= 0.5 ? 'ok' : 'needs_review',
+        confidence: reclassified
+          ? 'medium'
+          : seg.confidence >= 0.8 ? 'high' : seg.confidence >= 0.5 ? 'medium' : 'low',
+        confidenceReason: reclassified
+          ? 'movement_inside_geofence'
+          : 'GPS bekräftat innanför geofence',
+        reviewState: reclassified ? 'ok' : seg.confidence >= 0.5 ? 'ok' : 'needs_review',
         evidence: { pingCount: seg.pingCount },
         sourceSegmentIds: [seg.id],
         hiddenRawSegmentIds: [],

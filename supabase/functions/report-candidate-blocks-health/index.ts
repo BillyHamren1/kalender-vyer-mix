@@ -221,6 +221,22 @@ interface DayHealth {
     knownSiteSegments: number;
     transportSegments: number;
     unknownPlaceSegments: number;
+    movementInsideGeofenceReclassifiedCount: number;
+    movementInsideGeofenceReclassifiedMinutes: number;
+    movementInsideGeofenceExamples: Array<{
+      staffName: string;
+      staffId: string;
+      segmentStart: string;
+      segmentEnd: string;
+      durationMinutes: number;
+      targetLabel: string | null;
+      pingsInsideSameTargetRatio: number | null;
+      computedKmh: number | null;
+      movementReason: string | null;
+      nearestTargetDistanceMeters: number | null;
+      nearestTargetRadiusMeters: number | null;
+      clearExitDetected: boolean;
+    }>;
   };
 }
 
@@ -355,6 +371,9 @@ Deno.serve(async (req) => {
           knownSiteSegments: 0,
           transportSegments: 0,
           unknownPlaceSegments: 0,
+          movementInsideGeofenceReclassifiedCount: 0,
+          movementInsideGeofenceReclassifiedMinutes: 0,
+          movementInsideGeofenceExamples: [],
         },
       };
 
@@ -439,6 +458,32 @@ Deno.serve(async (req) => {
           gd.knownSiteSegments += Number(tms.knownSiteSegments ?? 0);
           gd.transportSegments += Number(tms.transportSegments ?? 0);
           gd.unknownPlaceSegments += Number(tms.unknownPlaceSegments ?? 0);
+
+          // Reclassified (movement_inside_geofence) — promoted from travel to known_site
+          gd.movementInsideGeofenceReclassifiedCount +=
+            Number(cls.movementInsideGeofenceReclassifiedCount ?? 0);
+          gd.movementInsideGeofenceReclassifiedMinutes +=
+            Number(cls.movementInsideGeofenceReclassifiedMinutes ?? 0);
+          for (const ex of (cls.movementInsideGeofenceExamples ?? []) as any[]) {
+            if (gd.movementInsideGeofenceExamples.length >= 25) break;
+            gd.movementInsideGeofenceExamples.push({
+              staffName: s.name ?? s.id,
+              staffId: s.id,
+              segmentStart: ex.segmentStart,
+              segmentEnd: ex.segmentEnd,
+              durationMinutes: Number(ex.durationMinutes ?? 0),
+              targetLabel: ex.targetLabel ?? null,
+              pingsInsideSameTargetRatio:
+                ex.pingsInsideSameTargetRatio != null ? Number(ex.pingsInsideSameTargetRatio) : null,
+              computedKmh: ex.computedKmh != null ? Number(ex.computedKmh) : null,
+              movementReason: ex.movementReason ?? null,
+              nearestTargetDistanceMeters:
+                ex.nearestTargetDistanceMeters != null ? Number(ex.nearestTargetDistanceMeters) : null,
+              nearestTargetRadiusMeters:
+                ex.nearestTargetRadiusMeters != null ? Number(ex.nearestTargetRadiusMeters) : null,
+              clearExitDetected: !!ex.clearExitDetected,
+            });
+          }
 
           for (const seg of (gpsTimeline as any).segments ?? []) {
             if (seg.kind !== 'travel' && seg.type !== 'transport') continue;
@@ -845,6 +890,8 @@ Deno.serve(async (req) => {
           Math.round(day.geofenceDiagnostics.transportMinutesInsidePrimaryTarget * 100) / 100;
         day.geofenceDiagnostics.travelInsideTargetCandidateMinutes =
           Math.round(day.geofenceDiagnostics.travelInsideTargetCandidateMinutes * 100) / 100;
+        day.geofenceDiagnostics.movementInsideGeofenceReclassifiedMinutes =
+          Math.round(day.geofenceDiagnostics.movementInsideGeofenceReclassifiedMinutes * 100) / 100;
       }
 
       // WARNING (not FAIL): GPS classified as transport while inside geofence.
