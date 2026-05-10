@@ -112,6 +112,13 @@ const ActivePackingsCard = ({ packings, isLoading }: ActivePackingsCardProps) =>
                         {packing.packedItems}/{packing.totalItems}
                       </span>
                     </div>
+
+                    <PackingStaffStatusRow
+                      packingId={packing.id}
+                      packingName={packing.name}
+                      packingStatus={packing.status}
+                      compact
+                    />
                   </div>
                 </div>
               ))}
