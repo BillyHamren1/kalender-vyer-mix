@@ -60,6 +60,7 @@ const PresenceHub = lazyWithRecovery(() => import("./pages/admin/PresenceHub"));
 const StaffPresenceDay = lazyWithRecovery(() => import("./pages/admin/StaffPresenceDay"));
 const TimeIntelligenceDebug = lazyWithRecovery(() => import("./pages/admin/TimeIntelligenceDebug"));
 const LegacyIncomingPackingDebug = lazyWithRecovery(() => import("./pages/admin/LegacyIncomingPackingDebug"));
+const WarehouseAssignmentsDebug = lazyWithRecovery(() => import("./pages/admin/WarehouseAssignmentsDebug"));
 const TransportResponse = lazyWithRecovery(() => import("./pages/TransportResponse"));
 const SuppliersPage = lazyWithRecovery(() => import("./pages/SuppliersPage"));
 
