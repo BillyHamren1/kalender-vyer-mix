@@ -738,6 +738,132 @@ export function buildGpsDayTimeline(
     });
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 4) POST-PASS: movement_inside_geofence reclassification
+  //
+  // A travel segment that actually happened INSIDE the same primary geofence
+  // (e.g. walking around a venue, GPS noise creating false speed spikes)
+  // must not be reported as transport. We promote it to a known_site stay
+  // when the evidence is strong and there is no clear exit from the target.
+  //
+  // Guards:
+  //   - travelInsideTargetCandidate === true
+  //   - pingsInsideSameTargetRatio >= 0.7
+  //   - durationMin <= 240
+  //   - target is primary / canAutoMatchAsWork (assignedToUserToday !== false)
+  //   - !hasClearExitFromTarget(...)
+  //
+  // We deliberately do NOT block on computedKmh — diagnostics show the
+  // speed_threshold trigger is exactly what causes this false-positive.
+  // ───────────────────────────────────────────────────────────────────────
+
+  let movementInsideGeofenceCount = 0;
+  let movementInsideGeofenceMinutes = 0;
+  const movementInsideGeofenceExamples: MovementInsideGeofenceExample[] = [];
+
+  const hasClearExitFromTarget = (
+    pings: GpsPing[],
+    target: WorkTarget,
+    medianAccM: number | null,
+    nextSegment: GpsTimelineSegment | undefined,
+  ): boolean => {
+    const baseAcc = medianAccM != null && Number.isFinite(medianAccM) ? medianAccM : 0;
+    const tolA = Math.max(50, baseAcc);
+    const tolB = Math.max(100, baseAcc);
+
+    // (A) ≥3 consecutive pings outside target.radiusM + tolA
+    let consec = 0;
+    for (const p of pings) {
+      const d = haversine(p.lat, p.lng, target.center.lat, target.center.lng);
+      if (d > target.radiusM + tolA) {
+        consec++;
+        if (consec >= 3) return true;
+      } else {
+        consec = 0;
+      }
+    }
+
+    // (B) last 2 accepted pings outside target.radiusM + tolB
+    if (pings.length >= 2) {
+      const last = pings[pings.length - 1];
+      const prev = pings[pings.length - 2];
+      const dL = haversine(last.lat, last.lng, target.center.lat, target.center.lng);
+      const dP = haversine(prev.lat, prev.lng, target.center.lat, target.center.lng);
+      if (dL > target.radiusM + tolB && dP > target.radiusM + tolB) return true;
+    }
+
+    // (C) next segment matches a different known_site primary target
+    if (
+      nextSegment &&
+      nextSegment.kind === 'stay' &&
+      nextSegment.type === 'known_site' &&
+      nextSegment.matchedTargetId &&
+      nextSegment.matchedTargetId !== target.refId
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  for (let si = 0; si < segments.length; si++) {
+    const seg = segments[si];
+    if (seg.kind !== 'travel') continue;
+    const td = seg.targetDiagnostics;
+    if (!td?.travelInsideTargetCandidate) continue;
+    if ((td.pingsInsideSameTargetRatio ?? 0) < 0.7) continue;
+    if (seg.durationMin > 240) continue;
+
+    const meta = travelMeta.get(seg.id);
+    if (!meta || !meta.primaryTarget) continue;
+    const target = meta.primaryTarget;
+
+    // Only primary / canAutoMatchAsWork targets may absorb travel back to work.
+    // The available signal here is `assignedToUserToday`. Treat undefined as
+    // permissive (most targets in this engine are already validated upstream),
+    // but explicit `false` blocks reclassification.
+    if (target.assignedToUserToday === false) continue;
+
+    const next = segments[si + 1];
+    const clearExit = hasClearExitFromTarget(meta.pings, target, meta.medianAccM, next);
+    td.clearExitDetected = clearExit;
+    if (clearExit) continue;
+
+    // Reclassify travel → known_site stay. Keep originals for audit.
+    seg.originalKind = 'travel';
+    seg.originalType = 'transport';
+    seg.kind = 'stay';
+    seg.type = 'known_site';
+    seg.label = target.label;
+    seg.matchedTargetId = target.refId;
+    seg.matchedTargetType = target.kind;
+    seg.matchedTargetName = target.label;
+    seg.reclassificationReason = 'movement_inside_geofence';
+    seg.reason = 'matched_valid_target';
+
+    targetsHit.add(target.key);
+    knownSite++;
+    transport = Math.max(0, transport - 1);
+
+    movementInsideGeofenceCount++;
+    movementInsideGeofenceMinutes += seg.durationMin;
+    if (movementInsideGeofenceExamples.length < 25) {
+      movementInsideGeofenceExamples.push({
+        segmentStart: seg.startTs,
+        segmentEnd: seg.endTs,
+        durationMinutes: Math.round(seg.durationMin * 100) / 100,
+        targetLabel: target.label,
+        pingsInsideSameTargetRatio:
+          td.pingsInsideSameTargetRatio != null ? Number(td.pingsInsideSameTargetRatio) : null,
+        computedKmh:
+          seg.movementDecision?.computedKmh != null ? Number(seg.movementDecision.computedKmh) : null,
+        movementReason: seg.movementDecision?.reason ?? null,
+        nearestTargetDistanceMeters: td.nearestTargetDistanceMeters ?? null,
+        nearestTargetRadiusMeters: td.nearestTargetRadiusMeters ?? null,
+        clearExitDetected: false,
+      });
+    }
+  }
+
   const avgAccuracyM = avg(
     accepted.map((p) => p.accuracyM ?? NaN).filter((n) => Number.isFinite(n)) as number[],
   );
@@ -774,6 +900,9 @@ export function buildGpsDayTimeline(
       rejectedPingsByAccuracyCount: rejectedPings,
       acceptedPingsCount: accepted.length,
       targetsAvailableToGpsTimeline: input.targets.length,
+      movementInsideGeofenceReclassifiedCount: movementInsideGeofenceCount,
+      movementInsideGeofenceReclassifiedMinutes: Math.round(movementInsideGeofenceMinutes),
+      movementInsideGeofenceExamples,
     },
   };
 }
