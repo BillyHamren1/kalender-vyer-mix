@@ -6786,7 +6786,7 @@ async function handleGetLagerAssignments(
 
     for (const row of sa || []) {
       const tid = String(row.team_id || '')
-      if (tid === 'transport' || tid === 'warehouse' || tid.startsWith('lager-')) {
+      if (isWarehouseTeam(tid)) {
         lagerDates.add(row.assignment_date)
         if (tid.startsWith('lager-')) lagerTeams.add(tid)
       }
