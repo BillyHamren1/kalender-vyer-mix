@@ -199,8 +199,25 @@ Deno.serve(async (req) => {
   }
 
   // Pick the workday whose window covers the requested local day; prefer one that started on `date`
-  const workdayRows = workdayRes.data ?? [];
-  const workday = workdayRows.find((w) => (w.started_at as string).slice(0, 10) === date) ?? workdayRows[0] ?? null;
+  // Pick the workday som täcker den svenska kalenderdagen.
+  // 1) prioritera workday vars started_at ligger inom [dayStart, dayEnd]
+  // 2) annars den som överlappar mest med dagsfönstret
+  // 3) annars första
+  const workdayRows = (workdayRes.data ?? []) as Array<{ started_at: string; ended_at: string | null }>;
+  const startedToday = workdayRows.find((w) => {
+    const s = new Date(w.started_at).getTime();
+    return s >= new Date(dayStart).getTime() && s <= new Date(dayEnd).getTime();
+  });
+  let workday: typeof workdayRows[number] | null = startedToday ?? null;
+  if (!workday && workdayRows.length) {
+    let best = workdayRows[0];
+    let bestOverlap = overlapMinutes(best.started_at, best.ended_at, dayStart, dayEnd);
+    for (let i = 1; i < workdayRows.length; i++) {
+      const ov = overlapMinutes(workdayRows[i].started_at, workdayRows[i].ended_at, dayStart, dayEnd);
+      if (ov > bestOverlap) { best = workdayRows[i]; bestOverlap = ov; }
+    }
+    workday = best;
+  }
 
   // ---- Resolve human-readable labels for refs ----
   const trRows = timeReportsRes.data ?? [];
