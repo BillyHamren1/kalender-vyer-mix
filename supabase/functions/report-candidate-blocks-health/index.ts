@@ -594,6 +594,44 @@ Deno.serve(async (req) => {
           day.warnings.push(`geo_anchor_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
         }
 
+        // ── Stationary inside-geofence override: aggregate across staff ──
+        try {
+          const sgo = (gpsTimeline as any).stationaryGeofenceOverride;
+          if (sgo) {
+            stationaryOverrideAgg.rescuedStayCount += Number(sgo.rescuedStayCount ?? 0);
+            stationaryOverrideAgg.rescuedStayMinutes += Number(sgo.rescuedStayMinutes ?? 0);
+            stationaryOverrideAgg.pingsInsidePrimaryCount += Number(sgo.pingsInsidePrimaryCount ?? 0);
+            if (sgo.pingsInsidePrimaryRatio != null) {
+              stationaryOverrideAgg.pingsInsidePrimaryRatioSum += Number(sgo.pingsInsidePrimaryRatio);
+              stationaryOverrideAgg.pingsInsidePrimaryRatioStaffCount += 1;
+            }
+            for (const ex of (sgo.examples ?? []) as any[]) {
+              if (stationaryOverrideAgg.examples.length >= 50) break;
+              stationaryOverrideAgg.examples.push({
+                staffId: s.id,
+                staffName: s.name ?? s.id,
+                targetLabel: String(ex.targetLabel ?? ''),
+                startLocalStockholm: String(ex.startLocalStockholm ?? ''),
+                endLocalStockholm: String(ex.endLocalStockholm ?? ''),
+                durationMinutes: Number(ex.durationMinutes ?? 0),
+                pingCount: Number(ex.pingCount ?? 0),
+                medianAccuracyMeters:
+                  ex.medianAccuracyMeters != null ? Number(ex.medianAccuracyMeters) : null,
+              });
+            }
+          }
+          const remCount = Number(
+            (gpsTimeline as any).remainingTransportInsidePrimaryGeofenceCount ?? 0,
+          );
+          const remMin = Number(
+            (gpsTimeline as any).remainingTransportInsidePrimaryGeofenceMinutes ?? 0,
+          );
+          stationaryOverrideAgg.remainingTransportInsidePrimaryGeofenceCount += remCount;
+          stationaryOverrideAgg.remainingTransportInsidePrimaryGeofenceMinutes += remMin;
+        } catch (e) {
+          day.warnings.push(`stationary_override_diag_failed:${s.id}:${(e as any)?.message ?? e}`);
+        }
+
         // ── Geofence diagnostics: aggregate across staff for the day ──
         try {
           const gd = day.geofenceDiagnostics!;
