@@ -612,7 +612,7 @@ export function buildGpsDayTimeline(
         nearestTargetType: nearest?.target.kind ?? null,
         nearestTargetDistanceMeters: nearest ? Math.round(nearest.distanceM) : null,
         nearestTargetRadiusMeters: nearest?.target.radiusM ?? null,
-        insideNearestTarget: nearest ? nearest.distanceM <= nearest.target.radiusM : false,
+        insideNearestTarget: nearest ? pointInsideTarget(centerLat ?? nearest.target.center.lat, centerLng ?? nearest.target.center.lng, nearest.target) : false,
         pingsInsideAnyTarget: pingsInsideAny,
         pingsInsidePrimaryTarget: primaryCount,
         pingsInsideSameTargetRatio: Number(ratio.toFixed(3)),
