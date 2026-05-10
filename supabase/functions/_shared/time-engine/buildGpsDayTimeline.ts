@@ -804,11 +804,13 @@ export function buildGpsDayTimeline(
     const tolA = Math.max(50, baseAcc);
     const tolB = Math.max(100, baseAcc);
 
-    // (A) ≥3 consecutive pings outside target.radiusM + tolA
+    // (A) ≥3 consecutive pings >tolA meters OUTSIDE the target's geofence edge.
+    // For polygon targets this measures distance to the polygon edge, not centroid.
     let consec = 0;
     for (const p of pings) {
-      const d = haversine(p.lat, p.lng, target.center.lat, target.center.lng);
-      if (d > target.radiusM + tolA) {
+      const signed = signedDistanceToTargetEdge(p.lat, p.lng, target);
+      const outsideBy = -signed; // positive when outside
+      if (outsideBy > tolA) {
         consec++;
         if (consec >= 3) return true;
       } else {
@@ -816,13 +818,13 @@ export function buildGpsDayTimeline(
       }
     }
 
-    // (B) last 2 accepted pings outside target.radiusM + tolB
+    // (B) last 2 accepted pings >tolB meters outside the geofence edge
     if (pings.length >= 2) {
       const last = pings[pings.length - 1];
       const prev = pings[pings.length - 2];
-      const dL = haversine(last.lat, last.lng, target.center.lat, target.center.lng);
-      const dP = haversine(prev.lat, prev.lng, target.center.lat, target.center.lng);
-      if (dL > target.radiusM + tolB && dP > target.radiusM + tolB) return true;
+      const oL = -signedDistanceToTargetEdge(last.lat, last.lng, target);
+      const oP = -signedDistanceToTargetEdge(prev.lat, prev.lng, target);
+      if (oL > tolB && oP > tolB) return true;
     }
 
     // (C) next segment matches a different known_site primary target
