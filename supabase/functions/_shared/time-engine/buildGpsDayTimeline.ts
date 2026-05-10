@@ -826,6 +826,17 @@ export function buildGpsDayTimeline(
   let movementInsideGeofenceMinutes = 0;
   const movementInsideGeofenceExamples: MovementInsideGeofenceExample[] = [];
 
+  // Per-bucket counters for transport segments that survive as transport
+  // even though they are "inside primary target candidate". These drive
+  // health-check status (only `reclassifiable` is a true engine warning).
+  let transportInsidePrimaryTotalCount = 0;
+  let transportInsidePrimaryTotalMinutes = 0;
+  let keptClearExitCount = 0; let keptClearExitMinutes = 0;
+  let keptRatioBelowCount = 0; let keptRatioBelowMinutes = 0;
+  let keptSecondaryUnsafeCount = 0; let keptSecondaryUnsafeMinutes = 0;
+  let keptDurationTooLongCount = 0; let keptDurationTooLongMinutes = 0;
+  let reclassifiableCount = 0; let reclassifiableMinutes = 0;
+
   const hasClearExitFromTarget = (
     pings: GpsPing[],
     target: WorkTarget,
