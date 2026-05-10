@@ -55,7 +55,7 @@ const MobileLagerPage = () => {
       case 'complete_task':
         if (item.project_task_id) {
           try {
-            await mobileApi.completeLagerTask?.({ task_id: item.project_task_id });
+            await mobileApi.completeLagerTask({ task_id: item.project_task_id, completed: true });
             toast.success('Markerad som klar');
             refresh();
           } catch (e) {
