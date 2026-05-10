@@ -173,6 +173,9 @@ const MobileJobs = () => {
             )}
           </div>
 
+          {/* Lager day card — internal warehouse hub for the selected day */}
+          <LagerDayCard date={selectedDate} />
+
           {/* Fixed location jobs (e.g. Lager) — read-only, opens detail. */}
           {locationJobs.length > 0 && (
             <div>
