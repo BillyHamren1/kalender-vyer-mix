@@ -184,6 +184,15 @@ export interface GpsTimelineTargetMatchSummary {
   uniqueTargetsHit: number;
 }
 
+export interface GpsClassificationDiagnostics {
+  travelSegmentsInsideTargetCandidateCount: number;
+  travelSegmentsInsideTargetCandidateMinutes: number;
+  travelSegmentsByMovementReason: Record<string, number>;
+  rejectedPingsByAccuracyCount: number;
+  acceptedPingsCount: number;
+  targetsAvailableToGpsTimeline: number;
+}
+
 export interface GpsDayTimelineResult {
   staffId: UUID;
   organizationId: UUID;
@@ -198,6 +207,7 @@ export interface GpsDayTimelineResult {
   segments: GpsTimelineSegment[];
   qualitySummary: GpsTimelineQualitySummary;
   targetMatchSummary: GpsTimelineTargetMatchSummary;
+  classificationDiagnostics: GpsClassificationDiagnostics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
