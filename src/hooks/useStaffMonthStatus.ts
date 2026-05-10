@@ -135,12 +135,14 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     window.addEventListener('timer-state-changed', scheduleRefresh);
     window.addEventListener('workday-started', scheduleRefresh);
     window.addEventListener('workday-ended', scheduleRefresh);
+    window.addEventListener('staff-day-attested', scheduleRefresh);
     return () => {
       window.clearInterval(id);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('timer-state-changed', scheduleRefresh);
       window.removeEventListener('workday-started', scheduleRefresh);
       window.removeEventListener('workday-ended', scheduleRefresh);
+      window.removeEventListener('staff-day-attested', scheduleRefresh);
     };
   }, [staffId, refresh, scheduleRefresh]);
 
