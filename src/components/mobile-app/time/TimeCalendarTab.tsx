@@ -1,10 +1,8 @@
 /**
  * TimeCalendarTab — månads-/vecko-historik från `useStaffMonthStatus`.
  *
- * Hybrid-layout: månadsväljare + summering + en lista där varje dag är
- * en stor mobilvänlig rad med datum, total tid, status och färgkodning.
- * Klick på en rad öppnar `StaffDayDetailSheet` som driver dagdetaljen
- * från `useStaffDayStatus(date)`. UI gör ingen lokal aggregering.
+ * SANNINGSREGEL: backend snapshot är ENDA källan. UI använder canonical
+ * fält (DaySummary + SummarizedTotals) — ingen lokal aggregering.
  */
 import { useMemo, useState } from 'react';
 import {
@@ -13,7 +11,7 @@ import {
 import { sv } from 'date-fns/locale';
 import {
   ChevronLeft, ChevronRight, Loader2, Check, AlertTriangle,
-  Clock, CalendarDays, Lock, Sun, MoonStar,
+  Clock, Lock, Sun, MoonStar, HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -25,33 +23,30 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import StaffDayDetailSheet from './StaffDayDetailSheet';
 
 const STATUS_LABEL: Record<StaffMonthDayKind, string> = {
+  empty: 'Ingen tid',
   open: 'Pågår',
+  needs_attest: 'Väntar attest',
+  needs_action: 'Behöver åtgärd',
+  attested: 'Attesterad',
   approved: 'Godkänd',
-  review_required: 'Behöver granskning',
-  closed: 'Klar',
-  missing: 'Saknar tid',
-  off: 'Ledig',
-  locked: 'Låst',
 };
 
 const STATUS_TONE: Record<StaffMonthDayKind, string> = {
+  empty: 'bg-muted text-muted-foreground border-border',
   open: 'bg-primary/10 text-primary border-primary/20',
+  needs_attest: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
+  needs_action: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30',
+  attested: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
   approved: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-  closed: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-  review_required: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
-  missing: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30',
-  off: 'bg-muted text-muted-foreground border-border',
-  locked: 'bg-muted text-muted-foreground border-border',
 };
 
 const STATUS_ICON: Record<StaffMonthDayKind, React.ComponentType<{ className?: string }>> = {
+  empty: MoonStar,
   open: Loader2,
+  needs_attest: Clock,
+  needs_action: HelpCircle,
+  attested: Check,
   approved: Lock,
-  closed: Check,
-  review_required: AlertTriangle,
-  missing: AlertTriangle,
-  off: MoonStar,
-  locked: Lock,
 };
 
 export const TimeCalendarTab = () => {
@@ -104,7 +99,7 @@ export const TimeCalendarTab = () => {
         </button>
       </div>
 
-      {/* Month summary */}
+      {/* Month summary — canonical totals */}
       <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
           Månadssummering
@@ -113,23 +108,23 @@ export const TimeCalendarTab = () => {
           <SummaryCell
             icon={<Sun className="w-3 h-3" />}
             label="Totalt"
-            value={formatHoursMinutes((status?.totals.workdayMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((status?.totals.grossWorkdayMinutes ?? 0) / 60)}
             strong
           />
           <SummaryCell
             icon={<Check className="w-3 h-3" />}
             label="Godkänt"
-            value={formatHoursMinutes((status?.totals.approvedMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((status?.totals.approvedPayableMinutes ?? 0) / 60)}
           />
           <SummaryCell
             icon={<Clock className="w-3 h-3" />}
             label="Väntar"
-            value={formatHoursMinutes((status?.totals.pendingReviewMinutes ?? 0) / 60)}
+            value={formatHoursMinutes((status?.totals.awaitingAttestPayableMinutes ?? 0) / 60)}
           />
           <SummaryCell
             icon={<AlertTriangle className="w-3 h-3" />}
             label="Frågor"
-            value={`${status?.totals.daysWithFlags ?? 0} dagar`}
+            value={`${status?.totals.daysWithActions ?? 0} dagar`}
             tone="warning"
           />
         </div>
@@ -169,7 +164,8 @@ const DayRow: React.FC<{ day: StaffMonthDayStatus; onClick: () => void }> = ({ d
   const dayDate = format(d, 'd MMM', { locale: sv });
   const Icon = STATUS_ICON[day.status];
   const tone = STATUS_TONE[day.status];
-  const showHours = day.workdayMinutes > 0;
+  const minutes = day.grossWorkdayMinutes;
+  const showHours = minutes > 0;
 
   return (
     <button
@@ -188,16 +184,16 @@ const DayRow: React.FC<{ day: StaffMonthDayStatus; onClick: () => void }> = ({ d
       <div className="flex-1 min-w-0">
         {showHours ? (
           <p className="text-sm font-bold text-foreground tabular-nums">
-            {formatHoursMinutes(day.workdayMinutes / 60)}
+            {formatHoursMinutes(minutes / 60)}
           </p>
         ) : (
           <p className="text-sm font-semibold text-muted-foreground">
-            {day.status === 'off' ? '—' : 'Ingen tid'}
+            {day.status === 'empty' ? '—' : 'Ingen tid'}
           </p>
         )}
-        {day.hasFlags && (
+        {day.actionsCount > 0 && (
           <p className="text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1 mt-0.5">
-            <AlertTriangle className="w-3 h-3" /> Har frågor
+            <AlertTriangle className="w-3 h-3" /> {day.actionsCount} frågor
           </p>
         )}
       </div>

@@ -5,8 +5,9 @@
  * `get-staff-month-status` Edge Function — the mobile app must NOT
  * aggregate workdays / time_reports / travel_logs itself.
  *
- * Realtime: subscribes to the underlying tables (staff-scoped) and uses
- * the events purely as triggers to refetch.
+ * The shapes mirror `DaySummary` and `SummarizedTotals` from
+ * `supabase/functions/_shared/day-snapshot-range.ts` so backend is the
+ * single source of truth.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, startOfMonth } from 'date-fns';
@@ -15,42 +16,52 @@ import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 
 export type StaffMonthDayKind =
+  | 'empty'
   | 'open'
-  | 'approved'
-  | 'review_required'
-  | 'closed'
-  | 'missing'
-  | 'off'
-  | 'locked';
+  | 'needs_attest'
+  | 'needs_action'
+  | 'attested'
+  | 'approved';
 
 export interface StaffMonthDayStatus {
   /** yyyy-MM-dd */
   date: string;
-  workdayMinutes: number;
-  allocatedProjectMinutes: number;
-  travelMinutes: number;
-  unallocatedMinutes: number;
+  weekday: number;
+  grossWorkdayMinutes: number;
+  breakMinutes: number;
+  payableMinutes: number;
+  projectMinutes: number;
+  warehouseMinutes: number;
+  transportMinutes: number;
+  otherPlaceMinutes: number;
   isWorkdayOpen: boolean;
-  hasFlags: boolean;
-  reviewStatus: string | null;
   approved: boolean;
+  attested: boolean;
+  actionsCount: number;
   status: StaffMonthDayKind;
 }
 
+export interface StaffMonthTotals {
+  grossWorkdayMinutes: number;
+  breakMinutes: number;
+  manualDeductionMinutes: number;
+  payableMinutes: number;
+  approvedPayableMinutes: number;
+  awaitingAttestPayableMinutes: number;
+  daysWithActions: number;
+  daysWithWork: number;
+  projectMinutes: number;
+  warehouseMinutes: number;
+  transportMinutes: number;
+  otherPlaceMinutes: number;
+}
+
 export interface StaffMonthStatus {
-  /** yyyy-MM (the month bucket the data describes) */
+  /** yyyy-MM */
   month: string;
   staffId: string;
   days: StaffMonthDayStatus[];
-  totals: {
-    workdayMinutes: number;
-    allocatedProjectMinutes: number;
-    travelMinutes: number;
-    unallocatedMinutes: number;
-    approvedMinutes: number;
-    pendingReviewMinutes: number;
-    daysWithFlags: number;
-  };
+  totals: StaffMonthTotals;
   lastUpdatedAt: string;
 }
 
@@ -69,6 +80,7 @@ const REALTIME_TABLES = [
   'location_time_entries',
   'workday_flags',
   'assistant_events',
+  'day_attestations',
 ] as const;
 
 export function useStaffMonthStatus(month?: Date | string): Result {
