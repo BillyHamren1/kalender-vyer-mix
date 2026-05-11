@@ -25,6 +25,7 @@ export type StaffSnapshotFunctionName =
   | 'attest-staff-day'
   // Time App single-source endpoints (cache-driven):
   | 'get-mobile-staff-day-report'
+  | 'get-mobile-staff-time-report-period'
   | 'submit-staff-day-v3';
 
 export async function callStaffSnapshotFunction<T>(
