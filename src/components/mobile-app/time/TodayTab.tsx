@@ -439,7 +439,7 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
 // ────────────────────────────────────────────────────────────────────
 
 export const TodayTab: React.FC = () => {
-  const { snapshot, isLoading, error, refresh } = useStaffDaySnapshot();
+  const { snapshot, isLoading, error, refresh } = useStaffDayStatusViaMobileReport();
   const { effectiveStaffId, staff } = useMobileAuth();
   const [selectedSeg, setSelectedSeg] = useState<StaffDaySegment | null>(null);
 
