@@ -435,6 +435,8 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
 
 export const TodayTab: React.FC = () => {
   const { snapshot, isLoading, error, refresh } = useStaffDayStatusViaMobileReport();
+  const { effectiveStaffId, staff } = useMobileAuth();
+  const [selectedSeg, setSelectedSeg] = useState<StaffDaySegment | null>(null);
 
   if (isLoading && !snapshot) {
     return (
@@ -461,11 +463,23 @@ export const TodayTab: React.FC = () => {
     <div className="space-y-3">
       <WorkdayStatusCard snapshot={snapshot} />
       <TotalsCard snapshot={snapshot} />
-      <TimelineSection snapshot={snapshot} onChanged={() => { void refresh(); }} />
+      <TimelineSection
+        snapshot={snapshot}
+        onChanged={() => { void refresh(); }}
+        onSelectSegment={setSelectedSeg}
+      />
       <ActionsNeededSection snapshot={snapshot} />
       <div className="pt-1">
         <PrimaryAction snapshot={snapshot} />
       </div>
+
+      <SegmentDetailSheet
+        segment={selectedSeg}
+        date={snapshot.date}
+        staffId={effectiveStaffId ?? null}
+        staffName={staff?.full_name ?? null}
+        onClose={() => setSelectedSeg(null)}
+      />
     </div>
   );
 };
