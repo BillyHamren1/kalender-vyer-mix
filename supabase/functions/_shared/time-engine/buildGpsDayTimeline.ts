@@ -1149,18 +1149,43 @@ export function buildGpsDayTimeline(
     let reclassReason: GpsTimelineSegment['reclassificationReason'] = null;
 
     if (match) {
-      type = 'known_site';
-      label = match.target.label;
-      reason = overrideOwner ? 'stationary_inside_geofence_override' : 'matched_valid_target';
-      matchedTargetId = match.target.refId;
-      matchedTargetType = match.target.kind;
-      matchedTargetName = match.target.label;
-      confidence = overrideOwner ? 0.9 : Math.min(1, 0.6 + Math.min(run.pings.length, 10) / 25);
-      targetsHit.add(match.target.key);
-      knownSite++;
-      if (overrideOwner) {
-        reclassReason = 'stationary_inside_geofence_override';
-        targetDiag.warningLabel = targetDiag.warningLabel ?? null;
+      // Engine 4 — Boende / private_residence vinner och får ALDRIG räknas
+      // som arbete. Vi behåller känd-plats-matchningen i diagnostics men
+      // exponerar segmentet som unknown_place utan matchedTarget* så att
+      // ingen senare regel råkar tolka det som arbete eller slå ihop det
+      // med en närliggande Warehouse.
+      if (match.target.isPrivateResidence === true) {
+        type = 'unknown_place';
+        label = `Boende: ${match.target.label}`;
+        reason = 'no_target_match';
+        confidence = Math.min(0.7, 0.4 + run.pings.length / 25);
+        unknownPlace++;
+        privateResidenceWinsCount += 1;
+        privateResidenceMatchedPingsCount += run.pings.length;
+        if (transportThresholdExamples.length < 10) {
+          transportThresholdExamples.push({
+            kind: 'private_residence_wins',
+            startAt: first.ts,
+            endAt: last.ts,
+            durationMinutes: Math.round(durationMin * 10) / 10,
+            distanceMeters: Math.round(distanceMeters),
+            reason: `private_residence_${match.target.refId}`,
+          });
+        }
+      } else {
+        type = 'known_site';
+        label = match.target.label;
+        reason = overrideOwner ? 'stationary_inside_geofence_override' : 'matched_valid_target';
+        matchedTargetId = match.target.refId;
+        matchedTargetType = match.target.kind;
+        matchedTargetName = match.target.label;
+        confidence = overrideOwner ? 0.9 : Math.min(1, 0.6 + Math.min(run.pings.length, 10) / 25);
+        targetsHit.add(match.target.key);
+        knownSite++;
+        if (overrideOwner) {
+          reclassReason = 'stationary_inside_geofence_override';
+          targetDiag.warningLabel = targetDiag.warningLabel ?? null;
+        }
       }
     } else {
       // Unknown place MUST NEVER be named from a previous timer/report.
