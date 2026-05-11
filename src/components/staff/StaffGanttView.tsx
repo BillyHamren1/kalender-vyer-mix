@@ -652,7 +652,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
               onClick={() => setCompactRange((v) => !v)}
               title="Växla tidsintervall"
             >
-              {compactRange ? '06–22' : '00–24'}
+              {compactRange ? `Auto ${String(startHour).padStart(2,'0')}–${String(endHour).padStart(2,'0')}` : '00–24'}
             </Button>
           </div>
         </div>
