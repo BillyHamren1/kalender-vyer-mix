@@ -206,8 +206,14 @@ export interface SegmentTargetDiagnostics {
   stickyAnchorEntryAtLocal?: string | null;
   /** Source table of the entry-anchor. */
   stickyAnchorTable?: 'assistant_events' | 'staff_presence_events' | null;
-  /** True iff a geo-exit anchor occurred in this segment's window without strong exit. */
-  geoExitWithoutStrongExitObserved?: boolean | null;
+  /** True iff a private_residence / boende WorkTarget won the match for this
+   *  segment (Engine 4). MUST be propagated to PresenceDayBlock.evidence and
+   *  used to filter the segment OUT of the report-candidate stream. */
+  privateResidence?: boolean;
+  /** organization_locations.id of the private_residence target that won. */
+  privateResidenceTargetId?: string | null;
+  /** Display label of the private_residence target ("Hemma", "Boende: …"). */
+  privateResidenceLabel?: string | null;
 }
 
 export interface GpsTimelineSegment {
