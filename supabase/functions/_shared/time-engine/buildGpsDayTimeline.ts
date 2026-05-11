@@ -402,6 +402,39 @@ export interface GpsClassificationDiagnostics {
    */
   remainingTransportInsidePrimaryGeofenceCount: number;
   remainingTransportInsidePrimaryGeofenceMinutes: number;
+
+  /**
+   * Engine 4 — TRANSPORT_MIN_DISTANCE_METERS diagnostics.
+   * Tracks how the 500 m floor and the residence-wins rule altered the raw
+   * GPS clustering. Pure diagnostics; no rows are written and no rapport-tabeller
+   * are touched.
+   */
+  transportDistanceThresholdDiagnostics: {
+    transportMinDistanceMeters: number;
+    /** Number of travel runs demoted to a stay because cluster distance < threshold. */
+    belowThresholdMovementSuppressedCount: number;
+    /** Total minutes of those demoted runs. */
+    belowThresholdMovementSuppressedMinutes: number;
+    /** How many movement decisions were taken from device speed_mps but never
+     *  produced transport on their own (now strictly support-evidence). */
+    reportedSpeedIgnoredCount: number;
+    /** Convenience alias for callers/UI: same value as
+     *  belowThresholdMovementSuppressedCount but framed as "false trips prevented". */
+    falseTravelPreventedCount: number;
+    /** Pings/stays where a private_residence target won over a nearby
+     *  warehouse/work target. */
+    privateResidenceWinsCount: number;
+    /** Pings that matched a private_residence polygon (regardless of conflict). */
+    privateResidenceMatchedPingsCount: number;
+    examples: Array<{
+      kind: 'below_threshold_demoted' | 'private_residence_wins';
+      startAt: ISODateTime;
+      endAt: ISODateTime;
+      durationMinutes: number;
+      distanceMeters: number;
+      reason: string;
+    }>;
+  };
 }
 
 export interface GpsDayTimelineResult {
