@@ -57,14 +57,26 @@ export interface SessionConsolidationDiagnostics {
    *  demoterades till reviewState='ok' (rena soft-skäl, ingen hård orsak). */
   demotedNeedsReviewBlocksCount: number;
   examples: Array<{
+    /** Time Engine 2.8 — full session example for diagnostics_json. */
+    staffName: string | null;
+    sessionLabel: string | null;
+    sessionStart: string;
+    sessionEnd: string;
+    sessionDurationMinutes: number;
+    originalBlockKinds: string[];
+    originalBlockLabels: string[];
+    absorbedBlockCount: number;
+    signalGapMinutes: number;
+    internalMovementMinutes: number;
+    finalKind: string;
+    finalReviewState: string;
+    warningLabel: string | null;
+    reasons: string[];
+    // Legacy fields (kept for backwards compatibility with previous readers).
     sessionTargetLabel: string | null;
     sessionStartAt: string;
     sessionEndAt: string;
-    sessionDurationMinutes: number;
-    absorbedBlockCount: number;
     absorbedKinds: string[];
-    signalGapMinutes: number;
-    internalMovementMinutes: number;
   }>;
 }
 
