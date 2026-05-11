@@ -254,6 +254,19 @@ export interface ReportCandidatePolicy {
   shortUnknownTransportHideMaxMinutes?: number;
 }
 
+export interface HomeAnchorInput {
+  /** Identifier from staff_inferred_home_locations / staff_private_zones. */
+  id?: string | null;
+  /** 'home_sleep' | 'manual_ignore' | 'recurring_night' | inferred kind. */
+  kind?: string | null;
+  lat: number;
+  lng: number;
+  /** Radius in meters. Falls back to 200 m. */
+  radiusM?: number | null;
+  /** Optional human label for Decision Trace. */
+  label?: string | null;
+}
+
 export interface BuildReportCandidateBlocksInput {
   staffId: UUID;
   organizationId: UUID;
@@ -261,6 +274,10 @@ export interface BuildReportCandidateBlocksInput {
   presenceDayBlocks: PresenceDayBlock[];
   activeTimeRegistrations?: ActiveTimeRegistrationInput[];
   staffPresenceSessions?: StaffPresenceSessionInput[];
+  /** Optional list of staff home/sleep anchors (lat/lng/radius). When a
+   *  pre-work block's GPS center is inside one of these, it is excluded with
+   *  reason='home_anchor' for Decision Trace. Read-only. */
+  homeAnchors?: HomeAnchorInput[];
   policy?: ReportCandidatePolicy;
 }
 
@@ -286,6 +303,11 @@ export interface PreWorkExclusionDiagnostics {
   firstPrimaryTargetLabel: string | null;
   excludedReasons: Record<string, number>;
   examples: PreWorkExclusionExample[];
+  /** How many home anchors were supplied for this staff/day. */
+  homeAnchorsCount?: number;
+  /** Subset of pre-work blocks that matched a home anchor (lat/lng inside
+   *  radius). Useful for Decision Trace and health checks. */
+  homeAnchorMatches?: number;
 }
 
 export interface ReportCandidateDayResult {
@@ -418,6 +440,33 @@ function fmtClock(iso: string): string {
   const hh = String(d.getUTCHours()).padStart(2, '0');
   const mm = String(d.getUTCMinutes()).padStart(2, '0');
   return `${hh}:${mm}`;
+}
+
+/** Haversine distance in meters between two lat/lng points. */
+function distanceMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+/** Return the first home anchor whose radius contains (lat,lng), or null. */
+function matchHomeAnchor(
+  lat: number | null | undefined,
+  lng: number | null | undefined,
+  anchors: HomeAnchorInput[] | undefined,
+): HomeAnchorInput | null {
+  if (lat == null || lng == null || !anchors || anchors.length === 0) return null;
+  for (const a of anchors) {
+    if (a.lat == null || a.lng == null) continue;
+    const r = a.radiusM ?? 200;
+    if (distanceMeters(lat, lng, a.lat, a.lng) <= r) return a;
+  }
+  return null;
 }
 
 function isDayOpen(
@@ -1247,6 +1296,24 @@ export function buildReportCandidateBlocks(
     firstPrimaryTargetLabel: null,
     excludedReasons: {},
     examples: [],
+    homeAnchorsCount: input.homeAnchors?.length ?? 0,
+    homeAnchorMatches: 0,
+  };
+
+  // Index presence blocks by id so we can recover GPS center for a candidate
+  // block via its sourcePresenceBlockIds. Used by the home-anchor check below.
+  const presenceById = new Map<string, PresenceDayBlock>();
+  for (const pb of blocks) presenceById.set(pb.id, pb);
+  const blockCenter = (
+    r: ReportCandidateBlock,
+  ): { lat: number; lng: number } | null => {
+    for (const sid of r.sourcePresenceBlockIds ?? []) {
+      const pb = presenceById.get(sid);
+      const lat = pb?.evidence?.centerLat ?? null;
+      const lng = pb?.evidence?.centerLng ?? null;
+      if (lat != null && lng != null) return { lat, lng };
+    }
+    return null;
   };
 
   const stockholmHour = (iso: string): number => {
@@ -1274,24 +1341,37 @@ export function buildReportCandidateBlocks(
       const r = out[k];
       let reason: PreWorkExclusionReason | null = null;
 
-      if (noWorkBeforeNoon) {
-        // No secure workplace before 12:00 local → exclude everything pre-work.
-        reason = 'no_workplace_before_noon';
-      } else if (r.kind === 'unknown') {
-        reason = 'before_first_primary_work_target';
-      } else if (r.kind === 'needs_review') {
-        reason = 'before_first_primary_work_target';
-      } else if (r.kind === 'work' && !r.targetId) {
-        reason = 'before_first_primary_work_target';
-      } else if (r.kind === 'transport') {
-        const isImmediatelyBefore = k === firstPrimaryIdx - 1;
-        const gapMin =
-          (new Date(firstPrimary.startAt).getTime() - new Date(r.endAt).getTime()) / 60_000;
-        const anchored =
-          isImmediatelyBefore &&
-          gapMin <= 5 &&
-          (!r.toLabel || !firstPrimary.targetLabel || r.toLabel === firstPrimary.targetLabel);
-        if (!anchored) reason = 'before_first_primary_work_target';
+      // Home-anchor check FIRST — overrides other pre-work reasons so the
+      // Decision Trace can say "Matchade privat nattplats" instead of just
+      // "Före arbetsdag". Only applies to non-targeted blocks.
+      if (!r.targetId) {
+        const center = blockCenter(r);
+        if (center && matchHomeAnchor(center.lat, center.lng, input.homeAnchors)) {
+          reason = 'home_anchor';
+          preWorkExclusionDiagnostics.homeAnchorMatches =
+            (preWorkExclusionDiagnostics.homeAnchorMatches ?? 0) + 1;
+        }
+      }
+
+      if (!reason) {
+        if (noWorkBeforeNoon) {
+          reason = 'no_workplace_before_noon';
+        } else if (r.kind === 'unknown') {
+          reason = 'before_first_primary_work_target';
+        } else if (r.kind === 'needs_review') {
+          reason = 'before_first_primary_work_target';
+        } else if (r.kind === 'work' && !r.targetId) {
+          reason = 'before_first_primary_work_target';
+        } else if (r.kind === 'transport') {
+          const isImmediatelyBefore = k === firstPrimaryIdx - 1;
+          const gapMin =
+            (new Date(firstPrimary.startAt).getTime() - new Date(r.endAt).getTime()) / 60_000;
+          const anchored =
+            isImmediatelyBefore &&
+            gapMin <= 5 &&
+            (!r.toLabel || !firstPrimary.targetLabel || r.toLabel === firstPrimary.targetLabel);
+          if (!anchored) reason = 'before_first_primary_work_target';
+        }
       }
 
       if (reason) {
@@ -1319,6 +1399,46 @@ export function buildReportCandidateBlocks(
       for (let k = 0; k < out.length; k++) {
         if (k >= firstPrimaryIdx || keep[k]) filtered.push(out[k]);
       }
+      out.length = 0;
+      out.push(...filtered);
+    }
+  }
+
+  // Second pass — even when there is no firstPrimary work target (all-home
+  // day, day off, etc.), exclude any non-targeted unknown/needs_review block
+  // whose GPS center matches a home anchor. Keeps "Hemma / privat plats" out
+  // of the main report on rest days.
+  if ((input.homeAnchors?.length ?? 0) > 0 && out.length > 0) {
+    const keepAll: boolean[] = new Array(out.length).fill(true);
+    for (let k = 0; k < out.length; k++) {
+      const r = out[k];
+      if (r.targetId) continue;
+      if (r.kind !== 'unknown' && r.kind !== 'needs_review') continue;
+      const center = blockCenter(r);
+      if (!center) continue;
+      if (!matchHomeAnchor(center.lat, center.lng, input.homeAnchors)) continue;
+      keepAll[k] = false;
+      preWorkExclusionDiagnostics.excludedPreWorkMinutes += r.durationMinutes;
+      preWorkExclusionDiagnostics.excludedPreWorkBlocksCount += 1;
+      preWorkExclusionDiagnostics.excludedReasons['home_anchor'] =
+        (preWorkExclusionDiagnostics.excludedReasons['home_anchor'] ?? 0) + 1;
+      preWorkExclusionDiagnostics.homeAnchorMatches =
+        (preWorkExclusionDiagnostics.homeAnchorMatches ?? 0) + 1;
+      if (preWorkExclusionDiagnostics.examples.length < 20) {
+        preWorkExclusionDiagnostics.examples.push({
+          startAt: r.startAt,
+          endAt: r.endAt,
+          durationMinutes: r.durationMinutes,
+          originalKind: r.kind,
+          originalLabel: r.title,
+          reason: 'home_anchor',
+        });
+      }
+      excludedPreWorkBlocks.push(r);
+    }
+    if (keepAll.some((k) => !k)) {
+      const filtered: ReportCandidateBlock[] = [];
+      for (let k = 0; k < out.length; k++) if (keepAll[k]) filtered.push(out[k]);
       out.length = 0;
       out.push(...filtered);
     }

@@ -411,12 +411,24 @@ function OverviewTab(props: DecisionTraceDrawerProps) {
   );
 }
 
+const REASON_LABEL: Record<string, string> = {
+  home_anchor: 'Matchade privat nattplats',
+  before_first_primary_work_target: 'Före första arbetsplats',
+  no_workplace_before_noon: 'Ingen arbetsplats före 12:00',
+};
+
 function PreWorkExcludedSection(props: DecisionTraceDrawerProps) {
   const diag = props.preWorkExclusionDiagnostics ?? null;
   const blocks = props.excludedPreWorkBlocks ?? [];
   const count = diag?.excludedPreWorkBlocksCount ?? blocks.length;
   if (!count || count === 0) return null;
   const minutes = diag?.excludedPreWorkMinutes ?? 0;
+  const reasons = (diag?.excludedReasons ?? {}) as Record<string, number>;
+  const examples = (diag?.examples ?? []) as Array<{ startAt: string; endAt: string; reason: string }>;
+  const reasonByKey = new Map<string, string>();
+  for (const ex of examples) reasonByKey.set(`${ex.startAt}|${ex.endAt}`, ex.reason);
+  const homeMatches = (diag as any)?.homeAnchorMatches ?? reasons.home_anchor ?? 0;
+  const homeAnchorsCount = (diag as any)?.homeAnchorsCount ?? 0;
   return (
     <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/10 p-3 text-xs">
       <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -432,21 +444,38 @@ function PreWorkExcludedSection(props: DecisionTraceDrawerProps) {
       <div className="mb-2 text-[11px]">
         <span className="font-medium text-foreground">{count}</span> block,{' '}
         <span className="font-medium text-foreground">{fmtMin(minutes)}</span> totalt
+        {homeAnchorsCount > 0 && (
+          <> · <span className="text-muted-foreground">home anchors: {homeAnchorsCount}</span>
+            {homeMatches > 0 && <> · <span className="font-medium text-foreground">{homeMatches} matchade nattplats</span></>}
+          </>
+        )}
       </div>
+      {Object.keys(reasons).length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {Object.entries(reasons).map(([k, v]) => (
+            <span key={k} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
+              {REASON_LABEL[k] ?? k}: {v}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="space-y-1.5">
-        {blocks.map((b) => (
-          <div key={b.id} className="rounded border bg-background px-2 py-1 text-[11px]">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <KindBadge kind={b.kind} />
-                <span className="font-mono tabular-nums">{fmtHm(b.startAt)} – {fmtHm(b.endAt)}</span>
-                <span className="text-muted-foreground">({fmtMin(b.durationMinutes)})</span>
+        {blocks.map((b) => {
+          const reason = reasonByKey.get(`${b.startAt}|${b.endAt}`) ?? 'excluded_pre_work';
+          return (
+            <div key={b.id} className="rounded border bg-background px-2 py-1 text-[11px]">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <KindBadge kind={b.kind} />
+                  <span className="font-mono tabular-nums">{fmtHm(b.startAt)} – {fmtHm(b.endAt)}</span>
+                  <span className="text-muted-foreground">({fmtMin(b.durationMinutes)})</span>
+                </div>
+                <span className="text-muted-foreground italic">{REASON_LABEL[reason] ?? reason}</span>
               </div>
-              <span className="text-muted-foreground italic">excluded_pre_work</span>
+              <div className="text-muted-foreground truncate">{b.title}</div>
             </div>
-            <div className="text-muted-foreground truncate">{b.title}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
