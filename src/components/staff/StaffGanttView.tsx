@@ -269,15 +269,6 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   engineMode = 'report_candidate',
   bookingPhaseByDate,
 }) => {
-
-export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
-  staffList,
-  isLoading,
-  onSelectStaff,
-  selectedDate,
-  onDateChange,
-  reportCandidateByStaff,
-  engineMode = 'report_candidate',
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
