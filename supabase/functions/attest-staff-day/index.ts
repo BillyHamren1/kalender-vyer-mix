@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
   // Check existing attestation: locked rows can only be changed by admins.
   const { data: existing, error: existingErr } = await admin
     .from("day_attestations")
-    .select("id, status")
+    .select("id, status, metadata")
     .eq("organization_id", orgId)
     .eq("staff_id", staffId)
     .eq("date", date)
@@ -97,9 +97,6 @@ Deno.serve(async (req) => {
   }
 
   // Also block if workday is approved and caller isn't admin.
-  // Attest gäller svensk kalenderdag (Stockholm) — använd Stockholm day window
-  // och hämta workdays som ÖVERLAPPAR fönstret (inte bara started_at i fönstret),
-  // så att pass över midnatt fångas. Om flera matchar, välj den med störst överlapp.
   const { startUtc, endUtc, startUtcMs, endUtcMs } = getStockholmDayWindowUtc(date);
   const { data: workdayRows } = await admin
     .from("workdays")
@@ -123,6 +120,23 @@ Deno.serve(async (req) => {
     return bad(409, "Workday is approved — admin override required");
   }
 
+  // Build merged metadata. Never touches workdays/time_reports.
+  const prevMeta = (existing?.metadata ?? {}) as Record<string, unknown>;
+  const originalSuggestedStartAt =
+    (prevMeta.originalSuggestedStartAt as string | undefined) ?? workday?.started_at ?? null;
+  const originalSuggestedEndAt =
+    (prevMeta.originalSuggestedEndAt as string | undefined) ?? workday?.ended_at ?? null;
+
+  const metadata: Record<string, unknown> = {
+    ...prevMeta,
+    userRequestedStartAt: requestedStartAt,
+    userRequestedEndAt: requestedEndAt,
+    originalSuggestedStartAt,
+    originalSuggestedEndAt,
+    source: "mobile_time_day_detail",
+    submittedAt: new Date().toISOString(),
+  };
+
   const upsertRow = {
     organization_id: orgId,
     staff_id: staffId,
@@ -132,15 +146,17 @@ Deno.serve(async (req) => {
     status: "attested" as const,
     attested_at: new Date().toISOString(),
     attested_by: attestedBy,
+    metadata,
   };
 
   const { data: row, error: upsertErr } = await admin
     .from("day_attestations")
     .upsert(upsertRow, { onConflict: "organization_id,staff_id,date" })
-    .select("id, staff_id, date, break_minutes, comment, status, attested_at, attested_by, locked_at, locked_by")
+    .select("id, staff_id, date, break_minutes, comment, status, attested_at, attested_by, locked_at, locked_by, metadata")
     .single();
   if (upsertErr) return bad(500, `Attest failed: ${upsertErr.message}`);
 
+  const meta = (row.metadata ?? {}) as Record<string, unknown>;
   return ok({
     attestation: {
       id: row.id,
@@ -152,6 +168,10 @@ Deno.serve(async (req) => {
       attestedAt: row.attested_at,
       attestedBy: row.attested_by,
       locked: row.status === "locked",
+      requestedStartAt: (meta.userRequestedStartAt as string | null | undefined) ?? null,
+      requestedEndAt: (meta.userRequestedEndAt as string | null | undefined) ?? null,
+      originalSuggestedStartAt: (meta.originalSuggestedStartAt as string | null | undefined) ?? null,
+      originalSuggestedEndAt: (meta.originalSuggestedEndAt as string | null | undefined) ?? null,
     },
   });
 });
