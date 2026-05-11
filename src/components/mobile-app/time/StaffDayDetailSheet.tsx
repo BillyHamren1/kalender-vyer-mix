@@ -11,12 +11,12 @@
  * Tider visas alltid i Europe/Stockholm via `formatStockholmHm` —
  * `extractUTCTime` används INTE här.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import {
-  Sun, AlertTriangle, Check, Lock, Loader2, Wrench, Send,
+  Sun, AlertTriangle, Check, Lock, Loader2, Wrench, Send, ShieldCheck,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -33,6 +33,51 @@ import { mobileApi } from '@/services/mobileApiService';
 import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
 import StaffDayAttestSection from './StaffDayAttestSection';
+import EndDayButton from './EndDayButton';
+
+const TZ_TODAY = 'Europe/Stockholm';
+function useTick(intervalMs = 1000) {
+  const [, setT] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setT((x) => x + 1), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+}
+
+const ActiveTimelineRow: React.FC<{ seg: StaffDaySegment }> = ({ seg }) => {
+  useTick(1000);
+  const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
+  const startedMs = new Date(seg.startedAt).getTime();
+  const elapsedSec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+  const h = Math.floor(elapsedSec / 3600);
+  const m = Math.floor((elapsedSec % 3600) / 60);
+  const s = elapsedSec % 60;
+  return (
+    <div className="rounded-xl border-2 border-primary bg-primary/5 px-3 py-3">
+      <div className="flex items-start gap-3">
+        <div className={cn('shrink-0 w-8 h-8 rounded-lg flex items-center justify-center relative', SEG_TONE[seg.kind])}>
+          <Icon className="w-4 h-4" />
+          <span className="absolute -top-0.5 -right-0.5 flex w-2.5 h-2.5">
+            <span className="absolute inset-0 rounded-full bg-primary opacity-75 animate-ping" />
+            <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-primary" />
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-extrabold text-foreground truncate">{seg.label}</p>
+          <p className="text-[12px] text-muted-foreground tabular-nums">
+            Startade <span className="font-semibold text-foreground/80">{formatStockholmHm(seg.startedAt)}</span>
+          </p>
+          <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-primary/15 text-primary">
+            <ShieldCheck className="w-3 h-3" /> Pågår
+          </span>
+        </div>
+        <div className="font-mono font-extrabold text-base tabular-nums text-primary shrink-0 pt-0.5">
+          {String(h).padStart(2, '0')}:{String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function segmentRange(s: StaffDaySegment) {
   const start = formatStockholmHm(s.startedAt);
