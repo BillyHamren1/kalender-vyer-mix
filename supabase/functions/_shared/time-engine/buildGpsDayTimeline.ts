@@ -681,6 +681,16 @@ export function buildGpsDayTimeline(
         },
         remainingTransportInsidePrimaryGeofenceCount: 0,
         remainingTransportInsidePrimaryGeofenceMinutes: 0,
+        transportDistanceThresholdDiagnostics: {
+          transportMinDistanceMeters: TRANSPORT_MIN_DISTANCE_METERS,
+          belowThresholdMovementSuppressedCount: 0,
+          belowThresholdMovementSuppressedMinutes: 0,
+          reportedSpeedIgnoredCount: 0,
+          falseTravelPreventedCount: 0,
+          privateResidenceWinsCount: 0,
+          privateResidenceMatchedPingsCount: 0,
+          examples: [],
+        },
       },
     };
   }
