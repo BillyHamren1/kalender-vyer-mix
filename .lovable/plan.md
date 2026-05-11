@@ -1,112 +1,63 @@
-# Fix – "Resa"-block trots att personen står still
+## Vad du faktiskt ser
 
-## Diagnos
+Det är inte ett "events" som dubblas — det är att tidslinjen i `/staff-management/time-reports` (`StaffGanttView.tsx`) lägger ALLA candidate-block i samma kolumn med `absolute left:1 right:1` och positionerar dem efter start/sluttid. Två block som överlappar i tid hamnar då bokstavligen ovanpå varandra. Inget "lane-läge" finns idag.
 
-Nej, motorn ska inte producera "Resa" här. Det är en bugg på två ställen där ett `signal_gap` (tyst GPS) promotas till `transport` **utan att verifiera personens egen rörelse**.
+Två separata problem driver det du ser i screenshoten:
 
-### Bugg #1 — `buildPresenceDayBlocks.ts:583-636`
-"Companion-route confirmation" / "transport_anchors_both_sides":
-- När en kollegas GPS visar förflyttning under glappet → glappet stämplas som `transport` på den här personen också.
-- När en "anchor" finns på båda sidor (rörelse precis före/efter) → glappet stämplas som `transport`.
-- Ingen check görs mot **den aktuella staffens** egna pingar närmast glappet. Står de still på samma koordinat blir det ändå "Resa".
+### Problem A — Motorn spottar ur sig FÖR MÅNGA block
 
-### Bugg #2 — `buildReportCandidateBlocks.ts:927-950`
-"Bridged-trip promotion":
-- När ett glapp ligger mellan två olika kända targets → automatiskt `transport`, ingen distance-check (kommentaren erkänner detta: `vi har inget mätt avstånd här`).
-- Räcker att target-resolvern råkar mappa pre/post-glapp till olika labels (t.ex. boende-poly saknas och pings tilldelas Warehouse vs okänd plats) för att en obefintlig resa ska skapas.
+Markus 2026-05-09 har just nu **37 candidate-blocks** på en enda dag i den senaste cachen. Tidigare versioner gav 14–24:
 
-### Bugg #3 (relaterad)
-`buildGpsDayTimeline` enforcear redan `TRANSPORT_MIN_DISTANCE_METERS` på riktiga `travel`-runs (Motor 4). Men gap→transport-promotionen ovan körs i **presence- och report-lagren**, **efter** att GPS-lagrets distansgate redan passerat. Motor 4-skyddet bryts därför.
-
-## Fix – håll regeln "≥ 500 m egen rörelse, annars aldrig transport"
-
-Inga UI-ändringar, inga writes till `time_reports`, ingen radering, ingen ändring av rådata. Endast skärpning av två klassningsregler.
-
-### Steg 1 — Ny gemensam helper
-
-`supabase/functions/_shared/time-engine/staffOwnDisplacement.ts` (+ frontend-spegel under `src/lib/time-engine/`).
-
-```typescript
-export function staffOwnDisplacementMeters(
-  prevPing: { lat: number; lng: number } | null,
-  nextPing: { lat: number; lng: number } | null,
-): number | null
+```
+v2.6-open-active-consolidation   37 blocks   (senaste, det du ser)
+v1                               14
+v1-companion-test2               24
+v2.5-sandwich-inferred-work      20
+v2.4-prework-home-geofence       20
 ```
 
-Returnerar haversine mellan sista pingen före glappet och första pingen efter glappet på **samma staff**. `null` om någon sida saknas.
+Dvs. den nya POST-PASS 4 (öppen aktiv registrering konsoliderar släpljus) **gör inget** för historiska dagar utan öppen timer — men något annat i samma deploy har samtidigt tappat den dedup som tidigare slog ihop intilliggande GRANSKA + TRANSPORT runt samma punkt. Det är därför du får sekvensen `TRANSPORT 11m → TRANSPORT 1h1m → GRANSKA 38m → TRANSPORT 41m → GRANSKA 15m → TRANSPORT 5m → TRANSPORT 12m → TRANSPORT 5m → GRANSKA 1h49m`.
 
-### Steg 2 — Hård gate i `buildPresenceDayBlocks.ts`
+### Problem B — Cachen har 6 rader för samma dag
 
-I companion/anchor-promotionen (rad ~583-636), innan blocket pushas som `transport`:
+`staff_day_report_cache` är unik på `(organization_id, staff_id, date, engine_version)`. Varje gammal `engine_version` ligger kvar. För Markus 2026-05-09 finns 6 rader. Hooks läser senaste built_at, men alla gamla rader kostar plats och förvirrar diagnos. Vi borde inte heller versionsdriva persistens på det sättet — antingen pinna till EN aktiv version och radera resten, eller inte ha `engine_version` i unique key.
 
-```typescript
-const ownDisp = staffOwnDisplacementMeters(prevOwnPing, nextOwnPing);
-if (ownDisp != null && ownDisp < TRANSPORT_MIN_DISTANCE_METERS) {
-  // Personen står stilla i sin egen GPS → får ALDRIG bli transport,
-  // oavsett vad kollegor eller anchors säger.
-  blocks.push(mkSignalGap(newId('signal_gap'), seg, prevStable, nextStable, 'GPS tyst på samma plats'));
-  i += 1;
-  continue;
-}
-```
+### Problem C — Gantten har inga lanes
 
-Lägg till diagnostik-räknare `staffStationaryGapDemotedFromTransport` så vi kan följa hur ofta det triggas.
+Även när motorn är korrekt: om två block överlappar i tid kommer de fortsatt att stapla. Idag finns ingen lane/kolumndelning i `StaffGanttView.tsx` (rad 887–939).
 
-### Steg 3 — Hård gate i `buildReportCandidateBlocks.ts`
+---
 
-I bridged-trip-promotion (rad 934-950), kräv mätt distans innan vi tillåter `transport`:
+## Plan (3 steg, inga raderingar av data utan godkännande)
 
-```typescript
-if (prevKnown && nextKnown && prevKey !== nextKey) {
-  const measured = b.evidence?.staffOwnDisplacementMeters; // bubblat upp från presence-lagret
-  if (measured == null || measured < TRANSPORT_MIN_DISTANCE_METERS) {
-    // Targets skiljer sig på etikett, men personen rörde sig inte.
-    // Vanligast: saknad private_residence-polygon gör att hemma matchas
-    // mot Warehouse på ena sidan av glappet.
-    candidate.reviewReasons.add('targets_differ_without_movement');
-    // … fortsätt som needs_review, INTE transport
-  } else {
-    // genuin A→B-resa, behåll dagens promotion
-  }
-}
-```
+### Steg 1 — Diagnos av v2.6-explosionen (ingen kodändring)
+Plocka ut Markus 2026-05-09 från cachen och dumpa alla 37 blocks (kind, start, slut, target, reviewReasons) plus motsvarande `presence_day_blocks` och `signal_gaps` från diagnostics. Verifiera vilken regel som tappat dedup mellan v2.5 (20 block) och v2.6 (37 block). Mest sannolikt:
+- POST-PASS som slog ihop `same_target_roundtrip_distance_too_large`-transporter med intilliggande needs_review körs inte längre när öppen timer-kontexten saknas.
+- Eller: nya `isOngoing`-flaggan har av misstag ändrat ett tidigare merge-villkor.
 
-### Steg 4 — Bubbla `staffOwnDisplacementMeters` genom evidence
+### Steg 2 — Återställ dedup i `buildReportCandidateBlocks.ts`
+När det finns INGEN öppen aktiv registrering ska motorn bete sig EXAKT som v2.5. POST-PASS 4 ska tidigt `return` om `openActiveRegistration` saknas, utan att röra övriga pass. Återinför gärna också mergeRegeln "TRANSPORT < `realTripMinDistanceMeters` mellan två needs_review med samma target → absorbera in i needs_review" som no-op-fall även utan öppen timer.
 
-`buildPresenceDayBlocks` lägger redan distansvärden i `evidence`. Lägg till `staffOwnDisplacementMeters` på `signal_gap`, `uncertain_transition` och alla transport-block. `buildReportCandidateBlocks` läser sen från `b.evidence`.
+Inget skrivs till `time_reports`, `workdays`, `location_time_entries` eller `travel_time_logs`. Endast read-cache påverkas.
 
-### Steg 5 — Tester
+### Steg 3 — Cache-hygien
+Två val (jag väntar på ditt svar):
+1. **Pinna en aktiv version**: lägg `STAFF_DAY_REPORT_CACHE_ENGINE_VERSION` som env, läshooks filtrerar på den, gamla rader får ligga kvar tills vi senare rensar.
+2. **Ta bort `engine_version` ur unique key**: backfill upsertar då ovanpå gammal rad. Kräver migration + en städning av befintliga dubbletter.
 
-Lägg till Deno-tester i `_shared/time-engine/__tests__/` (eller motsvarande):
+### (Inte i denna plan — meddela om du vill ha det)
+- Lane-rendering i `StaffGanttView` så ev. legitima överlapp visas sida vid sida istället för att stapla. Det är en ren UI-ändring och rör inte motorn.
 
-1. **stationary_companion_promotion** — staff har 0 m rörelse, kollega har 12 km route. Förvänta `signal_gap`, **inte** `transport`.
-2. **stationary_anchor_promotion** — staff har anchors båda sidor men 0 m egen rörelse. Förvänta `signal_gap`.
-3. **stationary_bridged_trip** — gap mellan target A och target B, men staffens egna pings 8 m isär. Förvänta `needs_review` med `targets_differ_without_movement`, **inte** `transport`.
-4. **real_500m_trip** — staff rör sig 800 m mellan A och B → fortfarande `transport` (regression-skydd).
-5. **residence_then_warehouse** — pings i private_residence, glapp, pings tillbaka i samma residence. Förvänta `signal_gap` även om Warehouse ligger 200 m bort.
+---
 
-### Steg 6 — Inga rebuilds krävs nu
+## Tekniska filer som berörs i steg 1–2
 
-Cachen invalideras automatiskt när `input_signature` ändras (motorlogiken är input). Existerande dagar byggs om vid nästa öppnande/dirty-trigger. Inget mass-jobb behövs.
+- `supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts` (POST-PASS 4 + closed-day guard)
+- `supabase/functions/get-staff-presence-day/index.ts` (read-only, ingen ändring)
+- `supabase/functions/backfill-staff-day-report-cache/index.ts` (för omkörning Markus 2026-05-09 efter fix)
 
-## Vad fixet INTE rör
+## Frågor innan jag implementerar
 
-- Rådata i `gps_pings` / `staff_locations` — orört
-- `time_reports` / `workday` / lönedata — orört
-- `analyze-unclear-segment` (AI) — orört, regelmotorn ska klara det här utan AI
-- UI-komponenter, mobilapp, snapshots — orört
-- `buildGpsDayTimeline` Motor 4-distansgaten — orört, fortfarande aktiv
-
-## Filer som ändras
-
-- `supabase/functions/_shared/time-engine/staffOwnDisplacement.ts` (ny)
-- `src/lib/time-engine/staffOwnDisplacement.ts` (ny, spegel)
-- `supabase/functions/_shared/time-engine/buildPresenceDayBlocks.ts` (gate i promotion)
-- `supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts` (gate i bridged-trip)
-- Tester under `_shared/time-engine/__tests__/`
-
-## Effekt på dina skärmbilder
-
-- Block "TRANSPORT Resa 15:31–16:26", "1h 6m", "1h 17m", "1h 1m", "1h 2m", "23m" osv. där pingsen ligger på samma koordinat → blir `signal_gap` (visas som ett ljust, ej-fakturerbart "GPS tyst")
-- "GRANSKA Behöver granskas" som triggades av `missing_transition_evidence` mellan icke-skiljande platser → får ny review-reason `targets_differ_without_movement` och försvinner helt om bostaden markeras som `private_residence`
-- "OKÄND PLATS 21:24–23:27" — oförändrat, det är korrekt klassning för pings utan target eller residence (lös via residence-polygon)
+1. Vill du att jag bara börjar med Steg 1 (diagnos-dump i chatten) eller kör Steg 1+2 direkt?
+2. Vilken cache-strategi i Steg 3: pinna version (snabbt) eller migrera bort `engine_version` ur unique-nyckel (renare)?
+3. Ska jag även lägga in lane-rendering i gantten, eller är det ok att överlapp staplas så länge motorn är korrekt?

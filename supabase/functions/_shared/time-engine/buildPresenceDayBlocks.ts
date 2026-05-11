@@ -1194,6 +1194,13 @@ function isTransportInterstitial(b: PresenceDayBlock): boolean {
   if (b.kind === 'transport') return true; // chain naturally
   if (b.kind === 'unknown_place') return b.durationMinutes < STABLE_STOP_MIN_MIN;
   if (b.kind === 'signal_gap') return b.durationMinutes < BRIDGE_SIGNAL_GAP_MAX_MIN;
+  // Drive-through false-positive: a very short on-site match (<5 min) sandwiched
+  // between two real transport segments is almost always a geofence brushing
+  // (gas station drive-by, edge-of-fence). Allow it to bridge so the run stays
+  // a single coherent "Resa" instead of fragmenting into 5–7 mini-trips.
+  if (b.kind === 'confirmed_on_site' || b.kind === 'probable_on_site') {
+    return b.durationMinutes < STABLE_STOP_MIN_MIN;
+  }
   return false;
 }
 
