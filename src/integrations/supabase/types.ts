@@ -5383,6 +5383,66 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_day_submissions: {
+        Row: {
+          break_minutes: number
+          comment: string | null
+          created_at: string
+          date: string
+          engine_version: string | null
+          id: string
+          organization_id: string
+          requested_end_at: string | null
+          requested_start_at: string | null
+          review_comment: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_summary_json: Json | null
+          staff_id: string
+          status: string
+          submitted_at: string
+          updated_at: string
+        }
+        Insert: {
+          break_minutes?: number
+          comment?: string | null
+          created_at?: string
+          date: string
+          engine_version?: string | null
+          id?: string
+          organization_id: string
+          requested_end_at?: string | null
+          requested_start_at?: string | null
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_summary_json?: Json | null
+          staff_id: string
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+        }
+        Update: {
+          break_minutes?: number
+          comment?: string | null
+          created_at?: string
+          date?: string
+          engine_version?: string | null
+          id?: string
+          organization_id?: string
+          requested_end_at?: string | null
+          requested_start_at?: string | null
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_summary_json?: Json | null
+          staff_id?: string
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       staff_home_observations: {
         Row: {
           cluster_key: string

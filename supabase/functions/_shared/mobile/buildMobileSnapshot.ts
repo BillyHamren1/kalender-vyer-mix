@@ -1,0 +1,162 @@
+// Assemble the mobile day-report from cache + submission + minimal workday liveness.
+// Pure-ish (depends only on inputs). No DB access — caller passes rows.
+import type {
+  MobileActionItem,
+  MobileCacheStatus,
+  MobileDayReport,
+  MobileSegment,
+  MobileSubmission,
+  MobileSummary,
+  MobileWorkdayStatus,
+} from "./types.ts";
+import { mapReportBlocksToSegments } from "./mapReportBlocksToSegments.ts";
+
+export interface CacheRow {
+  engine_version: string | null;
+  summary_json: any;
+  report_candidate_blocks_json: any;
+  display_blocks_json: any;
+  diagnostics_json: any;
+  built_at: string | null;
+  stale: boolean | null;
+  error: string | null;
+}
+
+export interface SubmissionRow {
+  status: string;
+  requested_start_at: string | null;
+  requested_end_at: string | null;
+  break_minutes: number | null;
+  comment: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+  review_comment: string | null;
+}
+
+export interface WorkdayLivenessRow {
+  start_time: string | null;
+  end_time: string | null;
+}
+
+function summaryFrom(cacheSummary: any, segments: MobileSegment[]): MobileSummary {
+  const work = Number(cacheSummary?.workMinutes ?? 0);
+  const travel = Number(cacheSummary?.transportMinutes ?? cacheSummary?.travelMinutes ?? 0);
+  const breakMin = Number(cacheSummary?.breakMinutes ?? 0);
+  // Review minutes from segments (cache is the source for reviewState via blocks)
+  const review = segments
+    .filter((s) => s.kind === "needs_review")
+    .reduce((a, s) => a + (s.durationMinutes ?? 0), 0);
+  const payable = Math.max(0, work + travel - breakMin);
+  return {
+    workMinutes: Math.round(work),
+    travelMinutes: Math.round(travel),
+    breakMinutes: Math.round(breakMin),
+    reviewMinutes: Math.round(review),
+    payableMinutes: Math.round(payable),
+  };
+}
+
+function actionsFrom(segments: MobileSegment[], submission: MobileSubmission | null): MobileActionItem[] {
+  const out: MobileActionItem[] = [];
+  const reviewCount = segments.filter((s) => s.kind === "needs_review").length;
+  const unknownCount = segments.filter((s) => s.kind === "unknown").length;
+  if (reviewCount > 0) {
+    out.push({
+      id: "review_blocks",
+      title: `${reviewCount} segment behöver granskas`,
+      description: "Kontrollera tider och plats innan inskick.",
+      severity: "warning",
+    });
+  }
+  if (unknownCount > 0) {
+    out.push({
+      id: "unknown_blocks",
+      title: `${unknownCount} okänd plats`,
+      description: "Markera vad du gjorde under denna tid.",
+      severity: "info",
+    });
+  }
+  if (!submission && segments.length > 0) {
+    out.push({
+      id: "submit_day",
+      title: "Skicka in dagen",
+      description: "Bekräfta din arbetstid när dagen är klar.",
+      severity: "info",
+    });
+  }
+  return out;
+}
+
+function mapSubmission(row: SubmissionRow | null): MobileSubmission | null {
+  if (!row) return null;
+  const allowed: MobileSubmission["status"][] = [
+    "submitted", "approved", "rejected", "correction_requested", "withdrawn",
+  ];
+  const status = (allowed as string[]).includes(row.status)
+    ? (row.status as MobileSubmission["status"])
+    : "submitted";
+  return {
+    status,
+    requestedStartAt: row.requested_start_at,
+    requestedEndAt: row.requested_end_at,
+    breakMinutes: Number(row.break_minutes ?? 0),
+    comment: row.comment,
+    submittedAt: row.submitted_at,
+    reviewedAt: row.reviewed_at,
+    reviewComment: row.review_comment,
+  };
+}
+
+function workdayStatusFrom(row: WorkdayLivenessRow | null): MobileWorkdayStatus {
+  if (!row || !row.start_time) return "inactive";
+  if (row.end_time) return "ended";
+  return "active";
+}
+
+export interface BuildMobileSnapshotInput {
+  date: string;
+  staffId: string;
+  cache: CacheRow | null;
+  submission: SubmissionRow | null;
+  workday: WorkdayLivenessRow | null;
+}
+
+export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayReport {
+  const { date, staffId, cache, submission, workday } = input;
+
+  let cacheStatus: MobileCacheStatus = "missing";
+  let segments: MobileSegment[] = [];
+  let summary: MobileSummary = {
+    workMinutes: 0, travelMinutes: 0, breakMinutes: 0, reviewMinutes: 0, payableMinutes: 0,
+  };
+
+  if (cache) {
+    if (cache.error) {
+      cacheStatus = "error";
+    } else if (cache.stale) {
+      cacheStatus = "stale";
+    } else {
+      cacheStatus = "ready";
+    }
+    segments = mapReportBlocksToSegments(cache.report_candidate_blocks_json);
+    summary = summaryFrom(cache.summary_json, segments);
+  }
+
+  const sub = mapSubmission(submission);
+  const actionsNeeded = actionsFrom(segments, sub);
+
+  return {
+    date,
+    staffId,
+    engineVersion: cache?.engine_version ?? null,
+    cacheStatus,
+    cacheError: cache?.error ?? null,
+    workdayStatus: workdayStatusFrom(workday),
+    summary,
+    segments,
+    actionsNeeded,
+    submission: sub,
+    trackingPolicy: null, // owned by background reporter; not changed here
+    lastUpdatedAt: cache?.built_at ?? null,
+  };
+}

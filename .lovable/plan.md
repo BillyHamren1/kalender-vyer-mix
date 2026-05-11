@@ -1,55 +1,130 @@
-## Problem
+## Time App single source — plan
 
-Två separata regressioner i samma vy (`/staff-management/time-reports`):
+### 1. Kartläggning (resultat)
 
-### 1. Bergman-dagen splittras i tre block
-Skärmbild visar:
-- 06:58–10:32 Bergman (granska, `signal_gaps_inside_work_block`)
-- 10:33–10:49 Bergman 16 min (`same_target_roundtrip_distance_too_large · inferred_from_neighbors`)
-- 10:50–12:11 Bergman (granska, `signal_gaps_inside_work_block`)
+**Renderingskedja `/m/report`:**
+- `src/pages/mobile/MobileTimeReport.tsx` (65 r) → wrappar `MobileTimeTabs`
+- `MobileTimeTabs.tsx` → tabbar: `TodayTab`, `TimeReportTab`, `TimeCalendarTab`
+- Detaljerad dagsvy: `StaffDayDetailSheet.tsx` (499 r)
+- Inskick/attest: `StaffDayAttestSection.tsx` (395 r)
 
-Allt är samma plats (Bergman) hela tiden. Splitten kommer från `buildReportCandidateBlocks.ts` rad ~1227–1230: när en transport-segment har samma target på båda sidor men avstånd > `sameTargetTransportAbsorbMaxDistanceMeters`, flippas den till `needs_review` istället för att absorberas. Det skär arbetsblocket i tre delar.
+**Hooks idag:**
+- `useStaffDayStatus` → kallar `get-staff-day-status`
+- `useStaffDaySnapshot` (309 r) → bygger segments lokalt från legacy-tabeller
+- `useStaffTimeReportPeriod` (270 r) → kallar `get-staff-time-report-period`
 
-### 2. "Trolig resa · FA Warehouse → Bergman Event AB" är fortfarande gul
-Förra fixen gällde bara enstaka cachade `needs_review`-block via `isReview`-grenen. Den här raden produceras av den tidigare grenen i `buildReportDisplayBlocks.ts` (rad ~601–687) där flera osäkra block grupperas. `promoteAsBridgedTrip` byter bara titel/subtitle — `kind` står kvar som `needs_review` och `reviewState='needs_review'`, så raden renderas som "granska / låg konfidens".
+**Edge functions idag:**
+- `get-staff-day-status` (313 r) — läser `workdays`, `time_reports`, `travel_time_logs`, `location_time_entries`, `day_attestations`, `assistant_events`, `staff_location_history`
+- `get-staff-time-report-period` (110 r) — summerar samma legacy
+- `attest-staff-day` (177 r) — skriver `day_attestations`
 
-## Fix
+**Var segment/totaler skapas idag:** allt klientside i `useStaffDaySnapshot` + edge functionen ovan. Det är detta som ska bytas mot cache-mappning.
 
-### A. `supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts` (~rad 1199–1246)
+### 2. Ny endpoint: `get-mobile-staff-day-report`
 
-Ändra `same_target_roundtrip` från flip-to-review till **soft absorb**:
-- Om `prev.target == next.target` och transport-segmentet är ≤ `sameTargetTransportAbsorbMaxMinutes`: absorbera ALLTID in i föregående work-block (`absorbInto(prev, cur); absorbInto(prev, next)`), oavsett distans.
-- När `dist > sameTargetTransportAbsorbMaxDistanceMeters`: lägg till `same_target_roundtrip_long_distance` som review-reason på det sammanslagna work-blocket (mjuk varning, inte block-split).
-- Behåll `same_target_transport_missing_distance`-grenen som soft-warning (absorbera + flagga), istället för "kept as transport".
+Ny edge function som läser:
+- `staff_day_report_cache` (rad för `staff_id` + `date`, senaste `engine_version`)
+- `staff_day_submissions` (om finns)
+- `workdays` (endast för `workdayStatus`/live-flagga, inte för rapport)
 
-Resultat: Bergman-dagen visas som ETT block 06:58–12:11 med eventuell granska-flagga.
+Returnerar:
+```ts
+{
+  date, staffId, engineVersion, cacheStatus: 'ready'|'missing'|'stale'|'error',
+  workdayStatus: 'inactive'|'active'|'ended',
+  summary: { workMinutes, travelMinutes, breakMinutes, reviewMinutes, payableMinutes },
+  segments: MobileSegment[],   // mappat från report_candidate_blocks_json/display_blocks_json
+  actionsNeeded: ActionItem[], // härlett från diagnostics_json + summary
+  submission: { status, requestedStartAt, requestedEndAt, breakMinutes, comment, submittedAt } | null,
+  trackingPolicy: { ... } | null,
+  lastUpdatedAt
+}
+```
 
-### B. `src/lib/staff/buildReportDisplayBlocks.ts` (~rad 646–686)
+`MobileSegment` precis enligt spec (id, kind, label, startedAt, endedAt, durationMinutes, isActive, confidence, statusLabel, warningLabel, projectId, bookingId, largeProjectId, locationId, sourceBlockId).
 
-I `merged`-objektet, när `promoteAsBridgedTrip === true`:
-- `kind: 'transport'` (inte `needs_review`)
-- `reviewState: 'ok'`
-- `confidence: promotedConfidence` (high om ≤10 min gap, annars medium)
-- `warningLabel`: liten "GPS saknades X min"-text (inte granska-flagga)
-- `displayTitle: 'Resa'`, `displaySubtitle: '${prevKnown} → ${nextKnown} · GPS saknades ~X min'`
+Mappare ligger i `supabase/functions/_shared/mobile/mapReportBlocksToSegments.ts` så samma logik kan testas.
 
-Det gör att grupperade A→B-resor renderas som grön transport-rad i timeline (samma som enstaka cachade fall efter förra fixen).
+### 3. Ny tabell: `staff_day_submissions` (migration)
 
-### C. Inga andra ändringar
-- Inga DB-skrivningar, inga edge function-deploys utöver A.
-- Inga ändringar i `time_reports`/lön/`create_travel_from_gap`.
-- Inga AI-anrop.
-- Cache rebuildas live på admin-sidan, så ingen backfill behövs.
+```sql
+create table public.staff_day_submissions (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  staff_id text not null,
+  date date not null,
+  status text not null default 'submitted', -- submitted|approved|rejected|correction_requested
+  requested_start_at timestamptz,
+  requested_end_at timestamptz,
+  break_minutes int default 0,
+  comment text,
+  engine_version text,
+  source_summary_json jsonb,
+  submitted_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (staff_id, date)
+);
+-- RLS: org-isolerat, läs egen rad, ingen direkt insert (via edge function service-role)
+```
 
-## Tekniska detaljer
+### 4. Ny edge function: `submit-staff-day-v3`
 
-**Filer:**
-- `supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts` — ändra `sameTargetCandidate`-grenen så `flipToNeedsReview` ersätts med absorb + soft reason.
-- `src/lib/staff/buildReportDisplayBlocks.ts` — uppdatera `merged.kind/reviewState/confidence/displayTitle/displaySubtitle` för `promoteAsBridgedTrip`.
+Input: `{ staffId, date, requestedStartAt, requestedEndAt, breakMinutes, comment }`.
+Skriver upsert i `staff_day_submissions`. Skriver INTE `day_attestations`/`time_reports`/`workdays`/`location_time_entries`/`travel_time_logs`.
 
-**Inte i scope:**
-- Den övre Bergman-raden 06:58–10:32 har egen `signal_gaps_inside_work_block`-flagga från work-block-bridging (rad 806–807). Den fortsätter vara "granska" tills användaren ber om det — bara split-problemet löses här.
+### 5. Ny hook: `src/hooks/useMobileStaffDayReport.ts`
 
-## Verifiering
-- Build passerar.
-- Kontrollera Markus 12 maj-vy: en sammanhängande Bergman-rad + grön "Resa · FA Warehouse → Bergman".
+- React Query, key `['mobile-staff-day-report', staffId, date]`
+- Anropar `get-mobile-staff-day-report` via `callStaffSnapshotFunction` (dual auth)
+- Polling 30 s när tab är synlig
+- Lyssnar på Supabase realtime: `staff_day_report_cache` + `staff_day_submissions` filtrerat på staff/date
+- Vid `cacheStatus === 'missing'` exponerar `refresh()`-knapp som kallar samma endpoint med `force=true`
+
+### 6. Omkoppling av komponenter
+
+| Komponent | Idag | Efter |
+|---|---|---|
+| `TodayTab.tsx` | `useStaffDayStatus` + `useStaffDaySnapshot` (segments lokalt) | `useMobileStaffDayReport` (segments från cache). Behåller start/stopp dag via befintlig active-timer/workday-väg |
+| `StaffDayDetailSheet.tsx` | `useStaffDaySnapshot` | `useMobileStaffDayReport(date)` — samma segments/totaler/actions |
+| `TimeReportTab.tsx` | `useStaffTimeReportPeriod` (legacy summering) | Bygg om `get-staff-time-report-period` så den summerar `staff_day_report_cache` + `staff_day_submissions` per dag i intervallet. Hooken behåller signaturen |
+| `StaffDayAttestSection.tsx` | `attest-staff-day` → `day_attestations` | `submit-staff-day-v3` → `staff_day_submissions` |
+
+`useStaffDaySnapshot` blir oanvänd i tidrapportvyn men raderas inte (kan finnas debug-konsumenter). Markeras `@deprecated`.
+
+Live-arbetsdagsknappar (Starta/Avsluta dag) fortsätter använda befintlig workday/timer-väg — endast presentation/summering bytes.
+
+### 7. UI-omfång
+
+Ingen visuell polish. Befintliga kort/listor återanvänds, bara datakällan byts. Tomt-läge `cacheStatus='missing'` visar "Rapporten bearbetas" + "Uppdatera".
+
+### 8. Tester
+
+- Deno-test för `mapReportBlocksToSegments` (cache → MobileSegment)
+- Vitest-stub för `useMobileStaffDayReport` (cache_missing → refresh-knapp)
+- Manuell verifiering: jämför `summary` i mobil mot adminwebbens `/staff-management/time-reports` för samma staff+datum
+
+### 9. Slutrapport (efter implementation)
+
+"Time App single source – rapport" enligt spec, inkl. mapping cache→mobile och bekräftelse att appen inte längre summerar legacy eller skriver `day_attestations`.
+
+### Tekniska detaljer
+
+- Authstrategin: ny endpoint accepterar både mobile token och Supabase JWT via `_shared/staff-auth.ts` (samma som övriga snapshot-endpoints — se memory `staff-snapshot-dual-auth-v1`).
+- Multi-tenancy: cache-rad och submission filtreras alltid på `organization_id` (RESTRICTIVE RLS + edge-function-guard).
+- File size: ny edge function bryts i `index.ts` (handler) + `_shared/mobile/mapReportBlocksToSegments.ts` (mappning) + `_shared/mobile/buildMobileSnapshot.ts` (assemble) för att hålla filer små.
+- Inga ändringar i Time Engine-regler, builders eller cache-skrivare.
+
+### Ordning för implementation
+
+1. Migration: `staff_day_submissions` + RLS
+2. Shared mapper + buildMobileSnapshot
+3. `get-mobile-staff-day-report` edge function
+4. `submit-staff-day-v3` edge function
+5. `useMobileStaffDayReport` hook
+6. Koppla `TodayTab`, `StaffDayDetailSheet`
+7. Skriv om `get-staff-time-report-period` att summera cache+submissions; behåll hook
+8. Koppla `StaffDayAttestSection` till nya submit
+9. Tester + slutrapport
