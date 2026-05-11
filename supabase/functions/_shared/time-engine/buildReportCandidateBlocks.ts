@@ -113,6 +113,16 @@ export interface ReportCandidateBlock {
   absorbedReasons?: string[];
   /** Warning-etiketter från absorberade block (sammanslaget set). */
   warningReasons?: string[];
+  /** Time Engine 2.8 — synthetic id for the consolidated session this block
+   *  represents. Set by consolidateReportBlocksIntoSessions. Diagnostic only. */
+  sessionId?: string;
+  /** Time Engine 2.8 — per-victim absorption trail (diagnostics only,
+   *  not rendered in main view). */
+  absorbedTrail?: Array<{
+    absorbedIntoSessionId: string;
+    absorbedOriginalKind: string;
+    absorbedReason: string | null;
+  }>;
   /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
@@ -272,15 +282,27 @@ export interface ReportCandidateSummary {
     absorbedUnknownBlocksCount: number;
     preservedNeedsReviewBlocksCount: number;
     preservedTransportBlocksCount: number;
+    demotedNeedsReviewBlocksCount?: number;
     examples: Array<{
+      staffName: string | null;
+      sessionLabel: string | null;
+      sessionStart: ISODateTime;
+      sessionEnd: ISODateTime;
+      sessionDurationMinutes: number;
+      originalBlockKinds: string[];
+      originalBlockLabels: string[];
+      absorbedBlockCount: number;
+      signalGapMinutes: number;
+      internalMovementMinutes: number;
+      finalKind: string;
+      finalReviewState: string;
+      warningLabel: string | null;
+      reasons: string[];
+      // Legacy back-compat fields:
       sessionTargetLabel: string | null;
       sessionStartAt: ISODateTime;
       sessionEndAt: ISODateTime;
-      sessionDurationMinutes: number;
-      absorbedBlockCount: number;
       absorbedKinds: string[];
-      signalGapMinutes: number;
-      internalMovementMinutes: number;
     }>;
   };
 }

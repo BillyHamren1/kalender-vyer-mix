@@ -57,14 +57,26 @@ export interface SessionConsolidationDiagnostics {
    *  demoterades till reviewState='ok' (rena soft-skäl, ingen hård orsak). */
   demotedNeedsReviewBlocksCount: number;
   examples: Array<{
+    /** Time Engine 2.8 — full session example for diagnostics_json. */
+    staffName: string | null;
+    sessionLabel: string | null;
+    sessionStart: string;
+    sessionEnd: string;
+    sessionDurationMinutes: number;
+    originalBlockKinds: string[];
+    originalBlockLabels: string[];
+    absorbedBlockCount: number;
+    signalGapMinutes: number;
+    internalMovementMinutes: number;
+    finalKind: string;
+    finalReviewState: string;
+    warningLabel: string | null;
+    reasons: string[];
+    // Legacy fields (kept for backwards compatibility with previous readers).
     sessionTargetLabel: string | null;
     sessionStartAt: string;
     sessionEndAt: string;
-    sessionDurationMinutes: number;
-    absorbedBlockCount: number;
     absorbedKinds: string[];
-    signalGapMinutes: number;
-    internalMovementMinutes: number;
   }>;
 }
 
@@ -84,6 +96,9 @@ export interface ConsolidationDeps {
   /** Reason classifier sets (closure-bound to the calling builder). */
   blockingReviewReasons: Set<string>;
   warningOnlyReasons: Set<string>;
+
+  /** Time Engine 2.8 — optional staff name for diagnostics examples. */
+  staffName?: string | null;
 }
 
 /** Reasons that indicate "this needs_review block is essentially a signal gap" */
@@ -246,6 +261,7 @@ export function consolidateReportBlocksIntoSessions(
       let absorbedInternalTransport = 0;
       let absorbedUnknown = 0;
       const absorbedKinds: string[] = [];
+      const absorbedLabels: string[] = [];
       let internalMovementMin = 0;
       let internalMovementMeters = 0;
 
@@ -297,6 +313,7 @@ export function consolidateReportBlocksIntoSessions(
         if (!isAbsorbable) break;
 
         absorbedKinds.push(r.kind);
+        absorbedLabels.push(r.targetLabel ?? r.toLabel ?? r.fromLabel ?? r.kind);
         if (r.kind === 'needs_review') {
           const reasons = r.reviewReasons ?? [];
           const isSignalGap = reasons.some((rr) => SIGNAL_GAP_REASONS.has(rr));
@@ -317,10 +334,28 @@ export function consolidateReportBlocksIntoSessions(
       const sessionEndCandidate = out[closeAt].endAt;
       const absorbedCount = closeAt - k;
 
+      // Time Engine 2.8 — synthetic sessionId (stable before assignId() runs).
+      const sessionId =
+        `session::${cur.startAt}::${cur.targetType ?? 'na'}::${cur.targetId ?? cur.targetLabel ?? 'unknown'}`;
+      cur.sessionId = sessionId;
+      const trail: Array<{
+        absorbedIntoSessionId: string;
+        absorbedOriginalKind: string;
+        absorbedReason: string | null;
+      }> = cur.absorbedTrail ?? [];
+
       // Absorb everything (k+1 .. closeAt) into cur
       for (let j = k + 1; j <= closeAt; j++) {
-        deps.absorbInto(cur, out[j]);
+        const victim = out[j];
+        const victimReasons = victim.reviewReasons ?? [];
+        trail.push({
+          absorbedIntoSessionId: sessionId,
+          absorbedOriginalKind: victim.kind,
+          absorbedReason: victimReasons[0] ?? null,
+        });
+        deps.absorbInto(cur, victim);
       }
+      cur.absorbedTrail = trail;
       out.splice(k + 1, closeAt - k);
 
       cur.internalMovementMinutes =
@@ -395,14 +430,28 @@ export function consolidateReportBlocksIntoSessions(
 
       if (diagnostics.examples.length < 20) {
         diagnostics.examples.push({
+          staffName: deps.staffName ?? null,
+          sessionLabel: cur.targetLabel,
+          sessionStart: sessionStart,
+          sessionEnd: sessionEndCandidate,
+          sessionDurationMinutes: cur.durationMinutes,
+          originalBlockKinds: ['work', ...absorbedKinds],
+          originalBlockLabels: [
+            cur.targetLabel ?? cur.kind,
+            ...absorbedLabels,
+          ],
+          absorbedBlockCount: absorbedCount,
+          signalGapMinutes: cur.signalGapMinutes,
+          internalMovementMinutes: cur.internalMovementMinutes ?? 0,
+          finalKind: cur.kind,
+          finalReviewState: cur.reviewState,
+          warningLabel: cur.warningLabel ?? null,
+          reasons: [...(cur.reviewReasons ?? [])],
+          // Legacy fields (back-compat).
           sessionTargetLabel: cur.targetLabel,
           sessionStartAt: sessionStart,
           sessionEndAt: sessionEndCandidate,
-          sessionDurationMinutes: cur.durationMinutes,
-          absorbedBlockCount: absorbedCount,
           absorbedKinds,
-          signalGapMinutes: cur.signalGapMinutes,
-          internalMovementMinutes: cur.internalMovementMinutes ?? 0,
         });
       }
 

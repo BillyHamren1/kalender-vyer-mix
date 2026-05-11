@@ -374,6 +374,7 @@ async function processOne(
             display_blocks_json: report.blocks ?? [],
             diagnostics_json: {
               ...((report as any).diagnostics ?? {}),
+              sessionConsolidation: report.summary?.sessionConsolidationDiagnostics ?? null,
               signalGapTransport: (presence as any).signalGapTransportDiagnostics ?? null,
               companionRoute: (presence as any).companionRouteDiagnostics ?? null,
               presenceDayBlocks: (presence.blocks ?? []).map((b: any) => ({
