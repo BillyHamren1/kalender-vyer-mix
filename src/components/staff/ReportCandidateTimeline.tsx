@@ -521,6 +521,7 @@ export interface ReportCandidateTimelineProps {
   loading?: boolean;
   presenceBlocks?: PresenceBlockLite[] | null;
   targets?: TargetLite[] | null;
+  staffId?: string | null;
   staffName?: string | null;
   date?: string | null;
 }
