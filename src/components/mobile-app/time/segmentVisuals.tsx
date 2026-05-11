@@ -24,13 +24,16 @@ export const SEG_ICON: Record<StaffDaySegmentKind, React.ComponentType<{ classNa
   active: Sun,
 };
 
+// Premium-tema: aktivt/projekt = primary, plats/lager = lugn blå-muted,
+// transport och okänd plats är dämpade och får inte dominera tidslinjen.
+// Endast verkliga varningar (unknown) signaleras med amber.
 export const SEG_TONE: Record<StaffDaySegmentKind, string> = {
   project: 'bg-primary/10 text-primary',
   booking: 'bg-primary/10 text-primary',
-  location: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  warehouse: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  travel: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-  other_place: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
+  location: 'bg-muted/60 text-foreground/80',
+  warehouse: 'bg-muted/60 text-foreground/80',
+  travel: 'bg-muted/60 text-muted-foreground',
+  other_place: 'bg-muted/60 text-muted-foreground',
   break: 'bg-muted text-muted-foreground',
   manual_adjustment: 'bg-muted text-muted-foreground',
   unknown: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
