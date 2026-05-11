@@ -298,7 +298,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     const map: Record<string, GanttBlock[]> = {};
     for (const s of staffList) {
       const cand = reportCandidateByStaff?.[s.id];
-      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null);
+      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null, bookingPhaseByDate);
     }
     return map;
   }, [staffList, reportCandidateByStaff]);
