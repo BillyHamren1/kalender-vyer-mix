@@ -158,9 +158,20 @@ interface GanttBlock {
   isOpen?: boolean;
 }
 
-const mapReportCandidateKind = (b: ReportCandidateBlockUI): GanttKind => {
+const mapReportCandidateKind = (
+  b: ReportCandidateBlockUI,
+  bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+): GanttKind => {
   if (b.kind === 'work') {
     if (b.reviewState === 'needs_review') return 'review';
+    // Prefer authoritative phase from bookings.rigdaydate/eventdate/rigdowndate
+    if (b.targetType === 'booking' && b.targetId) {
+      const phase = bookingPhaseByDate?.[b.targetId];
+      if (phase === 'rig') return 'rig';
+      if (phase === 'rigdown') return 'rigdown';
+      if (phase === 'event') return 'work';
+    }
+    // Fallback: heuristic on title/subtitle text
     const phase = detectPhase(b.title, b.subtitle);
     if (phase) return phase;
     return 'work';
@@ -176,13 +187,14 @@ const blocksFromStaff = (
   staff: StaffWithDayReport,
   candidate: ReportCandidateBlockUI[] | null | undefined,
   excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
+  bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
 ): GanttBlock[] => {
   const out: GanttBlock[] = [];
   if (candidate && candidate.length) {
     for (const b of candidate) {
       out.push({
         id: b.id,
-        kind: mapReportCandidateKind(b),
+        kind: mapReportCandidateKind(b, bookingPhaseByDate),
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
