@@ -652,9 +652,17 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
     : [];
   const resolvedMap = useResolvedUnknownStops(resolveReqs);
 
+  // Overlay AI-review-meta från staff_day_report_cache (realtime).
+  const aiReview = useAiReviewedBlocks(staffId ?? null, date ?? null);
+
   return (
     <div className="space-y-1.5">
       {preWorkInfoRow}
+      {aiReview.pending && (
+        <div className="rounded-md border border-dashed border-sky-300 bg-sky-50 px-3 py-1 text-[11px] text-sky-800 dark:bg-sky-950/30 dark:text-sky-200">
+          AI granskar oklara block i bakgrunden…
+        </div>
+      )}
       {visible.map((b) => (
         <BlockRow
           key={b.id}
@@ -664,6 +672,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
           staffName={staffName}
           date={date}
           resolved={resolvedMap.get(b.id) ?? null}
+          aiReviewMeta={aiReview.byId.get(b.id) ?? null}
         />
       ))}
       {summary && (
