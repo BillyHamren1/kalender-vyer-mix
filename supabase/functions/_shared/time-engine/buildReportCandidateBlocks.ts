@@ -97,6 +97,17 @@ export interface ReportCandidateBlock {
    */
   internalMovementMinutes?: number;
   /**
+   * Session consolidation metadata (Time Engine 2.3):
+   * antal absorberade signal_gap-block i sessionen.
+   */
+  signalGapCount?: number;
+  /** IDs på block som absorberats in i denna session (för spårbarhet). */
+  absorbedBlockIds?: string[];
+  /** Reviewreasons från absorberade block (sammanslaget set). */
+  absorbedReasons?: string[];
+  /** Warning-etiketter från absorberade block (sammanslaget set). */
+  warningReasons?: string[];
+  /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
    */
