@@ -1,11 +1,19 @@
 /**
- * StaffDayDetailSheet — användarens daggranskning. 100% backend-driven av
- * `useStaffDayStatus(date)`. Inga råtabeller summeras. Sektioner:
+ * StaffDayDetailSheet — användarens daggranskning.
+ *
+ * Mobile day report source (PURE MIRROR of /staff-management/time-reports):
+ *   get-mobile-staff-day-report
+ *     → staff_day_report_cache
+ *     → staff_day_submissions
+ *
+ * Inga råtabeller summeras (workdays/time_reports/LTE/travel/day_attestations).
+ * Sektioner:
  *   A. Header (datum + statuschip + workday-spann)
  *   B. Summering (canonical totals)
  *   C. Tidslinje (snapshot.segments)
  *   D. Behöver åtgärdas (actionsNeeded + ej resolvade flags)
- *   E. Rast/lunch + Godkänn dagen (StaffDayAttestSection → attest-staff-day)
+ *   E. Rast/lunch + Godkänn dagen (StaffDayAttestSection → attest-staff-day,
+ *      kvarvarande legacy tills staff_day_submissions ersätter)
  *   F. Begär korrigering (workday_flag via mobileApi.createWorkdayFlag)
  *
  * Tider visas alltid i Europe/Stockholm via `formatStockholmHm` —
