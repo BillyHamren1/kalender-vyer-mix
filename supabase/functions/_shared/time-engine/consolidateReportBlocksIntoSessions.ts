@@ -56,6 +56,9 @@ export interface SessionConsolidationDiagnostics {
   /** Time Engine 2.7 — antal needs_review-block som efter konsolidering
    *  demoterades till reviewState='ok' (rena soft-skäl, ingen hård orsak). */
   demotedNeedsReviewBlocksCount: number;
+  /** Time Engine 2.9 — antal block absorberade via shouldAbsorbAsProbableSameSession
+   *  (utan strikt closing same-target work-block). */
+  probabilisticAbsorptionCount: number;
   examples: Array<{
     /** Time Engine 2.8 — full session example for diagnostics_json. */
     staffName: string | null;
@@ -66,6 +69,9 @@ export interface SessionConsolidationDiagnostics {
     originalBlockKinds: string[];
     originalBlockLabels: string[];
     absorbedBlockCount: number;
+    /** Time Engine 2.9 — set of reasons + warning labels för absorberade block. */
+    absorbedReasons: string[];
+    warningReasons: string[];
     signalGapMinutes: number;
     internalMovementMinutes: number;
     finalKind: string;
