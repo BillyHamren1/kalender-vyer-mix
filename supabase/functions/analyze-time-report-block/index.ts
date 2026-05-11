@@ -293,13 +293,20 @@ async function callAi(block: BlockSnapshot, ctx: ContextSnapshot): Promise<Parti
     "Returnera ALLTID via verktygsanropet propose_block_review.",
   ].join("\n");
 
+  const ctxAny = ctx as Record<string, unknown>;
   const userPayload = {
     block,
     context: {
       previousBlock: ctx.previousBlock ?? null,
       nextBlock: ctx.nextBlock ?? null,
       nearbyTargets: (ctx.nearbyTargets ?? []).slice(0, 8),
-      gpsAroundBlock: (ctx.gpsAroundBlock ?? []).slice(0, 50),
+      gpsAroundBlock: (ctx.gpsAroundBlock ?? []).slice(0, 60),
+      gpsBeforeGap: Array.isArray(ctxAny.gpsBeforeGap) ? (ctxAny.gpsBeforeGap as unknown[]).slice(0, 20) : [],
+      gpsAfterGap: Array.isArray(ctxAny.gpsAfterGap) ? (ctxAny.gpsAfterGap as unknown[]).slice(0, 20) : [],
+      gpsInsideBlock: Array.isArray(ctxAny.gpsInsideBlock) ? (ctxAny.gpsInsideBlock as unknown[]).slice(0, 20) : [],
+      engineReviewReasons: Array.isArray(ctxAny.engineReviewReasons) ? ctxAny.engineReviewReasons : [],
+      signalGapMinutes: ctxAny.signalGapMinutes ?? null,
+      companionEvidence: ctxAny.companionEvidence ?? null,
     },
   };
 
