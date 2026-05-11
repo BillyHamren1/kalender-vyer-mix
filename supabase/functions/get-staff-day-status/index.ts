@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
       .order("happened_at", { ascending: true }),
     admin
       .from("day_attestations")
-      .select("id, staff_id, date, break_minutes, comment, status, attested_at, attested_by, locked_at, locked_by")
+      .select("id, staff_id, date, break_minutes, comment, status, attested_at, attested_by, locked_at, locked_by, metadata")
       .eq("organization_id", orgId)
       .eq("staff_id", staffId)
       .eq("date", date)
