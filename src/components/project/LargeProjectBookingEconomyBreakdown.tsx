@@ -488,8 +488,27 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                           }));
 
                                     if (productsToRender.length === 0) return null;
+
+                                    // Recompute the product-cost total from merged values
+                                    // (local overrides + remote fallback) so edits in
+                                    // Montage/Hantering/Inköp bubble up immediately to
+                                    // the section total, the "Summa"-row and the
+                                    // booking-level cost cell — without waiting for the
+                                    // external system to reflect overrides.
+                                    const liveProductCostsTotal = productsToRender.reduce((sum: number, p: any) => {
+                                      const productName = p.product_name || p.name || p.description || '—';
+                                      const localMatch = p.__localId
+                                        ? bookingLocalProducts.find(lp => lp.id === p.__localId)
+                                        : findLocalProduct(bookingId, productName, p.sku);
+                                      const a = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
+                                      const h = localMatch?.handling_cost ?? p.handling_cost ?? 0;
+                                      const pu = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
+                                      const qty = Number(p.quantity) || 1;
+                                      return sum + (a + h + pu) * qty;
+                                    }, 0);
+
                                     return (
-                                    <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={displayProductCosts}>
+                                    <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={liveProductCostsTotal}>
                                       <Table>
                                         <TableHeader>
                                           <TableRow>
