@@ -113,6 +113,16 @@ export interface ReportCandidateBlock {
   absorbedReasons?: string[];
   /** Warning-etiketter från absorberade block (sammanslaget set). */
   warningReasons?: string[];
+  /** Time Engine 2.8 — synthetic id for the consolidated session this block
+   *  represents. Set by consolidateReportBlocksIntoSessions. Diagnostic only. */
+  sessionId?: string;
+  /** Time Engine 2.8 — per-victim absorption trail (diagnostics only,
+   *  not rendered in main view). */
+  absorbedTrail?: Array<{
+    absorbedIntoSessionId: string;
+    absorbedOriginalKind: string;
+    absorbedReason: string | null;
+  }>;
   /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
