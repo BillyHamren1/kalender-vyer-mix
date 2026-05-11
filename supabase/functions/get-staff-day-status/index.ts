@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
   const PING_PAGE_SIZE = 1000;
   const PER_STAFF_PING_CAP = 20_000;
   async function fetchAllPings(): Promise<{
-    rows: Array<{ recorded_at: string; latitude: number; longitude: number; accuracy: number | null }>;
+    rows: Array<{ recorded_at: string; lat: number; lng: number; accuracy: number | null }>;
     truncated: boolean;
     pageCount: number;
     error: string | null;
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
       const to = from + PING_PAGE_SIZE - 1;
       const { data, error } = await admin
         .from("staff_location_history")
-        .select("recorded_at, latitude, longitude, accuracy")
+        .select("recorded_at, lat, lng, accuracy")
         .eq("organization_id", orgId)
         .eq("staff_id", staffId)
         .gte("recorded_at", padStart)
@@ -290,8 +290,8 @@ Deno.serve(async (req) => {
     activeBoosts: (boostsRes.data ?? []) as never,
     batteryPct,
     dismissedCooldownActive,
-    pings: ((pingsRes.data ?? []) as Array<{ recorded_at: string; latitude: number; longitude: number; accuracy: number | null }>)
-      .map((p) => ({ recorded_at: p.recorded_at, lat: Number(p.latitude), lng: Number(p.longitude), accuracy: p.accuracy })),
+    pings: ((pingsRes.data ?? []) as Array<{ recorded_at: string; lat: number; lng: number; accuracy: number | null }>)
+      .map((p) => ({ recorded_at: p.recorded_at, lat: Number(p.lat), lng: Number(p.lng), accuracy: p.accuracy })),
   });
 
   // Pure ping coverage diagnostics — lets the client/debug see whether the
