@@ -313,6 +313,7 @@ export function consolidateReportBlocksIntoSessions(
         if (!isAbsorbable) break;
 
         absorbedKinds.push(r.kind);
+        absorbedLabels.push(r.targetLabel ?? r.toLabel ?? r.fromLabel ?? r.kind);
         if (r.kind === 'needs_review') {
           const reasons = r.reviewReasons ?? [];
           const isSignalGap = reasons.some((rr) => SIGNAL_GAP_REASONS.has(rr));
