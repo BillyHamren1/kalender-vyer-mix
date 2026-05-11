@@ -93,6 +93,47 @@ const SIGNAL_GAP_REASONS = new Set<string>([
 ]);
 
 /**
+ * Time Engine 2.4 — review-reasons som ALLTID bryter en session.
+ * Om något av dessa förekommer på ett efterföljande block får sessionen
+ * inte absorbera vidare; blocket behålls som eget block (eller separat
+ * transport/session enligt befintlig modell).
+ *
+ * Täcker:
+ *  - private_residence / boende / home-konflikt
+ *  - tydligt stoppad arbetsdag (workday_ended / workday_stopped /
+ *    explicit_stop) om uppströms-motorn satt en sådan markör
+ *  - ny planerad assignment med annan target
+ *  - tydlig annan destination
+ *  - omöjlig rutt (speed/teleport som faktiskt har distans bakom sig)
+ *  - flera konkurrerande targets utan vinnare
+ *
+ * OBS: bara signal_gap-baserade reasons + uncertain transition får
+ * absorberas. Allt annat = break.
+ */
+const SESSION_BREAK_REASONS = new Set<string>([
+  'private_residence',
+  'private_zone',
+  'home_private_conflict',
+  'workday_ended',
+  'workday_stopped',
+  'explicit_stop',
+  'day_end_marker',
+  'new_planned_assignment_other_target',
+  'planned_assignment_target_change',
+  'clear_other_destination',
+  'impossible_route',
+  'route_speed_violation_with_distance',
+  'multiple_competing_targets',
+  'target_ambiguous_no_winner',
+  'conflicting_targets',
+]);
+
+const hasBreakingReason = (r: ReportCandidateBlock): boolean => {
+  const reasons = r.reviewReasons ?? [];
+  return reasons.some((rr) => SESSION_BREAK_REASONS.has(rr));
+};
+
+/**
  * Stark sessionsnyckel — matchar på targetType+targetId först (täcker
  * locationId, projectId, bookingId, largeProjectId via targetType-prefix).
  * Faller tillbaka på normaliserad targetLabel när id saknas men labeln
