@@ -880,13 +880,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               key={b.id}
                               role="button"
                               tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Klick på kort → öppna FULL detaljvy direkt
-                                // (rådata, karta, tider). Drawer-genvägen finns
-                                // kvar via klick på personalraden/avatar.
-                                onSelectStaff(staff.id, staff.name);
-                              }}
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 // Klick på kort → öppna drawer med all info
+                                 // (rådata, karta, tider). Knapp i drawerhuvudet
+                                 // tar vidare till full veckovy om man vill.
+                                 setOpenStaffId(staff.id);
+                               }}
                               className={cn(
                                 'absolute left-1 right-1 z-[5] cursor-pointer overflow-hidden rounded-md border px-2 py-1.5 text-[11px] leading-tight shadow-sm transition-shadow hover:z-20 hover:shadow-md',
                                 style.bg,
