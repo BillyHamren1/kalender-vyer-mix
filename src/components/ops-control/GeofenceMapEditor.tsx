@@ -143,6 +143,8 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
 
     return () => {
       cancelled = true;
+      const ro = (mapRef.current as any)?.__ro as ResizeObserver | undefined;
+      ro?.disconnect();
       mapRef.current?.remove();
       mapRef.current = null;
       drawRef.current = null;
