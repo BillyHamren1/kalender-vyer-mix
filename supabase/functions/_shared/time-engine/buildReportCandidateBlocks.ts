@@ -1708,6 +1708,13 @@ export function buildReportCandidateBlocks(
     inferredFromNeighborsMinutes,
     inferredFromNeighborsInheritedTargetCount,
     inferredFromNeighborsUnlabeledCount,
+    reviewClassificationDiagnostics: {
+      blockingReviewBlocksCount: 0,
+      warningOnlyBlocksCount: 0,
+      signalGapWarningOnlyBlocksCount: 0,
+      signalGapPromotedToReviewCount: 0,
+      clearWorkBlocksIncorrectlyReviewCount: 0,
+    },
   };
   for (const r of out) {
     if (r.kind === 'work') {
@@ -1728,6 +1735,39 @@ export function buildReportCandidateBlocks(
       summary.breakMinutes += r.durationMinutes;
     }
     if (r.warningLabel) summary.reportRowsWithSignalWarnings += 1;
+
+    // ─── Review-classification diagnostics ───────────────────────────
+    const reasons = r.reviewReasons ?? [];
+    const hasBlocking = reasons.some((x) => BLOCKING_REVIEW_REASONS.has(x));
+    const hasWarningOnly = reasons.some((x) => WARNING_ONLY_REASONS.has(x));
+    const onsiteEv = (r.evidenceSummary?.confirmedMinutes ?? 0) + (r.evidenceSummary?.probableMinutes ?? 0);
+    const hasTarget = !!(r.targetId || r.targetLabel);
+
+    if (r.reviewState === 'needs_review') {
+      summary.reviewClassificationDiagnostics.blockingReviewBlocksCount += 1;
+      if (reasons.includes('signal_gap_unresolved') && r.kind === 'work') {
+        summary.reviewClassificationDiagnostics.signalGapPromotedToReviewCount += 1;
+      }
+      if (
+        r.kind === 'work' &&
+        hasTarget &&
+        onsiteEv > 0 &&
+        !hasBlocking &&
+        reasons.length > 0 &&
+        reasons.every((x) => WARNING_ONLY_REASONS.has(x))
+      ) {
+        summary.reviewClassificationDiagnostics.clearWorkBlocksIncorrectlyReviewCount += 1;
+        warnings.push(
+          `regression: work-block ${r.startAt}–${r.endAt} (${r.targetLabel ?? 'okänd target'}) ` +
+            `markerades needs_review trots target+onsite-evidens och endast warning-only reasons (${reasons.join(',')})`,
+        );
+      }
+    } else if (r.reviewState === 'ok' && (r.warningLabel || hasWarningOnly)) {
+      summary.reviewClassificationDiagnostics.warningOnlyBlocksCount += 1;
+      if (r.kind === 'work' && r.signalGapMinutes > 0) {
+        summary.reviewClassificationDiagnostics.signalGapWarningOnlyBlocksCount += 1;
+      }
+    }
   }
 
   return {
