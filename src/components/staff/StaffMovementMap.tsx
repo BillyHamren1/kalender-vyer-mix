@@ -87,6 +87,7 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
       try {
         const { data } = await supabase.functions.invoke('mapbox-token');
         if (cancelled || !data?.token) return;
+        if (!mapContainer.current) return;
         mapboxgl.accessToken = data.token;
 
         if (map.current) {
@@ -98,7 +99,7 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
         const center = coords[Math.floor(coords.length / 2)];
 
         map.current = new mapboxgl.Map({
-          container: mapContainer.current!,
+          container: mapContainer.current,
           style: 'mapbox://styles/mapbox/streets-v12',
           center,
           zoom: 13,
