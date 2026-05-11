@@ -1843,6 +1843,8 @@ export function buildReportCandidateBlocks(
     date: input.date,
     blocks: out,
     excludedPreWorkBlocks,
+    excludedPrivateResidenceBlocks,
+    excludedPrivateResidenceDiagnostics,
     preWorkExclusionDiagnostics,
     summary,
     warnings,
