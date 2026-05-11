@@ -63,6 +63,13 @@ export interface MobileTrackingPolicy {
   isSignalStale: boolean;
 }
 
+export interface MobileWorkday {
+  startedAt: string;
+  endedAt: string | null;
+  isOpen: boolean;
+  status: MobileWorkdayStatus;
+}
+
 export interface MobileDayReport {
   date: string;
   staffId: string;
@@ -70,6 +77,7 @@ export interface MobileDayReport {
   cacheStatus: MobileCacheStatus;
   cacheError: string | null;
   workdayStatus: MobileWorkdayStatus;
+  workday: MobileWorkday | null;
   summary: MobileSummary;
   segments: MobileSegment[];
   actionsNeeded: MobileActionItem[];
