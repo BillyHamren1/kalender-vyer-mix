@@ -1,69 +1,131 @@
-## AI-granskning för osäkra tidrapportblock
+## Mål
 
-Bygger en ren förslags-pipeline: admin klickar "AI-granska" på osäkra block, AI returnerar strukturerat förslag, allt sparas i en separat tabell. Inga befintliga rapport-/workday-/GPS-data rörs.
+När en "Osäker period" visas i admin-tidrapporten ska användaren direkt se **var** den ägde rum och **vad platsen är** — inte bara råkoordinater. Platsen ska aktivt slås upp mot:
 
-### 1. Databas (migration)
+1. Reverse-geocodad gatuadress (Mapbox)
+2. Kända organisations-platser (`organization_locations`)
+3. Bokningsadresser (både dagens, **framtida** och tidigare)
+4. Personalens hemadress / privata zoner (`staff_private_zones`)
+5. Personalens tidigare besök på samma koordinat (historiska `place_visits` / GPS-vistelser)
 
-Ny tabell `time_report_ai_reviews`:
-- `id`, `organization_id`, `staff_id`, `date`, `block_id`
-- `engine_version`
-- `review_status` (`suggested` | `accepted` | `rejected` | `superseded`, default `suggested`)
-- `current_classification`, `suggested_classification`, `suggested_kind`, `suggested_label`, `suggested_minutes`
-- `confidence` (text), `confidence_score` (numeric)
-- `reasoning_summary` (text), `evidence_json` (jsonb), `suggested_action_json` (jsonb)
-- `concerns_json` (jsonb)
-- `admin_feedback` (text), `reviewed_by` (uuid), `reviewed_at` (timestamptz)
-- `created_at`, `updated_at`
-- Index på `(organization_id, staff_id, date)` och `(block_id)`
-- RLS RESTRICTIVE på `organization_id` (admin/manager kan select/update; insert endast via service role från edge function).
-- När en ny review skapas för samma `block_id` → tidigare `suggested` blir `superseded` (trigger).
+Allt sker enbart i **adminwebbens display-lager**. Inga writes, ingen AI, ingen mobilapp.
 
-### 2. Edge function `analyze-time-report-block`
+## Vad som ändras
 
-Input: `{ organizationId, staffId, date, blockId, engineVersion, dryRun? }`.
+### 1. Ny edge function: `resolve-unknown-stop`
 
-Steg:
-1. Auth + org-check (admin/manager).
-2. Hämta dagens snapshot via befintliga byggare:
-   - `buildActualStaffDayModel` → `reportCandidateBlocks`, `presenceDayBlocks`, `dayBlockTimeline`
-   - `buildGpsDayTimeline` runt blocket (±60 min)
-   - `resolveWorkTargets` för dagens targets
-   - Hämta `previousBlock`/`nextBlock`, geofence enter/exit, companion route om tillgängligt
-3. Plocka ut blocket via `blockId`. Returnera 404 om saknas.
-4. Bygg strukturerad prompt (system + user) med kompakt evidence-snapshot.
-5. Kalla Lovable AI Gateway (`google/gemini-3-flash-preview`) med `Output.object` + zod-schema → garanterad JSON.
-6. Tvinga `shouldAutoApply: false`.
-7. Om `dryRun !== true`: markera tidigare reviews för blocket som `superseded`, INSERT ny rad.
-8. Returnera review-objektet.
+`supabase/functions/resolve-unknown-stop/index.ts`
 
-Strikt validering: AI får endast föreslå, aldrig skriva till `time_reports`, `workdays`, `location_time_entries`, `travel_time_logs`, `gps_pings`, `active_time_registrations`. Edge function har bara INSERT/UPDATE-rättigheter på `time_report_ai_reviews`.
+Input (POST):
+```json
+{
+  "organizationId": "...",
+  "staffUserId": "...",
+  "lat": 59.123,
+  "lng": 17.456,
+  "atIso": "2026-05-09T03:30:00Z",
+  "radiusMeters": 250
+}
+```
 
-### 3. Edge function `resolve-time-report-ai-review`
+Output:
+```json
+{
+  "reverseGeocoded": { "label": "Storgatan 5, Solna", "source": "mapbox" } | null,
+  "knownLocation": { "id": "...", "name": "FA Lager", "distanceMeters": 42 } | null,
+  "privateZone":   { "kind": "home" | "manual_ignore" | "recurring_night",
+                     "label": "Hemma", "distanceMeters": 30 } | null,
+  "matchingBookings": [
+    { "bookingId": "...", "bookingNumber": "B12345",
+      "label": "Konsert Globen", "address": "...",
+      "eventDate": "2026-05-12", "relativeDays": 3,
+      "distanceMeters": 80, "direction": "future" | "past" | "today" }
+  ],
+  "priorVisits": {
+    "count": 7, "firstSeenIso": "2026-02-11T...",
+    "lastSeenIso": "2026-04-30T...",
+    "totalMinutes": 412
+  } | null
+}
+```
 
-Input: `{ reviewId, decision: 'accepted' | 'rejected' | 'needs_human_review', adminFeedback? }`.
+Logik (read-only):
+- Reverse-geocode via befintlig Mapbox-token-flow (samma som `useReverseGeocodeRich`).
+- `organization_locations`: hämta alla i org, beräkna haversine → returnera närmaste inom `radiusMeters`.
+- `staff_private_zones` för `staffUserId`: närmaste inom radius + dess `kind`.
+- `bookings` (master data) inom org där `latitude`/`longitude` finns och haversine ≤ radius. Sortera på `abs(eventDate - atIso)`, max 5. Sätt `direction` (today/future/past) och `relativeDays`.
+- `priorVisits`: aggregera `place_visits` (eller motsvarande pings-tabell vi redan har) för samma `staffUserId` med `centerLat/Lng` inom 100 m och `endIso < atIso`. Returnera count, first/last, totala minuter. Om tabellen inte finns under detta namn — använd den vi redan läser i `_shared/timeline/`.
 
-Endast UPDATE på `time_report_ai_reviews` (status, `reviewed_by`, `reviewed_at`, `admin_feedback`). Rör inget annat.
+Inga skrivningar. Multi-tenant: filtrera ALLT på `organization_id`. Caller-token = adminens JWT.
 
-### 4. Frontend (admin `/staff-management/time-reports`)
+### 2. Ny hook: `useResolvedUnknownStop`
 
-- `src/services/timeReportAiReviewApi.ts` — `requestAiReview`, `resolveAiReview`, `useAiReviewForBlock(blockId)` (React Query).
-- Identifiera "osäkra" block via befintliga flaggor: `reviewState === 'needs_review'`, `kind` i (`unknown`, `signal_gap`, `missing_transition_evidence`), eller `confidence === 'low'`/`'medium'` på transport/work.
-- Ny komponent `BlockAiReviewPanel.tsx` som visas under blocket i ReportCandidateTimeline:
-  - Om ingen review: knapp **AI-granska**.
-  - Om review finns: kort med Föreslagen tolkning, Confidence-badge, Motivering, Evidence-lista, Risker/oklarheter.
-  - Knappar: **Acceptera**, **Avvisa** (öppnar feedback-fält), **Behöver manuell kontroll**.
-- Decision Trace-vyn: ny sektion "AI-granskning" som visar latest review + historik.
+`src/hooks/useResolvedUnknownStop.ts` — `useQuery` med `staleTime: 1h`, key `[lat-rounded, lng-rounded, staffUserId, dateBucket]` så två närliggande osäkra block delar cache. Anropar edge function via `supabase.functions.invoke`.
 
-### 5. Tekniska detaljer
+### 3. Utöka `LocationEvidence`
 
-- Ny shared modul `supabase/functions/_shared/ai-review/` med zod-schema och prompt-builder (deno).
-- Prompt instruerar modellen explicit att den endast föreslår, inte ändrar.
-- Engine-version läses från `BUILD_*` constants som redan finns i time-engine.
-- `evidence_json` lagrar trimmad snapshot (max ~10kB) för senare analys.
+I `src/lib/staff/buildReportDisplayBlocks.ts`:
 
-### 6. Ej i scope
+```ts
+export interface LocationEvidence {
+  // ... befintliga fält
+  resolvedAddress?:        { label: string; source: 'mapbox' } | null;
+  resolvedKnownLocation?:  { name: string; distanceMeters: number } | null;
+  resolvedPrivateZone?:    { kind: 'home' | 'manual_ignore' | 'recurring_night';
+                             label: string; distanceMeters: number } | null;
+  resolvedMatchingBookings?: Array<{
+    bookingNumber: string; label: string; eventDate: string;
+    relativeDays: number; direction: 'today' | 'future' | 'past';
+    distanceMeters: number;
+  }>;
+  resolvedPriorVisits?:    { count: number; lastSeenIso: string;
+                             totalMinutes: number } | null;
+}
+```
 
-- Ingen auto-apply av förslag.
-- Ingen mobil-UI.
-- Ingen ändring av reportCandidate/timeline-motorn.
-- Inga lärdataexport-vyer (datan finns i tabellen, kan analyseras separat).
+`buildReportDisplayBlocks` förblir pure och tar emot resolverade fält via en ny valfri input `resolvedByBlockId: Map<blockId, ResolvedUnknownStop>` och kopierar in i `locationEvidence`.
+
+### 4. UI: ny rendering för "Osäker period"
+
+I `ReportCandidateTimeline.tsx` (och `DecisionTraceDrawer.tsx` för full bevisning):
+
+För block med `kind === 'needs_review' | 'unknown'` och `locationEvidence` — visa en strukturerad "Vad vet vi om platsen?"-sektion (under befintlig titel/subtitel) med rader, i denna prioritetsordning:
+
+1. **Hemma / privat zon** — `Hemma (35 m)` → tonas som info-badge "privat — räknas inte".
+2. **Känd plats** — `FA Lager (42 m)` → klickbar länk till `organization_locations`-detalj.
+3. **Adress** — `Storgatan 5, Solna` (reverse-geocode).
+4. **Matchande bokningar** — kompakt lista:
+   - `Idag: Konsert Globen (B12345)` 
+   - `Om 3 d: Mässa Älvsjö (B12350)`
+   - `Var: Tidigare bokning (B12000) — 2026-04-12`
+5. **Historik** — `Personen har varit här 7 gånger (412 min, senast 2026-04-30)`.
+6. **Inget av ovan** — `Adress kunde inte slås upp` + koordinat.
+
+Ingen rad → utelämnas (inget tomt brus).
+
+### 5. Wiring
+
+I `StaffTimeReportsList.tsx` / `StaffDayTimelineCard.tsx`:
+- Samla unika `(lat, lng, blockId)` för alla osäkra block i synlig dag.
+- Anropa `useResolvedUnknownStop` per unikt block (eller batch-version om det blir många).
+- Skicka `resolvedByBlockId` vidare till `ReportCandidateTimeline`.
+
+### 6. Tester
+
+- `src/test/resolveUnknownStopUI.contract.test.ts` — verifierar prioritetsordning (privat zon > känd plats > adress) och att inga rader visas när data saknas.
+- Edge function-test som mockar Supabase-klient och bekräftar org_id-filter på alla queries.
+
+## Säkerhet / icke-mål
+
+- Inga writes till `time_reports`, `workdays`, `location_time_entries`, `travel_time_logs`, `gps_pings`.
+- Ingen AI.
+- Mobilappen rörs inte.
+- Klassificeringen i `buildPresenceDayBlocks` / `classifyTransportSignalGap` ändras INTE — `kind`/`reviewState` förblir samma. Vi berikar bara display-lagret.
+- Ingen geocode-cachelagring i DB i denna iteration (Mapbox-cachen i React Query räcker).
+
+## Tekniska anteckningar
+
+- Org-isolering: edge function hämtar caller-org via JWT och filtrerar `bookings`, `organization_locations`, `staff_private_zones`, `place_visits` på `organization_id` (RESTRICTIVE RLS speglar redan detta).
+- "Future bookings"-fönster: ±60 dagar runt `atIso`, sortera närmast först.
+- Distans-tröskel: 250 m för bokning/känd plats, 100 m för privat zon och historik (matchar nuvarande precision på GPS-vistelser).
+- Mapbox-token: återanvänd `loadMapboxToken()` om edge function har motsv.; annars använd `MAPBOX_ACCESS_TOKEN` secret. Jag verifierar i implementeringen vilken som finns.

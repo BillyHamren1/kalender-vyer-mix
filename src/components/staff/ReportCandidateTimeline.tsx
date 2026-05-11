@@ -21,8 +21,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StaffMovementMap } from './StaffMovementMap';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
-import { BlockAiReviewPanel } from './BlockAiReviewPanel';
-import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 
 export type ReportBlockKind = 'work' | 'transport' | 'break' | 'unknown' | 'needs_review';
 export type ReportConfidence = 'high' | 'medium' | 'low';
@@ -442,11 +440,10 @@ function EvidencePanel({
   );
 }
 
-function BlockRow({ block, lookups, staffId, staffName, date, resolved, previousBlock, nextBlock, rawPings }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null; previousBlock?: ReportCandidateBlockUI | null; nextBlock?: ReportCandidateBlockUI | null; rawPings?: Array<{ ts?: string; recorded_at?: string; lat?: number; lng?: number; speed?: number; speedKph?: number; accuracy?: number }> | null }) {
+function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null }) {
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
-  const { organizationId } = useCurrentOrg();
   const title = block.displayTitle ?? block.title;
   const subtitle = block.displaySubtitle
     ?? block.subtitle
@@ -522,32 +519,6 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved, previous
           <EvidencePanel block={block} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
         </div>
       )}
-      <div className="px-3 pb-2">
-        <BlockAiReviewPanel
-          block={{
-            id: block.id,
-            kind: block.kind,
-            reviewState: block.reviewState,
-            confidence: block.confidence,
-            startAt: block.startAt,
-            endAt: block.endAt,
-            durationMinutes: block.durationMinutes,
-            title: block.displayTitle ?? block.title,
-            subtitle: block.displaySubtitle ?? block.subtitle ?? null,
-            fromLabel: block.fromLabel ?? null,
-            toLabel: block.toLabel ?? null,
-            reviewReasons: block.reviewReasons,
-            targetType: block.targetType ?? null,
-            targetLabel: block.targetLabel ?? null,
-            signalGapMinutes: block.signalGapMinutes,
-            evidenceSummary: (block.evidenceSummary ?? null) as Record<string, unknown> | null,
-          }}
-          organizationId={organizationId}
-          staffId={staffId}
-          date={date}
-          contextSnapshot={buildContextSnapshot(block, previousBlock, nextBlock, rawPings)}
-        />
-      </div>
     </div>
   );
 }
@@ -576,65 +547,7 @@ export interface ReportCandidateTimelineProps {
     firstPrimaryWorkAt?: string | null;
     firstPrimaryTargetLabel?: string | null;
   } | null;
-  /** rawGpsTimeline från get-staff-presence-day; används för AI-review-kontext (read-only). */
-  rawGpsTimeline?: { pings?: Array<{ ts?: string; recorded_at?: string; lat?: number; lng?: number; speed?: number; speedKph?: number; accuracy?: number }> } | null;
 }
-
-/** Bygg AI-review contextSnapshot för ett block: grannblock + GPS-pings ±10 min runt blocket. */
-function buildContextSnapshot(
-  block: ReportCandidateBlockUI,
-  previousBlock: ReportCandidateBlockUI | null | undefined,
-  nextBlock: ReportCandidateBlockUI | null | undefined,
-  rawPings: Array<{ ts?: string; recorded_at?: string; lat?: number; lng?: number; speed?: number; speedKph?: number; accuracy?: number }> | null | undefined,
-): Record<string, unknown> {
-  const WINDOW_MS = 10 * 60 * 1000;
-  const startMs = new Date(block.startAt).getTime();
-  const endMs = new Date(block.endAt).getTime();
-  const windowedPings = (rawPings ?? [])
-    .map((p) => {
-      const tsRaw = p.ts ?? p.recorded_at ?? null;
-      const tsMs = tsRaw ? new Date(tsRaw).getTime() : NaN;
-      return { p, tsMs, tsRaw };
-    })
-    .filter((row) => Number.isFinite(row.tsMs) && row.tsMs >= startMs - WINDOW_MS && row.tsMs <= endMs + WINDOW_MS)
-    .sort((a, b) => a.tsMs - b.tsMs);
-  const gpsBeforeGap = windowedPings
-    .filter((r) => r.tsMs <= startMs)
-    .slice(-10)
-    .map((r) => ({ ts: r.tsRaw, lat: r.p.lat, lng: r.p.lng, speedKph: r.p.speedKph ?? r.p.speed }));
-  const gpsAfterGap = windowedPings
-    .filter((r) => r.tsMs >= endMs)
-    .slice(0, 10)
-    .map((r) => ({ ts: r.tsRaw, lat: r.p.lat, lng: r.p.lng, speedKph: r.p.speedKph ?? r.p.speed }));
-  const gpsInsideBlock = windowedPings
-    .filter((r) => r.tsMs > startMs && r.tsMs < endMs)
-    .map((r) => ({ ts: r.tsRaw, lat: r.p.lat, lng: r.p.lng, speedKph: r.p.speedKph ?? r.p.speed }));
-  const summarizeNeighbor = (b: ReportCandidateBlockUI | null | undefined) =>
-    b
-      ? {
-          id: b.id,
-          kind: b.kind,
-          startAt: b.startAt,
-          endAt: b.endAt,
-          durationMinutes: b.durationMinutes,
-          title: b.title,
-          targetType: b.targetType ?? null,
-          targetLabel: b.targetLabel ?? null,
-          confidence: b.confidence,
-        }
-      : null;
-  return {
-    previousBlock: summarizeNeighbor(previousBlock),
-    nextBlock: summarizeNeighbor(nextBlock),
-    engineReviewReasons: block.reviewReasons ?? [],
-    signalGapMinutes: block.signalGapMinutes ?? null,
-    gpsBeforeGap,
-    gpsAfterGap,
-    gpsInsideBlock,
-    gpsAroundBlock: [...gpsBeforeGap, ...gpsInsideBlock, ...gpsAfterGap],
-  };
-}
-
 
 export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = ({
   blocks,
@@ -647,7 +560,6 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   date,
   excludedPreWorkBlocks,
   preWorkExclusionDiagnostics,
-  rawGpsTimeline,
 }) => {
   if (loading) {
     return (
@@ -719,7 +631,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   return (
     <div className="space-y-1.5">
       {preWorkInfoRow}
-      {visible.map((b, idx) => (
+      {visible.map((b) => (
         <BlockRow
           key={b.id}
           block={b}
@@ -728,9 +640,6 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
           staffName={staffName}
           date={date}
           resolved={resolvedMap.get(b.id) ?? null}
-          previousBlock={idx > 0 ? visible[idx - 1] : null}
-          nextBlock={idx < visible.length - 1 ? visible[idx + 1] : null}
-          rawPings={rawGpsTimeline?.pings ?? null}
         />
       ))}
       {summary && (

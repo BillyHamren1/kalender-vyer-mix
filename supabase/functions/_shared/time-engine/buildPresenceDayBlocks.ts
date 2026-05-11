@@ -513,7 +513,6 @@ export function buildPresenceDayBlocks(
         previousIsTransport,
         nextIsTransport,
         destinationCandidate,
-        originCandidate: previousTargetForCompanion,
         conflictingSignals: {
           anyHardGeoEntry: false,
           anyConfirmedStayAtOtherPlace: false,

@@ -581,15 +581,13 @@ export function buildReportDisplayBlocks(
       longestNonTransportMin <= 15 &&
       transportMinInRun > 0;
 
-    // ── Bridge-promotion (DISPLAY + KIND) ─────────────────────────────
+    // ── Bridge-promotion (DISPLAY ONLY) ───────────────────────────────
     // När gapet sitter mellan TVÅ DISTINKTA kända arbetsplatser och
-    // ingen del av kedjan har eget stopp-bevis (egna GPS-koords) och
-    // inga work-block ligger inbäddade → det är uppenbart en resa.
-    // Vi promoterar då till riktig transport (kind=transport,
-    // reviewState=ok) även om enskilda GPS-glapp är längre än 15 min.
-    // Genuint osäkra fall (samma start/mål, eget stopp-bevis, inbäddat
-    // arbete eller okänd plats med koordinater) faller fortfarande
-    // tillbaka till "Osäker period" / needs_review.
+    // ingen del av kedjan har eget stopp-bevis (egna GPS-koords) →
+    // det är uppenbart en resa, även om vi saknar GPS-pings under
+    // färden. Vi ändrar BARA titel/subtitle (kind är fortfarande
+    // needs_review så lön/ekonomi påverkas inte) — admin kan
+    // bekräfta/avslå senare.
     const promoteAsBridgedTrip =
       !promoteToTransport &&
       !!prevKnown &&
@@ -604,7 +602,7 @@ export function buildReportDisplayBlocks(
     if (promoteToTransport) {
       promotedTitle = `Resa mot ${nextKnown}`;
     } else if (promoteAsBridgedTrip) {
-      promotedTitle = `Resa · ${prevKnown} → ${nextKnown}`;
+      promotedTitle = `Trolig resa · ${prevKnown} → ${nextKnown}`;
     } else {
       promotedTitle = 'Osäker period';
     }
@@ -618,24 +616,21 @@ export function buildReportDisplayBlocks(
     } else if (promoteAsBridgedTrip) {
       promotedSubtitleParts.push(`från ${prevKnown}`);
       promotedSubtitleParts.push(`till ${nextKnown}`);
-      if (gapMinInRun >= 1) {
-        promotedSubtitleParts.push(`GPS saknades ${Math.round(gapMinInRun)} min under resan`);
-      }
+      promotedSubtitleParts.push(`GPS saknades ${Math.round(gapMinInRun)} min – ingen stopp-evidens`);
+      promotedSubtitleParts.push('granska');
     }
     const promotedSubtitle = (promoteToTransport || promoteAsBridgedTrip)
       ? promotedSubtitleParts.join(' · ')
       : subParts.join(' · ');
-    const promotedWarning = (promoteToTransport || promoteAsBridgedTrip) && gapMinInRun >= 1
+    const promotedWarning = promoteToTransport && gapMinInRun >= 1
       ? `GPS saknades ${Math.round(gapMinInRun)} min under resan`
       : null;
-
-    const promotedAsTransport = promoteToTransport || promoteAsBridgedTrip;
 
     const merged: DisplayBlock = {
       // Bas: ärv från första blocket men override
       ...run[0],
       id: `grp:${run[0].id}:${run.length}`,
-      kind: promotedAsTransport ? 'transport' : 'needs_review',
+      kind: promoteToTransport ? 'transport' : 'needs_review',
       startAt,
       endAt,
       durationMinutes,
@@ -647,8 +642,8 @@ export function buildReportDisplayBlocks(
       targetLabel: null,
       fromLabel: prevKnown ?? null,
       toLabel: nextKnown ?? null,
-      confidence: promotedAsTransport ? promotedConfidence : 'low',
-      reviewState: promotedAsTransport ? 'ok' : 'needs_review',
+      confidence: promoteToTransport ? promotedConfidence : 'low',
+      reviewState: promoteToTransport ? 'ok' : 'needs_review',
       reviewReasons,
       warningLabel: promotedWarning,
       sourcePresenceBlockIds,

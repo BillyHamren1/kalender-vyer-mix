@@ -51,8 +51,6 @@ export interface ClassifyTransportSignalGapInput {
   nextIsTransport: boolean;
   /** Resolved destination (immediate next stable stay, or later in transport chain). */
   destinationCandidate: WorkTarget | null;
-  /** Resolved origin (immediate previous stable stay), if it is a known work target. */
-  originCandidate?: WorkTarget | null;
   conflictingSignals: {
     anyHardGeoEntry: boolean;
     anyConfirmedStayAtOtherPlace: boolean;
@@ -84,11 +82,6 @@ export interface ClassifyTransportSignalGapResult {
 }
 
 const MAX_GAP_MIN = 30;
-/** Relaxed cap when BOTH ends are known work targets (origin + destination).
- *  A clear stay-A → stay-B transition with both anchors and plausible speed
- *  is treated as transport even when the GPS gap is longer. Capped to keep
- *  half-day gaps from being silently turned into trips. */
-const MAX_GAP_MIN_KNOWN_ENDS = 240;
 const MIN_SPEED_KMH = 5;
 const MAX_SPEED_KMH = 130;
 
@@ -141,21 +134,6 @@ export function classifyTransportSignalGap(
   const hasAnyAnchor = !!(input.previousKnownPosition || input.nextKnownPosition);
   const hasBothAnchors = !!(input.previousKnownPosition && input.nextKnownPosition);
 
-  const originIsWorkRelated =
-    !!input.originCandidate && (
-      input.originCandidate.kind === 'organization_location'
-      || input.originCandidate.kind === 'project'
-      || input.originCandidate.kind === 'booking'
-      || input.originCandidate.kind === 'warehouse'
-    );
-  /** Both ends are KNOWN work targets (different sites). A clean
-   *  stay-A → stay-B transition with no GPS pings between is a real trip. */
-  const knownEndToKnownEnd =
-    originIsWorkRelated
-    && destinationIsWorkRelated
-    && hasBothAnchors
-    && input.originCandidate?.refId !== input.destinationCandidate?.refId;
-
   // Speed validation only when both anchors known AND distance > 500 m.
   const speedOk =
     distanceMeters == null || distanceMeters <= 500
@@ -185,33 +163,9 @@ export function classifyTransportSignalGap(
   if (input.conflictingSignals.anyHardGeoEntry) return fail('conflict_hard_geo_entry');
   if (input.conflictingSignals.anyConfirmedStayAtOtherPlace) return fail('conflict_confirmed_stay');
   if (input.conflictingSignals.anyHomePrivate) return fail('conflict_home_private');
-  const effectiveMaxGap = knownEndToKnownEnd ? MAX_GAP_MIN_KNOWN_ENDS : MAX_GAP_MIN;
-  if (gapMinutes > effectiveMaxGap) return fail('gap_too_long');
+  if (gapMinutes > MAX_GAP_MIN) return fail('gap_too_long');
   if (!hasAnyAnchor && !surroundedByTransport) return fail('no_transport_evidence');
   if (!speedOk) return fail('implausible_speed');
-
-  // Known-work-target on both ends with plausible speed → confirmed transport.
-  // Anchors are the surrounding stays themselves; no transport pings required.
-  if (knownEndToKnownEnd && speedOk) {
-    reasons.push('known_work_target_on_both_ends');
-    if (distanceMeters != null) reasons.push(`distance_${Math.round(distanceMeters)}m`);
-    if (impliedSpeedKmh != null) reasons.push(`speed_${Math.round(impliedSpeedKmh)}kmh`);
-    return {
-      classification: 'confirmed_transport_gap',
-      confidence: 'high',
-      confidenceScore: 0.88,
-      countsAsTransport: true,
-      reasons,
-      warningLabel,
-      destinationEvidence,
-      destinationConfirmed: true,
-      routeContinuationConfirmed: true,
-      transportAnchorsUsed,
-      companionRouteEvidence: companion,
-      impliedSpeedKmh,
-      gapMinutes,
-    };
-  }
 
   const routeContinuationConfirmed =
     surroundedByTransport || (transportAnchorsUsed && hasAnyAnchor);
