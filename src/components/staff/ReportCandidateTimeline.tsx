@@ -647,6 +647,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   date,
   excludedPreWorkBlocks,
   preWorkExclusionDiagnostics,
+  rawGpsTimeline,
 }) => {
   if (loading) {
     return (
