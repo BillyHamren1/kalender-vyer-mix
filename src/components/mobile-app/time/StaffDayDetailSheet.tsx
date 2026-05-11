@@ -365,6 +365,13 @@ const DayBody: React.FC<{
           onSubmitted={onChanged}
         />
       )}
+
+      <SegmentDetailSheet
+        segment={selectedSeg}
+        date={date}
+        staffId={staffId}
+        onClose={() => setSelectedSeg(null)}
+      />
     </div>
   );
 };
