@@ -129,6 +129,58 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
             },
           });
 
+          // Ping dots — show every ping if sparse, otherwise downsample to ~1 per 5 min
+          const FIVE_MIN = 5 * 60 * 1000;
+          const sampledPings: MovementPoint[] = [];
+          let lastPingTs = -Infinity;
+          for (const p of points) {
+            const t = new Date(p.recorded_at).getTime();
+            if (points.length <= 30 || t - lastPingTs >= FIVE_MIN) {
+              sampledPings.push(p);
+              lastPingTs = t;
+            }
+          }
+          map.current.addSource('pings', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: sampledPings.map((p) => ({
+                type: 'Feature',
+                properties: {
+                  time: new Date(p.recorded_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
+                },
+                geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+              })),
+            },
+          });
+          map.current.addLayer({
+            id: 'ping-dots',
+            type: 'circle',
+            source: 'pings',
+            paint: {
+              'circle-radius': 4,
+              'circle-color': 'hsl(48, 96%, 53%)',
+              'circle-stroke-color': 'hsl(0, 0%, 20%)',
+              'circle-stroke-width': 1,
+              'circle-opacity': 0.95,
+            },
+          });
+          map.current.on('click', 'ping-dots', (e) => {
+            const f = e.features?.[0];
+            if (!f || !map.current) return;
+            const [lng, lat] = (f.geometry as any).coordinates;
+            new mapboxgl.Popup({ offset: 8 })
+              .setLngLat([lng, lat])
+              .setHTML(`<strong>Ping</strong><br/>${(f.properties as any).time}`)
+              .addTo(map.current);
+          });
+          map.current.on('mouseenter', 'ping-dots', () => {
+            if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+          });
+          map.current.on('mouseleave', 'ping-dots', () => {
+            if (map.current) map.current.getCanvas().style.cursor = '';
+          });
+
           // Start marker (green)
           new mapboxgl.Marker({ color: 'hsl(142, 71%, 45%)' })
             .setLngLat(coords[0])
