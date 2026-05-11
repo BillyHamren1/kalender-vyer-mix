@@ -409,11 +409,27 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                         : localRevenueTotal;
 
                       // Compute local costs from local products (per-styck × antal)
+                      // Compute local costs from local products (per-styck × antal),
+                      // applying overrides so totals reflect inline edits immediately.
                       const localCostsTotal = bookingLocalProducts.reduce((s, lp) =>
                         s + ((lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0)) * (Number(lp.quantity) || 1), 0);
-                      const displayProductCosts = (productSummary?.costs && productSummary.costs > 0)
-                        ? productSummary.costs
+
+                      // Live product cost = override value per remote product if it
+                      // exists, else remote value. This is the single source of truth
+                      // for the booking-row "Kostnad" cell so edits update instantly.
+                      const liveBookingProductCosts = products.length > 0
+                        ? products.reduce((sum: number, p: any) => {
+                            const productName = p.product_name || p.name || p.description || '—';
+                            const localMatch = findLocalProduct(bookingId, productName, p.sku);
+                            const a = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
+                            const h = localMatch?.handling_cost ?? p.handling_cost ?? 0;
+                            const pu = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
+                            const qty = Number(p.quantity) || 1;
+                            return sum + (a + h + pu) * qty;
+                          }, 0)
                         : localCostsTotal;
+
+                      const displayProductCosts = liveBookingProductCosts;
 
                       const totalCost =
                         displayProductCosts +
