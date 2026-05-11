@@ -303,6 +303,11 @@ export interface PreWorkExclusionDiagnostics {
   firstPrimaryTargetLabel: string | null;
   excludedReasons: Record<string, number>;
   examples: PreWorkExclusionExample[];
+  /** How many home anchors were supplied for this staff/day. */
+  homeAnchorsCount?: number;
+  /** Subset of pre-work blocks that matched a home anchor (lat/lng inside
+   *  radius). Useful for Decision Trace and health checks. */
+  homeAnchorMatches?: number;
 }
 
 export interface ReportCandidateDayResult {
