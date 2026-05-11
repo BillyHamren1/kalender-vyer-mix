@@ -360,6 +360,7 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
                 date={props.date}
                 excludedPreWorkBlocks={props.reportCandidateExcludedPreWorkBlocks ?? null}
                 preWorkExclusionDiagnostics={props.reportCandidatePreWorkExclusionDiagnostics ?? null}
+                rawGpsTimeline={props.reportCandidateRawGpsTimeline ?? null}
               />
             </>
           );
