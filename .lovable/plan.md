@@ -1,63 +1,40 @@
-## Vad du faktiskt ser
+## Problem
 
-Det är inte ett "events" som dubblas — det är att tidslinjen i `/staff-management/time-reports` (`StaffGanttView.tsx`) lägger ALLA candidate-block i samma kolumn med `absolute left:1 right:1` och positionerar dem efter start/sluttid. Två block som överlappar i tid hamnar då bokstavligen ovanpå varandra. Inget "lane-läge" finns idag.
+I dialogen "Ny fast plats" på `/ops-control` står kartrutan grå, utan tiles, utan spinner och utan felmeddelande. Token-edge-funktionen svarar OK (annars hade röd `loadError`-text visats), men `mapboxgl.Map` initieras innan `DialogContent` är fullt animerad/utvikt och hamnar då med ett 0×0 WebGL-canvas. När `m.on('load')` skjuts sätts `tokenLoading=false`, men inga tiles ritas ut eftersom canvas är tom — och de tre `m.resize()`-anropen råkar köras innan Radix-animationen är färdig på vissa preview-storlekar.
 
-Två separata problem driver det du ser i screenshoten:
+Ingen logik utanför kartkomponenten är trasig — det är bara init-sekvensen som behöver bli robust.
 
-### Problem A — Motorn spottar ur sig FÖR MÅNGA block
+## Fix (endast `src/components/ops-control/GeofenceMapEditor.tsx`)
 
-Markus 2026-05-09 har just nu **37 candidate-blocks** på en enda dag i den senaste cachen. Tidigare versioner gav 14–24:
+1. **Vänta tills containern har storlek innan `new mapboxgl.Map(...)`**
+   Efter att token är hämtad: pollar via ResizeObserver/`requestAnimationFrame` tills `containerRef.current.clientWidth > 0 && clientHeight > 0` (max ~2 s). Då först skapas mapinstansen.
 
-```
-v2.6-open-active-consolidation   37 blocks   (senaste, det du ser)
-v1                               14
-v1-companion-test2               24
-v2.5-sandwich-inferred-work      20
-v2.4-prework-home-geofence       20
-```
+2. **Tvinga resize i flera steg + på `idle`-event**
+   Behåll de tre `resize()`-stegen, men lägg även till `m.once('idle', () => m.resize())` och en sista `setTimeout(800)` för att täcka långsamma dialog-animationer.
 
-Dvs. den nya POST-PASS 4 (öppen aktiv registrering konsoliderar släpljus) **gör inget** för historiska dagar utan öppen timer — men något annat i samma deploy har samtidigt tappat den dedup som tidigare slog ihop intilliggande GRANSKA + TRANSPORT runt samma punkt. Det är därför du får sekvensen `TRANSPORT 11m → TRANSPORT 1h1m → GRANSKA 38m → TRANSPORT 41m → GRANSKA 15m → TRANSPORT 5m → TRANSPORT 12m → TRANSPORT 5m → GRANSKA 1h49m`.
+3. **Tydligare style-felhantering**
+   Bredda `m.on('error')`-fallbacken till streets-v12: alla style-/sprite-/tile-fel (inte bara 401/403) ska byta style och logga warning. Om `load` aldrig fyrar inom 8 s → sätt `loadError = "Karta tog för lång tid att ladda — försök igen."` så att rutan inte är tyst grå.
 
-### Problem B — Cachen har 6 rader för samma dag
+4. **Manuell omladdningsknapp i fel-läget**
+   I `loadError`-blocket: lägg till liten "Ladda om kartan"-knapp som river ner `mapRef.current` och kör om init-effekten (via en intern `reloadKey`-state).
 
-`staff_day_report_cache` är unik på `(organization_id, staff_id, date, engine_version)`. Varje gammal `engine_version` ligger kvar. För Markus 2026-05-09 finns 6 rader. Hooks läser senaste built_at, men alla gamla rader kostar plats och förvirrar diagnos. Vi borde inte heller versionsdriva persistens på det sättet — antingen pinna till EN aktiv version och radera resten, eller inte ha `engine_version` i unique key.
+5. **Mindre städ**
+   - Säkerställ att `ro.disconnect()` körs även om `mapRef.current` redan satts till null.
+   - Bibehåll alla diff-skydd (gör inget om `cancelled`).
 
-### Problem C — Gantten har inga lanes
+## Vad som INTE rörs
 
-Även när motorn är korrekt: om två block överlappar i tid kommer de fortsatt att stapla. Idag finns ingen lane/kolumndelning i `StaffGanttView.tsx` (rad 887–939).
+- Ingen UI-ombyggnad av dialogen (`OrganizationLocationsManager.tsx`).
+- Ingen ändring av `mapbox-token`-edge-funktionen.
+- Ingen ändring av Mapbox-token, secrets eller adressökning.
+- Ingen ändring av `polygonAreaM2` / `polygonCentroid` / RLS / DB.
+- Inget rört utanför `GeofenceMapEditor.tsx`.
 
----
+## Verifiering
 
-## Plan (3 steg, inga raderingar av data utan godkännande)
-
-### Steg 1 — Diagnos av v2.6-explosionen (ingen kodändring)
-Plocka ut Markus 2026-05-09 från cachen och dumpa alla 37 blocks (kind, start, slut, target, reviewReasons) plus motsvarande `presence_day_blocks` och `signal_gaps` från diagnostics. Verifiera vilken regel som tappat dedup mellan v2.5 (20 block) och v2.6 (37 block). Mest sannolikt:
-- POST-PASS som slog ihop `same_target_roundtrip_distance_too_large`-transporter med intilliggande needs_review körs inte längre när öppen timer-kontexten saknas.
-- Eller: nya `isOngoing`-flaggan har av misstag ändrat ett tidigare merge-villkor.
-
-### Steg 2 — Återställ dedup i `buildReportCandidateBlocks.ts`
-När det finns INGEN öppen aktiv registrering ska motorn bete sig EXAKT som v2.5. POST-PASS 4 ska tidigt `return` om `openActiveRegistration` saknas, utan att röra övriga pass. Återinför gärna också mergeRegeln "TRANSPORT < `realTripMinDistanceMeters` mellan två needs_review med samma target → absorbera in i needs_review" som no-op-fall även utan öppen timer.
-
-Inget skrivs till `time_reports`, `workdays`, `location_time_entries` eller `travel_time_logs`. Endast read-cache påverkas.
-
-### Steg 3 — Cache-hygien
-Två val (jag väntar på ditt svar):
-1. **Pinna en aktiv version**: lägg `STAFF_DAY_REPORT_CACHE_ENGINE_VERSION` som env, läshooks filtrerar på den, gamla rader får ligga kvar tills vi senare rensar.
-2. **Ta bort `engine_version` ur unique key**: backfill upsertar då ovanpå gammal rad. Kräver migration + en städning av befintliga dubbletter.
-
-### (Inte i denna plan — meddela om du vill ha det)
-- Lane-rendering i `StaffGanttView` så ev. legitima överlapp visas sida vid sida istället för att stapla. Det är en ren UI-ändring och rör inte motorn.
-
----
-
-## Tekniska filer som berörs i steg 1–2
-
-- `supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts` (POST-PASS 4 + closed-day guard)
-- `supabase/functions/get-staff-presence-day/index.ts` (read-only, ingen ändring)
-- `supabase/functions/backfill-staff-day-report-cache/index.ts` (för omkörning Markus 2026-05-09 efter fix)
-
-## Frågor innan jag implementerar
-
-1. Vill du att jag bara börjar med Steg 1 (diagnos-dump i chatten) eller kör Steg 1+2 direkt?
-2. Vilken cache-strategi i Steg 3: pinna version (snabbt) eller migrera bort `engine_version` ur unique-nyckel (renare)?
-3. Ska jag även lägga in lane-rendering i gantten, eller är det ok att överlapp staplas så länge motorn är korrekt?
+- Ladda `/ops-control` → "Lägg till fast plats" → dialog öppnas → satellitkartan visas inom ~1 s.
+- Skriv "Storgatan 1, Stockholm" + sök → kartan flyger dit.
+- "Cirkel" + radie 100 → lila cirkel ritas ut.
+- "Rita polygon" → klickbara hörn fungerar; yta visas.
+- Toggle Karta/Satellit byter style utan att tappa polygon.
+- Stänga + öppna dialog igen ska fortsatt rita kartan korrekt.

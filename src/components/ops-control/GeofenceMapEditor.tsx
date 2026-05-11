@@ -39,12 +39,28 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
   const [area, setArea] = useState<number>(0);
   const [tokenLoading, setTokenLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => { valueRef.current = value; }, [value]);
 
   // Init map
   useEffect(() => {
     let cancelled = false;
+    let loadTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const waitForContainerSize = (): Promise<HTMLDivElement | null> =>
+      new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          if (cancelled) return resolve(null);
+          const el = containerRef.current;
+          if (el && el.clientWidth > 0 && el.clientHeight > 0) return resolve(el);
+          if (Date.now() - start > 2500) return resolve(el); // give up waiting, init anyway
+          requestAnimationFrame(tick);
+        };
+        tick();
+      });
+
     (async () => {
       try {
         const { data, error } = await supabase.functions.invoke('mapbox-token');
@@ -62,7 +78,11 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
           return;
         }
         mapboxgl.accessToken = data.token;
-        if (!containerRef.current) {
+
+        // Wait until container actually has dimensions (dialog animation)
+        const containerEl = await waitForContainerSize();
+        if (cancelled) return;
+        if (!containerEl) {
           setLoadError('Kartcontainer saknas');
           setTokenLoading(false);
           return;
@@ -78,7 +98,7 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
         const initialZoom = value.longitude && value.latitude ? 18 : 5;
 
         const m = new mapboxgl.Map({
-          container: containerRef.current,
+          container: containerEl,
           style: 'mapbox://styles/mapbox/satellite-streets-v12',
           center: initialCenter,
           zoom: initialZoom,
@@ -87,14 +107,18 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
         });
         mapRef.current = m;
 
+        let styleFallbackTried = false;
         m.on('error', (e: any) => {
-          console.warn('[GeofenceMapEditor] mapbox runtime error', e?.error ?? e);
-          // Fall back to plain streets style if satellite cannot load (e.g. token scope)
-          if (
-            e?.error?.status === 401 ||
-            e?.error?.status === 403 ||
-            /style/i.test(e?.error?.message ?? '')
-          ) {
+          const err = e?.error ?? e;
+          console.warn('[GeofenceMapEditor] mapbox runtime error', err);
+          const status = err?.status;
+          const msg = err?.message ?? '';
+          // Broaden fallback: any style/sprite/tile failure → switch to streets-v12 once
+          const isStyleIssue =
+            status === 401 || status === 403 || status === 404 ||
+            /style|sprite|tile|glyph/i.test(msg);
+          if (isStyleIssue && !styleFallbackTried) {
+            styleFallbackTried = true;
             try {
               m.setStyle('mapbox://styles/mapbox/streets-v12');
               setStyleMode('streets');
@@ -120,22 +144,35 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
         m.addControl(draw as any);
         m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
+        // Watchdog: if load doesn't fire within 8s, surface an error so user can retry
+        loadTimeout = setTimeout(() => {
+          if (cancelled) return;
+          if (!ready && tokenLoading) {
+            console.warn('[GeofenceMapEditor] map load timeout');
+            setLoadError('Karta tog för lång tid att ladda — försök igen.');
+            setTokenLoading(false);
+          }
+        }, 8000);
+
         m.on('load', () => {
           if (cancelled) return;
+          if (loadTimeout) { clearTimeout(loadTimeout); loadTimeout = null; }
           setReady(true);
           setTokenLoading(false);
           // Multiple resize attempts: dialogs animate in, container size grows over a few frames.
           requestAnimationFrame(() => m.resize());
           setTimeout(() => m.resize(), 100);
           setTimeout(() => m.resize(), 400);
+          setTimeout(() => m.resize(), 800);
+          m.once('idle', () => m.resize());
         });
 
         // Auto-resize when container dimensions change (e.g. dialog opens)
-        if (containerRef.current && typeof ResizeObserver !== 'undefined') {
+        if (typeof ResizeObserver !== 'undefined') {
           const ro = new ResizeObserver(() => {
             if (mapRef.current) mapRef.current.resize();
           });
-          ro.observe(containerRef.current);
+          ro.observe(containerEl);
           (m as any).__ro = ro;
         }
 
@@ -168,20 +205,24 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
         });
       } catch (e) {
         console.warn('[GeofenceMapEditor] init error', e);
+        setLoadError('Kunde inte initiera kartan');
         setTokenLoading(false);
       }
     })();
 
     return () => {
       cancelled = true;
-      const ro = (mapRef.current as any)?.__ro as ResizeObserver | undefined;
+      if (loadTimeout) clearTimeout(loadTimeout);
+      const m = mapRef.current;
+      const ro = (m as any)?.__ro as ResizeObserver | undefined;
       ro?.disconnect();
-      mapRef.current?.remove();
+      m?.remove();
       mapRef.current = null;
       drawRef.current = null;
+      setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reloadKey]);
 
   // Style toggle
   useEffect(() => {
@@ -333,8 +374,22 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
           </div>
         )}
         {loadError && (
-          <div className="absolute inset-0 flex items-center justify-center text-xs text-destructive p-3 text-center">
-            {loadError}
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-destructive p-3 text-center bg-muted">
+            <span>{loadError}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => {
+                setLoadError(null);
+                setTokenLoading(true);
+                setReady(false);
+                setReloadKey((k) => k + 1);
+              }}
+            >
+              Ladda om kartan
+            </Button>
           </div>
         )}
       </div>
