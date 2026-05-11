@@ -32,8 +32,10 @@ import {
   type StaffDaySegment,
 } from '@/hooks/useStaffDaySnapshot';
 import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 import EndDayButton from './EndDayButton';
+import SegmentDetailSheet from './SegmentDetailSheet';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
