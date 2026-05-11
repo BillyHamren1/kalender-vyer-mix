@@ -31,7 +31,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return bad(405, "Method not allowed");
 
-  let body: { staffId?: string; date?: string; breakMinutes?: number; comment?: string | null };
+  let body: {
+    staffId?: string;
+    date?: string;
+    breakMinutes?: number;
+    comment?: string | null;
+    requestedStartAt?: string | null;
+    requestedEndAt?: string | null;
+  };
   try {
     body = await req.json();
   } catch {
@@ -47,6 +54,22 @@ Deno.serve(async (req) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad(400, "date must be YYYY-MM-DD");
   if (!Number.isFinite(breakMinutes) || breakMinutes < 0 || breakMinutes > 600) {
     return bad(400, "breakMinutes must be 0..600");
+  }
+
+  function parseIso(v: unknown): string | null {
+    if (v == null) return null;
+    if (typeof v !== "string" || !v.trim()) return null;
+    const t = Date.parse(v);
+    if (!Number.isFinite(t)) return null;
+    return new Date(t).toISOString();
+  }
+  const requestedStartAt = parseIso(body.requestedStartAt);
+  const requestedEndAt = parseIso(body.requestedEndAt);
+  if (
+    requestedStartAt && requestedEndAt &&
+    Date.parse(requestedStartAt) >= Date.parse(requestedEndAt)
+  ) {
+    return bad(400, "requestedStartAt must be before requestedEndAt");
   }
 
   const authResult = await authenticateStaffRequest(req, { requestedStaffId: staffId });
