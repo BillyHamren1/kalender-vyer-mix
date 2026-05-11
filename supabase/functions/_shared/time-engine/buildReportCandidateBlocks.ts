@@ -875,7 +875,36 @@ export function buildReportCandidateBlocks(
   const policy: Required<ReportCandidatePolicy> = { ...DEFAULT_POLICY, ...(input.policy ?? {}) };
   const warnings: string[] = [];
 
-  const blocks = (input.presenceDayBlocks ?? []).filter((b) => b.kind !== 'timer_marker');
+  // Engine 4 — partition out private_residence / boende presence blocks BEFORE
+  // any candidate logic runs. These must NEVER appear in the main report
+  // (work / needs_review / unknown / transport). They are kept on the result
+  // as raw evidence for Decision Trace.
+  const allInputBlocks = (input.presenceDayBlocks ?? []).filter((b) => b.kind !== 'timer_marker');
+  const excludedPrivateResidenceBlocks: PresenceDayBlock[] = [];
+  const blocks: PresenceDayBlock[] = [];
+  for (const b of allInputBlocks) {
+    if ((b.evidence as any)?.privateResidence === true) {
+      excludedPrivateResidenceBlocks.push(b);
+    } else {
+      blocks.push(b);
+    }
+  }
+  const excludedPrivateResidenceDiagnostics = {
+    excludedCount: excludedPrivateResidenceBlocks.length,
+    excludedMinutes: excludedPrivateResidenceBlocks.reduce((a, b) => a + (b.durationMinutes ?? 0), 0),
+    targetIds: Array.from(new Set(
+      excludedPrivateResidenceBlocks
+        .map((b) => (b.evidence as any)?.privateResidenceTargetId)
+        .filter((x): x is string => typeof x === 'string' && x.length > 0),
+    )),
+  };
+  if (excludedPrivateResidenceBlocks.length > 0) {
+    warnings.push(
+      `engine4_private_residence_excluded: ${excludedPrivateResidenceBlocks.length} block ` +
+        `(${excludedPrivateResidenceDiagnostics.excludedMinutes} min) dolda från huvudvyn ` +
+        `(boende-polygon).`,
+    );
+  }
   blocks.sort((a, b) => a.startAt.localeCompare(b.startAt));
 
   const out: ReportCandidateBlock[] = [];
