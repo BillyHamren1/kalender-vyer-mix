@@ -631,6 +631,58 @@ Deno.serve(async (req) => {
   // Replaces ad-hoc UI smoothing with semantic blocks. Pure transform of the
   // raw GpsDayTimelineResult + active-timer markers. Never writes anything,
   // never affects auto-start, never creates time_reports/workdays/LTE/travel.
+  // ── Peer GPS timelines (companion-route evidence) ──
+  // Fetch other staff's pings for the same org/day. Used as evidence to
+  // bridge short transport gaps. Peer pings are NEVER copied into this
+  // staff's data and never trigger writes.
+  let peerGpsTimelines: any[] = [];
+  try {
+    const PEER_PAGE = 1000;
+    const PEER_CAP = 40_000;
+    const peerRows: any[] = [];
+    let pfrom = 0;
+    while (peerRows.length < PEER_CAP) {
+      const pto = pfrom + PEER_PAGE - 1;
+      const { data: batch, error } = await admin
+        .from('staff_location_history')
+        .select('staff_id, lat, lng, recorded_at')
+        .eq('organization_id', orgId)
+        .neq('staff_id', staffId)
+        .gte('recorded_at', dayStart)
+        .lte('recorded_at', dayEnd)
+        .order('recorded_at', { ascending: true })
+        .range(pfrom, pto);
+      if (error) break;
+      const rows = batch ?? [];
+      peerRows.push(...rows);
+      if (rows.length < PEER_PAGE) break;
+      pfrom += PEER_PAGE;
+    }
+    const grouped = new Map<string, any[]>();
+    for (const r of peerRows) {
+      const arr = grouped.get(r.staff_id) ?? [];
+      arr.push({ ts: r.recorded_at, lat: Number(r.lat), lng: Number(r.lng) });
+      grouped.set(r.staff_id, arr);
+    }
+    let nameMap = new Map<string, string>();
+    if (grouped.size > 0) {
+      const ids = Array.from(grouped.keys());
+      const { data: staffRows } = await admin
+        .from('staff_members')
+        .select('id, name')
+        .in('id', ids);
+      for (const s of staffRows ?? []) nameMap.set(s.id, s.name ?? null);
+    }
+    peerGpsTimelines = Array.from(grouped.entries()).map(([sid, pings]) => ({
+      staffId: sid,
+      staffName: nameMap.get(sid) ?? null,
+      pings,
+      assignedTargetKeys: [], // best-effort; companion still works on geography
+    }));
+  } catch (e) {
+    console.warn('[presence-day] peer pings fetch failed', e);
+  }
+
   if (gpsTimelineResult) {
     try {
       presenceDayBlocksResult = buildPresenceDayBlocks({
@@ -639,6 +691,8 @@ Deno.serve(async (req) => {
         date,
         gpsTimeline: gpsTimelineResult,
         timerMarkers,
+        peerGpsTimelines,
+        targets: (resolvedTargetsAll ?? []).map(toWorkTarget).filter((t: any) => !!t),
       });
     } catch (e) {
       console.error('[presence-day] buildPresenceDayBlocks failed', e);

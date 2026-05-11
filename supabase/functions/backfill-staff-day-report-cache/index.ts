@@ -84,6 +84,8 @@ interface ProcessedRow {
   preWorkExcludedMinutes: number;
   error?: string;
   skipped?: 'no_pings' | 'already_cached';
+  signalGapTransport?: any;
+  companionRoute?: any;
 }
 
 async function processOne(
@@ -183,6 +185,52 @@ async function processOne(
       geoAnchors: geoAnchorsForStaff,
     });
 
+    // --- peer pings (companion-route evidence) ---
+    let peerGpsTimelines: any[] = [];
+    try {
+      const PEER_PAGE = 1000;
+      const PEER_CAP = 40_000;
+      const peerRows: any[] = [];
+      let pfrom = 0;
+      while (peerRows.length < PEER_CAP) {
+        const pto = pfrom + PEER_PAGE - 1;
+        const { data: batch, error } = await admin
+          .from('staff_location_history')
+          .select('staff_id, lat, lng, recorded_at')
+          .eq('organization_id', orgId)
+          .neq('staff_id', staffId)
+          .gte('recorded_at', dayStart)
+          .lte('recorded_at', dayEnd)
+          .order('recorded_at', { ascending: true })
+          .range(pfrom, pto);
+        if (error) break;
+        const rows = batch ?? [];
+        peerRows.push(...rows);
+        if (rows.length < PEER_PAGE) break;
+        pfrom += PEER_PAGE;
+      }
+      const grouped = new Map<string, any[]>();
+      for (const r of peerRows) {
+        const arr = grouped.get(r.staff_id) ?? [];
+        arr.push({ ts: r.recorded_at, lat: Number(r.lat), lng: Number(r.lng) });
+        grouped.set(r.staff_id, arr);
+      }
+      let nameMap = new Map<string, string>();
+      if (grouped.size > 0) {
+        const ids = Array.from(grouped.keys());
+        const { data: staffRows } = await admin.from('staff_members').select('id, name').in('id', ids);
+        for (const s of staffRows ?? []) nameMap.set(s.id, s.name ?? null);
+      }
+      peerGpsTimelines = Array.from(grouped.entries()).map(([sid, pings]) => ({
+        staffId: sid,
+        staffName: nameMap.get(sid) ?? null,
+        pings,
+        assignedTargetKeys: [],
+      }));
+    } catch (e) {
+      // companion is optional
+    }
+
     // --- presence ---
     const presence = buildPresenceDayBlocks({
       staffId,
@@ -190,6 +238,8 @@ async function processOne(
       date,
       gpsTimeline,
       timerMarkers: [],
+      peerGpsTimelines,
+      targets,
     });
 
     // --- active_time_registrations ---
@@ -281,6 +331,8 @@ async function processOne(
     out.unknownMinutes = unknown;
     out.needsReviewMinutes = needsReview;
     out.preWorkExcludedMinutes = preWork;
+    out.signalGapTransport = (presence as any).signalGapTransportDiagnostics ?? null;
+    out.companionRoute = (presence as any).companionRouteDiagnostics ?? null;
     out.ok = true;
 
     if (!dryRun) {
@@ -304,7 +356,11 @@ async function processOne(
             summary_json: summary,
             report_candidate_blocks_json: report.blocks ?? [],
             display_blocks_json: report.blocks ?? [],
-            diagnostics_json: (report as any).diagnostics ?? {},
+            diagnostics_json: {
+              ...((report as any).diagnostics ?? {}),
+              signalGapTransport: (presence as any).signalGapTransportDiagnostics ?? null,
+              companionRoute: (presence as any).companionRouteDiagnostics ?? null,
+            },
             source_watermark: {
               maxPingTs: pings[pings.length - 1]?.ts ?? null,
               activeRegsCount: activeRegs.length,
