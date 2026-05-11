@@ -226,7 +226,7 @@ const DayBody: React.FC<{
           ))}
           {hasOpenIssues && !isLocked && (
             <p className="text-[12px] text-amber-800 dark:text-amber-300 mt-1">
-              Lös frågorna eller skicka korrigeringsbegäran innan dagen kan godkännas.
+              Lös frågorna eller skicka korrigeringsbegäran innan du skickar in dagen.
             </p>
           )}
         </section>
