@@ -50,13 +50,39 @@ export async function authenticateStaffRequest(
   if (mobile) {
     if (!mobile.expiresAt || Date.now() > mobile.expiresAt) return { ok: false, err: { status: 401, error: "Mobile token expired" } };
     if (!mobile.staffId) return { ok: false, err: { status: 401, error: "Invalid mobile token" } };
+    const { data: staffRow, error: staffErr } = await admin
+      .from("staff_members").select("id, organization_id, user_id").eq("id", mobile.staffId).maybeSingle();
+    if (staffErr) return { ok: false, err: { status: 500, error: `Staff lookup failed: ${staffErr.message}` } };
+    if (!staffRow?.organization_id) return { ok: false, err: { status: 404, error: "Staff not found" } };
+
+    // Optional admin "view-as" — read-only impersonering via x-view-as-staff-header.
+    const viewAsHeader = req.headers.get("x-view-as-staff");
+    if (viewAsHeader && viewAsHeader !== mobile.staffId) {
+      // Verifiera att underliggande staff har admin-roll i sin org.
+      let isAdmin = false;
+      if (staffRow.user_id) {
+        const { data: roles } = await admin
+          .from("user_roles").select("role").eq("user_id", staffRow.user_id);
+        isAdmin = (roles ?? []).some((r) => (r.role as string) === "admin");
+      }
+      if (!isAdmin) {
+        return { ok: false, err: { status: 403, error: "view-as requires admin role" } };
+      }
+      // Verifiera att target ligger i samma org.
+      const { data: targetStaff } = await admin
+        .from("staff_members").select("id, organization_id").eq("id", viewAsHeader).maybeSingle();
+      if (!targetStaff || targetStaff.organization_id !== staffRow.organization_id) {
+        return { ok: false, err: { status: 404, error: "view-as target not in your organization" } };
+      }
+      if (opts.requestedStaffId && opts.requestedStaffId !== viewAsHeader) {
+        return { ok: false, err: { status: 403, error: "requestedStaffId must match x-view-as-staff" } };
+      }
+      return { ok: true, auth: { mode: "mobile", staffId: viewAsHeader, organizationId: staffRow.organization_id as string, admin } };
+    }
+
     if (opts.requestedStaffId && opts.requestedStaffId !== mobile.staffId) {
       return { ok: false, err: { status: 403, error: "Staff may only read self" } };
     }
-    const { data: staffRow, error: staffErr } = await admin
-      .from("staff_members").select("id, organization_id").eq("id", mobile.staffId).maybeSingle();
-    if (staffErr) return { ok: false, err: { status: 500, error: `Staff lookup failed: ${staffErr.message}` } };
-    if (!staffRow?.organization_id) return { ok: false, err: { status: 404, error: "Staff not found" } };
     return { ok: true, auth: { mode: "mobile", staffId: mobile.staffId, organizationId: staffRow.organization_id as string, admin } };
   }
 
