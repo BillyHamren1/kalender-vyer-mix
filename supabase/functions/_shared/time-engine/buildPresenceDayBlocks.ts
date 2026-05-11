@@ -437,12 +437,157 @@ export function buildPresenceDayBlocks(
         continue;
       }
 
+      // ── Try transport-gap classification (companion route is first-class) ──
+      // Look at adjacent segments (stay/travel) for own-position context.
+      const prevAny = i > 0 ? segs[i - 1] : null;
+      const nextAny = i + 1 < segs.length ? segs[i + 1] : null;
+      const previousKnownPosition =
+        prevAny && (prevAny.endLat != null && prevAny.endLng != null)
+          ? { lat: Number(prevAny.endLat), lng: Number(prevAny.endLng) }
+          : prevAny && (prevAny.centerLat != null && prevAny.centerLng != null)
+            ? { lat: Number(prevAny.centerLat), lng: Number(prevAny.centerLng) }
+            : null;
+      const nextKnownPosition =
+        nextAny && (nextAny.startLat != null && nextAny.startLng != null)
+          ? { lat: Number(nextAny.startLat), lng: Number(nextAny.startLng) }
+          : nextAny && (nextAny.centerLat != null && nextAny.centerLng != null)
+            ? { lat: Number(nextAny.centerLat), lng: Number(nextAny.centerLng) }
+            : null;
+      const previousIsTransport = !!prevAny && prevAny.kind === 'travel';
+      const nextIsTransport = !!nextAny && nextAny.kind === 'travel';
+      const destinationCandidate = findTargetForSeg(nextStable);
+      const previousTargetForCompanion = findTargetForSeg(prevStable);
+
+      const companion = findCompanionRouteEvidence({
+        gapStartIso: startAt,
+        gapEndIso: endAt,
+        previousKnownPosition,
+        nextKnownPosition,
+        previousTarget: previousTargetForCompanion,
+        nextTarget: destinationCandidate,
+        peerGpsTimelines: input.peerGpsTimelines ?? [],
+      });
+
+      // Tally companion-confidence regardless of classification outcome.
+      if (companion.confidence === 'very_high') crDiag.veryHighConfidenceCount += 1;
+      else if (companion.confidence === 'high') crDiag.highConfidenceCount += 1;
+      else if (companion.confidence === 'medium') crDiag.mediumConfidenceCount += 1;
+      else crDiag.lowConfidenceCandidateCount += 1;
+
+      const classification: ClassifyTransportSignalGapResult = classifyTransportSignalGap({
+        gapStartIso: startAt,
+        gapEndIso: endAt,
+        previousKnownPosition,
+        nextKnownPosition,
+        previousIsTransport,
+        nextIsTransport,
+        destinationCandidate,
+        conflictingSignals: {
+          // We currently don't have direct access to hard geo-events inside this
+          // window — the classifier therefore relies on segment shape. The
+          // resolveWorkTargets/buildGpsDayTimeline pipeline already applied
+          // sticky-rules upstream, so a confirmed_on_site at another place would
+          // already have killed this gap by being a stay. We treat the
+          // surrounding segments as a proxy.
+          anyHardGeoEntry: false,
+          anyConfirmedStayAtOtherPlace: false,
+          anyHomePrivate: false,
+        },
+        companionRouteEvidence: companion,
+      });
+
+      if (classification.countsAsTransport) {
+        // Emit a transport-shaped block. aggregateEvidenceBlocks will fold it
+        // into surrounding transport blocks naturally.
+        const dur = gapMin;
+        const isConfirmed = classification.classification === 'confirmed_transport_gap';
+        if (isConfirmed) {
+          sgDiag.confirmedTransportGapCount += 1;
+          sgDiag.confirmedTransportGapMinutes += dur;
+        } else {
+          sgDiag.probableTransportGapCount += 1;
+          sgDiag.probableTransportGapMinutes += dur;
+        }
+        if (classification.destinationEvidence?.isWorkRelated) {
+          sgDiag.destinationConfirmedCount += 1;
+        }
+        if (companion.matched && isConfirmed) {
+          crDiag.confirmedByCompanionRouteCount += 1;
+          crDiag.confirmedByCompanionRouteMinutes += dur;
+        }
+        if (sgDiag.examples.length < 5) {
+          sgDiag.examples.push({
+            gapStart: startAt, gapEnd: endAt, gapMinutes: dur,
+            classification: classification.classification,
+            confidence: classification.confidence,
+            confidenceScore: classification.confidenceScore,
+            matchedStaffCount: companion.matchedStaffCount,
+            previousTargetLabel: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
+            nextTargetLabel: nextStable?.matchedTargetName ?? nextStable?.label ?? null,
+            reasons: classification.reasons,
+          });
+        }
+        if (companion.matched && crDiag.examples.length < 5) {
+          crDiag.examples.push({
+            gapStart: startAt, gapEnd: endAt, gapMinutes: dur,
+            classification: classification.classification,
+            confidence: companion.confidence,
+            confidenceScore: companion.confidenceScore,
+            matchedStaffCount: companion.matchedStaffCount,
+            matchedCompanionNames: companion.matchedStaff.map((m) => m.staffName).filter(Boolean),
+            coverageRatio: companion.matchedStaff[0]?.coverageRatio ?? 0,
+            previousTargetLabel: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
+            nextTargetLabel: nextStable?.matchedTargetName ?? nextStable?.label ?? null,
+            reasons: companion.reasons,
+          });
+        }
+
+        blocks.push({
+          id: newId('transport'),
+          kind: 'transport',
+          startAt,
+          endAt,
+          durationMinutes: dur,
+          durationLabel: formatDurationLabel(dur),
+          targetType: null,
+          targetId: null,
+          targetLabel: 'Transport',
+          confidence: classification.confidence === 'medium' ? 'medium' : 'high',
+          confidenceReason: companion.matched
+            ? 'multi_staff_route_confirmation'
+            : 'short_signal_gap_inside_confirmed_route',
+          reviewState: 'ok',
+          evidence: {
+            signalGapMinutes: dur,
+            warningLabel: classification.warningLabel,
+            transportGapClassification: classification.classification,
+            transportGapConfidence: classification.confidence,
+            transportGapConfidenceScore: classification.confidenceScore,
+            transportGapReasons: classification.reasons,
+            companionRouteEvidence: companion,
+            destinationEvidence: classification.destinationEvidence,
+            impliedSpeedKmh: classification.impliedSpeedKmh,
+            surroundingTargetLabels: {
+              before: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
+              after: nextStable?.matchedTargetName ?? nextStable?.label ?? null,
+            },
+          } as any,
+          sourceSegmentIds: [seg.id],
+          hiddenRawSegmentIds: [],
+        });
+        i += 1;
+        continue;
+      }
+
       // ── Different stable targets, or distance >= 5000 m → uncertain ──
       const distance = computeAnchorDistance(prevStable, nextStable);
       const differentTargets = !!prevKey && !!nextKey && prevKey !== nextKey;
       const farApart = distance != null && distance >= UNCERTAIN_DISTANCE_M;
 
       if (differentTargets || farApart) {
+        sgDiag.remainingUnknownTransportGapCount += 1;
+        sgDiag.remainingUnknownTransportGapMinutes += gapMin;
+        crDiag.unbridgedGapCount += 1;
         blocks.push({
           id: newId('uncertain_transition'),
           kind: 'uncertain_transition',
@@ -465,13 +610,17 @@ export function buildPresenceDayBlocks(
               before: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
               after: nextStable?.matchedTargetName ?? nextStable?.label ?? null,
             },
-          },
+            companionRouteEvidence: companion,
+            transportGapClassification: classification.classification,
+            transportGapReasons: classification.reasons,
+          } as any,
           sourceSegmentIds: [seg.id],
           hiddenRawSegmentIds: [],
         });
         i += 1;
         continue;
       }
+
 
       // ── Plain signal gap ─────────────────────────────────────────────
       blocks.push(mkSignalGap(newId('signal_gap'), seg, prevStable, nextStable, 'GPS-signal saknas'));
