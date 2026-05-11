@@ -767,6 +767,24 @@ Deno.serve(async (req) => {
         console.warn('[presence-day] home anchors fetch failed', e);
       }
 
+      // Bygg openActiveRegistrationContext från första öppna registrationen.
+      // Detta håller ihop dagens rapport till ETT pågående arbetsblock istället
+      // för att GPS-glapp/okända kortare perioder bryter upp dagen.
+      const openReg = (timers ?? []).find(
+        (t: any) => !t.stopped_at && (t.status ?? '').toLowerCase() === 'active',
+      );
+      const openActiveRegistration = openReg
+        ? {
+            registrationId: openReg.id,
+            startedAtIso: openReg.started_at,
+            targetType: openReg.current_target_type ?? openReg.start_target_type ?? null,
+            targetId: openReg.current_target_id ?? openReg.start_target_id ?? null,
+            targetLabel:
+              openReg.current_label ?? openReg.start_target_label ?? null,
+            currentLabel: openReg.current_label ?? null,
+          }
+        : null;
+
       reportCandidateResult = buildReportCandidateBlocks({
         staffId,
         organizationId: orgId,
@@ -774,6 +792,7 @@ Deno.serve(async (req) => {
         presenceDayBlocks: presenceDayBlocksResult.blocks,
         activeTimeRegistrations: activeRegs,
         homeAnchors,
+        openActiveRegistration,
       });
     } catch (e: any) {
       reportCandidateError = e?.message ?? String(e);
