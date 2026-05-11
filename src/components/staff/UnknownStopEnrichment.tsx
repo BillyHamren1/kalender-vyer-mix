@@ -1,7 +1,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Home, MapPin, Building2, CalendarClock, History } from 'lucide-react';
-import type { ResolvedUnknownStopEvidence } from '@/lib/staff/buildReportDisplayBlocks';
+import type { ResolvedUnknownStop } from '@/hooks/useResolvedUnknownStops';
 
 function relDayLabel(rel: number, dir: 'today' | 'future' | 'past', date: string): string {
   if (dir === 'today') return `Idag (${date})`;
