@@ -56,6 +56,24 @@ export interface DecisionTraceDrawerProps {
   reportCandidateDiagnostics: any | null;
   targetMatchSummary: any | null;
   counts: any | null;
+  /** Pre-work blocks excluded from the main report — shown as a separate
+   *  "Exkluderat före arbetsdag" section in Decision Trace. */
+  excludedPreWorkBlocks?: ReportCandidateBlockUI[] | null;
+  preWorkExclusionDiagnostics?: {
+    excludedPreWorkMinutes?: number;
+    excludedPreWorkBlocksCount?: number;
+    firstPrimaryWorkAt?: string | null;
+    firstPrimaryTargetLabel?: string | null;
+    excludedReasons?: Record<string, number>;
+    examples?: Array<{
+      startAt: string;
+      endAt: string;
+      durationMinutes: number;
+      originalKind: string;
+      originalLabel: string;
+      reason: string;
+    }>;
+  } | null;
 }
 
 // ── helpers ────────────────────────────────────────────────────────
@@ -393,8 +411,49 @@ function OverviewTab(props: DecisionTraceDrawerProps) {
   );
 }
 
+function PreWorkExcludedSection(props: DecisionTraceDrawerProps) {
+  const diag = props.preWorkExclusionDiagnostics ?? null;
+  const blocks = props.excludedPreWorkBlocks ?? [];
+  const count = diag?.excludedPreWorkBlocksCount ?? blocks.length;
+  if (!count || count === 0) return null;
+  const minutes = diag?.excludedPreWorkMinutes ?? 0;
+  return (
+    <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/10 p-3 text-xs">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Exkluderat före arbetsdag
+      </div>
+      <p className="mb-2 text-[11px] text-muted-foreground">
+        Denna tid räknas inte som arbetstid eftersom ingen säker arbetsplats hade
+        bekräftats ännu.
+        {diag?.firstPrimaryWorkAt && (
+          <> Första säkra arbetsplats: <span className="font-medium text-foreground">{diag.firstPrimaryTargetLabel ?? '—'}</span> kl {fmtHm(diag.firstPrimaryWorkAt)}.</>
+        )}
+      </p>
+      <div className="mb-2 text-[11px]">
+        <span className="font-medium text-foreground">{count}</span> block,{' '}
+        <span className="font-medium text-foreground">{fmtMin(minutes)}</span> totalt
+      </div>
+      <div className="space-y-1.5">
+        {blocks.map((b) => (
+          <div key={b.id} className="rounded border bg-background px-2 py-1 text-[11px]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <KindBadge kind={b.kind} />
+                <span className="font-mono tabular-nums">{fmtHm(b.startAt)} – {fmtHm(b.endAt)}</span>
+                <span className="text-muted-foreground">({fmtMin(b.durationMinutes)})</span>
+              </div>
+              <span className="text-muted-foreground italic">excluded_pre_work</span>
+            </div>
+            <div className="text-muted-foreground truncate">{b.title}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChainTab(props: DecisionTraceDrawerProps) {
-  if (props.reportCandidateBlocks.length === 0) {
+  if (props.reportCandidateBlocks.length === 0 && (props.excludedPreWorkBlocks?.length ?? 0) === 0) {
     return (
       <div className="rounded-md border border-dashed bg-muted/10 p-6 text-center text-xs text-muted-foreground">
         Inga reportCandidateBlocks för dagen.
@@ -403,6 +462,7 @@ function ChainTab(props: DecisionTraceDrawerProps) {
   }
   return (
     <div className="space-y-3">
+      <PreWorkExcludedSection {...props} />
       {props.reportCandidateBlocks.map((b) => {
         const ev: any = b.evidenceSummary ?? null;
         return (

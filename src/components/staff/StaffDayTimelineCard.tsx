@@ -83,6 +83,9 @@ interface StaffDayTimelineCardProps {
    * Fälten är medvetet `any` — formen ägs av edge-funktionen.
    */
   reportCandidateDiagnostics?: any;
+  /** Pre-work blocks excluded from the main report (Decision Trace evidence). */
+  reportCandidateExcludedPreWorkBlocks?: ReportCandidateBlockUI[] | null;
+  reportCandidatePreWorkExclusionDiagnostics?: any;
   reportCandidateTargetResolution?: any;
   reportCandidatePresenceRawEvidence?: any[] | null;
   reportCandidateRawGpsTimeline?: any;
@@ -355,6 +358,8 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
                 staffId={props.staffId}
                 staffName={props.staffName}
                 date={props.date}
+                excludedPreWorkBlocks={props.reportCandidateExcludedPreWorkBlocks ?? null}
+                preWorkExclusionDiagnostics={props.reportCandidatePreWorkExclusionDiagnostics ?? null}
               />
             </>
           );
@@ -428,6 +433,8 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
         reportCandidateDiagnostics={props.reportCandidateDiagnostics ?? null}
         targetMatchSummary={props.reportCandidateTargetMatchSummary ?? null}
         counts={props.reportCandidateCounts ?? null}
+        excludedPreWorkBlocks={props.reportCandidateExcludedPreWorkBlocks ?? null}
+        preWorkExclusionDiagnostics={props.reportCandidatePreWorkExclusionDiagnostics ?? null}
       />
     </section>
   );

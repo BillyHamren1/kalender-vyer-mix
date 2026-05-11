@@ -524,6 +524,13 @@ export interface ReportCandidateTimelineProps {
   staffId?: string | null;
   staffName?: string | null;
   date?: string | null;
+  excludedPreWorkBlocks?: ReportCandidateBlockUI[] | null;
+  preWorkExclusionDiagnostics?: {
+    excludedPreWorkMinutes?: number;
+    excludedPreWorkBlocksCount?: number;
+    firstPrimaryWorkAt?: string | null;
+    firstPrimaryTargetLabel?: string | null;
+  } | null;
 }
 
 export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = ({
@@ -535,6 +542,8 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   staffId,
   staffName,
   date,
+  excludedPreWorkBlocks,
+  preWorkExclusionDiagnostics,
 }) => {
   if (loading) {
     return (
@@ -543,10 +552,27 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
       </div>
     );
   }
+  const preWorkMin = preWorkExclusionDiagnostics?.excludedPreWorkMinutes ?? 0;
+  const preWorkCount =
+    preWorkExclusionDiagnostics?.excludedPreWorkBlocksCount ??
+    (excludedPreWorkBlocks?.length ?? 0);
+  const preWorkInfoRow =
+    preWorkCount > 0 && preWorkMin > 0 ? (
+      <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/10 px-3 py-1.5 text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">{fmtDur(preWorkMin)}</span>{' '}
+        före arbetsdag exkluderat
+        {preWorkExclusionDiagnostics?.firstPrimaryTargetLabel ? (
+          <> — räknas inte som arbetstid (första säkra arbetsplats: {preWorkExclusionDiagnostics.firstPrimaryTargetLabel})</>
+        ) : null}
+      </div>
+    ) : null;
   if (!blocks || blocks.length === 0) {
     return (
-      <div className="rounded-md border border-dashed bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">
-        Inga rapportkandidater för dagen.
+      <div className="space-y-1.5">
+        {preWorkInfoRow}
+        <div className="rounded-md border border-dashed bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">
+          Inga rapportkandidater för dagen.
+        </div>
       </div>
     );
   }
@@ -569,6 +595,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   };
   return (
     <div className="space-y-1.5">
+      {preWorkInfoRow}
       {visible.map((b) => (
         <BlockRow key={b.id} block={b} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
       ))}

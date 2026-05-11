@@ -109,6 +109,19 @@ interface DayHealth {
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
   shortUnknownTransportHiddenCount: number;
+  // Pre-work exclusion (POST-PASS 3)
+  preWorkExcludedMinutes: number;
+  preWorkExcludedBlocksCount: number;
+  preWorkExcludedReasons: Record<string, number>;
+  preWorkExcludedExamples: Array<{
+    staffName: string;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    originalKind: string;
+    originalLabel: string;
+    reason: string;
+  }>;
   absorbedSameTargetTransportExamples: Array<{
     staffName: string;
     staffId: string;
@@ -352,6 +365,10 @@ Deno.serve(async (req) => {
         shortCrossTargetTransportReviewCount: 0,
         shortUnknownTransportReviewCount: 0,
         shortUnknownTransportHiddenCount: 0,
+        preWorkExcludedMinutes: 0,
+        preWorkExcludedBlocksCount: 0,
+        preWorkExcludedReasons: {} as Record<string, number>,
+        preWorkExcludedExamples: [] as Array<any>,
         absorbedSameTargetTransportExamples: [],
         sameTargetTransportRejectedExamples: [],
         warnings: [],
@@ -942,6 +959,38 @@ Deno.serve(async (req) => {
           (report.summary as any).shortUnknownTransportReviewCount ?? 0;
         day.shortUnknownTransportHiddenCount +=
           (report.summary as any).shortUnknownTransportHiddenCount ?? 0;
+
+        // ── Pre-work exclusion: aggregate diagnostics + invariants ──
+        const preWorkDiag = (report as any).preWorkExclusionDiagnostics ?? null;
+        if (preWorkDiag) {
+          day.preWorkExcludedMinutes += Number(preWorkDiag.excludedPreWorkMinutes ?? 0);
+          day.preWorkExcludedBlocksCount += Number(preWorkDiag.excludedPreWorkBlocksCount ?? 0);
+          for (const [reason, n] of Object.entries(preWorkDiag.excludedReasons ?? {})) {
+            day.preWorkExcludedReasons[reason] =
+              (day.preWorkExcludedReasons[reason] ?? 0) + Number(n ?? 0);
+          }
+          for (const ex of (preWorkDiag.examples ?? [])) {
+            if (day.preWorkExcludedExamples.length < 25) {
+              day.preWorkExcludedExamples.push({ staffName: s.name ?? s.id, ...ex });
+            }
+          }
+        }
+        // Invariant: there must be no unknown_place / non-target row before the
+        // first secure work target after PASS 3.
+        const firstPrimaryIdx = report.blocks.findIndex(
+          (b: any) => b.kind === 'work' && !!b.targetId,
+        );
+        if (firstPrimaryIdx > 0) {
+          for (let k = 0; k < firstPrimaryIdx; k++) {
+            const b = report.blocks[k] as any;
+            if (b.kind === 'unknown' || (b.kind === 'work' && !b.targetId)) {
+              day.warnings.push(
+                `pre_work_unknown_in_report:${s.id}:${b.id}:${b.startAt}`,
+              );
+              break;
+            }
+          }
+        }
 
         const examples = (report.summary as any).absorbedSameTargetTransportExamples ?? [];
         for (const ex of examples) {
