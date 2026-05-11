@@ -17,6 +17,9 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { AlertTriangle, ArrowRight, ChevronDown, ChevronRight, Clock, HelpCircle, MapPin, Plane } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { StaffMovementMap } from './StaffMovementMap';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 export type ReportBlockKind = 'work' | 'transport' | 'break' | 'unknown' | 'needs_review';
