@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StaffMovementMap } from './StaffMovementMap';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
+import { aiReviewChipLabel, aiReviewChipTooltip, type AiReviewMeta } from '@/lib/staff/aiReview';
+import { useAiReviewedBlocks } from '@/hooks/useAiReviewedBlocks';
 
 export type ReportBlockKind = 'work' | 'transport' | 'break' | 'unknown' | 'needs_review';
 export type ReportConfidence = 'high' | 'medium' | 'low';
@@ -440,7 +442,9 @@ function EvidencePanel({
   );
 }
 
-function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null }) {
+function BlockRow({ block, lookups, staffId, staffName, date, resolved, aiReviewMeta }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null; aiReviewMeta?: import('@/lib/staff/aiReview').AiReviewMeta | null }) {
+  const aiChip = aiReviewMeta ? aiReviewChipLabel(aiReviewMeta) : null;
+  const aiTooltip = aiReviewMeta ? aiReviewChipTooltip(aiReviewMeta) : null;
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
@@ -482,6 +486,19 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { bloc
                 ⚠ {block.warningLabel}
               </span>
             )}
+            {aiChip && (
+              <Badge
+                variant="outline"
+                className={
+                  aiReviewMeta?.status === 'auto_applied'
+                    ? 'text-[10px] py-0 h-4 border-emerald-400 text-emerald-700'
+                    : 'text-[10px] py-0 h-4 border-amber-400 text-amber-700'
+                }
+                title={aiTooltip ?? undefined}
+              >
+                {aiChip}
+              </Badge>
+            )}
           </div>
           {subtitle && (
             <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
@@ -496,11 +513,18 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { bloc
               {block.reviewReasons.join(' · ')}
             </div>
           )}
-          {block.aiHintLabel && (
+          {aiReviewMeta?.reasoningSummary ? (
+            <div
+              className="text-[10px] text-muted-foreground/80 italic truncate"
+              title={aiReviewMeta.reasoningSummary}
+            >
+              AI: {aiReviewMeta.reasoningSummary}
+            </div>
+          ) : block.aiHintLabel ? (
             <div className="text-[10px] text-muted-foreground/80 italic truncate">
               {block.aiHintLabel}
             </div>
-          )}
+          ) : null}
         </div>
         <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap flex items-center gap-1">
           <span>{fmtHm(block.startAt)}</span>
@@ -628,9 +652,17 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
     : [];
   const resolvedMap = useResolvedUnknownStops(resolveReqs);
 
+  // Overlay AI-review-meta från staff_day_report_cache (realtime).
+  const aiReview = useAiReviewedBlocks(staffId ?? null, date ?? null);
+
   return (
     <div className="space-y-1.5">
       {preWorkInfoRow}
+      {aiReview.pending && (
+        <div className="rounded-md border border-dashed border-sky-300 bg-sky-50 px-3 py-1 text-[11px] text-sky-800 dark:bg-sky-950/30 dark:text-sky-200">
+          AI granskar oklara block i bakgrunden…
+        </div>
+      )}
       {visible.map((b) => (
         <BlockRow
           key={b.id}
@@ -640,6 +672,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
           staffName={staffName}
           date={date}
           resolved={resolvedMap.get(b.id) ?? null}
+          aiReviewMeta={aiReview.byId.get(b.id) ?? null}
         />
       ))}
       {summary && (
