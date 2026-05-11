@@ -130,22 +130,15 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
             },
           });
 
-          // Ping dots — show every ping if sparse, otherwise downsample to ~1 per 5 min
-          const FIVE_MIN = 5 * 60 * 1000;
-          const sampledPings: MovementPoint[] = [];
-          let lastPingTs = -Infinity;
-          for (const p of points) {
-            const t = new Date(p.recorded_at).getTime();
-            if (points.length <= 30 || t - lastPingTs >= FIVE_MIN) {
-              sampledPings.push(p);
-              lastPingTs = t;
-            }
-          }
+          // Show ALL raw pings — no downsampling. Admins need full evidence
+          // of movement (or lack of it). Clustering is kept very tight so
+          // individual pings stay visible even when the person is stationary.
+          const sampledPings: MovementPoint[] = points;
           map.current.addSource('pings', {
             type: 'geojson',
             cluster: true,
-            clusterRadius: 20,
-            clusterMaxZoom: 18,
+            clusterRadius: 8,
+            clusterMaxZoom: 22,
             data: {
               type: 'FeatureCollection',
               features: sampledPings.map((p) => ({
