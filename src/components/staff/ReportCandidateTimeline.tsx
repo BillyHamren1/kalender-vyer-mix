@@ -576,7 +576,65 @@ export interface ReportCandidateTimelineProps {
     firstPrimaryWorkAt?: string | null;
     firstPrimaryTargetLabel?: string | null;
   } | null;
+  /** rawGpsTimeline från get-staff-presence-day; används för AI-review-kontext (read-only). */
+  rawGpsTimeline?: { pings?: Array<{ ts?: string; recorded_at?: string; lat?: number; lng?: number; speed?: number; speedKph?: number; accuracy?: number }> } | null;
 }
+
+/** Bygg AI-review contextSnapshot för ett block: grannblock + GPS-pings ±10 min runt blocket. */
+function buildContextSnapshot(
+  block: ReportCandidateBlockUI,
+  previousBlock: ReportCandidateBlockUI | null | undefined,
+  nextBlock: ReportCandidateBlockUI | null | undefined,
+  rawPings: Array<{ ts?: string; recorded_at?: string; lat?: number; lng?: number; speed?: number; speedKph?: number; accuracy?: number }> | null | undefined,
+): Record<string, unknown> {
+  const WINDOW_MS = 10 * 60 * 1000;
+  const startMs = new Date(block.startAt).getTime();
+  const endMs = new Date(block.endAt).getTime();
+  const windowedPings = (rawPings ?? [])
+    .map((p) => {
+      const tsRaw = p.ts ?? p.recorded_at ?? null;
+      const tsMs = tsRaw ? new Date(tsRaw).getTime() : NaN;
+      return { p, tsMs, tsRaw };
+    })
+    .filter((row) => Number.isFinite(row.tsMs) && row.tsMs >= startMs - WINDOW_MS && row.tsMs <= endMs + WINDOW_MS)
+    .sort((a, b) => a.tsMs - b.tsMs);
+  const gpsBeforeGap = windowedPings
+    .filter((r) => r.tsMs <= startMs)
+    .slice(-10)
+    .map((r) => ({ ts: r.tsRaw, lat: r.p.lat, lng: r.p.lng, speedKph: r.p.speedKph ?? r.p.speed }));
+  const gpsAfterGap = windowedPings
+    .filter((r) => r.tsMs >= endMs)
+    .slice(0, 10)
+    .map((r) => ({ ts: r.tsRaw, lat: r.p.lat, lng: r.p.lng, speedKph: r.p.speedKph ?? r.p.speed }));
+  const gpsInsideBlock = windowedPings
+    .filter((r) => r.tsMs > startMs && r.tsMs < endMs)
+    .map((r) => ({ ts: r.tsRaw, lat: r.p.lat, lng: r.p.lng, speedKph: r.p.speedKph ?? r.p.speed }));
+  const summarizeNeighbor = (b: ReportCandidateBlockUI | null | undefined) =>
+    b
+      ? {
+          id: b.id,
+          kind: b.kind,
+          startAt: b.startAt,
+          endAt: b.endAt,
+          durationMinutes: b.durationMinutes,
+          title: b.title,
+          targetType: b.targetType ?? null,
+          targetLabel: b.targetLabel ?? null,
+          confidence: b.confidence,
+        }
+      : null;
+  return {
+    previousBlock: summarizeNeighbor(previousBlock),
+    nextBlock: summarizeNeighbor(nextBlock),
+    engineReviewReasons: block.reviewReasons ?? [],
+    signalGapMinutes: block.signalGapMinutes ?? null,
+    gpsBeforeGap,
+    gpsAfterGap,
+    gpsInsideBlock,
+    gpsAroundBlock: [...gpsBeforeGap, ...gpsInsideBlock, ...gpsAfterGap],
+  };
+}
+
 
 export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = ({
   blocks,
