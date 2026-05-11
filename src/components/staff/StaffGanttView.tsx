@@ -964,7 +964,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 }}
                                 title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${shifted ? '\n⚠ Överlappar tidigare block — visas förskjutet nedåt' : ''}`}
                               >
-                              >
+
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="truncate text-[10px] font-medium uppercase tracking-wide opacity-80">
                                     {style.label}
