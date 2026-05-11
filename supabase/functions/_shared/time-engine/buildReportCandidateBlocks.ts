@@ -264,11 +264,40 @@ export interface BuildReportCandidateBlocksInput {
   policy?: ReportCandidatePolicy;
 }
 
+export type PreWorkExclusionReason =
+  | 'before_first_primary_work_target'
+  | 'home_anchor'
+  | 'no_workplace_before_noon';
+
+export interface PreWorkExclusionExample {
+  staffName?: string | null;
+  startAt: ISODateTime;
+  endAt: ISODateTime;
+  durationMinutes: number;
+  originalKind: ReportBlockKind;
+  originalLabel: string;
+  reason: PreWorkExclusionReason;
+}
+
+export interface PreWorkExclusionDiagnostics {
+  excludedPreWorkMinutes: number;
+  excludedPreWorkBlocksCount: number;
+  firstPrimaryWorkAt: ISODateTime | null;
+  firstPrimaryTargetLabel: string | null;
+  excludedReasons: Record<string, number>;
+  examples: PreWorkExclusionExample[];
+}
+
 export interface ReportCandidateDayResult {
   staffId: UUID;
   organizationId: UUID;
   date: ISODate;
   blocks: ReportCandidateBlock[];
+  /** Blocks that were classified as "pre-work" (before the first secure work
+   *  target) and excluded from the main report. Kept here as evidence for
+   *  Decision Trace — never appear in `blocks` and never count in summary. */
+  excludedPreWorkBlocks: ReportCandidateBlock[];
+  preWorkExclusionDiagnostics: PreWorkExclusionDiagnostics;
   summary: ReportCandidateSummary;
   warnings: string[];
   policy: Required<ReportCandidatePolicy>;
