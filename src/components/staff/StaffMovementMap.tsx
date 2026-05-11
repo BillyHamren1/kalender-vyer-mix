@@ -143,6 +143,9 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
           }
           map.current.addSource('pings', {
             type: 'geojson',
+            cluster: true,
+            clusterRadius: 20,
+            clusterMaxZoom: 18,
             data: {
               type: 'FeatureCollection',
               features: sampledPings.map((p) => ({
@@ -154,10 +157,42 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
               })),
             },
           });
+          // Clusters (overlapping pings)
+          map.current.addLayer({
+            id: 'ping-clusters',
+            type: 'circle',
+            source: 'pings',
+            filter: ['has', 'point_count'],
+            paint: {
+              'circle-radius': ['step', ['get', 'point_count'], 12, 5, 16, 20, 20],
+              'circle-color': 'hsl(48, 96%, 53%)',
+              'circle-stroke-color: hsl(0, 0%, 20%)' as any,
+              'circle-stroke-color': 'hsl(0, 0%, 20%)',
+              'circle-stroke-width': 1.5,
+              'circle-opacity': 0.95,
+            },
+          });
+          map.current.addLayer({
+            id: 'ping-cluster-count',
+            type: 'symbol',
+            source: 'pings',
+            filter: ['has', 'point_count'],
+            layout: {
+              'text-field': ['get', 'point_count_abbreviated'],
+              'text-size': 12,
+              'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+              'text-allow-overlap': true,
+            },
+            paint: {
+              'text-color': 'hsl(0, 0%, 15%)',
+            },
+          });
+          // Single (unclustered) pings
           map.current.addLayer({
             id: 'ping-dots',
             type: 'circle',
             source: 'pings',
+            filter: ['!', ['has', 'point_count']],
             paint: {
               'circle-radius': 4,
               'circle-color': 'hsl(48, 96%, 53%)',
@@ -170,6 +205,7 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
             id: 'ping-labels',
             type: 'symbol',
             source: 'pings',
+            filter: ['!', ['has', 'point_count']],
             layout: {
               'text-field': ['get', 'time'],
               'text-size': 11,
@@ -184,6 +220,18 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
               'text-halo-color': 'hsl(0, 0%, 100%)',
               'text-halo-width': 1.5,
             },
+          });
+          // Click cluster to zoom in
+          map.current.on('click', 'ping-clusters', (e) => {
+            const f = e.features?.[0];
+            const clusterId = (f?.properties as any)?.cluster_id;
+            const src = map.current?.getSource('pings') as mapboxgl.GeoJSONSource | undefined;
+            if (!src || clusterId == null || !f) return;
+            src.getClusterExpansionZoom(clusterId, (err, zoom) => {
+              if (err || !map.current) return;
+              const [lng, lat] = (f.geometry as any).coordinates;
+              map.current.easeTo({ center: [lng, lat], zoom: Math.max(zoom ?? 15, 17) });
+            });
           });
           map.current.on('click', 'ping-dots', (e) => {
             const f = e.features?.[0];
