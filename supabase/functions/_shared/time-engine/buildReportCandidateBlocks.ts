@@ -287,7 +287,7 @@ export interface ReportCandidatePolicy {
    *  (rule 5). Default 2 min. */
   tinyWorkMaxMinutes?: number;
   /** Transport with measured distance ≥ this is always a real trip and is
-   *  never micro-suppressed. Default 1000 m. */
+   *  never micro-suppressed. Default = TRANSPORT_MIN_DISTANCE_METERS (500 m). */
   realTripMinDistanceMeters?: number;
   /** Same-target absorption: if work-A | transport ≤ this | work-A then the
    *  transport is folded into work-A even when the transport is longer than
