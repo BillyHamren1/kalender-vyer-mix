@@ -357,16 +357,27 @@ export function buildReportDisplayBlocks(
       const missingTransition = /missing_transition|transition_evidence|signal/i.test(haystack);
       const lastKnown = !looksLikeMissingSignal(block.fromLabel) ? block.fromLabel : null;
       const nextKnown = !looksLikeMissingSignal(block.toLabel) ? block.toLabel : null;
-      const parts: string[] = [];
-      if (lastKnown) parts.push(`från ${lastKnown}`);
-      if (nextKnown) parts.push(`till ${nextKnown}`);
-      if (missingTransition) parts.push('signal saknades');
-      if (placeText) parts.push(placeText);
-      if (secondaryClose && nearestSecondaryCandidateLabel) {
-        parts.push(`nära ${nearestSecondaryCandidateLabel}`);
+      const hasOwnStopCoord = lat != null && lng != null;
+      const isBridgedTrip =
+        !!lastKnown && !!nextKnown && lastKnown !== nextKnown && !hasOwnStopCoord;
+      if (isBridgedTrip) {
+        displayTitle = `Trolig resa · ${lastKnown} → ${nextKnown}`;
+        const dur = block.durationMinutes ?? 0;
+        displaySubtitle = `från ${lastKnown} · till ${nextKnown}` +
+          (dur ? ` · GPS saknades ${Math.round(dur)} min – ingen stopp-evidens` : '') +
+          ' · granska';
+      } else {
+        const parts: string[] = [];
+        if (lastKnown) parts.push(`från ${lastKnown}`);
+        if (nextKnown) parts.push(`till ${nextKnown}`);
+        if (missingTransition) parts.push('signal saknades');
+        if (placeText) parts.push(placeText);
+        if (secondaryClose && nearestSecondaryCandidateLabel) {
+          parts.push(`nära ${nearestSecondaryCandidateLabel}`);
+        }
+        displayTitle = 'Osäker period';
+        displaySubtitle = parts.length ? `${parts.join(' · ')} · granska` : 'Granska';
       }
-      displayTitle = 'Osäker period';
-      displaySubtitle = parts.length ? `${parts.join(' · ')} · granska` : 'Granska';
     }
 
     if (isTransport) {
