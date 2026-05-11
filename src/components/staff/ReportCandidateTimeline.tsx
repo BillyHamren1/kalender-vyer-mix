@@ -257,7 +257,19 @@ function WhyReview({ block }: { block: ReportCandidateBlockUI }) {
   );
 }
 
-function EvidencePanel({ block, lookups }: { block: ReportCandidateBlockUI; lookups: EvidenceLookups }) {
+function EvidencePanel({
+  block,
+  lookups,
+  staffId,
+  staffName,
+  date,
+}: {
+  block: ReportCandidateBlockUI;
+  lookups: EvidenceLookups;
+  staffId?: string | null;
+  staffName?: string | null;
+  date?: string | null;
+}) {
   const ev = block.evidenceSummary ?? {};
   const hasAnySuppressed =
     (ev.suppressedSignalGapBlockCount ?? 0) > 0 ||
@@ -268,9 +280,48 @@ function EvidencePanel({ block, lookups }: { block: ReportCandidateBlockUI; look
   const hiddenGapIds = block.hiddenSignalGapIds ?? [];
   const hiddenIds = block.hiddenPresenceBlockIds ?? [];
   const target = block.targetId ? lookups.targetById.get(block.targetId) : undefined;
+  const [mapOpen, setMapOpen] = useState(false);
+  const canShowMap = !!staffId && !!date;
 
   return (
     <div className="mt-2 space-y-2 rounded-md border bg-background/60 px-3 py-2 text-[11px] text-muted-foreground">
+      {canShowMap && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1.5"
+            onClick={(e) => { e.stopPropagation(); setMapOpen(true); }}
+          >
+            <MapPin className="h-3 w-3" />
+            Visa karta för detta block
+          </Button>
+        </div>
+      )}
+      {canShowMap && (
+        <Dialog open={mapOpen} onOpenChange={setMapOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold">
+                {staffName ?? 'Personal'} · {date}
+                <span className="ml-2 text-xs font-normal text-muted-foreground tabular-nums">
+                  {formatStockholmHm(block.startAt)} → {formatStockholmHm(block.endAt)}
+                  {' · '}
+                  {block.durationLabel ?? fmtDur(block.durationMinutes)}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+            <StaffMovementMap
+              staffId={staffId as string}
+              date={date as string}
+              fromIso={block.startAt}
+              toIso={block.endAt}
+              className="h-[480px]"
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
       <WhyReview block={block} />
 
       {/* Target-detalj */}
