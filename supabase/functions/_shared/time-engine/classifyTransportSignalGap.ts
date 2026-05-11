@@ -51,6 +51,8 @@ export interface ClassifyTransportSignalGapInput {
   nextIsTransport: boolean;
   /** Resolved destination (immediate next stable stay, or later in transport chain). */
   destinationCandidate: WorkTarget | null;
+  /** Resolved origin (immediate previous stable stay), if it is a known work target. */
+  originCandidate?: WorkTarget | null;
   conflictingSignals: {
     anyHardGeoEntry: boolean;
     anyConfirmedStayAtOtherPlace: boolean;
