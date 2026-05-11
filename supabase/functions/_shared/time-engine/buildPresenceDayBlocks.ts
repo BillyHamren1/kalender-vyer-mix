@@ -105,6 +105,13 @@ export interface PresenceDayBlock {
     centerLat?: number | null;
     centerLng?: number | null;
     maxDistanceMeters?: number | null;
+    /** Engine 4 — propagated from GpsTimelineSegment.targetDiagnostics.
+     *  When true, this block originates from a private_residence / boende
+     *  polygon and MUST be filtered out of reportCandidateBlocks. Kept here
+     *  so Decision Trace can render it as "Dolt: Boende / privat plats". */
+    privateResidence?: boolean;
+    privateResidenceTargetId?: string | null;
+    privateResidenceLabel?: string | null;
   };
   sourceSegmentIds: string[];
   hiddenRawSegmentIds: string[];
@@ -753,6 +760,8 @@ export function buildPresenceDayBlocks(
     // ── Unknown stable place ────────────────────────────────────────────
     if (isUnknownStay(seg)) {
       const dur = durationMinutes(seg.startTs, seg.endTs);
+      const td = (seg as any).targetDiagnostics ?? {};
+      const isPrivateResidence = td.privateResidence === true;
       blocks.push({
         id: newId('unknown_place'),
         kind: 'unknown_place',
@@ -762,14 +771,25 @@ export function buildPresenceDayBlocks(
         durationLabel: formatDurationLabel(dur),
         targetType: null,
         targetId: null,
-        targetLabel: 'Okänd plats',
+        targetLabel: isPrivateResidence
+          ? (td.privateResidenceLabel ? `Boende: ${td.privateResidenceLabel}` : 'Boende')
+          : 'Okänd plats',
         confidence: seg.confidence >= 0.6 ? 'medium' : 'low',
-        confidenceReason: 'GPS visar stabil plats utan känd target',
-        reviewState: 'needs_review',
+        confidenceReason: isPrivateResidence
+          ? 'GPS innanför privat boende-polygon (filtreras från huvudvyn)'
+          : 'GPS visar stabil plats utan känd target',
+        reviewState: isPrivateResidence ? 'ok' : 'needs_review',
         evidence: {
           pingCount: seg.pingCount,
           centerLat: seg.centerLat ?? null,
           centerLng: seg.centerLng ?? null,
+          ...(isPrivateResidence
+            ? {
+                privateResidence: true,
+                privateResidenceTargetId: td.privateResidenceTargetId ?? null,
+                privateResidenceLabel: td.privateResidenceLabel ?? null,
+              }
+            : {}),
         },
         sourceSegmentIds: [seg.id],
         hiddenRawSegmentIds: [],
@@ -1356,6 +1376,19 @@ function mergeUnknown(
     .filter((s) => s.kind === 'signal_gap')
     .reduce((a, s) => a + s.durationMinutes, 0);
 
+  // Engine 4 — preserve privateResidence flag if EVERY anchor is private.
+  // (Mixed runs keep the default unknown_place treatment so a real "okänd
+  // plats" never gets silently hidden by an adjacent boende anchor.)
+  const allPrivate = anchors.length > 0 && anchors.every(
+    (a) => (a.evidence as any)?.privateResidence === true,
+  );
+  const firstPrivateLabel = allPrivate
+    ? ((anchors[0].evidence as any)?.privateResidenceLabel ?? null)
+    : null;
+  const firstPrivateTargetId = allPrivate
+    ? ((anchors[0].evidence as any)?.privateResidenceTargetId ?? null)
+    : null;
+
   return {
     id: newId('unknown_place'),
     kind: 'unknown_place',
@@ -1365,10 +1398,14 @@ function mergeUnknown(
     durationLabel: formatDurationLabel(dur),
     targetType: null,
     targetId: null,
-    targetLabel: 'Okänd plats',
+    targetLabel: allPrivate
+      ? (firstPrivateLabel ? `Boende: ${firstPrivateLabel}` : 'Boende')
+      : 'Okänd plats',
     confidence: 'medium',
-    confidenceReason: `Sammanslagen okänd plats (${anchors.length} delar${suppressed.length ? `, ${suppressed.length} broar` : ''}, max ${Math.round(maxDist)} m)`,
-    reviewState: 'needs_review',
+    confidenceReason: allPrivate
+      ? `Sammanslagen privat boende-vistelse (${anchors.length} delar)`
+      : `Sammanslagen okänd plats (${anchors.length} delar${suppressed.length ? `, ${suppressed.length} broar` : ''}, max ${Math.round(maxDist)} m)`,
+    reviewState: allPrivate ? 'ok' : 'needs_review',
     evidence: {
       pingCount: pings,
       mergedBlockCount: anchors.length,
@@ -1377,6 +1414,13 @@ function mergeUnknown(
       maxDistanceMeters: Math.round(maxDist),
       signalGapMinutes: suppressedSignalGapMin || undefined,
       suppressedKinds: Object.keys(suppressedKinds).length ? suppressedKinds : undefined,
+      ...(allPrivate
+        ? {
+            privateResidence: true,
+            privateResidenceTargetId: firstPrivateTargetId,
+            privateResidenceLabel: firstPrivateLabel,
+          }
+        : {}),
     },
     sourceSegmentIds: anchors.flatMap((m) => m.sourceSegmentIds),
     hiddenRawSegmentIds: [
