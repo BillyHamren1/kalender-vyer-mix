@@ -5328,6 +5328,9 @@ export type Database = {
       }
       staff_day_report_cache: {
         Row: {
+          ai_review_at: string | null
+          ai_review_pending: boolean
+          ai_review_signature: string | null
           built_at: string
           created_at: string
           date: string
@@ -5346,6 +5349,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_review_at?: string | null
+          ai_review_pending?: boolean
+          ai_review_signature?: string | null
           built_at?: string
           created_at?: string
           date: string
@@ -5364,6 +5370,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_review_at?: string | null
+          ai_review_pending?: boolean
+          ai_review_signature?: string | null
           built_at?: string
           created_at?: string
           date?: string
@@ -6304,6 +6313,83 @@ export type Database = {
             columns: ["registration_id"]
             isOneToOne: false
             referencedRelation: "active_time_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_report_ai_block_audit: {
+        Row: {
+          ai_result_json: Json | null
+          applied_kind: string | null
+          block_id: string
+          cache_id: string
+          confidence_score: number | null
+          created_at: string
+          date: string
+          engine_version: string
+          evidence_used_json: Json | null
+          id: string
+          is_current: boolean
+          model_version: string | null
+          organization_id: string
+          original_block_json: Json | null
+          reasoning_summary: string | null
+          safety_flags_json: Json | null
+          staff_id: string
+          status: string
+          suggested_kind: string | null
+          updated_block_json: Json | null
+        }
+        Insert: {
+          ai_result_json?: Json | null
+          applied_kind?: string | null
+          block_id: string
+          cache_id: string
+          confidence_score?: number | null
+          created_at?: string
+          date: string
+          engine_version: string
+          evidence_used_json?: Json | null
+          id?: string
+          is_current?: boolean
+          model_version?: string | null
+          organization_id: string
+          original_block_json?: Json | null
+          reasoning_summary?: string | null
+          safety_flags_json?: Json | null
+          staff_id: string
+          status: string
+          suggested_kind?: string | null
+          updated_block_json?: Json | null
+        }
+        Update: {
+          ai_result_json?: Json | null
+          applied_kind?: string | null
+          block_id?: string
+          cache_id?: string
+          confidence_score?: number | null
+          created_at?: string
+          date?: string
+          engine_version?: string
+          evidence_used_json?: Json | null
+          id?: string
+          is_current?: boolean
+          model_version?: string | null
+          organization_id?: string
+          original_block_json?: Json | null
+          reasoning_summary?: string | null
+          safety_flags_json?: Json | null
+          staff_id?: string
+          status?: string
+          suggested_kind?: string | null
+          updated_block_json?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_report_ai_block_audit_cache_id_fkey"
+            columns: ["cache_id"]
+            isOneToOne: false
+            referencedRelation: "staff_day_report_cache"
             referencedColumns: ["id"]
           },
         ]
