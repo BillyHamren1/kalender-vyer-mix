@@ -22,7 +22,7 @@ function fmtDate(iso: string | null): string | null {
 }
 
 export interface UnknownStopEnrichmentProps {
-  resolved: ResolvedUnknownStopEvidence;
+  resolved: ResolvedUnknownStop;
   /** Mindre rubrik om panelen är inbäddad i en redan synlig blockrad. */
   compact?: boolean;
 }
