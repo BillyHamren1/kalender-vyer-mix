@@ -522,7 +522,10 @@ import {
   buildReportDisplayBlocks,
   type PresenceBlockLite,
   type TargetLite,
+  type DisplayBlock,
 } from '@/lib/staff/buildReportDisplayBlocks';
+import { useResolvedUnknownStops, type UnknownStopRequest } from '@/hooks/useResolvedUnknownStops';
+import { UnknownStopEnrichment } from './UnknownStopEnrichment';
 
 export interface ReportCandidateTimelineProps {
   blocks: ReportCandidateBlockUI[];
