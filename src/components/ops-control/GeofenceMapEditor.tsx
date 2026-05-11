@@ -39,12 +39,28 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
   const [area, setArea] = useState<number>(0);
   const [tokenLoading, setTokenLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => { valueRef.current = value; }, [value]);
 
   // Init map
   useEffect(() => {
     let cancelled = false;
+    let loadTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const waitForContainerSize = (): Promise<HTMLDivElement | null> =>
+      new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          if (cancelled) return resolve(null);
+          const el = containerRef.current;
+          if (el && el.clientWidth > 0 && el.clientHeight > 0) return resolve(el);
+          if (Date.now() - start > 2500) return resolve(el); // give up waiting, init anyway
+          requestAnimationFrame(tick);
+        };
+        tick();
+      });
+
     (async () => {
       try {
         const { data, error } = await supabase.functions.invoke('mapbox-token');
