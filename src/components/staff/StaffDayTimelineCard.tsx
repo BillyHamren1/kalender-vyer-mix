@@ -358,6 +358,8 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
                 staffId={props.staffId}
                 staffName={props.staffName}
                 date={props.date}
+                excludedPreWorkBlocks={props.reportCandidateExcludedPreWorkBlocks ?? null}
+                preWorkExclusionDiagnostics={props.reportCandidatePreWorkExclusionDiagnostics ?? null}
               />
             </>
           );
