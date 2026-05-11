@@ -239,6 +239,32 @@ export interface ReportCandidateSummary {
     signalGapPromotedToReviewCount: number;
     clearWorkBlocksIncorrectlyReviewCount: number;
   };
+  /**
+   * POST-PASS 5 — sammanslagning av tekniska block (signal_gap-needs_review,
+   * unknown, kort transport, micro-transitions) in i sammanhängande
+   * arbetssessioner. Diagnostics endast — påverkar inga skrivningar.
+   */
+  sessionConsolidationDiagnostics: {
+    blocksBeforeSessionConsolidation: number;
+    blocksAfterSessionConsolidation: number;
+    sessionsCreatedCount: number;
+    absorbedSignalGapBlocksCount: number;
+    absorbedNeedsReviewBlocksCount: number;
+    absorbedInternalTransportBlocksCount: number;
+    absorbedUnknownBlocksCount: number;
+    preservedNeedsReviewBlocksCount: number;
+    preservedTransportBlocksCount: number;
+    examples: Array<{
+      sessionTargetLabel: string | null;
+      sessionStartAt: ISODateTime;
+      sessionEndAt: ISODateTime;
+      sessionDurationMinutes: number;
+      absorbedBlockCount: number;
+      absorbedKinds: string[];
+      signalGapMinutes: number;
+      internalMovementMinutes: number;
+    }>;
+  };
 }
 
 /**
