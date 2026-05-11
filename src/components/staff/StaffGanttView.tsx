@@ -883,60 +883,135 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                           </div>
                         )}
 
-                        {/* blocks */}
-                        {blocks.map((b) => {
-                          const sH = hourOfDay(b.startAt, dateStr);
-                          const eH = hourOfDay(b.endAt, dateStr);
-                          const clampedS = Math.max(startHour, Math.min(endHour, sH));
-                          const clampedE = Math.max(startHour, Math.min(endHour, eH));
-                          if (clampedE <= clampedS) return null;
-                          const top = (clampedS - startHour) * HOUR_PX;
-                          const height = Math.max(20, (clampedE - clampedS) * HOUR_PX);
-                          const style = KIND_STYLE[b.kind];
-                          const showSub = height >= 44;
-                          const showMeta = height >= 66;
-                          return (
-                            <div
-                              key={b.id}
-                              role="button"
-                              tabIndex={0}
+                        {/* blocks — assign lanes for any overlapping blocks
+                            so they render side-by-side instead of stacking. */}
+                        {(() => {
+                          type Positioned = {
+                            b: typeof blocks[number];
+                            top: number;
+                            height: number;
+                            lane: number;
+                            laneCount: number;
+                          };
+                          // 1) compute screen-space rects (skip blocks fully outside window)
+                          const rects: Array<{
+                            b: typeof blocks[number];
+                            top: number;
+                            bottom: number;
+                            startMs: number;
+                            endMs: number;
+                          }> = [];
+                          for (const b of blocks) {
+                            const sH = hourOfDay(b.startAt, dateStr);
+                            const eH = hourOfDay(b.endAt, dateStr);
+                            const clampedS = Math.max(startHour, Math.min(endHour, sH));
+                            const clampedE = Math.max(startHour, Math.min(endHour, eH));
+                            if (clampedE <= clampedS) continue;
+                            const top = (clampedS - startHour) * HOUR_PX;
+                            const height = Math.max(20, (clampedE - clampedS) * HOUR_PX);
+                            rects.push({
+                              b,
+                              top,
+                              bottom: top + height,
+                              startMs: Date.parse(b.startAt),
+                              endMs: Date.parse(b.endAt),
+                            });
+                          }
+                          // 2) sort by start time then by length desc
+                          rects.sort((a, b) =>
+                            a.startMs !== b.startMs
+                              ? a.startMs - b.startMs
+                              : b.endMs - b.endMs - (a.endMs - a.endMs),
+                          );
+                          // 3) greedy lane assignment
+                          const laneEnds: number[] = []; // bottom px per lane
+                          const positioned: Positioned[] = [];
+                          for (const r of rects) {
+                            let lane = laneEnds.findIndex((end) => end <= r.top + 0.5);
+                            if (lane === -1) {
+                              lane = laneEnds.length;
+                              laneEnds.push(0);
+                            }
+                            laneEnds[lane] = r.bottom;
+                            positioned.push({
+                              b: r.b,
+                              top: r.top,
+                              height: r.bottom - r.top,
+                              lane,
+                              laneCount: 0, // filled below
+                            });
+                          }
+                          // 4) compute laneCount per overlapping cluster
+                          //    (simpler: use total laneEnds.length as global; visually fine
+                          //     for a one-day column — sub-lanes appear only on overlaps).
+                          //    Per-block "active lanes" gives tighter widths:
+                          for (const p of positioned) {
+                            // count concurrent rects (overlap with p)
+                            let max = 1;
+                            for (const r of rects) {
+                              if (r.b === p.b) continue;
+                              const overlap =
+                                r.top < p.top + p.height && r.bottom > p.top;
+                              if (overlap) max += 1;
+                            }
+                            p.laneCount = Math.max(p.laneCount, max);
+                          }
+                          // Use the cluster max (laneEnds.length) as a stable upper bound
+                          const globalLanes = Math.max(1, laneEnds.length);
+                          return positioned.map(({ b, top, height, lane }) => {
+                            const style = KIND_STYLE[b.kind];
+                            const showSub = height >= 44;
+                            const showMeta = height >= 66;
+                            const widthPct = 100 / globalLanes;
+                            const leftPct = lane * widthPct;
+                            return (
+                              <div
+                                key={b.id}
+                                role="button"
+                                tabIndex={0}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedBlock({ staffId: staff.id, blockId: b.id });
                                 }}
-                              className={cn(
-                                'absolute left-1 right-1 z-[5] cursor-pointer overflow-hidden rounded-md border px-2 py-1.5 text-[11px] leading-tight shadow-sm transition-shadow hover:z-20 hover:shadow-md',
-                                style.bg,
-                                style.border,
-                                style.text,
-                              )}
-                              style={{ top, height }}
-                              title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`}
-                            >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="truncate text-[10px] font-medium uppercase tracking-wide opacity-80">
-                                  {style.label}
-                                </span>
-                                <span className="shrink-0 text-[10px] tabular-nums opacity-90">
-                                  {fmtMin(b.durationMinutes)}
-                                </span>
-                              </div>
-                              <div className="mt-0.5 truncate font-semibold">
-                                {b.title}
-                              </div>
-                              {showSub && (
-                                <div className="truncate text-[10.5px] tabular-nums opacity-90">
-                                  {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)}
+                                className={cn(
+                                  'absolute z-[5] cursor-pointer overflow-hidden rounded-md border px-2 py-1.5 text-[11px] leading-tight shadow-sm transition-shadow hover:z-20 hover:shadow-md',
+                                  style.bg,
+                                  style.border,
+                                  style.text,
+                                )}
+                                style={{
+                                  top,
+                                  height,
+                                  left: `calc(${leftPct}% + 2px)`,
+                                  width: `calc(${widthPct}% - 4px)`,
+                                }}
+                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`}
+                              >
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="truncate text-[10px] font-medium uppercase tracking-wide opacity-80">
+                                    {style.label}
+                                  </span>
+                                  <span className="shrink-0 text-[10px] tabular-nums opacity-90">
+                                    {fmtMin(b.durationMinutes)}
+                                  </span>
                                 </div>
-                              )}
-                              {showMeta && b.subtitle && (
-                                <div className="mt-0.5 truncate text-[10.5px] opacity-80">
-                                  {b.subtitle}
+                                <div className="mt-0.5 truncate font-semibold">
+                                  {b.title}
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                                {showSub && (
+                                  <div className="truncate text-[10.5px] tabular-nums opacity-90">
+                                    {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)}
+                                  </div>
+                                )}
+                                {showMeta && b.subtitle && (
+                                  <div className="mt-0.5 truncate text-[10.5px] opacity-80">
+                                    {b.subtitle}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          });
+                        })()}
 
                         {blocks.length === 0 && (
                           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] text-muted-foreground/60">
