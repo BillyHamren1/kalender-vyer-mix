@@ -21,7 +21,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Sun, Loader2, ShieldCheck, AlertTriangle, Clock, ArrowRight,
+  Sun, Loader2, ShieldCheck, AlertTriangle, Clock, ArrowRight, Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -33,6 +33,7 @@ import {
   type StaffDaySegment,
 } from '@/hooks/useStaffDayStatus';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
+import EndDayButton from './EndDayButton';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
