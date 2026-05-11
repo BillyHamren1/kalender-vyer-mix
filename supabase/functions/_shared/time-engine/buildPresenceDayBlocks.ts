@@ -284,7 +284,12 @@ export function buildPresenceDayBlocks(
     probableTransportGapMinutes: 0,
     remainingUnknownTransportGapCount: 0,
     remainingUnknownTransportGapMinutes: 0,
+    lowConfidenceCandidateCount: 0,
+    missingAnchorRejectedCount: 0,
+    transportAnchorsUsedCount: 0,
+    routeContinuationConfirmedCount: 0,
     destinationConfirmedCount: 0,
+    companionBoostedCount: 0,
     examples: [],
   };
   const crDiag: CompanionRouteDiagnostics = {
