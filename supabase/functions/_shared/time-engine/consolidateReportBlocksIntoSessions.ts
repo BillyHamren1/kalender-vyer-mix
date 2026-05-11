@@ -276,14 +276,49 @@ export function consolidateReportBlocksIntoSessions(
       if (!cur.reviewReasons.includes('session_consolidated')) {
         cur.reviewReasons.push('session_consolidated');
       }
-      // Strip blocking reasons we just resolved by binding to same target
+      // Strip blocking reasons we just resolved by binding to same target.
+      // Signal-gap-baserade reasons (även om de listas som "blocking" uppströms)
+      // räknas i Time Engine 2.5 som warning-only när vi har ett bindande
+      // host-target — de blir metadata på sessionen istället för egen rad.
       cur.reviewReasons = cur.reviewReasons.filter(
-        (rr) => !deps.blockingReviewReasons.has(rr) || deps.warningOnlyReasons.has(rr),
+        (rr) =>
+          !deps.blockingReviewReasons.has(rr) ||
+          deps.warningOnlyReasons.has(rr) ||
+          SIGNAL_GAP_REASONS.has(rr),
       );
-      cur.reviewState = 'ok';
-      if (cur.signalGapMinutes > 0 || internalMovementMin > 0) {
-        cur.warningLabel = cur.warningLabel ?? 'Signal saknades periodvis';
+
+      // reviewState = 'ok' så länge host har target/label (vi vet vad det är).
+      // needs_review skall ENDAST finnas kvar om motorn faktiskt inte kan
+      // klassa blocket — d.v.s. host saknar target OCH har kvar äkta blocking
+      // reasons (inte signal-gap).
+      const hasNonSignalBlocking = cur.reviewReasons.some(
+        (rr) => deps.blockingReviewReasons.has(rr) && !SIGNAL_GAP_REASONS.has(rr),
+      );
+      const hostKnown = !!(cur.targetId || (cur.targetLabel && cur.targetLabel.trim().length > 0));
+      cur.reviewState = hostKnown || !hasNonSignalBlocking ? 'ok' : 'needs_review';
+
+      // Time Engine 2.5 — signalproblem som metadata/warning, inte eget event.
+      const sessionSignalMin = cur.signalGapMinutes;
+      const sessionSignalCount = cur.signalGapCount ?? 0;
+      if (sessionSignalMin > 0 || sessionSignalCount > 0) {
+        cur.warningReasons = Array.from(new Set([
+          ...(cur.warningReasons ?? []),
+          'signal_gap_inside_session',
+        ]));
+        const label = sessionSignalMin > 0
+          ? `Signal saknades periodvis: ${deps.fmtDuration(sessionSignalMin)}`
+          : 'Signal saknades periodvis';
+        // Skriv över ev. tidigare generisk warning så minutangivelse syns.
+        if (
+          !cur.warningLabel ||
+          cur.warningLabel === 'Signal saknades periodvis'
+        ) {
+          cur.warningLabel = label;
+        }
+      } else if (internalMovementMin > 0 && !cur.warningLabel) {
+        cur.warningLabel = 'Intern rörelse periodvis';
       }
+
       cur.subtitle =
         `${deps.fmtClock(cur.startAt)}–${deps.fmtClock(cur.endAt)} · ${deps.fmtDuration(cur.durationMinutes)}`;
 
