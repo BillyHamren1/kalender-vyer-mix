@@ -367,6 +367,10 @@ export interface StaffDaySnapshot {
     attestedAt: Iso;
     attestedBy: string | null;
     locked: boolean;
+    requestedStartAt: Iso | null;
+    requestedEndAt: Iso | null;
+    originalSuggestedStartAt: Iso | null;
+    originalSuggestedEndAt: Iso | null;
   } | null;
   lastUpdatedAt: Iso;
   /** Full-day GPS-derived timeline built from ALL pings (not constrained by workday). */
