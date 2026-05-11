@@ -89,6 +89,13 @@ export interface ReportCandidateBlock {
    */
   isOngoing?: boolean;
   /**
+   * Session consolidation (POST-PASS 5):
+   * minuter intern rörelse (jitter-transport < 500 m, kort transport mellan
+   * samma target) som absorberats in i sessionen. Visas som warning, inte
+   * som eget block.
+   */
+  internalMovementMinutes?: number;
+  /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
    */
