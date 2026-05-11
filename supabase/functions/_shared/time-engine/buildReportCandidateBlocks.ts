@@ -1444,36 +1444,6 @@ export function buildReportCandidateBlocks(
     }
   }
 
-      if (reason) {
-        keep[k] = false;
-        preWorkExclusionDiagnostics.excludedPreWorkMinutes += r.durationMinutes;
-        preWorkExclusionDiagnostics.excludedPreWorkBlocksCount += 1;
-        preWorkExclusionDiagnostics.excludedReasons[reason] =
-          (preWorkExclusionDiagnostics.excludedReasons[reason] ?? 0) + 1;
-        if (preWorkExclusionDiagnostics.examples.length < 20) {
-          preWorkExclusionDiagnostics.examples.push({
-            startAt: r.startAt,
-            endAt: r.endAt,
-            durationMinutes: r.durationMinutes,
-            originalKind: r.kind,
-            originalLabel: r.title,
-            reason,
-          });
-        }
-        excludedPreWorkBlocks.push(r);
-      }
-    }
-
-    if (preWorkExclusionDiagnostics.excludedPreWorkBlocksCount > 0) {
-      const filtered: ReportCandidateBlock[] = [];
-      for (let k = 0; k < out.length; k++) {
-        if (k >= firstPrimaryIdx || keep[k]) filtered.push(out[k]);
-      }
-      out.length = 0;
-      out.push(...filtered);
-    }
-  }
-
 
   // Assign deterministic, position-independent ids. Same staff+day+kind+span
   // +target+source set ⇒ same id across runs. See createReportCandidateBlockId.
