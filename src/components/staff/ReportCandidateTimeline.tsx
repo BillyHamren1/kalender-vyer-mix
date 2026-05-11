@@ -605,11 +605,38 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
     presenceById: new Map((presenceBlocks ?? []).map((p) => [p.id, p])),
     targetById: new Map((targets ?? []).map((t) => [t.id, t])),
   };
+
+  // ── Resolve unknown stops (read-only edge function) ───────────────
+  // Bygg en lookup-request för varje osäker rad med koordinater.
+  const resolveReqs: UnknownStopRequest[] = staffId
+    ? visible
+        .filter((b) => (b.kind === 'unknown' || b.kind === 'needs_review')
+          && b.locationEvidence?.lat != null
+          && b.locationEvidence?.lng != null)
+        .map((b) => ({
+          key: b.id,
+          staffId,
+          lat: b.locationEvidence!.lat as number,
+          lng: b.locationEvidence!.lng as number,
+          atIso: b.startAt,
+          radiusMeters: 250,
+        }))
+    : [];
+  const resolvedMap = useResolvedUnknownStops(resolveReqs);
+
   return (
     <div className="space-y-1.5">
       {preWorkInfoRow}
       {visible.map((b) => (
-        <BlockRow key={b.id} block={b} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
+        <BlockRow
+          key={b.id}
+          block={b}
+          lookups={lookups}
+          staffId={staffId}
+          staffName={staffName}
+          date={date}
+          resolved={resolvedMap.get(b.id) ?? null}
+        />
       ))}
       {summary && (
         <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 text-[11px] text-muted-foreground">
