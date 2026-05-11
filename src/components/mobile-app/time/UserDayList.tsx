@@ -119,9 +119,10 @@ const DayRow = ({
       </div>
 
       <span className={cn(
-        'inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold border whitespace-nowrap',
+        'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold border whitespace-nowrap',
         STATUS_TONE[day.status],
       )}>
+        {NEEDS_ATTENTION.has(day.status) && <AlertTriangle className="w-3 h-3" />}
         {STATUS_LABEL[day.status]}
       </span>
     </button>
