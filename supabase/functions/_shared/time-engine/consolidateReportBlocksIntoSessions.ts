@@ -430,14 +430,28 @@ export function consolidateReportBlocksIntoSessions(
 
       if (diagnostics.examples.length < 20) {
         diagnostics.examples.push({
+          staffName: deps.staffName ?? null,
+          sessionLabel: cur.targetLabel,
+          sessionStart: sessionStart,
+          sessionEnd: sessionEndCandidate,
+          sessionDurationMinutes: cur.durationMinutes,
+          originalBlockKinds: ['work', ...absorbedKinds],
+          originalBlockLabels: [
+            cur.targetLabel ?? cur.kind,
+            ...absorbedLabels,
+          ],
+          absorbedBlockCount: absorbedCount,
+          signalGapMinutes: cur.signalGapMinutes,
+          internalMovementMinutes: cur.internalMovementMinutes ?? 0,
+          finalKind: cur.kind,
+          finalReviewState: cur.reviewState,
+          warningLabel: cur.warningLabel ?? null,
+          reasons: [...(cur.reviewReasons ?? [])],
+          // Legacy fields (back-compat).
           sessionTargetLabel: cur.targetLabel,
           sessionStartAt: sessionStart,
           sessionEndAt: sessionEndCandidate,
-          sessionDurationMinutes: cur.durationMinutes,
-          absorbedBlockCount: absorbedCount,
           absorbedKinds,
-          signalGapMinutes: cur.signalGapMinutes,
-          internalMovementMinutes: cur.internalMovementMinutes ?? 0,
         });
       }
 
