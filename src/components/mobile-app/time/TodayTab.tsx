@@ -21,7 +21,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Sun, Loader2, ShieldCheck, AlertTriangle, Clock, ArrowRight,
+  Sun, Loader2, ShieldCheck, AlertTriangle, Clock, ArrowRight, Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -33,6 +33,7 @@ import {
   type StaffDaySegment,
 } from '@/hooks/useStaffDayStatus';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
+import EndDayButton from './EndDayButton';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
@@ -159,79 +160,9 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
   );
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 2) Just nu-kort
-// ────────────────────────────────────────────────────────────────────
+// (ActiveNowCard borttagen 2026-05-11 — aktivt segment renderas nu inline
+//  i TimelineSection som "premium active block" med tickande timer.)
 
-const ActiveNowCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
-  useTick(1000);
-  const active = snapshot.active;
-  const workdayOpen = !!snapshot.workday?.isOpen;
-
-  if (!active) {
-    if (workdayOpen) {
-      // Backend säger arbetsdag pågår men ingen aktiv plats är bunden.
-      // Visa ENDAST det — inga "okänd plats" / "saknar aktivitet" / "glapp".
-      return (
-        <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
-            Just nu
-          </p>
-          <p className="text-sm font-bold text-foreground mt-1 flex items-center gap-1.5">
-            <Sun className="w-4 h-4 text-primary" />
-            Arbetsdag pågår
-          </p>
-        </section>
-      );
-    }
-    return null;
-  }
-
-  const Icon = SEG_ICON[active.kind === 'project' ? 'project'
-    : active.kind === 'location' ? 'location'
-    : 'booking'];
-  const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(active.startedAt).getTime()) / 1000));
-  const h = Math.floor(elapsedSec / 3600);
-  const m = Math.floor((elapsedSec % 3600) / 60);
-  const s = elapsedSec % 60;
-
-  return (
-    <section className="rounded-2xl border border-primary/20 bg-card p-4 shadow-sm space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
-            Just nu
-          </p>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
-              <Icon className="w-4 h-4" />
-            </span>
-            <p className="font-extrabold text-base text-foreground truncate">
-              {active.label}
-            </p>
-          </div>
-          <p className="text-[12px] text-muted-foreground mt-1">
-            Sedan{' '}
-            <span className="tabular-nums font-semibold text-foreground/80">
-              {formatStockholmHm(active.startedAt)}
-            </span>
-          </p>
-        </div>
-        <div className="font-mono font-extrabold text-lg tabular-nums text-primary shrink-0">
-          {String(h).padStart(2, '0')}:{String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
-        </div>
-      </div>
-
-      {/* Status från backend — ingen lokal tolkning */}
-      {active.statusLabel && (
-        <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          {active.statusLabel}
-        </div>
-      )}
-    </section>
-  );
-};
 
 // ────────────────────────────────────────────────────────────────────
 // 3) Totaler
@@ -288,59 +219,151 @@ const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
 };
 
 // ────────────────────────────────────────────────────────────────────
-// 4) Dagens tidslinje
+// 4) Dagens tidslinje — aktiv rad är ett "premium active block"
+//    med liten tickande timer. Stoppknapp ligger direkt under sista
+//    raden när snapshot.workday.isOpen === true.
 // ────────────────────────────────────────────────────────────────────
 
-const TimelineSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
-  if (snapshot.segments.length === 0) return null;
+const ActiveSegmentRow: React.FC<{ seg: StaffDaySegment }> = ({ seg }) => {
+  useTick(1000);
+  const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
+  const tone = SEG_TONE[seg.kind] ?? SEG_TONE.unknown;
+  const kindLabel = SEG_KIND_LABEL[seg.kind] ?? '';
+  const startedMs = new Date(seg.startedAt).getTime();
+  const elapsedSec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+  const h = Math.floor(elapsedSec / 3600);
+  const m = Math.floor((elapsedSec % 3600) / 60);
+  const s = elapsedSec % 60;
+
+  return (
+    <div className="rounded-xl border-2 border-primary bg-primary/5 px-3 py-3 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className={cn('shrink-0 w-9 h-9 rounded-lg flex items-center justify-center relative', tone)}>
+          <Icon className="w-4 h-4" />
+          <span className="absolute -top-0.5 -right-0.5 flex w-2.5 h-2.5">
+            <span className="absolute inset-0 rounded-full bg-primary opacity-75 animate-ping" />
+            <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-primary" />
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-extrabold text-foreground truncate">
+            {seg.label}
+          </p>
+          <p className="text-[12px] text-muted-foreground tabular-nums">
+            Startade <span className="font-semibold text-foreground/80">{formatStockholmHm(seg.startedAt)}</span>
+          </p>
+          <div className="flex flex-wrap items-center gap-1 mt-1">
+            <span className={cn('inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide', tone)}>
+              {kindLabel}
+            </span>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-primary/15 text-primary">
+              <ShieldCheck className="w-3 h-3" /> Pågår
+            </span>
+          </div>
+        </div>
+        <div className="font-mono font-extrabold text-base tabular-nums text-primary shrink-0 pt-0.5">
+          {String(h).padStart(2, '0')}:{String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TimelineSection: React.FC<{
+  snapshot: StaffDaySnapshot;
+  onChanged: () => void;
+}> = ({ snapshot, onChanged }) => {
+  const segments = snapshot.segments ?? [];
+  const workdayOpen = !!snapshot.workday?.isOpen;
+  // (Aktivt segment renderas inline i listan — se ActiveSegmentRow.)
+
+  // Inget timeline-innehåll OCH ingen pågående arbetsdag → dölj sektion.
+  if (segments.length === 0 && !workdayOpen) return null;
+
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
       <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
         Dagens tidslinje
       </p>
-      <div className="space-y-1.5">
-        {snapshot.segments.map((seg, idx) => {
-          const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
-          const tone = SEG_TONE[seg.kind] ?? SEG_TONE.unknown;
-          const kindLabel = SEG_KIND_LABEL[seg.kind] ?? '';
-          const statusLabel = seg.statusLabel ?? null;
-          return (
-            <div
-              key={`${seg.startedAt}-${idx}`}
-              className={cn(
-                'flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2.5',
-                seg.kind === 'unknown' && 'border-amber-500/30 bg-amber-500/5',
-                seg.isActive && 'border-primary/30 bg-primary/5',
-              )}
-            >
-              <div className={cn('shrink-0 w-8 h-8 rounded-lg flex items-center justify-center', tone)}>
-                <Icon className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] tabular-nums font-semibold text-muted-foreground">
-                  {segmentRange(seg)}
-                </p>
-                <p className="text-sm font-semibold text-foreground truncate">
-                  {seg.label}
-                </p>
-                <div className="flex flex-wrap items-center gap-1 mt-1">
-                  <span className={cn('inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide', tone)}>
-                    {kindLabel}
-                  </span>
-                  {statusLabel && (
-                    <span className="inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-muted text-muted-foreground">
-                      {statusLabel}
+
+      {segments.length === 0 ? (
+        // Arbetsdag pågår men inget aktivt segment finns att rendera —
+        // visa ett minimalt "Arbetsdag pågår"-block (ersätter ActiveNowCard).
+        <div className="rounded-xl border-2 border-primary bg-primary/5 px-3 py-3 flex items-center gap-3">
+          <span className="shrink-0 w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+            <Sun className="w-4 h-4" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-extrabold text-foreground">Arbetsdag pågår</p>
+            {snapshot.workday?.startedAt && (
+              <p className="text-[12px] text-muted-foreground tabular-nums">
+                Sedan{' '}
+                <span className="font-semibold text-foreground/80">
+                  {formatStockholmHm(snapshot.workday.startedAt)}
+                </span>
+              </p>
+            )}
+          </div>
+          <span className="flex w-2.5 h-2.5">
+            <span className="absolute inline-flex w-2.5 h-2.5 rounded-full bg-primary opacity-75 animate-ping" />
+            <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-primary" />
+          </span>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {segments.map((seg, idx) => {
+            const isActive = !!seg.isActive || !seg.endedAt;
+            if (isActive) {
+              return <ActiveSegmentRow key={`${seg.startedAt}-${idx}`} seg={seg} />;
+            }
+            const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
+            const tone = SEG_TONE[seg.kind] ?? SEG_TONE.unknown;
+            const kindLabel = SEG_KIND_LABEL[seg.kind] ?? '';
+            const statusLabel = seg.statusLabel ?? null;
+            return (
+              <div
+                key={`${seg.startedAt}-${idx}`}
+                className={cn(
+                  'flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2.5',
+                  seg.kind === 'unknown' && 'border-amber-500/30 bg-amber-500/5',
+                )}
+              >
+                <div className={cn('shrink-0 w-8 h-8 rounded-lg flex items-center justify-center', tone)}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] tabular-nums font-semibold text-muted-foreground">
+                    {segmentRange(seg)}
+                  </p>
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {seg.label}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1 mt-1">
+                    <span className={cn('inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide', tone)}>
+                      {kindLabel}
                     </span>
-                  )}
+                    {statusLabel && (
+                      <span className="inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-muted text-muted-foreground">
+                        {statusLabel}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
+                  {fmtMinutes(seg.durationMinutes)}
                 </div>
               </div>
-              <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
-                {fmtMinutes(seg.durationMinutes)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Stoppknapp direkt under tidslinjens sista block. */}
+      {workdayOpen && (
+        <div className="pt-2">
+          <EndDayButton workdayOpen onStopped={onChanged} />
+        </div>
+      )}
     </section>
   );
 };
@@ -372,26 +395,23 @@ const ActionsNeededSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapsh
 };
 
 // ────────────────────────────────────────────────────────────────────
-// 6) Primär action — länk till WorkDayPanel (enda timer-ytan)
+// 6) Primär action
+//    - Pågående arbetsdag: stopp finns redan inline under tidslinjen.
+//    - Ingen arbetsdag: länk till /m där WorkDayPanel äger startflödet.
 // ────────────────────────────────────────────────────────────────────
 
-/**
- * Single-timer policy: TodayTab styr inte timer själv. Knappen länkar
- * till `/m` där `WorkDayPanel` är monterad och äger start/stopp av
- * arbetsdagen.
- */
 const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapshot }) => {
   const navigate = useNavigate();
   const isOpen = snapshot?.workday?.isOpen ?? false;
-  const label = isOpen ? 'Hantera arbetsdag i översikten' : 'Starta arbetsdag i översikten';
+  if (isOpen) return null;
   return (
     <Button
       size="lg"
-      variant={isOpen ? 'outline' : 'default'}
       className="w-full h-12 rounded-2xl text-sm font-bold gap-2"
       onClick={() => navigate('/m')}
     >
-      {label}
+      <Play className="w-4 h-4" />
+      Starta dag
       <ArrowRight className="w-4 h-4" />
     </Button>
   );
@@ -428,9 +448,8 @@ export const TodayTab: React.FC = () => {
   return (
     <div className="space-y-3">
       <WorkdayStatusCard snapshot={snapshot} />
-      <ActiveNowCard snapshot={snapshot} />
       <TotalsCard snapshot={snapshot} />
-      <TimelineSection snapshot={snapshot} />
+      <TimelineSection snapshot={snapshot} onChanged={() => { void refresh(); }} />
       <ActionsNeededSection snapshot={snapshot} />
       <div className="pt-1">
         <PrimaryAction snapshot={snapshot} />
