@@ -274,6 +274,8 @@ export function consolidateReportBlocksIntoSessions(
 
       cur.internalMovementMinutes =
         (cur.internalMovementMinutes ?? 0) + internalMovementMin;
+      cur.internalMovementDistanceMeters =
+        (cur.internalMovementDistanceMeters ?? 0) + internalMovementMeters;
 
       if (!cur.reviewReasons.includes('session_consolidated')) {
         cur.reviewReasons.push('session_consolidated');
