@@ -1670,6 +1670,8 @@ const StaffTimeReports: React.FC = () => {
         blocks: data?.reportCandidateBlocks ?? [],
         summary: data?.reportCandidateSummary ?? null,
         diagnostics: data?.reportCandidateDiagnostics ?? null,
+        excludedPreWorkBlocks: data?.excludedPreWorkBlocks ?? [],
+        preWorkExclusionDiagnostics: data?.preWorkExclusionDiagnostics ?? null,
         targetResolution:
           data?.targetResolution ?? data?.reportCandidateDiagnostics?.targetResolution ?? null,
         presenceBlocks: data?.presenceDayBlocks ?? [],
