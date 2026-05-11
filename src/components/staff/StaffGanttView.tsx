@@ -301,7 +301,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null, bookingPhaseByDate);
     }
     return map;
-  }, [staffList, reportCandidateByStaff]);
+  }, [staffList, reportCandidateByStaff, bookingPhaseByDate]);
 
   // Filter
   const filteredStaff = useMemo(() => {
