@@ -724,6 +724,8 @@ Deno.serve(async (req) => {
     // Default Tidrapporter timeline MUST consume `reportCandidateBlocks`.
     reportCandidateBlocks: reportCandidateResult?.blocks ?? [],
     reportCandidateSummary: reportCandidateResult?.summary ?? null,
+    excludedPreWorkBlocks: reportCandidateResult?.excludedPreWorkBlocks ?? [],
+    preWorkExclusionDiagnostics: reportCandidateResult?.preWorkExclusionDiagnostics ?? null,
     reportCandidateDiagnostics: reportCandidateResult
       ? {
           presenceDayBlocksCount: presenceDayBlocksResult?.blocks?.length ?? 0,
@@ -734,6 +736,7 @@ Deno.serve(async (req) => {
           ).length,
           targetResolution,
           legacyLocationTimeEntriesUsedAsInput: false,
+          preWorkExclusion: reportCandidateResult.preWorkExclusionDiagnostics ?? null,
           error: null,
         }
       : { error: reportCandidateError, available: false, targetResolution, legacyLocationTimeEntriesUsedAsInput: false },
