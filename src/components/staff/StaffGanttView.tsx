@@ -131,8 +131,10 @@ const KIND_STYLE: Record<
   { bg: string; border: string; text: string; ring?: string; label: string }
 > = {
   work:      { bg: 'bg-primary/85',                                                        border: 'border-primary',                  text: 'text-primary-foreground', label: 'Arbete' },
-  rig:       { bg: 'bg-emerald-200/80 dark:bg-emerald-400/40',                              border: 'border-emerald-400',              text: 'text-emerald-950 dark:text-emerald-50', label: 'Rigg' },
-  rigdown:   { bg: 'bg-rose-200/80 dark:bg-rose-400/40',                                    border: 'border-rose-400',                 text: 'text-rose-950 dark:text-rose-50',       label: 'Rigga ner' },
+  // rig + rigdown matchar planeringskalenderns BookingEvent-färger exakt
+  // (#F2FCE2 / #FFDEE2). Inga tailwind-emerald/rose — det blev fel ton.
+  rig:       { bg: 'bg-[#F2FCE2] dark:bg-[#F2FCE2]/30',                                     border: 'border-[#C9E8A8]',                text: 'text-[#1f3b14] dark:text-[#F2FCE2]',    label: 'Rigg' },
+  rigdown:   { bg: 'bg-[#FFDEE2] dark:bg-[#FFDEE2]/30',                                     border: 'border-[#F4B4BC]',                text: 'text-[#4a1a20] dark:text-[#FFDEE2]',    label: 'Rigga ner' },
   transport: { bg: 'bg-sky-200/80 dark:bg-sky-400/40',                                      border: 'border-sky-400',                  text: 'text-sky-950 dark:text-sky-50',         label: 'Transport' },
   review:    { bg: 'bg-amber-200/80 dark:bg-amber-400/50',                                  border: 'border-amber-500',                text: 'text-amber-950 dark:text-amber-50',     label: 'Granska' },
   unknown:   { bg: 'bg-muted/60',                                                           border: 'border-border',                   text: 'text-muted-foreground',                 label: 'Okänd plats' },
