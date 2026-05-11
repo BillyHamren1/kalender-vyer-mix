@@ -218,19 +218,34 @@ const OrganizationLocationsManager = () => {
         <p className="text-xs text-muted-foreground">Inga fasta platser konfigurerade.</p>
       ) : (
         <div className="space-y-1.5">
-          {locations.map(loc => (
+          {locations.map(loc => {
+            const residence = loc.is_private_residence || loc.location_type === 'private_residence';
+            return (
             <div
               key={loc.id}
               className="flex items-center gap-2 p-2 rounded-lg border border-border/60 bg-card text-xs"
             >
-              <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+              {residence ? (
+                <Home className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              ) : (
+                <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+              )}
               <div className="flex-1 min-w-0">
                 <span className="font-medium text-foreground">{loc.name}</span>
-                {loc.address && <span className="text-muted-foreground ml-1.5">— {loc.address}</span>}
+                {!residence && loc.address && <span className="text-muted-foreground ml-1.5">— {loc.address}</span>}
               </div>
-              <Badge variant={loc.is_active ? 'default' : 'secondary'} className="text-[10px] h-5">
-                {loc.geofence_mode === 'polygon' ? 'Polygon' : `${loc.radius_meters}m`}
-              </Badge>
+              {loc.location_type && loc.location_type !== 'other' && (
+                <Badge variant="outline" className="text-[10px] h-5">
+                  {LOCATION_TYPE_LABELS[loc.location_type as LocationType] ?? loc.location_type}
+                </Badge>
+              )}
+              {residence ? (
+                <Badge variant="outline" className="text-[10px] h-5 border-amber-500/40 text-amber-700 dark:text-amber-400">Boende</Badge>
+              ) : (
+                <Badge variant={loc.is_active ? 'default' : 'secondary'} className="text-[10px] h-5">
+                  {loc.geofence_mode === 'polygon' ? 'Polygon' : `${loc.radius_meters}m`}
+                </Badge>
+              )}
               {loc.show_as_project && (
                 <Badge variant="outline" className="text-[10px] h-5 text-primary border-primary/30">Tidprojekt</Badge>
               )}
@@ -246,7 +261,8 @@ const OrganizationLocationsManager = () => {
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
