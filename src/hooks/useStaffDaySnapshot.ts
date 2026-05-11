@@ -38,6 +38,10 @@ export interface StaffDaySegment {
   source: string;
   /** Optional backend-provided status badge (e.g. "Bekräftad arbetsplats"). */
   statusLabel?: string | null;
+  /** Optional backend confidence ('high' | 'medium' | 'low'). */
+  confidence?: 'high' | 'medium' | 'low' | null;
+  /** Optional backend warning text (e.g. "Signal saknades periodvis"). */
+  warningLabel?: string | null;
   refs: {
     timeReportId?: string;
     travelLogId?: string;
