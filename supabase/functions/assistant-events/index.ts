@@ -43,6 +43,7 @@ const VALID_EVENT_TYPES = ['arrival', 'departure', 'home_arrival', 'travel_edge'
 const VALID_TARGET_TYPES = ['location', 'project', 'booking', 'home', 'unknown'] as const
 const VALID_SUGGESTED_ACTIONS = [
   'start_workday', 'start_activity', 'end_activity', 'end_workday', 'register_travel', 'review_only',
+  'possible_arrival',
 ] as const
 const VALID_RESOLUTIONS = [
   'pending',
