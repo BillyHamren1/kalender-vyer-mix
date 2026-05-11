@@ -1223,6 +1223,41 @@ export function buildGpsDayTimeline(
       unknownPlace++;
     }
 
+    // ── Engine 5: ephemeral unknown_place suppression ───────────────────
+    // Ett "stay"-cluster med 1 ping (eller < minStayPings) och praktiskt
+    // taget noll varaktighet är inte en plats — det är brus mellan två
+    // rörelse-pings. Att emittera det som unknown_place leder till
+    // 0-min "Okänd plats"-segment som hamnar i presence-/report-lagret
+    // som tekniska småblock. Skippa emissionen helt om:
+    //   - segmentet inte är inne i en primär geofence (overrideOwner=null)
+    //   - inget target matchar
+    //   - duration < 1 min
+    //   - och (pings < minStayPings ELLER duration === 0)
+    // Privata zoner och known_site emitteras alltid (separat gren ovan).
+    if (
+      type === 'unknown_place' &&
+      !overrideOwner &&
+      !match &&
+      durationMin < 1 &&
+      (run.pings.length < cfg.minStayPings || durationMin === 0)
+    ) {
+      ephemeralUnknownStaysSuppressedCount += 1;
+      ephemeralUnknownStaysSuppressedMinutes += durationMin;
+      unknownPlace -= 1;
+      totalCoverageMin -= durationMin;
+      if (transportThresholdExamples.length < 10) {
+        transportThresholdExamples.push({
+          kind: 'ephemeral_unknown_suppressed',
+          startAt: first.ts,
+          endAt: last.ts,
+          durationMinutes: Math.round(durationMin * 100) / 100,
+          distanceMeters: Math.round(distanceMeters),
+          reason: `pings=${run.pings.length}_dur=${Math.round(durationMin * 100) / 100}min_no_target_no_geofence`,
+        });
+      }
+      continue;
+    }
+
     segments.push({
       id: makeId('seg', idx++),
       startTs: first.ts,
