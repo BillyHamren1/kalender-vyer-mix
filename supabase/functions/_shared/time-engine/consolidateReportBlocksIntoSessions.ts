@@ -92,9 +92,19 @@ const SIGNAL_GAP_REASONS = new Set<string>([
   'targets_differ_without_movement',
 ]);
 
+/**
+ * Stark sessionsnyckel — matchar på targetType+targetId först (täcker
+ * locationId, projectId, bookingId, largeProjectId via targetType-prefix).
+ * Faller tillbaka på normaliserad targetLabel när id saknas men labeln
+ * är specifik (>3 tecken) — täcker "samma plats / planned assignment /
+ * work area" när uppströms-builden inte hann binda en id.
+ */
 const sessionTargetKey = (r: ReportCandidateBlock | undefined): string | null => {
-  if (!r || !r.targetId) return null;
-  return `${r.targetType ?? ''}::${r.targetId}`;
+  if (!r) return null;
+  if (r.targetId) return `${r.targetType ?? ''}::${r.targetId}`;
+  const label = (r.targetLabel ?? '').trim().toLowerCase();
+  if (label.length > 3) return `label::${label}`;
+  return null;
 };
 
 export interface ConsolidationResult {
@@ -132,7 +142,7 @@ export function consolidateReportBlocksIntoSessions(
 
     for (let k = 0; k < out.length - 1; k++) {
       const cur = out[k];
-      if (cur.kind !== 'work' || !cur.targetId) continue;
+      if (cur.kind !== 'work') continue;
       const curKey = sessionTargetKey(cur);
       if (!curKey) continue;
 
