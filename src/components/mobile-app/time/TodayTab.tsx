@@ -345,7 +345,7 @@ const TimelineSection: React.FC<{
 }> = ({ snapshot, onChanged }) => {
   const segments = snapshot.segments ?? [];
   const workdayOpen = !!snapshot.workday?.isOpen;
-  const hasActiveInTimeline = segments.some((s) => s.isActive || !s.endedAt);
+  // (Aktivt segment renderas inline i listan — se ActiveSegmentRow.)
 
   // Inget timeline-innehåll OCH ingen pågående arbetsdag → dölj sektion.
   if (segments.length === 0 && !workdayOpen) return null;
