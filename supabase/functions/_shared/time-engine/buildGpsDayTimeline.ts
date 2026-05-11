@@ -1893,6 +1893,41 @@ export function buildGpsDayTimeline(
       remainingTransportInsidePrimaryGeofenceCount: remainingTransportInsidePrimaryCount,
       remainingTransportInsidePrimaryGeofenceMinutes:
         Math.round(remainingTransportInsidePrimaryMinutes * 100) / 100,
+      transportDistanceThresholdDiagnostics: {
+        transportMinDistanceMeters: TRANSPORT_MIN_DISTANCE_METERS,
+        belowThresholdMovementSuppressedCount,
+        belowThresholdMovementSuppressedMinutes:
+          Math.round(belowThresholdMovementSuppressedMinutes * 100) / 100,
+        // reportedSpeed_mps is now strict support-evidence: count pings whose
+        // device-reported speed exceeded the movement threshold while the
+        // computed coord-based speed did NOT (i.e. cases that previously
+        // could have triggered transport on their own).
+        reportedSpeedIgnoredCount: (() => {
+          let n = 0;
+          for (let i = 1; i < accepted.length; i++) {
+            const prev = accepted[i - 1];
+            const p = accepted[i];
+            const dt = (Date.parse(p.ts) - Date.parse(prev.ts)) / 1000;
+            if (dt <= 0) continue;
+            const d = haversine(prev.lat, prev.lng, p.lat, p.lng);
+            const computedKmh = (d / dt) * 3.6;
+            const reportedKmh = p.speedMps != null ? p.speedMps * 3.6 : null;
+            if (
+              reportedKmh != null &&
+              reportedKmh >= cfg.movementSpeedKmh &&
+              computedKmh < cfg.movementSpeedKmh &&
+              d <= cfg.stayRadiusM * 2
+            ) {
+              n += 1;
+            }
+          }
+          return n;
+        })(),
+        falseTravelPreventedCount: belowThresholdMovementSuppressedCount,
+        privateResidenceWinsCount,
+        privateResidenceMatchedPingsCount,
+        examples: transportThresholdExamples,
+      },
     },
     // Back-compat top-level mirrors (consumers like report-candidate-blocks-health
     // read these at the result root). Same values as inside classificationDiagnostics.
