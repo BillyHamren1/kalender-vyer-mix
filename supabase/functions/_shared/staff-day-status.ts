@@ -170,6 +170,7 @@ export interface DayAttestationRow {
   attested_by: string | null;
   locked_at: string | null;
   locked_by: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export type SegmentKind = "project" | "booking" | "travel" | "location" | "unknown" | "active";
