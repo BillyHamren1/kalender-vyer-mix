@@ -5,7 +5,7 @@ import {
   ChevronRight,
   CalendarDays,
   WifiOff,
-  X,
+  
   Activity,
   Briefcase,
   AlertTriangle,
