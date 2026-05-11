@@ -364,6 +364,9 @@ export interface BuildReportCandidateBlocksInput {
    *  pre-work block's GPS center is inside one of these, it is excluded with
    *  reason='home_anchor' for Decision Trace. Read-only. */
   homeAnchors?: HomeAnchorInput[];
+  /** Optional: when a registration is open (status='active' & stopped_at IS NULL),
+   *  consolidate trailing noise after `startedAtIso` into one ongoing work block. */
+  openActiveRegistration?: OpenActiveRegistrationContext | null;
   policy?: ReportCandidatePolicy;
 }
 
