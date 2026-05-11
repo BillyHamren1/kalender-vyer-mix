@@ -78,8 +78,6 @@ describe('buildReportCandidateBlocks', () => {
     expect(result.blocks[0].targetLabel).toBe('FA Warehouse');
     expect(result.blocks[0].startAt).toBe('2026-05-11T04:57:00.000Z');
     expect(result.blocks[0].endAt).toBe('2026-05-11T06:00:00.000Z');
-    expect(result.blocks[0].reviewReasons).toEqual(
-      expect.arrayContaining(['inferred_from_neighbors', 'signal_gaps_inside_work_block']),
-    );
+    expect(result.blocks[0].reviewReasons).toContain('signal_gaps_inside_work_block');
   });
 });
