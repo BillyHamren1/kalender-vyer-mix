@@ -25,7 +25,7 @@ import {
   type StaffDaySegment,
   type StaffDaySnapshot,
 } from '@/hooks/useStaffDaySnapshot';
-import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import { formatHoursMinutes } from '@/utils/formatHours';
