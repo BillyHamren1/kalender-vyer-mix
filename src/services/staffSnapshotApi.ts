@@ -7,6 +7,7 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import { getToken } from '@/services/mobileApiService';
+import { getViewAsStaffId } from '@/services/viewAsStorage';
 
 /**
  * Snapshot/read endpoints AND user-driven mutations (e.g. attest-staff-day)
