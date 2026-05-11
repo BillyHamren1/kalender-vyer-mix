@@ -21,7 +21,10 @@ export type StaffSnapshotFunctionName =
   | 'get-active-timer-status'
   | 'get-active-time-registration-status'
   | 'get-timer-time-segments'
-  | 'attest-staff-day';
+  | 'attest-staff-day'
+  // Time App single-source endpoints (cache-driven):
+  | 'get-mobile-staff-day-report'
+  | 'submit-staff-day-v3';
 
 export async function callStaffSnapshotFunction<T>(
   name: StaffSnapshotFunctionName,
