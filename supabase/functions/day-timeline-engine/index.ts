@@ -115,14 +115,34 @@ async function handleCompute(
   const windowStart = new Date(`${args.date}T00:00:00+01:00`).toISOString();
   const windowEnd   = new Date(`${args.date}T23:59:59+02:00`).toISOString();
 
-  const [pingsRes, reportsRes, entriesRes, workdaysRes, locationsRes, staffRes] = await Promise.all([
-    supabase.from("staff_location_history")
-      .select("id, lat, lng, accuracy, recorded_at")
-      .eq("organization_id", orgId)
-      .eq("staff_id", args.staff_id)
-      .gte("recorded_at", windowStart)
-      .lte("recorded_at", windowEnd)
-      .order("recorded_at", { ascending: true }),
+  // Paginate pings — Supabase default cap is 1000 rows. A staff member with
+  // dense GPS can easily have 2000+ pings/dygn, which would silently truncate
+  // the timeline at ~midday. Loop in 1000-row pages until exhausted.
+  const fetchAllPings = async () => {
+    const all: any[] = [];
+    const PAGE = 1000;
+    let from = 0;
+    // Hard ceiling to avoid runaway loops (≈ one ping every 8 s for 24 h ≈ 11k)
+    for (let i = 0; i < 20; i++) {
+      const { data, error } = await supabase.from("staff_location_history")
+        .select("id, lat, lng, accuracy, recorded_at")
+        .eq("organization_id", orgId)
+        .eq("staff_id", args.staff_id)
+        .gte("recorded_at", windowStart)
+        .lte("recorded_at", windowEnd)
+        .order("recorded_at", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const batch = data ?? [];
+      all.push(...batch);
+      if (batch.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  };
+
+  const [pingRows, reportsRes, entriesRes, workdaysRes, locationsRes, staffRes] = await Promise.all([
+    fetchAllPings(),
     supabase.from("time_reports")
       .select("id, staff_id, organization_id, report_date, start_time, end_time, hours_worked, booking_id, large_project_id, location_id, source, updated_at")
       .eq("organization_id", orgId)
