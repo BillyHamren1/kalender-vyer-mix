@@ -84,6 +84,8 @@ interface ProcessedRow {
   preWorkExcludedMinutes: number;
   error?: string;
   skipped?: 'no_pings' | 'already_cached';
+  signalGapTransport?: any;
+  companionRoute?: any;
 }
 
 async function processOne(
@@ -329,6 +331,8 @@ async function processOne(
     out.unknownMinutes = unknown;
     out.needsReviewMinutes = needsReview;
     out.preWorkExcludedMinutes = preWork;
+    out.signalGapTransport = (presence as any).signalGapTransportDiagnostics ?? null;
+    out.companionRoute = (presence as any).companionRouteDiagnostics ?? null;
     out.ok = true;
 
     if (!dryRun) {
@@ -352,7 +356,11 @@ async function processOne(
             summary_json: summary,
             report_candidate_blocks_json: report.blocks ?? [],
             display_blocks_json: report.blocks ?? [],
-            diagnostics_json: (report as any).diagnostics ?? {},
+            diagnostics_json: {
+              ...((report as any).diagnostics ?? {}),
+              signalGapTransport: (presence as any).signalGapTransportDiagnostics ?? null,
+              companionRoute: (presence as any).companionRouteDiagnostics ?? null,
+            },
             source_watermark: {
               maxPingTs: pings[pings.length - 1]?.ts ?? null,
               activeRegsCount: activeRegs.length,
