@@ -491,9 +491,10 @@ export function evaluateDayApprovability(
 ): ApprovabilityResult {
   const blockers: ApprovalBlocker[] = [];
 
-  if (!context.workday) blockers.push('workday_missing');
-  else if (!context.workday.ended_at) blockers.push('workday_open');
-
+  // Legacy `workdays`-raden är inte längre en grind. Nya motorn visar bara
+  // vad som faktiskt händer — gammal workday/time_report-status ska inte
+  // kunna blockera attest. En aktiv pågående timer är fortfarande en grind
+  // (det är ett pågående NU, inte ett historiskt legacy-spår).
   if (context.openTimer) blockers.push('open_timer');
 
   const pending = (context.assistantEvents ?? []).filter((e) => !e.acknowledged).length;
