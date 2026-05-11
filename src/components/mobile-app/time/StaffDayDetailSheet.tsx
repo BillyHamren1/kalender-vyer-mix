@@ -228,21 +228,31 @@ const DayBody: React.FC<{
         </div>
       </section>
 
-      {/* B. Summering */}
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+      {/* B. Summering — Brutto/Rast/Lön framträdande, övrigt som chips */}
+      <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
           Summering
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Stat label="Brutto" value={formatHoursMinutes(grossMin / 60)} />
-          <Stat label="Rast" value={formatHoursMinutes(breakMin / 60)} />
-          <Stat label="Lönegrundande" value={formatHoursMinutes(payableMin / 60)} />
-          <Stat label="Transport" value={formatHoursMinutes(transportMin / 60)} />
-          <Stat label="Projekt/Lager" value={formatHoursMinutes(projectMin / 60)} />
-          <Stat label="Annan plats" value={formatHoursMinutes(otherPlaceMin / 60)} muted />
+          <Stat label="Rast" value={breakMin > 0 ? formatHoursMinutes(breakMin / 60) : '—'} muted={breakMin === 0} />
+          <Stat label="Lönegrundande" value={formatHoursMinutes(payableMin / 60)} strong />
         </div>
+        {(projectMin > 0 || transportMin > 0 || otherPlaceMin > 0) && (
+          <div className="flex flex-wrap gap-1.5">
+            {projectMin > 0 && (
+              <SecondaryChip label="Projekt/Lager" value={formatHoursMinutes(projectMin / 60)} />
+            )}
+            {transportMin > 0 && (
+              <SecondaryChip label="Transport" value={formatHoursMinutes(transportMin / 60)} />
+            )}
+            {otherPlaceMin > 0 && (
+              <SecondaryChip label="Annan plats" value={formatHoursMinutes(otherPlaceMin / 60)} />
+            )}
+          </div>
+        )}
         {recommendBreak && (
-          <p className="mt-3 text-[12px] text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+          <p className="text-[12px] text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             Glöm inte att lägga in lunch/rast.
           </p>
