@@ -53,6 +53,7 @@ const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
         <div style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
           {/* Global overlays — banners render here at top of content, dialogs portal to root. */}
           <MobileGlobalOverlays />
+          <ViewAsBanner />
           {children}
         </div>
 
