@@ -92,7 +92,7 @@ interface Props {
 }
 
 export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
-  const { snapshot, isLoading, refresh } = useStaffDaySnapshot(date ?? undefined);
+  const { snapshot, isLoading, refresh } = useStaffDayStatusViaMobileReport(date ?? undefined);
   const { staff } = useMobileAuth();
   const open = !!date;
 
