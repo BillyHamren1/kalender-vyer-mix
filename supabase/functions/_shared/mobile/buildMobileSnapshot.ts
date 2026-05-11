@@ -33,6 +33,8 @@ export interface SubmissionRow {
   review_comment: string | null;
 }
 
+// @deprecated — workdays are no longer read by the mobile day mirror.
+// Type kept exported for backwards-compatibility with any old caller.
 export interface WorkdayLivenessRow {
   start_time: string | null;
   end_time: string | null;
