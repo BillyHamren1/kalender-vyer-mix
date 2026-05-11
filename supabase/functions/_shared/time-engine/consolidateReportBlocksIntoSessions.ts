@@ -256,6 +256,7 @@ export function consolidateReportBlocksIntoSessions(
         } else if (r.kind === 'transport') {
           absorbedInternalTransport += 1;
           internalMovementMin += r.durationMinutes;
+          internalMovementMeters += dist;
         }
       }
 
