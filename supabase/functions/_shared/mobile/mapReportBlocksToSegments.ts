@@ -88,6 +88,20 @@ export function mapReportBlocksToSegments(
     if (!raw || typeof raw !== "object") continue;
     const b = raw as RawBlock;
     if (!b.startAt || !b.endAt) continue;
+    // Sanity guard: drop ghost segments > 18h. These are almost always old
+    // un-closed workdays/timers that leaked through the cache.
+    const startMsCheck = new Date(b.startAt).getTime();
+    const endMsCheck = new Date(b.endAt).getTime();
+    if (
+      Number.isFinite(startMsCheck) && Number.isFinite(endMsCheck) &&
+      endMsCheck - startMsCheck > 18 * 60 * 60 * 1000
+    ) {
+      console.warn("[mapReportBlocksToSegments] dropping ghost segment >18h", {
+        id: b.id, startAt: b.startAt, endAt: b.endAt,
+        durationMinutes: b.durationMinutes,
+      });
+      continue;
+    }
     const kind = pickKind(b);
     const refs = refsFor(b);
     const label = b.targetLabel ?? b.title ?? "Okänt";
