@@ -1,21 +1,17 @@
-# Plan
+## Plan
 
-## Problem
-Mobilens `/m/report` faller inte på tidsberäkningen just nu, utan på nätverkslagret: `get-staff-day-status` svarar inte på browserns preflight när `x-view-as-staff` skickas. Därför blir resultatet `Failed to fetch`, och `TodayTab`/dagsdetaljen får ingen snapshot alls.
+Jag kommer att fixa att block-dialogen i `/staff-management/time-reports` går att scrolla igen, utan att ändra någon av blockens klassificerings- eller granskningslogik.
 
-## Vad jag kommer att ändra
-1. Uppdatera `supabase/functions/get-staff-day-status/index.ts` så dess CORS-huvuden matchar de andra snapshot-funktionerna och explicit tillåter `x-view-as-staff`.
-2. Säkerställa att funktionen fortsatt använder samma snapshot-only-regel och inte inför någon lokal fallback i frontend.
-3. Verifiera att `/m/report` i read-only/view-as-läge åter kan hämta dagssnapshot utan `Failed to fetch`.
+### Det jag kommer att göra
+1. Justera layouten i `BlockDetailDialog` i `src/components/staff/StaffGanttView.tsx` så att dialogen får en tydlig intern scroll-yta.
+2. Säkerställa att header och tab-rad ligger kvar stabilt medan innehållet under kan scrollas vertikalt.
+3. Behålla samma innehåll, samma flikar och samma blockdata som idag — endast scroll-/layoutbeteendet ändras.
+4. Verifiera i preview att den långa “Översikt”-vyn kan scrollas hela vägen ned och att dialogen fortfarande fungerar för Karta och Rå GPS.
 
-## Teknisk detalj
-- Felorsaken är att `get-staff-day-status` idag har:
-  - `Access-Control-Allow-Headers: authorization, x-client-info, apikey, content-type`
-- medan övriga snapshot-funktioner redan tillåter:
-  - `..., x-view-as-staff`
-- Frontenden skickar redan `x-view-as-staff` via `callStaffSnapshotFunction`, så browsern stoppar anropet innan Edge Function körs.
+### Tekniska detaljer
+- Nuvarande problem sitter i modalens layout: `DialogContent` är låst med `max-h` + `overflow-hidden`, men den inre containern saknar sannolikt rätt höjd/flex-beteende för att bli en fungerande scroll-container.
+- Jag kommer därför att göra dialogen till en vertikal flex/grid-layout med en dedikerad scrollande content-del, istället för att låta hela innehållet expandera fritt.
+- Om det behövs använder jag projektets befintliga `ScrollArea` eller en ren `overflow-y-auto`-container med korrekt `min-h-0`/`flex-1` så att scroll faktiskt aktiveras i Radix-dialogen.
 
-## Validering
-- Bekräfta att nätverksanropet till `get-staff-day-status` inte längre får `Failed to fetch`.
-- Bekräfta att `/m/report` laddar dagsdata i view-as-läge.
-- Ingen ändring av tidslogik eller lokala summeringar görs i detta steg.
+### Resultat
+Efter ändringen ska man kunna öppna ett block, expandera detaljer och scrolla normalt i popupen utan att något i blocklogiken ändras.

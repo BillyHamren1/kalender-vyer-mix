@@ -1057,8 +1057,8 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[88vh] overflow-hidden p-0">
-        <DialogHeader className="px-6 pt-6 pb-3">
+      <DialogContent className="max-w-4xl h-[88vh] max-h-[88vh] overflow-hidden p-0 flex flex-col gap-0">
+        <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b">
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>{staff.name}</span>
             <span className="text-sm font-normal text-muted-foreground">· {dateLabel}</span>
@@ -1067,7 +1067,7 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
             </span>
           </DialogTitle>
         </DialogHeader>
-        <div className="px-6 pb-6 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4">
           <Tabs defaultValue="overview" className="flex flex-col gap-4">
             <TabsList className="w-full justify-start flex-wrap">
               <TabsTrigger value="overview">Översikt</TabsTrigger>
