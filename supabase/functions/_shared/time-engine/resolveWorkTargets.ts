@@ -946,7 +946,13 @@ export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
   // SECONDARY targets får inte auto-matchas som arbete — de exponeras bara via
   // diagnostics/reviewSuggestions. buildGpsDayTimeline tar emot resultatet
   // från `targets.map(toWorkTarget).filter(Boolean)`, så vi blockar här.
-  if (rt.canAutoMatchAsWork === false) return null;
+  // SECONDARY targets får inte auto-matchas som arbete — de exponeras bara via
+  // diagnostics/reviewSuggestions. buildGpsDayTimeline tar emot resultatet
+  // från `targets.map(toWorkTarget).filter(Boolean)`, så vi blockar här.
+  // UNDANTAG (Engine 4): private_residence/Boende släpps igenom även när
+  // canAutoMatchAsWork=false — GPS-motorn behöver känna till polygonen för
+  // att kunna klassa pings som privat zon (vinner över närliggande Warehouse).
+  if (rt.canAutoMatchAsWork === false && rt.isPrivateResidence !== true) return null;
   const kind: WorkTargetKind =
     rt.type === 'project' ? 'project'
     : rt.type === 'booking' ? 'booking'
@@ -974,5 +980,6 @@ export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
     polygon: polygonGeoJSON,
     assignedToUserToday: rt.dateRelevance === 'today',
     assignmentAnchor: rt.assignmentAnchor ?? undefined,
+    isPrivateResidence: rt.isPrivateResidence === true ? true : undefined,
   };
 }
