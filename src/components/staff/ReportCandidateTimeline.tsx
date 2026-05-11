@@ -468,6 +468,15 @@ function BlockRow({ block, lookups, staffId, staffName, date }: { block: ReportC
             {block.confidence === 'low' && (
               <Badge variant="outline" className="text-[10px] py-0 h-4">låg konfidens</Badge>
             )}
+            {(block.reviewReasons ?? []).includes('inferred_from_neighbors') && (
+              <Badge
+                variant="outline"
+                className="text-[10px] py-0 h-4 border-sky-400 text-sky-700"
+                title="Auto-bedömt som arbete eftersom blocket ligger mellan två arbetsblock samma dag"
+              >
+                auto
+              </Badge>
+            )}
             {block.warningLabel && (
               <span className="text-[10px] text-amber-700" title={block.warningLabel}>
                 ⚠ {block.warningLabel}
