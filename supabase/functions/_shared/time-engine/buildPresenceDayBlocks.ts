@@ -447,28 +447,46 @@ export function buildPresenceDayBlocks(
         continue;
       }
 
-      // ── Try transport-gap classification (companion route is first-class) ──
-      // Look at adjacent segments (stay/travel) for own-position context.
-      // Walk back/forward past coordinate-less neighbours to find anchor positions.
+      // ── Try transport-gap classification (transport blocks are valid anchors) ──
       const pickPos = (s: GpsTimelineSegment | null, useEnd: boolean) => {
         if (!s) return null;
         const lat = useEnd ? (s.endLat ?? s.centerLat) : (s.startLat ?? s.centerLat);
         const lng = useEnd ? (s.endLng ?? s.centerLng) : (s.startLng ?? s.centerLng);
         return lat != null && lng != null ? { lat: Number(lat), lng: Number(lng) } : null;
       };
+      // Walk back/forward past coordinate-less neighbours; transport segments
+      // are accepted as anchors.
       let prevAny: GpsTimelineSegment | null = null;
       for (let j = i - 1; j >= 0; j--) {
+        if (segs[j].kind === 'gps_gap') continue;
         if (pickPos(segs[j], true)) { prevAny = segs[j]; break; }
       }
       let nextAny: GpsTimelineSegment | null = null;
       for (let j = i + 1; j < segs.length; j++) {
+        if (segs[j].kind === 'gps_gap') continue;
         if (pickPos(segs[j], false)) { nextAny = segs[j]; break; }
       }
       const previousKnownPosition = pickPos(prevAny, true);
       const nextKnownPosition = pickPos(nextAny, false);
       const previousIsTransport = !!prevAny && prevAny.kind === 'travel';
       const nextIsTransport = !!nextAny && nextAny.kind === 'travel';
-      const destinationCandidate = findTargetForSeg(nextStable);
+
+      // Destination scan: prefer the immediate next stable known stay; if the
+      // next segments are transport, walk further forward through the
+      // transport chain to find a known_site/warehouse/project destination.
+      let destinationCandidate: WorkTarget | null = findTargetForSeg(nextStable);
+      if (!destinationCandidate) {
+        for (let j = i + 1; j < segs.length; j++) {
+          const s = segs[j];
+          if (s.kind === 'stay' && s.matchedTargetId) {
+            destinationCandidate = findTargetForSeg(s);
+            if (destinationCandidate) break;
+          }
+          // Continue through transport / gps_gap / unknown stays.
+          if (s.kind === 'stay' && s.type !== 'known_site') continue;
+          if (s.kind === 'travel' || s.kind === 'gps_gap') continue;
+        }
+      }
       const previousTargetForCompanion = findTargetForSeg(prevStable);
 
       const companion = findCompanionRouteEvidence({
@@ -496,12 +514,6 @@ export function buildPresenceDayBlocks(
         nextIsTransport,
         destinationCandidate,
         conflictingSignals: {
-          // We currently don't have direct access to hard geo-events inside this
-          // window — the classifier therefore relies on segment shape. The
-          // resolveWorkTargets/buildGpsDayTimeline pipeline already applied
-          // sticky-rules upstream, so a confirmed_on_site at another place would
-          // already have killed this gap by being a stay. We treat the
-          // surrounding segments as a proxy.
           anyHardGeoEntry: false,
           anyConfirmedStayAtOtherPlace: false,
           anyHomePrivate: false,
@@ -509,9 +521,17 @@ export function buildPresenceDayBlocks(
         companionRouteEvidence: companion,
       });
 
+      if (classification.transportAnchorsUsed) sgDiag.transportAnchorsUsedCount += 1;
+      if (classification.routeContinuationConfirmed) sgDiag.routeContinuationConfirmedCount += 1;
+      if (companion.matched) sgDiag.companionBoostedCount += 1;
+      if (companion.confidence === 'low' && !companion.matched) {
+        sgDiag.lowConfidenceCandidateCount += 1;
+      }
+      if (!previousKnownPosition || !nextKnownPosition) {
+        if (!classification.countsAsTransport) sgDiag.missingAnchorRejectedCount += 1;
+      }
+
       if (classification.countsAsTransport) {
-        // Emit a transport-shaped block. aggregateEvidenceBlocks will fold it
-        // into surrounding transport blocks naturally.
         const dur = gapMin;
         const isConfirmed = classification.classification === 'confirmed_transport_gap';
         if (isConfirmed) {
@@ -535,8 +555,13 @@ export function buildPresenceDayBlocks(
             confidence: classification.confidence,
             confidenceScore: classification.confidenceScore,
             matchedStaffCount: companion.matchedStaffCount,
-            previousTargetLabel: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
-            nextTargetLabel: nextStable?.matchedTargetName ?? nextStable?.label ?? null,
+            previousBlockKind: prevAny?.kind ?? null,
+            nextBlockKind: nextAny?.kind ?? null,
+            transportAnchorsUsed: classification.transportAnchorsUsed,
+            routeContinuationConfirmed: classification.routeContinuationConfirmed,
+            destinationConfirmed: classification.destinationConfirmed,
+            destinationLabel: classification.destinationEvidence?.label ?? null,
+            impliedSpeedKmh: classification.impliedSpeedKmh,
             reasons: classification.reasons,
           });
         }
@@ -550,10 +575,18 @@ export function buildPresenceDayBlocks(
             matchedCompanionNames: companion.matchedStaff.map((m) => m.staffName).filter(Boolean),
             coverageRatio: companion.matchedStaff[0]?.coverageRatio ?? 0,
             previousTargetLabel: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
-            nextTargetLabel: nextStable?.matchedTargetName ?? nextStable?.label ?? null,
+            nextTargetLabel: destinationCandidate?.label ?? null,
             reasons: companion.reasons,
           });
         }
+
+        const isHigh = classification.confidence === 'high' || classification.confidence === 'very_high';
+        const subtitleSuffix = destinationCandidate?.label
+          ? ` · ${prevStable?.matchedTargetName ?? prevStable?.label ?? '?'} → ${destinationCandidate.label}`
+          : '';
+        const reviewReason = isHigh
+          ? null
+          : 'gps_gap_inside_probable_transport';
 
         blocks.push({
           id: newId('transport'),
@@ -565,24 +598,34 @@ export function buildPresenceDayBlocks(
           targetType: null,
           targetId: null,
           targetLabel: 'Transport',
-          confidence: classification.confidence === 'medium' ? 'medium' : 'high',
+          confidence: isHigh ? 'high' : 'medium',
           confidenceReason: companion.matched
             ? 'multi_staff_route_confirmation'
-            : 'short_signal_gap_inside_confirmed_route',
+            : classification.routeContinuationConfirmed
+              ? 'transport_anchors_both_sides'
+              : 'short_signal_gap_inside_confirmed_route',
           reviewState: 'ok',
           evidence: {
             signalGapMinutes: dur,
             warningLabel: classification.warningLabel,
+            transportSubtitleSuffix: subtitleSuffix,
             transportGapClassification: classification.classification,
             transportGapConfidence: classification.confidence,
             transportGapConfidenceScore: classification.confidenceScore,
             transportGapReasons: classification.reasons,
+            transportGapReviewReason: reviewReason,
+            transportAnchorsUsed: classification.transportAnchorsUsed,
+            routeContinuationConfirmed: classification.routeContinuationConfirmed,
+            destinationConfirmed: classification.destinationConfirmed,
             companionRouteEvidence: companion,
             destinationEvidence: classification.destinationEvidence,
             impliedSpeedKmh: classification.impliedSpeedKmh,
+            previousBlockKind: prevAny?.kind ?? null,
+            nextBlockKind: nextAny?.kind ?? null,
             surroundingTargetLabels: {
               before: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
-              after: nextStable?.matchedTargetName ?? nextStable?.label ?? null,
+              after: destinationCandidate?.label
+                ?? nextStable?.matchedTargetName ?? nextStable?.label ?? null,
             },
           } as any,
           sourceSegmentIds: [seg.id],
