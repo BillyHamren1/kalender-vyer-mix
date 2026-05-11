@@ -43,6 +43,8 @@ function mapSegment(s: MobileSegment): StaffDaySegment {
     label: s.label,
     source: 'mobile_day_report',
     statusLabel: s.statusLabel,
+    confidence: (s as any).confidence ?? null,
+    warningLabel: (s as any).warningLabel ?? null,
     refs: {
       bookingId: s.bookingId,
       largeProjectId: s.largeProjectId,

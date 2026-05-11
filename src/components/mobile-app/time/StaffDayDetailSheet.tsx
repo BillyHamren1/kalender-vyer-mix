@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
 import StaffDayAttestSection from './StaffDayAttestSection';
 import EndDayButton from './EndDayButton';
+import SegmentDetailSheet from './SegmentDetailSheet';
 
 const TZ_TODAY = 'Europe/Stockholm';
 function useTick(intervalMs = 1000) {
@@ -134,6 +135,7 @@ const DayBody: React.FC<{
   staffId: string | null;
   onChanged: () => void;
 }> = ({ snapshot, date, staffId, onChanged }) => {
+  const [selectedSeg, setSelectedSeg] = useState<StaffDaySegment | null>(null);
   const wd = snapshot.workday;
   const t = snapshot.totals;
   const isLocked = !!wd?.approved;
@@ -300,10 +302,12 @@ const DayBody: React.FC<{
                 return <ActiveTimelineRow key={`${seg.startedAt}-${idx}`} seg={seg} />;
               }
               return (
-                <div
+                <button
+                  type="button"
                   key={`${seg.startedAt}-${idx}`}
+                  onClick={() => setSelectedSeg(seg)}
                   className={cn(
-                    'flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2',
+                    'w-full text-left flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2 active:bg-muted/50 transition-colors',
                     seg.kind === 'unknown' && 'border-amber-500/30 bg-amber-500/5',
                     isActive && 'border-primary/30 bg-primary/5',
                   )}
@@ -320,7 +324,7 @@ const DayBody: React.FC<{
                   <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
                     {formatHoursMinutes(seg.durationMinutes / 60)}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -361,6 +365,13 @@ const DayBody: React.FC<{
           onSubmitted={onChanged}
         />
       )}
+
+      <SegmentDetailSheet
+        segment={selectedSeg}
+        date={date}
+        staffId={staffId}
+        onClose={() => setSelectedSeg(null)}
+      />
     </div>
   );
 };
