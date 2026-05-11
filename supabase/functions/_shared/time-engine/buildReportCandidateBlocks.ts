@@ -189,7 +189,54 @@ export interface ReportCandidateSummary {
   inferredFromNeighborsMinutes: number;
   inferredFromNeighborsInheritedTargetCount: number;
   inferredFromNeighborsUnlabeledCount: number;
+  /**
+   * Diagnostik för needs_review-klassningen.
+   * - blockingReviewBlocksCount: block med faktiska blocking-reasons (eller kind unknown/needs_review).
+   * - warningOnlyBlocksCount: block som är ok men har warningLabel/non-blocking reason.
+   * - signalGapWarningOnlyBlocksCount: work-block med signalgap som stannade som ok.
+   * - signalGapPromotedToReviewCount: work-block där extremt signalgap utan onsite-evidens lyfte till needs_review.
+   * - clearWorkBlocksIncorrectlyReviewCount: regression-räknare. Ska alltid vara 0.
+   */
+  reviewClassificationDiagnostics: {
+    blockingReviewBlocksCount: number;
+    warningOnlyBlocksCount: number;
+    signalGapWarningOnlyBlocksCount: number;
+    signalGapPromotedToReviewCount: number;
+    clearWorkBlocksIncorrectlyReviewCount: number;
+  };
 }
+
+/**
+ * Reasons som faktiskt kräver mänsklig granskning.
+ * Endast dessa lyfter ett block till reviewState='needs_review'.
+ */
+const BLOCKING_REVIEW_REASONS = new Set<string>([
+  'missing_transition_evidence',
+  'signal_gap_unresolved',
+  'signal_gap_open_day',
+  'unknown_place',
+  'short_cross_target_movement',
+  'short_transport_to_unknown',
+  'conflicting_target_evidence',
+  'home_private_conflict',
+  'impossible_speed',
+  'no_anchor_coordinates',
+]);
+
+/**
+ * Reasons som är informativa men inte kräver granskning. Visas som
+ * warningLabel / Decision Trace, aldrig som "Granska" i UI.
+ */
+const WARNING_ONLY_REASONS = new Set<string>([
+  'signal_gaps_inside_work_block',
+  'same_target_transport_missing_distance',
+  'same_target_roundtrip_long_distance',
+  'movement_inside_same_target',
+  'absorbed_micro_movement',
+  'partial_outside_sticky_geofence',
+]);
+
+export { BLOCKING_REVIEW_REASONS, WARNING_ONLY_REASONS };
 
 export interface ActiveTimeRegistrationInput {
   id: UUID;
