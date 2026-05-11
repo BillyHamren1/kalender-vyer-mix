@@ -199,6 +199,7 @@ export interface GeoAnchor {
     | 'target_not_primary'
     | 'target_not_today'
     | null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. TargetMatch

@@ -1011,6 +1011,10 @@ export function buildReportCandidateBlocks(
       host.evidenceSummary.distanceMeters =
         (host.evidenceSummary.distanceMeters ?? 0) + victim.evidenceSummary.distanceMeters;
     }
+    host.reviewReasons = Array.from(new Set([...(host.reviewReasons ?? []), ...(victim.reviewReasons ?? [])]));
+    if (!host.warningLabel && victim.warningLabel) {
+      host.warningLabel = victim.warningLabel;
+    }
     // Confidence drops one notch when we fold movement evidence in
     if (host.kind === 'work' && victim.kind === 'transport' && host.confidence === 'high') {
       host.confidence = 'medium';
@@ -1363,6 +1367,30 @@ export function buildReportCandidateBlocks(
       cur.subtitle = `${fmtClock(cur.startAt)}–${fmtClock(cur.endAt)} · ${fmtDuration(cur.durationMinutes)}`;
       inferredFromNeighborsCount += 1;
       inferredFromNeighborsMinutes += cur.durationMinutes;
+    }
+  }
+
+  // POST-PASS 2.6: merge adjacent same-target work after sandwich inference.
+  // When a short unknown/needs_review row is reclassified to `work` with an
+  // inherited target, it can leave `work-A | work-A | work-A` as three visible
+  // rows because the earlier merge passes have already run. Fold these back
+  // together so one continuous workplace span is shown.
+  let changed25 = true;
+  let safety25 = 0;
+  while (changed25 && safety25 < 50) {
+    changed25 = false;
+    safety25 += 1;
+    for (let k = 1; k < out.length; k++) {
+      const prev = out[k - 1];
+      const cur = out[k];
+      if (prev.kind !== 'work' || cur.kind !== 'work') continue;
+      const prevKey = targetKeyOf(prev);
+      const curKey = targetKeyOf(cur);
+      if (!prevKey || !curKey || prevKey !== curKey) continue;
+      absorbInto(prev, cur);
+      out.splice(k, 1);
+      changed25 = true;
+      break;
     }
   }
 
