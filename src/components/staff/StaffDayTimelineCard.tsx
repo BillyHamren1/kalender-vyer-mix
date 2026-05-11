@@ -433,6 +433,8 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
         reportCandidateDiagnostics={props.reportCandidateDiagnostics ?? null}
         targetMatchSummary={props.reportCandidateTargetMatchSummary ?? null}
         counts={props.reportCandidateCounts ?? null}
+        excludedPreWorkBlocks={props.reportCandidateExcludedPreWorkBlocks ?? null}
+        preWorkExclusionDiagnostics={props.reportCandidatePreWorkExclusionDiagnostics ?? null}
       />
     </section>
   );
