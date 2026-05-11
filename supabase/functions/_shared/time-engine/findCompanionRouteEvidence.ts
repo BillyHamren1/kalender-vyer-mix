@@ -76,7 +76,7 @@ const MAX_AVG_KMH = 130;
 
 function targetKey(t: WorkTarget | null): string | null {
   if (!t) return null;
-  return `${t.kind}:${t.id}`;
+  return `${t.kind}:${t.refId}`;
 }
 
 function evaluatePeer(
@@ -209,7 +209,7 @@ export function findCompanionRouteEvidence(input: CompanionRouteInput): Companio
   const destinationIsWorkRelated =
     !!input.nextTarget && (input.nextTarget.kind === 'organization_location'
       || input.nextTarget.kind === 'project'
-      || input.nextTarget.kind === 'large_project'
+      
       || input.nextTarget.kind === 'booking');
 
   let confidence: CompanionRouteEvidence['confidence'] = 'medium';

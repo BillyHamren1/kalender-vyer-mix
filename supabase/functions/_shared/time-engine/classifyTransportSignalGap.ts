@@ -104,7 +104,7 @@ export function classifyTransportSignalGap(
   const destinationIsWorkRelated =
     !!input.destinationCandidate && (input.destinationCandidate.kind === 'organization_location'
       || input.destinationCandidate.kind === 'project'
-      || input.destinationCandidate.kind === 'large_project'
+      |
       || input.destinationCandidate.kind === 'booking');
 
   const destinationEvidence = input.destinationCandidate
