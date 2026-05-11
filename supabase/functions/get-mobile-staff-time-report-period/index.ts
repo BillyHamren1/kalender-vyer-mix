@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
   const dates = eachDay(startDate, endDate);
 
   // Fetch all relevant rows in parallel — single round-trip per table.
-  const [cacheRes, subRes, wdRes] = await Promise.all([
+  const [cacheRes, subRes] = await Promise.all([
     admin
       .from("staff_day_report_cache")
       .select(
@@ -179,13 +179,6 @@ Deno.serve(async (req) => {
       .eq("organization_id", orgId)
       .eq("staff_id", staffId)
       .in("date", dates),
-    admin
-      .from("workdays")
-      .select("date, start_time, end_time")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .in("date", dates)
-      .order("start_time", { ascending: false }),
   ]);
 
   if (cacheRes.error) {
@@ -202,10 +195,6 @@ Deno.serve(async (req) => {
   for (const row of (subRes.data ?? []) as Array<SubmissionRow & { date: string }>) {
     subByDate.set(row.date, row);
   }
-  const wdByDate = new Map<string, WorkdayLivenessRow>();
-  for (const row of (wdRes.data ?? []) as Array<WorkdayLivenessRow & { date: string }>) {
-    if (!wdByDate.has(row.date)) wdByDate.set(row.date, row);
-  }
 
   // Build per-day MobileDayReport, then map to DaySummaryOut.
   const days: DaySummaryOut[] = [];
@@ -215,7 +204,7 @@ Deno.serve(async (req) => {
       staffId,
       cache: cacheByDate.get(date) ?? null,
       submission: subByDate.get(date) ?? null,
-      workday: wdByDate.get(date) ?? null,
+      workday: null,
     });
     days.push(dayFromReport(date, report));
   }
