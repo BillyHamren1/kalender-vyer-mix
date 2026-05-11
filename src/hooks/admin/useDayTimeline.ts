@@ -57,10 +57,18 @@ export interface DayTimelineSuggestion {
   status: string;
 }
 
+export interface DayTimelineCoverage {
+  last_ping_ts: string | null;
+  last_event_end_ts: string | null;
+  gap_minutes: number;
+  ping_count?: number;
+}
+
 export interface DayTimelineResponse {
   events: DayTimelineEvent[];
   suggestions: DayTimelineSuggestion[];
   snapshot: { computed_at?: string; cached?: boolean } | null;
+  coverage?: DayTimelineCoverage | null;
 }
 
 interface Args { staffId: string | null; date: string | null; enabled?: boolean }
