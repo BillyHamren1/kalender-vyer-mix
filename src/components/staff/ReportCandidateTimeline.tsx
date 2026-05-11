@@ -442,7 +442,7 @@ function EvidencePanel({
   );
 }
 
-function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null }) {
+function BlockRow({ block, lookups, staffId, staffName, date, resolved, previousBlock, nextBlock, rawPings }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null; previousBlock?: ReportCandidateBlockUI | null; nextBlock?: ReportCandidateBlockUI | null; rawPings?: Array<{ ts?: string; recorded_at?: string; lat?: number; lng?: number; speed?: number; speedKph?: number; accuracy?: number }> | null }) {
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
