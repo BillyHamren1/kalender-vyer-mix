@@ -1376,6 +1376,19 @@ function mergeUnknown(
     .filter((s) => s.kind === 'signal_gap')
     .reduce((a, s) => a + s.durationMinutes, 0);
 
+  // Engine 4 — preserve privateResidence flag if EVERY anchor is private.
+  // (Mixed runs keep the default unknown_place treatment so a real "okänd
+  // plats" never gets silently hidden by an adjacent boende anchor.)
+  const allPrivate = anchors.length > 0 && anchors.every(
+    (a) => (a.evidence as any)?.privateResidence === true,
+  );
+  const firstPrivateLabel = allPrivate
+    ? ((anchors[0].evidence as any)?.privateResidenceLabel ?? null)
+    : null;
+  const firstPrivateTargetId = allPrivate
+    ? ((anchors[0].evidence as any)?.privateResidenceTargetId ?? null)
+    : null;
+
   return {
     id: newId('unknown_place'),
     kind: 'unknown_place',
@@ -1385,10 +1398,14 @@ function mergeUnknown(
     durationLabel: formatDurationLabel(dur),
     targetType: null,
     targetId: null,
-    targetLabel: 'Okänd plats',
+    targetLabel: allPrivate
+      ? (firstPrivateLabel ? `Boende: ${firstPrivateLabel}` : 'Boende')
+      : 'Okänd plats',
     confidence: 'medium',
-    confidenceReason: `Sammanslagen okänd plats (${anchors.length} delar${suppressed.length ? `, ${suppressed.length} broar` : ''}, max ${Math.round(maxDist)} m)`,
-    reviewState: 'needs_review',
+    confidenceReason: allPrivate
+      ? `Sammanslagen privat boende-vistelse (${anchors.length} delar)`
+      : `Sammanslagen okänd plats (${anchors.length} delar${suppressed.length ? `, ${suppressed.length} broar` : ''}, max ${Math.round(maxDist)} m)`,
+    reviewState: allPrivate ? 'ok' : 'needs_review',
     evidence: {
       pingCount: pings,
       mergedBlockCount: anchors.length,
@@ -1397,6 +1414,13 @@ function mergeUnknown(
       maxDistanceMeters: Math.round(maxDist),
       signalGapMinutes: suppressedSignalGapMin || undefined,
       suppressedKinds: Object.keys(suppressedKinds).length ? suppressedKinds : undefined,
+      ...(allPrivate
+        ? {
+            privateResidence: true,
+            privateResidenceTargetId: firstPrivateTargetId,
+            privateResidenceLabel: firstPrivateLabel,
+          }
+        : {}),
     },
     sourceSegmentIds: anchors.flatMap((m) => m.sourceSegmentIds),
     hiddenRawSegmentIds: [
