@@ -440,7 +440,9 @@ function EvidencePanel({
   );
 }
 
-function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null }) {
+function BlockRow({ block, lookups, staffId, staffName, date, resolved, aiReviewMeta }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null; aiReviewMeta?: import('@/lib/staff/aiReview').AiReviewMeta | null }) {
+  const aiChip = aiReviewMeta ? aiReviewChipLabel(aiReviewMeta) : null;
+  const aiTooltip = aiReviewMeta ? aiReviewChipTooltip(aiReviewMeta) : null;
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
