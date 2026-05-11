@@ -699,6 +699,7 @@ export function buildPresenceDayBlocks(
           evidence: {
             signalGapMinutes: gapMin,
             distanceBetweenAnchorsMeters: distance ?? undefined,
+            staffOwnDisplacementMeters: distance ?? undefined,
             surroundingTargetLabels: {
               before: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
               after: nextStable?.matchedTargetName ?? nextStable?.label ?? null,
