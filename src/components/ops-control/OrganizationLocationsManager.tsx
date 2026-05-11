@@ -38,6 +38,9 @@ const OrganizationLocationsManager = () => {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [showAsProject, setShowAsProject] = useState(false);
+  const [locationType, setLocationType] = useState<LocationType>('other');
+  const [notes, setNotes] = useState('');
+  const [isActive, setIsActive] = useState(true);
   const [geofence, setGeofence] = useState<GeofenceValue>({
     mode: 'circle',
     latitude: 0,
@@ -47,6 +50,8 @@ const OrganizationLocationsManager = () => {
   });
   const [centerOn, setCenterOn] = useState<{ lat: number; lng: number } | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
+
+  const isResidence = locationType === 'private_residence';
 
   const { data: locations = [], isLoading } = useQuery({
     queryKey: ['organization-locations'],
