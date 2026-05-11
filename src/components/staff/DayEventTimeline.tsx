@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, Activity } from "lucide-react";
+import { RefreshCw, Activity, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDayTimeline } from "@/hooks/admin/useDayTimeline";
@@ -12,14 +12,29 @@ interface Props {
   onSelectEvent?: (eventId: string) => void;
 }
 
+const fmtHm = (iso: string | null) => {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleTimeString("sv-SE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Stockholm",
+    });
+  } catch {
+    return "—";
+  }
+};
+
 export function DayEventTimeline({ staffId, date, selectedEventId, onSelectEvent }: Props) {
-  const { events, isLoading, isFetching, error, refresh } = useDayTimeline({ staffId, date });
+  const { events, coverage, isLoading, isFetching, error, refresh } = useDayTimeline({ staffId, date });
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try { await refresh(); } finally { setRefreshing(false); }
   };
+
+  const showCoverageBanner = !!coverage && coverage.gap_minutes > 30 && !!coverage.last_ping_ts;
 
   return (
     <section className="space-y-3 rounded-lg border border-border/60 bg-card p-4">
@@ -43,6 +58,29 @@ export function DayEventTimeline({ staffId, date, selectedEventId, onSelectEvent
           Räkna om
         </Button>
       </header>
+
+      {showCoverageBanner && coverage && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <div className="font-medium">Tidslinjen kan vara ofullständig</div>
+            <div className="opacity-90">
+              Senaste händelse slutar {fmtHm(coverage.last_event_end_ts)} men GPS-pings finns till {fmtHm(coverage.last_ping_ts)} ({coverage.gap_minutes} min glapp).
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing || isLoading}
+            className="h-7 text-xs gap-1"
+          >
+            <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+            Bygg om dagen
+          </Button>
+        </div>
+      )}
 
       {isLoading && (
         <div className="space-y-2">

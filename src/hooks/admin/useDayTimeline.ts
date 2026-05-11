@@ -57,10 +57,18 @@ export interface DayTimelineSuggestion {
   status: string;
 }
 
+export interface DayTimelineCoverage {
+  last_ping_ts: string | null;
+  last_event_end_ts: string | null;
+  gap_minutes: number;
+  ping_count?: number;
+}
+
 export interface DayTimelineResponse {
   events: DayTimelineEvent[];
   suggestions: DayTimelineSuggestion[];
   snapshot: { computed_at?: string; cached?: boolean } | null;
+  coverage?: DayTimelineCoverage | null;
 }
 
 interface Args { staffId: string | null; date: string | null; enabled?: boolean }
@@ -132,6 +140,7 @@ export function useDayTimeline({ staffId, date, enabled = true }: Args) {
     events: query.data?.events ?? [],
     suggestions: query.data?.suggestions ?? [],
     snapshot: query.data?.snapshot ?? null,
+    coverage: query.data?.coverage ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error as Error | null,
