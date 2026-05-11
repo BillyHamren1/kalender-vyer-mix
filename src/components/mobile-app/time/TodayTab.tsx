@@ -277,12 +277,11 @@ const ActiveSegmentRow: React.FC<{ seg: StaffDaySegment }> = ({ seg }) => {
 const TimelineSection: React.FC<{
   snapshot: StaffDaySnapshot;
   onChanged: () => void;
-}> = ({ snapshot, onChanged }) => {
+  onSelectSegment: (seg: StaffDaySegment) => void;
+}> = ({ snapshot, onChanged, onSelectSegment }) => {
   const segments = snapshot.segments ?? [];
   const workdayOpen = !!snapshot.workday?.isOpen;
-  // (Aktivt segment renderas inline i listan — se ActiveSegmentRow.)
 
-  // Inget timeline-innehåll OCH ingen pågående arbetsdag → dölj sektion.
   if (segments.length === 0 && !workdayOpen) return null;
 
   return (
@@ -292,8 +291,6 @@ const TimelineSection: React.FC<{
       </p>
 
       {segments.length === 0 ? (
-        // Arbetsdag pågår men inget aktivt segment finns att rendera —
-        // visa ett minimalt "Arbetsdag pågår"-block (ersätter ActiveNowCard).
         <div className="rounded-xl border-2 border-primary bg-primary/5 px-3 py-3 flex items-center gap-3">
           <span className="shrink-0 w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
             <Sun className="w-4 h-4" />
@@ -319,17 +316,28 @@ const TimelineSection: React.FC<{
           {segments.map((seg, idx) => {
             const isActive = !!seg.isActive || !seg.endedAt;
             if (isActive) {
-              return <ActiveSegmentRow key={`${seg.startedAt}-${idx}`} seg={seg} />;
+              return (
+                <button
+                  type="button"
+                  key={`${seg.startedAt}-${idx}`}
+                  onClick={() => onSelectSegment(seg)}
+                  className="w-full text-left active:scale-[0.99] transition-transform"
+                >
+                  <ActiveSegmentRow seg={seg} />
+                </button>
+              );
             }
             const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
             const tone = SEG_TONE[seg.kind] ?? SEG_TONE.unknown;
             const kindLabel = SEG_KIND_LABEL[seg.kind] ?? '';
             const statusLabel = seg.statusLabel ?? null;
             return (
-              <div
+              <button
+                type="button"
                 key={`${seg.startedAt}-${idx}`}
+                onClick={() => onSelectSegment(seg)}
                 className={cn(
-                  'flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2.5',
+                  'w-full text-left flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2.5 active:bg-muted/50 transition-colors',
                   seg.kind === 'unknown' && 'border-amber-500/30 bg-amber-500/5',
                 )}
               >
@@ -357,13 +365,12 @@ const TimelineSection: React.FC<{
                 <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
                   {fmtMinutes(seg.durationMinutes)}
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       )}
 
-      {/* Stoppknapp direkt under tidslinjens sista block. */}
       {workdayOpen && (
         <div className="pt-2">
           <EndDayButton workdayOpen onStopped={onChanged} />
