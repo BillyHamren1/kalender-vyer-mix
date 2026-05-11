@@ -209,22 +209,19 @@ function deriveStatus(model: ActualStaffDayModel): { kind: HeaderStatus; label: 
     return { kind: 'review', label: 'Kräver granskning' };
   }
 
-  // 2. missing_report
-  if (wd && model.reportState.timeReports.length === 0 && model.reportState.locationEntries.length === 0) {
+  // 2. missing_report — bara om vi har en stängd arbetsdag utan rapport
+  if (wd && wd.ended_at && model.reportState.timeReports.length === 0 && model.reportState.locationEntries.length === 0) {
     return { kind: 'missing_report', label: 'Saknar rapport' };
-  }
-  if (!wd && (model.actualVisits.length > 0 || model.actualEvents.length > 0)) {
-    return { kind: 'missing_report', label: 'Saknar arbetsdag' };
   }
 
   // 3. planned_only
-  if (hasPlannedGap && !wd) {
+  if (hasPlannedGap && !wd && model.actualVisits.length === 0 && model.actualEvents.length === 0) {
     return { kind: 'planned_only', label: 'Planerad – ej startad' };
   }
 
-  // 4. ongoing
-  if (wd && !wd.ended_at) {
-    return { kind: 'ongoing', label: auto ? 'Pågående arbetsdag · auto-skapad' : 'Pågående arbetsdag' };
+  // 4. ongoing — telefonen pingar = arbetsdag pågår, oavsett om workday-rad finns
+  if ((wd && !wd.ended_at) || (!wd && (model.actualVisits.length > 0 || model.actualEvents.length > 0))) {
+    return { kind: 'ongoing', label: 'Pågående arbetsdag' };
   }
 
   // 5. ended
