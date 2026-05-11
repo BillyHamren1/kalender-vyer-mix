@@ -6,18 +6,30 @@ import {
   updateOrganizationLocation,
   deleteOrganizationLocation,
   OrganizationLocation,
+  LocationType,
+  LOCATION_TYPE_LABELS,
 } from '@/services/organizationLocationService';
-import { Building2, Plus, Trash2, MapPin, Edit2, Check, Search, Loader2 } from 'lucide-react';
+import { Building2, Plus, Trash2, MapPin, Edit2, Check, Search, Loader2, Home, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import GeofenceMapEditor, { GeofenceValue } from './GeofenceMapEditor';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+
+const LOCATION_TYPE_ORDER: LocationType[] = [
+  'warehouse',
+  'project_site',
+  'customer_site',
+  'supplier',
+  'private_residence',
+  'other',
+];
 
 const OrganizationLocationsManager = () => {
   const queryClient = useQueryClient();
