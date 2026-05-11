@@ -143,13 +143,8 @@ function periodBounds(input: StaffTimeReportPeriodInput): {
 }
 
 const REALTIME_TABLES = [
-  'workdays',
-  'time_reports',
-  'travel_time_logs',
-  'location_time_entries',
-  'workday_flags',
-  'assistant_events',
-  'day_attestations',
+  'staff_day_report_cache',
+  'staff_day_submissions',
 ] as const;
 
 export function useStaffTimeReportPeriod(
@@ -175,7 +170,7 @@ export function useStaffTimeReportPeriod(
     setIsLoading(true);
     try {
       const data: any = await callStaffSnapshotFunction(
-        'get-staff-time-report-period',
+        'get-mobile-staff-time-report-period',
         { staffId, kind: input.kind, startDate, endDate },
       );
       const t = data?.totals ?? {};

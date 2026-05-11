@@ -25,7 +25,7 @@ import {
   type StaffDaySegment,
   type StaffDaySnapshot,
 } from '@/hooks/useStaffDaySnapshot';
-import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import { formatHoursMinutes } from '@/utils/formatHours';
@@ -92,7 +92,7 @@ interface Props {
 }
 
 export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
-  const { snapshot, isLoading, refresh } = useStaffDaySnapshot(date ?? undefined);
+  const { snapshot, isLoading, refresh } = useStaffDayStatusViaMobileReport(date ?? undefined);
   const { staff } = useMobileAuth();
   const open = !!date;
 

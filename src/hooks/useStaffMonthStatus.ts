@@ -10,7 +10,7 @@
  * single source of truth.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { format, startOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
@@ -79,13 +79,8 @@ interface Result {
 
 const POLL_MS = 60_000;
 const REALTIME_TABLES = [
-  'workdays',
-  'time_reports',
-  'travel_time_logs',
-  'location_time_entries',
-  'workday_flags',
-  'assistant_events',
-  'day_attestations',
+  'staff_day_report_cache',
+  'staff_day_submissions',
 ] as const;
 
 export function useStaffMonthStatus(month?: Date | string): Result {
@@ -95,6 +90,14 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     const d =
       typeof month === 'string' ? new Date(`${month}-01`) : month ?? new Date();
     return format(startOfMonth(d), 'yyyy-MM');
+  }, [month]);
+  const bounds = useMemo(() => {
+    const d =
+      typeof month === 'string' ? new Date(`${month}-01`) : month ?? new Date();
+    return {
+      startDate: format(startOfMonth(d), 'yyyy-MM-dd'),
+      endDate: format(endOfMonth(d), 'yyyy-MM-dd'),
+    };
   }, [month]);
 
   const [status, setStatus] = useState<StaffMonthStatus | null>(null);
@@ -112,11 +115,24 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     inFlight.current = true;
     setIsLoading(true);
     try {
-      const data = await callStaffSnapshotFunction<StaffMonthStatus>(
-        'get-staff-month-status',
-        { staffId, month: monthKey },
+      const data: any = await callStaffSnapshotFunction(
+        'get-mobile-staff-time-report-period',
+        { staffId, kind: 'month', startDate: bounds.startDate, endDate: bounds.endDate },
       );
-      setStatus(data);
+      // Adapt period response → StaffMonthStatus shape (totals/days same fields).
+      setStatus({
+        month: monthKey,
+        staffId,
+        days: (data?.days ?? []) as StaffMonthDayStatus[],
+        totals: (data?.totals ?? {
+          grossWorkdayMinutes: 0, breakMinutes: 0, manualDeductionMinutes: 0,
+          payableMinutes: 0, approvedPayableMinutes: 0, submittedPayableMinutes: 0,
+          awaitingUserAttestPayableMinutes: 0, awaitingAttestPayableMinutes: 0,
+          daysWithActions: 0, daysWithWork: 0,
+          projectMinutes: 0, warehouseMinutes: 0, transportMinutes: 0, otherPlaceMinutes: 0,
+        }) as StaffMonthTotals,
+        lastUpdatedAt: data?.lastUpdatedAt ?? new Date().toISOString(),
+      });
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Kunde inte ladda månadsstatus');
@@ -124,7 +140,7 @@ export function useStaffMonthStatus(month?: Date | string): Result {
       setIsLoading(false);
       inFlight.current = false;
     }
-  }, [staffId, monthKey]);
+  }, [staffId, monthKey, bounds.startDate, bounds.endDate]);
 
   const scheduleRefresh = useCallback(() => {
     if (debounce.current) window.clearTimeout(debounce.current);

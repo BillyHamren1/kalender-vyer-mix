@@ -16,7 +16,7 @@ import {
   ChevronLeft, ChevronRight, Loader2, AlertTriangle, FileCheck2, CalendarDays,
 } from 'lucide-react';
 import { useStaffTimeReportPeriod } from '@/hooks/useStaffTimeReportPeriod';
-import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
 import StaffDayDetailSheet from './StaffDayDetailSheet';
 import PeriodSwitcher, { type PeriodKind } from './PeriodSwitcher';
 import UserTimeSummaryCards from './UserTimeSummaryCards';
@@ -124,7 +124,7 @@ const PeriodNav = ({
 // ──────────────────────────────────────────────────────────────────
 
 const DayView = ({ date, onOpen }: { date: string; onOpen: (d: string) => void }) => {
-  const { snapshot, isLoading, error } = useStaffDaySnapshot(date);
+  const { snapshot, isLoading, error } = useStaffDayStatusViaMobileReport(date);
   const totals = snapshot?.totals;
 
   const figures = useMemo(() => {
