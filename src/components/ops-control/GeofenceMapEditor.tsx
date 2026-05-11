@@ -95,7 +95,18 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
           if (cancelled) return;
           setReady(true);
           setTokenLoading(false);
+          // Ensure correct sizing once dialog/layout settles
+          requestAnimationFrame(() => m.resize());
         });
+
+        // Auto-resize when container dimensions change (e.g. dialog opens)
+        if (containerRef.current && typeof ResizeObserver !== 'undefined') {
+          const ro = new ResizeObserver(() => {
+            if (mapRef.current) mapRef.current.resize();
+          });
+          ro.observe(containerRef.current);
+          (m as any).__ro = ro;
+        }
 
         // Listen for draw events
         const syncFromDraw = () => {
@@ -132,6 +143,8 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
 
     return () => {
       cancelled = true;
+      const ro = (mapRef.current as any)?.__ro as ResizeObserver | undefined;
+      ro?.disconnect();
       mapRef.current?.remove();
       mapRef.current = null;
       drawRef.current = null;
