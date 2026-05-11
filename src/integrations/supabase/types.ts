@@ -3019,10 +3019,14 @@ export type Database = {
           geofence_polygon: Json | null
           id: string
           is_active: boolean
+          is_private_residence: boolean
           latitude: number
+          location_type: string
           longitude: number
+          metadata: Json
           name: string
           organization_id: string
+          privacy_level: string
           radius_meters: number
           show_as_project: boolean
           updated_at: string | null
@@ -3034,10 +3038,14 @@ export type Database = {
           geofence_polygon?: Json | null
           id?: string
           is_active?: boolean
+          is_private_residence?: boolean
           latitude: number
+          location_type?: string
           longitude: number
+          metadata?: Json
           name: string
           organization_id: string
+          privacy_level?: string
           radius_meters?: number
           show_as_project?: boolean
           updated_at?: string | null
@@ -3049,10 +3057,14 @@ export type Database = {
           geofence_polygon?: Json | null
           id?: string
           is_active?: boolean
+          is_private_residence?: boolean
           latitude?: number
+          location_type?: string
           longitude?: number
+          metadata?: Json
           name?: string
           organization_id?: string
+          privacy_level?: string
           radius_meters?: number
           show_as_project?: boolean
           updated_at?: string | null
