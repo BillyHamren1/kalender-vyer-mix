@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, Activity } from "lucide-react";
+import { RefreshCw, Activity, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDayTimeline } from "@/hooks/admin/useDayTimeline";
@@ -12,14 +12,29 @@ interface Props {
   onSelectEvent?: (eventId: string) => void;
 }
 
+const fmtHm = (iso: string | null) => {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleTimeString("sv-SE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Stockholm",
+    });
+  } catch {
+    return "—";
+  }
+};
+
 export function DayEventTimeline({ staffId, date, selectedEventId, onSelectEvent }: Props) {
-  const { events, isLoading, isFetching, error, refresh } = useDayTimeline({ staffId, date });
+  const { events, coverage, isLoading, isFetching, error, refresh } = useDayTimeline({ staffId, date });
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try { await refresh(); } finally { setRefreshing(false); }
   };
+
+  const showCoverageBanner = !!coverage && coverage.gap_minutes > 30 && !!coverage.last_ping_ts;
 
   return (
     <section className="space-y-3 rounded-lg border border-border/60 bg-card p-4">
