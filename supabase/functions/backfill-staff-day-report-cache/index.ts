@@ -304,6 +304,21 @@ async function processOne(
       // Anchors are optional — continue without them.
     }
 
+    // Open active registration (auktoritativt ankare för pågående arbete).
+    const openReg = (regData ?? []).find(
+      (r: any) => !r.stopped_at && (r.status ?? '').toLowerCase() === 'active',
+    );
+    const openActiveRegistration = openReg
+      ? {
+          registrationId: openReg.id,
+          startedAtIso: openReg.started_at,
+          targetType: openReg.current_target_type ?? openReg.start_target_type ?? null,
+          targetId: openReg.current_target_id ?? openReg.start_target_id ?? null,
+          targetLabel: openReg.current_label ?? openReg.start_target_label ?? null,
+          currentLabel: openReg.current_label ?? null,
+        }
+      : null;
+
     // --- report blocks ---
     const report = buildReportCandidateBlocks({
       staffId,
@@ -312,6 +327,7 @@ async function processOne(
       presenceDayBlocks: presence.blocks,
       activeTimeRegistrations: activeRegs,
       homeAnchors,
+      openActiveRegistration,
     });
 
     // Aggregate
