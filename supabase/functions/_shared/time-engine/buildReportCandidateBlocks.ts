@@ -282,15 +282,27 @@ export interface ReportCandidateSummary {
     absorbedUnknownBlocksCount: number;
     preservedNeedsReviewBlocksCount: number;
     preservedTransportBlocksCount: number;
+    demotedNeedsReviewBlocksCount?: number;
     examples: Array<{
+      staffName: string | null;
+      sessionLabel: string | null;
+      sessionStart: ISODateTime;
+      sessionEnd: ISODateTime;
+      sessionDurationMinutes: number;
+      originalBlockKinds: string[];
+      originalBlockLabels: string[];
+      absorbedBlockCount: number;
+      signalGapMinutes: number;
+      internalMovementMinutes: number;
+      finalKind: string;
+      finalReviewState: string;
+      warningLabel: string | null;
+      reasons: string[];
+      // Legacy back-compat fields:
       sessionTargetLabel: string | null;
       sessionStartAt: ISODateTime;
       sessionEndAt: ISODateTime;
-      sessionDurationMinutes: number;
-      absorbedBlockCount: number;
       absorbedKinds: string[];
-      signalGapMinutes: number;
-      internalMovementMinutes: number;
     }>;
   };
 }
