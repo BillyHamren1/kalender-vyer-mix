@@ -1,38 +1,69 @@
-## Rotorsak
-Den här resan blir inte korrekt därför att motorn aldrig ser någon faktisk `transport`-sekvens i rå GPS-data.
+## AI-granskning för osäkra tidrapportblock
 
-I just det här fallet visar kedjan:
-```text
-FA Warehouse (known_site)
-→ GPS-gap 07:28–09:01
-→ Bergman Event AB (known_site)
-```
+Bygger en ren förslags-pipeline: admin klickar "AI-granska" på osäkra block, AI returnerar strukturerat förslag, allt sparas i en separat tabell. Inga befintliga rapport-/workday-/GPS-data rörs.
 
-Det innebär att:
-- `buildGpsDayTimeline` skapar `gps_gap` direkt när inga pings finns i mellanrummet.
-- `buildPresenceDayBlocks` får bara göra om ett sådant gap till transport om `classifyTransportSignalGap` godkänner det.
-- Den klassificeraren kräver i praktiken extra transportbevis: transportsegment på ena/båda sidorna, companion-route eller annan rörelseform.
-- När det bara finns två kända arbetsplatser med ett rent GPS-gap mellan dem blir `countsAsTransport = false`.
-- Eftersom platserna är olika blir blocket då `uncertain_transition`, som senare blir `needs_review` i `buildReportCandidateBlocks`.
-- UI-lagret översätter det till “Trolig resa”.
+### 1. Databas (migration)
 
-Så: felet sitter inte främst i visningstexten, utan i att presence-/report-motorn fortfarande behandlar just den här typen av känd A→B-förflyttning som osäker när mellanpings saknas.
+Ny tabell `time_report_ai_reviews`:
+- `id`, `organization_id`, `staff_id`, `date`, `block_id`
+- `engine_version`
+- `review_status` (`suggested` | `accepted` | `rejected` | `superseded`, default `suggested`)
+- `current_classification`, `suggested_classification`, `suggested_kind`, `suggested_label`, `suggested_minutes`
+- `confidence` (text), `confidence_score` (numeric)
+- `reasoning_summary` (text), `evidence_json` (jsonb), `suggested_action_json` (jsonb)
+- `concerns_json` (jsonb)
+- `admin_feedback` (text), `reviewed_by` (uuid), `reviewed_at` (timestamptz)
+- `created_at`, `updated_at`
+- Index på `(organization_id, staff_id, date)` och `(block_id)`
+- RLS RESTRICTIVE på `organization_id` (admin/manager kan select/update; insert endast via service role från edge function).
+- När en ny review skapas för samma `block_id` → tidigare `suggested` blir `superseded` (trigger).
 
-## Plan
-1. Justera signal-gap-klassificeringen så att ett GPS-gap mellan två olika kända arbetsrelaterade mål kan räknas som transport även utan mellanliggande transportpings, om bevisen är tillräckliga.
-2. Använd deterministiska grindar för att undvika falska positiva: båda ändpunkterna måste vara kända arbetsmål, gapet måste vara inom tillåten längd, hastighet/distans måste vara rimlig, och inga konfliktsignaler får finnas.
-3. Låt resultatet gå ut som riktig `transport` redan i `buildPresenceDayBlocks`, så att resten av kedjan automatiskt visar korrekt resa i stället för `needs_review`.
-4. Lägg till regressionstester för just scenariot “known_site A → gps_gap → known_site B” så att framtida ändringar inte skickar tillbaka resan till “Trolig resa”.
+### 2. Edge function `analyze-time-report-block`
 
-## Tekniska detaljer
-- Ändra främst i:
-  - `supabase/functions/_shared/time-engine/classifyTransportSignalGap.ts`
-  - eventuellt mindre följdjustering i `supabase/functions/_shared/time-engine/buildPresenceDayBlocks.ts`
-- Ny regel ska bara gälla när följande är sant:
-  - båda ankare finns
-  - nästa mål är arbetsrelaterat
-  - gapet är högst 30 min
-  - implied speed är rimlig
-  - inga hårda konflikter finns
-- Viktigt: detta ska ändra motorlogiken, inte bara UI-texten.
-- Regression bör täcka att blocket blir `transport` i presence-lagret och inte `needs_review` i report-candidate-lagret.
+Input: `{ organizationId, staffId, date, blockId, engineVersion, dryRun? }`.
+
+Steg:
+1. Auth + org-check (admin/manager).
+2. Hämta dagens snapshot via befintliga byggare:
+   - `buildActualStaffDayModel` → `reportCandidateBlocks`, `presenceDayBlocks`, `dayBlockTimeline`
+   - `buildGpsDayTimeline` runt blocket (±60 min)
+   - `resolveWorkTargets` för dagens targets
+   - Hämta `previousBlock`/`nextBlock`, geofence enter/exit, companion route om tillgängligt
+3. Plocka ut blocket via `blockId`. Returnera 404 om saknas.
+4. Bygg strukturerad prompt (system + user) med kompakt evidence-snapshot.
+5. Kalla Lovable AI Gateway (`google/gemini-3-flash-preview`) med `Output.object` + zod-schema → garanterad JSON.
+6. Tvinga `shouldAutoApply: false`.
+7. Om `dryRun !== true`: markera tidigare reviews för blocket som `superseded`, INSERT ny rad.
+8. Returnera review-objektet.
+
+Strikt validering: AI får endast föreslå, aldrig skriva till `time_reports`, `workdays`, `location_time_entries`, `travel_time_logs`, `gps_pings`, `active_time_registrations`. Edge function har bara INSERT/UPDATE-rättigheter på `time_report_ai_reviews`.
+
+### 3. Edge function `resolve-time-report-ai-review`
+
+Input: `{ reviewId, decision: 'accepted' | 'rejected' | 'needs_human_review', adminFeedback? }`.
+
+Endast UPDATE på `time_report_ai_reviews` (status, `reviewed_by`, `reviewed_at`, `admin_feedback`). Rör inget annat.
+
+### 4. Frontend (admin `/staff-management/time-reports`)
+
+- `src/services/timeReportAiReviewApi.ts` — `requestAiReview`, `resolveAiReview`, `useAiReviewForBlock(blockId)` (React Query).
+- Identifiera "osäkra" block via befintliga flaggor: `reviewState === 'needs_review'`, `kind` i (`unknown`, `signal_gap`, `missing_transition_evidence`), eller `confidence === 'low'`/`'medium'` på transport/work.
+- Ny komponent `BlockAiReviewPanel.tsx` som visas under blocket i ReportCandidateTimeline:
+  - Om ingen review: knapp **AI-granska**.
+  - Om review finns: kort med Föreslagen tolkning, Confidence-badge, Motivering, Evidence-lista, Risker/oklarheter.
+  - Knappar: **Acceptera**, **Avvisa** (öppnar feedback-fält), **Behöver manuell kontroll**.
+- Decision Trace-vyn: ny sektion "AI-granskning" som visar latest review + historik.
+
+### 5. Tekniska detaljer
+
+- Ny shared modul `supabase/functions/_shared/ai-review/` med zod-schema och prompt-builder (deno).
+- Prompt instruerar modellen explicit att den endast föreslår, inte ändrar.
+- Engine-version läses från `BUILD_*` constants som redan finns i time-engine.
+- `evidence_json` lagrar trimmad snapshot (max ~10kB) för senare analys.
+
+### 6. Ej i scope
+
+- Ingen auto-apply av förslag.
+- Ingen mobil-UI.
+- Ingen ändring av reportCandidate/timeline-motorn.
+- Inga lärdataexport-vyer (datan finns i tabellen, kan analyseras separat).
