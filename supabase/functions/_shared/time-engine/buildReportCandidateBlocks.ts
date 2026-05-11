@@ -189,7 +189,54 @@ export interface ReportCandidateSummary {
   inferredFromNeighborsMinutes: number;
   inferredFromNeighborsInheritedTargetCount: number;
   inferredFromNeighborsUnlabeledCount: number;
+  /**
+   * Diagnostik för needs_review-klassningen.
+   * - blockingReviewBlocksCount: block med faktiska blocking-reasons (eller kind unknown/needs_review).
+   * - warningOnlyBlocksCount: block som är ok men har warningLabel/non-blocking reason.
+   * - signalGapWarningOnlyBlocksCount: work-block med signalgap som stannade som ok.
+   * - signalGapPromotedToReviewCount: work-block där extremt signalgap utan onsite-evidens lyfte till needs_review.
+   * - clearWorkBlocksIncorrectlyReviewCount: regression-räknare. Ska alltid vara 0.
+   */
+  reviewClassificationDiagnostics: {
+    blockingReviewBlocksCount: number;
+    warningOnlyBlocksCount: number;
+    signalGapWarningOnlyBlocksCount: number;
+    signalGapPromotedToReviewCount: number;
+    clearWorkBlocksIncorrectlyReviewCount: number;
+  };
 }
+
+/**
+ * Reasons som faktiskt kräver mänsklig granskning.
+ * Endast dessa lyfter ett block till reviewState='needs_review'.
+ */
+const BLOCKING_REVIEW_REASONS = new Set<string>([
+  'missing_transition_evidence',
+  'signal_gap_unresolved',
+  'signal_gap_open_day',
+  'unknown_place',
+  'short_cross_target_movement',
+  'short_transport_to_unknown',
+  'conflicting_target_evidence',
+  'home_private_conflict',
+  'impossible_speed',
+  'no_anchor_coordinates',
+]);
+
+/**
+ * Reasons som är informativa men inte kräver granskning. Visas som
+ * warningLabel / Decision Trace, aldrig som "Granska" i UI.
+ */
+const WARNING_ONLY_REASONS = new Set<string>([
+  'signal_gaps_inside_work_block',
+  'same_target_transport_missing_distance',
+  'same_target_roundtrip_long_distance',
+  'movement_inside_same_target',
+  'absorbed_micro_movement',
+  'partial_outside_sticky_geofence',
+]);
+
+export { BLOCKING_REVIEW_REASONS, WARNING_ONLY_REASONS };
 
 export interface ActiveTimeRegistrationInput {
   id: UUID;
@@ -649,6 +696,8 @@ function finalize(
   if (acc.kind === 'work') {
     const ratio = duration > 0 ? acc.signalGapMinutes / duration : 0;
     if (acc.signalGapMinutes >= policy.longGapInsideWorkMinutes || ratio > 0.4) {
+      // Stort signalgap → confidence sänks, men det är en VARNING — inte
+      // automatisk granskning. Markeras som warning-only reason.
       confidence = 'low';
       acc.reviewReasons.add('signal_gaps_inside_work_block');
     } else if (acc.signalGapMinutes > 0 || acc.probableMinutes > acc.confirmedMinutes) {
@@ -666,10 +715,45 @@ function finalize(
     confidence = 'low';
   }
 
-  const reviewState: ReportReviewState =
-    acc.kind === 'needs_review' || acc.kind === 'unknown' || acc.reviewReasons.size > 0 || confidence === 'low'
-      ? 'needs_review'
-      : 'ok';
+  // ─── reviewState — separat från confidence och warningLabel ────────────
+  const reasonList = Array.from(acc.reviewReasons);
+  const hasBlockingReason = reasonList.some((r) => BLOCKING_REVIEW_REASONS.has(r));
+  const hasTarget = !!(acc.targetId || acc.targetLabel);
+  const onsiteMinutes = acc.confirmedMinutes + acc.probableMinutes;
+  const hasOnsiteEvidence = onsiteMinutes > 0;
+
+  let reviewState: ReportReviewState =
+    acc.kind === 'needs_review' || acc.kind === 'unknown' ? 'needs_review' : 'ok';
+
+  if (reviewState === 'ok' && hasBlockingReason) reviewState = 'needs_review';
+
+  // Work-block utan target = vi vet inte vad det är.
+  if (reviewState === 'ok' && acc.kind === 'work' && !hasTarget) reviewState = 'needs_review';
+
+  // Signalgap-promotion: bara om gapet är extremt OCH ingen on-site-evidens finns.
+  if (acc.kind === 'work' && duration > 0) {
+    const gapRatio = acc.signalGapMinutes / duration;
+    if (gapRatio > 0.75 && acc.confirmedMinutes === 0 && acc.probableMinutes === 0) {
+      acc.reviewReasons.add('signal_gap_unresolved');
+      reviewState = 'needs_review';
+    }
+  }
+
+  // Skydd: långt work-block på känd arbetsplats med on-site-evidens får
+  // ALDRIG bli needs_review enbart pga signalgap.
+  if (
+    acc.kind === 'work' &&
+    hasTarget &&
+    duration >= 15 &&
+    hasOnsiteEvidence &&
+    !hasBlockingReason
+  ) {
+    // Re-check: om signal_gap_unresolved precis lades till ovan, behåll det.
+    const stillBlocking = Array.from(acc.reviewReasons).some((r) =>
+      BLOCKING_REVIEW_REASONS.has(r),
+    );
+    if (!stillBlocking) reviewState = 'ok';
+  }
 
   const signalGapWarning =
     acc.kind === 'work' && acc.signalGapMinutes > 0
@@ -1624,6 +1708,13 @@ export function buildReportCandidateBlocks(
     inferredFromNeighborsMinutes,
     inferredFromNeighborsInheritedTargetCount,
     inferredFromNeighborsUnlabeledCount,
+    reviewClassificationDiagnostics: {
+      blockingReviewBlocksCount: 0,
+      warningOnlyBlocksCount: 0,
+      signalGapWarningOnlyBlocksCount: 0,
+      signalGapPromotedToReviewCount: 0,
+      clearWorkBlocksIncorrectlyReviewCount: 0,
+    },
   };
   for (const r of out) {
     if (r.kind === 'work') {
@@ -1644,6 +1735,39 @@ export function buildReportCandidateBlocks(
       summary.breakMinutes += r.durationMinutes;
     }
     if (r.warningLabel) summary.reportRowsWithSignalWarnings += 1;
+
+    // ─── Review-classification diagnostics ───────────────────────────
+    const reasons = r.reviewReasons ?? [];
+    const hasBlocking = reasons.some((x) => BLOCKING_REVIEW_REASONS.has(x));
+    const hasWarningOnly = reasons.some((x) => WARNING_ONLY_REASONS.has(x));
+    const onsiteEv = (r.evidenceSummary?.confirmedMinutes ?? 0) + (r.evidenceSummary?.probableMinutes ?? 0);
+    const hasTarget = !!(r.targetId || r.targetLabel);
+
+    if (r.reviewState === 'needs_review') {
+      summary.reviewClassificationDiagnostics.blockingReviewBlocksCount += 1;
+      if (reasons.includes('signal_gap_unresolved') && r.kind === 'work') {
+        summary.reviewClassificationDiagnostics.signalGapPromotedToReviewCount += 1;
+      }
+      if (
+        r.kind === 'work' &&
+        hasTarget &&
+        onsiteEv > 0 &&
+        !hasBlocking &&
+        reasons.length > 0 &&
+        reasons.every((x) => WARNING_ONLY_REASONS.has(x))
+      ) {
+        summary.reviewClassificationDiagnostics.clearWorkBlocksIncorrectlyReviewCount += 1;
+        warnings.push(
+          `regression: work-block ${r.startAt}–${r.endAt} (${r.targetLabel ?? 'okänd target'}) ` +
+            `markerades needs_review trots target+onsite-evidens och endast warning-only reasons (${reasons.join(',')})`,
+        );
+      }
+    } else if (r.reviewState === 'ok' && (r.warningLabel || hasWarningOnly)) {
+      summary.reviewClassificationDiagnostics.warningOnlyBlocksCount += 1;
+      if (r.kind === 'work' && r.signalGapMinutes > 0) {
+        summary.reviewClassificationDiagnostics.signalGapWarningOnlyBlocksCount += 1;
+      }
+    }
   }
 
   return {
