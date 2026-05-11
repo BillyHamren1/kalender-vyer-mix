@@ -486,6 +486,11 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { bloc
           {subtitle && (
             <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
           )}
+          {resolved && (block.kind === 'unknown' || block.kind === 'needs_review') && (
+            <div className="mt-1">
+              <UnknownStopEnrichment resolved={resolved} compact />
+            </div>
+          )}
           {block.reviewReasons && block.reviewReasons.length > 0 && (
             <div className="text-[10px] text-amber-700/80 truncate">
               {block.reviewReasons.join(' · ')}
