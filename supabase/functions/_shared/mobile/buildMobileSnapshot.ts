@@ -113,6 +113,16 @@ function workdayStatusFrom(row: WorkdayLivenessRow | null): MobileWorkdayStatus 
   return "active";
 }
 
+function workdayObjFrom(row: WorkdayLivenessRow | null) {
+  if (!row || !row.start_time) return null;
+  return {
+    startedAt: row.start_time,
+    endedAt: row.end_time,
+    isOpen: !row.end_time,
+    status: (row.end_time ? "ended" : "active") as MobileWorkdayStatus,
+  };
+}
+
 export interface BuildMobileSnapshotInput {
   date: string;
   staffId: string;
@@ -152,6 +162,7 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
     cacheStatus,
     cacheError: cache?.error ?? null,
     workdayStatus: workdayStatusFrom(workday),
+    workday: workdayObjFrom(workday),
     summary,
     segments,
     actionsNeeded,

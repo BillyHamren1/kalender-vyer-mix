@@ -1,130 +1,77 @@
-## Time App single source — plan
+## Problem
 
-### 1. Kartläggning (resultat)
+Time-appens IDAG-vy visar "Arbetsdag avslutad 17:18 → 01:26 · 56h 8m" och ett gult "Annan plats · BEHÖVER GRANSKNING"-block. Datat kommer inte från Time Engine-cachen — det kommer från legacy-snapshoten `get-staff-day-status` som fortfarande summerar gamla, ostängda `workdays` / `time_reports` / `location_time_entries` per personal.
 
-**Renderingskedja `/m/report`:**
-- `src/pages/mobile/MobileTimeReport.tsx` (65 r) → wrappar `MobileTimeTabs`
-- `MobileTimeTabs.tsx` → tabbar: `TodayTab`, `TimeReportTab`, `TimeCalendarTab`
-- Detaljerad dagsvy: `StaffDayDetailSheet.tsx` (499 r)
-- Inskick/attest: `StaffDayAttestSection.tsx` (395 r)
+I föregående steg ("Time App 1") byggde vi:
+- `useMobileStaffDayReport` (frontend-hook)
+- `get-mobile-staff-day-report` (edge function, läser `staff_day_report_cache`)
+- `submit-staff-day-v3` (skriver `staff_day_submissions`)
 
-**Hooks idag:**
-- `useStaffDayStatus` → kallar `get-staff-day-status`
-- `useStaffDaySnapshot` (309 r) → bygger segments lokalt från legacy-tabeller
-- `useStaffTimeReportPeriod` (270 r) → kallar `get-staff-time-report-period`
+…men **kopplade aldrig in dem** i appen. `TodayTab.tsx`, `TimeReportTab.tsx` och `StaffDayDetailSheet.tsx` läser fortfarande `useStaffDayStatus`. Därför slår ingen av Time Engine-reglerna igenom (night-guard, dedup, cache-trunkering osv.) — och spökdata visas.
 
-**Edge functions idag:**
-- `get-staff-day-status` (313 r) — läser `workdays`, `time_reports`, `travel_time_logs`, `location_time_entries`, `day_attestations`, `assistant_events`, `staff_location_history`
-- `get-staff-time-report-period` (110 r) — summerar samma legacy
-- `attest-staff-day` (177 r) — skriver `day_attestations`
+## Mål
 
-**Var segment/totaler skapas idag:** allt klientside i `useStaffDaySnapshot` + edge functionen ovan. Det är detta som ska bytas mot cache-mappning.
+Time-appens dagvy ska bygga 1:1 på samma `staff_day_report_cache`-snapshot som adminwebbens dagvy. Inga lokala summeringar, ingen legacy-fallback i UI.
 
-### 2. Ny endpoint: `get-mobile-staff-day-report`
+## Scope (denna iteration)
 
-Ny edge function som läser:
-- `staff_day_report_cache` (rad för `staff_id` + `date`, senaste `engine_version`)
-- `staff_day_submissions` (om finns)
-- `workdays` (endast för `workdayStatus`/live-flagga, inte för rapport)
+Endast frontend-omkoppling i Time-appens tre läsande komponenter. Ingen ändring av:
+- Time Engine-regler
+- staff_day_report_cache-strukturen
+- Edge functions (get-mobile-staff-day-report / submit-staff-day-v3 oförändrade)
+- Skrivvägar (mobile-app-api för time_reports lever kvar)
+- UI-design / texter
 
-Returnerar:
-```ts
-{
-  date, staffId, engineVersion, cacheStatus: 'ready'|'missing'|'stale'|'error',
-  workdayStatus: 'inactive'|'active'|'ended',
-  summary: { workMinutes, travelMinutes, breakMinutes, reviewMinutes, payableMinutes },
-  segments: MobileSegment[],   // mappat från report_candidate_blocks_json/display_blocks_json
-  actionsNeeded: ActionItem[], // härlett från diagnostics_json + summary
-  submission: { status, requestedStartAt, requestedEndAt, breakMinutes, comment, submittedAt } | null,
-  trackingPolicy: { ... } | null,
-  lastUpdatedAt
-}
+Inget raderas. Legacy `useStaffDayStatus` lever kvar tills även `EndDayButton` och övriga skrivflöden är portade i kommande steg.
+
+## Ändringar
+
+### 1. `src/components/mobile-app/time/TodayTab.tsx`
+Byt datakälla:
+- Ut: `useStaffDayStatus()` → snapshot/segments/totals/workday/active/actionsNeeded
+- In: `useMobileStaffDayReport()` → samma fält men från cachen (mappade i `mapReportBlocksToSegments`)
+
+Adapter-lager i toppen av filen som översätter `MobileDayReport` → samma form som `StaffDaySnapshot` (workday, totals, segments, active, actionsNeeded). Inga ändringar i renderingskoden under adaptern. EndDayButton behåller sin nuvarande prop-form.
+
+### 2. `src/components/mobile-app/time/TimeReportTab.tsx`
+Samma byte: `useStaffDayStatus(date)` → `useMobileStaffDayReport(date)`. Period-aggregering (`get-staff-time-report-period`) behålls oförändrad i denna iteration — bara dagvyn flyttas.
+
+### 3. `src/components/mobile-app/time/StaffDayDetailSheet.tsx`
+Samma byte: `useStaffDayStatus(date)` → `useMobileStaffDayReport(date)`.
+
+### 4. Sanity-guard mot spöksegment
+I `mapReportBlocksToSegments` (server) och i adaptern (klient): släpp inte igenom segment vars varaktighet > 18 h eller där `endedAt < startedAt + 18h` saknas — logga som diagnostic men rendera dem inte som "Annan plats". Detta hindrar att en eventuell framtida ostängd cache-rad skapar samma spökeffekt.
+
+### 5. Verifiering
+1. Öppna /m/report som personalen i screenshoten → bekräfta att 56h-blocket är borta.
+2. Curla `get-mobile-staff-day-report` för samma datum → bekräfta vad cachen faktiskt innehåller.
+3. Jämför sida vid sida med adminwebbens dagvy för samma personal/datum.
+4. Inga konsolfel; inga nätverksanrop till `get-staff-day-status` från `/m/report`-routen.
+
+## Tekniska detaljer
+
+```text
+Före:
+  TodayTab ──► useStaffDayStatus ──► get-staff-day-status ──► live-summera time_reports/workdays/LTE
+                                                              (visar 56h "Annan plats")
+
+Efter:
+  TodayTab ──► useMobileStaffDayReport ──► get-mobile-staff-day-report ──► staff_day_report_cache (Time Engine)
+                                                                          → mapReportBlocksToSegments
+                                                                          → samma data som adminwebben
 ```
 
-`MobileSegment` precis enligt spec (id, kind, label, startedAt, endedAt, durationMinutes, isActive, confidence, statusLabel, warningLabel, projectId, bookingId, largeProjectId, locationId, sourceBlockId).
+Adapterns ansvar i TodayTab:
+- `snapshot.workday` ← cache.workday (isOpen, startedAt, endedAt, statusLabel)
+- `snapshot.totals` ← cache.totals (grossWorkdayMinutes, breakMinutes, payableMinutes per kind)
+- `snapshot.segments` ← cache.blocks via mapReportBlocksToSegments
+- `snapshot.active` ← cache.activeTimer
+- `snapshot.actionsNeeded` ← cache.actionsNeeded
 
-Mappare ligger i `supabase/functions/_shared/mobile/mapReportBlocksToSegments.ts` så samma logik kan testas.
+## Out of scope
 
-### 3. Ny tabell: `staff_day_submissions` (migration)
-
-```sql
-create table public.staff_day_submissions (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null,
-  staff_id text not null,
-  date date not null,
-  status text not null default 'submitted', -- submitted|approved|rejected|correction_requested
-  requested_start_at timestamptz,
-  requested_end_at timestamptz,
-  break_minutes int default 0,
-  comment text,
-  engine_version text,
-  source_summary_json jsonb,
-  submitted_at timestamptz not null default now(),
-  reviewed_at timestamptz,
-  reviewed_by uuid,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (staff_id, date)
-);
--- RLS: org-isolerat, läs egen rad, ingen direkt insert (via edge function service-role)
-```
-
-### 4. Ny edge function: `submit-staff-day-v3`
-
-Input: `{ staffId, date, requestedStartAt, requestedEndAt, breakMinutes, comment }`.
-Skriver upsert i `staff_day_submissions`. Skriver INTE `day_attestations`/`time_reports`/`workdays`/`location_time_entries`/`travel_time_logs`.
-
-### 5. Ny hook: `src/hooks/useMobileStaffDayReport.ts`
-
-- React Query, key `['mobile-staff-day-report', staffId, date]`
-- Anropar `get-mobile-staff-day-report` via `callStaffSnapshotFunction` (dual auth)
-- Polling 30 s när tab är synlig
-- Lyssnar på Supabase realtime: `staff_day_report_cache` + `staff_day_submissions` filtrerat på staff/date
-- Vid `cacheStatus === 'missing'` exponerar `refresh()`-knapp som kallar samma endpoint med `force=true`
-
-### 6. Omkoppling av komponenter
-
-| Komponent | Idag | Efter |
-|---|---|---|
-| `TodayTab.tsx` | `useStaffDayStatus` + `useStaffDaySnapshot` (segments lokalt) | `useMobileStaffDayReport` (segments från cache). Behåller start/stopp dag via befintlig active-timer/workday-väg |
-| `StaffDayDetailSheet.tsx` | `useStaffDaySnapshot` | `useMobileStaffDayReport(date)` — samma segments/totaler/actions |
-| `TimeReportTab.tsx` | `useStaffTimeReportPeriod` (legacy summering) | Bygg om `get-staff-time-report-period` så den summerar `staff_day_report_cache` + `staff_day_submissions` per dag i intervallet. Hooken behåller signaturen |
-| `StaffDayAttestSection.tsx` | `attest-staff-day` → `day_attestations` | `submit-staff-day-v3` → `staff_day_submissions` |
-
-`useStaffDaySnapshot` blir oanvänd i tidrapportvyn men raderas inte (kan finnas debug-konsumenter). Markeras `@deprecated`.
-
-Live-arbetsdagsknappar (Starta/Avsluta dag) fortsätter använda befintlig workday/timer-väg — endast presentation/summering bytes.
-
-### 7. UI-omfång
-
-Ingen visuell polish. Befintliga kort/listor återanvänds, bara datakällan byts. Tomt-läge `cacheStatus='missing'` visar "Rapporten bearbetas" + "Uppdatera".
-
-### 8. Tester
-
-- Deno-test för `mapReportBlocksToSegments` (cache → MobileSegment)
-- Vitest-stub för `useMobileStaffDayReport` (cache_missing → refresh-knapp)
-- Manuell verifiering: jämför `summary` i mobil mot adminwebbens `/staff-management/time-reports` för samma staff+datum
-
-### 9. Slutrapport (efter implementation)
-
-"Time App single source – rapport" enligt spec, inkl. mapping cache→mobile och bekräftelse att appen inte längre summerar legacy eller skriver `day_attestations`.
-
-### Tekniska detaljer
-
-- Authstrategin: ny endpoint accepterar både mobile token och Supabase JWT via `_shared/staff-auth.ts` (samma som övriga snapshot-endpoints — se memory `staff-snapshot-dual-auth-v1`).
-- Multi-tenancy: cache-rad och submission filtreras alltid på `organization_id` (RESTRICTIVE RLS + edge-function-guard).
-- File size: ny edge function bryts i `index.ts` (handler) + `_shared/mobile/mapReportBlocksToSegments.ts` (mappning) + `_shared/mobile/buildMobileSnapshot.ts` (assemble) för att hålla filer små.
-- Inga ändringar i Time Engine-regler, builders eller cache-skrivare.
-
-### Ordning för implementation
-
-1. Migration: `staff_day_submissions` + RLS
-2. Shared mapper + buildMobileSnapshot
-3. `get-mobile-staff-day-report` edge function
-4. `submit-staff-day-v3` edge function
-5. `useMobileStaffDayReport` hook
-6. Koppla `TodayTab`, `StaffDayDetailSheet`
-7. Skriv om `get-staff-time-report-period` att summera cache+submissions; behåll hook
-8. Koppla `StaffDayAttestSection` till nya submit
-9. Tester + slutrapport
+- AI / unclear segment-flöden
+- Skapa/skriva time_reports / LTE / travel
+- Period-vyn (Tidrapport-tabben på vecka/månad)
+- UI-redesign
+- Borttagning av `useStaffDayStatus` (sker när alla läsare är portade)

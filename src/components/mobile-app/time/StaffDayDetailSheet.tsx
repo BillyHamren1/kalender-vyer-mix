@@ -22,10 +22,10 @@ import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import {
-  useStaffDayStatus,
   type StaffDaySegment,
   type StaffDaySnapshot,
-} from '@/hooks/useStaffDayStatus';
+} from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import { formatHoursMinutes } from '@/utils/formatHours';
@@ -91,7 +91,7 @@ interface Props {
 }
 
 export const StaffDayDetailSheet: React.FC<Props> = ({ date, onClose }) => {
-  const { snapshot, isLoading, refresh } = useStaffDayStatus(date ?? undefined);
+  const { snapshot, isLoading, refresh } = useStaffDayStatusViaMobileReport(date ?? undefined);
   const { staff } = useMobileAuth();
   const open = !!date;
 
