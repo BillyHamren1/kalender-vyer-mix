@@ -744,7 +744,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                   }}
                 >
                   {/* Top-left corner */}
-                  <div className="sticky left-0 top-[64px] z-30 border-b border-r bg-card/95 backdrop-blur px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="sticky top-[64px] z-30 border-b border-r bg-card px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                     Tid
                   </div>
 
