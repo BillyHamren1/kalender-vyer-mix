@@ -160,7 +160,12 @@ export interface SignalGapTransportDiagnostics {
   probableTransportGapMinutes: number;
   remainingUnknownTransportGapCount: number;
   remainingUnknownTransportGapMinutes: number;
+  lowConfidenceCandidateCount: number;
+  missingAnchorRejectedCount: number;
+  transportAnchorsUsedCount: number;
+  routeContinuationConfirmedCount: number;
   destinationConfirmedCount: number;
+  companionBoostedCount: number;
   examples: any[];
 }
 
