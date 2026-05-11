@@ -27,8 +27,8 @@ interface Result {
 const POLL_MS = 30_000;
 
 export function useMobileStaffDayReport(date?: string): Result {
-  const { staff } = useMobileAuth();
-  const staffId = staff?.id ?? null;
+  const { effectiveStaffId } = useMobileAuth();
+  const staffId = effectiveStaffId;
   const targetDate = date ?? format(new Date(), 'yyyy-MM-dd');
   const [report, setReport] = useState<MobileDayReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);

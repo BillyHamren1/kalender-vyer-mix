@@ -7,6 +7,7 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import { getToken } from '@/services/mobileApiService';
+import { getViewAsStaffId } from '@/services/viewAsStorage';
 
 /**
  * Snapshot/read endpoints AND user-driven mutations (e.g. attest-staff-day)
@@ -31,6 +32,7 @@ export async function callStaffSnapshotFunction<T>(
   body: Record<string, unknown>,
 ): Promise<T> {
   const mobileToken = getToken();
+  const viewAs = getViewAsStaffId();
   if (mobileToken) {
     const base = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
     const apikey = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
@@ -41,6 +43,7 @@ export async function callStaffSnapshotFunction<T>(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${mobileToken}`,
         ...(apikey ? { apikey } : {}),
+        ...(viewAs ? { 'x-view-as-staff': viewAs } : {}),
       },
       body: JSON.stringify(body),
     });
@@ -51,7 +54,10 @@ export async function callStaffSnapshotFunction<T>(
     return parsed as T;
   }
 
-  const { data, error } = await supabase.functions.invoke(name, { body });
+  const { data, error } = await supabase.functions.invoke(name, {
+    body,
+    headers: viewAs ? { 'x-view-as-staff': viewAs } : undefined,
+  });
   if (error) throw error;
   if ((data as any)?.error) throw new Error((data as any).error);
   return data as T;

@@ -155,8 +155,8 @@ const REALTIME_TABLES = [
 export function useStaffTimeReportPeriod(
   input: StaffTimeReportPeriodInput,
 ): Result {
-  const { staff } = useMobileAuth();
-  const staffId = staff?.id ?? null;
+  const { effectiveStaffId } = useMobileAuth();
+  const staffId = effectiveStaffId;
   const { startDate, endDate } = useMemo(() => periodBounds(input), [input]);
 
   const [period, setPeriod] = useState<StaffTimeReportPeriod | null>(null);

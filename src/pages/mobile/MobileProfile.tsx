@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import SendMessageDialog from '@/components/mobile-app/SendMessageDialog';
 import LocationSyncDebugCard from '@/components/mobile-app/LocationSyncDebugCard';
 import TimeStartSafetyCard from '@/components/mobile-app/TimeStartSafetyCard';
+import ViewAsPicker from '@/components/mobile-app/ViewAsPicker';
 import { format, parseISO, startOfMonth } from 'date-fns';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv, enUS } from 'date-fns/locale';
@@ -65,6 +66,9 @@ const MobileProfile = () => {
       />
 
       <div className="flex-1 px-4 py-3 space-y-2.5 -mt-3">
+        {/* Admin: Visa som-läge */}
+        <ViewAsPicker />
+
         {/* Contact info */}
         <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-2 shadow-md">
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{t('profile.contactInfo')}</h2>

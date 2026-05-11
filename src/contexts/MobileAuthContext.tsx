@@ -3,6 +3,7 @@ import { mobileApi, MobileStaff, getToken, getStoredStaff, setAuth, clearAuth } 
 import { isScannerApp } from '@/config/appMode';
 import { clearTimerSyncQueue } from '@/services/timerSyncQueue';
 import { clearLocalTimerSession } from '@/hooks/useGeofencing';
+import { getViewAs, setViewAs as persistViewAs, type ViewAsRecord } from '@/services/viewAsStorage';
 
 interface MobileAuthContextType {
   staff: MobileStaff | null;
@@ -10,6 +11,16 @@ interface MobileAuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** True om current user har admin-roll (kan slå på "Visa som"). */
+  isAdmin: boolean;
+  /** Aktiv impersonering — null om av. */
+  viewAs: ViewAsRecord | null;
+  /** Effektiv staff-id som READ-hooks bör fråga efter. Skrivs ALDRIG av writes. */
+  effectiveStaffId: string | null;
+  /** True om viewAs är aktivt. */
+  isViewingAs: boolean;
+  /** Sätt/rensa viewAs (admin-only). */
+  setViewAs: (rec: { id: string; name: string } | null) => void;
 }
 
 const MobileAuthContext = createContext<MobileAuthContextType>({
@@ -18,6 +29,11 @@ const MobileAuthContext = createContext<MobileAuthContextType>({
   isLoading: true,
   login: async () => {},
   logout: () => {},
+  isAdmin: false,
+  viewAs: null,
+  effectiveStaffId: null,
+  isViewingAs: false,
+  setViewAs: () => {},
 });
 
 export const useMobileAuth = () => useContext(MobileAuthContext);
@@ -117,8 +133,54 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     clearTimerSyncQueue();
     clearLocalTimerSession();
     clearAuth();
+    persistViewAs(null);
+    setViewAsState(null);
     setStaff(null);
   }, []);
+
+  // === viewAs (admin-only impersonering, read-only) ===
+  const isAdmin = !!staff?.app_roles?.includes('admin');
+  const [viewAsState, setViewAsState] = useState<ViewAsRecord | null>(() => getViewAs());
+
+  // Rensa viewAs om current user inte är admin (eller logout).
+  useEffect(() => {
+    if (!staff) return;
+    if (!isAdmin && viewAsState) {
+      console.warn('[MobileAuth] Rensar viewAs — current user är inte admin');
+      persistViewAs(null);
+      setViewAsState(null);
+    }
+  }, [staff, isAdmin, viewAsState]);
+
+  // Sync mellan tabs.
+  useEffect(() => {
+    const onChange = () => setViewAsState(getViewAs());
+    window.addEventListener('view-as-changed', onChange);
+    window.addEventListener('storage', onChange);
+    return () => {
+      window.removeEventListener('view-as-changed', onChange);
+      window.removeEventListener('storage', onChange);
+    };
+  }, []);
+
+  const setViewAs = useCallback((rec: { id: string; name: string } | null) => {
+    if (rec && !isAdmin) {
+      console.warn('[MobileAuth] setViewAs blockerat — current user är inte admin');
+      return;
+    }
+    if (rec && rec.id === staff?.id) {
+      // "Visa som mig själv" = av
+      persistViewAs(null);
+      setViewAsState(null);
+      return;
+    }
+    persistViewAs(rec);
+    setViewAsState(rec ? { id: rec.id, name: rec.name, setAt: Date.now() } : null);
+    console.info('[MobileAuth] viewAs', rec ? `→ ${rec.name} (${rec.id})` : '→ av');
+  }, [isAdmin, staff?.id]);
+
+  const effectiveStaffId = viewAsState?.id ?? staff?.id ?? null;
+  const isViewingAs = !!viewAsState && viewAsState.id !== staff?.id;
 
   return (
     <MobileAuthContext.Provider value={{
@@ -127,6 +189,11 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       isLoading,
       login,
       logout,
+      isAdmin,
+      viewAs: viewAsState,
+      effectiveStaffId,
+      isViewingAs,
+      setViewAs,
     }}>
       {children}
     </MobileAuthContext.Provider>
