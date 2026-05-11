@@ -30,6 +30,7 @@ import type {
   PresenceConfidence,
 } from './buildPresenceDayBlocks.ts';
 import type { ISODate, ISODateTime, UUID } from './contracts.ts';
+import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -287,7 +288,7 @@ export interface ReportCandidatePolicy {
    *  (rule 5). Default 2 min. */
   tinyWorkMaxMinutes?: number;
   /** Transport with measured distance ≥ this is always a real trip and is
-   *  never micro-suppressed. Default 1000 m. */
+   *  never micro-suppressed. Default = TRANSPORT_MIN_DISTANCE_METERS (500 m). */
   realTripMinDistanceMeters?: number;
   /** Same-target absorption: if work-A | transport ≤ this | work-A then the
    *  transport is folded into work-A even when the transport is longer than
@@ -395,7 +396,7 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   transportChainBridgeMinutes: 5,
   microTransportMaxMinutes: 5,
   tinyWorkMaxMinutes: 2,
-  realTripMinDistanceMeters: 1000,
+  realTripMinDistanceMeters: TRANSPORT_MIN_DISTANCE_METERS,
   sameTargetTransportAbsorbMaxMinutes: 25,
   sameTargetTransportAbsorbMaxDistanceMeters: 750,
   shortCrossTargetReviewMaxMinutes: 5,

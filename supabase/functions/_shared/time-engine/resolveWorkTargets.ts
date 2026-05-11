@@ -118,6 +118,13 @@ export interface ResolvedWorkTarget {
   addressAnchorKey?: string | null;
   /** Raw address string (if any) — used to build anchor + display labels. */
   rawAddress?: string | null;
+  /**
+   * Engine 4 — when true this is a private residence / boende polygon
+   * (organization_locations.is_private_residence). Residences are passed
+   * to the GPS engine but are NEVER auto-matched as work, and they win
+   * semantically over nearby warehouse/work targets.
+   */
+  isPrivateResidence?: boolean;
   diagnostics: {
     notes: string[];
   };
@@ -651,7 +658,9 @@ export async function resolveWorkTargets(
     const { data, error } = await supabaseAdmin
       .from('organization_locations')
       .select(
-        'id, name, latitude, longitude, radius_meters, geofence_polygon, is_active, show_as_project',
+        // Engine 4: also pull is_private_residence + location_type so we can
+        // mark Boende polygons. Falls back gracefully if columns are missing.
+        'id, name, latitude, longitude, radius_meters, geofence_polygon, is_active, show_as_project, is_private_residence, location_type',
       )
       .eq('organization_id', organizationId);
 
@@ -671,8 +680,16 @@ export async function resolveWorkTargets(
 
         if (lat != null && lng != null) diag.candidatesWithCoordinates += 1;
 
+        // Engine 4 — Boende / private residence detection.
+        const isResidence =
+          r.is_private_residence === true ||
+          (typeof r.location_type === 'string' &&
+            (r.location_type === 'private_residence' || r.location_type === 'boende'));
+
         const lower = (r.name ?? '').toLowerCase();
-        const isWarehouse = lower.includes('lager') || lower.includes('warehouse') || lower.includes('depå');
+        const isWarehouse =
+          !isResidence &&
+          (lower.includes('lager') || lower.includes('warehouse') || lower.includes('depå'));
         const type: WorkTargetType = isWarehouse ? 'warehouse' : 'location';
         const source: TargetSource = isWarehouse
           ? 'warehouse'
@@ -688,7 +705,7 @@ export async function resolveWorkTargets(
         targets.push({
           id: r.id,
           type,
-          name: r.name ?? (isWarehouse ? 'Lager' : 'Plats'),
+          name: r.name ?? (isResidence ? 'Boende' : isWarehouse ? 'Lager' : 'Plats'),
           latitude: lat,
           longitude: lng,
           radiusMeters: radius,
@@ -699,7 +716,8 @@ export async function resolveWorkTargets(
           dateRelevance: 'permanent',
           status,
           rawAddress: (r.name as string | null) ?? null,
-          diagnostics: { notes: [] },
+          isPrivateResidence: isResidence,
+          diagnostics: { notes: isResidence ? ['private_residence'] : [] },
         });
       }
     }
@@ -796,6 +814,12 @@ export async function resolveWorkTargets(
     t.matchRole = role;
     t.assignmentAnchor = anchor;
     t.canAutoMatchAsWork = role === 'primary';
+    // Engine 4 — Boende / private_residence: aldrig auto-matchas som arbete,
+    // även om location-typen normalt skulle räknas som primary.
+    if (t.isPrivateResidence === true) {
+      t.canAutoMatchAsWork = false;
+      t.matchRole = 'secondary';
+    }
   }
 
   // Steg 2: gruppera per location-key och välj kanonisk label.
@@ -922,7 +946,13 @@ export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
   // SECONDARY targets får inte auto-matchas som arbete — de exponeras bara via
   // diagnostics/reviewSuggestions. buildGpsDayTimeline tar emot resultatet
   // från `targets.map(toWorkTarget).filter(Boolean)`, så vi blockar här.
-  if (rt.canAutoMatchAsWork === false) return null;
+  // SECONDARY targets får inte auto-matchas som arbete — de exponeras bara via
+  // diagnostics/reviewSuggestions. buildGpsDayTimeline tar emot resultatet
+  // från `targets.map(toWorkTarget).filter(Boolean)`, så vi blockar här.
+  // UNDANTAG (Engine 4): private_residence/Boende släpps igenom även när
+  // canAutoMatchAsWork=false — GPS-motorn behöver känna till polygonen för
+  // att kunna klassa pings som privat zon (vinner över närliggande Warehouse).
+  if (rt.canAutoMatchAsWork === false && rt.isPrivateResidence !== true) return null;
   const kind: WorkTargetKind =
     rt.type === 'project' ? 'project'
     : rt.type === 'booking' ? 'booking'
@@ -950,5 +980,6 @@ export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
     polygon: polygonGeoJSON,
     assignedToUserToday: rt.dateRelevance === 'today',
     assignmentAnchor: rt.assignmentAnchor ?? undefined,
+    isPrivateResidence: rt.isPrivateResidence === true ? true : undefined,
   };
 }

@@ -40,6 +40,7 @@ import { dayPolicy as defaultDayPolicy, nightPolicy as defaultNightPolicy } from
 import type { Confidence, GeoAnchor, ISODate, ISODateTime, UUID, WorkTarget } from './contracts.ts';
 import { isInsideGeofence, distanceToGeofenceEdge, type GeofenceTarget } from '../geofenceEval.ts';
 import { formatStockholm } from '../timeline/geo.ts';
+import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs
@@ -401,6 +402,39 @@ export interface GpsClassificationDiagnostics {
    */
   remainingTransportInsidePrimaryGeofenceCount: number;
   remainingTransportInsidePrimaryGeofenceMinutes: number;
+
+  /**
+   * Engine 4 — TRANSPORT_MIN_DISTANCE_METERS diagnostics.
+   * Tracks how the 500 m floor and the residence-wins rule altered the raw
+   * GPS clustering. Pure diagnostics; no rows are written and no rapport-tabeller
+   * are touched.
+   */
+  transportDistanceThresholdDiagnostics: {
+    transportMinDistanceMeters: number;
+    /** Number of travel runs demoted to a stay because cluster distance < threshold. */
+    belowThresholdMovementSuppressedCount: number;
+    /** Total minutes of those demoted runs. */
+    belowThresholdMovementSuppressedMinutes: number;
+    /** How many movement decisions were taken from device speed_mps but never
+     *  produced transport on their own (now strictly support-evidence). */
+    reportedSpeedIgnoredCount: number;
+    /** Convenience alias for callers/UI: same value as
+     *  belowThresholdMovementSuppressedCount but framed as "false trips prevented". */
+    falseTravelPreventedCount: number;
+    /** Pings/stays where a private_residence target won over a nearby
+     *  warehouse/work target. */
+    privateResidenceWinsCount: number;
+    /** Pings that matched a private_residence polygon (regardless of conflict). */
+    privateResidenceMatchedPingsCount: number;
+    examples: Array<{
+      kind: 'below_threshold_demoted' | 'private_residence_wins';
+      startAt: ISODateTime;
+      endAt: ISODateTime;
+      durationMinutes: number;
+      distanceMeters: number;
+      reason: string;
+    }>;
+  };
 }
 
 export interface GpsDayTimelineResult {
@@ -501,18 +535,27 @@ function matchTarget(
   targets: WorkTarget[],
 ): { target: WorkTarget; distanceM: number } | null {
   const at = Date.parse(atIso);
-  let best: { target: WorkTarget; distanceM: number } | null = null;
+  let bestResidence: { target: WorkTarget; distanceM: number } | null = null;
+  let bestWork: { target: WorkTarget; distanceM: number } | null = null;
   for (const t of targets) {
     if (t.validFrom && Date.parse(t.validFrom) > at) continue;
     if (t.validUntil && Date.parse(t.validUntil) < at) continue;
-    // Distance metric for "best" ordering stays haversine-to-center; the inside
-    // gate honors polygon when present.
+    if (!pointInsideTarget(centerLat, centerLng, t)) continue;
     const d = haversine(centerLat, centerLng, t.center.lat, t.center.lng);
-    if (pointInsideTarget(centerLat, centerLng, t) && (best == null || d < best.distanceM)) {
-      best = { target: t, distanceM: d };
+    // Engine 4 — private_residence vinner alltid över Warehouse/work
+    // när pingen ligger inne i en residence-polygon. Kortavstånd får aldrig
+    // göra att Boende slås ihop med Warehouse.
+    if (t.isPrivateResidence === true) {
+      if (bestResidence == null || d < bestResidence.distanceM) {
+        bestResidence = { target: t, distanceM: d };
+      }
+      continue;
+    }
+    if (bestWork == null || d < bestWork.distanceM) {
+      bestWork = { target: t, distanceM: d };
     }
   }
-  return best;
+  return bestResidence ?? bestWork;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -647,6 +690,16 @@ export function buildGpsDayTimeline(
         },
         remainingTransportInsidePrimaryGeofenceCount: 0,
         remainingTransportInsidePrimaryGeofenceMinutes: 0,
+        transportDistanceThresholdDiagnostics: {
+          transportMinDistanceMeters: TRANSPORT_MIN_DISTANCE_METERS,
+          belowThresholdMovementSuppressedCount: 0,
+          belowThresholdMovementSuppressedMinutes: 0,
+          reportedSpeedIgnoredCount: 0,
+          falseTravelPreventedCount: 0,
+          privateResidenceWinsCount: 0,
+          privateResidenceMatchedPingsCount: 0,
+          examples: [],
+        },
       },
     };
   }
@@ -750,15 +803,21 @@ export function buildGpsDayTimeline(
       movementSpeedKmh: cfg.movementSpeedKmh,
     };
     if (dt <= 0) return { movement: false, reason: 'stationary', ...base };
+    // Engine 4 — REAL coordinate movement is required. computedKmh is derived
+    // from the actual displacement between two GPS pings, so it is allowed
+    // to trigger a `travel` run. Reported device speed_mps is SUPPORT
+    // EVIDENCE ONLY: it stays on `base.reportedKmh` for diagnostics but
+    // never returns `movement: true` on its own.
     if (computedKmh != null && computedKmh >= cfg.movementSpeedKmh) {
       return { movement: true, reason: 'speed_threshold', ...base };
-    }
-    if (reportedKmh != null && reportedKmh >= cfg.movementSpeedKmh) {
-      return { movement: true, reason: 'reported_speed_threshold', ...base };
     }
     if (d > cfg.stayRadiusM * 2) {
       return { movement: true, reason: 'distance_from_previous_ping', ...base };
     }
+    // reportedKmh ignored intentionally — it can no longer create transport
+    // alone. The travel-run post-pass also enforces TRANSPORT_MIN_DISTANCE_METERS
+    // on the cluster total, so any sliver of phantom motion is collapsed back
+    // into a stay.
     return { movement: false, reason: 'stationary', ...base };
   };
 
@@ -876,6 +935,13 @@ export function buildGpsDayTimeline(
   let travelInsideTargetCount = 0;
   let travelInsideTargetMinutes = 0;
   const travelByReason: Record<string, number> = {};
+
+  // Engine 4 — TRANSPORT_MIN_DISTANCE_METERS diagnostics accumulators.
+  let belowThresholdMovementSuppressedCount = 0;
+  let belowThresholdMovementSuppressedMinutes = 0;
+  let privateResidenceWinsCount = 0;
+  let privateResidenceMatchedPingsCount = 0;
+  const transportThresholdExamples: GpsClassificationDiagnostics['transportDistanceThresholdDiagnostics']['examples'] = [];
 
   // Track per-travel-segment metadata used by the post-pass reclassifier.
   const travelMeta = new Map<string, { pings: GpsPing[]; primaryTarget: WorkTarget | null; medianAccM: number | null }>();
@@ -997,6 +1063,28 @@ export function buildGpsDayTimeline(
     const dtSec = Math.max(1, (Date.parse(last.ts) - Date.parse(first.ts)) / 1000);
     const avgKmh = (distanceMeters / dtSec) * 3.6;
 
+    // Engine 4 — TRANSPORT_MIN_DISTANCE_METERS gate.
+    // Transport får aldrig skapas om den faktiska klusterförflyttningen är
+    // under tröskeln. Sådana runs degraderas till en STAY (samma fall-through
+    // som om motorn aldrig sett rörelse). reported speed_mps räknas som
+    // support-evidence och kan aldrig ensam skapa transport.
+    if (run.kind === 'travel' && distanceMeters < TRANSPORT_MIN_DISTANCE_METERS) {
+      belowThresholdMovementSuppressedCount += 1;
+      belowThresholdMovementSuppressedMinutes += durationMin;
+      if (transportThresholdExamples.length < 10) {
+        transportThresholdExamples.push({
+          kind: 'below_threshold_demoted',
+          startAt: first.ts,
+          endAt: last.ts,
+          durationMinutes: Math.round(durationMin * 10) / 10,
+          distanceMeters: Math.round(distanceMeters),
+          reason: `cluster_distance_${Math.round(distanceMeters)}m_below_${TRANSPORT_MIN_DISTANCE_METERS}m`,
+        });
+      }
+      // Pretend this was a stay all along — keep diagnostics, fall through.
+      (run as { kind: 'stay' | 'travel' }).kind = 'stay';
+    }
+
     if (run.kind === 'travel') {
       const { diag: targetDiag, primaryTarget, medianAccM } =
         computeTargetDiagnostics(run.pings, run.centerLat, run.centerLng, first.ts);
@@ -1061,18 +1149,43 @@ export function buildGpsDayTimeline(
     let reclassReason: GpsTimelineSegment['reclassificationReason'] = null;
 
     if (match) {
-      type = 'known_site';
-      label = match.target.label;
-      reason = overrideOwner ? 'stationary_inside_geofence_override' : 'matched_valid_target';
-      matchedTargetId = match.target.refId;
-      matchedTargetType = match.target.kind;
-      matchedTargetName = match.target.label;
-      confidence = overrideOwner ? 0.9 : Math.min(1, 0.6 + Math.min(run.pings.length, 10) / 25);
-      targetsHit.add(match.target.key);
-      knownSite++;
-      if (overrideOwner) {
-        reclassReason = 'stationary_inside_geofence_override';
-        targetDiag.warningLabel = targetDiag.warningLabel ?? null;
+      // Engine 4 — Boende / private_residence vinner och får ALDRIG räknas
+      // som arbete. Vi behåller känd-plats-matchningen i diagnostics men
+      // exponerar segmentet som unknown_place utan matchedTarget* så att
+      // ingen senare regel råkar tolka det som arbete eller slå ihop det
+      // med en närliggande Warehouse.
+      if (match.target.isPrivateResidence === true) {
+        type = 'unknown_place';
+        label = `Boende: ${match.target.label}`;
+        reason = 'no_target_match';
+        confidence = Math.min(0.7, 0.4 + run.pings.length / 25);
+        unknownPlace++;
+        privateResidenceWinsCount += 1;
+        privateResidenceMatchedPingsCount += run.pings.length;
+        if (transportThresholdExamples.length < 10) {
+          transportThresholdExamples.push({
+            kind: 'private_residence_wins',
+            startAt: first.ts,
+            endAt: last.ts,
+            durationMinutes: Math.round(durationMin * 10) / 10,
+            distanceMeters: Math.round(distanceMeters),
+            reason: `private_residence_${match.target.refId}`,
+          });
+        }
+      } else {
+        type = 'known_site';
+        label = match.target.label;
+        reason = overrideOwner ? 'stationary_inside_geofence_override' : 'matched_valid_target';
+        matchedTargetId = match.target.refId;
+        matchedTargetType = match.target.kind;
+        matchedTargetName = match.target.label;
+        confidence = overrideOwner ? 0.9 : Math.min(1, 0.6 + Math.min(run.pings.length, 10) / 25);
+        targetsHit.add(match.target.key);
+        knownSite++;
+        if (overrideOwner) {
+          reclassReason = 'stationary_inside_geofence_override';
+          targetDiag.warningLabel = targetDiag.warningLabel ?? null;
+        }
       }
     } else {
       // Unknown place MUST NEVER be named from a previous timer/report.
@@ -1780,6 +1893,41 @@ export function buildGpsDayTimeline(
       remainingTransportInsidePrimaryGeofenceCount: remainingTransportInsidePrimaryCount,
       remainingTransportInsidePrimaryGeofenceMinutes:
         Math.round(remainingTransportInsidePrimaryMinutes * 100) / 100,
+      transportDistanceThresholdDiagnostics: {
+        transportMinDistanceMeters: TRANSPORT_MIN_DISTANCE_METERS,
+        belowThresholdMovementSuppressedCount,
+        belowThresholdMovementSuppressedMinutes:
+          Math.round(belowThresholdMovementSuppressedMinutes * 100) / 100,
+        // reportedSpeed_mps is now strict support-evidence: count pings whose
+        // device-reported speed exceeded the movement threshold while the
+        // computed coord-based speed did NOT (i.e. cases that previously
+        // could have triggered transport on their own).
+        reportedSpeedIgnoredCount: (() => {
+          let n = 0;
+          for (let i = 1; i < accepted.length; i++) {
+            const prev = accepted[i - 1];
+            const p = accepted[i];
+            const dt = (Date.parse(p.ts) - Date.parse(prev.ts)) / 1000;
+            if (dt <= 0) continue;
+            const d = haversine(prev.lat, prev.lng, p.lat, p.lng);
+            const computedKmh = (d / dt) * 3.6;
+            const reportedKmh = p.speedMps != null ? p.speedMps * 3.6 : null;
+            if (
+              reportedKmh != null &&
+              reportedKmh >= cfg.movementSpeedKmh &&
+              computedKmh < cfg.movementSpeedKmh &&
+              d <= cfg.stayRadiusM * 2
+            ) {
+              n += 1;
+            }
+          }
+          return n;
+        })(),
+        falseTravelPreventedCount: belowThresholdMovementSuppressedCount,
+        privateResidenceWinsCount,
+        privateResidenceMatchedPingsCount,
+        examples: transportThresholdExamples,
+      },
     },
     // Back-compat top-level mirrors (consumers like report-candidate-blocks-health
     // read these at the result root). Same values as inside classificationDiagnostics.
