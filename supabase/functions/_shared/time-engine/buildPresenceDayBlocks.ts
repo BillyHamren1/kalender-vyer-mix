@@ -105,6 +105,13 @@ export interface PresenceDayBlock {
     centerLat?: number | null;
     centerLng?: number | null;
     maxDistanceMeters?: number | null;
+    /** Engine 4 — propagated from GpsTimelineSegment.targetDiagnostics.
+     *  When true, this block originates from a private_residence / boende
+     *  polygon and MUST be filtered out of reportCandidateBlocks. Kept here
+     *  so Decision Trace can render it as "Dolt: Boende / privat plats". */
+    privateResidence?: boolean;
+    privateResidenceTargetId?: string | null;
+    privateResidenceLabel?: string | null;
   };
   sourceSegmentIds: string[];
   hiddenRawSegmentIds: string[];
