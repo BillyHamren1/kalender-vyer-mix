@@ -271,6 +271,38 @@ export function buildPresenceDayBlocks(
   let blockSeq = 0;
   const newId = (kind: PresenceBlockKind) => `pdb-${kind}-${blockSeq++}`;
 
+  // Diagnostics for transport-gap classification (companion + classifier).
+  const sgDiag: SignalGapTransportDiagnostics = {
+    confirmedTransportGapCount: 0,
+    confirmedTransportGapMinutes: 0,
+    probableTransportGapCount: 0,
+    probableTransportGapMinutes: 0,
+    remainingUnknownTransportGapCount: 0,
+    remainingUnknownTransportGapMinutes: 0,
+    destinationConfirmedCount: 0,
+    examples: [],
+  };
+  const crDiag: CompanionRouteDiagnostics = {
+    confirmedByCompanionRouteCount: 0,
+    confirmedByCompanionRouteMinutes: 0,
+    veryHighConfidenceCount: 0,
+    highConfidenceCount: 0,
+    mediumConfidenceCount: 0,
+    lowConfidenceCandidateCount: 0,
+    unbridgedGapCount: 0,
+    examples: [],
+  };
+
+  const targetsById = new Map<string, WorkTarget>();
+  for (const t of input.targets ?? []) {
+    targetsById.set(`${t.kind}:${t.id}`, t);
+  }
+  const findTargetForSeg = (seg: GpsTimelineSegment | null): WorkTarget | null => {
+    if (!seg || !seg.matchedTargetId) return null;
+    return targetsById.get(`${seg.matchedTargetType}:${seg.matchedTargetId}`) ?? null;
+  };
+
+
   // Walk segments. We may absorb a gps_gap into an adjacent same-target stay
   // as 'probable_on_site' under the 5-min rule.
   let i = 0;
