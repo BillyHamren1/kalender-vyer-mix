@@ -102,10 +102,12 @@ export function classifyTransportSignalGap(
   }
 
   const destinationIsWorkRelated =
-    !!input.destinationCandidate && (input.destinationCandidate.kind === 'organization_location'
+    !!input.destinationCandidate && (
+      input.destinationCandidate.kind === 'organization_location'
       || input.destinationCandidate.kind === 'project'
-      |
-      || input.destinationCandidate.kind === 'booking');
+      || input.destinationCandidate.kind === 'booking'
+      || input.destinationCandidate.kind === 'warehouse'
+    );
 
   const destinationEvidence = input.destinationCandidate
     ? {
