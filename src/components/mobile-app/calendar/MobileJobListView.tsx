@@ -39,10 +39,29 @@ const filterLabels: Record<Filter, string> = {
   all: 'Alla',
 };
 
-function classifyShift(s: ScheduledShift): Kind {
-  if (s.large_project_id) return 'project';
-  if (s.is_internal) return 'location';
+function classifyItem(it: MobileCalendarItem): Kind {
+  if (it.kind === 'project') return 'project';
+  if (it.shift.is_internal) return 'location';
   return 'booking';
+}
+
+function itemStart(it: MobileCalendarItem): string {
+  return it.kind === 'project' ? it.start_time : it.shift.start_time;
+}
+function itemTitle(it: MobileCalendarItem): string {
+  return it.kind === 'project' ? it.title : it.shift.title;
+}
+function itemClient(it: MobileCalendarItem): string | null {
+  return it.kind === 'project' ? it.client : it.shift.client;
+}
+function itemAddress(it: MobileCalendarItem): string | null {
+  return it.kind === 'project' ? it.delivery_address : it.shift.delivery_address;
+}
+function itemBookingNumber(it: MobileCalendarItem): string | null {
+  return it.kind === 'project' ? null : (it.shift.booking_number ?? null);
+}
+function itemLargeProjectName(it: MobileCalendarItem): string | null {
+  return it.kind === 'project' ? it.title : (it.shift.large_project_name ?? null);
 }
 
 function kindMeta(kind: Kind) {
