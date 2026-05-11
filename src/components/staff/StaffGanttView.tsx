@@ -303,7 +303,17 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   const subLabel = format(selectedDate, 'd MMMM yyyy', { locale: sv });
   const selectedBlockStaff = selectedBlock ? staffList.find((s) => s.id === selectedBlock.staffId) ?? null : null;
   const selectedBlockReportCandidate = selectedBlockStaff ? reportCandidateByStaff?.[selectedBlockStaff.id] : undefined;
-  const selectedReportBlock = selectedBlockReportCandidate?.blocks?.find((b) => b.id === selectedBlock?.blockId) ?? null;
+  const selectedReportBlock = (() => {
+    const id = selectedBlock?.blockId;
+    if (!id || !selectedBlockReportCandidate) return null;
+    const inMain = selectedBlockReportCandidate.blocks?.find((b) => b.id === id);
+    if (inMain) return inMain;
+    if (id.startsWith('pre-')) {
+      const rawId = id.slice(4);
+      return selectedBlockReportCandidate.excludedPreWorkBlocks?.find((b) => b.id === rawId) ?? null;
+    }
+    return null;
+  })();
 
   // Per-staff blocks
   const blocksByStaff = useMemo(() => {
