@@ -719,7 +719,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   return (
     <div className="space-y-1.5">
       {preWorkInfoRow}
-      {visible.map((b) => (
+      {visible.map((b, idx) => (
         <BlockRow
           key={b.id}
           block={b}
@@ -728,6 +728,9 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
           staffName={staffName}
           date={date}
           resolved={resolvedMap.get(b.id) ?? null}
+          previousBlock={idx > 0 ? visible[idx - 1] : null}
+          nextBlock={idx < visible.length - 1 ? visible[idx + 1] : null}
+          rawPings={rawGpsTimeline?.pings ?? null}
         />
       ))}
       {summary && (
