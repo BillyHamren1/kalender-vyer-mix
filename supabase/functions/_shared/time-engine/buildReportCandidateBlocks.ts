@@ -291,6 +291,8 @@ export interface ReportCandidateSummary {
     preservedNeedsReviewBlocksCount: number;
     preservedTransportBlocksCount: number;
     demotedNeedsReviewBlocksCount?: number;
+    /** Time Engine 2.9 — antal block absorberade via shouldAbsorbAsProbableSameSession. */
+    probabilisticAbsorptionCount?: number;
     examples: Array<{
       staffName: string | null;
       sessionLabel: string | null;
