@@ -10,7 +10,7 @@
  * single source of truth.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { format, startOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
