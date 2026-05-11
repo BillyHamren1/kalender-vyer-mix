@@ -16,12 +16,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import { TimeReportReviewTable } from './TimeReportReviewTable';
 import { StaffDayTimelineCard } from './StaffDayTimelineCard';
+import { DecisionMapTab } from './DecisionMapTab';
+import { useDayPings } from '@/hooks/admin/useDayPings';
+import { useDayTimeline } from '@/hooks/admin/useDayTimeline';
+import { RawGpsDrawer } from './RawGpsDrawer';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
@@ -288,12 +294,16 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   const [sortKey, setSortKey] = useState<SortKey>('smart');
   const [filterKey, setFilterKey] = useState<FilterKey>('all');
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
+  const [selectedBlock, setSelectedBlock] = useState<{ staffId: string; blockId: string } | null>(null);
   const [compactRange, setCompactRange] = useState(true); // 06–22 default
   const queryClient = useQueryClient();
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const dateLabel = formatRelativeDate(selectedDate);
   const subLabel = format(selectedDate, 'd MMMM yyyy', { locale: sv });
+  const selectedBlockStaff = selectedBlock ? staffList.find((s) => s.id === selectedBlock.staffId) ?? null : null;
+  const selectedBlockReportCandidate = selectedBlockStaff ? reportCandidateByStaff?.[selectedBlockStaff.id] : undefined;
+  const selectedReportBlock = selectedBlockReportCandidate?.blocks?.find((b) => b.id === selectedBlock?.blockId) ?? null;
 
   // Per-staff blocks
   const blocksByStaff = useMemo(() => {
@@ -880,13 +890,10 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               key={b.id}
                               role="button"
                               tabIndex={0}
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 // Klick på kort → öppna drawer med all info
-                                 // (rådata, karta, tider). Knapp i drawerhuvudet
-                                 // tar vidare till full veckovy om man vill.
-                                 setOpenStaffId(staff.id);
-                               }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBlock({ staffId: staff.id, blockId: b.id });
+                                }}
                               className={cn(
                                 'absolute left-1 right-1 z-[5] cursor-pointer overflow-hidden rounded-md border px-2 py-1.5 text-[11px] leading-tight shadow-sm transition-shadow hover:z-20 hover:shadow-md',
                                 style.bg,
@@ -969,6 +976,18 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
           )}
         </SheetContent>
       </Sheet>
+
+      <BlockDetailDialog
+        open={!!selectedBlock && !!selectedBlockStaff && !!selectedBlockReportCandidate && !!selectedReportBlock}
+        onOpenChange={(open) => {
+          if (!open) setSelectedBlock(null);
+        }}
+        staff={selectedBlockStaff}
+        dateStr={dateStr}
+        dateLabel={subLabel}
+        reportCandidate={selectedBlockReportCandidate}
+        blockId={selectedReportBlock?.id ?? null}
+      />
     </div>
   );
 };
@@ -1000,6 +1019,119 @@ interface DrawerBodyProps {
   onRepairFromEvidence: (staffId: string, input: any) => Promise<void>;
   onAutoRepairFromEvidence: (staffId: string, input: any) => Promise<{ status: 'created' | 'existing' | 'skipped' }>;
 }
+
+interface BlockDetailDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  staff: StaffWithDayReport | null;
+  dateStr: string;
+  dateLabel: string;
+  reportCandidate?: any;
+  blockId: string | null;
+}
+
+const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
+  open,
+  onOpenChange,
+  staff,
+  dateStr,
+  dateLabel,
+  reportCandidate,
+  blockId,
+}) => {
+  const blocks = reportCandidate?.blocks ?? [];
+  const selectedBlock = blockId ? blocks.find((block: ReportCandidateBlockUI) => block.id === blockId) ?? null : null;
+  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
+  const { events } = useDayTimeline({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
+  const selectedEvent = useMemo(() => {
+    if (!selectedBlock) return null;
+    const start = new Date(selectedBlock.startAt).getTime();
+    const end = new Date(selectedBlock.endAt).getTime();
+    return events.find((event) => {
+      const ts = new Date(event.ts).getTime();
+      return Number.isFinite(ts) && ts >= start && ts <= end;
+    }) ?? null;
+  }, [events, selectedBlock]);
+
+  if (!staff || !selectedBlock) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[88vh] overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6 pb-3">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>{staff.name}</span>
+            <span className="text-sm font-normal text-muted-foreground">· {dateLabel}</span>
+            <span className="text-sm font-normal text-muted-foreground">
+              {selectedBlock.title} · {formatStockholmHm(selectedBlock.startAt)}–{formatStockholmHm(selectedBlock.endAt)}
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="px-6 pb-6 overflow-y-auto">
+          <Tabs defaultValue="overview" className="flex flex-col gap-4">
+            <TabsList className="w-full justify-start flex-wrap">
+              <TabsTrigger value="overview">Översikt</TabsTrigger>
+              <TabsTrigger value="map">Karta</TabsTrigger>
+              <TabsTrigger value="raw">Rå GPS</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="mt-0">
+              <StaffDayTimelineCard
+                staffName={staff.name}
+                staffId={staff.id}
+                date={dateStr}
+                model={staff.actualModel}
+                lastPingIso={staff.latestPing?.updated_at ?? null}
+                reportCandidateBlocks={blocks}
+                reportCandidateSummary={reportCandidate?.summary ?? null}
+                reportCandidateLoading={reportCandidate?.loading ?? false}
+                reportCandidatePresenceBlocks={reportCandidate?.presenceBlocks ?? null}
+                reportCandidateTargets={reportCandidate?.targets ?? null}
+                reportCandidateDiagnostics={reportCandidate?.diagnostics ?? null}
+                reportCandidateExcludedPreWorkBlocks={reportCandidate?.excludedPreWorkBlocks ?? null}
+                reportCandidatePreWorkExclusionDiagnostics={reportCandidate?.preWorkExclusionDiagnostics ?? null}
+                reportCandidateTargetResolution={reportCandidate?.targetResolution ?? null}
+                reportCandidatePresenceRawEvidence={reportCandidate?.presenceRawEvidence ?? null}
+                reportCandidateRawGpsTimeline={reportCandidate?.rawGpsTimeline ?? null}
+                reportCandidateTechnicalTimeline={reportCandidate?.technicalTimeline ?? null}
+                reportCandidatePresenceDaySummary={reportCandidate?.presenceDaySummary ?? null}
+                reportCandidatePresenceDayAggregation={reportCandidate?.presenceDayAggregation ?? null}
+                reportCandidateTargetMatchSummary={reportCandidate?.targetMatchSummary ?? null}
+                reportCandidateCounts={reportCandidate?.counts ?? null}
+                engineMode="report_candidate"
+              />
+            </TabsContent>
+
+            <TabsContent value="map" className="mt-0">
+              <DecisionMapTab
+                staffId={staff.id}
+                date={dateStr}
+                reportCandidateBlocks={selectedBlock ? [selectedBlock] : []}
+              />
+            </TabsContent>
+
+            <TabsContent value="raw" className="mt-0 space-y-3">
+              <div className="flex justify-end">
+                <RawGpsDrawer
+                  pings={pings}
+                  date={dateStr}
+                  staffName={staff.name}
+                  selectedEvent={selectedEvent}
+                />
+              </div>
+              <div className="rounded-md border border-border/60">
+                <div className="max-h-[420px] overflow-auto p-3 text-xs text-muted-foreground">
+                  Öppna “Visa rå GPS-data” för komplett pinglista filtrerad runt valt block.
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const DrawerBody: React.FC<DrawerBodyProps> = ({
   staff,
   dateStr,
