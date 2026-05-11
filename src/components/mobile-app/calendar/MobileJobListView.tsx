@@ -109,13 +109,17 @@ const MobileJobListView = ({ shifts }: Props) => {
   const [filter, setFilter] = useState<Filter>('upcoming');
   const [search, setSearch] = useState('');
 
+  // Consolidate first: large-project sub-bookings on the same day fold into
+  // a single "project" item — exactly like the day calendar. Then filter and
+  // search on the consolidated items.
   const items = useMemo(() => {
     const today = startOfDay(new Date());
     const q = search.trim().toLowerCase();
-    return shifts
-      .filter((s) => {
+    const consolidated = consolidateShifts(shifts);
+    return consolidated
+      .filter((it) => {
         try {
-          const d = startOfDay(parseISO(s.start_time));
+          const d = startOfDay(parseISO(itemStart(it)));
           if (filter === 'today') return isSameDay(d, today);
           if (filter === 'upcoming') return d.getTime() >= today.getTime();
           return true;
@@ -123,36 +127,37 @@ const MobileJobListView = ({ shifts }: Props) => {
           return false;
         }
       })
-      .filter((s) => {
+      .filter((it) => {
         if (!q) return true;
-        return (
-          s.title?.toLowerCase().includes(q) ||
-          s.client?.toLowerCase().includes(q) ||
-          s.delivery_address?.toLowerCase().includes(q) ||
-          s.large_project_name?.toLowerCase().includes(q) ||
-          s.booking_number?.toLowerCase().includes(q)
-        );
+        const title = itemTitle(it)?.toLowerCase() ?? '';
+        const client = itemClient(it)?.toLowerCase() ?? '';
+        const addr = itemAddress(it)?.toLowerCase() ?? '';
+        const lp = itemLargeProjectName(it)?.toLowerCase() ?? '';
+        const bn = itemBookingNumber(it)?.toLowerCase() ?? '';
+        return title.includes(q) || client.includes(q) || addr.includes(q) || lp.includes(q) || bn.includes(q);
       })
-      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+      .sort((a, b) => itemStart(a).localeCompare(itemStart(b)));
   }, [shifts, filter, search]);
 
   // Group by ISO date (YYYY-MM-DD)
   const grouped = useMemo(() => {
-    const map = new Map<string, ScheduledShift[]>();
-    for (const s of items) {
-      const key = s.start_time.slice(0, 10);
+    const map = new Map<string, MobileCalendarItem[]>();
+    for (const it of items) {
+      const key = itemStart(it).slice(0, 10);
       const arr = map.get(key) ?? [];
-      arr.push(s);
+      arr.push(it);
       map.set(key, arr);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [items]);
 
-  const handleClick = (s: ScheduledShift) => {
-    if (s.large_project_id) {
-      navigate(`/m/project/${s.large_project_id}`);
+  const handleClick = (it: MobileCalendarItem) => {
+    if (it.kind === 'project') {
+      navigate(`/m/project/${it.largeProjectId}`);
+    } else if (it.shift.large_project_id) {
+      navigate(`/m/project/${it.shift.large_project_id}`);
     } else {
-      navigate(`/m/job/${s.booking_id}`);
+      navigate(`/m/job/${it.shift.booking_id}`);
     }
   };
 
