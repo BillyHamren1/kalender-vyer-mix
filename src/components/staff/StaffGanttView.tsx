@@ -256,7 +256,19 @@ interface StaffGanttViewProps {
     } | undefined
   >;
   engineMode?: 'report_candidate' | 'actual_model_fallback';
+  bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
 }
+
+export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
+  staffList,
+  isLoading,
+  onSelectStaff,
+  selectedDate,
+  onDateChange,
+  reportCandidateByStaff,
+  engineMode = 'report_candidate',
+  bookingPhaseByDate,
+}) => {
 
 export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   staffList,
