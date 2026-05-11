@@ -59,6 +59,8 @@ import {
   classifyTransportSignalGap,
   type ClassifyTransportSignalGapResult,
 } from './classifyTransportSignalGap.ts';
+import { staffOwnDisplacementMeters } from './staffOwnDisplacement.ts';
+import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
