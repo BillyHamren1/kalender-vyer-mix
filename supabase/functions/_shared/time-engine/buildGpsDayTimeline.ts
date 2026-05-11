@@ -712,6 +712,8 @@ export function buildGpsDayTimeline(
           falseTravelPreventedCount: 0,
           privateResidenceWinsCount: 0,
           privateResidenceMatchedPingsCount: 0,
+          ephemeralUnknownStaysSuppressedCount: 0,
+          ephemeralUnknownStaysSuppressedMinutes: 0,
           examples: [],
         },
       },
