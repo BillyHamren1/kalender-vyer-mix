@@ -49,7 +49,16 @@
  */
 
 import type { GpsDayTimelineResult, GpsTimelineSegment } from './buildGpsDayTimeline.ts';
-import type { ISODate, ISODateTime, UUID } from './contracts.ts';
+import type { ISODate, ISODateTime, UUID, WorkTarget } from './contracts.ts';
+import {
+  findCompanionRouteEvidence,
+  type CompanionRouteEvidence,
+  type PeerGpsTimeline,
+} from './findCompanionRouteEvidence.ts';
+import {
+  classifyTransportSignalGap,
+  type ClassifyTransportSignalGapResult,
+} from './classifyTransportSignalGap.ts';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -133,6 +142,37 @@ export interface BuildPresenceDayBlocksInput {
   date: ISODate;
   gpsTimeline: GpsDayTimelineResult;
   timerMarkers?: TimerMarkerInput[];
+  /**
+   * Optional peer (other staff) GPS timelines for the same org/day, used as
+   * companion-route evidence to bridge short transport gaps. Read-only —
+   * peer pings are NEVER copied into this staff's data; they are only
+   * evaluated as evidence.
+   */
+  peerGpsTimelines?: PeerGpsTimeline[];
+  /** Resolved targets for THIS staff today (for destination evidence). */
+  targets?: WorkTarget[];
+}
+
+export interface SignalGapTransportDiagnostics {
+  confirmedTransportGapCount: number;
+  confirmedTransportGapMinutes: number;
+  probableTransportGapCount: number;
+  probableTransportGapMinutes: number;
+  remainingUnknownTransportGapCount: number;
+  remainingUnknownTransportGapMinutes: number;
+  destinationConfirmedCount: number;
+  examples: any[];
+}
+
+export interface CompanionRouteDiagnostics {
+  confirmedByCompanionRouteCount: number;
+  confirmedByCompanionRouteMinutes: number;
+  veryHighConfidenceCount: number;
+  highConfidenceCount: number;
+  mediumConfidenceCount: number;
+  lowConfidenceCandidateCount: number;
+  unbridgedGapCount: number;
+  examples: any[];
 }
 
 export interface PresenceDayBlocksResult {
