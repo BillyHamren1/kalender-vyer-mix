@@ -1644,6 +1644,8 @@ const StaffTimeReports: React.FC = () => {
       blocks: any[];
       summary: any;
       diagnostics: any;
+      excludedPreWorkBlocks: any[];
+      preWorkExclusionDiagnostics: any;
       targetResolution: any;
       presenceBlocks: any[];
       presenceRawEvidence: any[];
