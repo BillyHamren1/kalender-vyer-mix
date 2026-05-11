@@ -195,6 +195,8 @@ export interface PresenceDayBlocksResult {
     compressionRatio: number;
     byKind: Record<string, { evidence: number; presence: number; compressionRatio: number }>;
   };
+  signalGapTransportDiagnostics: SignalGapTransportDiagnostics;
+  companionRouteDiagnostics: CompanionRouteDiagnostics;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
