@@ -334,10 +334,28 @@ export function consolidateReportBlocksIntoSessions(
       const sessionEndCandidate = out[closeAt].endAt;
       const absorbedCount = closeAt - k;
 
+      // Time Engine 2.8 — synthetic sessionId (stable before assignId() runs).
+      const sessionId =
+        `session::${cur.startAt}::${cur.targetType ?? 'na'}::${cur.targetId ?? cur.targetLabel ?? 'unknown'}`;
+      cur.sessionId = sessionId;
+      const trail: Array<{
+        absorbedIntoSessionId: string;
+        absorbedOriginalKind: string;
+        absorbedReason: string | null;
+      }> = cur.absorbedTrail ?? [];
+
       // Absorb everything (k+1 .. closeAt) into cur
       for (let j = k + 1; j <= closeAt; j++) {
-        deps.absorbInto(cur, out[j]);
+        const victim = out[j];
+        const victimReasons = victim.reviewReasons ?? [];
+        trail.push({
+          absorbedIntoSessionId: sessionId,
+          absorbedOriginalKind: victim.kind,
+          absorbedReason: victimReasons[0] ?? null,
+        });
+        deps.absorbInto(cur, victim);
       }
+      cur.absorbedTrail = trail;
       out.splice(k + 1, closeAt - k);
 
       cur.internalMovementMinutes =
