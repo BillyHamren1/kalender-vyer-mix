@@ -3,12 +3,16 @@
  * Time Engine — classifyTransportSignalGap
  * ────────────────────────────────────────
  *
- * Pure helper. Given a short GPS gap inside what looks like a transport
- * sequence (own GPS before AND after, no conflicting signals), decide whether
- * the gap should be folded into the transport block or remain "Osäker period".
+ * Pure helper. Decide whether a short GPS gap inside a transport sequence
+ * should be folded into the transport block or kept as "needs review".
  *
- * Companion route evidence is FIRST-CLASS — it can promote the classification
- * to confirmed_transport_gap before any AI or fallback is needed.
+ * KEY RULES (v2 — transport blocks may be anchors):
+ *   - We do NOT require stable-stay anchors on both sides. Transport segments
+ *     count as anchors and route-continuation alone (gap between transports +
+ *     own pings before/after + plausible speed when measurable) is sufficient
+ *     for confirmed_transport_gap (high confidence).
+ *   - Companion-route evidence is an extra boost, never a requirement.
+ *   - destinationConfirmed=false + routeContinuationConfirmed=true is allowed.
  *
  * Pure: no DB, no AI, no writes.
  */
@@ -37,13 +41,15 @@ export type TransportGapConfidence = 'very_high' | 'high' | 'medium' | 'low';
 export interface ClassifyTransportSignalGapInput {
   gapStartIso: string;
   gapEndIso: string;
+  /** Last own GPS ping/segment endpoint before the gap (any segment kind). */
   previousKnownPosition: { lat: number; lng: number } | null;
+  /** First own GPS ping/segment startpoint after the gap (any segment kind). */
   nextKnownPosition: { lat: number; lng: number } | null;
   /** Was the segment immediately before the gap a travel segment? */
   previousIsTransport: boolean;
   /** Was the segment immediately after the gap a travel segment? */
   nextIsTransport: boolean;
-  /** Resolved work target for the next stable position (if any). */
+  /** Resolved destination (immediate next stable stay, or later in transport chain). */
   destinationCandidate: WorkTarget | null;
   conflictingSignals: {
     anyHardGeoEntry: boolean;
@@ -67,6 +73,9 @@ export interface ClassifyTransportSignalGapResult {
     isWorkRelated: boolean;
     confidence: 'high' | 'medium' | 'low';
   } | null;
+  destinationConfirmed: boolean;
+  routeContinuationConfirmed: boolean;
+  transportAnchorsUsed: boolean;
   companionRouteEvidence: CompanionRouteEvidence;
   impliedSpeedKmh: number | null;
   gapMinutes: number;
@@ -120,8 +129,17 @@ export function classifyTransportSignalGap(
     : null;
 
   const warningLabel = buildWarningLabel(companion.matchedStaffCount, gapMinutes);
+  const surroundedByTransport = input.previousIsTransport && input.nextIsTransport;
+  const transportAnchorsUsed = input.previousIsTransport || input.nextIsTransport;
+  const hasAnyAnchor = !!(input.previousKnownPosition || input.nextKnownPosition);
+  const hasBothAnchors = !!(input.previousKnownPosition && input.nextKnownPosition);
 
-  // Hard rejects — keep as needs_review.
+  // Speed validation only when both anchors known AND distance > 500 m.
+  const speedOk =
+    distanceMeters == null || distanceMeters <= 500
+      ? true
+      : impliedSpeedKmh != null && impliedSpeedKmh >= MIN_SPEED_KMH && impliedSpeedKmh <= MAX_SPEED_KMH;
+
   const fail = (reason: string): ClassifyTransportSignalGapResult => {
     reasons.push(reason);
     return {
@@ -132,25 +150,27 @@ export function classifyTransportSignalGap(
       reasons,
       warningLabel,
       destinationEvidence,
+      destinationConfirmed: false,
+      routeContinuationConfirmed: false,
+      transportAnchorsUsed,
       companionRouteEvidence: companion,
       impliedSpeedKmh,
       gapMinutes,
     };
   };
 
+  // Hard rejects.
   if (input.conflictingSignals.anyHardGeoEntry) return fail('conflict_hard_geo_entry');
   if (input.conflictingSignals.anyConfirmedStayAtOtherPlace) return fail('conflict_confirmed_stay');
   if (input.conflictingSignals.anyHomePrivate) return fail('conflict_home_private');
   if (gapMinutes > MAX_GAP_MIN) return fail('gap_too_long');
-  if (!input.previousKnownPosition || !input.nextKnownPosition) return fail('missing_anchors');
+  if (!hasAnyAnchor && !surroundedByTransport) return fail('no_transport_evidence');
+  if (!speedOk) return fail('implausible_speed');
 
-  if (distanceMeters != null && distanceMeters > 500 && impliedSpeedKmh != null) {
-    if (impliedSpeedKmh < MIN_SPEED_KMH || impliedSpeedKmh > MAX_SPEED_KMH) {
-      return fail('implausible_speed');
-    }
-  }
+  const routeContinuationConfirmed =
+    surroundedByTransport || (transportAnchorsUsed && hasAnyAnchor);
 
-  // Confidence pyramid.
+  // Companion at very_high → confirmed/very_high.
   if (companion.matched && companion.confidence === 'very_high') {
     reasons.push(...companion.reasons);
     reasons.push('short_signal_gap_inside_confirmed_route');
@@ -162,20 +182,24 @@ export function classifyTransportSignalGap(
       reasons,
       warningLabel,
       destinationEvidence,
+      destinationConfirmed: destinationIsWorkRelated,
+      routeContinuationConfirmed: true,
+      transportAnchorsUsed,
       companionRouteEvidence: companion,
       impliedSpeedKmh,
       gapMinutes,
     };
   }
 
-  const surroundedByTransport = input.previousIsTransport && input.nextIsTransport;
-  const anchoredMovement =
-    distanceMeters != null && distanceMeters > 500 && impliedSpeedKmh != null
-      && impliedSpeedKmh >= MIN_SPEED_KMH && impliedSpeedKmh <= MAX_SPEED_KMH;
-  const transportShape = surroundedByTransport || anchoredMovement;
-
-  if ((companion.matched && companion.confidence === 'high')
-      || (destinationIsWorkRelated && transportShape)) {
+  // Confirmed (high) without companion: surrounded by transport with own
+  // anchors and either work-destination OR plausible speed.
+  if (
+    surroundedByTransport
+    && hasBothAnchors
+    && (destinationIsWorkRelated || (impliedSpeedKmh != null && speedOk))
+  ) {
+    reasons.push('transport_anchors_both_sides');
+    if (destinationIsWorkRelated) reasons.push('destination_work_related');
     if (companion.matched) reasons.push(...companion.reasons);
     reasons.push('short_signal_gap_inside_confirmed_route');
     return {
@@ -186,14 +210,51 @@ export function classifyTransportSignalGap(
       reasons,
       warningLabel,
       destinationEvidence,
+      destinationConfirmed: destinationIsWorkRelated,
+      routeContinuationConfirmed: true,
+      transportAnchorsUsed,
       companionRouteEvidence: companion,
       impliedSpeedKmh,
       gapMinutes,
     };
   }
 
-  if ((companion.matched && companion.confidence === 'medium') || transportShape) {
+  // Companion high or destination + transport shape → confirmed (high).
+  if (
+    (companion.matched && companion.confidence === 'high')
+    || (destinationIsWorkRelated && (surroundedByTransport || transportAnchorsUsed))
+  ) {
     if (companion.matched) reasons.push(...companion.reasons);
+    if (destinationIsWorkRelated) reasons.push('destination_work_related');
+    reasons.push('short_signal_gap_inside_confirmed_route');
+    return {
+      classification: 'confirmed_transport_gap',
+      confidence: 'high',
+      confidenceScore: 0.9,
+      countsAsTransport: true,
+      reasons,
+      warningLabel,
+      destinationEvidence,
+      destinationConfirmed: destinationIsWorkRelated,
+      routeContinuationConfirmed,
+      transportAnchorsUsed,
+      companionRouteEvidence: companion,
+      impliedSpeedKmh,
+      gapMinutes,
+    };
+  }
+
+  // Probable: surrounded by transport (route continuation confirmed) but no
+  // confirmed destination, OR companion medium, OR transport on one side +
+  // plausible speed between anchors.
+  if (
+    surroundedByTransport
+    || (companion.matched && companion.confidence === 'medium')
+    || (transportAnchorsUsed && hasBothAnchors && impliedSpeedKmh != null && speedOk)
+  ) {
+    if (companion.matched) reasons.push(...companion.reasons);
+    if (surroundedByTransport) reasons.push('transport_anchors_both_sides');
+    else if (transportAnchorsUsed) reasons.push('transport_anchor_one_side');
     reasons.push('probable_transport_gap_partial_evidence');
     return {
       classification: 'probable_transport_gap',
@@ -203,6 +264,9 @@ export function classifyTransportSignalGap(
       reasons,
       warningLabel,
       destinationEvidence,
+      destinationConfirmed: destinationIsWorkRelated,
+      routeContinuationConfirmed,
+      transportAnchorsUsed,
       companionRouteEvidence: companion,
       impliedSpeedKmh,
       gapMinutes,
