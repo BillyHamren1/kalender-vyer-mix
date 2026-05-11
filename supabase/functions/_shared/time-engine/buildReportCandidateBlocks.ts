@@ -1296,6 +1296,24 @@ export function buildReportCandidateBlocks(
     firstPrimaryTargetLabel: null,
     excludedReasons: {},
     examples: [],
+    homeAnchorsCount: input.homeAnchors?.length ?? 0,
+    homeAnchorMatches: 0,
+  };
+
+  // Index presence blocks by id so we can recover GPS center for a candidate
+  // block via its sourcePresenceBlockIds. Used by the home-anchor check below.
+  const presenceById = new Map<string, PresenceDayBlock>();
+  for (const pb of blocks) presenceById.set(pb.id, pb);
+  const blockCenter = (
+    r: ReportCandidateBlock,
+  ): { lat: number; lng: number } | null => {
+    for (const sid of r.sourcePresenceBlockIds ?? []) {
+      const pb = presenceById.get(sid);
+      const lat = pb?.evidence?.centerLat ?? null;
+      const lng = pb?.evidence?.centerLng ?? null;
+      if (lat != null && lng != null) return { lat, lng };
+    }
+    return null;
   };
 
   const stockholmHour = (iso: string): number => {
