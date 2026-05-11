@@ -440,7 +440,7 @@ function EvidencePanel({
   );
 }
 
-function BlockRow({ block, lookups, staffId, staffName, date }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null }) {
+function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null }) {
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
