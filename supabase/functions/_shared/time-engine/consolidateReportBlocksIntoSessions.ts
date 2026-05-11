@@ -411,9 +411,60 @@ export function consolidateReportBlocksIntoSessions(
     }
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // Time Engine 2.7 — Needs-review cleanup pass.
+  // Efter sessions-konsolideringen: gå igenom kvarvarande needs_review-block
+  // och demota till reviewState='ok' om reasons ENBART är soft (signal_gap,
+  // låg GPS-signal, missing_transition_evidence, transport <500m utan
+  // distans, speed-violation utan distans, redan-absorberat).
+  // Sparar originalreasons i `absorbedReasons` så ingen information tappas.
+  // ───────────────────────────────────────────────────────────────────────
+  for (const r of out) {
+    if (r.reviewState !== 'needs_review') continue;
+    const reasons = r.reviewReasons ?? [];
+    if (reasons.length === 0) {
+      r.reviewState = 'ok';
+      diagnostics.demotedNeedsReviewBlocksCount += 1;
+      continue;
+    }
+    const hasHard = reasons.some((rr) => HARD_REVIEW_REASONS.has(rr));
+    if (hasHard) continue; // legitim needs_review, behåll.
+
+    const allSoft = reasons.every(
+      (rr) => SOFT_REVIEW_REASONS.has(rr) || SIGNAL_GAP_REASONS.has(rr),
+    );
+    if (!allSoft) continue; // okänd reason → konservativt: behåll needs_review.
+
+    // Spara original-reasons för spårbarhet och rensa.
+    r.absorbedReasons = Array.from(new Set([
+      ...(r.absorbedReasons ?? []),
+      ...reasons,
+    ]));
+    r.reviewState = 'ok';
+    diagnostics.demotedNeedsReviewBlocksCount += 1;
+
+    // Sätt warning om signalproblem fanns.
+    const hadSignal =
+      reasons.some((rr) => SIGNAL_GAP_REASONS.has(rr)) ||
+      r.signalGapMinutes > 0 ||
+      (r.signalGapCount ?? 0) > 0;
+    if (hadSignal) {
+      r.warningReasons = Array.from(new Set([
+        ...(r.warningReasons ?? []),
+        'signal_gap_inside_session',
+      ]));
+      const label = r.signalGapMinutes > 0
+        ? `Signal saknades periodvis: ${deps.fmtDuration(r.signalGapMinutes)}`
+        : 'Signal saknades periodvis';
+      if (!r.warningLabel || r.warningLabel === 'Signal saknades periodvis') {
+        r.warningLabel = label;
+      }
+    }
+  }
+
   diagnostics.blocksAfterSessionConsolidation = out.length;
   diagnostics.preservedNeedsReviewBlocksCount =
-    out.filter((r) => r.kind === 'needs_review').length;
+    out.filter((r) => r.reviewState === 'needs_review').length;
   diagnostics.preservedTransportBlocksCount =
     out.filter((r) => r.kind === 'transport').length;
 
