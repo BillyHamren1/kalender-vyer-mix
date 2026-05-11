@@ -327,9 +327,14 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
 
       <div className="relative rounded-md border border-border overflow-hidden bg-muted" style={{ height }}>
         <div ref={containerRef} className="absolute inset-0" />
-        {tokenLoading && (
+        {tokenLoading && !loadError && (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin mr-2" /> Laddar karta…
+          </div>
+        )}
+        {loadError && (
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-destructive p-3 text-center">
+            {loadError}
           </div>
         )}
       </div>
