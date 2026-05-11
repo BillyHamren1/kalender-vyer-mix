@@ -143,13 +143,8 @@ function periodBounds(input: StaffTimeReportPeriodInput): {
 }
 
 const REALTIME_TABLES = [
-  'workdays',
-  'time_reports',
-  'travel_time_logs',
-  'location_time_entries',
-  'workday_flags',
-  'assistant_events',
-  'day_attestations',
+  'staff_day_report_cache',
+  'staff_day_submissions',
 ] as const;
 
 export function useStaffTimeReportPeriod(
