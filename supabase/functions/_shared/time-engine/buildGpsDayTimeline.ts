@@ -535,18 +535,27 @@ function matchTarget(
   targets: WorkTarget[],
 ): { target: WorkTarget; distanceM: number } | null {
   const at = Date.parse(atIso);
-  let best: { target: WorkTarget; distanceM: number } | null = null;
+  let bestResidence: { target: WorkTarget; distanceM: number } | null = null;
+  let bestWork: { target: WorkTarget; distanceM: number } | null = null;
   for (const t of targets) {
     if (t.validFrom && Date.parse(t.validFrom) > at) continue;
     if (t.validUntil && Date.parse(t.validUntil) < at) continue;
-    // Distance metric for "best" ordering stays haversine-to-center; the inside
-    // gate honors polygon when present.
+    if (!pointInsideTarget(centerLat, centerLng, t)) continue;
     const d = haversine(centerLat, centerLng, t.center.lat, t.center.lng);
-    if (pointInsideTarget(centerLat, centerLng, t) && (best == null || d < best.distanceM)) {
-      best = { target: t, distanceM: d };
+    // Engine 4 — private_residence vinner alltid över Warehouse/work
+    // när pingen ligger inne i en residence-polygon. Kortavstånd får aldrig
+    // göra att Boende slås ihop med Warehouse.
+    if (t.isPrivateResidence === true) {
+      if (bestResidence == null || d < bestResidence.distanceM) {
+        bestResidence = { target: t, distanceM: d };
+      }
+      continue;
+    }
+    if (bestWork == null || d < bestWork.distanceM) {
+      bestWork = { target: t, distanceM: d };
     }
   }
-  return best;
+  return bestResidence ?? bestWork;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
