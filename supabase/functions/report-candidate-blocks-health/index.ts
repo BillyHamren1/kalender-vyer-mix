@@ -947,6 +947,38 @@ Deno.serve(async (req) => {
         day.shortUnknownTransportHiddenCount +=
           (report.summary as any).shortUnknownTransportHiddenCount ?? 0;
 
+        // ── Pre-work exclusion: aggregate diagnostics + invariants ──
+        const preWorkDiag = (report as any).preWorkExclusionDiagnostics ?? null;
+        if (preWorkDiag) {
+          day.preWorkExcludedMinutes += Number(preWorkDiag.excludedPreWorkMinutes ?? 0);
+          day.preWorkExcludedBlocksCount += Number(preWorkDiag.excludedPreWorkBlocksCount ?? 0);
+          for (const [reason, n] of Object.entries(preWorkDiag.excludedReasons ?? {})) {
+            day.preWorkExcludedReasons[reason] =
+              (day.preWorkExcludedReasons[reason] ?? 0) + Number(n ?? 0);
+          }
+          for (const ex of (preWorkDiag.examples ?? [])) {
+            if (day.preWorkExcludedExamples.length < 25) {
+              day.preWorkExcludedExamples.push({ staffName: s.name ?? s.id, ...ex });
+            }
+          }
+        }
+        // Invariant: there must be no unknown_place / non-target row before the
+        // first secure work target after PASS 3.
+        const firstPrimaryIdx = report.blocks.findIndex(
+          (b: any) => b.kind === 'work' && !!b.targetId,
+        );
+        if (firstPrimaryIdx > 0) {
+          for (let k = 0; k < firstPrimaryIdx; k++) {
+            const b = report.blocks[k] as any;
+            if (b.kind === 'unknown' || (b.kind === 'work' && !b.targetId)) {
+              day.warnings.push(
+                `pre_work_unknown_in_report:${s.id}:${b.id}:${b.startAt}`,
+              );
+              break;
+            }
+          }
+        }
+
         const examples = (report.summary as any).absorbedSameTargetTransportExamples ?? [];
         for (const ex of examples) {
           if (day.absorbedSameTargetTransportExamples.length < 25) {
