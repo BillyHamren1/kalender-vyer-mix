@@ -566,7 +566,12 @@ async function handleGet(
   const orgId = await getCallerOrg(supabase, userId);
   if (!orgId) return json({ error: "no_org" }, 403);
 
-  const [evRes, sugRes, snapRes] = await Promise.all([
+  // Compute coverage from latest ping vs latest snapshot event so the UI can
+  // surface a "tidslinjen kan vara ofullständig" banner when the engine ran on
+  // truncated input or hasn't been re-run after late-arriving GPS data.
+  const dayLocalStart = new Date(`${args.date}T00:00:00+01:00`).toISOString();
+  const dayLocalEnd = new Date(`${args.date}T23:59:59+02:00`).toISOString();
+  const [evRes, sugRes, snapRes, lastPingRes] = await Promise.all([
     supabase.from("day_timeline_events")
       .select("*")
       .eq("organization_id", orgId)
@@ -587,12 +592,37 @@ async function handleGet(
       .eq("date", args.date)
       .eq("engine_version", ENGINE_VERSION)
       .maybeSingle(),
+    supabase.from("staff_location_history")
+      .select("recorded_at")
+      .eq("organization_id", orgId)
+      .eq("staff_id", args.staff_id)
+      .gte("recorded_at", dayLocalStart)
+      .lte("recorded_at", dayLocalEnd)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
+  const events = evRes.data ?? [];
+  const lastPingTs = (lastPingRes.data as any)?.recorded_at ?? null;
+  const lastEventEndTs = events.reduce<string | null>((acc, e: any) => {
+    const t = e.end_ts ?? e.ts;
+    if (!t) return acc;
+    return !acc || t > acc ? t : acc;
+  }, null);
+  const gapMinutes = lastPingTs && lastEventEndTs
+    ? Math.max(0, Math.round((new Date(lastPingTs).getTime() - new Date(lastEventEndTs).getTime()) / 60000))
+    : 0;
+
   return json({
-    events: evRes.data ?? [],
+    events,
     suggestions: sugRes.data ?? [],
     snapshot: snapRes.data ?? null,
+    coverage: {
+      last_ping_ts: lastPingTs,
+      last_event_end_ts: lastEventEndTs,
+      gap_minutes: gapMinutes,
+    },
   });
 }
 
