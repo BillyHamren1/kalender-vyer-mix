@@ -16,7 +16,7 @@ import {
   ChevronLeft, ChevronRight, Loader2, AlertTriangle, FileCheck2, CalendarDays,
 } from 'lucide-react';
 import { useStaffTimeReportPeriod } from '@/hooks/useStaffTimeReportPeriod';
-import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
 import StaffDayDetailSheet from './StaffDayDetailSheet';
 import PeriodSwitcher, { type PeriodKind } from './PeriodSwitcher';
 import UserTimeSummaryCards from './UserTimeSummaryCards';
