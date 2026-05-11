@@ -524,6 +524,13 @@ export interface ReportCandidateTimelineProps {
   staffId?: string | null;
   staffName?: string | null;
   date?: string | null;
+  excludedPreWorkBlocks?: ReportCandidateBlockUI[] | null;
+  preWorkExclusionDiagnostics?: {
+    excludedPreWorkMinutes?: number;
+    excludedPreWorkBlocksCount?: number;
+    firstPrimaryWorkAt?: string | null;
+    firstPrimaryTargetLabel?: string | null;
+  } | null;
 }
 
 export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = ({
