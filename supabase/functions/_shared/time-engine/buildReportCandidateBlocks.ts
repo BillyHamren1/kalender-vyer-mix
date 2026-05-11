@@ -1996,6 +1996,198 @@ export function buildReportCandidateBlocks(
     }
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 5: consolidateReportBlocksIntoSessions
+  //
+  // Slå ihop tekniska kedjor (TRANSPORT-jitter / GRANSKA-signal_gap /
+  // okänd plats / mikro-transitions) som ligger MELLAN två work-block med
+  // samma target till EN sammanhållen session. Förhindrar att UI ser ut som
+  // "Transport → Granska → Transport → Granska" när allt egentligen hör
+  // till samma arbetspass på samma plats.
+  //
+  // Absorberas in i föregående work-blockets session:
+  //   - needs_review (vilken anledning som helst — inkl. signal_gap_*,
+  //     missing_transition_evidence, short_cross_target_movement,
+  //     short_transport_to_unknown) NÄR ett work-block med samma target
+  //     dyker upp efter rad-blocket
+  //   - unknown (vilken som helst storlek)
+  //   - transport med distanceMeters < realTripMinDistanceMeters (jitter
+  //     eller transport utan tydlig destination)
+  //   - work-block utan target (otarget arbete)
+  //
+  // BRYTER session (block efter detta absorberas EJ):
+  //   - work-block med ANNAN känd target
+  //   - transport med distanceMeters >= realTripMinDistanceMeters (riktig
+  //     resa till annan plats)
+  //   - private_residence (redan bortfiltrerat i Engine 4 — defensiv)
+  //
+  // Garantier:
+  //   - Aldrig writes till time_reports/workdays/LTE/travel.
+  //   - Riktig transport >= 500 m till annan plats förblir egen rad.
+  //   - GRANSKA blir aldrig automatiskt arbete utan ett efterföljande
+  //     work-block med samma target som "binder" sessionen.
+  //   - signalGapMinutes och internalMovementMinutes ökas på sessionen och
+  //     visas som warning ("Signal saknades periodvis").
+  // ───────────────────────────────────────────────────────────────────────
+  const sessionDiagnostics = {
+    blocksBeforeSessionConsolidation: out.length,
+    blocksAfterSessionConsolidation: out.length,
+    sessionsCreatedCount: 0,
+    absorbedSignalGapBlocksCount: 0,
+    absorbedNeedsReviewBlocksCount: 0,
+    absorbedInternalTransportBlocksCount: 0,
+    absorbedUnknownBlocksCount: 0,
+    preservedNeedsReviewBlocksCount: 0,
+    preservedTransportBlocksCount: 0,
+    examples: [] as ReportCandidateSummary['sessionConsolidationDiagnostics']['examples'],
+  };
+
+  {
+    const sessionTargetKey = (r: ReportCandidateBlock | undefined): string | null => {
+      if (!r || !r.targetId) return null;
+      return `${r.targetType ?? ''}::${r.targetId}`;
+    };
+
+    const SIGNAL_GAP_REASONS = new Set<string>([
+      'signal_gap_unresolved',
+      'signal_gap_open_day',
+      'signal_gaps_inside_work_block',
+      'missing_transition_evidence',
+      'targets_differ_without_movement',
+    ]);
+
+    let changed = true;
+    let safety = 0;
+    while (changed && safety < 200) {
+      changed = false;
+      safety += 1;
+
+      for (let k = 0; k < out.length - 1; k++) {
+        const cur = out[k];
+        if (cur.kind !== 'work' || !cur.targetId) continue;
+        const curKey = sessionTargetKey(cur);
+        if (!curKey) continue;
+
+        // Look ahead for a closing same-target work block, only crossing
+        // absorbable blocks.
+        let closeAt = -1;
+        let absorbedSignalGap = 0;
+        let absorbedNeedsReview = 0;
+        let absorbedInternalTransport = 0;
+        let absorbedUnknown = 0;
+        const absorbedKinds: string[] = [];
+        let internalMovementMin = 0;
+
+        for (let j = k + 1; j < out.length; j++) {
+          const r = out[j];
+          const dist = r.evidenceSummary?.distanceMeters ?? 0;
+          const rKey = sessionTargetKey(r);
+
+          // Hard breakers
+          if (r.kind === 'work' && rKey && rKey !== curKey) break;
+          if (
+            r.kind === 'transport' &&
+            dist >= policy.realTripMinDistanceMeters
+          ) break;
+
+          // Closing same-target work
+          if (r.kind === 'work' && rKey && rKey === curKey) {
+            closeAt = j;
+            break;
+          }
+
+          // Absorbable kinds:
+          //  - needs_review (any reason)
+          //  - unknown (any size — only reachable here when sandwiched
+          //    between same-target work)
+          //  - transport with distance < realTripMinDistanceMeters
+          //  - work without targetId (otarget arbete)
+          const isAbsorbable =
+            r.kind === 'needs_review' ||
+            r.kind === 'unknown' ||
+            (r.kind === 'transport' && dist < policy.realTripMinDistanceMeters) ||
+            (r.kind === 'work' && !r.targetId);
+
+          if (!isAbsorbable) break;
+
+          // Tally provisional counters (commit only if we find closing)
+          absorbedKinds.push(r.kind);
+          if (r.kind === 'needs_review') {
+            const reasons = r.reviewReasons ?? [];
+            const isSignalGap = reasons.some((rr) => SIGNAL_GAP_REASONS.has(rr));
+            if (isSignalGap) absorbedSignalGap += 1;
+            else absorbedNeedsReview += 1;
+          } else if (r.kind === 'unknown') {
+            absorbedUnknown += 1;
+          } else if (r.kind === 'transport') {
+            absorbedInternalTransport += 1;
+            internalMovementMin += r.durationMinutes;
+          }
+        }
+
+        if (closeAt < 0) continue;
+
+        // Snapshot example
+        const sessionStart = cur.startAt;
+        const sessionEndCandidate = out[closeAt].endAt;
+        const absorbedCount = closeAt - k;
+
+        // Absorb everything (k+1 .. closeAt) into cur
+        for (let j = k + 1; j <= closeAt; j++) {
+          absorbInto(cur, out[j]);
+        }
+        out.splice(k + 1, closeAt - k);
+
+        // Track internal movement on the session
+        cur.internalMovementMinutes =
+          (cur.internalMovementMinutes ?? 0) + internalMovementMin;
+
+        // Annotate session
+        if (!cur.reviewReasons.includes('session_consolidated')) {
+          cur.reviewReasons.push('session_consolidated');
+        }
+        // Strip blocking reasons we just resolved by binding to same target
+        cur.reviewReasons = cur.reviewReasons.filter(
+          (rr) => !BLOCKING_REVIEW_REASONS.has(rr) || WARNING_ONLY_REASONS.has(rr),
+        );
+        cur.reviewState = 'ok';
+        if (cur.signalGapMinutes > 0 || internalMovementMin > 0) {
+          cur.warningLabel = cur.warningLabel ?? 'Signal saknades periodvis';
+        }
+        // Refresh subtitle
+        cur.subtitle =
+          `${fmtClock(cur.startAt)}–${fmtClock(cur.endAt)} · ${fmtDuration(cur.durationMinutes)}`;
+
+        sessionDiagnostics.sessionsCreatedCount += 1;
+        sessionDiagnostics.absorbedSignalGapBlocksCount += absorbedSignalGap;
+        sessionDiagnostics.absorbedNeedsReviewBlocksCount += absorbedNeedsReview;
+        sessionDiagnostics.absorbedInternalTransportBlocksCount += absorbedInternalTransport;
+        sessionDiagnostics.absorbedUnknownBlocksCount += absorbedUnknown;
+
+        if (sessionDiagnostics.examples.length < 20) {
+          sessionDiagnostics.examples.push({
+            sessionTargetLabel: cur.targetLabel,
+            sessionStartAt: sessionStart,
+            sessionEndAt: sessionEndCandidate,
+            sessionDurationMinutes: cur.durationMinutes,
+            absorbedBlockCount: absorbedCount,
+            absorbedKinds,
+            signalGapMinutes: cur.signalGapMinutes,
+            internalMovementMinutes: cur.internalMovementMinutes ?? 0,
+          });
+        }
+
+        changed = true;
+        break;
+      }
+    }
+
+    sessionDiagnostics.blocksAfterSessionConsolidation = out.length;
+    sessionDiagnostics.preservedNeedsReviewBlocksCount =
+      out.filter((r) => r.kind === 'needs_review').length;
+    sessionDiagnostics.preservedTransportBlocksCount =
+      out.filter((r) => r.kind === 'transport').length;
+  }
 
   // +target+source set ⇒ same id across runs. See createReportCandidateBlockId.
   const assignId = (r: ReportCandidateBlock) => {
