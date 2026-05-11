@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StaffMovementMap } from './StaffMovementMap';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
+import { BlockAiReviewPanel } from './BlockAiReviewPanel';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 
 export type ReportBlockKind = 'work' | 'transport' | 'break' | 'unknown' | 'needs_review';
 export type ReportConfidence = 'high' | 'medium' | 'low';
@@ -444,6 +446,7 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { bloc
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
+  const { organizationId } = useCurrentOrg();
   const title = block.displayTitle ?? block.title;
   const subtitle = block.displaySubtitle
     ?? block.subtitle
@@ -519,6 +522,31 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { bloc
           <EvidencePanel block={block} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
         </div>
       )}
+      <div className="px-3 pb-2">
+        <BlockAiReviewPanel
+          block={{
+            id: block.id,
+            kind: block.kind,
+            reviewState: block.reviewState,
+            confidence: block.confidence,
+            startAt: block.startAt,
+            endAt: block.endAt,
+            durationMinutes: block.durationMinutes,
+            title: block.displayTitle ?? block.title,
+            subtitle: block.displaySubtitle ?? block.subtitle ?? null,
+            fromLabel: block.fromLabel ?? null,
+            toLabel: block.toLabel ?? null,
+            reviewReasons: block.reviewReasons,
+            targetType: block.targetType ?? null,
+            targetLabel: block.targetLabel ?? null,
+            signalGapMinutes: block.signalGapMinutes,
+            evidenceSummary: (block.evidenceSummary ?? null) as Record<string, unknown> | null,
+          }}
+          organizationId={organizationId}
+          staffId={staffId}
+          date={date}
+        />
+      </div>
     </div>
   );
 }
