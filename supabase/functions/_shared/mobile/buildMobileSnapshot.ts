@@ -162,6 +162,7 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
     cacheStatus,
     cacheError: cache?.error ?? null,
     workdayStatus: workdayStatusFrom(workday),
+    workday: workdayObjFrom(workday),
     summary,
     segments,
     actionsNeeded,
