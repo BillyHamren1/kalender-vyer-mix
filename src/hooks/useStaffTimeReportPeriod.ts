@@ -170,7 +170,7 @@ export function useStaffTimeReportPeriod(
     setIsLoading(true);
     try {
       const data: any = await callStaffSnapshotFunction(
-        'get-staff-time-report-period',
+        'get-mobile-staff-time-report-period',
         { staffId, kind: input.kind, startDate, endDate },
       );
       const t = data?.totals ?? {};
