@@ -730,8 +730,11 @@ function finalize(
   // Work-block utan target = vi vet inte vad det är.
   if (reviewState === 'ok' && acc.kind === 'work' && !hasTarget) reviewState = 'needs_review';
 
-  // Signalgap-promotion: bara om gapet är extremt OCH ingen on-site-evidens finns.
-  if (acc.kind === 'work' && duration > 0) {
+  // Signalgap-promotion: bara om gapet är extremt OCH ingen on-site-evidens
+  // finns OCH vi inte ens har en känd arbetsplats. Har vi target vet vi var
+  // personen varit — om hen smitit iväg en stund må så vara, det räcker som
+  // varning (warningLabel via signal_gaps_inside_work_block).
+  if (acc.kind === 'work' && duration > 0 && !hasTarget) {
     const gapRatio = acc.signalGapMinutes / duration;
     if (gapRatio > 0.75 && acc.confirmedMinutes === 0 && acc.probableMinutes === 0) {
       acc.reviewReasons.add('signal_gap_unresolved');
@@ -739,16 +742,19 @@ function finalize(
     }
   }
 
-  // Skydd: långt work-block på känd arbetsplats med on-site-evidens får
-  // ALDRIG bli needs_review enbart pga signalgap.
-  if (
-    acc.kind === 'work' &&
-    hasTarget &&
-    duration >= 15 &&
-    hasOnsiteEvidence &&
-    !hasBlockingReason
-  ) {
-    // Re-check: om signal_gap_unresolved precis lades till ovan, behåll det.
+  // Skydd: work-block på känd arbetsplats ska inte tvingas till granskning
+  // av rena signal-gap-skäl. Vi vet vart personen var; ev. utflykter visas
+  // som warning, inte som blockerande granskning.
+  if (acc.kind === 'work' && hasTarget && duration >= 15) {
+    const SIGNAL_GAP_REASONS = new Set([
+      'signal_gap_unresolved',
+      'signal_gap_open_day',
+      'signal_gaps_inside_work_block',
+    ]);
+    // Demota signalgap-relaterade blocking reasons → warning-only.
+    acc.reviewReasons = new Set(
+      Array.from(acc.reviewReasons).filter((r) => !SIGNAL_GAP_REASONS.has(r)),
+    ) as unknown as typeof acc.reviewReasons;
     const stillBlocking = Array.from(acc.reviewReasons).some((r) =>
       BLOCKING_REVIEW_REASONS.has(r),
     );
