@@ -1403,6 +1403,8 @@ export function buildReportCandidateBlocks(
     organizationId: input.organizationId,
     date: input.date,
     blocks: out,
+    excludedPreWorkBlocks,
+    preWorkExclusionDiagnostics,
     summary,
     warnings,
     policy,
