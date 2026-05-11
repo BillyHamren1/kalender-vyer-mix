@@ -118,6 +118,13 @@ export interface ResolvedWorkTarget {
   addressAnchorKey?: string | null;
   /** Raw address string (if any) — used to build anchor + display labels. */
   rawAddress?: string | null;
+  /**
+   * Engine 4 — when true this is a private residence / boende polygon
+   * (organization_locations.is_private_residence). Residences are passed
+   * to the GPS engine but are NEVER auto-matched as work, and they win
+   * semantically over nearby warehouse/work targets.
+   */
+  isPrivateResidence?: boolean;
   diagnostics: {
     notes: string[];
   };
