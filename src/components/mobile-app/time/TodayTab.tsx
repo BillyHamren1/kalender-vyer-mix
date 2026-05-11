@@ -477,7 +477,7 @@ export const TodayTab: React.FC = () => {
         segment={selectedSeg}
         date={snapshot.date}
         staffId={effectiveStaffId ?? null}
-        staffName={staff?.full_name ?? null}
+        staffName={staff?.name ?? null}
         onClose={() => setSelectedSeg(null)}
       />
     </div>
