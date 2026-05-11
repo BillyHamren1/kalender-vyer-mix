@@ -83,6 +83,9 @@ interface StaffDayTimelineCardProps {
    * Fälten är medvetet `any` — formen ägs av edge-funktionen.
    */
   reportCandidateDiagnostics?: any;
+  /** Pre-work blocks excluded from the main report (Decision Trace evidence). */
+  reportCandidateExcludedPreWorkBlocks?: ReportCandidateBlockUI[] | null;
+  reportCandidatePreWorkExclusionDiagnostics?: any;
   reportCandidateTargetResolution?: any;
   reportCandidatePresenceRawEvidence?: any[] | null;
   reportCandidateRawGpsTimeline?: any;
