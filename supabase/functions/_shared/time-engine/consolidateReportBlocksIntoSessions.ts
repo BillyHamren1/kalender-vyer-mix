@@ -196,6 +196,7 @@ export function consolidateReportBlocksIntoSessions(
       let absorbedUnknown = 0;
       const absorbedKinds: string[] = [];
       let internalMovementMin = 0;
+      let internalMovementMeters = 0;
 
       for (let j = k + 1; j < out.length; j++) {
         const r = out[j];
@@ -255,6 +256,7 @@ export function consolidateReportBlocksIntoSessions(
         } else if (r.kind === 'transport') {
           absorbedInternalTransport += 1;
           internalMovementMin += r.durationMinutes;
+          internalMovementMeters += dist;
         }
       }
 
@@ -272,6 +274,8 @@ export function consolidateReportBlocksIntoSessions(
 
       cur.internalMovementMinutes =
         (cur.internalMovementMinutes ?? 0) + internalMovementMin;
+      cur.internalMovementDistanceMeters =
+        (cur.internalMovementDistanceMeters ?? 0) + internalMovementMeters;
 
       if (!cur.reviewReasons.includes('session_consolidated')) {
         cur.reviewReasons.push('session_consolidated');
@@ -317,6 +321,16 @@ export function consolidateReportBlocksIntoSessions(
         }
       } else if (internalMovementMin > 0 && !cur.warningLabel) {
         cur.warningLabel = 'Intern rörelse periodvis';
+      }
+
+      // Time Engine 2.6 — markera intern rörelse separat (oavsett om signal-
+      // gap också finns), så UI/diagnostics kan särskilja intern rörelse
+      // (jitter / rörelse inom samma arbetsområde) från ren signalförlust.
+      if (internalMovementMin > 0 || absorbedInternalTransport > 0) {
+        cur.warningReasons = Array.from(new Set([
+          ...(cur.warningReasons ?? []),
+          'internal_movement_inside_session',
+        ]));
       }
 
       cur.subtitle =

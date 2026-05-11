@@ -97,6 +97,12 @@ export interface ReportCandidateBlock {
    */
   internalMovementMinutes?: number;
   /**
+   * Session consolidation (Time Engine 2.6):
+   * meter intern rörelse (jitter-transport < 500 m, kort transport inom
+   * samma arbetsområde/lager/projekt) som absorberats in i sessionen.
+   */
+  internalMovementDistanceMeters?: number;
+  /**
    * Session consolidation metadata (Time Engine 2.3):
    * antal absorberade signal_gap-block i sessionen.
    */
