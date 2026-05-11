@@ -434,8 +434,14 @@ export interface GpsClassificationDiagnostics {
     privateResidenceWinsCount: number;
     /** Pings that matched a private_residence polygon (regardless of conflict). */
     privateResidenceMatchedPingsCount: number;
+    /** Engine 5 — tiny single-/few-ping unknown_place "stays" suppressed
+     *  before emission. These are ephemeral noise blips between movement
+     *  pings and would otherwise turn into 0-min "Okänd plats" segments
+     *  that downstream layers expose as report rows. */
+    ephemeralUnknownStaysSuppressedCount: number;
+    ephemeralUnknownStaysSuppressedMinutes: number;
     examples: Array<{
-      kind: 'below_threshold_demoted' | 'private_residence_wins';
+      kind: 'below_threshold_demoted' | 'private_residence_wins' | 'ephemeral_unknown_suppressed';
       startAt: ISODateTime;
       endAt: ISODateTime;
       durationMinutes: number;
