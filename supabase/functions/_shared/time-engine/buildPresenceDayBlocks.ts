@@ -295,7 +295,7 @@ export function buildPresenceDayBlocks(
 
   const targetsById = new Map<string, WorkTarget>();
   for (const t of input.targets ?? []) {
-    targetsById.set(`${t.kind}:${t.id}`, t);
+    targetsById.set(`${t.kind}:${t.refId}`, t);
   }
   const findTargetForSeg = (seg: GpsTimelineSegment | null): WorkTarget | null => {
     if (!seg || !seg.matchedTargetId) return null;
