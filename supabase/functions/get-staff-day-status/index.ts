@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
   const PING_PAGE_SIZE = 1000;
   const PER_STAFF_PING_CAP = 20_000;
   async function fetchAllPings(): Promise<{
-    rows: Array<{ recorded_at: string; latitude: number; longitude: number; accuracy: number | null }>;
+    rows: Array<{ recorded_at: string; lat: number; lng: number; accuracy: number | null }>;
     truncated: boolean;
     pageCount: number;
     error: string | null;
