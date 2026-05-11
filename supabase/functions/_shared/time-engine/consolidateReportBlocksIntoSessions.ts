@@ -261,6 +261,7 @@ export function consolidateReportBlocksIntoSessions(
       let absorbedInternalTransport = 0;
       let absorbedUnknown = 0;
       const absorbedKinds: string[] = [];
+      const absorbedLabels: string[] = [];
       let internalMovementMin = 0;
       let internalMovementMeters = 0;
 
