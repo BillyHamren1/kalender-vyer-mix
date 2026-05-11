@@ -252,6 +252,11 @@ export interface ReportCandidatePolicy {
   /** Short transport adjacent to an unknown row that is shorter than this is
    *  hidden as evidence rather than emitted. Default 3 min. */
   shortUnknownTransportHideMaxMinutes?: number;
+  /** Sandwich rule: an unknown / needs_review block that lies between two
+   *  work rows on the SAME calendar day is converted to `work` (target
+   *  inherited if both sides match, otherwise unlabeled work) when its
+   *  duration is ≤ this. Default 90 min. Set to 0 to disable. */
+  sandwichInferWorkMaxMinutes?: number;
 }
 
 export interface HomeAnchorInput {
