@@ -277,6 +277,31 @@ const OrganizationLocationsManager = () => {
               <Input value={name} onChange={e => setName(e.target.value)} placeholder="Kontoret" className="h-9 text-sm" />
             </div>
             <div>
+              <Label className="text-xs">Typ</Label>
+              <Select value={locationType} onValueChange={(v) => handleTypeChange(v as LocationType)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {LOCATION_TYPE_ORDER.map((t) => (
+                    <SelectItem key={t} value={t} className="text-sm">{LOCATION_TYPE_LABELS[t]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isResidence && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-[11px] text-amber-800 dark:text-amber-200">
+                <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-medium">Boende</div>
+                  <div className="opacity-90">
+                    Boende används för att skilja privat vistelse från arbetstid nära arbetsplatser.
+                    Rita en polygon runt boendet på kartan. Radie används inte för boende.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
               <Label className="text-xs">Adress</Label>
               <div className="flex gap-1.5">
                 <Input
@@ -297,12 +322,21 @@ const OrganizationLocationsManager = () => {
                   {isGeocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
                 </Button>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Sök adressen → kartan centreras. Rita sedan polygon för exakt geofence.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {isResidence
+                  ? 'Sök adressen → kartan centreras. Rita sedan polygon runt boendet.'
+                  : 'Sök adressen → kartan centreras. Rita sedan polygon för exakt geofence.'}
+              </p>
             </div>
 
-            <GeofenceMapEditor value={geofence} onChange={setGeofence} centerOn={centerOn} height={340} />
+            <GeofenceMapEditor
+              value={isResidence ? { ...geofence, mode: 'polygon' } : geofence}
+              onChange={(v) => setGeofence(isResidence ? { ...v, mode: 'polygon' } : v)}
+              centerOn={centerOn}
+              height={340}
+            />
 
-            {geofence.mode === 'circle' && (
+            {!isResidence && geofence.mode === 'circle' && (
               <div>
                 <Label className="text-xs">Radie (meter)</Label>
                 <Input
@@ -318,13 +352,30 @@ const OrganizationLocationsManager = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-between py-1">
-              <div>
-                <Label className="text-xs">Visa som projekt i tidappen</Label>
-                <p className="text-[10px] text-muted-foreground">Alla personal kan registrera tid här som ett vanligt jobb</p>
-              </div>
-              <Switch checked={showAsProject} onCheckedChange={setShowAsProject} />
+            <div>
+              <Label className="text-xs">Anteckning</Label>
+              <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Valfri anteckning" className="h-9 text-sm" />
             </div>
+
+            {!isResidence && (
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <Label className="text-xs">Visa som projekt i tidappen</Label>
+                  <p className="text-[10px] text-muted-foreground">Alla personal kan registrera tid här som ett vanligt jobb</p>
+                </div>
+                <Switch checked={showAsProject} onCheckedChange={setShowAsProject} />
+              </div>
+            )}
+
+            {editingId && (
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <Label className="text-xs">Aktiv</Label>
+                  <p className="text-[10px] text-muted-foreground">Inaktiva platser döljs i listor och kartor</p>
+                </div>
+                <Switch checked={isActive} onCheckedChange={setIsActive} />
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={closeDialog}>Avbryt</Button>
               <Button size="sm" onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
