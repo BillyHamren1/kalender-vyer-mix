@@ -105,7 +105,7 @@ export function useAiReviewsForDay(args: {
         .eq('date', args.date)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data ?? []) as TimeReportAiReviewRow[];
+      return (data ?? []) as unknown as TimeReportAiReviewRow[];
     },
   });
 }
