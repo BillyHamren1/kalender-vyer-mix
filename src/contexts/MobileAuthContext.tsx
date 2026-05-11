@@ -3,6 +3,7 @@ import { mobileApi, MobileStaff, getToken, getStoredStaff, setAuth, clearAuth } 
 import { isScannerApp } from '@/config/appMode';
 import { clearTimerSyncQueue } from '@/services/timerSyncQueue';
 import { clearLocalTimerSession } from '@/hooks/useGeofencing';
+import { getViewAs, setViewAs as persistViewAs, type ViewAsRecord } from '@/services/viewAsStorage';
 
 interface MobileAuthContextType {
   staff: MobileStaff | null;
@@ -10,6 +11,16 @@ interface MobileAuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** True om current user har admin-roll (kan slå på "Visa som"). */
+  isAdmin: boolean;
+  /** Aktiv impersonering — null om av. */
+  viewAs: ViewAsRecord | null;
+  /** Effektiv staff-id som READ-hooks bör fråga efter. Skrivs ALDRIG av writes. */
+  effectiveStaffId: string | null;
+  /** True om viewAs är aktivt. */
+  isViewingAs: boolean;
+  /** Sätt/rensa viewAs (admin-only). */
+  setViewAs: (rec: { id: string; name: string } | null) => void;
 }
 
 const MobileAuthContext = createContext<MobileAuthContextType>({
@@ -18,6 +29,11 @@ const MobileAuthContext = createContext<MobileAuthContextType>({
   isLoading: true,
   login: async () => {},
   logout: () => {},
+  isAdmin: false,
+  viewAs: null,
+  effectiveStaffId: null,
+  isViewingAs: false,
+  setViewAs: () => {},
 });
 
 export const useMobileAuth = () => useContext(MobileAuthContext);
