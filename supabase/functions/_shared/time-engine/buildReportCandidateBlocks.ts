@@ -752,9 +752,9 @@ function finalize(
       'signal_gaps_inside_work_block',
     ]);
     // Demota signalgap-relaterade blocking reasons → warning-only.
-    acc.reviewReasons = new Set(
-      Array.from(acc.reviewReasons).filter((r) => !SIGNAL_GAP_REASONS.has(r)),
-    ) as unknown as typeof acc.reviewReasons;
+    for (const r of Array.from(acc.reviewReasons)) {
+      if (SIGNAL_GAP_REASONS.has(r)) acc.reviewReasons.delete(r);
+    }
     const stillBlocking = Array.from(acc.reviewReasons).some((r) =>
       BLOCKING_REVIEW_REASONS.has(r),
     );
