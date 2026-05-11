@@ -210,10 +210,18 @@ export function consolidateReportBlocksIntoSessions(
         // 2) Riktig transport (>= realTripMinDistanceMeters, default 500 m).
         //    Konservativt: även utan label på destinationen är >=500 m egen
         //    GPS-förflyttning en riktig resa och får inte gömmas i sessionen.
+        //    OBS: speed-only utan distans bryter inte (kräver faktisk
+        //    förflyttning ≥ 500 m).
         if (
           r.kind === 'transport' &&
           dist >= deps.realTripMinDistanceMeters
         ) break;
+
+        // 3) Time Engine 2.4 — Hårda break-reasons (private_residence,
+        //    workday_ended, planned_assignment_target_change,
+        //    clear_other_destination, impossible_route, conflicting_targets,
+        //    m.fl.). Gäller oavsett block-kind.
+        if (hasBreakingReason(r)) break;
 
         // Closing same-target work
         if (r.kind === 'work' && rKey && rKey === curKey) {
@@ -222,9 +230,11 @@ export function consolidateReportBlocksIntoSessions(
         }
 
         // Absorbable kinds:
-        //  - needs_review (any reason)
+        //  - needs_review där reasons ENBART är signal-gap-/transition-
+        //    relaterade (annars bryter SESSION_BREAK_REASONS ovan)
         //  - unknown (any size — sandwich-safe när bunden av samma target)
-        //  - transport < realTripMinDistanceMeters (jitter)
+        //  - transport < realTripMinDistanceMeters (jitter / utan tydlig
+        //    destination)
         //  - work without targetId (otarget arbete)
         const isAbsorbable =
           r.kind === 'needs_review' ||
