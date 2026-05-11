@@ -32,7 +32,20 @@ export async function callStaffSnapshotFunction<T>(
   body: Record<string, unknown>,
 ): Promise<T> {
   const mobileToken = getToken();
-  const viewAs = getViewAsStaffId();
+  const storedViewAs = getViewAsStaffId();
+  // Only attach the admin "view-as" header when it actually matches the staff
+  // we're querying. A stale viewAs value in localStorage (left over from an
+  // admin session) otherwise collides with the mobile user's own requests and
+  // the edge function rejects with 403 "requestedStaffId must match
+  // x-view-as-staff".
+  const bodyStaffId =
+    (body?.staffId as string | undefined) ??
+    (body?.staff_id as string | undefined) ??
+    (body?.requestedStaffId as string | undefined) ??
+    null;
+  const viewAs = storedViewAs && (!bodyStaffId || bodyStaffId === storedViewAs)
+    ? storedViewAs
+    : null;
   if (mobileToken) {
     const base = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
     const apikey = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
