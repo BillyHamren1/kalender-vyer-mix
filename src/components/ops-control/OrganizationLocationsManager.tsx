@@ -93,6 +93,9 @@ const OrganizationLocationsManager = () => {
     setName('');
     setAddress('');
     setShowAsProject(false);
+    setLocationType('other');
+    setNotes('');
+    setIsActive(true);
     setGeofence({ mode: 'circle', latitude: 0, longitude: 0, radius_meters: 100, polygon: null });
     setCenterOn(null);
   };
@@ -102,6 +105,9 @@ const OrganizationLocationsManager = () => {
     setName(loc.name);
     setAddress(loc.address || '');
     setShowAsProject(loc.show_as_project || false);
+    setLocationType((loc.location_type as LocationType) || 'other');
+    setNotes(typeof loc.metadata?.notes === 'string' ? loc.metadata.notes : '');
+    setIsActive(loc.is_active);
     setGeofence({
       mode: (loc.geofence_mode as any) || 'circle',
       latitude: Number(loc.latitude),
@@ -111,6 +117,15 @@ const OrganizationLocationsManager = () => {
     });
     setCenterOn(null);
     setDialogOpen(true);
+  };
+
+  const handleTypeChange = (next: LocationType) => {
+    setLocationType(next);
+    if (next === 'private_residence') {
+      // Force polygon mode for residences; clear radius
+      setGeofence(g => ({ ...g, mode: 'polygon' }));
+      setShowAsProject(false);
+    }
   };
 
   const geocodeAddress = useCallback(async () => {
