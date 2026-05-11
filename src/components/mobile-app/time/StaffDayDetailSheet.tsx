@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
 import StaffDayAttestSection from './StaffDayAttestSection';
 import EndDayButton from './EndDayButton';
+import SegmentDetailSheet from './SegmentDetailSheet';
 
 const TZ_TODAY = 'Europe/Stockholm';
 function useTick(intervalMs = 1000) {
@@ -134,6 +135,7 @@ const DayBody: React.FC<{
   staffId: string | null;
   onChanged: () => void;
 }> = ({ snapshot, date, staffId, onChanged }) => {
+  const [selectedSeg, setSelectedSeg] = useState<StaffDaySegment | null>(null);
   const wd = snapshot.workday;
   const t = snapshot.totals;
   const isLocked = !!wd?.approved;
