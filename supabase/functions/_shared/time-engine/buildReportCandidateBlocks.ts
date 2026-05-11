@@ -30,6 +30,7 @@ import type {
   PresenceConfidence,
 } from './buildPresenceDayBlocks.ts';
 import type { ISODate, ISODateTime, UUID } from './contracts.ts';
+import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
