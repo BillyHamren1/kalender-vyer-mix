@@ -727,6 +727,8 @@ export function buildPresenceDayBlocks(
     presenceDayBlocksRawEvidence: evidenceBlocks,
     summary: summarise(dayReportBlocks),
     aggregation: buildAggregationMetrics(evidenceBlocks, dayReportBlocks),
+    signalGapTransportDiagnostics: sgDiag,
+    companionRouteDiagnostics: crDiag,
   };
 }
 
