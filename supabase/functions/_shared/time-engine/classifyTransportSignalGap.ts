@@ -169,9 +169,13 @@ export function classifyTransportSignalGap(
   }
 
   const surroundedByTransport = input.previousIsTransport && input.nextIsTransport;
+  const anchoredMovement =
+    distanceMeters != null && distanceMeters > 500 && impliedSpeedKmh != null
+      && impliedSpeedKmh >= MIN_SPEED_KMH && impliedSpeedKmh <= MAX_SPEED_KMH;
+  const transportShape = surroundedByTransport || anchoredMovement;
 
   if ((companion.matched && companion.confidence === 'high')
-      || (destinationIsWorkRelated && surroundedByTransport)) {
+      || (destinationIsWorkRelated && transportShape)) {
     if (companion.matched) reasons.push(...companion.reasons);
     reasons.push('short_signal_gap_inside_confirmed_route');
     return {
@@ -188,7 +192,7 @@ export function classifyTransportSignalGap(
     };
   }
 
-  if ((companion.matched && companion.confidence === 'medium') || surroundedByTransport) {
+  if ((companion.matched && companion.confidence === 'medium') || transportShape) {
     if (companion.matched) reasons.push(...companion.reasons);
     reasons.push('probable_transport_gap_partial_evidence');
     return {
