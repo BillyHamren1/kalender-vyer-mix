@@ -12596,7 +12596,7 @@ async function handleGetOpsOverview(
   const toDate: string = (typeof data?.to === 'string' && data.to) || defaultTo
   const fromIso = `${fromDate}T00:00:00.000Z`
   const toIso = `${toDate}T23:59:59.999Z`
-  const includeAnomalies = data?.include_anomalies !== false
+  const includeAnomalies = data?.include_anomalies === true
 
   // Reuse existing handlers (they already enforce planner check + org scope).
   const innerInput = { from: fromIso, to: toIso }
