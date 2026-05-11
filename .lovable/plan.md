@@ -1,35 +1,21 @@
-## Mål
-Mobilens `/m/report` ska visa samma dagssanning som webbens tidrapportvy för samma person och datum, så fall som Raivis inte kan visa 09:00 i mobilen när webb/pings visar arbete till 18:00.
+# Plan
 
-## Plan
-1. Byt mobilens dagsvy från den alternativa cache-endpointen till den kanoniska dagssnapshoten.
-   - Ersätt användningen av `useStaffDayStatusViaMobileReport` i mobilens rapportflöde med `useStaffDaySnapshot` där dagsdata, arbetsspann, totals och segment visas.
-   - Låt dag-/vecko-/månadsöversikten fortsätta använda samma period-API som idag, men när man öppnar en enskild dag ska den använda exakt samma dagssnapshot som webben.
+## Problem
+Mobilens `/m/report` faller inte på tidsberäkningen just nu, utan på nätverkslagret: `get-staff-day-status` svarar inte på browserns preflight när `x-view-as-staff` skickas. Därför blir resultatet `Failed to fetch`, och `TodayTab`/dagsdetaljen får ingen snapshot alls.
 
-2. Bevara mobilens nuvarande UI, men mata den med den kanoniska strukturen.
-   - Behåll `TodayTab`, `TimeReportTab`, `StaffDayDetailSheet` och `SegmentDetailSheet` visuellt/funktionellt.
-   - Säkerställ att dessa komponenter läser `workday`, `totals`, `segments`, `attestation` och GPS-panel från den kanoniska snapshoten utan lokal omtolkning.
-
-3. Ta bort divergerande mobil-logik för dagdata där den orsakar felaktig spegling.
-   - Sluta använda `get-mobile-staff-day-report` som primär källa för `/m/report` dagvy.
-   - Antingen avveckla adaptern `mobileReportToDaySnapshot` från rapportvyn eller begränsa den till en separat användning där den inte påverkar tidrapportssidan.
-
-4. Verifiera med det konkreta felet och regressionsskydd.
-   - Kontrollera att mobilens dagvy nu visar samma arbetsdagsspann och block som webbens snapshot för samma datum.
-   - Lås gärna med ett litet test eller tydlig kodgräns så att `/m/report` inte återgår till alternativ cachemodell igen.
+## Vad jag kommer att ändra
+1. Uppdatera `supabase/functions/get-staff-day-status/index.ts` så dess CORS-huvuden matchar de andra snapshot-funktionerna och explicit tillåter `x-view-as-staff`.
+2. Säkerställa att funktionen fortsatt använder samma snapshot-only-regel och inte inför någon lokal fallback i frontend.
+3. Verifiera att `/m/report` i read-only/view-as-läge åter kan hämta dagssnapshot utan `Failed to fetch`.
 
 ## Teknisk detalj
-- Rotorsaken är att mobilen idag hämtar dagsdata från `get-mobile-staff-day-report` / `staff_day_report_cache`, medan webben och periodsammanställningen bygger på `get-staff-day-status` / samma dagssnapshot-motor.
-- Det gör att `/m/report` kan visa en annan workday/segmentkedja än webben, trots att periodkort och adminvy bygger på den kanoniska modellen.
-- Fixen hålls i frontend-hookar/komponentkopplingar om möjligt; ingen databasändring behövs för detta steg.
+- Felorsaken är att `get-staff-day-status` idag har:
+  - `Access-Control-Allow-Headers: authorization, x-client-info, apikey, content-type`
+- medan övriga snapshot-funktioner redan tillåter:
+  - `..., x-view-as-staff`
+- Frontenden skickar redan `x-view-as-staff` via `callStaffSnapshotFunction`, så browsern stoppar anropet innan Edge Function körs.
 
-## Påverkade delar
-- `src/components/mobile-app/time/TodayTab.tsx`
-- `src/components/mobile-app/time/TimeReportTab.tsx`
-- `src/components/mobile-app/time/StaffDayDetailSheet.tsx`
-- `src/hooks/useStaffDayStatusViaMobileReport.ts` eller dess anrop
-- Eventuellt städning kring `src/hooks/useMobileStaffDayReport.ts` och `src/lib/staff/mobileReportToDaySnapshot.ts`
-
-## Resultat efter implementation
-- Mobilens tidrapportvy speglar webbens tidrapportvy för samma dag.
-- Raivis-liknande fall visar inte längre fel sluttid i mobilen när den kanoniska dagssnapshoten säger något annat.
+## Validering
+- Bekräfta att nätverksanropet till `get-staff-day-status` inte längre får `Failed to fetch`.
+- Bekräfta att `/m/report` laddar dagsdata i view-as-läge.
+- Ingen ändring av tidslogik eller lokala summeringar görs i detta steg.

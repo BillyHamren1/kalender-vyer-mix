@@ -9,7 +9,7 @@ import { getStockholmDayWindowUtc } from "../_shared/stockholmDayWindow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-view-as-staff",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
