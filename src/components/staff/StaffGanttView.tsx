@@ -789,9 +789,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                     );
                   })}
 
-                  {/* Hour rail (sticky left) */}
+                  {/* Hour rail (lives in grid column 1, not sticky horizontally so it doesn't overlay blocks) */}
                   <div
-                    className="sticky left-0 z-10 border-r bg-card/95 backdrop-blur"
+                    className="relative border-r bg-card"
                     style={{ height: bodyHeight }}
                   >
                     {hours.slice(0, -1).map((h, i) => (
