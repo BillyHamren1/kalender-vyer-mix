@@ -84,11 +84,26 @@ export function buildDayRangeSnapshots(
       workday = best;
     }
 
+    // Klipp workday-intervallet till dagens fönster så att brutto/payable per
+    // dag aldrig räknar in minuter från andra dygn (t.ex. ej-stängd workday
+    // som nödstoppats efter flera dygn). Workday-raden i sig (id, metadata,
+    // approved_at, review_status) bevaras orörd; bara start/slut/öppen-status
+    // klipps för PER-DAG-beräkning.
+    let clippedWorkday: WorkdayRow | null = workday;
+    if (workday) {
+      const clip = clipIntervalToDayWindow(workday.started_at, workday.ended_at ?? null, win, now);
+      if (!clip) {
+        clippedWorkday = null;
+      } else if (clip.startUtc !== workday.started_at || clip.endUtc !== (workday.ended_at ?? null)) {
+        clippedWorkday = { ...workday, started_at: clip.startUtc, ended_at: clip.endUtc };
+      }
+    }
+
     return buildStaffDaySnapshot(
       {
         staffId,
         date,
-        workday,
+        workday: clippedWorkday,
         timeReports: trByDate.get(date) ?? [],
         travelLogs: tlByDate.get(date) ?? [],
         locationEntries: leByDate.get(date) ?? [],
