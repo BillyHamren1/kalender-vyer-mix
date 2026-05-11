@@ -113,6 +113,15 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
   const [showGpsDetails, setShowGpsDetails] = useState(false);
   const [editTimeReportId, setEditTimeReportId] = useState<string | null>(null);
 
+  const openReviewEntry = useMemo(() => {
+    const sourceEntries = reviewRow?.workEntries ?? [];
+    const rowOpen = sourceEntries.find((entry) => entry.start_time && !entry.end_time && !entry.is_subdivision);
+    if (rowOpen?.start_time) return { startTime: rowOpen.start_time };
+
+    const dialogOpen = workEntries.find((entry) => entry.start_time && !entry.end_time);
+    return dialogOpen?.start_time ? { startTime: dialogOpen.start_time } : null;
+  }, [reviewRow?.workEntries, workEntries]);
+
   // Etapp 4: pings + events + known places for the timeline map / raw drawer
   const { pings } = useDayPings({ staffId, date, enabled: open });
   const { events: timelineEvents } = useDayTimeline({ staffId, date, enabled: open });
@@ -561,6 +570,7 @@ export const DailyOverviewDialog: React.FC<DailyOverviewDialogProps> = ({
                 workday={reviewRow.workdayStart ? { started_at: reviewRow.workdayStart, ended_at: reviewRow.workdayEnd } : null}
                 result={reviewRow.result}
                 reviewStatus={reviewRow.reviewStatus}
+                openTimer={openReviewEntry}
                 variant="full"
                 onApproved={() => onOpenChange(false)}
               />
