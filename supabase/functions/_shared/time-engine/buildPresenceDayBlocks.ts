@@ -760,6 +760,8 @@ export function buildPresenceDayBlocks(
     // ── Unknown stable place ────────────────────────────────────────────
     if (isUnknownStay(seg)) {
       const dur = durationMinutes(seg.startTs, seg.endTs);
+      const td = (seg as any).targetDiagnostics ?? {};
+      const isPrivateResidence = td.privateResidence === true;
       blocks.push({
         id: newId('unknown_place'),
         kind: 'unknown_place',
@@ -769,14 +771,25 @@ export function buildPresenceDayBlocks(
         durationLabel: formatDurationLabel(dur),
         targetType: null,
         targetId: null,
-        targetLabel: 'Okänd plats',
+        targetLabel: isPrivateResidence
+          ? (td.privateResidenceLabel ? `Boende: ${td.privateResidenceLabel}` : 'Boende')
+          : 'Okänd plats',
         confidence: seg.confidence >= 0.6 ? 'medium' : 'low',
-        confidenceReason: 'GPS visar stabil plats utan känd target',
-        reviewState: 'needs_review',
+        confidenceReason: isPrivateResidence
+          ? 'GPS innanför privat boende-polygon (filtreras från huvudvyn)'
+          : 'GPS visar stabil plats utan känd target',
+        reviewState: isPrivateResidence ? 'ok' : 'needs_review',
         evidence: {
           pingCount: seg.pingCount,
           centerLat: seg.centerLat ?? null,
           centerLng: seg.centerLng ?? null,
+          ...(isPrivateResidence
+            ? {
+                privateResidence: true,
+                privateResidenceTargetId: td.privateResidenceTargetId ?? null,
+                privateResidenceLabel: td.privateResidenceLabel ?? null,
+              }
+            : {}),
         },
         sourceSegmentIds: [seg.id],
         hiddenRawSegmentIds: [],
