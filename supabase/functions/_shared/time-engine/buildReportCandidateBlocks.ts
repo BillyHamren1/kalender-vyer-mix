@@ -931,18 +931,38 @@ export function buildReportCandidateBlocks(
         // Confidence = high när båda sidor är confirmed_on_site, annars
         // medium. Påverkar inte time_reports/lön (transport är fortfarande
         // ett admin-förslag).
-        if (prevKnown && nextKnown && prevKey !== nextKey) {
+        // Engine 4 hard gate: only allow bridged-trip promotion if THIS
+        // staff's own GPS shows real displacement >= TRANSPORT_MIN_DISTANCE_METERS
+        // around the gap. Without measured movement, two differing target
+        // labels on either side (often caused by missing private_residence
+        // polygon — home matched to nearby Warehouse on one side) would
+        // otherwise hallucinate a "Resa" with zero meters travelled.
+        const ownDispMeters: number | null =
+          (b as any).evidence?.staffOwnDisplacementMeters ?? null;
+        const ownMovementOk =
+          ownDispMeters != null && ownDispMeters >= TRANSPORT_MIN_DISTANCE_METERS;
+
+        if (prevKnown && nextKnown && prevKey !== nextKey && ownMovementOk) {
           const candidate = newAcc('transport', b);
           candidate.fromLabel = prev!.targetLabel;
           candidate.toLabel = next!.targetLabel;
-          // Markera som hög confidence när båda sidor är confirmed_on_site,
-          // annars medium. finalize() läser distanceMeters för transport;
-          // vi har inget mätt avstånd här, så vi sätter ett litet sentinel
-          // för att förhindra att finalize fastnar på "medium" när vi
-          // egentligen vet att båda ändpunkterna är hårda.
+          candidate.distanceMeters = Math.round(ownDispMeters!);
           if (prev!.kind === 'confirmed_on_site' && next!.kind === 'confirmed_on_site') {
-            candidate.distanceMeters = 1; // räcker för finalize → 'high'
+            // both sides hard → high confidence already implied by distance,
+            // but keep behaviour from before.
           }
+          const fin = finalize(candidate, policy, out.length);
+          if (fin) out.push(fin);
+          i += 1;
+          continue;
+        }
+        if (prevKnown && nextKnown && prevKey !== nextKey && !ownMovementOk) {
+          // Differing labels but no measured movement → keep as needs_review
+          // with explicit reason. Falls through to needs_review block below.
+          const candidate = newAcc('needs_review', b);
+          candidate.fromLabel = prev!.targetLabel;
+          candidate.toLabel = next!.targetLabel;
+          candidate.reviewReasons.add('targets_differ_without_movement');
           const fin = finalize(candidate, policy, out.length);
           if (fin) out.push(fin);
           i += 1;
