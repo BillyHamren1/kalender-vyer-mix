@@ -38,6 +38,7 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
   const [styleMode, setStyleMode] = useState<'streets' | 'satellite'>('satellite');
   const [area, setArea] = useState<number>(0);
   const [tokenLoading, setTokenLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => { valueRef.current = value; }, [value]);
 
