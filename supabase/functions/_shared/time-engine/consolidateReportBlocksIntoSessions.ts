@@ -53,6 +53,9 @@ export interface SessionConsolidationDiagnostics {
   absorbedUnknownBlocksCount: number;
   preservedNeedsReviewBlocksCount: number;
   preservedTransportBlocksCount: number;
+  /** Time Engine 2.7 — antal needs_review-block som efter konsolidering
+   *  demoterades till reviewState='ok' (rena soft-skäl, ingen hård orsak). */
+  demotedNeedsReviewBlocksCount: number;
   examples: Array<{
     sessionTargetLabel: string | null;
     sessionStartAt: string;
