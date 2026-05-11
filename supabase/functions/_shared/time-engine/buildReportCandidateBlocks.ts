@@ -1204,66 +1204,38 @@ export function buildReportCandidateBlocks(
         cur.durationMinutes <= policy.sameTargetTransportAbsorbMaxMinutes;
 
       if (sameTargetCandidate) {
-        if (distMissing) {
-          // No distance → cannot prove jitter. Keep as transport, mark for review.
-          if (!cur.reviewReasons.includes('same_target_transport_missing_distance')) {
-            cur.reviewReasons.push('same_target_transport_missing_distance');
-          }
-          if (sameTargetTransportRejectedExamples.length < 20) {
-            sameTargetTransportRejectedExamples.push({
-              targetLabel: prev.targetLabel ?? null,
-              startAt: cur.startAt,
-              endAt: cur.endAt,
-              durationMinutes: Math.round(cur.durationMinutes * 100) / 100,
-              distanceMeters: null,
-              decision: 'kept_as_transport',
-              reviewReasons: [...cur.reviewReasons],
-            });
-          }
-          crossTargetTransportKeptCount += 1;
-          continue;
-        }
-
-        if (dist > policy.sameTargetTransportAbsorbMaxDistanceMeters) {
-          // Real round-trip — too far to be jitter. Flip to needs_review so an
-          // operator can decide whether it was a real errand.
-          flipToNeedsReview(cur, 'same_target_roundtrip_distance_too_large');
-          sameTargetTransportRejectedByDistanceCount += 1;
-          sameTargetTransportRejectedByDistanceMinutes += cur.durationMinutes;
-          if (sameTargetTransportRejectedExamples.length < 20) {
-            sameTargetTransportRejectedExamples.push({
-              targetLabel: prev.targetLabel ?? null,
-              startAt: cur.startAt,
-              endAt: cur.endAt,
-              durationMinutes: Math.round(cur.durationMinutes * 100) / 100,
-              distanceMeters: Math.round(dist),
-              decision: 'needs_review',
-              reviewReasons: [...cur.reviewReasons],
-            });
-          }
-          changed2 = true;
-          break;
-        }
-
-        // Pure jitter — absorb.
+        // SOFT ABSORB (generell regel): När transport-segmentet ligger mellan
+        // två work-block med samma target absorberar vi ALLTID in i föregående
+        // work-block, oavsett distans eller om distans saknas. Att splittra
+        // arbetsdagen i 3 separata Bergman-block är värre än att flagga
+        // utflykten med en mjuk review-reason på det sammanslagna blocket.
         const transportMin = cur.durationMinutes;
+        const softReason = distMissing
+          ? 'same_target_transport_missing_distance'
+          : (dist > policy.sameTargetTransportAbsorbMaxDistanceMeters
+              ? 'same_target_roundtrip_long_distance'
+              : 'movement_inside_same_target');
         const exampleSnapshot = {
           targetLabel: prev.targetLabel ?? null,
           startAt: cur.startAt,
           endAt: cur.endAt,
           durationMinutes: Math.round(transportMin * 100) / 100,
-          distanceMeters: Math.round(dist),
+          distanceMeters: distMissing ? null : Math.round(dist),
           absorbedIntoWorkBlock: { startAt: prev.startAt, endAt: prev.endAt },
-          reviewReasons: ['movement_inside_same_target'],
+          reviewReasons: [softReason],
         };
         absorbInto(prev, cur);
         absorbInto(prev, next);
-        if (!prev.reviewReasons.includes('movement_inside_same_target')) {
-          prev.reviewReasons.push('movement_inside_same_target');
+        if (!prev.reviewReasons.includes(softReason)) {
+          prev.reviewReasons.push(softReason);
         }
         out.splice(k, 2);
         sameTargetTransportAbsorbedCount += 1;
         sameTargetTransportAbsorbedMinutes += transportMin;
+        if (softReason === 'same_target_roundtrip_long_distance') {
+          sameTargetTransportRejectedByDistanceCount += 1;
+          sameTargetTransportRejectedByDistanceMinutes += transportMin;
+        }
         if (absorbedSameTargetTransportExamples.length < 20) {
           absorbedSameTargetTransportExamples.push(exampleSnapshot);
         }
