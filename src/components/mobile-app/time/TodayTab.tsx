@@ -160,79 +160,9 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
   );
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 2) Just nu-kort
-// ────────────────────────────────────────────────────────────────────
+// (ActiveNowCard borttagen 2026-05-11 — aktivt segment renderas nu inline
+//  i TimelineSection som "premium active block" med tickande timer.)
 
-const ActiveNowCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
-  useTick(1000);
-  const active = snapshot.active;
-  const workdayOpen = !!snapshot.workday?.isOpen;
-
-  if (!active) {
-    if (workdayOpen) {
-      // Backend säger arbetsdag pågår men ingen aktiv plats är bunden.
-      // Visa ENDAST det — inga "okänd plats" / "saknar aktivitet" / "glapp".
-      return (
-        <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
-            Just nu
-          </p>
-          <p className="text-sm font-bold text-foreground mt-1 flex items-center gap-1.5">
-            <Sun className="w-4 h-4 text-primary" />
-            Arbetsdag pågår
-          </p>
-        </section>
-      );
-    }
-    return null;
-  }
-
-  const Icon = SEG_ICON[active.kind === 'project' ? 'project'
-    : active.kind === 'location' ? 'location'
-    : 'booking'];
-  const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(active.startedAt).getTime()) / 1000));
-  const h = Math.floor(elapsedSec / 3600);
-  const m = Math.floor((elapsedSec % 3600) / 60);
-  const s = elapsedSec % 60;
-
-  return (
-    <section className="rounded-2xl border border-primary/20 bg-card p-4 shadow-sm space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
-            Just nu
-          </p>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
-              <Icon className="w-4 h-4" />
-            </span>
-            <p className="font-extrabold text-base text-foreground truncate">
-              {active.label}
-            </p>
-          </div>
-          <p className="text-[12px] text-muted-foreground mt-1">
-            Sedan{' '}
-            <span className="tabular-nums font-semibold text-foreground/80">
-              {formatStockholmHm(active.startedAt)}
-            </span>
-          </p>
-        </div>
-        <div className="font-mono font-extrabold text-lg tabular-nums text-primary shrink-0">
-          {String(h).padStart(2, '0')}:{String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
-        </div>
-      </div>
-
-      {/* Status från backend — ingen lokal tolkning */}
-      {active.statusLabel && (
-        <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          {active.statusLabel}
-        </div>
-      )}
-    </section>
-  );
-};
 
 // ────────────────────────────────────────────────────────────────────
 // 3) Totaler
