@@ -323,6 +323,16 @@ export function consolidateReportBlocksIntoSessions(
         cur.warningLabel = 'Intern rörelse periodvis';
       }
 
+      // Time Engine 2.6 — markera intern rörelse separat (oavsett om signal-
+      // gap också finns), så UI/diagnostics kan särskilja intern rörelse
+      // (jitter / rörelse inom samma arbetsområde) från ren signalförlust.
+      if (internalMovementMin > 0 || absorbedInternalTransport > 0) {
+        cur.warningReasons = Array.from(new Set([
+          ...(cur.warningReasons ?? []),
+          'internal_movement_inside_session',
+        ]));
+      }
+
       cur.subtitle =
         `${deps.fmtClock(cur.startAt)}–${deps.fmtClock(cur.endAt)} · ${deps.fmtDuration(cur.durationMinutes)}`;
 
