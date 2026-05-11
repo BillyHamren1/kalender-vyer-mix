@@ -814,6 +814,12 @@ export async function resolveWorkTargets(
     t.matchRole = role;
     t.assignmentAnchor = anchor;
     t.canAutoMatchAsWork = role === 'primary';
+    // Engine 4 — Boende / private_residence: aldrig auto-matchas som arbete,
+    // även om location-typen normalt skulle räknas som primary.
+    if (t.isPrivateResidence === true) {
+      t.canAutoMatchAsWork = false;
+      t.matchRole = 'secondary';
+    }
   }
 
   // Steg 2: gruppera per location-key och välj kanonisk label.
