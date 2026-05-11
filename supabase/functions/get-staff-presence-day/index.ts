@@ -668,7 +668,7 @@ Deno.serve(async (req) => {
     if (grouped.size > 0) {
       const ids = Array.from(grouped.keys());
       const { data: staffRows } = await admin
-        .from('staff')
+        .from('staff_members')
         .select('id, name')
         .in('id', ids);
       for (const s of staffRows ?? []) nameMap.set(s.id, s.name ?? null);
