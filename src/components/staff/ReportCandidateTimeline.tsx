@@ -532,6 +532,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   loading,
   presenceBlocks,
   targets,
+  staffId,
   staffName,
   date,
 }) => {
