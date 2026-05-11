@@ -183,6 +183,12 @@ export interface ReportCandidateSummary {
     durationMinutes: number;
     distanceMeters: number | null;
   }>;
+  /** Sandwich rule: how many unknown / needs_review blocks were converted to
+   *  work because they sat between two work blocks on the same day. */
+  inferredFromNeighborsCount: number;
+  inferredFromNeighborsMinutes: number;
+  inferredFromNeighborsInheritedTargetCount: number;
+  inferredFromNeighborsUnlabeledCount: number;
 }
 
 export interface ActiveTimeRegistrationInput {
