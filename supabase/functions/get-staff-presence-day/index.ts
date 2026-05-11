@@ -297,15 +297,32 @@ Deno.serve(async (req) => {
   }
 
   // ── GPS day timeline (transport / unknown_place / gps_gap) ──
-  const { data: pingRows } = await admin
-    .from('staff_location_history')
-    .select('lat, lng, accuracy, speed, recorded_at')
-    .eq('organization_id', orgId)
-    .eq('staff_id', staffId)
-    .gte('recorded_at', dayStart)
-    .lte('recorded_at', dayEnd)
-    .order('recorded_at', { ascending: true })
-    .limit(5000);
+  // Paginate in 1000-row batches; PostgREST enforces a 1000-row default cap,
+  // so a plain .limit(5000) silently truncates and the timeline cuts off
+  // mid-day.
+  const PING_PAGE_SIZE = 1000;
+  const PING_DAY_CAP = 20_000;
+  const pingRows: any[] = [];
+  {
+    let from = 0;
+    while (pingRows.length < PING_DAY_CAP) {
+      const to = from + PING_PAGE_SIZE - 1;
+      const { data: batch, error: pingErr } = await admin
+        .from('staff_location_history')
+        .select('lat, lng, accuracy, speed, recorded_at')
+        .eq('organization_id', orgId)
+        .eq('staff_id', staffId)
+        .gte('recorded_at', dayStart)
+        .lte('recorded_at', dayEnd)
+        .order('recorded_at', { ascending: true })
+        .range(from, to);
+      if (pingErr) break;
+      const rows = batch ?? [];
+      pingRows.push(...rows);
+      if (rows.length < PING_PAGE_SIZE) break;
+      from += PING_PAGE_SIZE;
+    }
+  }
 
   const pings: GpsPing[] = (pingRows ?? []).map((p: any) => ({
     ts: p.recorded_at,
