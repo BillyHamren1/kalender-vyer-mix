@@ -140,6 +140,7 @@ export function useDayTimeline({ staffId, date, enabled = true }: Args) {
     events: query.data?.events ?? [],
     suggestions: query.data?.suggestions ?? [],
     snapshot: query.data?.snapshot ?? null,
+    coverage: query.data?.coverage ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error as Error | null,
