@@ -439,20 +439,23 @@ export function buildPresenceDayBlocks(
 
       // ── Try transport-gap classification (companion route is first-class) ──
       // Look at adjacent segments (stay/travel) for own-position context.
-      const prevAny = i > 0 ? segs[i - 1] : null;
-      const nextAny = i + 1 < segs.length ? segs[i + 1] : null;
-      const previousKnownPosition =
-        prevAny && (prevAny.endLat != null && prevAny.endLng != null)
-          ? { lat: Number(prevAny.endLat), lng: Number(prevAny.endLng) }
-          : prevAny && (prevAny.centerLat != null && prevAny.centerLng != null)
-            ? { lat: Number(prevAny.centerLat), lng: Number(prevAny.centerLng) }
-            : null;
-      const nextKnownPosition =
-        nextAny && (nextAny.startLat != null && nextAny.startLng != null)
-          ? { lat: Number(nextAny.startLat), lng: Number(nextAny.startLng) }
-          : nextAny && (nextAny.centerLat != null && nextAny.centerLng != null)
-            ? { lat: Number(nextAny.centerLat), lng: Number(nextAny.centerLng) }
-            : null;
+      // Walk back/forward past coordinate-less neighbours to find anchor positions.
+      const pickPos = (s: GpsTimelineSegment | null, useEnd: boolean) => {
+        if (!s) return null;
+        const lat = useEnd ? (s.endLat ?? s.centerLat) : (s.startLat ?? s.centerLat);
+        const lng = useEnd ? (s.endLng ?? s.centerLng) : (s.startLng ?? s.centerLng);
+        return lat != null && lng != null ? { lat: Number(lat), lng: Number(lng) } : null;
+      };
+      let prevAny: GpsTimelineSegment | null = null;
+      for (let j = i - 1; j >= 0; j--) {
+        if (pickPos(segs[j], true)) { prevAny = segs[j]; break; }
+      }
+      let nextAny: GpsTimelineSegment | null = null;
+      for (let j = i + 1; j < segs.length; j++) {
+        if (pickPos(segs[j], false)) { nextAny = segs[j]; break; }
+      }
+      const previousKnownPosition = pickPos(prevAny, true);
+      const nextKnownPosition = pickPos(nextAny, false);
       const previousIsTransport = !!prevAny && prevAny.kind === 'travel';
       const nextIsTransport = !!nextAny && nextAny.kind === 'travel';
       const destinationCandidate = findTargetForSeg(nextStable);
