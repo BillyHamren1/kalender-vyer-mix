@@ -93,6 +93,47 @@ const SIGNAL_GAP_REASONS = new Set<string>([
 ]);
 
 /**
+ * Time Engine 2.4 — review-reasons som ALLTID bryter en session.
+ * Om något av dessa förekommer på ett efterföljande block får sessionen
+ * inte absorbera vidare; blocket behålls som eget block (eller separat
+ * transport/session enligt befintlig modell).
+ *
+ * Täcker:
+ *  - private_residence / boende / home-konflikt
+ *  - tydligt stoppad arbetsdag (workday_ended / workday_stopped /
+ *    explicit_stop) om uppströms-motorn satt en sådan markör
+ *  - ny planerad assignment med annan target
+ *  - tydlig annan destination
+ *  - omöjlig rutt (speed/teleport som faktiskt har distans bakom sig)
+ *  - flera konkurrerande targets utan vinnare
+ *
+ * OBS: bara signal_gap-baserade reasons + uncertain transition får
+ * absorberas. Allt annat = break.
+ */
+const SESSION_BREAK_REASONS = new Set<string>([
+  'private_residence',
+  'private_zone',
+  'home_private_conflict',
+  'workday_ended',
+  'workday_stopped',
+  'explicit_stop',
+  'day_end_marker',
+  'new_planned_assignment_other_target',
+  'planned_assignment_target_change',
+  'clear_other_destination',
+  'impossible_route',
+  'route_speed_violation_with_distance',
+  'multiple_competing_targets',
+  'target_ambiguous_no_winner',
+  'conflicting_targets',
+]);
+
+const hasBreakingReason = (r: ReportCandidateBlock): boolean => {
+  const reasons = r.reviewReasons ?? [];
+  return reasons.some((rr) => SESSION_BREAK_REASONS.has(rr));
+};
+
+/**
  * Stark sessionsnyckel — matchar på targetType+targetId först (täcker
  * locationId, projectId, bookingId, largeProjectId via targetType-prefix).
  * Faller tillbaka på normaliserad targetLabel när id saknas men labeln
@@ -169,10 +210,18 @@ export function consolidateReportBlocksIntoSessions(
         // 2) Riktig transport (>= realTripMinDistanceMeters, default 500 m).
         //    Konservativt: även utan label på destinationen är >=500 m egen
         //    GPS-förflyttning en riktig resa och får inte gömmas i sessionen.
+        //    OBS: speed-only utan distans bryter inte (kräver faktisk
+        //    förflyttning ≥ 500 m).
         if (
           r.kind === 'transport' &&
           dist >= deps.realTripMinDistanceMeters
         ) break;
+
+        // 3) Time Engine 2.4 — Hårda break-reasons (private_residence,
+        //    workday_ended, planned_assignment_target_change,
+        //    clear_other_destination, impossible_route, conflicting_targets,
+        //    m.fl.). Gäller oavsett block-kind.
+        if (hasBreakingReason(r)) break;
 
         // Closing same-target work
         if (r.kind === 'work' && rKey && rKey === curKey) {
@@ -181,9 +230,11 @@ export function consolidateReportBlocksIntoSessions(
         }
 
         // Absorbable kinds:
-        //  - needs_review (any reason)
+        //  - needs_review där reasons ENBART är signal-gap-/transition-
+        //    relaterade (annars bryter SESSION_BREAK_REASONS ovan)
         //  - unknown (any size — sandwich-safe när bunden av samma target)
-        //  - transport < realTripMinDistanceMeters (jitter)
+        //  - transport < realTripMinDistanceMeters (jitter / utan tydlig
+        //    destination)
         //  - work without targetId (otarget arbete)
         const isAbsorbable =
           r.kind === 'needs_review' ||
