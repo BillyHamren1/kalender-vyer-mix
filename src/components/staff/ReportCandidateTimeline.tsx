@@ -596,14 +596,47 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   const preWorkCount =
     preWorkExclusionDiagnostics?.excludedPreWorkBlocksCount ??
     (excludedPreWorkBlocks?.length ?? 0);
+  const [preWorkOpen, setPreWorkOpen] = useState(false);
   const preWorkInfoRow =
     preWorkCount > 0 && preWorkMin > 0 ? (
-      <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/10 px-3 py-1.5 text-[11px] text-muted-foreground">
-        <span className="font-medium text-foreground">{fmtDur(preWorkMin)}</span>{' '}
-        före arbetsdag exkluderat
-        {preWorkExclusionDiagnostics?.firstPrimaryTargetLabel ? (
-          <> — räknas inte som arbetstid (första säkra arbetsplats: {preWorkExclusionDiagnostics.firstPrimaryTargetLabel})</>
-        ) : null}
+      <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/10 text-[11px] text-muted-foreground">
+        <button
+          type="button"
+          onClick={() => setPreWorkOpen((v) => !v)}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/20"
+          aria-expanded={preWorkOpen}
+        >
+          {preWorkOpen
+            ? <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+            : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+          <span className="flex-1">
+            <span className="font-medium text-foreground">{fmtDur(preWorkMin)}</span>{' '}
+            före arbetsdag exkluderat ({preWorkCount} block)
+            {preWorkExclusionDiagnostics?.firstPrimaryTargetLabel ? (
+              <> — räknas inte som arbetstid (första säkra arbetsplats: {preWorkExclusionDiagnostics.firstPrimaryTargetLabel})</>
+            ) : null}
+          </span>
+        </button>
+        {preWorkOpen && excludedPreWorkBlocks && excludedPreWorkBlocks.length > 0 && (
+          <div className="border-t border-muted-foreground/20 px-3 py-2 space-y-1">
+            {excludedPreWorkBlocks.map((b) => (
+              <div key={b.id} className="flex items-center gap-2 text-[11px]">
+                <span className="tabular-nums text-muted-foreground whitespace-nowrap">
+                  {fmtHm(b.startAt)} → {fmtHm(b.endAt)}
+                </span>
+                <span className="font-medium text-foreground tabular-nums whitespace-nowrap">
+                  {b.durationLabel ?? fmtDur(b.durationMinutes)}
+                </span>
+                <span className="truncate flex-1">
+                  {b.title ?? b.targetLabel ?? b.kind}
+                </span>
+                <Badge variant="outline" className="text-[10px] py-0 h-4">
+                  {b.kind}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     ) : null;
   if (!blocks || blocks.length === 0) {
