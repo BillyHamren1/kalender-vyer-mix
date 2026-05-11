@@ -505,26 +505,64 @@ export function buildReportDisplayBlocks(
       );
     }
 
+    // ── Transport-dominans-promotion ───────────────────────────────────
+    // Om kedjan är dominerad av transport (>60% av tiden är transport-block,
+    // 0 work-block) OCH vi har en känd destination (nextKnown) → presentera
+    // som EN transportrad mot destinationen istället för "Osäker period".
+    // Korta UNKNOWN_PLACE-segment är då signalglapp mitt i resan.
+    // Påverkar BARA display — ingen klassificering, inga writes, ingen AI.
+    const transportMinInRun = run.reduce(
+      (s, b) => s + (b.kind === 'transport' ? b.durationMinutes ?? 0 : 0),
+      0,
+    );
+    const workMinInRun = run.reduce(
+      (s, b) => s + (b.kind === 'work' ? b.durationMinutes ?? 0 : 0),
+      0,
+    );
+    const transportShare = durationMinutes > 0 ? transportMinInRun / durationMinutes : 0;
+    const gapMinInRun = Math.max(0, durationMinutes - transportMinInRun);
+    const promoteToTransport =
+      !!nextKnown && workMinInRun === 0 && transportShare >= 0.6;
+    const promotedConfidence: 'high' | 'medium' | 'low' =
+      transportShare >= 0.8 ? 'high' : 'medium';
+    const promotedTitle = promoteToTransport
+      ? `Resa mot ${nextKnown}`
+      : 'Osäker period';
+    const promotedSubtitleParts: string[] = [];
+    if (promoteToTransport) {
+      if (prevKnown) promotedSubtitleParts.push(`från ${prevKnown}`);
+      promotedSubtitleParts.push(`till ${nextKnown}`);
+      if (gapMinInRun >= 1) {
+        promotedSubtitleParts.push(`GPS saknades ~${Math.round(gapMinInRun)} min under resan`);
+      }
+    }
+    const promotedSubtitle = promoteToTransport
+      ? promotedSubtitleParts.join(' · ')
+      : subParts.join(' · ');
+    const promotedWarning = promoteToTransport && gapMinInRun >= 1
+      ? `GPS saknades ${Math.round(gapMinInRun)} min under resan`
+      : null;
+
     const merged: DisplayBlock = {
       // Bas: ärv från första blocket men override
       ...run[0],
       id: `grp:${run[0].id}:${run.length}`,
-      kind: 'needs_review',
+      kind: promoteToTransport ? 'transport' : 'needs_review',
       startAt,
       endAt,
       durationMinutes,
       durationLabel: undefined,
-      title: 'Osäker period',
-      subtitle: subParts.join(' · '),
+      title: promotedTitle,
+      subtitle: promotedSubtitle,
       targetType: null,
       targetId: null,
       targetLabel: null,
       fromLabel: prevKnown ?? null,
       toLabel: nextKnown ?? null,
-      confidence: 'low',
-      reviewState: 'needs_review',
+      confidence: promoteToTransport ? promotedConfidence : 'low',
+      reviewState: promoteToTransport ? 'ok' : 'needs_review',
       reviewReasons,
-      warningLabel: null,
+      warningLabel: promotedWarning,
       sourcePresenceBlockIds,
       hiddenPresenceBlockIds,
       hiddenSignalGapIds,
@@ -537,8 +575,8 @@ export function buildReportDisplayBlocks(
         evidenceWithSecondary?.locationEvidence ??
         evidenceWithCoord?.locationEvidence ??
         null,
-      displayTitle: 'Osäker period',
-      displaySubtitle: subParts.join(' · '),
+      displayTitle: promotedTitle,
+      displaySubtitle: promoteToTransport ? promotedSubtitle : subParts.join(' · '),
       aiReviewContext: null,
       aiHintLabel: null,
       sourceBlockIds,
