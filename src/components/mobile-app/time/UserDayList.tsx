@@ -1,26 +1,37 @@
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StaffPeriodDaySummary } from '@/hooks/useStaffTimeReportPeriod';
 import { formatHoursMinutes } from '@/utils/formatHours';
 
 const STATUS_LABEL: Record<StaffPeriodDaySummary['status'], string> = {
   empty: 'Ingen tid',
-  open: 'Arbetsdag pågår',
-  needs_attest: 'Redo att godkänna',
+  open: 'Pågår',
+  needs_attest: 'Ej inskickad',
   needs_action: 'Behöver åtgärdas',
   attested: 'Inskickad',
   approved: 'Godkänd',
 };
 
+// Färgschema enligt EventFlow Time-tema:
+//   primary  – aktiv dag
+//   emerald  – inskickad / godkänd
+//   amber    – behöver åtgärdas
+//   muted    – tom / inaktiv
 const STATUS_TONE: Record<StaffPeriodDaySummary['status'], string> = {
   empty: 'bg-muted text-muted-foreground border-border',
   open: 'bg-primary/10 text-primary border-primary/20',
   needs_attest: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
-  needs_action: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30',
-  attested: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+  needs_action: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
+  attested: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
   approved: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
 };
+
+const NEEDS_ATTENTION = new Set<StaffPeriodDaySummary['status']>([
+  'needs_action',
+  'needs_attest',
+]);
 
 interface Props {
   days: StaffPeriodDaySummary[];
@@ -108,9 +119,10 @@ const DayRow = ({
       </div>
 
       <span className={cn(
-        'inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold border whitespace-nowrap',
+        'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold border whitespace-nowrap',
         STATUS_TONE[day.status],
       )}>
+        {NEEDS_ATTENTION.has(day.status) && <AlertTriangle className="w-3 h-3" />}
         {STATUS_LABEL[day.status]}
       </span>
     </button>

@@ -48,18 +48,29 @@ export const UserTimeSummaryCards = ({ totals, targetMinutes, remainingActions }
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
-      <div className="grid grid-cols-2 gap-3">
-        <Cell label="Brutto" value={fmt(totals.grossWorkdayMinutes)} primary />
-        <Cell label="Lönegrundande" value={fmt(totals.payableMinutes)} />
+      {/* Tre primära siffror — Brutto/Rast/Lön */}
+      <div className="grid grid-cols-3 gap-2">
+        <Cell label="Brutto" value={fmt(totals.grossWorkdayMinutes)} />
         <Cell label="Rast" value={fmt(totals.breakMinutes)} />
-        <Cell label="Transport" value={fmt(totals.transportMinutes)} />
+        <Cell label="Lönegrundande" value={fmt(totals.payableMinutes)} primary />
       </div>
 
+      {/* Status-kort */}
       <div className="mt-3 grid grid-cols-3 gap-2">
         <Cell label="Ej inskickat" value={fmt(awaitingUser)} tone="amber" compact />
-        <Cell label="Inskickat" value={fmt(submitted)} tone="blue" compact />
+        <Cell label="Inskickat" value={fmt(submitted)} tone="emerald" compact />
         <Cell label="Godkänt" value={fmt(approved)} tone="emerald" compact />
       </div>
+
+      {/* Transport som diskret chip — får inte dominera */}
+      {totals.transportMinutes > 0 && (
+        <div className="mt-3">
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-[11px] font-semibold tabular-nums">
+            <span className="text-foreground/70">Transport</span>
+            <span className="text-foreground">{fmt(totals.transportMinutes)}</span>
+          </span>
+        </div>
+      )}
 
       {pct !== null && (
         <div className="mt-4">

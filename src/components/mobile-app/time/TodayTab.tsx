@@ -135,27 +135,9 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
         </p>
       )}
 
-      {/* Backend-driven tracking-policy debug pill (mode/reason/expires) */}
-      {tracking?.mode && (
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-          <span className="rounded-full bg-muted px-2 py-0.5 font-mono uppercase tracking-wide">
-            GPS: {tracking.mode}
-          </span>
-          {typeof tracking.heartbeatMs === 'number' && (
-            <span className="font-mono tabular-nums">
-              {Math.round(tracking.heartbeatMs / 1000)}s · {tracking.distanceFilter}m
-            </span>
-          )}
-          {tracking.expiresAt && (
-            <span className="font-mono tabular-nums">
-              t/m {formatStockholmHm(tracking.expiresAt)}
-            </span>
-          )}
-          {tracking.reason && (
-            <span className="italic truncate max-w-[160px]">{tracking.reason}</span>
-          )}
-        </div>
-      )}
+      {/* GPS debug-pill borttagen — premium = ingen teknisk brus.
+          (signalstatus räcker för användaren) */}
+
     </section>
   );
 };
@@ -170,53 +152,74 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
 
 const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
   const t = snapshot.totals;
-  // Visa bara fält som backend faktiskt skickat värde för (>0 eller satt).
   const grossMin = t.grossWorkdayMinutes ?? t.workdayMinutes ?? 0;
   const transportMin = t.transportMinutes ?? t.travelMinutes ?? 0;
   const projectMin = (t.projectMinutes ?? t.allocatedProjectMinutes ?? 0) + (t.warehouseMinutes ?? 0);
-  const rows: Array<{ label: string; value: string; muted?: boolean; strong?: boolean }> = [
-    { label: 'Brutto', value: fmtMinutes(grossMin), strong: true },
-    { label: 'Rast', value: t.breakMinutes != null
-        ? fmtMinutes(t.breakMinutes)
-        : 'ej angiven', muted: t.breakMinutes == null },
-    { label: 'Lönegrundande', value: fmtMinutes(t.payableMinutes ?? grossMin), strong: true },
-    { label: 'Projekt/lager', value: fmtMinutes(projectMin) },
-    { label: 'Transport', value: fmtMinutes(transportMin) },
-    { label: 'Annan plats', value: fmtMinutes(t.otherPlaceMinutes ?? 0) },
-  ];
+  const otherMin = t.otherPlaceMinutes ?? 0;
+  const breakMin = t.breakMinutes;
+  const payableMin = t.payableMinutes ?? grossMin;
+
+  // Sekundära fält visas bara om de har värde > 0 — inget brus.
+  const secondary: Array<{ label: string; value: string }> = [];
+  if (projectMin > 0) secondary.push({ label: 'Projekt/lager', value: fmtMinutes(projectMin) });
+  if (transportMin > 0) secondary.push({ label: 'Transport', value: fmtMinutes(transportMin) });
+  if (otherMin > 0) secondary.push({ label: 'Annan plats', value: fmtMinutes(otherMin) });
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
       <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
         Totaler idag
       </p>
-      <div className="grid grid-cols-2 gap-2">
-        {rows.map((r) => (
-          <div
-            key={r.label}
-            className={cn(
-              'rounded-xl border border-border px-3 py-2',
-              r.muted ? 'bg-muted/20' : 'bg-background/60',
-            )}
-          >
-            <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide">
-              {r.label}
-            </div>
-            <div
-              className={cn(
-                'font-extrabold text-sm tabular-nums mt-0.5',
-                r.muted ? 'text-muted-foreground' : 'text-foreground/80',
-                r.strong && 'text-foreground',
-              )}
-            >
-              {r.value}
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-3 gap-2">
+        <PrimaryStat label="Brutto" value={fmtMinutes(grossMin)} />
+        <PrimaryStat
+          label="Rast"
+          value={breakMin != null ? fmtMinutes(breakMin) : '—'}
+          muted={breakMin == null}
+        />
+        <PrimaryStat label="Lönegrundande" value={fmtMinutes(payableMin)} highlight />
       </div>
+      {secondary.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {secondary.map((s) => (
+            <span
+              key={s.label}
+              className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground tabular-nums"
+            >
+              <span className="text-foreground/70">{s.label}</span>
+              <span className="text-foreground">{s.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
     </section>
   );
 };
+
+const PrimaryStat: React.FC<{
+  label: string; value: string; highlight?: boolean; muted?: boolean;
+}> = ({ label, value, highlight, muted }) => (
+  <div
+    className={cn(
+      'rounded-xl border px-3 py-2.5',
+      highlight ? 'bg-primary/5 border-primary/20' : 'bg-background/60 border-border',
+      muted && 'bg-muted/20 border-border',
+    )}
+  >
+    <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide">
+      {label}
+    </div>
+    <div
+      className={cn(
+        'font-extrabold text-base tabular-nums mt-0.5',
+        highlight ? 'text-primary' : 'text-foreground',
+        muted && 'text-muted-foreground',
+      )}
+    >
+      {value}
+    </div>
+  </div>
+);
 
 // ────────────────────────────────────────────────────────────────────
 // 4) Dagens tidslinje — aktiv rad är ett "premium active block"
