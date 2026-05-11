@@ -347,6 +347,7 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   sameTargetTransportAbsorbMaxDistanceMeters: 750,
   shortCrossTargetReviewMaxMinutes: 5,
   shortUnknownTransportHideMaxMinutes: 3,
+  sandwichInferWorkMaxMinutes: 90,
 };
 
 // ───────────────────────────────────────────────────────────────────────────
