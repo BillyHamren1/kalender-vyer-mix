@@ -219,6 +219,19 @@ Deno.serve(async (req) => {
     workday = best;
   }
 
+  // Klipp workday-intervallet till dagens fönster så att brutto/payable per
+  // dag aldrig räknar in minuter från andra dygn (t.ex. ej-stängd workday
+  // som nödstoppats efter flera dygn).
+  if (workday) {
+    const win = { startUtc: dayStart, endUtc: dayEnd, startUtcMs: new Date(dayStart).getTime(), endUtcMs: new Date(dayEnd).getTime() };
+    const clip = clipIntervalToDayWindow(workday.started_at, workday.ended_at ?? null, win);
+    if (!clip) {
+      workday = null;
+    } else if (clip.startUtc !== workday.started_at || clip.endUtc !== (workday.ended_at ?? null)) {
+      workday = { ...workday, started_at: clip.startUtc, ended_at: clip.endUtc };
+    }
+  }
+
   // ---- Resolve human-readable labels for refs ----
   const trRows = timeReportsRes.data ?? [];
   const tlRows = travelRes.data ?? [];
