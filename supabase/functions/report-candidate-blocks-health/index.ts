@@ -109,6 +109,19 @@ interface DayHealth {
   shortCrossTargetTransportReviewCount: number;
   shortUnknownTransportReviewCount: number;
   shortUnknownTransportHiddenCount: number;
+  // Pre-work exclusion (POST-PASS 3)
+  preWorkExcludedMinutes: number;
+  preWorkExcludedBlocksCount: number;
+  preWorkExcludedReasons: Record<string, number>;
+  preWorkExcludedExamples: Array<{
+    staffName: string;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    originalKind: string;
+    originalLabel: string;
+    reason: string;
+  }>;
   absorbedSameTargetTransportExamples: Array<{
     staffName: string;
     staffId: string;
