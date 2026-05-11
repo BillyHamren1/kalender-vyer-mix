@@ -59,6 +59,29 @@ export function DayEventTimeline({ staffId, date, selectedEventId, onSelectEvent
         </Button>
       </header>
 
+      {showCoverageBanner && coverage && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <div className="font-medium">Tidslinjen kan vara ofullständig</div>
+            <div className="opacity-90">
+              Senaste händelse slutar {fmtHm(coverage.last_event_end_ts)} men GPS-pings finns till {fmtHm(coverage.last_ping_ts)} ({coverage.gap_minutes} min glapp).
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing || isLoading}
+            className="h-7 text-xs gap-1"
+          >
+            <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+            Bygg om dagen
+          </Button>
+        </div>
+      )}
+
       {isLoading && (
         <div className="space-y-2">
           {[0, 1, 2, 3].map((i) => (
