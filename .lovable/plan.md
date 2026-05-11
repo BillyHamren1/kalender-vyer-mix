@@ -1,131 +1,86 @@
-## Mål
 
-När en "Osäker period" visas i admin-tidrapporten ska användaren direkt se **var** den ägde rum och **vad platsen är** — inte bara råkoordinater. Platsen ska aktivt slås upp mot:
+## Problemet — vad data visar
 
-1. Reverse-geocodad gatuadress (Mapbox)
-2. Kända organisations-platser (`organization_locations`)
-3. Bokningsadresser (både dagens, **framtida** och tidigare)
-4. Personalens hemadress / privata zoner (`staff_private_zones`)
-5. Personalens tidigare besök på samma koordinat (historiska `place_visits` / GPS-vistelser)
+För Markuss (2026-05-11) returnerar `get-staff-presence-day` ett block:
 
-Allt sker enbart i **adminwebbens display-lager**. Inga writes, ingen AI, ingen mobilapp.
-
-## Vad som ändras
-
-### 1. Ny edge function: `resolve-unknown-stop`
-
-`supabase/functions/resolve-unknown-stop/index.ts`
-
-Input (POST):
-```json
-{
-  "organizationId": "...",
-  "staffUserId": "...",
-  "lat": 59.123,
-  "lng": 17.456,
-  "atIso": "2026-05-09T03:30:00Z",
-  "radiusMeters": 250
-}
+```
+kind: needs_review
+reviewReasons: ["missing_transition_evidence"]
+fromLabel: "FA Warehouse"
+toLabel:   "Bergman Event AB - 12 maj 2026"
+05:28 → 07:01 (1h 33m)
 ```
 
-Output:
-```json
-{
-  "reverseGeocoded": { "label": "Storgatan 5, Solna", "source": "mapbox" } | null,
-  "knownLocation": { "id": "...", "name": "FA Lager", "distanceMeters": 42 } | null,
-  "privateZone":   { "kind": "home" | "manual_ignore" | "recurring_night",
-                     "label": "Hemma", "distanceMeters": 30 } | null,
-  "matchingBookings": [
-    { "bookingId": "...", "bookingNumber": "B12345",
-      "label": "Konsert Globen", "address": "...",
-      "eventDate": "2026-05-12", "relativeDays": 3,
-      "distanceMeters": 80, "direction": "future" | "past" | "today" }
-  ],
-  "priorVisits": {
-    "count": 7, "firstSeenIso": "2026-02-11T...",
-    "lastSeenIso": "2026-04-30T...",
-    "totalMinutes": 412
-  } | null
-}
+Det är en glasklar resa mellan **två kända arbetsplatser** (lager → projekt­adress, ~67 km), men eftersom underliggande presence-block är `uncertain_transition` (GPS-glapp under färd) går den i regel `signal_gap → missing_transition_evidence` i `buildReportCandidateBlocks` och stämplas som "Behöver granskas".
+
+UI-lagret (`buildReportDisplayBlocks`) har redan en "promoteAsBridgedTrip"-rensning, men den ändrar bara titeln — `kind` förblir `needs_review`. Frontendens enrichment vi byggde i förra varvet rör inte heller `kind`.
+
+Du vill att alla sådana här fall ska gå igenom som transport, generellt — inte bara för Markuss.
+
+## Roten — var fixet ska sitta
+
+**`supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts`** — `signal_gap`/`uncertain_transition`-grenen runt rad 815–835 (där `missing_transition_evidence` sätts). Det är denna som speglas av cachen `staff_day_report_cache` och som adminvyn renderar. Fixen där löser det överallt (admin-tidrapporter, mobilens dagsöversikt, AI-pipelinen, health-checken).
+
+## Ny regel — "kända ändpunkter ⇒ transport"
+
+I samma loop, **innan** vi emiterar ett `needs_review`-block med `missing_transition_evidence`:
+
+1. Ta `prev` = senaste föregående block med ett känt arbetsmål (work/transport med targetType ∈ {project, booking, large_project, warehouse, location}).
+2. Ta `next` = nästa block med ett känt arbetsmål.
+3. Om båda finns och `prevTargetKey !== nextTargetKey`:
+   - Emittera ett `transport`-block (samma start/end som gapet, ev. utvidgat till prev.endAt → next.startAt) med:
+     - `kind: 'transport'`
+     - `reviewState: 'ok'`
+     - `confidence: 'high'` när ändpunkterna är säkra (`confirmed_on_site`/aktiv timer på båda sidor); annars `'medium'`.
+     - `fromLabel` / `toLabel` ärvs från `prev`/`next`.
+     - `subtitle: "<from> → <to> · GPS saknades ~Xm under resan"` när det fanns ett gap.
+     - `reviewReasons: []` (varför-granskas-rutan blir inte gul).
+   - Hoppa över den gamla `needs_review`-emitten för det här gapet.
+4. Annars (bara en sida känd, eller samma target på båda sidor) → behåll dagens beteende (kort gap absorberas, lång lone gap blir `needs_review` enligt nuvarande policy).
+
+Vakter:
+- Distansgardet i POST-PASS 2 ("short_cross_target_movement < `realTripMinDistanceMeters`") ska INTE nedgradera tillbaka till `needs_review` när vi har två tydliga kända ändpunkter och varaktigheten är ≥ ~5 min — då vinner "kända ändpunkter".
+- Inga ändringar i `presenceDayBlocks` — bara klassningen i candidate-lagret.
+- Påverkar inte `time_reports`/lön (transport-blocket är fortfarande ett förslag som admin kan acceptera; ingen auto-create).
+
+## Spegling i UI-lagret
+
+`src/lib/staff/buildReportDisplayBlocks.ts` (rad ~591–646): nuvarande "promoteAsBridgedTrip" som BARA bytte titel men höll `kind: needs_review` blir överflödig — ska ändras så att den följer samma regel som servern (kind: 'transport', reviewState: 'ok'). Så även gamla cachade dagar börjar visas korrekt direkt utan reprocess.
+
+## Backfill av gamla dagar
+
+`staff_day_report_cache` är persisterad. Vi triggar:
+
+- `backfill-staff-day-report-cache` för senaste 60 dagarna efter att edge-funktionen är deployad, så att Markuss + alla liknande historiska dagar uppdateras direkt.
+
+## Tester
+
+Lägg till i `supabase/functions/_shared/time-engine/__tests__/`:
+- `bridgedTripPromotion.test.ts`:
+  - FA Warehouse → uncertain_transition (90 min, distance 67 km) → Bergman Event ⇒ ETT transport-block, ingen needs_review.
+  - Same target på båda sidor (FA → gap → FA, 90 min) ⇒ behåller needs_review (round trip).
+  - Bara prev känt, next okänt ⇒ behåller needs_review.
+  - Två kända ändpunkter med distance 200 m och 3 min ⇒ kort cross-target absorberas (oförändrat).
+
+Och en regressionsfixture i `src/lib/staff/__tests__/buildReportDisplayBlocks.bridge.test.ts` som matchar Markuss exakta payload (från `staff_day_report_cache` ovan) och förväntar `kind: 'transport'`.
+
+## Out of scope
+
+- Ingen ändring i `create_travel_from_gap`-servern (den hanterar redan rätt, problemet är klassningen i presence-day-pipen).
+- Ingen ny tabell, ingen ny edge function.
+- Ingen ändring i mobilens enrichment-hook eller `resolve-unknown-stop` — de fortsätter att existera men kommer inte längre triggas för dessa A→B-fall (eftersom blocket inte längre är unknown/needs_review).
+
+## Tekniska detaljer
+
+Filer som ändras:
+- `supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts` (huvudregeln + POST-PASS 2-vakt)
+- `src/lib/staff/buildReportDisplayBlocks.ts` (parity i display-lagret för cachade dagar)
+- Nya testfiler enligt ovan
+- Trigga `backfill-staff-day-report-cache` efter deploy
+
+Förväntat resultat på Markuss-raden:
 ```
-
-Logik (read-only):
-- Reverse-geocode via befintlig Mapbox-token-flow (samma som `useReverseGeocodeRich`).
-- `organization_locations`: hämta alla i org, beräkna haversine → returnera närmaste inom `radiusMeters`.
-- `staff_private_zones` för `staffUserId`: närmaste inom radius + dess `kind`.
-- `bookings` (master data) inom org där `latitude`/`longitude` finns och haversine ≤ radius. Sortera på `abs(eventDate - atIso)`, max 5. Sätt `direction` (today/future/past) och `relativeDays`.
-- `priorVisits`: aggregera `place_visits` (eller motsvarande pings-tabell vi redan har) för samma `staffUserId` med `centerLat/Lng` inom 100 m och `endIso < atIso`. Returnera count, first/last, totala minuter. Om tabellen inte finns under detta namn — använd den vi redan läser i `_shared/timeline/`.
-
-Inga skrivningar. Multi-tenant: filtrera ALLT på `organization_id`. Caller-token = adminens JWT.
-
-### 2. Ny hook: `useResolvedUnknownStop`
-
-`src/hooks/useResolvedUnknownStop.ts` — `useQuery` med `staleTime: 1h`, key `[lat-rounded, lng-rounded, staffUserId, dateBucket]` så två närliggande osäkra block delar cache. Anropar edge function via `supabase.functions.invoke`.
-
-### 3. Utöka `LocationEvidence`
-
-I `src/lib/staff/buildReportDisplayBlocks.ts`:
-
-```ts
-export interface LocationEvidence {
-  // ... befintliga fält
-  resolvedAddress?:        { label: string; source: 'mapbox' } | null;
-  resolvedKnownLocation?:  { name: string; distanceMeters: number } | null;
-  resolvedPrivateZone?:    { kind: 'home' | 'manual_ignore' | 'recurring_night';
-                             label: string; distanceMeters: number } | null;
-  resolvedMatchingBookings?: Array<{
-    bookingNumber: string; label: string; eventDate: string;
-    relativeDays: number; direction: 'today' | 'future' | 'past';
-    distanceMeters: number;
-  }>;
-  resolvedPriorVisits?:    { count: number; lastSeenIso: string;
-                             totalMinutes: number } | null;
-}
+kind: transport · ok · high
+"FA Warehouse → Bergman Event AB - 12 maj 2026 · 05:28–07:01 (GPS saknades 93m)"
 ```
-
-`buildReportDisplayBlocks` förblir pure och tar emot resolverade fält via en ny valfri input `resolvedByBlockId: Map<blockId, ResolvedUnknownStop>` och kopierar in i `locationEvidence`.
-
-### 4. UI: ny rendering för "Osäker period"
-
-I `ReportCandidateTimeline.tsx` (och `DecisionTraceDrawer.tsx` för full bevisning):
-
-För block med `kind === 'needs_review' | 'unknown'` och `locationEvidence` — visa en strukturerad "Vad vet vi om platsen?"-sektion (under befintlig titel/subtitel) med rader, i denna prioritetsordning:
-
-1. **Hemma / privat zon** — `Hemma (35 m)` → tonas som info-badge "privat — räknas inte".
-2. **Känd plats** — `FA Lager (42 m)` → klickbar länk till `organization_locations`-detalj.
-3. **Adress** — `Storgatan 5, Solna` (reverse-geocode).
-4. **Matchande bokningar** — kompakt lista:
-   - `Idag: Konsert Globen (B12345)` 
-   - `Om 3 d: Mässa Älvsjö (B12350)`
-   - `Var: Tidigare bokning (B12000) — 2026-04-12`
-5. **Historik** — `Personen har varit här 7 gånger (412 min, senast 2026-04-30)`.
-6. **Inget av ovan** — `Adress kunde inte slås upp` + koordinat.
-
-Ingen rad → utelämnas (inget tomt brus).
-
-### 5. Wiring
-
-I `StaffTimeReportsList.tsx` / `StaffDayTimelineCard.tsx`:
-- Samla unika `(lat, lng, blockId)` för alla osäkra block i synlig dag.
-- Anropa `useResolvedUnknownStop` per unikt block (eller batch-version om det blir många).
-- Skicka `resolvedByBlockId` vidare till `ReportCandidateTimeline`.
-
-### 6. Tester
-
-- `src/test/resolveUnknownStopUI.contract.test.ts` — verifierar prioritetsordning (privat zon > känd plats > adress) och att inga rader visas när data saknas.
-- Edge function-test som mockar Supabase-klient och bekräftar org_id-filter på alla queries.
-
-## Säkerhet / icke-mål
-
-- Inga writes till `time_reports`, `workdays`, `location_time_entries`, `travel_time_logs`, `gps_pings`.
-- Ingen AI.
-- Mobilappen rörs inte.
-- Klassificeringen i `buildPresenceDayBlocks` / `classifyTransportSignalGap` ändras INTE — `kind`/`reviewState` förblir samma. Vi berikar bara display-lagret.
-- Ingen geocode-cachelagring i DB i denna iteration (Mapbox-cachen i React Query räcker).
-
-## Tekniska anteckningar
-
-- Org-isolering: edge function hämtar caller-org via JWT och filtrerar `bookings`, `organization_locations`, `staff_private_zones`, `place_visits` på `organization_id` (RESTRICTIVE RLS speglar redan detta).
-- "Future bookings"-fönster: ±60 dagar runt `atIso`, sortera närmast först.
-- Distans-tröskel: 250 m för bokning/känd plats, 100 m för privat zon och historik (matchar nuvarande precision på GPS-vistelser).
-- Mapbox-token: återanvänd `loadMapboxToken()` om edge function har motsv.; annars använd `MAPBOX_ACCESS_TOKEN` secret. Jag verifierar i implementeringen vilken som finns.
+— inte längre amber "Behöver granskas".
