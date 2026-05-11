@@ -83,10 +83,37 @@ export interface ReportCandidateBlock {
   firstConfirmedAt: ISODateTime | null;
   lastConfirmedAt: ISODateTime | null;
   /**
+   * När en active_time_registration är öppen och detta block är ankaret för
+   * den öppna sessionen markeras blocket som pågående. UI använder detta för
+   * att visa "Pågår / Aktiv timer" och för att förstå att endAt är preliminärt.
+   */
+  isOngoing?: boolean;
+  /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
    */
   aiReviewContext?: AiReviewContext | null;
+}
+
+/**
+ * Read-only kontext för en öppen active_time_registration.
+ *
+ * När denna är satt absorberar buildReportCandidateBlocks "trailing noise"
+ * (signal_gap, uncertain_transition, unknown_place, kort transport utan
+ * faktisk förflyttning) efter `startedAtIso` in i ett enda sammanhållet
+ * pågående arbetsblock med target = open registration.
+ *
+ * Builder skriver ALDRIG till active_time_registrations eller någon annan
+ * tabell — denna struct är endast en hint för rapportvyns sammanslagning.
+ */
+export interface OpenActiveRegistrationContext {
+  registrationId: UUID;
+  startedAtIso: ISODateTime;
+  targetType: string | null;
+  targetId: UUID | null;
+  targetLabel: string | null;
+  /** Diagnostik: alla aktiva-timer-rader i rapportkandidatvyn ärver denna. */
+  currentLabel?: string | null;
 }
 
 export type AiReviewQuestionType =
@@ -337,6 +364,9 @@ export interface BuildReportCandidateBlocksInput {
    *  pre-work block's GPS center is inside one of these, it is excluded with
    *  reason='home_anchor' for Decision Trace. Read-only. */
   homeAnchors?: HomeAnchorInput[];
+  /** Optional: when a registration is open (status='active' & stopped_at IS NULL),
+   *  consolidate trailing noise after `startedAtIso` into one ongoing work block. */
+  openActiveRegistration?: OpenActiveRegistrationContext | null;
   policy?: ReportCandidatePolicy;
 }
 
@@ -1719,8 +1749,221 @@ export function buildReportCandidateBlocks(
     }
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 4: Open active_time_registration consolidation.
+  //
+  // När en active_time_registration är öppen (status=active, stopped_at=NULL)
+  // är den auktoritativ kontext för att personen fortfarande arbetar på en
+  // viss target. Då ska GPS-glapp / okända kortare perioder / korta
+  // transport-rader UTAN faktisk förflyttning som ligger efter
+  // openActiveStartedAt absorberas in i ETT sammanhållet pågående
+  // arbetsblock — inte synas som separata GRANSKA/Okänd plats/Transport-
+  // rader. Privata zoner (boende) är redan bortfiltrerade i Engine 4.
+  //
+  // Stoppvillkor (segmenten EFTER ankaret behåller sin egen rad):
+  //   - work-block med ANNAN target än aktiv registration
+  //   - transport med distance >= realTripMinDistanceMeters (verklig resa)
+  //
+  // Inga writes till time_reports/workdays/LTE/travel.
+  // ───────────────────────────────────────────────────────────────────────
+  const openCtx = input.openActiveRegistration ?? null;
+  if (openCtx && openCtx.startedAtIso) {
+    const startedMs = new Date(openCtx.startedAtIso).getTime();
+    const dayCutoffMs = new Date(`${input.date}T23:59:59Z`).getTime();
+    const nowMs = Date.now();
+    const openTargetKey = openCtx.targetId
+      ? `${openCtx.targetType ?? ''}::${openCtx.targetId}`
+      : null;
+    const isOpenTarget = (r: ReportCandidateBlock): boolean => {
+      if (!openTargetKey) return false;
+      if (!r.targetId) return false;
+      return `${r.targetType ?? ''}::${r.targetId}` === openTargetKey;
+    };
 
-  // Assign deterministic, position-independent ids. Same staff+day+kind+span
+    // Hitta ankaret: senaste work-block (helst med matchande target) som
+    // ligger inom eller överlappar [startedAt, dayEnd].
+    let anchorIdx = -1;
+    for (let k = out.length - 1; k >= 0; k--) {
+      const r = out[k];
+      if (r.kind !== 'work') continue;
+      const endMs = new Date(r.endAt).getTime();
+      const startMs = new Date(r.startAt).getTime();
+      if (endMs < startedMs) break;
+      if (isOpenTarget(r)) { anchorIdx = k; break; }
+      // Acceptera även otarget-work om vi inte har ett bättre val
+      if (anchorIdx === -1 && !r.targetId) anchorIdx = k;
+      if (startMs >= startedMs && anchorIdx === -1) anchorIdx = k;
+    }
+
+    // Skapa syntetiskt block om inget work-block matchar
+    if (anchorIdx === -1 && openTargetKey) {
+      const synthEnd = new Date(Math.min(nowMs, dayCutoffMs)).toISOString();
+      const synthStart = openCtx.startedAtIso;
+      const dur = Math.max(1, Math.round((new Date(synthEnd).getTime() - startedMs) / 60_000));
+      const synth: ReportCandidateBlock = {
+        id: '',
+        kind: 'work',
+        startAt: synthStart,
+        endAt: synthEnd,
+        durationMinutes: dur,
+        durationLabel: fmtDuration(dur),
+        title: openCtx.targetLabel ?? openCtx.currentLabel ?? 'Arbete',
+        subtitle: `${fmtClock(synthStart)}– pågår · ${fmtDuration(dur)}`,
+        targetType: openCtx.targetType,
+        targetId: openCtx.targetId,
+        targetLabel: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+        fromLabel: null,
+        toLabel: null,
+        confidence: 'medium',
+        reviewState: 'ok',
+        reviewReasons: ['open_active_timer_anchor'],
+        warningLabel: null,
+        evidenceSummary: {
+          confirmedMinutes: 0,
+          probableMinutes: 0,
+          signalGapMinutes: 0,
+          transportMinutes: 0,
+          unknownMinutes: 0,
+          presenceBlockCount: 0,
+          suppressedSignalGapBlockCount: 0,
+          suppressedUnknownBlockCount: 0,
+          suppressedZeroLengthBlockCount: 0,
+        },
+        sourcePresenceBlockIds: [],
+        hiddenSignalGapIds: [],
+        hiddenPresenceBlockIds: [],
+        signalGapMinutes: 0,
+        firstConfirmedAt: null,
+        lastConfirmedAt: null,
+        isOngoing: true,
+      };
+      // sätt in i sorterad ordning
+      let insertAt = out.length;
+      for (let k = 0; k < out.length; k++) {
+        if (out[k].startAt > synthStart) { insertAt = k; break; }
+      }
+      out.splice(insertAt, 0, synth);
+      anchorIdx = insertAt;
+    }
+
+    if (anchorIdx >= 0) {
+      const anchor = out[anchorIdx];
+      // Adoptera open-target på ankaret om det saknar target
+      if (!anchor.targetId && openCtx.targetId) {
+        anchor.targetType = openCtx.targetType;
+        anchor.targetId = openCtx.targetId;
+        anchor.targetLabel = openCtx.targetLabel ?? openCtx.currentLabel ?? anchor.targetLabel;
+        anchor.title = anchor.targetLabel ?? anchor.title;
+      }
+
+      // Walk forward and absorb absorberbara block, tills vi träffar något
+      // som ska behålla sin egen rad.
+      let k = anchorIdx + 1;
+      let absorbedAny = false;
+      while (k < out.length) {
+        const r = out[k];
+        const dist = r.evidenceSummary?.distanceMeters ?? 0;
+        const isSameTargetWork =
+          r.kind === 'work' && (isOpenTarget(r) || (!r.targetId && !openTargetKey));
+        const isAbsorbableNoise =
+          r.kind === 'needs_review' || r.kind === 'unknown';
+        const isJitterTransport =
+          r.kind === 'transport' && dist < policy.realTripMinDistanceMeters;
+        const isRealTransport =
+          r.kind === 'transport' && dist >= policy.realTripMinDistanceMeters;
+        const isDifferentTargetWork =
+          r.kind === 'work' && !!r.targetId && openTargetKey != null && !isOpenTarget(r);
+
+        if (isRealTransport || isDifferentTargetWork) break;
+
+        if (isSameTargetWork || isAbsorbableNoise || isJitterTransport) {
+          absorbInto(anchor, r);
+          out.splice(k, 1);
+          absorbedAny = true;
+          continue;
+        }
+        break;
+      }
+
+      // Förläng ankaret till min(now, dayEnd) om timern fortfarande är öppen
+      const targetEndMs = Math.min(nowMs, dayCutoffMs);
+      const anchorEndMs = new Date(anchor.endAt).getTime();
+      if (targetEndMs > anchorEndMs) {
+        anchor.endAt = new Date(targetEndMs).toISOString();
+        anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
+        anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+      }
+
+      anchor.isOngoing = true;
+      anchor.reviewState = 'ok';
+      if (!anchor.reviewReasons.includes('open_active_timer_consolidated') && absorbedAny) {
+        anchor.reviewReasons.push('open_active_timer_consolidated');
+      }
+      // Rensa blocking review reasons — vi vet att personen jobbar (öppen timer)
+      anchor.reviewReasons = anchor.reviewReasons.filter(
+        (rr) => !BLOCKING_REVIEW_REASONS.has(rr) || WARNING_ONLY_REASONS.has(rr),
+      );
+      anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
+      anchor.subtitle = `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
+    }
+
+    // Privat plats + öppen timer: lägg till HÖGST ETT diagnostics-block
+    // (needs_review) som signalerar att aktiv arbetstid pågår från en
+    // privat plats. Detta hindrar repetition av många små "Boende"-rader.
+    const privateInWindow = excludedPrivateResidenceBlocks.filter((b) => {
+      const e = new Date(b.endAt).getTime();
+      const s = new Date(b.startAt).getTime();
+      return e > startedMs && s < dayCutoffMs;
+    });
+    const hasOngoingPrivateNote = out.some((r) =>
+      (r.reviewReasons ?? []).includes('open_active_timer_in_private_residence'),
+    );
+    if (privateInWindow.length > 0 && !hasOngoingPrivateNote) {
+      const noteStart = privateInWindow[0].startAt;
+      const noteEnd = privateInWindow[privateInWindow.length - 1].endAt;
+      const noteDur = Math.max(1, minutesBetween(noteStart, noteEnd));
+      out.push({
+        id: '',
+        kind: 'needs_review',
+        startAt: noteStart,
+        endAt: noteEnd,
+        durationMinutes: noteDur,
+        durationLabel: fmtDuration(noteDur),
+        title: 'Aktiv timer från privat plats',
+        subtitle: `${fmtClock(noteStart)}–${fmtClock(noteEnd)} · ${fmtDuration(noteDur)}`,
+        targetType: null,
+        targetId: null,
+        targetLabel: null,
+        fromLabel: null,
+        toLabel: null,
+        confidence: 'low',
+        reviewState: 'needs_review',
+        reviewReasons: ['open_active_timer_in_private_residence'],
+        warningLabel: 'Pågår – aktiv timer i boende/privat zon',
+        evidenceSummary: {
+          confirmedMinutes: 0,
+          probableMinutes: 0,
+          signalGapMinutes: 0,
+          transportMinutes: 0,
+          unknownMinutes: 0,
+          presenceBlockCount: privateInWindow.length,
+          suppressedSignalGapBlockCount: 0,
+          suppressedUnknownBlockCount: 0,
+          suppressedZeroLengthBlockCount: 0,
+        },
+        sourcePresenceBlockIds: privateInWindow.map((b) => b.id),
+        hiddenSignalGapIds: [],
+        hiddenPresenceBlockIds: privateInWindow.map((b) => b.id),
+        signalGapMinutes: 0,
+        firstConfirmedAt: null,
+        lastConfirmedAt: null,
+        isOngoing: false,
+      });
+      out.sort((a, b) => a.startAt.localeCompare(b.startAt));
+    }
+  }
+
+
   // +target+source set ⇒ same id across runs. See createReportCandidateBlockId.
   const assignId = (r: ReportCandidateBlock) => {
     r.id = createReportCandidateBlockId({

@@ -214,6 +214,8 @@ export interface SegmentTargetDiagnostics {
   privateResidenceTargetId?: string | null;
   /** Display label of the private_residence target ("Hemma", "Boende: …"). */
   privateResidenceLabel?: string | null;
+  /** Geo-exit signal observed but no strong corroborating exit (debug). */
+  geoExitWithoutStrongExitObserved?: boolean | null;
 }
 
 export interface GpsTimelineSegment {
