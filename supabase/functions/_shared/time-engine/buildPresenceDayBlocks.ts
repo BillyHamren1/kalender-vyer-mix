@@ -533,6 +533,40 @@ export function buildPresenceDayBlocks(
         if (!classification.countsAsTransport) sgDiag.missingAnchorRejectedCount += 1;
       }
 
+      // ── Engine 4 hard gate ─────────────────────────────────────────────
+      // Before any signal_gap is promoted to `transport` based on indirect
+      // evidence (companion route / transport anchors / destination guess),
+      // verify that THIS staff member's own GPS shows real displacement
+      // around the gap. Standing still on the same coordinate must NEVER
+      // become "Resa", regardless of what colleagues did.
+      const ownDisplacementM = staffOwnDisplacementMeters(
+        previousKnownPosition,
+        nextKnownPosition,
+      );
+      const stationaryGate =
+        ownDisplacementM != null && ownDisplacementM < TRANSPORT_MIN_DISTANCE_METERS;
+
+      if (classification.countsAsTransport && stationaryGate) {
+        // Demote to plain signal_gap — own GPS proves no movement.
+        sgDiag.missingAnchorRejectedCount += 1;
+        blocks.push(mkSignalGap(
+          newId('signal_gap'),
+          seg,
+          prevStable,
+          nextStable,
+          `GPS tyst men personen flyttade sig endast ${Math.round(ownDisplacementM ?? 0)} m`,
+        ));
+        // Bubble own displacement onto the emitted block for downstream
+        // diagnostics in buildReportCandidateBlocks.
+        const last = blocks[blocks.length - 1] as any;
+        if (last?.evidence) {
+          last.evidence.staffOwnDisplacementMeters = ownDisplacementM;
+          last.evidence.demotedFromTransportReason = 'staff_stationary_under_500m';
+        }
+        i += 1;
+        continue;
+      }
+
       if (classification.countsAsTransport) {
         const dur = gapMin;
         const isConfirmed = classification.classification === 'confirmed_transport_gap';
