@@ -1576,6 +1576,10 @@ export function buildReportCandidateBlocks(
     sameTargetTransportRejectedByDistanceMinutes,
     sameTargetTransportRejectedExamples,
     keptCrossTargetTransportExamples,
+    inferredFromNeighborsCount,
+    inferredFromNeighborsMinutes,
+    inferredFromNeighborsInheritedTargetCount,
+    inferredFromNeighborsUnlabeledCount,
   };
   for (const r of out) {
     if (r.kind === 'work') {
