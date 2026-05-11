@@ -434,8 +434,6 @@ const TimelineSection: React.FC<{
           <EndDayButton workdayOpen onStopped={onChanged} />
         </div>
       )}
-      {/* Markera implicit referens så TS inte varnar vid framtida refaktor */}
-      {void hasActiveInTimeline}
     </section>
   );
 };
