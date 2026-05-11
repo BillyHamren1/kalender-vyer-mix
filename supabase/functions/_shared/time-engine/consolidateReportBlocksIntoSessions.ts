@@ -142,7 +142,7 @@ export function consolidateReportBlocksIntoSessions(
 
     for (let k = 0; k < out.length - 1; k++) {
       const cur = out[k];
-      if (cur.kind !== 'work' || !cur.targetId) continue;
+      if (cur.kind !== 'work') continue;
       const curKey = sessionTargetKey(cur);
       if (!curKey) continue;
 
