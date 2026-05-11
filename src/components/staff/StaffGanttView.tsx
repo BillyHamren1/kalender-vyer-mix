@@ -984,6 +984,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         }}
         staff={selectedBlockStaff}
         dateStr={dateStr}
+        dateLabel={subLabel}
         reportCandidate={selectedBlockReportCandidate}
         blockId={selectedReportBlock?.id ?? null}
       />
@@ -1024,6 +1025,7 @@ interface BlockDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   staff: StaffWithDayReport | null;
   dateStr: string;
+  dateLabel: string;
   reportCandidate?: any;
   blockId: string | null;
 }
@@ -1033,6 +1035,7 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
   onOpenChange,
   staff,
   dateStr,
+  dateLabel,
   reportCandidate,
   blockId,
 }) => {
@@ -1058,7 +1061,7 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
         <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>{staff.name}</span>
-            <span className="text-sm font-normal text-muted-foreground">· {subLabel}</span>
+            <span className="text-sm font-normal text-muted-foreground">· {dateLabel}</span>
             <span className="text-sm font-normal text-muted-foreground">
               {selectedBlock.title} · {formatStockholmHm(selectedBlock.startAt)}–{formatStockholmHm(selectedBlock.endAt)}
             </span>
