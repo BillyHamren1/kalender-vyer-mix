@@ -425,7 +425,7 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
 // ────────────────────────────────────────────────────────────────────
 
 export const TodayTab: React.FC = () => {
-  const { snapshot, isLoading, error, refresh } = useStaffDayStatus();
+  const { snapshot, isLoading, error, refresh } = useStaffDayStatusViaMobileReport();
 
   if (isLoading && !snapshot) {
     return (
