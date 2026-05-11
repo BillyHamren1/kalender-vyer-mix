@@ -125,17 +125,26 @@ const formatRelativeDate = (date: Date): string => {
 };
 
 // ── Block kind → visual style ──────────────────────────────────────────────
-type GanttKind = 'work' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
+type GanttKind = 'work' | 'rig' | 'rigdown' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
 const KIND_STYLE: Record<
   GanttKind,
   { bg: string; border: string; text: string; ring?: string; label: string }
 > = {
-  work:      { bg: 'bg-primary/85',                 border: 'border-primary',           text: 'text-primary-foreground', label: 'Arbete' },
-  transport: { bg: 'bg-blue-500/80',                border: 'border-blue-500',          text: 'text-white',              label: 'Transport' },
-  review:    { bg: 'bg-amber-300/80 dark:bg-amber-400/70', border: 'border-amber-500', text: 'text-amber-950',          label: 'Granska' },
-  unknown:   { bg: 'bg-muted/60',                   border: 'border-border',            text: 'text-muted-foreground',   label: 'Okänd plats' },
-  break:     { bg: 'bg-muted/40',                   border: 'border-border',            text: 'text-muted-foreground',   label: 'Rast' },
-  pre_work:  { bg: 'bg-muted/25',                   border: 'border-border/50',         text: 'text-muted-foreground/70', label: 'Före arbetsdag' },
+  work:      { bg: 'bg-primary/85',                                                        border: 'border-primary',                  text: 'text-primary-foreground', label: 'Arbete' },
+  rig:       { bg: 'bg-emerald-200/80 dark:bg-emerald-400/40',                              border: 'border-emerald-400',              text: 'text-emerald-950 dark:text-emerald-50', label: 'Rigg' },
+  rigdown:   { bg: 'bg-rose-200/80 dark:bg-rose-400/40',                                    border: 'border-rose-400',                 text: 'text-rose-950 dark:text-rose-50',       label: 'Rigga ner' },
+  transport: { bg: 'bg-sky-200/80 dark:bg-sky-400/40',                                      border: 'border-sky-400',                  text: 'text-sky-950 dark:text-sky-50',         label: 'Transport' },
+  review:    { bg: 'bg-amber-200/80 dark:bg-amber-400/50',                                  border: 'border-amber-500',                text: 'text-amber-950 dark:text-amber-50',     label: 'Granska' },
+  unknown:   { bg: 'bg-muted/60',                                                           border: 'border-border',                   text: 'text-muted-foreground',                 label: 'Okänd plats' },
+  break:     { bg: 'bg-muted/40',                                                           border: 'border-border',                   text: 'text-muted-foreground',                 label: 'Rast' },
+  pre_work:  { bg: 'bg-muted/25',                                                           border: 'border-border/50',                text: 'text-muted-foreground/70',              label: 'Före arbetsdag' },
+};
+
+const detectPhase = (title?: string | null, subtitle?: string | null): 'rig' | 'rigdown' | null => {
+  const s = `${title ?? ''} ${subtitle ?? ''}`.toLowerCase();
+  if (/\brigdown\b|rigga\s*ner|nedrigg|rig\s*ner|rig-?ner/.test(s)) return 'rigdown';
+  if (/\brigg?\b|rigday|rigg?dag|bygg(?!nad)/.test(s)) return 'rig';
+  return null;
 };
 
 interface GanttBlock {
@@ -150,7 +159,12 @@ interface GanttBlock {
 }
 
 const mapReportCandidateKind = (b: ReportCandidateBlockUI): GanttKind => {
-  if (b.kind === 'work') return b.reviewState === 'needs_review' ? 'review' : 'work';
+  if (b.kind === 'work') {
+    if (b.reviewState === 'needs_review') return 'review';
+    const phase = detectPhase(b.title, b.subtitle);
+    if (phase) return phase;
+    return 'work';
+  }
   if (b.kind === 'transport') return 'transport';
   if (b.kind === 'needs_review') return 'review';
   if (b.kind === 'unknown') return 'unknown';
@@ -369,8 +383,30 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   }, [staffList]);
 
   // Time axis bounds
-  const startHour = compactRange ? 6 : 0;
-  const endHour = compactRange ? 22 : 24;
+  // Dynamic time bounds — auto-fit to data when compactRange is on
+  const { startHour, endHour } = useMemo(() => {
+    if (!compactRange) return { startHour: 0, endHour: 24 };
+    let minH = 24;
+    let maxH = 0;
+    for (const s of sortedStaff) {
+      const blocks = blocksByStaff[s.id] ?? [];
+      for (const b of blocks) {
+        if (b.kind === 'pre_work') continue; // don't let pre-work expand the day
+        const sH = hourOfDay(b.startAt, dateStr);
+        const eH = hourOfDay(b.endAt, dateStr);
+        if (Number.isFinite(sH) && sH < minH) minH = sH;
+        if (Number.isFinite(eH) && eH > maxH) maxH = eH;
+      }
+    }
+    if (minH >= 24 || maxH <= 0 || maxH <= minH) {
+      return { startHour: 6, endHour: 22 };
+    }
+    // Pad with 1 hour on each side and floor/ceil
+    const pad = 1;
+    const s = Math.max(0, Math.floor(minH) - pad);
+    const e = Math.min(24, Math.ceil(maxH) + pad);
+    return { startHour: s, endHour: Math.max(s + 4, e) };
+  }, [compactRange, sortedStaff, blocksByStaff, dateStr]);
   const totalHours = endHour - startHour;
   const hours = Array.from({ length: totalHours + 1 }, (_, i) => startHour + i);
 
@@ -616,7 +652,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
               onClick={() => setCompactRange((v) => !v)}
               title="Växla tidsintervall"
             >
-              {compactRange ? '06–22' : '00–24'}
+              {compactRange ? `Auto ${String(startHour).padStart(2,'0')}–${String(endHour).padStart(2,'0')}` : '00–24'}
             </Button>
           </div>
         </div>
@@ -708,7 +744,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                   }}
                 >
                   {/* Top-left corner */}
-                  <div className="sticky left-0 top-[64px] z-30 border-b border-r bg-card/95 backdrop-blur px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="sticky top-[64px] z-30 border-b border-r bg-card px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                     Tid
                   </div>
 
@@ -753,9 +789,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                     );
                   })}
 
-                  {/* Hour rail (sticky left) */}
+                  {/* Hour rail (lives in grid column 1, not sticky horizontally so it doesn't overlay blocks) */}
                   <div
-                    className="sticky left-0 z-10 border-r bg-card/95 backdrop-blur"
+                    className="relative border-r bg-card"
                     style={{ height: bodyHeight }}
                   >
                     {hours.slice(0, -1).map((h, i) => (
