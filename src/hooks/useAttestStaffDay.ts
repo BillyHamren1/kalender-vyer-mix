@@ -20,6 +20,10 @@ export interface AttestStaffDayInput {
   date: string;            // YYYY-MM-DD
   breakMinutes: number;    // 0..600
   comment?: string | null;
+  /** ISO timestamp; user's adjusted start time for the day (Stockholm local → ISO). */
+  requestedStartAt?: string | null;
+  /** ISO timestamp; user's adjusted end time for the day. */
+  requestedEndAt?: string | null;
 }
 
 interface AttestStaffDayResult {
@@ -39,6 +43,13 @@ export function useAttestStaffDay(): AttestStaffDayResult {
     if (!Number.isFinite(breakMinutes) || breakMinutes < 0 || breakMinutes > 600) {
       throw new Error('Rast måste vara mellan 0 och 600 minuter');
     }
+    if (input.requestedStartAt && input.requestedEndAt) {
+      const a = Date.parse(input.requestedStartAt);
+      const b = Date.parse(input.requestedEndAt);
+      if (Number.isFinite(a) && Number.isFinite(b) && a >= b) {
+        throw new Error('Starttid måste vara före sluttid');
+      }
+    }
 
     setIsSaving(true);
     setError(null);
@@ -48,6 +59,8 @@ export function useAttestStaffDay(): AttestStaffDayResult {
         date: input.date,
         breakMinutes,
         comment: input.comment ?? null,
+        requestedStartAt: input.requestedStartAt ?? null,
+        requestedEndAt: input.requestedEndAt ?? null,
       });
       try {
         window.dispatchEvent(new CustomEvent('staff-day-attested', {
@@ -56,7 +69,7 @@ export function useAttestStaffDay(): AttestStaffDayResult {
         window.dispatchEvent(new CustomEvent('timer-state-changed'));
       } catch { /* ignore */ }
     } catch (err: any) {
-      const message = err?.message || 'Kunde inte godkänna dagen';
+      const message = err?.message || 'Kunde inte skicka in dagen';
       setError(message);
       throw new Error(message);
     } finally {
