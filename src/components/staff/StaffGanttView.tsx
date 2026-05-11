@@ -1,0 +1,978 @@
+import React, { useMemo, useState } from 'react';
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  WifiOff,
+  
+  Activity,
+  Briefcase,
+  AlertTriangle,
+} from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
+import { sv } from 'date-fns/locale';
+import { formatHoursMinutes } from '@/utils/formatHours';
+import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
+import { TimeReportReviewTable } from './TimeReportReviewTable';
+import { StaffDayTimelineCard } from './StaffDayTimelineCard';
+import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
+import type {
+  DaySegment,
+  LatestPing,
+  PlanningStatus,
+  PresenceDebug,
+} from '@/pages/StaffTimeReports';
+import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
+import type { DayMetrics } from '@/lib/staff/dayMetrics';
+import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
+import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
+import type { ReportCandidateBlockUI, ReportCandidateSummaryUI } from './ReportCandidateTimeline';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
+
+interface ProjectInfo {
+  booking_id: string;
+  label: string;
+  is_open: boolean;
+  total_hours: number;
+}
+
+interface StaffWithDayReport {
+  id: string;
+  name: string;
+  role: string | null;
+  color: string | null;
+  total_hours: number;
+  reports_count: number;
+  has_open_report: boolean;
+  earliest_start: string | null;
+  latest_end: string | null;
+  projects: ProjectInfo[];
+  segments: DaySegment[];
+  journal: StaffDayJournal;
+  latestPing: LatestPing | null;
+  metrics: DayMetrics;
+  canonical: CanonicalStaffDayModel;
+  actualModel: ActualStaffDayModel;
+  pingsTruncated?: boolean;
+  pingsFetchError?: string | null;
+  planningStatus: PlanningStatus;
+  plannedLabels: string[];
+  presence: PresenceDebug;
+}
+
+const STALE_PING_MS = 10 * 60 * 1000;
+type LiveStatus = 'live' | 'stale' | 'closed';
+const resolveLiveStatus = (
+  hasOpen: boolean,
+  ping: { updated_at: string | null } | null,
+): LiveStatus => {
+  if (!hasOpen) return 'closed';
+  if (!ping?.updated_at) return 'stale';
+  return Date.now() - new Date(ping.updated_at).getTime() > STALE_PING_MS ? 'stale' : 'live';
+};
+
+// ── Time helpers ───────────────────────────────────────────────────────────
+const TZ = 'Europe/Stockholm';
+const stockholmParts = (iso: string): { h: number; m: number; s: number } | null => {
+  try {
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: TZ,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(d);
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? '0');
+    return { h: get('hour'), m: get('minute'), s: get('second') };
+  } catch {
+    return null;
+  }
+};
+
+/** Returns hours-of-day [0..24] in Stockholm tz, accounting for cross-day. */
+const hourOfDay = (iso: string, anchorDateStr: string): number => {
+  const p = stockholmParts(iso);
+  if (!p) return 0;
+  // Detect if the iso lands on the anchor date (Stockholm) or before/after.
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso));
+  const h = p.h + p.m / 60 + p.s / 3600;
+  if (dateParts < anchorDateStr) return 0;
+  if (dateParts > anchorDateStr) return 24;
+  return h;
+};
+
+const fmtMin = (m: number) => formatHoursMinutes(m / 60);
+const formatRelativeDate = (date: Date): string => {
+  if (isToday(date)) return 'Idag';
+  if (isYesterday(date)) return 'Igår';
+  return format(date, 'EEEE d MMMM', { locale: sv });
+};
+
+// ── Block kind → visual style ──────────────────────────────────────────────
+type GanttKind = 'work' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
+const KIND_STYLE: Record<
+  GanttKind,
+  { bg: string; border: string; text: string; ring?: string; label: string }
+> = {
+  work:      { bg: 'bg-primary/85',                 border: 'border-primary',           text: 'text-primary-foreground', label: 'Arbete' },
+  transport: { bg: 'bg-blue-500/80',                border: 'border-blue-500',          text: 'text-white',              label: 'Transport' },
+  review:    { bg: 'bg-amber-300/80 dark:bg-amber-400/70', border: 'border-amber-500', text: 'text-amber-950',          label: 'Granska' },
+  unknown:   { bg: 'bg-muted/60',                   border: 'border-border',            text: 'text-muted-foreground',   label: 'Okänd plats' },
+  break:     { bg: 'bg-muted/40',                   border: 'border-border',            text: 'text-muted-foreground',   label: 'Rast' },
+  pre_work:  { bg: 'bg-muted/25',                   border: 'border-border/50',         text: 'text-muted-foreground/70', label: 'Före arbetsdag' },
+};
+
+interface GanttBlock {
+  id: string;
+  kind: GanttKind;
+  startAt: string;
+  endAt: string;
+  durationMinutes: number;
+  title: string;
+  subtitle?: string | null;
+  isOpen?: boolean;
+}
+
+const mapReportCandidateKind = (b: ReportCandidateBlockUI): GanttKind => {
+  if (b.kind === 'work') return b.reviewState === 'needs_review' ? 'review' : 'work';
+  if (b.kind === 'transport') return 'transport';
+  if (b.kind === 'needs_review') return 'review';
+  if (b.kind === 'unknown') return 'unknown';
+  if (b.kind === 'break') return 'break';
+  return 'unknown';
+};
+
+const blocksFromStaff = (
+  staff: StaffWithDayReport,
+  candidate: ReportCandidateBlockUI[] | null | undefined,
+  excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
+): GanttBlock[] => {
+  const out: GanttBlock[] = [];
+  if (candidate && candidate.length) {
+    for (const b of candidate) {
+      out.push({
+        id: b.id,
+        kind: mapReportCandidateKind(b),
+        startAt: b.startAt,
+        endAt: b.endAt,
+        durationMinutes: b.durationMinutes,
+        title: b.title,
+        subtitle: b.subtitle ?? null,
+      });
+    }
+    if (excludedPreWork) {
+      for (const b of excludedPreWork) {
+        out.push({
+          id: `pre-${b.id}`,
+          kind: 'pre_work',
+          startAt: b.startAt,
+          endAt: b.endAt,
+          durationMinutes: b.durationMinutes,
+          title: b.title,
+          subtitle: 'Före arbetsdag',
+        });
+      }
+    }
+    return out;
+  }
+  // Fallback: derive from journal sessions
+  for (const s of staff.journal.sessions as ProjectSession[]) {
+    if (!s.start) continue;
+    const end = s.end ?? new Date().toISOString();
+    out.push({
+      id: s.key,
+      kind: s.kind === 'travel' ? 'transport' : 'work',
+      startAt: s.start,
+      endAt: end,
+      durationMinutes: Math.max(0, (new Date(end).getTime() - new Date(s.start).getTime()) / 60000),
+      title: s.label,
+      subtitle: null,
+      isOpen: s.isOpen,
+    });
+  }
+  return out;
+};
+
+// ── Sort options ───────────────────────────────────────────────────────────
+type SortKey = 'smart' | 'name' | 'start' | 'most_work' | 'most_review';
+type FilterKey = 'all' | 'live' | 'review' | 'planned_only' | 'lager' | 'project' | 'transport';
+
+interface StaffGanttViewProps {
+  staffList: StaffWithDayReport[];
+  isLoading: boolean;
+  onSelectStaff: (id: string, name: string) => void;
+  selectedDate: Date;
+  onDateChange: (date: Date) => void;
+  reportCandidateByStaff?: Record<
+    string,
+    {
+      blocks: ReportCandidateBlockUI[];
+      summary: ReportCandidateSummaryUI | null;
+      diagnostics?: any;
+      excludedPreWorkBlocks?: ReportCandidateBlockUI[];
+      preWorkExclusionDiagnostics?: any;
+      targetResolution?: any;
+      presenceBlocks?: any[];
+      presenceRawEvidence?: any[];
+      rawGpsTimeline?: any;
+      technicalTimeline?: any[];
+      presenceDaySummary?: any;
+      presenceDayAggregation?: any;
+      targetMatchSummary?: any;
+      targets?: any[];
+      counts?: any;
+      loading: boolean;
+      missing?: boolean;
+    } | undefined
+  >;
+  engineMode?: 'report_candidate' | 'actual_model_fallback';
+}
+
+export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
+  staffList,
+  isLoading,
+  onSelectStaff,
+  selectedDate,
+  onDateChange,
+  reportCandidateByStaff,
+  engineMode = 'report_candidate',
+}) => {
+  const [search, setSearch] = useState('');
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('smart');
+  const [filterKey, setFilterKey] = useState<FilterKey>('all');
+  const [openStaffId, setOpenStaffId] = useState<string | null>(null);
+  const [compactRange, setCompactRange] = useState(true); // 06–22 default
+  const queryClient = useQueryClient();
+
+  const dateStr = format(selectedDate, 'yyyy-MM-dd');
+  const dateLabel = formatRelativeDate(selectedDate);
+  const subLabel = format(selectedDate, 'd MMMM yyyy', { locale: sv });
+
+  // Per-staff blocks
+  const blocksByStaff = useMemo(() => {
+    const map: Record<string, GanttBlock[]> = {};
+    for (const s of staffList) {
+      const cand = reportCandidateByStaff?.[s.id];
+      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null);
+    }
+    return map;
+  }, [staffList, reportCandidateByStaff]);
+
+  // Filter
+  const filteredStaff = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return staffList.filter((s) => {
+      if (q) {
+        const hit =
+          s.name.toLowerCase().includes(q) ||
+          (s.role ?? '').toLowerCase().includes(q) ||
+          s.plannedLabels.some((l) => l.toLowerCase().includes(q));
+        if (!hit) return false;
+      }
+      const live = resolveLiveStatus(s.has_open_report, s.latestPing);
+      const blocks = blocksByStaff[s.id] ?? [];
+      switch (filterKey) {
+        case 'live':
+          return live === 'live' || s.planningStatus === 'workday_active';
+        case 'review':
+          return blocks.some((b) => b.kind === 'review' || b.kind === 'unknown');
+        case 'planned_only':
+          return s.planningStatus === 'planned_not_started';
+        case 'lager':
+          return s.plannedLabels.some((l) => /lager|warehouse/i.test(l));
+        case 'project':
+          return blocks.some((b) => b.kind === 'work');
+        case 'transport':
+          return blocks.some((b) => b.kind === 'transport');
+        default:
+          return true;
+      }
+    });
+  }, [staffList, search, filterKey, blocksByStaff]);
+
+  // Sort
+  const sortedStaff = useMemo(() => {
+    const arr = [...filteredStaff];
+    const earliestStart = (id: string): number => {
+      const bs = blocksByStaff[id] ?? [];
+      if (!bs.length) return Number.POSITIVE_INFINITY;
+      return Math.min(...bs.map((b) => new Date(b.startAt).getTime()));
+    };
+    const reviewMin = (id: string) =>
+      (blocksByStaff[id] ?? [])
+        .filter((b) => b.kind === 'review' || b.kind === 'unknown')
+        .reduce((a, b) => a + b.durationMinutes, 0);
+    switch (sortKey) {
+      case 'name':
+        arr.sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+        break;
+      case 'start':
+        arr.sort((a, b) => earliestStart(a.id) - earliestStart(b.id));
+        break;
+      case 'most_work':
+        arr.sort((a, b) => b.metrics.payableMinutes - a.metrics.payableMinutes);
+        break;
+      case 'most_review':
+        arr.sort((a, b) => reviewMin(b.id) - reviewMin(a.id));
+        break;
+      case 'smart':
+      default: {
+        const rank = (s: StaffWithDayReport) =>
+          s.planningStatus === 'workday_active' ? 0 :
+          s.has_open_report ? 1 :
+          (blocksByStaff[s.id]?.length ?? 0) > 0 ? 2 :
+          s.planningStatus === 'planned_not_started' ? 3 : 4;
+        arr.sort((a, b) => {
+          const r = rank(a) - rank(b);
+          return r !== 0 ? r : a.name.localeCompare(b.name, 'sv');
+        });
+      }
+    }
+    return arr;
+  }, [filteredStaff, sortKey, blocksByStaff]);
+
+  // Summary counts
+  const totals = useMemo(() => {
+    let work = 0;
+    let travel = 0;
+    let live = 0;
+    let stale = 0;
+    let plannedNoReport = 0;
+    let workdayActive = 0;
+    for (const s of staffList) {
+      work += s.metrics.activityMinutes;
+      travel += s.metrics.travelMinutes;
+      const ls = resolveLiveStatus(s.has_open_report, s.latestPing);
+      if (ls === 'live') live += 1;
+      if (ls === 'stale') stale += 1;
+      if (s.planningStatus === 'planned_not_started') plannedNoReport += 1;
+      if (s.planningStatus === 'workday_active') workdayActive += 1;
+    }
+    return { work, travel, live, stale, plannedNoReport, workdayActive };
+  }, [staffList]);
+
+  // Time axis bounds
+  const startHour = compactRange ? 6 : 0;
+  const endHour = compactRange ? 22 : 24;
+  const totalHours = endHour - startHour;
+  const hours = Array.from({ length: totalHours + 1 }, (_, i) => startHour + i);
+
+  // Now line position
+  const nowFrac = useMemo(() => {
+    if (!isToday(selectedDate)) return null;
+    const p = stockholmParts(new Date().toISOString());
+    if (!p) return null;
+    const h = p.h + p.m / 60;
+    if (h < startHour || h > endHour) return null;
+    return ((h - startHour) / totalHours) * 100;
+  }, [selectedDate, startHour, endHour, totalHours]);
+
+  const openStaff = openStaffId ? staffList.find((s) => s.id === openStaffId) ?? null : null;
+
+  // Drawer write actions (kept identical to previous implementation)
+  const handleResolvePlannedGap = async (
+    staffId: string,
+    input: {
+      anomalyId: string;
+      mode: 'planned' | 'first_signal' | 'custom' | 'absence';
+      plannedStartIso: string;
+      firstSignalIso: string | null;
+      customStartIso?: string;
+      assignmentId: string | null;
+      noSignalGapMinutes: number;
+      label: string;
+    },
+  ) => {
+    const { data, error } = await supabase.functions.invoke('mobile-app-api', {
+      body: {
+        action: 'admin_create_workday_from_planned',
+        data: {
+          target_staff_id: staffId,
+          flag_date: dateStr,
+          mode: input.mode,
+          planned_start_iso: input.plannedStartIso,
+          first_signal_iso: input.firstSignalIso,
+          custom_start_iso: input.customStartIso,
+          assignment_id: input.assignmentId,
+          note: `Admin: ${input.label} (gap ${input.noSignalGapMinutes} min)`,
+        },
+      },
+    });
+    if (error) throw new Error(error.message);
+    if ((data as any)?.error) throw new Error((data as any).error);
+    await queryClient.invalidateQueries({ queryKey: ['staff-time-reports'] });
+    await queryClient.invalidateQueries({ queryKey: ['workdays'] });
+    await queryClient.invalidateQueries({ queryKey: ['workday-flags'] });
+  };
+  const handleRepairFromEvidence = async (
+    staffId: string,
+    input: { proposedStartIso: string; proposedEndIso: string | null; reasonCodes: string[] },
+  ) => {
+    const { data, error } = await supabase.functions.invoke('mobile-app-api', {
+      body: {
+        action: 'admin_repair_workday_from_evidence',
+        data: {
+          target_staff_id: staffId,
+          flag_date: dateStr,
+          proposed_start_iso: input.proposedStartIso,
+          proposed_end_iso: input.proposedEndIso,
+          reason_codes: input.reasonCodes,
+        },
+      },
+    });
+    if (error) throw new Error(error.message);
+    if ((data as any)?.error) throw new Error((data as any).error);
+    await queryClient.invalidateQueries({ queryKey: ['staff-time-reports'] });
+    await queryClient.invalidateQueries({ queryKey: ['workdays'] });
+  };
+  const handleAutoRepairFromEvidence = async (
+    staffId: string,
+    input: { reasonCodes: string[] },
+  ): Promise<{ status: 'created' | 'existing' | 'skipped' }> => {
+    const { data, error } = await supabase.functions.invoke('mobile-app-api', {
+      body: {
+        action: 'auto_repair_missing_workdays_from_evidence',
+        data: { target_staff_id: staffId, dates: [dateStr] },
+      },
+    });
+    if (error) throw new Error(error.message);
+    if ((data as any)?.error) throw new Error((data as any).error);
+    const matchingRow = ((data as any)?.results ?? []).find(
+      (row: any) => row?.staff_id === staffId && row?.date === dateStr,
+    );
+    const status: 'created' | 'existing' | 'skipped' =
+      matchingRow?.action === 'created'
+        ? 'created'
+        : matchingRow?.action === 'skipped_existing_workday'
+          ? 'existing'
+          : 'skipped';
+    if (status === 'created' || status === 'existing') {
+      await queryClient.invalidateQueries({ queryKey: ['staff-time-reports'] });
+      await queryClient.invalidateQueries({ queryKey: ['workdays'] });
+    }
+    return { status };
+  };
+
+  // Build review inputs for the drawer (parity with existing list)
+  const buildReviewInputs = (staff: StaffWithDayReport) => {
+    const work: ReviewWorkInput[] = [];
+    const travel: ReviewTravelInput[] = [];
+    for (const s of staff.journal.sessions as ProjectSession[]) {
+      if (s.kind === 'travel') {
+        travel.push({
+          id: s.sourceIds[0]?.replace(/^tv:/, '') ?? s.key,
+          start_time: s.start,
+          end_time: s.end,
+          hours_worked: s.hours,
+          from_address: s.fromAddress ?? null,
+          to_address: s.toAddress ?? (s.label?.replace(/^Resa[:→\s]*/i, '') || null),
+          from_latitude: s.fromLatitude ?? null,
+          from_longitude: s.fromLongitude ?? null,
+          to_latitude: s.toLatitude ?? null,
+          to_longitude: s.toLongitude ?? null,
+          destination_booking_id: s.destinationBookingId ?? null,
+        });
+      } else {
+        const firstId = s.sourceIds[0] ?? s.key;
+        const isTr = firstId.startsWith('tr:');
+        work.push({
+          id: isTr ? (s.editTimeReport?.id ?? firstId.slice(3)) : firstId.replace(/^lt:/, 'lte-'),
+          start_time: s.start,
+          end_time: s.end,
+          hours_worked: s.hours,
+          booking_client: s.label,
+          booking_number: null,
+          description: s.editTimeReport?.description ?? null,
+          delivery_lat: s.baseLatitude ?? null,
+          delivery_lng: s.baseLongitude ?? null,
+          ongoing: s.isOpen,
+          approved: s.editTimeReport?.approved ?? false,
+          source: isTr ? 'time_report' : 'location_entry',
+        });
+      }
+    }
+    return { work, travel };
+  };
+
+  // Planned-only group (compact)
+  const plannedOnly = sortedStaff.filter((s) => s.planningStatus === 'planned_not_started');
+  const ganttStaff = sortedStaff.filter((s) => s.planningStatus !== 'planned_not_started');
+
+  return (
+    <div className="space-y-3">
+      {/* Sticky top summary bar */}
+      <div className="sticky top-0 z-30 -mx-1 rounded-xl border bg-card/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Date picker */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              onClick={() => onDateChange(subDays(selectedDate, 1))}
+              aria-label="Föregående dag"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 rounded-lg font-medium capitalize">
+                  <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                  <span>{dateLabel}</span>
+                  <span className="text-xs font-normal text-muted-foreground">· {subLabel}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(d) => {
+                    if (d) {
+                      onDateChange(d);
+                      setCalendarOpen(false);
+                    }
+                  }}
+                  locale={sv}
+                  initialFocus
+                  className="pointer-events-auto"
+                />
+                <div className="flex justify-center border-t p-2">
+                  <Button variant="ghost" size="sm" className="rounded-lg text-xs" onClick={() => { onDateChange(new Date()); setCalendarOpen(false); }}>
+                    Idag
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              onClick={() => onDateChange(addDays(selectedDate, 1))}
+              aria-label="Nästa dag"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="hidden h-6 w-px bg-border md:block" />
+
+          {/* KPI chips */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <KPI icon={<Briefcase className="h-3.5 w-3.5 text-primary" />} label="Arbete" value={fmtMin(totals.work)} />
+            <KPI icon={<Activity className="h-3.5 w-3.5 text-blue-500" />} label="Resa" value={fmtMin(totals.travel)} />
+            <KPI label="Pågår" value={String(totals.workdayActive)} accent={totals.workdayActive > 0 ? 'emerald' : undefined} />
+            <KPI label="Planerade utan rapport" value={String(totals.plannedNoReport)} accent={totals.plannedNoReport > 0 ? 'amber' : undefined} />
+            {totals.stale > 0 && (
+              <span className="inline-flex items-center gap-1 font-medium text-destructive">
+                <WifiOff className="h-3 w-3" />
+                {totals.stale} tappad signal
+              </span>
+            )}
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Sök personal..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 w-44 rounded-lg pl-8 text-xs"
+              />
+            </div>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              className="h-8 rounded-lg border bg-background px-2 text-xs"
+              title="Sortering"
+            >
+              <option value="smart">Smart sortering</option>
+              <option value="name">Namn</option>
+              <option value="start">Starttid</option>
+              <option value="most_work">Mest arbetstid</option>
+              <option value="most_review">Mest osäker tid</option>
+            </select>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-xs"
+              onClick={() => setCompactRange((v) => !v)}
+              title="Växla tidsintervall"
+            >
+              {compactRange ? '06–22' : '00–24'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Filter chips */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {([
+            { k: 'all', label: 'Alla' },
+            { k: 'live', label: 'Pågående' },
+            { k: 'review', label: 'Behöver granskas' },
+            { k: 'planned_only', label: 'Planerade utan rapport' },
+            { k: 'lager', label: 'Bara lager' },
+            { k: 'project', label: 'Bara projekt' },
+            { k: 'transport', label: 'Bara transport' },
+          ] as { k: FilterKey; label: string }[]).map((f) => (
+            <button
+              key={f.k}
+              type="button"
+              onClick={() => setFilterKey(f.k)}
+              className={cn(
+                'rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
+                filterKey === f.k
+                  ? 'border-primary/30 bg-primary/10 text-primary'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted',
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+          {engineMode === 'actual_model_fallback' && (
+            <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              <AlertTriangle className="h-3 w-3" /> fallback motor
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Planned but no report — compact group */}
+      {plannedOnly.length > 0 && (
+        <div className="rounded-xl border bg-muted/20 px-3 py-2">
+          <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Planerade – har inte rapporterat tid ({plannedOnly.length})
+          </div>
+          <ul className="grid gap-x-3 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {plannedOnly.map((staff) => (
+              <li key={staff.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenStaffId(staff.id)}
+                  className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs hover:bg-accent/60"
+                  title={staff.plannedLabels.join(' · ')}
+                >
+                  <span className="truncate font-medium">{staff.name}</span>
+                  <span className="ml-2 truncate text-[10px] text-muted-foreground">
+                    {staff.plannedLabels[0] ?? 'Planerad'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Gantt main surface */}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        {isLoading ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-14 w-full rounded-md" />
+            ))}
+          </div>
+        ) : ganttStaff.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            Ingen aktivitet att visa för {dateLabel.toLowerCase()}.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="min-w-[900px]">
+              {/* Header row */}
+              <div className="sticky top-[64px] z-20 grid grid-cols-[260px_1fr] border-b bg-card/95 backdrop-blur">
+                <div className="border-r px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Personal ({ganttStaff.length})
+                </div>
+                <div className="relative h-9">
+                  <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${totalHours}, 1fr)` }}>
+                    {Array.from({ length: totalHours }).map((_, i) => (
+                      <div key={i} className="border-r border-border/40" />
+                    ))}
+                  </div>
+                  <div className="absolute inset-0 flex">
+                    {hours.map((h, idx) => (
+                      <div
+                        key={h}
+                        className="flex-1 text-center text-[10px] font-medium tabular-nums text-muted-foreground"
+                        style={{
+                          flexGrow: idx === hours.length - 1 ? 0 : 1,
+                          flexBasis: idx === hours.length - 1 ? 0 : undefined,
+                        }}
+                      >
+                        <span className="inline-block -translate-x-1/2 pt-2">{String(h).padStart(2, '0')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Body rows */}
+              <div>
+                {ganttStaff.map((staff) => {
+                  const blocks = blocksByStaff[staff.id] ?? [];
+                  const live = resolveLiveStatus(staff.has_open_report, staff.latestPing);
+                  return (
+                    <div
+                      key={staff.id}
+                      className="group grid grid-cols-[260px_1fr] border-b last:border-b-0 transition-colors hover:bg-muted/30"
+                    >
+                      {/* Left sticky-ish column */}
+                      <button
+                        type="button"
+                        onClick={() => setOpenStaffId(staff.id)}
+                        className="flex flex-col items-start gap-0.5 border-r px-4 py-3 text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              'h-2 w-2 rounded-full',
+                              staff.planningStatus === 'workday_active' || live === 'live'
+                                ? 'bg-emerald-500 animate-pulse'
+                                : live === 'stale'
+                                  ? 'bg-destructive'
+                                  : blocks.length
+                                    ? 'bg-muted-foreground/40'
+                                    : 'bg-muted-foreground/20',
+                            )}
+                          />
+                          <span className="truncate text-sm font-medium">{staff.name}</span>
+                        </div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {staff.plannedLabels[0] ?? staff.role ?? '—'}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2.5 text-[11px] tabular-nums text-muted-foreground">
+                          <span>
+                            <span className="font-medium text-foreground">{fmtMin(staff.metrics.activityMinutes)}</span> arbete
+                          </span>
+                          {staff.metrics.travelMinutes > 0 && (
+                            <span className="text-blue-600 dark:text-blue-400">
+                              {fmtMin(staff.metrics.travelMinutes)} resa
+                            </span>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Right timeline */}
+                      <div className="relative h-16">
+                        {/* hour grid */}
+                        <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${totalHours}, 1fr)` }}>
+                          {Array.from({ length: totalHours }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                'border-r border-border/30',
+                                i % 3 === 0 && 'border-border/60',
+                              )}
+                            />
+                          ))}
+                        </div>
+
+                        {/* now line */}
+                        {nowFrac != null && (
+                          <div
+                            className="absolute top-0 bottom-0 w-px bg-emerald-500/70"
+                            style={{ left: `${nowFrac}%` }}
+                          >
+                            <div className="absolute -top-1 -left-1 h-2 w-2 rounded-full bg-emerald-500" />
+                          </div>
+                        )}
+
+                        {/* blocks */}
+                        {blocks.map((b) => {
+                          const sH = hourOfDay(b.startAt, dateStr);
+                          const eH = hourOfDay(b.endAt, dateStr);
+                          const clampedS = Math.max(startHour, Math.min(endHour, sH));
+                          const clampedE = Math.max(startHour, Math.min(endHour, eH));
+                          if (clampedE <= clampedS) return null;
+                          const left = ((clampedS - startHour) / totalHours) * 100;
+                          const width = ((clampedE - clampedS) / totalHours) * 100;
+                          const style = KIND_STYLE[b.kind];
+                          const showText = width > 4;
+                          const showSub = width > 10;
+                          return (
+                            <div
+                              key={b.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setOpenStaffId(staff.id)}
+                              className={cn(
+                                'absolute top-2 bottom-2 overflow-hidden rounded-md border px-2 py-1 text-[10.5px] leading-tight shadow-sm transition-shadow hover:shadow-md cursor-pointer',
+                                style.bg,
+                                style.border,
+                                style.text,
+                              )}
+                              style={{ left: `${left}%`, width: `${width}%` }}
+                              title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`}
+                            >
+                              {showText && (
+                                <div className="truncate font-semibold">
+                                  {b.title}
+                                </div>
+                              )}
+                              {showSub && (
+                                <div className="truncate opacity-80">
+                                  {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} · {fmtMin(b.durationMinutes)}
+                                </div>
+                              )}
+                              {!showText && (
+                                <div className="truncate text-center font-semibold">
+                                  {fmtMin(b.durationMinutes)}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {blocks.length === 0 && (
+                          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground/60">
+                            Ingen aktivitet
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Detail drawer */}
+      <Sheet open={!!openStaff} onOpenChange={(o) => { if (!o) setOpenStaffId(null); }}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          {openStaff && (
+            <>
+              <SheetHeader className="mb-3">
+                <SheetTitle className="flex items-center justify-between">
+                  <span>{openStaff.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 rounded-md text-xs"
+                    onClick={() => onSelectStaff(openStaff.id, openStaff.name)}
+                  >
+                    Öppna full detaljvy
+                  </Button>
+                </SheetTitle>
+                <p className="text-xs text-muted-foreground">{subLabel}</p>
+              </SheetHeader>
+              <DrawerBody
+                staff={openStaff}
+                dateStr={dateStr}
+                reportCandidate={reportCandidateByStaff?.[openStaff.id]}
+                engineMode={engineMode}
+                buildReviewInputs={buildReviewInputs}
+                onResolvePlannedGap={handleResolvePlannedGap}
+                onRepairFromEvidence={handleRepairFromEvidence}
+                onAutoRepairFromEvidence={handleAutoRepairFromEvidence}
+              />
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+};
+
+const KPI: React.FC<{ icon?: React.ReactNode; label: string; value: string; accent?: 'emerald' | 'amber' }> = ({ icon, label, value, accent }) => (
+  <span className="inline-flex items-center gap-1.5 tabular-nums">
+    {icon}
+    <span
+      className={cn(
+        'font-semibold',
+        accent === 'emerald' && 'text-emerald-600 dark:text-emerald-400',
+        accent === 'amber' && 'text-amber-600 dark:text-amber-400',
+        !accent && 'text-foreground',
+      )}
+    >
+      {value}
+    </span>
+    <span className="text-muted-foreground">{label}</span>
+  </span>
+);
+
+interface DrawerBodyProps {
+  staff: StaffWithDayReport;
+  dateStr: string;
+  reportCandidate?: any;
+  engineMode: 'report_candidate' | 'actual_model_fallback';
+  buildReviewInputs: (s: StaffWithDayReport) => { work: ReviewWorkInput[]; travel: ReviewTravelInput[] };
+  onResolvePlannedGap: (staffId: string, input: any) => Promise<void>;
+  onRepairFromEvidence: (staffId: string, input: any) => Promise<void>;
+  onAutoRepairFromEvidence: (staffId: string, input: any) => Promise<{ status: 'created' | 'existing' | 'skipped' }>;
+}
+const DrawerBody: React.FC<DrawerBodyProps> = ({
+  staff,
+  dateStr,
+  reportCandidate,
+  engineMode,
+  buildReviewInputs,
+  onResolvePlannedGap,
+  onRepairFromEvidence,
+  onAutoRepairFromEvidence,
+}) => {
+  const { work, travel } = buildReviewInputs(staff);
+  return (
+    <div className="space-y-3">
+      {staff.pingsFetchError && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          GPS-historik kunde inte hämtas. ({staff.pingsFetchError})
+        </div>
+      )}
+      <StaffDayTimelineCard
+        staffName={staff.name}
+        staffId={staff.id}
+        date={dateStr}
+        model={staff.actualModel}
+        lastPingIso={staff.latestPing?.updated_at ?? null}
+        reportCandidateBlocks={reportCandidate?.blocks ?? null}
+        reportCandidateSummary={reportCandidate?.summary ?? null}
+        reportCandidateLoading={reportCandidate?.loading ?? false}
+        reportCandidatePresenceBlocks={reportCandidate?.presenceBlocks ?? null}
+        reportCandidateTargets={reportCandidate?.targets ?? null}
+        reportCandidateDiagnostics={reportCandidate?.diagnostics ?? null}
+        reportCandidateExcludedPreWorkBlocks={reportCandidate?.excludedPreWorkBlocks ?? null}
+        reportCandidatePreWorkExclusionDiagnostics={reportCandidate?.preWorkExclusionDiagnostics ?? null}
+        reportCandidateTargetResolution={reportCandidate?.targetResolution ?? null}
+        reportCandidatePresenceRawEvidence={reportCandidate?.presenceRawEvidence ?? null}
+        reportCandidateRawGpsTimeline={reportCandidate?.rawGpsTimeline ?? null}
+        reportCandidateTechnicalTimeline={reportCandidate?.technicalTimeline ?? null}
+        reportCandidatePresenceDaySummary={reportCandidate?.presenceDaySummary ?? null}
+        reportCandidatePresenceDayAggregation={reportCandidate?.presenceDayAggregation ?? null}
+        reportCandidateTargetMatchSummary={reportCandidate?.targetMatchSummary ?? null}
+        reportCandidateCounts={reportCandidate?.counts ?? null}
+        engineMode={engineMode}
+        reportSlot={
+          <TimeReportReviewTable
+            date={dateStr}
+            staffName={staff.name}
+            staffId={staff.id}
+            work={work}
+            travel={travel}
+            canonical={staff.canonical}
+          />
+        }
+        onResolvePlannedGap={(input) => onResolvePlannedGap(staff.id, input)}
+        onRepairWorkdayFromEvidence={(input) => onRepairFromEvidence(staff.id, input)}
+        onAutoRepairWorkdayFromEvidence={(input) => onAutoRepairFromEvidence(staff.id, input)}
+      />
+    </div>
+  );
+};
