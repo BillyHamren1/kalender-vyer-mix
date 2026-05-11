@@ -33,6 +33,8 @@ export interface SubmissionRow {
   review_comment: string | null;
 }
 
+// @deprecated — workdays are no longer read by the mobile day mirror.
+// Type kept exported for backwards-compatibility with any old caller.
 export interface WorkdayLivenessRow {
   start_time: string | null;
   end_time: string | null;
@@ -107,19 +109,42 @@ function mapSubmission(row: SubmissionRow | null): MobileSubmission | null {
   };
 }
 
-function workdayStatusFrom(row: WorkdayLivenessRow | null): MobileWorkdayStatus {
-  if (!row || !row.start_time) return "inactive";
-  if (row.end_time) return "ended";
-  return "active";
+/**
+ * Derive liveness purely from cache. The mirror does NOT read workdays
+ * or active_time_registrations — admin web's report cache is the
+ * single source of truth.
+ *
+ *  - "active": cache has any segment without endedAt
+ *  - "ended" : cache has segments and all have endedAt
+ *  - "inactive": no segments
+ */
+function workdayStatusFromSegments(segments: MobileSegment[]): MobileWorkdayStatus {
+  if (segments.length === 0) return "inactive";
+  const open = segments.some((s) => !s.endedAt);
+  return open ? "active" : "ended";
 }
 
-function workdayObjFrom(row: WorkdayLivenessRow | null) {
-  if (!row || !row.start_time) return null;
+function workdayObjFromSegments(segments: MobileSegment[]) {
+  if (segments.length === 0) return null;
+  const sorted = [...segments].sort(
+    (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+  );
+  const startedAt = sorted[0].startedAt;
+  const open = sorted.some((s) => !s.endedAt);
+  // endedAt: latest endedAt across closed segments (only if all closed)
+  let endedAt: string | null = null;
+  if (!open) {
+    endedAt = sorted.reduce<string | null>((acc, s) => {
+      if (!s.endedAt) return acc;
+      if (!acc) return s.endedAt;
+      return new Date(s.endedAt).getTime() > new Date(acc).getTime() ? s.endedAt : acc;
+    }, null);
+  }
   return {
-    startedAt: row.start_time,
-    endedAt: row.end_time,
-    isOpen: !row.end_time,
-    status: (row.end_time ? "ended" : "active") as MobileWorkdayStatus,
+    startedAt,
+    endedAt,
+    isOpen: open,
+    status: (open ? "active" : "ended") as MobileWorkdayStatus,
   };
 }
 
@@ -128,11 +153,12 @@ export interface BuildMobileSnapshotInput {
   staffId: string;
   cache: CacheRow | null;
   submission: SubmissionRow | null;
-  workday: WorkdayLivenessRow | null;
+  /** @deprecated workdays are no longer used by the mirror. Ignored if passed. */
+  workday?: WorkdayLivenessRow | null;
 }
 
 export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayReport {
-  const { date, staffId, cache, submission, workday } = input;
+  const { date, staffId, cache, submission } = input;
 
   let cacheStatus: MobileCacheStatus = "missing";
   let segments: MobileSegment[] = [];
@@ -161,8 +187,8 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
     engineVersion: cache?.engine_version ?? null,
     cacheStatus,
     cacheError: cache?.error ?? null,
-    workdayStatus: workdayStatusFrom(workday),
-    workday: workdayObjFrom(workday),
+    workdayStatus: workdayStatusFromSegments(segments),
+    workday: workdayObjFromSegments(segments),
     summary,
     segments,
     actionsNeeded,

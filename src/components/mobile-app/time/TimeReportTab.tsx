@@ -1,10 +1,14 @@
 /**
  * TimeReportTab — Tidrapport per period (Dag / Vecka / Månad).
  *
- * SANNINGSREGEL: backend snapshot från `get-staff-day-status` (Dag) och
- * `get-staff-time-report-period` (Vecka/Månad) är ENDA källan. UI får inte
- * aggregera, summera eller tolka råtabeller. Alla totals/dagar är canonical
- * fält från `day-snapshot-range.ts` resp. `staff-day-snapshot`.
+ * Mobile day report source (PURE MIRROR of /staff-management/time-reports):
+ *   get-mobile-staff-day-report
+ *     → staff_day_report_cache
+ *     → staff_day_submissions
+ *
+ * Vecka/månad: get-staff-time-report-period (kvarvarande legacy — ska
+ * portas till samma cache-källa). UI får inte aggregera, summera eller
+ * tolka råtabeller (workdays/time_reports/LTE/travel/day_attestations).
  */
 import { useMemo, useState } from 'react';
 import {

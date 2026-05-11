@@ -1,16 +1,21 @@
 /**
  * TodayTab — IDAG-tabben på Time-sidan.
  *
- * SANNINGSREGEL (hård):
- *   Allt som visas kommer från `useStaffDayStatus()` (server snapshot från
- *   `get-staff-day-status`). Komponenten:
- *     - räknar inte timmar
- *     - tolkar inte plats, rast eller transport själv
- *     - läser inte time_reports / workdays / location_time_entries / pings
- *     - visar inte "Saknar arbetsdag" / "Glapp" / "Okänd plats" om backend
- *       inte explicit har skickat det som segment / flag / actionNeeded.
+ * Mobile day report source (PURE MIRROR of /staff-management/time-reports):
+ *   get-mobile-staff-day-report
+ *     → staff_day_report_cache
+ *     → staff_day_submissions
  *
- * Sektioner enligt spec:
+ * MUST NOT use as data source:
+ *   - workdays / time_reports / location_time_entries / travel_time_logs
+ *   - day_attestations
+ *   - get-staff-day-status / useStaffDaySnapshot / useStaffDayStatus
+ *   - active_time_registrations (liveness comes from the cache only)
+ *
+ * Komponenten räknar inte timmar, tolkar inte plats, rast eller transport
+ * själv, och bygger inga egna segment.
+ *
+ * Sektioner:
  *   1. Översta statuskortet  (snapshot.workday + snapshot.totals + trackingPolicy)
  *   2. Just nu-kort           (snapshot.active eller "Arbetsdag pågår")
  *   3. Totaler                (snapshot.totals)
@@ -31,7 +36,7 @@ import {
   type StaffDaySnapshot,
   type StaffDaySegment,
 } from '@/hooks/useStaffDaySnapshot';
-import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 import EndDayButton from './EndDayButton';
@@ -434,7 +439,7 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
 // ────────────────────────────────────────────────────────────────────
 
 export const TodayTab: React.FC = () => {
-  const { snapshot, isLoading, error, refresh } = useStaffDaySnapshot();
+  const { snapshot, isLoading, error, refresh } = useStaffDayStatusViaMobileReport();
   const { effectiveStaffId, staff } = useMobileAuth();
   const [selectedSeg, setSelectedSeg] = useState<StaffDaySegment | null>(null);
 

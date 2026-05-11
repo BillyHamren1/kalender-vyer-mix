@@ -2,20 +2,24 @@
 // =============================
 // Single READ endpoint for the mobile Time-app day view.
 //
-// Source of truth (in priority order):
+// PURE MIRROR of /staff-management/time-reports read model:
 //   1. staff_day_report_cache  (Time Engine cache — same as admin web)
 //   2. staff_day_submissions   (user inskick/attest)
-//   3. workdays                (only for live workdayStatus + start/stop button)
 //
-// MUST NOT read time_reports / location_time_entries / travel_time_logs as
-// report data. Those tables remain legacy/debug.
+// MUST NOT read:
+//   - workdays
+//   - time_reports
+//   - location_time_entries
+//   - travel_time_logs
+//   - day_attestations
+//   - active_time_registrations
+// These remain legacy/debug. Liveness is derived from the cache only.
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
 import {
   buildMobileSnapshot,
   type CacheRow,
   type SubmissionRow,
-  type WorkdayLivenessRow,
 } from "../_shared/mobile/buildMobileSnapshot.ts";
 
 interface RequestBody {
@@ -93,23 +97,10 @@ Deno.serve(async (req: Request) => {
     console.error("[get-mobile-staff-day-report] submission exception", e);
   }
 
-  // 3) Workday liveness — purely for the "is the day open?" flag.
-  let workday: WorkdayLivenessRow | null = null;
-  try {
-    const { data } = await admin
-      .from("workdays")
-      .select("start_time, end_time")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .eq("date", date)
-      .order("start_time", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data) workday = data as unknown as WorkdayLivenessRow;
-  } catch (e) {
-    console.error("[get-mobile-staff-day-report] workday exception", e);
-  }
+  // NOTE: workdays / active_time_registrations are intentionally NOT read here.
+  // The cache (active_block_json / summary_json) carries the only liveness
+  // signal the mirror exposes. See buildMobileSnapshot.workdayStatusFromCache.
 
-  const snapshot = buildMobileSnapshot({ date, staffId, cache, submission, workday });
+  const snapshot = buildMobileSnapshot({ date, staffId, cache, submission });
   return jsonResponse(snapshot);
 });
