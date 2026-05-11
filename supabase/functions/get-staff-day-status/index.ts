@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
       const to = from + PING_PAGE_SIZE - 1;
       const { data, error } = await admin
         .from("staff_location_history")
-        .select("recorded_at, latitude, longitude, accuracy")
+        .select("recorded_at, lat, lng, accuracy")
         .eq("organization_id", orgId)
         .eq("staff_id", staffId)
         .gte("recorded_at", padStart)
