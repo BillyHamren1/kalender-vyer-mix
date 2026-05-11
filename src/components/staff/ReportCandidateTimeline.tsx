@@ -486,6 +486,19 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved, aiReview
                 ⚠ {block.warningLabel}
               </span>
             )}
+            {aiChip && (
+              <Badge
+                variant="outline"
+                className={
+                  aiReviewMeta?.status === 'auto_applied'
+                    ? 'text-[10px] py-0 h-4 border-emerald-400 text-emerald-700'
+                    : 'text-[10px] py-0 h-4 border-amber-400 text-amber-700'
+                }
+                title={aiTooltip ?? undefined}
+              >
+                {aiChip}
+              </Badge>
+            )}
           </div>
           {subtitle && (
             <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
@@ -500,11 +513,18 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved, aiReview
               {block.reviewReasons.join(' · ')}
             </div>
           )}
-          {block.aiHintLabel && (
+          {aiReviewMeta?.reasoningSummary ? (
+            <div
+              className="text-[10px] text-muted-foreground/80 italic truncate"
+              title={aiReviewMeta.reasoningSummary}
+            >
+              AI: {aiReviewMeta.reasoningSummary}
+            </div>
+          ) : block.aiHintLabel ? (
             <div className="text-[10px] text-muted-foreground/80 italic truncate">
               {block.aiHintLabel}
             </div>
-          )}
+          ) : null}
         </div>
         <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap flex items-center gap-1">
           <span>{fmtHm(block.startAt)}</span>
