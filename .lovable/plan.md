@@ -1,97 +1,35 @@
 ## Mål
+Mobilens `/m/report` ska visa samma dagssanning som webbens tidrapportvy för samma person och datum, så fall som Raivis inte kan visa 09:00 i mobilen när webb/pings visar arbete till 18:00.
 
-Du (admin) ska kunna öppna Billys mobilapp på din telefon, slå på ett "Visa som Raivis"-läge, och se Raivis tider i alla mobilvyer (Idag / Tidrapport / Dagdetalj). Helt read-only, ingen data kopieras, inga writes, ingen risk för dubbelräkning i lön/projekt.
+## Plan
+1. Byt mobilens dagsvy från den alternativa cache-endpointen till den kanoniska dagssnapshoten.
+   - Ersätt användningen av `useStaffDayStatusViaMobileReport` i mobilens rapportflöde med `useStaffDaySnapshot` där dagsdata, arbetsspann, totals och segment visas.
+   - Låt dag-/vecko-/månadsöversikten fortsätta använda samma period-API som idag, men när man öppnar en enskild dag ska den använda exakt samma dagssnapshot som webben.
 
-## Design
+2. Bevara mobilens nuvarande UI, men mata den med den kanoniska strukturen.
+   - Behåll `TodayTab`, `TimeReportTab`, `StaffDayDetailSheet` och `SegmentDetailSheet` visuellt/funktionellt.
+   - Säkerställ att dessa komponenter läser `workday`, `totals`, `segments`, `attestation` och GPS-panel från den kanoniska snapshoten utan lokal omtolkning.
 
-Klassisk **view-as / impersonering** på frontend, gated av admin-roll både i klient och edge function.
+3. Ta bort divergerande mobil-logik för dagdata där den orsakar felaktig spegling.
+   - Sluta använda `get-mobile-staff-day-report` som primär källa för `/m/report` dagvy.
+   - Antingen avveckla adaptern `mobileReportToDaySnapshot` från rapportvyn eller begränsa den till en separat användning där den inte påverkar tidrapportssidan.
 
-```text
-[MobileAuthContext]
-  staff = { id, name, ... }                ← din inloggning (oförändrad)
-  viewAsStaffId  (localStorage)            ← Raivis id när läget är på
-  effectiveStaffId = viewAsStaffId ?? staff.id
-  isViewingAs = !!viewAsStaffId
+4. Verifiera med det konkreta felet och regressionsskydd.
+   - Kontrollera att mobilens dagvy nu visar samma arbetsdagsspann och block som webbens snapshot för samma datum.
+   - Lås gärna med ett litet test eller tydlig kodgräns så att `/m/report` inte återgår till alternativ cachemodell igen.
 
-Alla hooks (useMobileStaffDayReport,
-useStaffDayStatusViaMobileReport, etc.)
-läser `effectiveStaffId` istället för
-`staff.id`.
-```
+## Teknisk detalj
+- Rotorsaken är att mobilen idag hämtar dagsdata från `get-mobile-staff-day-report` / `staff_day_report_cache`, medan webben och periodsammanställningen bygger på `get-staff-day-status` / samma dagssnapshot-motor.
+- Det gör att `/m/report` kan visa en annan workday/segmentkedja än webben, trots att periodkort och adminvy bygger på den kanoniska modellen.
+- Fixen hålls i frontend-hookar/komponentkopplingar om möjligt; ingen databasändring behövs för detta steg.
 
-Inget skrivs — endast `effectiveStaffId` skickas till `get-mobile-staff-day-report` och övriga read-endpoints.
+## Påverkade delar
+- `src/components/mobile-app/time/TodayTab.tsx`
+- `src/components/mobile-app/time/TimeReportTab.tsx`
+- `src/components/mobile-app/time/StaffDayDetailSheet.tsx`
+- `src/hooks/useStaffDayStatusViaMobileReport.ts` eller dess anrop
+- Eventuellt städning kring `src/hooks/useMobileStaffDayReport.ts` och `src/lib/staff/mobileReportToDaySnapshot.ts`
 
-## Steg
-
-**1. MobileAuthContext utökas (read-only override)**
-- Nya fält: `viewAsStaff: { id, name } | null`, `effectiveStaffId`, `isViewingAs`, `setViewAs(staff | null)`.
-- `viewAsStaffId` persisteras i `localStorage` under nyckel `mobile.viewAsStaffId.v1`.
-- `setViewAs` kastar fel om current user inte har admin-roll (kollas via `user_roles` likt övriga admin-checks i appen). Hämtas en gång vid login.
-- En tydlig visuell flagga: röd/orange topbar "Visar som Raivis Vītols (read-only)" så du aldrig glömmer att läget är på.
-
-**2. Hooks använder `effectiveStaffId`**
-- `useMobileStaffDayReport` → byt `staff?.id` → `effectiveStaffId`.
-- Övriga mobilhooks som läser per-staff-data (ankomst, dagstatus, månadsstatus, my-flags, profile-header etc.) får samma byte. Lista verifieras genom att grepa `staff?.id` / `useMobileAuth()` i `src/hooks/` och `src/components/mobile-app/`.
-- **Skrivvägar (timer-start, time_reports CRUD, end-day, scanner, etc.) ska FORTSATT använda `staff.id`** (din riktiga id) — aldrig `effectiveStaffId`. Skrivs från en separat selector `useRealStaffId()` så det är omöjligt att råka skriva på Raivis vägnar.
-
-**3. UI: "Visa som"-väljare**
-- Ny rad i mobilappens settings-vy `/m/settings`: "Visningsläge (admin)".
-  - Sökfält över `staff_members` i din org.
-  - Knapp "Återställ till mig själv".
-- Endast synlig om current user har admin-roll.
-- När aktivt: persistent badge i `MobileHeader` ("👁 Visar Raivis · Avsluta").
-
-**4. Edge function-tillgång**
-Ingen ändring behövs:
-- Du loggar in med Supabase JWT (admin/web-session) → `authorizeStaffAccess` släpper igenom alla `staffId` i din org redan idag.
-- Om du istället är inloggad via mobile-token i mobilappen: backend blockar (`Staff may only read self`). Då måste vi lägga till en explicit override — se Tekniska detaljer nedan. Detta sker bara vid behov.
-
-**5. Säkerhetsspärrar**
-- `setViewAs` blockas om mål-staff tillhör annan organisation (klient-sida + backend RLS täcker detta).
-- Override rensas automatiskt vid logout.
-- Override rensas om current user förlorar admin-rollen.
-- En tydlig konsol- och toast-varning loggas varje gång override sätts/avslutas.
-
-## Vad som INTE händer
-
-- Inga writes till `time_reports`, `workdays`, `location_time_entries`, `travel_time_logs`, `staff_day_report_cache`.
-- Inga rader kopieras.
-- Lön och projektkostnad påverkas inte (datan ligger fortsatt på Raivis staff_id).
-- Skanner / timer-start / EOD påverkas inte — de använder `useRealStaffId()`.
-
-## Acceptance criteria
-
-1. Du loggar in i mobilappen som dig själv → ingen synlig skillnad.
-2. Du går till `/m/settings` → ser "Visningsläge (admin)" → väljer Raivis.
-3. Topbar visar "👁 Visar Raivis (read-only)".
-4. `/m/today`, `/m/report`, `/m/day/:date` visar Raivis data.
-5. Försök starta timer / rapportera tid → använder fortfarande ditt eget staff_id (verifieras i `time_reports.staff_id` om någon test-skrivning sker).
-6. "Avsluta visningsläge" återställer omedelbart.
-7. Logout rensar override.
-8. Ingen icke-admin ser ens menyalternativet.
-
-## Tekniska detaljer
-
-**Filer som rörs**
-- `src/contexts/MobileAuthContext.tsx` — utökas med viewAs-state + admin-roll-fetch + `effectiveStaffId`/`useRealStaffId`.
-- `src/hooks/useMobileStaffDayReport.ts` — `staff?.id` → `effectiveStaffId`.
-- `src/hooks/useStaffDayStatusViaMobileReport.ts` — samma.
-- Övriga read-hooks i `src/hooks/` och `src/components/mobile-app/` enligt grep — bytet är mekaniskt.
-- `src/components/mobile-app/HeaderShell` (eller motsv. `MobileHeader`) — view-as-badge.
-- `src/pages/mobile/MobileSettings.tsx` (eller motsv.) — väljare-UI.
-- Ny liten komponent `src/components/mobile-app/ViewAsPicker.tsx`.
-
-**Edge function (endast om JWT-läge inte räcker)**
-- `supabase/functions/_shared/staff-auth.ts` — i mobile-token-grenen lägga till acceptans av `actingAsStaffId` när underliggande staff har admin-rollen i samma org. Annars 403. Default av: ingen ändring förrän vi vet att JWT-läget inte räcker för dig.
-
-**Persistens**
-- `localStorage["mobile.viewAsStaffId.v1"]` = `{ id, name, setAt }`.
-- Inget i databasen.
-
-**Test**
-- Manuell verifiering enligt acceptance criteria 1–8.
-- Snabb regress: kör `bash scripts/test-time-reporting.sh` för att säkra att skrivvägarna inte tagit fel staff_id.
-
-## Tidsåtgång
-
-Ca 30–45 min implementationstid. Helt reversibelt — ta bort `viewAs`-state och hooks faller tillbaka till `staff.id`.
+## Resultat efter implementation
+- Mobilens tidrapportvy speglar webbens tidrapportvy för samma dag.
+- Raivis-liknande fall visar inte längre fel sluttid i mobilen när den kanoniska dagssnapshoten säger något annat.
