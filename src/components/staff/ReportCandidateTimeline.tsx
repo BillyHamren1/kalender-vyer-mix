@@ -440,7 +440,7 @@ function EvidencePanel({
   );
 }
 
-function BlockRow({ block, lookups, staffId, staffName, date }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null }) {
+function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null; resolved?: import('@/hooks/useResolvedUnknownStops').ResolvedUnknownStop | null }) {
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
@@ -486,6 +486,11 @@ function BlockRow({ block, lookups, staffId, staffName, date }: { block: ReportC
           {subtitle && (
             <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
           )}
+          {resolved && (block.kind === 'unknown' || block.kind === 'needs_review') && (
+            <div className="mt-1">
+              <UnknownStopEnrichment resolved={resolved} compact />
+            </div>
+          )}
           {block.reviewReasons && block.reviewReasons.length > 0 && (
             <div className="text-[10px] text-amber-700/80 truncate">
               {block.reviewReasons.join(' · ')}
@@ -523,6 +528,8 @@ import {
   type PresenceBlockLite,
   type TargetLite,
 } from '@/lib/staff/buildReportDisplayBlocks';
+import { useResolvedUnknownStops, type UnknownStopRequest } from '@/hooks/useResolvedUnknownStops';
+import { UnknownStopEnrichment } from './UnknownStopEnrichment';
 
 export interface ReportCandidateTimelineProps {
   blocks: ReportCandidateBlockUI[];
@@ -602,11 +609,38 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
     presenceById: new Map((presenceBlocks ?? []).map((p) => [p.id, p])),
     targetById: new Map((targets ?? []).map((t) => [t.id, t])),
   };
+
+  // ── Resolve unknown stops (read-only edge function) ───────────────
+  // Bygg en lookup-request för varje osäker rad med koordinater.
+  const resolveReqs: UnknownStopRequest[] = staffId
+    ? visible
+        .filter((b) => (b.kind === 'unknown' || b.kind === 'needs_review')
+          && b.locationEvidence?.lat != null
+          && b.locationEvidence?.lng != null)
+        .map((b) => ({
+          key: b.id,
+          staffId,
+          lat: b.locationEvidence!.lat as number,
+          lng: b.locationEvidence!.lng as number,
+          atIso: b.startAt,
+          radiusMeters: 250,
+        }))
+    : [];
+  const resolvedMap = useResolvedUnknownStops(resolveReqs);
+
   return (
     <div className="space-y-1.5">
       {preWorkInfoRow}
       {visible.map((b) => (
-        <BlockRow key={b.id} block={b} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
+        <BlockRow
+          key={b.id}
+          block={b}
+          lookups={lookups}
+          staffId={staffId}
+          staffName={staffName}
+          date={date}
+          resolved={resolvedMap.get(b.id) ?? null}
+        />
       ))}
       {summary && (
         <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 text-[11px] text-muted-foreground">
