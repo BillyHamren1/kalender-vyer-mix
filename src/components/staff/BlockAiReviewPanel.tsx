@@ -202,6 +202,9 @@ export const BlockAiReviewPanel: React.FC<BlockAiReviewPanelProps> = ({
       <div className="flex items-center gap-2 flex-wrap">
         <Brain className="h-4 w-4 text-purple-700" />
         <span className="font-medium text-foreground">AI-förslag</span>
+        <Badge variant="outline" className="text-[10px] py-0 h-4 border-amber-400 text-amber-800 bg-amber-50">
+          ej applicerat
+        </Badge>
         <Badge variant="outline" className="text-[10px] py-0 h-4">
           {CLASSIFICATION_LABEL[cls] ?? cls}
         </Badge>
@@ -210,7 +213,7 @@ export const BlockAiReviewPanel: React.FC<BlockAiReviewPanelProps> = ({
         </Badge>
         {status !== 'suggested' && (
           <Badge variant="outline" className="text-[10px] py-0 h-4 capitalize">
-            {status === 'accepted' ? 'Accepterat' : status === 'rejected' ? 'Avvisat' : status === 'needs_human_review' ? 'Manuell granskning' : status}
+            {status === 'accepted' ? 'Accepterat (ej applicerat)' : status === 'rejected' ? 'Avvisat' : status === 'needs_human_review' ? 'Manuell granskning' : status}
           </Badge>
         )}
       </div>
