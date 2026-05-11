@@ -37,7 +37,8 @@ export type AssistantEventSuggestedAction =
   | 'end_activity'
   | 'end_workday'
   | 'register_travel'
-  | 'review_only';
+  | 'review_only'
+  | 'possible_arrival';
 
 export type AssistantEventResolution =
   | 'pending'
