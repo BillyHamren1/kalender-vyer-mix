@@ -84,6 +84,29 @@ export type AddressConfidence =
   | 'coordinate'
   | 'none';
 
+export interface ResolvedUnknownStopEvidence {
+  reverseGeocoded: { label: string; source: 'mapbox' } | null;
+  knownLocation: { id: string; name: string; address: string | null; distanceMeters: number } | null;
+  privateZone: { kind: string; label: string; distanceMeters: number } | null;
+  matchingBookings: Array<{
+    bookingId: string;
+    bookingNumber: string | null;
+    label: string;
+    address: string | null;
+    eventDate: string;
+    relativeDays: number;
+    direction: 'today' | 'future' | 'past';
+    distanceMeters: number;
+  }>;
+  priorVisits: {
+    visitCount: number;
+    pingCount: number;
+    firstSeenIso: string | null;
+    lastSeenIso: string | null;
+    approxMinutes: number;
+  } | null;
+}
+
 export interface LocationEvidence {
   lat: number | null;
   lng: number | null;
@@ -96,6 +119,8 @@ export interface LocationEvidence {
   nearestSecondaryCandidateAddress: string | null;
   nearestSecondaryCandidateDistanceMeters: number | null;
   addressConfidence: AddressConfidence;
+  /** Berikning från resolve-unknown-stop edge function (kopplas in i UI-lagret). */
+  resolved?: ResolvedUnknownStopEvidence | null;
 }
 
 export type AiReviewQuestionType =
