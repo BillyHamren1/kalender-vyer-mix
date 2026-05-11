@@ -97,23 +97,10 @@ Deno.serve(async (req: Request) => {
     console.error("[get-mobile-staff-day-report] submission exception", e);
   }
 
-  // 3) Workday liveness — purely for the "is the day open?" flag.
-  let workday: WorkdayLivenessRow | null = null;
-  try {
-    const { data } = await admin
-      .from("workdays")
-      .select("start_time, end_time")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .eq("date", date)
-      .order("start_time", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data) workday = data as unknown as WorkdayLivenessRow;
-  } catch (e) {
-    console.error("[get-mobile-staff-day-report] workday exception", e);
-  }
+  // NOTE: workdays / active_time_registrations are intentionally NOT read here.
+  // The cache (active_block_json / summary_json) carries the only liveness
+  // signal the mirror exposes. See buildMobileSnapshot.workdayStatusFromCache.
 
-  const snapshot = buildMobileSnapshot({ date, staffId, cache, submission, workday });
+  const snapshot = buildMobileSnapshot({ date, staffId, cache, submission });
   return jsonResponse(snapshot);
 });
