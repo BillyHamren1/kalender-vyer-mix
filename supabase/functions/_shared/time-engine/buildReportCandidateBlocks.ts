@@ -814,14 +814,48 @@ export function buildReportCandidateBlocks(
       // No same-target return → close current work
       flush();
 
-      // Drop short lone gaps; long ones become needs_review
+      // Drop short lone gaps; long ones need to be classified
       if (b.durationMinutes >= policy.loneGapNeedsReviewMinutes) {
-        const candidate = newAcc('needs_review', b);
         const prev = blocks[i - 1];
         const next = blocks[i + 1];
+        const prevKnown = !!(prev && (prev.kind === 'confirmed_on_site' || prev.kind === 'probable_on_site') && prev.targetLabel);
+        const nextKnown = !!(next && (next.kind === 'confirmed_on_site' || next.kind === 'probable_on_site') && next.targetLabel);
+        const prevKey = prev ? `${prev.targetType ?? ''}::${prev.targetId ?? prev.targetLabel ?? ''}` : '';
+        const nextKey = next ? `${next.targetType ?? ''}::${next.targetId ?? next.targetLabel ?? ''}` : '';
+
+        // ── BRIDGED-TRIP PROMOTION (generell regel) ─────────────────────
+        // När gapet sitter mellan TVÅ DISTINKTA kända arbetsplatser är det
+        // en uppenbar A→B-resa. Klassa direkt som transport (reviewState
+        // ok) istället för needs_review("missing_transition_evidence").
+        // Confidence = high när båda sidor är confirmed_on_site, annars
+        // medium. Påverkar inte time_reports/lön (transport är fortfarande
+        // ett admin-förslag).
+        if (prevKnown && nextKnown && prevKey !== nextKey) {
+          const candidate = newAcc('transport', b);
+          candidate.fromLabel = prev!.targetLabel;
+          candidate.toLabel = next!.targetLabel;
+          // Markera som hög confidence när båda sidor är confirmed_on_site,
+          // annars medium. finalize() läser distanceMeters för transport;
+          // vi har inget mätt avstånd här, så vi sätter ett litet sentinel
+          // för att förhindra att finalize fastnar på "medium" när vi
+          // egentligen vet att båda ändpunkterna är hårda.
+          if (prev!.kind === 'confirmed_on_site' && next!.kind === 'confirmed_on_site') {
+            candidate.distanceMeters = 1; // räcker för finalize → 'high'
+          }
+          const fin = finalize(candidate, policy, out.length);
+          if (fin) out.push(fin);
+          i += 1;
+          continue;
+        }
+
+        const candidate = newAcc('needs_review', b);
         candidate.fromLabel = prev?.targetLabel ?? null;
         candidate.toLabel = next?.targetLabel ?? null;
         if (prev?.targetLabel && next?.targetLabel && prev.targetLabel !== next.targetLabel) {
+          // Should be unreachable now thanks to bridged-trip promotion above,
+          // but kept as a safety net for cases where targets are not "known"
+          // on-site blocks (e.g. probable_on_site edge cases that didn't pass
+          // the prevKnown/nextKnown gate).
           candidate.reviewReasons.add('missing_transition_evidence');
         } else if (
           isDayOpen(input.date, b.endAt, input.activeTimeRegistrations, input.staffPresenceSessions)
