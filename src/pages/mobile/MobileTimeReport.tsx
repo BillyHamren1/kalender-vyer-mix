@@ -13,11 +13,16 @@ import TodayTab from '@/components/mobile-app/time/TodayTab';
 /**
  * MobileTimeReport — Time-sidan med tre tabbar (Idag / Kalender / Tidrapport).
  *
- * Sanningsregeln: backend snapshot (`get-staff-day-status`,
- * `get-staff-month-status`, `get-staff-time-report-period`) är ENDA källan
- * för vad som räknas som arbetstid. Sidan får inte längre summera
- * time_reports / travel_time_logs / workdays själv, inte visa råa
- * time_report-listor som huvudvy, och inte beräkna lokala totaler.
+ * Mobile day report source (PURE MIRROR of /staff-management/time-reports):
+ *   get-mobile-staff-day-report
+ *     → staff_day_report_cache
+ *     → staff_day_submissions
+ *
+ * Periodvy (vecka/månad) använder fortfarande get-staff-time-report-period
+ * som legacy tills den portas till samma cache-källa.
+ *
+ * Sidan får inte summera time_reports / travel_time_logs / workdays själv
+ * och inte använda get-staff-day-status som datakälla.
  *
  * useWorkSession monteras enbart för att rendera dialogs (rast/EOD/switch).
  * Manuell tidrapportering/korrigering går via TimeReportTab eller
