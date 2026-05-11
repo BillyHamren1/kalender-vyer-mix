@@ -564,7 +564,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                             <TableCell colSpan={2} className="text-xs">Summa</TableCell>
                                             <TableCell className="text-xs text-right">{fmt(displayRevenue)}</TableCell>
                                             <TableCell colSpan={3}></TableCell>
-                                            <TableCell className="text-xs text-right">{fmt(displayProductCosts)}</TableCell>
+                                            <TableCell className="text-xs text-right">{fmt(liveProductCostsTotal)}</TableCell>
                                           </TableRow>
                                         </TableBody>
                                       </Table>
