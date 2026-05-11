@@ -1063,6 +1063,28 @@ export function buildGpsDayTimeline(
     const dtSec = Math.max(1, (Date.parse(last.ts) - Date.parse(first.ts)) / 1000);
     const avgKmh = (distanceMeters / dtSec) * 3.6;
 
+    // Engine 4 — TRANSPORT_MIN_DISTANCE_METERS gate.
+    // Transport får aldrig skapas om den faktiska klusterförflyttningen är
+    // under tröskeln. Sådana runs degraderas till en STAY (samma fall-through
+    // som om motorn aldrig sett rörelse). reported speed_mps räknas som
+    // support-evidence och kan aldrig ensam skapa transport.
+    if (run.kind === 'travel' && distanceMeters < TRANSPORT_MIN_DISTANCE_METERS) {
+      belowThresholdMovementSuppressedCount += 1;
+      belowThresholdMovementSuppressedMinutes += durationMin;
+      if (transportThresholdExamples.length < 10) {
+        transportThresholdExamples.push({
+          kind: 'below_threshold_demoted',
+          startAt: first.ts,
+          endAt: last.ts,
+          durationMinutes: Math.round(durationMin * 10) / 10,
+          distanceMeters: Math.round(distanceMeters),
+          reason: `cluster_distance_${Math.round(distanceMeters)}m_below_${TRANSPORT_MIN_DISTANCE_METERS}m`,
+        });
+      }
+      // Pretend this was a stay all along — keep diagnostics, fall through.
+      (run as { kind: 'stay' | 'travel' }).kind = 'stay';
+    }
+
     if (run.kind === 'travel') {
       const { diag: targetDiag, primaryTarget, medianAccM } =
         computeTargetDiagnostics(run.pings, run.centerLat, run.centerLng, first.ts);
