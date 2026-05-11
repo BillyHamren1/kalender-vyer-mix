@@ -1248,6 +1248,38 @@ export function buildReportCandidateBlocks(
     if (victim.warningLabel) {
       host.reviewReasons = Array.from(new Set([...host.reviewReasons, 'absorbed_micro_movement']));
     }
+    // Time Engine 2.3 — session metadata för spårbarhet
+    host.absorbedBlockIds = Array.from(new Set([
+      ...(host.absorbedBlockIds ?? []),
+      victim.id,
+      ...(victim.absorbedBlockIds ?? []),
+    ]));
+    if ((victim.reviewReasons?.length ?? 0) > 0) {
+      host.absorbedReasons = Array.from(new Set([
+        ...(host.absorbedReasons ?? []),
+        ...victim.reviewReasons,
+      ]));
+    }
+    if (victim.warningLabel) {
+      host.warningReasons = Array.from(new Set([
+        ...(host.warningReasons ?? []),
+        victim.warningLabel,
+        ...(victim.warningReasons ?? []),
+      ]));
+    }
+    if (victim.kind === 'needs_review' || victim.signalGapMinutes > 0) {
+      const looksLikeSignalGap =
+        (victim.reviewReasons ?? []).some((rr) =>
+          rr === 'signal_gap_unresolved' ||
+          rr === 'signal_gap_open_day' ||
+          rr === 'signal_gaps_inside_work_block' ||
+          rr === 'missing_transition_evidence' ||
+          rr === 'targets_differ_without_movement',
+        ) || victim.signalGapMinutes > 0;
+      if (looksLikeSignalGap) {
+        host.signalGapCount = (host.signalGapCount ?? 0) + 1;
+      }
+    }
     // Refresh subtitle
     const ts = buildTitleSubtitle({
       kind: host.kind,
