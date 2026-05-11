@@ -2250,6 +2250,7 @@ export function buildReportCandidateBlocks(
       signalGapPromotedToReviewCount: 0,
       clearWorkBlocksIncorrectlyReviewCount: 0,
     },
+    sessionConsolidationDiagnostics: sessionDiagnostics,
   };
   for (const r of out) {
     if (r.kind === 'work') {
