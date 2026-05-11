@@ -166,11 +166,15 @@ const OrganizationLocationsManager = () => {
       toast.error('Namn krävs');
       return;
     }
-    if (geofence.mode === 'polygon' && !geofence.polygon) {
+    if (isResidence && !geofence.polygon) {
+      toast.error('Boende kräver att du ritar en polygon på kartan');
+      return;
+    }
+    if (!isResidence && geofence.mode === 'polygon' && !geofence.polygon) {
       toast.error('Rita en polygon på kartan eller välj cirkel-läge');
       return;
     }
-    if (geofence.mode === 'circle' && (!geofence.latitude || !geofence.longitude)) {
+    if (!isResidence && geofence.mode === 'circle' && (!geofence.latitude || !geofence.longitude)) {
       toast.error('Sök en adress eller använd Min position för att placera cirkeln');
       return;
     }
@@ -179,13 +183,17 @@ const OrganizationLocationsManager = () => {
       address: address.trim() || undefined,
       latitude: geofence.latitude,
       longitude: geofence.longitude,
-      radius_meters: geofence.radius_meters || 100,
-      show_as_project: showAsProject,
-      geofence_mode: geofence.mode,
+      radius_meters: isResidence ? 0 : (geofence.radius_meters || 100),
+      show_as_project: isResidence ? false : showAsProject,
+      geofence_mode: isResidence ? ('polygon' as const) : geofence.mode,
       geofence_polygon: geofence.polygon,
+      location_type: locationType,
+      is_private_residence: isResidence,
+      privacy_level: (isResidence ? 'private' : 'normal') as 'private' | 'normal',
+      metadata: { notes: notes.trim() || undefined },
     };
     if (editingId) {
-      updateMutation.mutate({ id: editingId, updates: payload });
+      updateMutation.mutate({ id: editingId, updates: { ...payload, is_active: isActive } });
     } else {
       createMutation.mutate(payload);
     }
