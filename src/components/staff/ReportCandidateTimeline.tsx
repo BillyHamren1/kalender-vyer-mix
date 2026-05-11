@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StaffMovementMap } from './StaffMovementMap';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
+import { aiReviewChipLabel, aiReviewChipTooltip, type AiReviewMeta } from '@/lib/staff/aiReview';
+import { useAiReviewedBlocks } from '@/hooks/useAiReviewedBlocks';
 
 export type ReportBlockKind = 'work' | 'transport' | 'break' | 'unknown' | 'needs_review';
 export type ReportConfidence = 'high' | 'medium' | 'low';
