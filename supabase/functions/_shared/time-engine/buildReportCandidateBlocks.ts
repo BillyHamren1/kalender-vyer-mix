@@ -1327,7 +1327,7 @@ export function buildReportCandidateBlocks(
 
   // Assign deterministic, position-independent ids. Same staff+day+kind+span
   // +target+source set ⇒ same id across runs. See createReportCandidateBlockId.
-  out.forEach((r) => {
+  const assignId = (r: ReportCandidateBlock) => {
     r.id = createReportCandidateBlockId({
       staffId: input.staffId,
       date: input.date,
@@ -1338,7 +1338,9 @@ export function buildReportCandidateBlocks(
       targetId: r.targetId,
       sourcePresenceBlockIds: r.sourcePresenceBlockIds,
     });
-  });
+  };
+  out.forEach(assignId);
+  excludedPreWorkBlocks.forEach(assignId);
 
   // ── Summary
   const summary: ReportCandidateSummary = {
