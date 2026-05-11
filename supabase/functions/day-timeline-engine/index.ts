@@ -522,6 +522,21 @@ async function handleCompute(
       is_dirty: false,
     }, { onConflict: "staff_id,date,engine_version" });
 
+  // Coverage check — warn (and surface to UI) if the snapshot ends > 30 min
+  // before the last GPS ping. Prevents the silent-truncation class of bugs.
+  const lastPingTs = pings.length ? pings[pings.length - 1].ts : null;
+  const lastEventEndTs = events.reduce<string | null>((acc, e) => {
+    const t = e.endTs ?? e.ts;
+    if (!t) return acc;
+    return !acc || t > acc ? t : acc;
+  }, null);
+  const gapMinutes = lastPingTs && lastEventEndTs
+    ? Math.max(0, Math.round((new Date(lastPingTs).getTime() - new Date(lastEventEndTs).getTime()) / 60000))
+    : 0;
+  if (gapMinutes > 30) {
+    console.warn(`[day-timeline-engine] coverage gap ${gapMinutes}min for ${args.staff_id} ${args.date}: lastPing=${lastPingTs} lastEvent=${lastEventEndTs} pings=${pings.length} events=${events.length}`);
+  }
+
   return json({
     events,
     suggestions,
@@ -531,6 +546,12 @@ async function handleCompute(
       event_count: events.length,
       suggestion_count: suggestions.length,
       cached: false,
+    },
+    coverage: {
+      ping_count: pings.length,
+      last_ping_ts: lastPingTs,
+      last_event_end_ts: lastEventEndTs,
+      gap_minutes: gapMinutes,
     },
   });
 }
