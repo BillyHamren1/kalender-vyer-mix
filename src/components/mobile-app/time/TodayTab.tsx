@@ -28,10 +28,10 @@ import { cn } from '@/lib/utils';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import {
-  useStaffDayStatus,
   type StaffDaySnapshot,
   type StaffDaySegment,
-} from '@/hooks/useStaffDayStatus';
+} from '@/hooks/useStaffDaySnapshot';
+import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 import EndDayButton from './EndDayButton';
 
