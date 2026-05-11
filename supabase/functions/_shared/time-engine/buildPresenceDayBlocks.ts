@@ -948,11 +948,16 @@ function mkSignalGap(
     reviewState: 'signal_issue',
     evidence: {
       signalGapMinutes: dur,
+      staffOwnDisplacementMeters:
+        prev && next ? staffOwnDisplacementMeters(
+          { lat: (prev as any).endLat ?? (prev as any).centerLat, lng: (prev as any).endLng ?? (prev as any).centerLng },
+          { lat: (next as any).startLat ?? (next as any).centerLat, lng: (next as any).startLng ?? (next as any).centerLng },
+        ) : null,
       surroundingTargetLabels: {
         before: prev?.matchedTargetName ?? prev?.label ?? null,
         after: next?.matchedTargetName ?? next?.label ?? null,
       },
-    },
+    } as any,
     sourceSegmentIds: [gap.id],
     hiddenRawSegmentIds: [],
   };
