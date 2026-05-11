@@ -5323,6 +5323,63 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_day_report_cache: {
+        Row: {
+          built_at: string
+          created_at: string
+          date: string
+          diagnostics_json: Json
+          display_blocks_json: Json
+          engine_version: string
+          error: string | null
+          id: string
+          organization_id: string
+          processed_until: string | null
+          report_candidate_blocks_json: Json
+          source_watermark: Json
+          staff_id: string
+          stale: boolean
+          summary_json: Json
+          updated_at: string
+        }
+        Insert: {
+          built_at?: string
+          created_at?: string
+          date: string
+          diagnostics_json?: Json
+          display_blocks_json?: Json
+          engine_version: string
+          error?: string | null
+          id?: string
+          organization_id: string
+          processed_until?: string | null
+          report_candidate_blocks_json?: Json
+          source_watermark?: Json
+          staff_id: string
+          stale?: boolean
+          summary_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          built_at?: string
+          created_at?: string
+          date?: string
+          diagnostics_json?: Json
+          display_blocks_json?: Json
+          engine_version?: string
+          error?: string | null
+          id?: string
+          organization_id?: string
+          processed_until?: string | null
+          report_candidate_blocks_json?: Json
+          source_watermark?: Json
+          staff_id?: string
+          stale?: boolean
+          summary_json?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       staff_home_observations: {
         Row: {
           cluster_key: string
