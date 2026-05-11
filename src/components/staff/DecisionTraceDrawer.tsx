@@ -56,6 +56,24 @@ export interface DecisionTraceDrawerProps {
   reportCandidateDiagnostics: any | null;
   targetMatchSummary: any | null;
   counts: any | null;
+  /** Pre-work blocks excluded from the main report — shown as a separate
+   *  "Exkluderat före arbetsdag" section in Decision Trace. */
+  excludedPreWorkBlocks?: ReportCandidateBlockUI[] | null;
+  preWorkExclusionDiagnostics?: {
+    excludedPreWorkMinutes?: number;
+    excludedPreWorkBlocksCount?: number;
+    firstPrimaryWorkAt?: string | null;
+    firstPrimaryTargetLabel?: string | null;
+    excludedReasons?: Record<string, number>;
+    examples?: Array<{
+      startAt: string;
+      endAt: string;
+      durationMinutes: number;
+      originalKind: string;
+      originalLabel: string;
+      reason: string;
+    }>;
+  } | null;
 }
 
 // ── helpers ────────────────────────────────────────────────────────
