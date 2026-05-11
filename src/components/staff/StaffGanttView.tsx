@@ -1050,7 +1050,13 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
   blockId,
 }) => {
   const blocks = reportCandidate?.blocks ?? [];
-  const selectedBlock = blockId ? blocks.find((block: ReportCandidateBlockUI) => block.id === blockId) ?? null : null;
+  const excludedPreWork = reportCandidate?.excludedPreWorkBlocks ?? [];
+  const selectedBlock = blockId
+    ? (blocks.find((block: ReportCandidateBlockUI) => block.id === blockId)
+        ?? (blockId.startsWith('pre-')
+          ? excludedPreWork.find((block: ReportCandidateBlockUI) => block.id === blockId.slice(4)) ?? null
+          : null))
+    : null;
   const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
   const { events } = useDayTimeline({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
   const selectedEvent = useMemo(() => {
