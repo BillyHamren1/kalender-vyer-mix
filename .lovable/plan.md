@@ -1,24 +1,38 @@
-## Orsak
-Den här raden fastnar som **"Trolig resa"** för att display-regeln för att auto-promota en osäker kedja till riktig transport är för strikt.
+## Rotorsak
+Den här resan blir inte korrekt därför att motorn aldrig ser någon faktisk `transport`-sekvens i rå GPS-data.
 
-I dag krävs bland annat att varje enskilt icke-transportblock i kedjan är **högst 15 min**. Markus-raden visar **"GPS saknades 18 min"**, så den missar den spärren och faller därför ned till **bridged trip = "Trolig resa" + needs_review**, trots att den är tydlig mellan två kända platser.
+I just det här fallet visar kedjan:
+```text
+FA Warehouse (known_site)
+→ GPS-gap 07:28–09:01
+→ Bergman Event AB (known_site)
+```
+
+Det innebär att:
+- `buildGpsDayTimeline` skapar `gps_gap` direkt när inga pings finns i mellanrummet.
+- `buildPresenceDayBlocks` får bara göra om ett sådant gap till transport om `classifyTransportSignalGap` godkänner det.
+- Den klassificeraren kräver i praktiken extra transportbevis: transportsegment på ena/båda sidorna, companion-route eller annan rörelseform.
+- När det bara finns två kända arbetsplatser med ett rent GPS-gap mellan dem blir `countsAsTransport = false`.
+- Eftersom platserna är olika blir blocket då `uncertain_transition`, som senare blir `needs_review` i `buildReportCandidateBlocks`.
+- UI-lagret översätter det till “Trolig resa”.
+
+Så: felet sitter inte främst i visningstexten, utan i att presence-/report-motorn fortfarande behandlar just den här typen av känd A→B-förflyttning som osäker när mellanpings saknas.
 
 ## Plan
-1. **Justera promotionsregeln för säkra broresor**
-   - Uppdatera `src/lib/staff/buildReportDisplayBlocks.ts` så att en kedja mellan två olika kända platser kan gå igenom som riktig transport även när ett enskilt GPS-glapp är längre än 15 min, så länge övriga säkerhetskrav fortfarande är uppfyllda.
-
-2. **Behåll hårda spärrar för verkligt osäkra fall**
-   - Låt blocket fortsätta vara `needs_review` om det finns eget stopp-bevis, inbäddat arbetsblock, okänd plats med egna koordinater eller andra tecken på att det faktiskt kan ha skett ett stopp.
-
-3. **Lås beteendet med regressionstest/scenario**
-   - Lägg till täckning för ett fall motsvarande **FA Warehouse → Bergman Event AB med 18 min GPS-glapp och inga stoppkoordinater**, så att just detta inte regressar igen.
+1. Justera signal-gap-klassificeringen så att ett GPS-gap mellan två olika kända arbetsrelaterade mål kan räknas som transport även utan mellanliggande transportpings, om bevisen är tillräckliga.
+2. Använd deterministiska grindar för att undvika falska positiva: båda ändpunkterna måste vara kända arbetsmål, gapet måste vara inom tillåten längd, hastighet/distans måste vara rimlig, och inga konfliktsignaler får finnas.
+3. Låt resultatet gå ut som riktig `transport` redan i `buildPresenceDayBlocks`, så att resten av kedjan automatiskt visar korrekt resa i stället för `needs_review`.
+4. Lägg till regressionstester för just scenariot “known_site A → gps_gap → known_site B” så att framtida ändringar inte skickar tillbaka resan till “Trolig resa”.
 
 ## Tekniska detaljer
-- **Rotorsak i UI-lagret:** `src/lib/staff/buildReportDisplayBlocks.ts`
-  - `promoteToTransport` blockeras i dag av villkoret `longestNonTransportMin <= 15`
-  - när det faller igenom används `promoteAsBridgedTrip` och renderas som **"Trolig resa"**
-- **Renderingen i sig är inte felet:** `src/components/staff/ReportCandidateTimeline.tsx`
-- **Backendmotorn sätter osäkerheten från början:** `supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts` lägger `missing_transition_evidence`; ingen backfill behövs eftersom detta räknas fram vid hämtning.
-
-## Förväntat resultat
-Rader som är **uppenbart resa mellan två kända platser utan stopp-evidens** ska visas som riktig transport i stället för **"Trolig resa"**, medan genuint osäkra fall fortfarande stoppas för granskning.
+- Ändra främst i:
+  - `supabase/functions/_shared/time-engine/classifyTransportSignalGap.ts`
+  - eventuellt mindre följdjustering i `supabase/functions/_shared/time-engine/buildPresenceDayBlocks.ts`
+- Ny regel ska bara gälla när följande är sant:
+  - båda ankare finns
+  - nästa mål är arbetsrelaterat
+  - gapet är högst 30 min
+  - implied speed är rimlig
+  - inga hårda konflikter finns
+- Viktigt: detta ska ändra motorlogiken, inte bara UI-texten.
+- Regression bör täcka att blocket blir `transport` i presence-lagret och inte `needs_review` i report-candidate-lagret.
