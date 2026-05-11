@@ -377,14 +377,15 @@ async function processOne(
               signalGapTransport: (presence as any).signalGapTransportDiagnostics ?? null,
               companionRoute: (presence as any).companionRouteDiagnostics ?? null,
               presenceDayBlocks: (presence.blocks ?? []).map((b: any) => ({
-                kind: b.kind,
-                startAt: b.startAt,
-                endAt: b.endAt,
-                durationMinutes: b.durationMinutes,
-                confidence: b.confidence,
-                targetId: b.target?.refId ?? null,
+                kind: b.kind, startAt: b.startAt, endAt: b.endAt,
+                durationMinutes: b.durationMinutes, confidence: b.confidence,
                 targetLabel: b.target?.label ?? null,
               })),
+              presenceEvidenceBlocks: ((presence as any).evidenceBlocks ?? []).map((b: any) => ({
+                kind: b.kind, startAt: b.startAt, endAt: b.endAt,
+                durationMinutes: b.durationMinutes,
+              })),
+              aggregation: (presence as any).aggregation ?? null,
             },
             source_watermark: {
               maxPingTs: pings[pings.length - 1]?.ts ?? null,
