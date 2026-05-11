@@ -140,7 +140,7 @@ export function useStaffMonthStatus(month?: Date | string): Result {
       setIsLoading(false);
       inFlight.current = false;
     }
-  }, [staffId, monthKey]);
+  }, [staffId, monthKey, bounds.startDate, bounds.endDate]);
 
   const scheduleRefresh = useCallback(() => {
     if (debounce.current) window.clearTimeout(debounce.current);
