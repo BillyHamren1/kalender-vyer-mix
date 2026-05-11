@@ -194,6 +194,10 @@ export interface StaffDaySnapshot {
     attestedAt: string | null;
     attestedBy: string | null;
     locked: boolean;
+    requestedStartAt?: string | null;
+    requestedEndAt?: string | null;
+    originalSuggestedStartAt?: string | null;
+    originalSuggestedEndAt?: string | null;
   } | null;
   lastUpdatedAt: string;
 }

@@ -120,8 +120,11 @@ const DayBody: React.FC<{
     if (isLocked) return { label: 'Godkänd', tone: 'emerald' as const, Icon: Check };
     if (!wd) return { label: 'Ingen tid', tone: 'muted' as const, Icon: AlertTriangle };
     if (wd.isOpen) return { label: 'Pågår', tone: 'primary' as const, Icon: Loader2 };
+    if (snapshot.attestation?.status === 'attested') {
+      return { label: 'Inskickad', tone: 'emerald' as const, Icon: Check };
+    }
     if (hasOpenIssues) return { label: 'Behöver åtgärdas', tone: 'amber' as const, Icon: AlertTriangle };
-    return { label: 'Redo att godkänna', tone: 'amber' as const, Icon: Check };
+    return { label: 'Ej inskickad', tone: 'amber' as const, Icon: Check };
   })();
 
   return (
@@ -223,7 +226,7 @@ const DayBody: React.FC<{
           ))}
           {hasOpenIssues && !isLocked && (
             <p className="text-[12px] text-amber-800 dark:text-amber-300 mt-1">
-              Lös frågorna eller skicka korrigeringsbegäran innan dagen kan godkännas.
+              Lös frågorna eller skicka korrigeringsbegäran innan du skickar in dagen.
             </p>
           )}
         </section>

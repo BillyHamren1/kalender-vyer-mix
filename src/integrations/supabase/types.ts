@@ -1373,6 +1373,7 @@ export type Database = {
           id: string
           locked_at: string | null
           locked_by: string | null
+          metadata: Json
           organization_id: string
           staff_id: string
           status: string
@@ -1388,6 +1389,7 @@ export type Database = {
           id?: string
           locked_at?: string | null
           locked_by?: string | null
+          metadata?: Json
           organization_id: string
           staff_id: string
           status?: string
@@ -1403,6 +1405,7 @@ export type Database = {
           id?: string
           locked_at?: string | null
           locked_by?: string | null
+          metadata?: Json
           organization_id?: string
           staff_id?: string
           status?: string

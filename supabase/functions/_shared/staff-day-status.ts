@@ -170,6 +170,7 @@ export interface DayAttestationRow {
   attested_by: string | null;
   locked_at: string | null;
   locked_by: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export type SegmentKind = "project" | "booking" | "travel" | "location" | "unknown" | "active";
@@ -366,6 +367,10 @@ export interface StaffDaySnapshot {
     attestedAt: Iso;
     attestedBy: string | null;
     locked: boolean;
+    requestedStartAt: Iso | null;
+    requestedEndAt: Iso | null;
+    originalSuggestedStartAt: Iso | null;
+    originalSuggestedEndAt: Iso | null;
   } | null;
   lastUpdatedAt: Iso;
   /** Full-day GPS-derived timeline built from ALL pings (not constrained by workday). */
@@ -1228,15 +1233,26 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     trackingPolicy,
     assistantEvents: events,
     attestation: attestation
-      ? {
-          id: attestation.id,
-          breakMinutes: Math.max(0, attestation.break_minutes | 0),
-          comment: attestation.comment,
-          status: attestation.status,
-          attestedAt: attestation.attested_at,
-          attestedBy: attestation.attested_by,
-          locked: attestation.status === "locked",
-        }
+      ? (() => {
+          const meta = (attestation.metadata ?? {}) as Record<string, unknown>;
+          const pick = (k: string) => {
+            const v = meta[k];
+            return typeof v === "string" && v.length > 0 ? v : null;
+          };
+          return {
+            id: attestation.id,
+            breakMinutes: Math.max(0, attestation.break_minutes | 0),
+            comment: attestation.comment,
+            status: attestation.status,
+            attestedAt: attestation.attested_at,
+            attestedBy: attestation.attested_by,
+            locked: attestation.status === "locked",
+            requestedStartAt: pick("userRequestedStartAt"),
+            requestedEndAt: pick("userRequestedEndAt"),
+            originalSuggestedStartAt: pick("originalSuggestedStartAt"),
+            originalSuggestedEndAt: pick("originalSuggestedEndAt"),
+          };
+        })()
       : null,
     lastUpdatedAt: now.toISOString(),
     gpsDayTimeline,
