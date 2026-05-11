@@ -1011,6 +1011,10 @@ export function buildReportCandidateBlocks(
       host.evidenceSummary.distanceMeters =
         (host.evidenceSummary.distanceMeters ?? 0) + victim.evidenceSummary.distanceMeters;
     }
+    host.reviewReasons = Array.from(new Set([...(host.reviewReasons ?? []), ...(victim.reviewReasons ?? [])]));
+    if (!host.warningLabel && victim.warningLabel) {
+      host.warningLabel = victim.warningLabel;
+    }
     // Confidence drops one notch when we fold movement evidence in
     if (host.kind === 'work' && victim.kind === 'transport' && host.confidence === 'high') {
       host.confidence = 'medium';
