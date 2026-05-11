@@ -357,16 +357,27 @@ export function buildReportDisplayBlocks(
       const missingTransition = /missing_transition|transition_evidence|signal/i.test(haystack);
       const lastKnown = !looksLikeMissingSignal(block.fromLabel) ? block.fromLabel : null;
       const nextKnown = !looksLikeMissingSignal(block.toLabel) ? block.toLabel : null;
-      const parts: string[] = [];
-      if (lastKnown) parts.push(`från ${lastKnown}`);
-      if (nextKnown) parts.push(`till ${nextKnown}`);
-      if (missingTransition) parts.push('signal saknades');
-      if (placeText) parts.push(placeText);
-      if (secondaryClose && nearestSecondaryCandidateLabel) {
-        parts.push(`nära ${nearestSecondaryCandidateLabel}`);
+      const hasOwnStopCoord = lat != null && lng != null;
+      const isBridgedTrip =
+        !!lastKnown && !!nextKnown && lastKnown !== nextKnown && !hasOwnStopCoord;
+      if (isBridgedTrip) {
+        displayTitle = `Trolig resa · ${lastKnown} → ${nextKnown}`;
+        const dur = block.durationMinutes ?? 0;
+        displaySubtitle = `från ${lastKnown} · till ${nextKnown}` +
+          (dur ? ` · GPS saknades ${Math.round(dur)} min – ingen stopp-evidens` : '') +
+          ' · granska';
+      } else {
+        const parts: string[] = [];
+        if (lastKnown) parts.push(`från ${lastKnown}`);
+        if (nextKnown) parts.push(`till ${nextKnown}`);
+        if (missingTransition) parts.push('signal saknades');
+        if (placeText) parts.push(placeText);
+        if (secondaryClose && nearestSecondaryCandidateLabel) {
+          parts.push(`nära ${nearestSecondaryCandidateLabel}`);
+        }
+        displayTitle = 'Osäker period';
+        displaySubtitle = parts.length ? `${parts.join(' · ')} · granska` : 'Granska';
       }
-      displayTitle = 'Osäker period';
-      displaySubtitle = parts.length ? `${parts.join(' · ')} · granska` : 'Granska';
     }
 
     if (isTransport) {
@@ -569,11 +580,32 @@ export function buildReportDisplayBlocks(
       gapMinInRun <= 20 &&
       longestNonTransportMin <= 15 &&
       transportMinInRun > 0;
+
+    // ── Bridge-promotion (DISPLAY ONLY) ───────────────────────────────
+    // När gapet sitter mellan TVÅ DISTINKTA kända arbetsplatser och
+    // ingen del av kedjan har eget stopp-bevis (egna GPS-koords) →
+    // det är uppenbart en resa, även om vi saknar GPS-pings under
+    // färden. Vi ändrar BARA titel/subtitle (kind är fortfarande
+    // needs_review så lön/ekonomi påverkas inte) — admin kan
+    // bekräfta/avslå senare.
+    const promoteAsBridgedTrip =
+      !promoteToTransport &&
+      !!prevKnown &&
+      !!nextKnown &&
+      prevKnown !== nextKnown &&
+      workMinInRun === 0 &&
+      !anyNonTransportHasOwnCoord;
+
     const promotedConfidence: 'high' | 'medium' | 'low' =
       gapMinInRun <= 10 ? 'high' : 'medium';
-    const promotedTitle = promoteToTransport
-      ? `Resa mot ${nextKnown}`
-      : 'Osäker period';
+    let promotedTitle: string;
+    if (promoteToTransport) {
+      promotedTitle = `Resa mot ${nextKnown}`;
+    } else if (promoteAsBridgedTrip) {
+      promotedTitle = `Trolig resa · ${prevKnown} → ${nextKnown}`;
+    } else {
+      promotedTitle = 'Osäker period';
+    }
     const promotedSubtitleParts: string[] = [];
     if (promoteToTransport) {
       if (prevKnown) promotedSubtitleParts.push(`från ${prevKnown}`);
@@ -581,8 +613,13 @@ export function buildReportDisplayBlocks(
       if (gapMinInRun >= 1) {
         promotedSubtitleParts.push(`GPS saknades ~${Math.round(gapMinInRun)} min under resan`);
       }
+    } else if (promoteAsBridgedTrip) {
+      promotedSubtitleParts.push(`från ${prevKnown}`);
+      promotedSubtitleParts.push(`till ${nextKnown}`);
+      promotedSubtitleParts.push(`GPS saknades ${Math.round(gapMinInRun)} min – ingen stopp-evidens`);
+      promotedSubtitleParts.push('granska');
     }
-    const promotedSubtitle = promoteToTransport
+    const promotedSubtitle = (promoteToTransport || promoteAsBridgedTrip)
       ? promotedSubtitleParts.join(' · ')
       : subParts.join(' · ');
     const promotedWarning = promoteToTransport && gapMinInRun >= 1
@@ -622,7 +659,9 @@ export function buildReportDisplayBlocks(
         evidenceWithCoord?.locationEvidence ??
         null,
       displayTitle: promotedTitle,
-      displaySubtitle: promoteToTransport ? promotedSubtitle : subParts.join(' · '),
+      displaySubtitle: (promoteToTransport || promoteAsBridgedTrip)
+        ? promotedSubtitle
+        : subParts.join(' · '),
       aiReviewContext: null,
       aiHintLabel: null,
       sourceBlockIds,
