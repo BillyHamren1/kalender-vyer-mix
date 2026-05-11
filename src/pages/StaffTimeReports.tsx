@@ -1799,6 +1799,7 @@ const StaffTimeReports: React.FC = () => {
         onDateChange={setSelectedDate}
         reportCandidateByStaff={reportCandidateByStaff}
         engineMode={engineMode}
+        bookingPhaseByDate={bookingPhaseByDate}
       />
     </PageContainer>
   );
