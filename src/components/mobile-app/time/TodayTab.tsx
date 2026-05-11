@@ -520,9 +520,8 @@ export const TodayTab: React.FC = () => {
   return (
     <div className="space-y-3">
       <WorkdayStatusCard snapshot={snapshot} />
-      <ActiveNowCard snapshot={snapshot} />
       <TotalsCard snapshot={snapshot} />
-      <TimelineSection snapshot={snapshot} />
+      <TimelineSection snapshot={snapshot} onChanged={() => { void refresh(); }} />
       <ActionsNeededSection snapshot={snapshot} />
       <div className="pt-1">
         <PrimaryAction snapshot={snapshot} />
