@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import MobileBottomNav from './MobileBottomNav';
 import MobileGlobalOverlays from './MobileGlobalOverlays';
+import { ViewAsBanner } from './ViewAsPicker';
 import { GeofencingProvider } from '@/contexts/GeofencingContext';
 
 interface MobileAppLayoutProps {
