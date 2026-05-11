@@ -209,6 +209,35 @@ async function processOne(
       };
     });
 
+    // --- home anchors (read-only) ---
+    let homeAnchors: { id: string; kind: string; lat: number; lng: number; radiusM: number; label: string | null }[] = [];
+    try {
+      const [{ data: inferred }, { data: privateZones }] = await Promise.all([
+        admin
+          .from('staff_inferred_home_locations')
+          .select('id, kind, lat, lng, radius_m, valid_from, valid_until')
+          .eq('staff_id', staffId)
+          .lte('valid_from', `${date}T23:59:59Z`),
+        admin
+          .from('staff_private_zones')
+          .select('id, kind, lat, lng, radius_m, label, active')
+          .eq('staff_id', staffId)
+          .eq('active', true),
+      ]);
+      for (const r of inferred ?? []) {
+        if (r.valid_until && r.valid_until < `${date}T00:00:00Z`) continue;
+        if (r.lat == null || r.lng == null) continue;
+        homeAnchors.push({ id: r.id, kind: r.kind ?? 'home_sleep', lat: Number(r.lat), lng: Number(r.lng), radiusM: Number(r.radius_m ?? 200), label: null });
+      }
+      for (const r of privateZones ?? []) {
+        if (r.lat == null || r.lng == null) continue;
+        if (r.kind && !['home_sleep', 'manual_ignore', 'recurring_night'].includes(r.kind)) continue;
+        homeAnchors.push({ id: r.id, kind: r.kind ?? 'manual_ignore', lat: Number(r.lat), lng: Number(r.lng), radiusM: Number(r.radius_m ?? 200), label: r.label ?? null });
+      }
+    } catch (e) {
+      // Anchors are optional — continue without them.
+    }
+
     // --- report blocks ---
     const report = buildReportCandidateBlocks({
       staffId,
@@ -216,6 +245,7 @@ async function processOne(
       date,
       presenceDayBlocks: presence.blocks,
       activeTimeRegistrations: activeRegs,
+      homeAnchors,
     });
 
     // Aggregate
