@@ -1949,6 +1949,9 @@ export function buildGpsDayTimeline(
         falseTravelPreventedCount: belowThresholdMovementSuppressedCount,
         privateResidenceWinsCount,
         privateResidenceMatchedPingsCount,
+        ephemeralUnknownStaysSuppressedCount,
+        ephemeralUnknownStaysSuppressedMinutes:
+          Math.round(ephemeralUnknownStaysSuppressedMinutes * 100) / 100,
         examples: transportThresholdExamples,
       },
     },
