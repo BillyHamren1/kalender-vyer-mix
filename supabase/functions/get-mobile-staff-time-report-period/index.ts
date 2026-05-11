@@ -17,7 +17,6 @@ import {
   buildMobileSnapshot,
   type CacheRow,
   type SubmissionRow,
-  type WorkdayLivenessRow,
 } from "../_shared/mobile/buildMobileSnapshot.ts";
 import type { MobileDayReport, MobileSegment } from "../_shared/mobile/types.ts";
 
