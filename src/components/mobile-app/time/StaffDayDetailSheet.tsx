@@ -158,6 +158,8 @@ const DayBody: React.FC<{
   );
   const actions = snapshot.actionsNeeded ?? [];
   const hasOpenIssues = flagsNeedingInput.length > 0 || actions.length > 0;
+  const todayStockholm = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ_TODAY }).format(new Date());
+  const isToday = date === todayStockholm;
 
   const recommendBreak = !isLocked && grossMin > 300 && breakMin === 0;
 
