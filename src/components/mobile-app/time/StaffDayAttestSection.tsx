@@ -1,30 +1,36 @@
 /**
- * StaffDayAttestSection — bottom action inside StaffDayDetailSheet that lets
- * the user attest (godkänn) a finished workday with a break value.
+ * StaffDayAttestSection — bottom action inside StaffDayDetailSheet.
  *
- * Three states:
- *   1. Open workday   → "Avsluta arbetsdagen innan du godkänner."
- *   2. Locked/approved → "Dagen är godkänd och låst."
- *   3. Ended, ej attested → break-picker + comment + "Godkänn dagen"
+ * I normalflödet får användaren ENDAST justera tre saker:
+ *   1. Starttid (HH:mm, Europe/Stockholm)
+ *   2. Sluttid  (HH:mm, Europe/Stockholm)
+ *   3. Rast/lunch (minuter)
  *
- * Calls useAttestStaffDay (which hits attest-staff-day edge function).
- * Never calls admin_approve_day. Never sets workdays.approved_at.
+ * Allt skickas in via attest-staff-day. INGA writes till workdays/time_reports/
+ * location_time_entries/travel_time_logs sker härifrån — endast day_attestations
+ * (inkl. metadata: userRequestedStartAt / userRequestedEndAt).
+ *
+ * Tre states:
+ *   1. Open workday   → "Avsluta arbetsdagen först."
+ *   2. Locked/approved → read-only
+ *   3. Ended (eller pågående utan endedAt men användaren har avslutat) →
+ *      Justera-formulär + "Skicka in dagen".
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Lock, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Lock, CheckCircle2, Loader2, AlertCircle, Sun, Moon, Coffee, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAttestStaffDay } from '@/hooks/useAttestStaffDay';
 import type { StaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
+import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 
 const PRESETS = [0, 30, 45, 60] as const;
+const TZ = 'Europe/Stockholm';
 
 interface Props {
   staffId: string | null;
   date: string;
   snapshot: StaffDaySnapshot;
-  /** Hindrar attest även om workday är klar (t.ex. olösta frågor). */
   attestBlocked?: boolean;
-  /** Mänskligt skäl till blockeringen som visas i UI. */
   attestBlockedReason?: string;
 }
 
@@ -33,7 +39,47 @@ function clampBreak(n: number): number {
   return Math.max(0, Math.min(600, Math.round(n)));
 }
 
-const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attestBlocked, attestBlockedReason }) => {
+/** Offset i minuter mellan Europe/Stockholm-lokal tid och UTC vid `utc`. */
+function stockholmOffsetMinutes(utc: Date): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const parts = dtf.formatToParts(utc).reduce<Record<string, string>>((acc, p) => {
+    acc[p.type] = p.value; return acc;
+  }, {});
+  const asUTC = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour === '24' ? '0' : parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return Math.round((asUTC - utc.getTime()) / 60000);
+}
+
+/** "YYYY-MM-DD" + "HH:mm" (Stockholm-lokal) → ISO-sträng (UTC). */
+function stockholmHmToIso(date: string, hm: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  if (!/^\d{2}:\d{2}$/.test(hm)) return null;
+  const [h, m] = hm.split(':').map(Number);
+  const y = Number(date.slice(0, 4));
+  const mo = Number(date.slice(5, 7)) - 1;
+  const d = Number(date.slice(8, 10));
+  let guess = Date.UTC(y, mo, d, h, m, 0);
+  let offset = stockholmOffsetMinutes(new Date(guess));
+  let actual = guess - offset * 60000;
+  offset = stockholmOffsetMinutes(new Date(actual));
+  actual = guess - offset * 60000;
+  return new Date(actual).toISOString();
+}
+
+const StaffDayAttestSection: React.FC<Props> = ({
+  staffId, date, snapshot, attestBlocked, attestBlockedReason,
+}) => {
   const wd = snapshot.workday;
   const att = snapshot.attestation ?? null;
 
@@ -41,6 +87,28 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
   const isApproved = !!wd?.approved;
   const isLocked = !!att?.locked;
   const isAttested = att?.status === 'attested';
+
+  // ── Förifyll start/sluttid ─────────────────────────────────────────
+  const segments = snapshot.segments ?? [];
+  const firstSegStart = segments[0]?.startedAt ?? null;
+  const lastSegEnd = (() => {
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const s = segments[i];
+      if (s.endedAt) return s.endedAt;
+    }
+    return null;
+  })();
+
+  const initialStartIso =
+    att?.requestedStartAt ?? wd?.startedAt ?? firstSegStart ?? null;
+  const initialEndIso =
+    att?.requestedEndAt ?? wd?.endedAt ?? lastSegEnd ?? null;
+
+  const initialStartHm = initialStartIso ? formatStockholmHm(initialStartIso) : '';
+  const initialEndHm = initialEndIso ? formatStockholmHm(initialEndIso) : '';
+
+  const [startHm, setStartHm] = useState<string>(initialStartHm);
+  const [endHm, setEndHm] = useState<string>(initialEndHm);
 
   const initialBreak = useMemo(() => {
     if (att?.breakMinutes != null) return clampBreak(att.breakMinutes);
@@ -55,12 +123,15 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
   const [comment, setComment] = useState<string>(att?.comment ?? '');
   const [success, setSuccess] = useState<boolean>(false);
 
-  // Resync if snapshot changes (e.g. after refresh)
+  // Resync at snapshot refresh
   useEffect(() => {
     setBreakMinutes(initialBreak);
     setCustomMode(!PRESETS.includes(initialBreak as typeof PRESETS[number]));
     setComment(att?.comment ?? '');
-  }, [initialBreak, att?.comment]);
+    setStartHm(initialStartHm);
+    setEndHm(initialEndHm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialBreak, att?.comment, initialStartHm, initialEndHm]);
 
   const { attestDay, isSaving, error } = useAttestStaffDay();
 
@@ -70,13 +141,13 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 flex items-start gap-2 text-amber-800 dark:text-amber-300">
         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
         <p className="text-xs font-semibold">
-          Avsluta arbetsdagen innan du godkänner.
+          Avsluta arbetsdagen först — sedan kan du justera och skicka in.
         </p>
       </div>
     );
   }
 
-  // ── State 2: locked or approved (admin har låst/godkänt) ────────────
+  // ── State 2: låst/godkänd ───────────────────────────────────────────
   if (isApproved || isLocked) {
     return (
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 flex items-start gap-2 text-emerald-700 dark:text-emerald-400">
@@ -86,46 +157,74 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
     );
   }
 
-  // ── State 2b: redan inskickad av användaren, väntar på admin ────────
-  if (isAttested) {
+  // ── State 2b: redan inskickad, väntar på admin ──────────────────────
+  if (isAttested && !success) {
     return (
       <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
         <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 className="w-5 h-5 shrink-0" />
-          <p className="text-sm font-extrabold">Dagen är inskickad</p>
+          <p className="text-sm font-extrabold">Inskickad – väntar på godkännande</p>
         </div>
-        <div className="text-[12px] text-foreground/80 space-y-1">
-          <p className="tabular-nums">
-            <span className="font-semibold">Rast/lunch:</span>{' '}
-            {clampBreak(att?.breakMinutes ?? 0)} min
-          </p>
-          {att?.comment && (
-            <p>
-              <span className="font-semibold">Kommentar:</span> {att.comment}
-            </p>
+        <div className="text-[12px] text-foreground/80 space-y-1 tabular-nums">
+          {att?.requestedStartAt && (
+            <p><span className="font-semibold">Start:</span> {formatStockholmHm(att.requestedStartAt)}</p>
           )}
-          <p className="text-muted-foreground">Väntar på attest/godkännande.</p>
-          <p className="text-[11px] text-muted-foreground">
-            Behöver du ändra något? Använd "Begär korrigering" ovan.
+          {att?.requestedEndAt && (
+            <p><span className="font-semibold">Slut:</span> {formatStockholmHm(att.requestedEndAt)}</p>
+          )}
+          <p><span className="font-semibold">Rast/lunch:</span> {clampBreak(att?.breakMinutes ?? 0)} min</p>
+          {att?.comment && (
+            <p><span className="font-semibold">Kommentar:</span> {att.comment}</p>
+          )}
+          <p className="text-[11px] text-muted-foreground pt-1">
+            Behöver du ändra något? Använd "Begär korrigering" nedan.
           </p>
         </div>
       </section>
     );
   }
 
-  // ── State 3: ended, not yet attested ────────────────────────────────
+  // ── State 3: justera + skicka in ────────────────────────────────────
+  const validate = (): string | null => {
+    if (!startHm) return 'Ange starttid.';
+    if (!endHm) return 'Ange sluttid.';
+    const startIso = stockholmHmToIso(date, startHm);
+    const endIso = stockholmHmToIso(date, endHm);
+    if (!startIso || !endIso) return 'Ogiltig tid.';
+    if (Date.parse(startIso) >= Date.parse(endIso)) {
+      return 'Starttid måste vara före sluttid.';
+    }
+    // Sluttid får inte vara i framtiden om datumet är idag
+    const todayLocal = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ })
+      .format(new Date());
+    if (date === todayLocal && Date.parse(endIso) > Date.now()) {
+      return 'Sluttid kan inte ligga i framtiden.';
+    }
+    if (!Number.isFinite(breakMinutes) || breakMinutes < 0 || breakMinutes > 600) {
+      return 'Rast måste vara 0–600 min.';
+    }
+    return null;
+  };
+
+  const localError = validate();
+
   const handleSubmit = async () => {
     if (!staffId) return;
+    if (localError) return;
+    const requestedStartAt = stockholmHmToIso(date, startHm);
+    const requestedEndAt = stockholmHmToIso(date, endHm);
     try {
       await attestDay({
         staffId,
         date,
         breakMinutes: clampBreak(breakMinutes),
         comment: comment.trim() ? comment.trim() : null,
+        requestedStartAt,
+        requestedEndAt,
       });
       setSuccess(true);
     } catch {
-      /* error surfaced via hook */
+      /* ytrad i hooks error */
     }
   };
 
@@ -142,18 +241,58 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
+    <section className="rounded-2xl border border-border bg-card p-4 space-y-4">
       <div>
         <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-          Godkänn dagen
+          Justera dagen
         </p>
         <p className="text-[12px] text-muted-foreground mt-1">
-          Ange rast/lunch och skicka in din arbetsdag för granskning.
+          Du kan justera starttid, sluttid och rast. Övriga uppgifter kvarstår
+          som systemets förslag — admin/lön godkänner senare.
         </p>
       </div>
 
+      {/* Start / Slut */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[11px] font-semibold text-foreground/80 mb-1.5 flex items-center gap-1">
+            <Sun className="w-3.5 h-3.5 text-primary" /> Starttid
+          </label>
+          <input
+            type="time"
+            value={startHm}
+            onChange={(e) => setStartHm(e.target.value)}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm tabular-nums"
+          />
+          {initialStartIso && (
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Förslag: {formatStockholmHm(initialStartIso)}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="text-[11px] font-semibold text-foreground/80 mb-1.5 flex items-center gap-1">
+            <Moon className="w-3.5 h-3.5 text-primary" /> Sluttid
+          </label>
+          <input
+            type="time"
+            value={endHm}
+            onChange={(e) => setEndHm(e.target.value)}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm tabular-nums"
+          />
+          {initialEndIso && (
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Förslag: {formatStockholmHm(initialEndIso)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Rast/lunch */}
       <div>
-        <p className="text-[11px] font-semibold text-foreground/80 mb-1.5">Rast/lunch</p>
+        <p className="text-[11px] font-semibold text-foreground/80 mb-1.5 flex items-center gap-1">
+          <Coffee className="w-3.5 h-3.5 text-primary" /> Rast/lunch
+        </p>
         <div className="flex flex-wrap gap-1.5">
           {PRESETS.map((p) => {
             const active = !customMode && breakMinutes === p;
@@ -200,6 +339,7 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
         )}
       </div>
 
+      {/* Kommentar (valfri, kort) */}
       <div>
         <p className="text-[11px] font-semibold text-foreground/80 mb-1.5">Kommentar (valfritt)</p>
         <textarea
@@ -211,9 +351,9 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
         />
       </div>
 
-      {error && (
+      {(localError || error) && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-[12px] text-destructive">
-          {error}
+          {localError ?? error}
         </div>
       )}
 
@@ -226,11 +366,11 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={isSaving || !staffId || attestBlocked}
+        disabled={isSaving || !staffId || attestBlocked || !!localError}
         className={cn(
           'w-full rounded-xl bg-primary text-primary-foreground font-extrabold py-3 text-sm',
           'flex items-center justify-center gap-2 active:opacity-80 transition-opacity',
-          (isSaving || !staffId || attestBlocked) && 'opacity-60',
+          (isSaving || !staffId || attestBlocked || !!localError) && 'opacity-60',
         )}
       >
         {isSaving ? (
@@ -240,11 +380,14 @@ const StaffDayAttestSection: React.FC<Props> = ({ staffId, date, snapshot, attes
           </>
         ) : (
           <>
-            <CheckCircle2 className="w-4 h-4" />
-            Godkänn dagen
+            <Send className="w-4 h-4" />
+            Skicka in dagen
           </>
         )}
       </button>
+      <p className="text-[10px] text-muted-foreground text-center">
+        Admin/lön godkänner och låser dagen i ett senare steg.
+      </p>
     </section>
   );
 };
