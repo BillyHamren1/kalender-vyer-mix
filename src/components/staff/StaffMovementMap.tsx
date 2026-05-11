@@ -166,6 +166,25 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
               'circle-opacity': 0.95,
             },
           });
+          map.current.addLayer({
+            id: 'ping-labels',
+            type: 'symbol',
+            source: 'pings',
+            layout: {
+              'text-field': ['get', 'time'],
+              'text-size': 11,
+              'text-offset': [0, -1.1],
+              'text-anchor': 'bottom',
+              'text-allow-overlap': false,
+              'text-ignore-placement': false,
+              'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            },
+            paint: {
+              'text-color': 'hsl(0, 0%, 15%)',
+              'text-halo-color': 'hsl(0, 0%, 100%)',
+              'text-halo-width': 1.5,
+            },
+          });
           map.current.on('click', 'ping-dots', (e) => {
             const f = e.features?.[0];
             if (!f || !map.current) return;
