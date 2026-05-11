@@ -4,6 +4,12 @@ import { format, isSameDay, isToday, parseISO, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Building2, MapPin, Briefcase, Package, Search } from 'lucide-react';
 import type { ScheduledShift } from '@/services/mobileApiService';
+import {
+  consolidateShifts,
+  getItemEnd,
+  getItemEventType,
+  type MobileCalendarItem,
+} from '@/lib/mobileCalendarConsolidation';
 import { cn } from '@/lib/utils';
 
 /* =====================================================================
