@@ -304,15 +304,6 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setShowDecisionTrace(true)}
-            title="Öppna full beslutskedja (read-only audit)"
-          >
-            Visa tolkning
-          </Button>
           {timeline.review_required && (
             <button
               type="button"
@@ -323,18 +314,6 @@ export const StaffDayTimelineCard: React.FC<StaffDayTimelineCardProps> = (props)
               <AlertTriangle className="h-3.5 w-3.5" />
               <span>{timeline.review_count} {timeline.review_count === 1 ? 'sak' : 'saker'} att granska</span>
             </button>
-          )}
-          {timeline.evidence.timeReportIds.length > 0 && (
-            <Button
-              type="button"
-              size="sm"
-              variant={timeline.review_required ? 'outline' : 'default'}
-              disabled={approveMutation.isPending}
-              onClick={() => approveMutation.mutate(timeline.evidence.timeReportIds)}
-              title="Godkänn alla tidrapporter för dagen"
-            >
-              {approveMutation.isPending ? 'Godkänner…' : 'Godkänn dagen'}
-            </Button>
           )}
         </div>
       </header>
