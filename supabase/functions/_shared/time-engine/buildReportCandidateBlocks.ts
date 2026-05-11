@@ -378,6 +378,17 @@ export interface ReportCandidateDayResult {
    *  target) and excluded from the main report. Kept here as evidence for
    *  Decision Trace — never appear in `blocks` and never count in summary. */
   excludedPreWorkBlocks: ReportCandidateBlock[];
+  /** Engine 4 — PresenceDayBlocks whose evidence.privateResidence === true.
+   *  These are filtered out BEFORE the report-candidate builder runs so they
+   *  never become work / needs_review / unknown rows. Kept here as raw
+   *  PresenceDayBlock evidence so Decision Trace can render them as
+   *  "Dolt: Boende / privat plats". */
+  excludedPrivateResidenceBlocks: PresenceDayBlock[];
+  excludedPrivateResidenceDiagnostics: {
+    excludedCount: number;
+    excludedMinutes: number;
+    targetIds: string[];
+  };
   preWorkExclusionDiagnostics: PreWorkExclusionDiagnostics;
   summary: ReportCandidateSummary;
   warnings: string[];
