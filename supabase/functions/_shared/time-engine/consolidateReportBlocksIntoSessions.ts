@@ -222,6 +222,7 @@ export function consolidateReportBlocksIntoSessions(
     absorbedUnknownBlocksCount: 0,
     preservedNeedsReviewBlocksCount: 0,
     preservedTransportBlocksCount: 0,
+    demotedNeedsReviewBlocksCount: 0,
     examples: [],
   };
 
