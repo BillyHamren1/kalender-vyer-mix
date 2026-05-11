@@ -1341,25 +1341,108 @@ export function buildReportCandidateBlocks(
       const r = out[k];
       let reason: PreWorkExclusionReason | null = null;
 
-      if (noWorkBeforeNoon) {
-        // No secure workplace before 12:00 local → exclude everything pre-work.
-        reason = 'no_workplace_before_noon';
-      } else if (r.kind === 'unknown') {
-        reason = 'before_first_primary_work_target';
-      } else if (r.kind === 'needs_review') {
-        reason = 'before_first_primary_work_target';
-      } else if (r.kind === 'work' && !r.targetId) {
-        reason = 'before_first_primary_work_target';
-      } else if (r.kind === 'transport') {
-        const isImmediatelyBefore = k === firstPrimaryIdx - 1;
-        const gapMin =
-          (new Date(firstPrimary.startAt).getTime() - new Date(r.endAt).getTime()) / 60_000;
-        const anchored =
-          isImmediatelyBefore &&
-          gapMin <= 5 &&
-          (!r.toLabel || !firstPrimary.targetLabel || r.toLabel === firstPrimary.targetLabel);
-        if (!anchored) reason = 'before_first_primary_work_target';
+      // Home-anchor check FIRST — overrides other pre-work reasons so the
+      // Decision Trace can say "Matchade privat nattplats" instead of just
+      // "Före arbetsdag". Only applies to non-targeted blocks.
+      if (!r.targetId) {
+        const center = blockCenter(r);
+        if (center && matchHomeAnchor(center.lat, center.lng, input.homeAnchors)) {
+          reason = 'home_anchor';
+          preWorkExclusionDiagnostics.homeAnchorMatches =
+            (preWorkExclusionDiagnostics.homeAnchorMatches ?? 0) + 1;
+        }
       }
+
+      if (!reason) {
+        if (noWorkBeforeNoon) {
+          reason = 'no_workplace_before_noon';
+        } else if (r.kind === 'unknown') {
+          reason = 'before_first_primary_work_target';
+        } else if (r.kind === 'needs_review') {
+          reason = 'before_first_primary_work_target';
+        } else if (r.kind === 'work' && !r.targetId) {
+          reason = 'before_first_primary_work_target';
+        } else if (r.kind === 'transport') {
+          const isImmediatelyBefore = k === firstPrimaryIdx - 1;
+          const gapMin =
+            (new Date(firstPrimary.startAt).getTime() - new Date(r.endAt).getTime()) / 60_000;
+          const anchored =
+            isImmediatelyBefore &&
+            gapMin <= 5 &&
+            (!r.toLabel || !firstPrimary.targetLabel || r.toLabel === firstPrimary.targetLabel);
+          if (!anchored) reason = 'before_first_primary_work_target';
+        }
+      }
+
+      if (reason) {
+        keep[k] = false;
+        preWorkExclusionDiagnostics.excludedPreWorkMinutes += r.durationMinutes;
+        preWorkExclusionDiagnostics.excludedPreWorkBlocksCount += 1;
+        preWorkExclusionDiagnostics.excludedReasons[reason] =
+          (preWorkExclusionDiagnostics.excludedReasons[reason] ?? 0) + 1;
+        if (preWorkExclusionDiagnostics.examples.length < 20) {
+          preWorkExclusionDiagnostics.examples.push({
+            startAt: r.startAt,
+            endAt: r.endAt,
+            durationMinutes: r.durationMinutes,
+            originalKind: r.kind,
+            originalLabel: r.title,
+            reason,
+          });
+        }
+        excludedPreWorkBlocks.push(r);
+      }
+    }
+
+    if (preWorkExclusionDiagnostics.excludedPreWorkBlocksCount > 0) {
+      const filtered: ReportCandidateBlock[] = [];
+      for (let k = 0; k < out.length; k++) {
+        if (k >= firstPrimaryIdx || keep[k]) filtered.push(out[k]);
+      }
+      out.length = 0;
+      out.push(...filtered);
+    }
+  }
+
+  // Second pass — even when there is no firstPrimary work target (all-home
+  // day, day off, etc.), exclude any non-targeted unknown/needs_review block
+  // whose GPS center matches a home anchor. Keeps "Hemma / privat plats" out
+  // of the main report on rest days.
+  if ((input.homeAnchors?.length ?? 0) > 0 && out.length > 0) {
+    const keepAll: boolean[] = new Array(out.length).fill(true);
+    for (let k = 0; k < out.length; k++) {
+      const r = out[k];
+      if (r.targetId) continue;
+      if (r.kind !== 'unknown' && r.kind !== 'needs_review') continue;
+      const center = blockCenter(r);
+      if (!center) continue;
+      if (!matchHomeAnchor(center.lat, center.lng, input.homeAnchors)) continue;
+      keepAll[k] = false;
+      preWorkExclusionDiagnostics.excludedPreWorkMinutes += r.durationMinutes;
+      preWorkExclusionDiagnostics.excludedPreWorkBlocksCount += 1;
+      preWorkExclusionDiagnostics.excludedReasons['home_anchor'] =
+        (preWorkExclusionDiagnostics.excludedReasons['home_anchor'] ?? 0) + 1;
+      preWorkExclusionDiagnostics.homeAnchorMatches =
+        (preWorkExclusionDiagnostics.homeAnchorMatches ?? 0) + 1;
+      if (preWorkExclusionDiagnostics.examples.length < 20) {
+        preWorkExclusionDiagnostics.examples.push({
+          startAt: r.startAt,
+          endAt: r.endAt,
+          durationMinutes: r.durationMinutes,
+          originalKind: r.kind,
+          originalLabel: r.title,
+          reason: 'home_anchor',
+        });
+      }
+      excludedPreWorkBlocks.push(r);
+    }
+    if (keepAll.some((k) => !k)) {
+      const filtered: ReportCandidateBlock[] = [];
+      for (let k = 0; k < out.length; k++) if (keepAll[k]) filtered.push(out[k]);
+      out.length = 0;
+      out.push(...filtered);
+    }
+  }
 
       if (reason) {
         keep[k] = false;
