@@ -396,7 +396,7 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   transportChainBridgeMinutes: 5,
   microTransportMaxMinutes: 5,
   tinyWorkMaxMinutes: 2,
-  realTripMinDistanceMeters: 1000,
+  realTripMinDistanceMeters: TRANSPORT_MIN_DISTANCE_METERS,
   sameTargetTransportAbsorbMaxMinutes: 25,
   sameTargetTransportAbsorbMaxDistanceMeters: 750,
   shortCrossTargetReviewMaxMinutes: 5,
