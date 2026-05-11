@@ -502,7 +502,7 @@ function BlockRow({ block, lookups, staffId, staffName, date }: { block: ReportC
       </button>
       {open && (
         <div className="px-3 pb-2">
-          <EvidencePanel block={block} lookups={lookups} />
+          <EvidencePanel block={block} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
         </div>
       )}
     </div>
