@@ -643,26 +643,37 @@ export function buildReportDisplayBlocks(
       ? `GPS saknades ${Math.round(gapMinInRun)} min under resan`
       : null;
 
+    // Bridged-trip → behandla som transport (parity med servern + isReview-grenen)
+    const treatAsTransport = promoteToTransport || promoteAsBridgedTrip;
+    const bridgedTitle = promoteAsBridgedTrip ? 'Resa' : promotedTitle;
+    const bridgedSubtitle = promoteAsBridgedTrip
+      ? `${prevKnown} → ${nextKnown}` +
+        (gapMinInRun >= 1 ? ` · GPS saknades ~${Math.round(gapMinInRun)} min` : '')
+      : promotedSubtitle;
+    const bridgedWarning = promoteAsBridgedTrip && gapMinInRun >= 1
+      ? `GPS saknades ${Math.round(gapMinInRun)} min under resan`
+      : promotedWarning;
+
     const merged: DisplayBlock = {
       // Bas: ärv från första blocket men override
       ...run[0],
       id: `grp:${run[0].id}:${run.length}`,
-      kind: promoteToTransport ? 'transport' : 'needs_review',
+      kind: treatAsTransport ? 'transport' : 'needs_review',
       startAt,
       endAt,
       durationMinutes,
       durationLabel: undefined,
-      title: promotedTitle,
-      subtitle: promotedSubtitle,
+      title: treatAsTransport ? bridgedTitle : promotedTitle,
+      subtitle: treatAsTransport ? bridgedSubtitle : promotedSubtitle,
       targetType: null,
       targetId: null,
       targetLabel: null,
       fromLabel: prevKnown ?? null,
       toLabel: nextKnown ?? null,
-      confidence: promoteToTransport ? promotedConfidence : 'low',
-      reviewState: promoteToTransport ? 'ok' : 'needs_review',
+      confidence: treatAsTransport ? promotedConfidence : 'low',
+      reviewState: treatAsTransport ? 'ok' : 'needs_review',
       reviewReasons,
-      warningLabel: promotedWarning,
+      warningLabel: bridgedWarning,
       sourcePresenceBlockIds,
       hiddenPresenceBlockIds,
       hiddenSignalGapIds,
@@ -675,9 +686,9 @@ export function buildReportDisplayBlocks(
         evidenceWithSecondary?.locationEvidence ??
         evidenceWithCoord?.locationEvidence ??
         null,
-      displayTitle: promotedTitle,
-      displaySubtitle: (promoteToTransport || promoteAsBridgedTrip)
-        ? promotedSubtitle
+      displayTitle: treatAsTransport ? bridgedTitle : promotedTitle,
+      displaySubtitle: treatAsTransport
+        ? bridgedSubtitle
         : subParts.join(' · '),
       aiReviewContext: null,
       aiHintLabel: null,
