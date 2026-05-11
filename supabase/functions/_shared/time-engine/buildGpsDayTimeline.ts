@@ -1168,6 +1168,13 @@ export function buildGpsDayTimeline(
         unknownPlace++;
         privateResidenceWinsCount += 1;
         privateResidenceMatchedPingsCount += run.pings.length;
+        // Engine 4 — tag the segment so downstream layers can:
+        //  (a) propagate privateResidence into PresenceDayBlock.evidence
+        //  (b) filter the block out of reportCandidateBlocks (huvudvy)
+        //  (c) keep the evidence available in Decision Trace.
+        targetDiag.privateResidence = true;
+        targetDiag.privateResidenceTargetId = match.target.refId;
+        targetDiag.privateResidenceLabel = match.target.label;
         if (transportThresholdExamples.length < 10) {
           transportThresholdExamples.push({
             kind: 'private_residence_wins',
