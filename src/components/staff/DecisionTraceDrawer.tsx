@@ -462,6 +462,7 @@ function ChainTab(props: DecisionTraceDrawerProps) {
   }
   return (
     <div className="space-y-3">
+      <PreWorkExcludedSection {...props} />
       {props.reportCandidateBlocks.map((b) => {
         const ev: any = b.evidenceSummary ?? null;
         return (
