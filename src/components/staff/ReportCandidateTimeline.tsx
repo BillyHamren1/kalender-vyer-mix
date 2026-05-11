@@ -17,6 +17,9 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { AlertTriangle, ArrowRight, ChevronDown, ChevronRight, Clock, HelpCircle, MapPin, Plane } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { StaffMovementMap } from './StaffMovementMap';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
 
 export type ReportBlockKind = 'work' | 'transport' | 'break' | 'unknown' | 'needs_review';
@@ -254,7 +257,19 @@ function WhyReview({ block }: { block: ReportCandidateBlockUI }) {
   );
 }
 
-function EvidencePanel({ block, lookups }: { block: ReportCandidateBlockUI; lookups: EvidenceLookups }) {
+function EvidencePanel({
+  block,
+  lookups,
+  staffId,
+  staffName,
+  date,
+}: {
+  block: ReportCandidateBlockUI;
+  lookups: EvidenceLookups;
+  staffId?: string | null;
+  staffName?: string | null;
+  date?: string | null;
+}) {
   const ev = block.evidenceSummary ?? {};
   const hasAnySuppressed =
     (ev.suppressedSignalGapBlockCount ?? 0) > 0 ||
@@ -265,9 +280,48 @@ function EvidencePanel({ block, lookups }: { block: ReportCandidateBlockUI; look
   const hiddenGapIds = block.hiddenSignalGapIds ?? [];
   const hiddenIds = block.hiddenPresenceBlockIds ?? [];
   const target = block.targetId ? lookups.targetById.get(block.targetId) : undefined;
+  const [mapOpen, setMapOpen] = useState(false);
+  const canShowMap = !!staffId && !!date;
 
   return (
     <div className="mt-2 space-y-2 rounded-md border bg-background/60 px-3 py-2 text-[11px] text-muted-foreground">
+      {canShowMap && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1.5"
+            onClick={(e) => { e.stopPropagation(); setMapOpen(true); }}
+          >
+            <MapPin className="h-3 w-3" />
+            Visa karta för detta block
+          </Button>
+        </div>
+      )}
+      {canShowMap && (
+        <Dialog open={mapOpen} onOpenChange={setMapOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold">
+                {staffName ?? 'Personal'} · {date}
+                <span className="ml-2 text-xs font-normal text-muted-foreground tabular-nums">
+                  {formatStockholmHm(block.startAt)} → {formatStockholmHm(block.endAt)}
+                  {' · '}
+                  {block.durationLabel ?? fmtDur(block.durationMinutes)}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+            <StaffMovementMap
+              staffId={staffId as string}
+              date={date as string}
+              fromIso={block.startAt}
+              toIso={block.endAt}
+              className="h-[480px]"
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
       <WhyReview block={block} />
 
       {/* Target-detalj */}
@@ -386,7 +440,7 @@ function EvidencePanel({ block, lookups }: { block: ReportCandidateBlockUI; look
   );
 }
 
-function BlockRow({ block, lookups }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups }) {
+function BlockRow({ block, lookups, staffId, staffName, date }: { block: ReportCandidateBlockUI & { displayTitle?: string; displaySubtitle?: string | null; locationEvidence?: import('@/lib/staff/buildReportDisplayBlocks').LocationEvidence | null; aiReviewContext?: import('@/lib/staff/buildReportDisplayBlocks').AiReviewContext | null; aiHintLabel?: string | null }; lookups: EvidenceLookups; staffId?: string | null; staffName?: string | null; date?: string | null }) {
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
@@ -448,7 +502,7 @@ function BlockRow({ block, lookups }: { block: ReportCandidateBlockUI & { displa
       </button>
       {open && (
         <div className="px-3 pb-2">
-          <EvidencePanel block={block} lookups={lookups} />
+          <EvidencePanel block={block} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
         </div>
       )}
     </div>
@@ -467,6 +521,7 @@ export interface ReportCandidateTimelineProps {
   loading?: boolean;
   presenceBlocks?: PresenceBlockLite[] | null;
   targets?: TargetLite[] | null;
+  staffId?: string | null;
   staffName?: string | null;
   date?: string | null;
 }
@@ -477,6 +532,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   loading,
   presenceBlocks,
   targets,
+  staffId,
   staffName,
   date,
 }) => {
@@ -514,7 +570,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   return (
     <div className="space-y-1.5">
       {visible.map((b) => (
-        <BlockRow key={b.id} block={b} lookups={lookups} />
+        <BlockRow key={b.id} block={b} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
       ))}
       {summary && (
         <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 text-[11px] text-muted-foreground">
