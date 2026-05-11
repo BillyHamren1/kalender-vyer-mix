@@ -383,8 +383,30 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   }, [staffList]);
 
   // Time axis bounds
-  const startHour = compactRange ? 6 : 0;
-  const endHour = compactRange ? 22 : 24;
+  // Dynamic time bounds — auto-fit to data when compactRange is on
+  const { startHour, endHour } = useMemo(() => {
+    if (!compactRange) return { startHour: 0, endHour: 24 };
+    let minH = 24;
+    let maxH = 0;
+    for (const s of sortedStaff) {
+      const blocks = blocksByStaff[s.id] ?? [];
+      for (const b of blocks) {
+        if (b.kind === 'pre_work') continue; // don't let pre-work expand the day
+        const sH = hourOfDay(b.startAt, dateStr);
+        const eH = hourOfDay(b.endAt, dateStr);
+        if (Number.isFinite(sH) && sH < minH) minH = sH;
+        if (Number.isFinite(eH) && eH > maxH) maxH = eH;
+      }
+    }
+    if (minH >= 24 || maxH <= 0 || maxH <= minH) {
+      return { startHour: 6, endHour: 22 };
+    }
+    // Pad with 1 hour on each side and floor/ceil
+    const pad = 1;
+    const s = Math.max(0, Math.floor(minH) - pad);
+    const e = Math.min(24, Math.ceil(maxH) + pad);
+    return { startHour: s, endHour: Math.max(s + 4, e) };
+  }, [compactRange, sortedStaff, blocksByStaff, dateStr]);
   const totalHours = endHour - startHour;
   const hours = Array.from({ length: totalHours + 1 }, (_, i) => startHour + i);
 
