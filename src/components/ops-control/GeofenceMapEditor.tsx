@@ -374,8 +374,22 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
           </div>
         )}
         {loadError && (
-          <div className="absolute inset-0 flex items-center justify-center text-xs text-destructive p-3 text-center">
-            {loadError}
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-destructive p-3 text-center bg-muted">
+            <span>{loadError}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => {
+                setLoadError(null);
+                setTokenLoading(true);
+                setReady(false);
+                setReloadKey((k) => k + 1);
+              }}
+            >
+              Ladda om kartan
+            </Button>
           </div>
         )}
       </div>
