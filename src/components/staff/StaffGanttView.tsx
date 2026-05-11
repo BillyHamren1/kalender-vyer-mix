@@ -269,7 +269,6 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   engineMode = 'report_candidate',
   bookingPhaseByDate,
 }) => {
-}) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('smart');
