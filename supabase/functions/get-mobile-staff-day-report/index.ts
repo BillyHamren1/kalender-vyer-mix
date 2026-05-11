@@ -2,20 +2,24 @@
 // =============================
 // Single READ endpoint for the mobile Time-app day view.
 //
-// Source of truth (in priority order):
+// PURE MIRROR of /staff-management/time-reports read model:
 //   1. staff_day_report_cache  (Time Engine cache — same as admin web)
 //   2. staff_day_submissions   (user inskick/attest)
-//   3. workdays                (only for live workdayStatus + start/stop button)
 //
-// MUST NOT read time_reports / location_time_entries / travel_time_logs as
-// report data. Those tables remain legacy/debug.
+// MUST NOT read:
+//   - workdays
+//   - time_reports
+//   - location_time_entries
+//   - travel_time_logs
+//   - day_attestations
+//   - active_time_registrations
+// These remain legacy/debug. Liveness is derived from the cache only.
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
 import {
   buildMobileSnapshot,
   type CacheRow,
   type SubmissionRow,
-  type WorkdayLivenessRow,
 } from "../_shared/mobile/buildMobileSnapshot.ts";
 
 interface RequestBody {
