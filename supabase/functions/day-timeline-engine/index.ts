@@ -166,7 +166,7 @@ async function handleCompute(
     supabase.from("staff_members").select("id, address").eq("id", args.staff_id).maybeSingle(),
   ]);
 
-  const pings: Ping[] = (pingsRes.data ?? []).map((p: any) => ({
+  const pings: Ping[] = pingRows.map((p: any) => ({
     ts: p.recorded_at,
     lat: Number(p.lat),
     lng: Number(p.lng),
