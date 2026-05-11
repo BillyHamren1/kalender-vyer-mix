@@ -221,17 +221,20 @@ const MobileJobListView = ({ shifts }: Props) => {
                   {fmtDateHeader(date)}
                 </h3>
                 <div className="space-y-2">
-                  {dayShifts.map((s) => {
-                    const kind = classifyShift(s);
+                  {dayShifts.map((it) => {
+                    const kind = classifyItem(it);
                     const meta = kindMeta(kind);
                     const Icon = meta.icon;
-                    const phase = eventTypeLabel(s.event_type);
-                    const projectOrTitle = s.large_project_name || s.title;
+                    const phase = eventTypeLabel(getItemEventType(it));
+                    const projectOrTitle = itemTitle(it);
+                    const client = itemClient(it);
+                    const address = itemAddress(it);
+                    const subBookingCount = it.kind === 'project' ? it.shifts.length : 0;
                     return (
                       <button
-                        key={s.shift_id}
+                        key={it.key}
                         type="button"
-                        onClick={() => handleClick(s)}
+                        onClick={() => handleClick(it)}
                         className="w-full text-left rounded-2xl border border-border bg-card p-3.5 shadow-sm active:opacity-80 transition-all"
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -250,23 +253,28 @@ const MobileJobListView = ({ shifts }: Props) => {
                                 {phase}
                               </span>
                             )}
+                            {subBookingCount > 1 && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide border border-primary/30 bg-primary/10 text-primary">
+                                {subBookingCount} bokningar
+                              </span>
+                            )}
                           </div>
                           <span className="shrink-0 text-xs font-mono tabular-nums text-foreground">
-                            {fmtTimeRange(s.start_time, s.end_time)}
+                            {fmtTimeRange(itemStart(it), getItemEnd(it))}
                           </span>
                         </div>
 
                         <h4 className="font-bold text-foreground text-[15px] leading-snug mt-1.5 truncate">
                           {projectOrTitle}
                         </h4>
-                        {s.client && s.client !== projectOrTitle && (
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">{s.client}</p>
+                        {client && client !== projectOrTitle && (
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">{client}</p>
                         )}
 
-                        {s.delivery_address && (
+                        {address && (
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
                             <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-                            <span className="truncate">{s.delivery_address}</span>
+                            <span className="truncate">{address}</span>
                           </div>
                         )}
                       </button>
