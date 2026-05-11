@@ -1734,6 +1734,28 @@ const StaffTimeReports: React.FC = () => {
       ? 'actual_model_fallback'
       : 'report_candidate';
 
+  // ── Phase per booking on selected date (rig/event/rigdown) for Gantt color coding.
+  // UI-only: queries bookings table with date columns. Does not touch time engine.
+  const { data: bookingPhaseByDate = {} } = useQuery({
+    queryKey: ['staff-tr-booking-phase-by-date', dateStr],
+    queryFn: async (): Promise<Record<string, 'rig' | 'event' | 'rigdown'>> => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, rigdaydate, eventdate, rigdowndate')
+        .or(`rigdaydate.eq.${dateStr},eventdate.eq.${dateStr},rigdowndate.eq.${dateStr}`);
+      if (error) return {};
+      const map: Record<string, 'rig' | 'event' | 'rigdown'> = {};
+      for (const r of data ?? []) {
+        // Priority: rig > rigdown > event when same booking has multiple matches on the date
+        if (r.rigdaydate === dateStr) map[r.id] = 'rig';
+        else if (r.rigdowndate === dateStr) map[r.id] = 'rigdown';
+        else if (r.eventdate === dateStr) map[r.id] = 'event';
+      }
+      return map;
+    },
+    staleTime: 60_000,
+  });
+
   if (selectedStaffId) {
     return (
       <PageContainer theme="purple">
