@@ -96,6 +96,9 @@ export interface ConsolidationDeps {
   /** Reason classifier sets (closure-bound to the calling builder). */
   blockingReviewReasons: Set<string>;
   warningOnlyReasons: Set<string>;
+
+  /** Time Engine 2.8 — optional staff name for diagnostics examples. */
+  staffName?: string | null;
 }
 
 /** Reasons that indicate "this needs_review block is essentially a signal gap" */
