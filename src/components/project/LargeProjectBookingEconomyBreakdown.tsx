@@ -409,11 +409,27 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                         : localRevenueTotal;
 
                       // Compute local costs from local products (per-styck × antal)
+                      // Compute local costs from local products (per-styck × antal),
+                      // applying overrides so totals reflect inline edits immediately.
                       const localCostsTotal = bookingLocalProducts.reduce((s, lp) =>
                         s + ((lp.assembly_cost || 0) + (lp.handling_cost || 0) + (lp.purchase_cost || 0)) * (Number(lp.quantity) || 1), 0);
-                      const displayProductCosts = (productSummary?.costs && productSummary.costs > 0)
-                        ? productSummary.costs
+
+                      // Live product cost = override value per remote product if it
+                      // exists, else remote value. This is the single source of truth
+                      // for the booking-row "Kostnad" cell so edits update instantly.
+                      const liveBookingProductCosts = products.length > 0
+                        ? products.reduce((sum: number, p: any) => {
+                            const productName = p.product_name || p.name || p.description || '—';
+                            const localMatch = findLocalProduct(bookingId, productName, p.sku);
+                            const a = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
+                            const h = localMatch?.handling_cost ?? p.handling_cost ?? 0;
+                            const pu = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
+                            const qty = Number(p.quantity) || 1;
+                            return sum + (a + h + pu) * qty;
+                          }, 0)
                         : localCostsTotal;
+
+                      const displayProductCosts = liveBookingProductCosts;
 
                       const totalCost =
                         displayProductCosts +
@@ -488,8 +504,27 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                           }));
 
                                     if (productsToRender.length === 0) return null;
+
+                                    // Recompute the product-cost total from merged values
+                                    // (local overrides + remote fallback) so edits in
+                                    // Montage/Hantering/Inköp bubble up immediately to
+                                    // the section total, the "Summa"-row and the
+                                    // booking-level cost cell — without waiting for the
+                                    // external system to reflect overrides.
+                                    const liveProductCostsTotal = productsToRender.reduce((sum: number, p: any) => {
+                                      const productName = p.product_name || p.name || p.description || '—';
+                                      const localMatch = p.__localId
+                                        ? bookingLocalProducts.find(lp => lp.id === p.__localId)
+                                        : findLocalProduct(bookingId, productName, p.sku);
+                                      const a = localMatch?.assembly_cost ?? p.assembly_cost ?? 0;
+                                      const h = localMatch?.handling_cost ?? p.handling_cost ?? 0;
+                                      const pu = localMatch?.purchase_cost ?? p.purchase_cost ?? 0;
+                                      const qty = Number(p.quantity) || 1;
+                                      return sum + (a + h + pu) * qty;
+                                    }, 0);
+
                                     return (
-                                    <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={displayProductCosts}>
+                                    <Section icon={<Package className="h-3.5 w-3.5" />} title="Produkter" total={liveProductCostsTotal}>
                                       <Table>
                                         <TableHeader>
                                           <TableRow>
@@ -545,7 +580,7 @@ export const LargeProjectBookingEconomyBreakdown = ({ bookingEconomyData, bookin
                                             <TableCell colSpan={2} className="text-xs">Summa</TableCell>
                                             <TableCell className="text-xs text-right">{fmt(displayRevenue)}</TableCell>
                                             <TableCell colSpan={3}></TableCell>
-                                            <TableCell className="text-xs text-right">{fmt(displayProductCosts)}</TableCell>
+                                            <TableCell className="text-xs text-right">{fmt(liveProductCostsTotal)}</TableCell>
                                           </TableRow>
                                         </TableBody>
                                       </Table>
