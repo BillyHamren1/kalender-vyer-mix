@@ -67,6 +67,7 @@ export interface ReportCandidateBlockUI {
   hiddenPresenceBlockIds?: string[];
   firstConfirmedAt?: string | null;
   lastConfirmedAt?: string | null;
+  isOngoing?: boolean;
 }
 
 export interface ReportCandidateSummaryUI {
