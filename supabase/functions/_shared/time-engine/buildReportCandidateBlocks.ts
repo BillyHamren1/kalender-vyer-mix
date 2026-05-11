@@ -83,10 +83,37 @@ export interface ReportCandidateBlock {
   firstConfirmedAt: ISODateTime | null;
   lastConfirmedAt: ISODateTime | null;
   /**
+   * När en active_time_registration är öppen och detta block är ankaret för
+   * den öppna sessionen markeras blocket som pågående. UI använder detta för
+   * att visa "Pågår / Aktiv timer" och för att förstå att endAt är preliminärt.
+   */
+  isOngoing?: boolean;
+  /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
    */
   aiReviewContext?: AiReviewContext | null;
+}
+
+/**
+ * Read-only kontext för en öppen active_time_registration.
+ *
+ * När denna är satt absorberar buildReportCandidateBlocks "trailing noise"
+ * (signal_gap, uncertain_transition, unknown_place, kort transport utan
+ * faktisk förflyttning) efter `startedAtIso` in i ett enda sammanhållet
+ * pågående arbetsblock med target = open registration.
+ *
+ * Builder skriver ALDRIG till active_time_registrations eller någon annan
+ * tabell — denna struct är endast en hint för rapportvyns sammanslagning.
+ */
+export interface OpenActiveRegistrationContext {
+  registrationId: UUID;
+  startedAtIso: ISODateTime;
+  targetType: string | null;
+  targetId: UUID | null;
+  targetLabel: string | null;
+  /** Diagnostik: alla aktiva-timer-rader i rapportkandidatvyn ärver denna. */
+  currentLabel?: string | null;
 }
 
 export type AiReviewQuestionType =
