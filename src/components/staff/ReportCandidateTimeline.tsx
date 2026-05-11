@@ -545,6 +545,7 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved, previous
           organizationId={organizationId}
           staffId={staffId}
           date={date}
+          contextSnapshot={buildContextSnapshot(block, previousBlock, nextBlock, rawPings)}
         />
       </div>
     </div>
