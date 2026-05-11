@@ -696,6 +696,8 @@ function finalize(
   if (acc.kind === 'work') {
     const ratio = duration > 0 ? acc.signalGapMinutes / duration : 0;
     if (acc.signalGapMinutes >= policy.longGapInsideWorkMinutes || ratio > 0.4) {
+      // Stort signalgap → confidence sänks, men det är en VARNING — inte
+      // automatisk granskning. Markeras som warning-only reason.
       confidence = 'low';
       acc.reviewReasons.add('signal_gaps_inside_work_block');
     } else if (acc.signalGapMinutes > 0 || acc.probableMinutes > acc.confirmedMinutes) {
@@ -713,10 +715,45 @@ function finalize(
     confidence = 'low';
   }
 
-  const reviewState: ReportReviewState =
-    acc.kind === 'needs_review' || acc.kind === 'unknown' || acc.reviewReasons.size > 0 || confidence === 'low'
-      ? 'needs_review'
-      : 'ok';
+  // ─── reviewState — separat från confidence och warningLabel ────────────
+  const reasonList = Array.from(acc.reviewReasons);
+  const hasBlockingReason = reasonList.some((r) => BLOCKING_REVIEW_REASONS.has(r));
+  const hasTarget = !!(acc.targetId || acc.targetLabel);
+  const onsiteMinutes = acc.confirmedMinutes + acc.probableMinutes;
+  const hasOnsiteEvidence = onsiteMinutes > 0;
+
+  let reviewState: ReportReviewState =
+    acc.kind === 'needs_review' || acc.kind === 'unknown' ? 'needs_review' : 'ok';
+
+  if (reviewState === 'ok' && hasBlockingReason) reviewState = 'needs_review';
+
+  // Work-block utan target = vi vet inte vad det är.
+  if (reviewState === 'ok' && acc.kind === 'work' && !hasTarget) reviewState = 'needs_review';
+
+  // Signalgap-promotion: bara om gapet är extremt OCH ingen on-site-evidens finns.
+  if (acc.kind === 'work' && duration > 0) {
+    const gapRatio = acc.signalGapMinutes / duration;
+    if (gapRatio > 0.75 && acc.confirmedMinutes === 0 && acc.probableMinutes === 0) {
+      acc.reviewReasons.add('signal_gap_unresolved');
+      reviewState = 'needs_review';
+    }
+  }
+
+  // Skydd: långt work-block på känd arbetsplats med on-site-evidens får
+  // ALDRIG bli needs_review enbart pga signalgap.
+  if (
+    acc.kind === 'work' &&
+    hasTarget &&
+    duration >= 15 &&
+    hasOnsiteEvidence &&
+    !hasBlockingReason
+  ) {
+    // Re-check: om signal_gap_unresolved precis lades till ovan, behåll det.
+    const stillBlocking = Array.from(acc.reviewReasons).some((r) =>
+      BLOCKING_REVIEW_REASONS.has(r),
+    );
+    if (!stillBlocking) reviewState = 'ok';
+  }
 
   const signalGapWarning =
     acc.kind === 'work' && acc.signalGapMinutes > 0
