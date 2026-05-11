@@ -5,7 +5,7 @@
 
 import { buildStaffDaySnapshot } from "../_shared/staff-day-status.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
-import { getStockholmDayWindowUtc } from "../_shared/stockholmDayWindow.ts";
+import { getStockholmDayWindowUtc, clipIntervalToDayWindow } from "../_shared/stockholmDayWindow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
