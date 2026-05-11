@@ -47,14 +47,27 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await supabase.functions.invoke('mapbox-token');
+        const { data, error } = await supabase.functions.invoke('mapbox-token');
         if (cancelled) return;
+        if (error) {
+          console.warn('[GeofenceMapEditor] mapbox-token error', error);
+          setLoadError(`Kunde inte hämta Mapbox-token (${error.message ?? 'okänt fel'})`);
+          setTokenLoading(false);
+          return;
+        }
         if (!data?.token) {
+          console.warn('[GeofenceMapEditor] mapbox-token missing in response', data);
+          setLoadError('Mapbox-token saknas — be admin lägga till MAPBOX_PUBLIC_TOKEN');
           setTokenLoading(false);
           return;
         }
         mapboxgl.accessToken = data.token;
-        if (!containerRef.current || mapRef.current) return;
+        if (!containerRef.current) {
+          setLoadError('Kartcontainer saknas');
+          setTokenLoading(false);
+          return;
+        }
+        if (mapRef.current) return;
 
         const initialCenter: [number, number] =
           value.longitude && value.latitude
@@ -73,6 +86,21 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
           attributionControl: false,
         });
         mapRef.current = m;
+
+        m.on('error', (e: any) => {
+          console.warn('[GeofenceMapEditor] mapbox runtime error', e?.error ?? e);
+          // Fall back to plain streets style if satellite cannot load (e.g. token scope)
+          if (
+            e?.error?.status === 401 ||
+            e?.error?.status === 403 ||
+            /style/i.test(e?.error?.message ?? '')
+          ) {
+            try {
+              m.setStyle('mapbox://styles/mapbox/streets-v12');
+              setStyleMode('streets');
+            } catch {/* ignore */}
+          }
+        });
 
         const draw = new MapboxDraw({
           displayControlsDefault: false,
@@ -96,8 +124,10 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
           if (cancelled) return;
           setReady(true);
           setTokenLoading(false);
-          // Ensure correct sizing once dialog/layout settles
+          // Multiple resize attempts: dialogs animate in, container size grows over a few frames.
           requestAnimationFrame(() => m.resize());
+          setTimeout(() => m.resize(), 100);
+          setTimeout(() => m.resize(), 400);
         });
 
         // Auto-resize when container dimensions change (e.g. dialog opens)
