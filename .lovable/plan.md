@@ -1,107 +1,79 @@
-# Tidrapport AI 1 — Helautomatisk AI-granskning av oklara report-block
+## Problem
 
-## Mål
-AI-granskar automatiskt block i `staff_day_report_cache` som hamnar i "Behöver granskas". Vid hög confidence (≥0.75; work utan direct assignment ≥0.85) skriver AI om blocket i cachen + audit. Vid osäkerhet ligger blocket kvar med chip "AI osäker". **Det är användaren (staff i mobilen) som godkänner sina egna tider** — varken AI eller admin attesterar. Inget rör GPS-rådata, time_reports, workdays, LTE, travel_time_logs eller redan godkända/låsta dagar.
+`/m/report` (mobilens Tidrapport) visar 90h 17m för Markus 11 maj. Bild 2 (admin Gantt/StaffDayTimelineCard) visar samma dag som ~6h 20m rigg + transporter + granska — det är den korrekta vyn, byggd från **Time Engine-cachen** (`staff_day_report_cache.report_candidate_blocks_json`).
 
-## Ansvarsmodell (godkännande)
-- **AI**: städar bara förslagen i report-cachen. Får aldrig markera dagen som godkänd.
-- **Användaren (staff)**: enda part som attesterar sin egen dag. Det sker i mobilappens befintliga "Granska & godkänn"-flöde.
-- **Admin**: ser resultatet, kan korrigera enskilda block, men attesterar inte åt användaren.
-- AI-resultat (auto_applied / uncertain) ska vara tydligt synliga för användaren när de attesterar — så de kan acceptera eller justera innan godkännande.
+`/m/report` läser idag från en **helt annan väg**:
 
-## Räckvidd
-- Adminwebb (chips/decision trace) + mobilens granska-vy (chips + tydlig "AI har klassat detta block"-info inför attest).
-- AI skriver ENBART till `staff_day_report_cache` (report blocks + summary) och ny audit-tabell.
-- Trigger: körs automatiskt direkt när Day Timeline Engine producerat/uppdaterat en cache-rad som innehåller needs_review-block.
-- Approved/locked dagar är orörbara av AI.
-
-## Arkitektur
-
-```text
-day-timeline-engine (compute)
-  └─ skriver staff_day_report_cache
-        │
-        ▼ DB-trigger (AFTER INSERT/UPDATE när needs_review-block finns
-                      OCH dagen INTE är approved/locked)
-  pg_net.http_post → ai-review-time-report-blocks
-        │
-        ▼
-  1. Plocka needs_review-block ur cachen
-  2. Bygg evidence per block
-  3. Lovable AI Gateway (gemini-3-flash) med Output.object
-  4. Safety checks
-  5. Patcha block + recalc summary i cachen
-  6. Skriv audit
-        │
-        ▼
-  Realtime postgres_changes → admin- & mobil-UI hämtar om cachen
-  Chips "AI-klassad" / "AI osäker" syns automatiskt
-  Användaren ser AI-resultat i sin granska-vy och attesterar själv.
+```
+TimeReportTab (vecka)
+  → useStaffTimeReportPeriod
+  → get-staff-time-report-period  ← KÄLLA SOM ÄR FEL
+  → fetchRangeRows (workdays/time_reports/travel/LTE)
+  → buildDayRangeSnapshots → summarizeSnapshots
+  → grossWorkdayMinutes = workday.started_at..ended_at
 ```
 
-## Steg
+Markus har en gammal/öppen workday-rad som spänner ~90h över flera dygn. `clipIntervalToDayWindow` skulle klippa den, men efter klippningen returneras hela det överlappande fönstret för 11 maj — och det är fortfarande felaktigt eftersom workday-spannet aldrig speglar verklig arbetstid (Time Engine vet detta — admin-vyn visar bara ~6h).
 
-### 1. DB-migration
-- Skapa `time_report_ai_block_audit` (org_id, staff_id, date, engine_version, cache_id, block_id, status, original_block_json, ai_result_json, updated_block_json, confidence_score, suggested_kind, applied_kind, reasoning_summary, evidence_used_json, safety_flags_json, model_version, created_at). RLS: org-isolation; admin-läs + staff får läsa egna rader (för transparens i mobilen). Insert via service role.
-- Lägg till `ai_review_pending` + `ai_review_signature` på `staff_day_report_cache` (idempotensskydd).
-- DB-trigger på `staff_day_report_cache` AFTER INSERT/UPDATE: enqueue om raden har minst ett needs_review-block, dagen inte är approved/locked, och `ai_review_signature` skiljer sig.
-- Aktivera `pg_net` om inte redan aktivt.
+Den **korrekta källan finns redan**: `get-mobile-staff-day-report` läser `staff_day_report_cache` (samma motor som admin) och returnerar `MobileDayReport` med `summary.workMinutes`, `summary.travelMinutes`, `summary.payableMinutes`, `segments[]` osv. Den används idag bara av "Idag"-tabben via `useStaffDayStatusViaMobileReport`.
 
-### 2. Shared types & policy
-`src/lib/staff/aiReview.ts` + Deno-spegling i `supabase/functions/_shared/ai-review/types.ts`:
-- `AiReviewMeta` enligt spec.
-- `AiSuggestion` (zod).
-- Konstanter: `AI_THRESHOLD_DEFAULT = 0.75`, `AI_THRESHOLD_WORK_NO_ASSIGNMENT = 0.85`.
-- `ALLOWED_AI_KINDS = ['transport','work','exclude_from_report','unknown','break','private']`.
+## Lösning
 
-### 3. Edge function (autonom)
-`supabase/functions/ai-review-time-report-blocks/index.ts`:
-- Auth: service-role-only (anropas av DB-trigger). Avvisar externa anrop utan service-role-token.
-- Body: `{ cacheId }`.
-- Avbryt direkt om dagen är `approved` eller `locked` (skydd även här).
-- Plockar kandidatblock: `reviewState='needs_review'` / kind in `unknown|needs_review` / `signal_gap` / `missing_transition_evidence` / låg confidence.
-- För varje block: bygg evidence → Lovable AI Gateway (`google/gemini-3-flash-preview`) via AI SDK `generateText` + `Output.object` → safety checks → patcha eller markera uncertain → audit.
-- Efter loopen: `recalculateSummaryFromReportBlocks(blocks)` → uppdatera summary, sätt `ai_review_signature`.
-- Rör ALDRIG: `gps_pings`, `staff_location_history`, `time_reports`, `workdays`, `location_time_entries`, `travel_time_logs`, approved/locked dagar, löneexport, `staff_day_submissions.approved_*`.
+Byt hela `/m/report` till att enbart läsa Time Engine-cachen — samma data som driver bild 2. Ingen lokal aggregering, inga workday-baserade totals.
 
-### 4. Summary recalc helper
-`supabase/functions/_shared/ai-review/recalcSummary.ts` + `src/lib/staff/recalcSummaryFromReportBlocks.ts`. Bygger om `workMinutes / transportMinutes / excludedMinutes / unknownMinutes / needsReviewMinutes` direkt från blocklistan.
+### Steg 1 — Ny period-källa som speglar Time Engine-cachen
 
-### 5. Safety checks (blockerar auto-apply)
-- Dagen approved/locked → skip.
-- `confidenceScore < 0.75`.
-- `suggestedKind = needs_review` eller utanför `ALLOWED_AI_KINDS`.
-- `safetyFlags` inte tom.
-- Negativ/zero duration efter patch eller överlapp.
-- `work` utan target → kräver `>= 0.85` + starka evidence-flaggor.
-- Home/private-konflikt blockerar `work` & `transport`.
-- Datum-mismatch (target inte på datumet).
+Skapa edge function `get-mobile-staff-time-report-period` (vecka/månad) som:
 
-### 6. UI (passiv — inga knappar)
+1. Tar `{ staffId, kind: 'week'|'month', startDate, endDate }`.
+2. Läser `staff_day_report_cache` för alla dagar i intervallet (en query, `in('date', ...)`, senaste `built_at` per dag).
+3. Läser `staff_day_submissions` för intervallet (för status: needs_attest / attested / approved).
+4. Per dag bygger via befintliga `buildMobileSnapshot` + `mapReportBlocksToSegments` (delad `_shared/mobile/`) → samma `MobileDayReport.summary` som `/m/report` "Idag"-tabben.
+5. Mappar varje dag till en ny `MobilePeriodDay`:
+   - `grossWorkdayMinutes` = `summary.workMinutes + travelMinutes`
+   - `breakMinutes` / `payableMinutes` = direkt från `summary`
+   - `projectMinutes` / `warehouseMinutes` / `transportMinutes` / `otherPlaceMinutes` = härleds från `segments[]` (samma kind som mappern redan ger).
+   - `status`: `empty` om inga block, `open` om workday öppen, annars härleds från submission (`approved`/`attested`/`needs_attest`).
+   - `actionsCount` = antal `segments` med `kind === 'needs_review'`.
+6. Returnerar `{ period, totals, days, blockers, status, lastUpdatedAt }` i samma form som dagens `useStaffTimeReportPeriod` förväntar (samma shape som `StaffPeriodDaySummary`/`StaffTimeReportPeriodTotals`) så frontend-typer inte behöver ritas om.
 
-**Admin (`/staff-management/time-reports`)**
-- Realtime-subscription på `staff_day_report_cache` → React Query invalidering.
-- Block-rader: chip `AI-klassad` (tooltip med confidence% + ny klassning) eller `AI osäker`.
-- `BlockDetailDialog` / Decision Trace: sektion "AI-granskning" (original kind, AI kind, confidence-bar, evidence_used, concerns, audit-id).
-- Inga knappar för att godkänna åt användaren.
+Inga DB-skrivningar, inga ändringar i Time Engine, ingen aggregering av råtabeller.
 
-**Mobil (granska-vyn — inför staff-attest)**
-- Samma chips på blocken.
-- Tydlig informationsrad högst upp om AI auto-applicerade något: "AI har städat upp X block åt dig — granska innan du godkänner."
-- Användarens befintliga "Godkänn dag"-knapp är oförändrad (det är fortfarande staff som attesterar).
+### Steg 2 — Koppla om frontend-hookarna
 
-### 7. Verifiering
-- Cache-uppdatering → AI körs en gång → audit + cache uppdaterad → realtime invaliderar UI → chip syns i admin OCH mobilens granska-vy.
-- Approved dag → trigger gör inget.
-- Block utan target → `uncertain`, ligger kvar.
-- Idempotens: andra körningen med samma `ai_review_signature` skippar utan AI-anrop.
-- Användarflöde: staff öppnar granska-vyn, ser AI-resultat, godkänner själv. Admin gör inte attesten.
+- `useStaffTimeReportPeriod`: byt `callStaffSnapshotFunction('get-staff-time-report-period', …)` → `'get-mobile-staff-time-report-period'`. Behåll signatur, return-typ, realtime-prenumeration (men byt tabell till `staff_day_report_cache` + `staff_day_submissions`).
+- `useStaffMonthStatus` (driver Kalender-tabben): samma sak — peka på den nya funktionen i `kind: 'month'`-läge (eller en parallell `get-mobile-staff-month-status` som internt anropar samma kod).
+- `TimeReportTab` "Dag"-vyn (`useStaffDaySnapshot`/`get-staff-day-status`): byt till `useMobileStaffDayReport` (som redan finns). Mappa `MobileDayReport.summary` → de fält som `UserTimeSummaryCards` förväntar.
 
-## Ej i detta steg
-- Mobil-UI utöver chip + info-rad i granska-vyn (ingen ny "AI re-run"-knapp).
-- Re-applicering / rollback-UI för auditerade beslut.
-- AI-godkännande av hela tidrapporten.
-- Cron-baserad batch-körning (DB-trigger räcker).
+### Steg 3 — Pensionera de gamla källorna i mobilen
 
-## Slutleverans
-Rapport "AI auto review – rapport" enligt spec §11 efter implementation, inkl. bekräftelse att AI inte attesterar och att staff fortfarande är den som godkänner sin dag.
+- `get-staff-time-report-period`, `get-staff-month-status`, `get-staff-day-status` används fortfarande på admin-sidan (StaffDayDetailSheet, etc.) — **rör inte dem där**. Vi byter bara mobilens hooks så att `/m/report`, `/m/profile`-månadsrutan och `MobileTimeHistory` enbart går genom Time Engine-cachen.
+- `StaffDayDetailSheet` (öppnas när man tappar en dagrad i `/m/report`) — byt dess `useStaffDaySnapshot` till `useStaffDayStatusViaMobileReport`-adaptern som redan existerar, så även detaljvyn matchar bild 2.
+
+### Steg 4 — Verifiering
+
+1. Hämta `get-mobile-staff-time-report-period` för Markus, vecka 2026-05-11 → 2026-05-17, och bekräfta att 11 maj returnerar ~6h 20m + transport, INTE 90h.
+2. Ladda om `/m/report` i preview, kontrollera att kortet "MÅN 11 maj" visar samma siffror som admin-bild 2.
+3. Öppna dagdetaljen och verifiera att tidslinjen är samma block som admin (ARBETE / GRANSKA / TRANSPORT / RIGG).
+
+## Tekniska noter
+
+- `staff_day_report_cache` är redan källan för `get-mobile-staff-day-report` och har korrekta blocken för Markus 11 maj (annars hade admin-vyn också visat 90h).
+- 90h-felet kommer uteslutande från `grossWorkdayMinutes = workday.duration` i `summarizeSnapshots`/`buildStaffDaySnapshot`. När vi tar siffror från cache-summaryn försvinner det helt — vi tittar aldrig på `workdays.started_at..ended_at` igen för mobilens tidrapport.
+- Submission/attest-kopplingen behålls via `staff_day_submissions` så `needs_attest` / `attested` / `approved`-statusarna är intakta.
+- Inga migrationer, inga schemaändringar, ingen UI-ombyggnad. Endast ny edge function + omkopplade hooks.
+
+## Filer som rörs
+
+Nya:
+- `supabase/functions/get-mobile-staff-time-report-period/index.ts`
+
+Ändrade:
+- `src/hooks/useStaffTimeReportPeriod.ts` (peka på ny edge function + realtime-tabell)
+- `src/hooks/useStaffMonthStatus.ts` (samma sak)
+- `src/components/mobile-app/time/TimeReportTab.tsx` (Dag-vyn → `useMobileStaffDayReport`)
+- `src/components/mobile-app/time/StaffDayDetailSheet.tsx` (byt hook till `useStaffDayStatusViaMobileReport`)
+
+Orörda:
+- All admin-kod (`get-staff-day-status`, `get-staff-time-report-period`, `get-staff-month-status` lever vidare för admin).
+- Time Engine, `buildReportCandidateBlocks`, transport-tröskeln, GPS, mobile-app-api, time_reports-skrivvägen.
