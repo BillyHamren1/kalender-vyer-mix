@@ -125,17 +125,26 @@ const formatRelativeDate = (date: Date): string => {
 };
 
 // ── Block kind → visual style ──────────────────────────────────────────────
-type GanttKind = 'work' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
+type GanttKind = 'work' | 'rig' | 'rigdown' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
 const KIND_STYLE: Record<
   GanttKind,
   { bg: string; border: string; text: string; ring?: string; label: string }
 > = {
-  work:      { bg: 'bg-primary/85',                 border: 'border-primary',           text: 'text-primary-foreground', label: 'Arbete' },
-  transport: { bg: 'bg-blue-500/80',                border: 'border-blue-500',          text: 'text-white',              label: 'Transport' },
-  review:    { bg: 'bg-amber-300/80 dark:bg-amber-400/70', border: 'border-amber-500', text: 'text-amber-950',          label: 'Granska' },
-  unknown:   { bg: 'bg-muted/60',                   border: 'border-border',            text: 'text-muted-foreground',   label: 'Okänd plats' },
-  break:     { bg: 'bg-muted/40',                   border: 'border-border',            text: 'text-muted-foreground',   label: 'Rast' },
-  pre_work:  { bg: 'bg-muted/25',                   border: 'border-border/50',         text: 'text-muted-foreground/70', label: 'Före arbetsdag' },
+  work:      { bg: 'bg-primary/85',                                                        border: 'border-primary',                  text: 'text-primary-foreground', label: 'Arbete' },
+  rig:       { bg: 'bg-emerald-200/80 dark:bg-emerald-400/40',                              border: 'border-emerald-400',              text: 'text-emerald-950 dark:text-emerald-50', label: 'Rigg' },
+  rigdown:   { bg: 'bg-rose-200/80 dark:bg-rose-400/40',                                    border: 'border-rose-400',                 text: 'text-rose-950 dark:text-rose-50',       label: 'Rigga ner' },
+  transport: { bg: 'bg-sky-200/80 dark:bg-sky-400/40',                                      border: 'border-sky-400',                  text: 'text-sky-950 dark:text-sky-50',         label: 'Transport' },
+  review:    { bg: 'bg-amber-200/80 dark:bg-amber-400/50',                                  border: 'border-amber-500',                text: 'text-amber-950 dark:text-amber-50',     label: 'Granska' },
+  unknown:   { bg: 'bg-muted/60',                                                           border: 'border-border',                   text: 'text-muted-foreground',                 label: 'Okänd plats' },
+  break:     { bg: 'bg-muted/40',                                                           border: 'border-border',                   text: 'text-muted-foreground',                 label: 'Rast' },
+  pre_work:  { bg: 'bg-muted/25',                                                           border: 'border-border/50',                text: 'text-muted-foreground/70',              label: 'Före arbetsdag' },
+};
+
+const detectPhase = (title?: string | null, subtitle?: string | null): 'rig' | 'rigdown' | null => {
+  const s = `${title ?? ''} ${subtitle ?? ''}`.toLowerCase();
+  if (/\brigdown\b|rigga\s*ner|nedrigg|rig\s*ner|rig-?ner/.test(s)) return 'rigdown';
+  if (/\brigg?\b|rigday|rigg?dag|bygg(?!nad)/.test(s)) return 'rig';
+  return null;
 };
 
 interface GanttBlock {
