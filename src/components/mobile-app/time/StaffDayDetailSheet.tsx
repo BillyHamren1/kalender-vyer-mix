@@ -222,10 +222,7 @@ const DayBody: React.FC<{
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Stat label="Brutto" value={formatHoursMinutes(grossMin / 60)} strong />
-          <Stat label="Lönegrundande" value={formatHoursMinutes(payableMin / 60)} strong />
-        </div>
+        {/* Inga totals-rutor här — Summering nedan äger siffrorna. */}
       </section>
 
       {/* B. Summering — Brutto/Rast/Lön framträdande, övrigt som chips */}
