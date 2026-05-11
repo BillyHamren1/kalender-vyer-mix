@@ -883,21 +883,21 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                           </div>
                         )}
 
-                        {/* blocks — assign lanes for any overlapping blocks
-                            so they render side-by-side instead of stacking. */}
+                        {/* blocks — en person kan ALDRIG vara på två ställen samtidigt.
+                            Överlappande block staplas vertikalt (under varandra) i stället för
+                            att splittas i sub-lanes bredvid varandra. */}
                         {(() => {
                           type Positioned = {
                             b: typeof blocks[number];
                             top: number;
                             height: number;
-                            lane: number;
-                            laneCount: number;
+                            shifted: boolean;
                           };
                           // 1) compute screen-space rects (skip blocks fully outside window)
                           const rects: Array<{
                             b: typeof blocks[number];
                             top: number;
-                            bottom: number;
+                            height: number;
                             startMs: number;
                             endMs: number;
                           }> = [];
@@ -912,58 +912,34 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             rects.push({
                               b,
                               top,
-                              bottom: top + height,
+                              height,
                               startMs: Date.parse(b.startAt),
                               endMs: Date.parse(b.endAt),
                             });
                           }
-                          // 2) sort by start time then by length desc
+                          // 2) sort by start time, sedan kortast först vid samma start
                           rects.sort((a, b) =>
                             a.startMs !== b.startMs
                               ? a.startMs - b.startMs
-                              : b.endMs - b.endMs - (a.endMs - a.endMs),
+                              : (a.endMs - a.startMs) - (b.endMs - b.startMs),
                           );
-                          // 3) greedy lane assignment
-                          const laneEnds: number[] = []; // bottom px per lane
+                          // 3) sekventiell vertikal stapling — ingen får börja innan föregående slutat visuellt
                           const positioned: Positioned[] = [];
+                          let cursor = 0;
                           for (const r of rects) {
-                            let lane = laneEnds.findIndex((end) => end <= r.top + 0.5);
-                            if (lane === -1) {
-                              lane = laneEnds.length;
-                              laneEnds.push(0);
-                            }
-                            laneEnds[lane] = r.bottom;
+                            const top = Math.max(r.top, cursor);
                             positioned.push({
                               b: r.b,
-                              top: r.top,
-                              height: r.bottom - r.top,
-                              lane,
-                              laneCount: 0, // filled below
+                              top,
+                              height: r.height,
+                              shifted: top > r.top + 0.5,
                             });
+                            cursor = top + r.height;
                           }
-                          // 4) compute laneCount per overlapping cluster
-                          //    (simpler: use total laneEnds.length as global; visually fine
-                          //     for a one-day column — sub-lanes appear only on overlaps).
-                          //    Per-block "active lanes" gives tighter widths:
-                          for (const p of positioned) {
-                            // count concurrent rects (overlap with p)
-                            let max = 1;
-                            for (const r of rects) {
-                              if (r.b === p.b) continue;
-                              const overlap =
-                                r.top < p.top + p.height && r.bottom > p.top;
-                              if (overlap) max += 1;
-                            }
-                            p.laneCount = Math.max(p.laneCount, max);
-                          }
-                          // Use the cluster max (laneEnds.length) as a stable upper bound
-                          const globalLanes = Math.max(1, laneEnds.length);
-                          return positioned.map(({ b, top, height, lane }) => {
+                          return positioned.map(({ b, top, height, shifted }) => {
                             const style = KIND_STYLE[b.kind];
                             const showSub = height >= 44;
                             const showMeta = height >= 66;
-                            const widthPct = 100 / globalLanes;
-                            const leftPct = lane * widthPct;
                             return (
                               <div
                                 key={b.id}
@@ -978,15 +954,17 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   style.bg,
                                   style.border,
                                   style.text,
+                                  shifted && 'ring-1 ring-amber-400/70',
                                 )}
                                 style={{
                                   top,
                                   height,
-                                  left: `calc(${leftPct}% + 2px)`,
-                                  width: `calc(${widthPct}% - 4px)`,
+                                  left: 2,
+                                  right: 2,
                                 }}
-                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`}
+                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${shifted ? '\n⚠ Överlappar tidigare block — visas förskjutet nedåt' : ''}`}
                               >
+
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="truncate text-[10px] font-medium uppercase tracking-wide opacity-80">
                                     {style.label}
