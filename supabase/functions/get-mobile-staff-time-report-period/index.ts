@@ -100,7 +100,9 @@ function dayFromReport(
   const cat = categorize(report.segments);
   // Brutto = arbete + transport (samma som mobileReportToDaySnapshot).
   const gross = sum.workMinutes + sum.travelMinutes;
-  const isOpen = !!report.workday?.isOpen;
+  // isOpen härleds från cache-segment (sista som isActive). workdays-tabellen
+  // läses inte här — Time Engine-cachen är enda källan.
+  const isOpen = report.segments.some((s) => s.isActive);
   const sub = report.submission;
   const approved = sub?.status === "approved";
   const attested = !!sub && (sub.status === "submitted" || sub.status === "approved");
