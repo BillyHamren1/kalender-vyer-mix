@@ -475,19 +475,28 @@ const Stat: React.FC<{ label: string; value: string; strong?: boolean; muted?: b
   label, value, strong, muted,
 }) => (
   <div className={cn(
-    'rounded-xl border border-border px-3 py-2',
-    muted ? 'bg-muted/20' : 'bg-background/60',
+    'rounded-xl border px-3 py-2.5',
+    strong ? 'bg-primary/5 border-primary/20' : 'bg-background/60 border-border',
+    muted && 'bg-muted/20 border-border',
   )}>
     <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide">
       {label}
     </div>
     <div className={cn(
-      'font-extrabold text-sm tabular-nums mt-0.5',
-      strong ? 'text-foreground' : 'text-foreground/80',
+      'font-extrabold text-base tabular-nums mt-0.5',
+      strong ? 'text-primary' : 'text-foreground',
+      muted && 'text-muted-foreground',
     )}>
       {value}
     </div>
   </div>
+);
+
+const SecondaryChip: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-[11px] font-semibold tabular-nums">
+    <span className="text-foreground/70">{label}</span>
+    <span className="text-foreground">{value}</span>
+  </span>
 );
 
 export default StaffDayDetailSheet;
