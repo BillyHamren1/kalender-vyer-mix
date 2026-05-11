@@ -936,6 +936,13 @@ export function buildGpsDayTimeline(
   let travelInsideTargetMinutes = 0;
   const travelByReason: Record<string, number> = {};
 
+  // Engine 4 — TRANSPORT_MIN_DISTANCE_METERS diagnostics accumulators.
+  let belowThresholdMovementSuppressedCount = 0;
+  let belowThresholdMovementSuppressedMinutes = 0;
+  let privateResidenceWinsCount = 0;
+  let privateResidenceMatchedPingsCount = 0;
+  const transportThresholdExamples: GpsClassificationDiagnostics['transportDistanceThresholdDiagnostics']['examples'] = [];
+
   // Track per-travel-segment metadata used by the post-pass reclassifier.
   const travelMeta = new Map<string, { pings: GpsPing[]; primaryTarget: WorkTarget | null; medianAccM: number | null }>();
 
