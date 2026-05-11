@@ -124,7 +124,7 @@ const PeriodNav = ({
 // ──────────────────────────────────────────────────────────────────
 
 const DayView = ({ date, onOpen }: { date: string; onOpen: (d: string) => void }) => {
-  const { snapshot, isLoading, error } = useStaffDaySnapshot(date);
+  const { snapshot, isLoading, error } = useStaffDayStatusViaMobileReport(date);
   const totals = snapshot?.totals;
 
   const figures = useMemo(() => {
