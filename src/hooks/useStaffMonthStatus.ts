@@ -91,6 +91,14 @@ export function useStaffMonthStatus(month?: Date | string): Result {
       typeof month === 'string' ? new Date(`${month}-01`) : month ?? new Date();
     return format(startOfMonth(d), 'yyyy-MM');
   }, [month]);
+  const bounds = useMemo(() => {
+    const d =
+      typeof month === 'string' ? new Date(`${month}-01`) : month ?? new Date();
+    return {
+      startDate: format(startOfMonth(d), 'yyyy-MM-dd'),
+      endDate: format(endOfMonth(d), 'yyyy-MM-dd'),
+    };
+  }, [month]);
 
   const [status, setStatus] = useState<StaffMonthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
