@@ -219,8 +219,7 @@ const PrimaryStat: React.FC<{
       {value}
     </div>
   </div>
-  );
-};
+);
 
 // ────────────────────────────────────────────────────────────────────
 // 4) Dagens tidslinje — aktiv rad är ett "premium active block"
