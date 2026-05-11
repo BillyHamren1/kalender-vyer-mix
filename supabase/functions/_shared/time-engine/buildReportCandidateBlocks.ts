@@ -254,6 +254,19 @@ export interface ReportCandidatePolicy {
   shortUnknownTransportHideMaxMinutes?: number;
 }
 
+export interface HomeAnchorInput {
+  /** Identifier from staff_inferred_home_locations / staff_private_zones. */
+  id?: string | null;
+  /** 'home_sleep' | 'manual_ignore' | 'recurring_night' | inferred kind. */
+  kind?: string | null;
+  lat: number;
+  lng: number;
+  /** Radius in meters. Falls back to 200 m. */
+  radiusM?: number | null;
+  /** Optional human label for Decision Trace. */
+  label?: string | null;
+}
+
 export interface BuildReportCandidateBlocksInput {
   staffId: UUID;
   organizationId: UUID;
@@ -261,6 +274,10 @@ export interface BuildReportCandidateBlocksInput {
   presenceDayBlocks: PresenceDayBlock[];
   activeTimeRegistrations?: ActiveTimeRegistrationInput[];
   staffPresenceSessions?: StaffPresenceSessionInput[];
+  /** Optional list of staff home/sleep anchors (lat/lng/radius). When a
+   *  pre-work block's GPS center is inside one of these, it is excluded with
+   *  reason='home_anchor' for Decision Trace. Read-only. */
+  homeAnchors?: HomeAnchorInput[];
   policy?: ReportCandidatePolicy;
 }
 
