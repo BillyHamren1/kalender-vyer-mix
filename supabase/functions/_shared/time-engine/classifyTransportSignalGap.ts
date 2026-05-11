@@ -84,6 +84,11 @@ export interface ClassifyTransportSignalGapResult {
 }
 
 const MAX_GAP_MIN = 30;
+/** Relaxed cap when BOTH ends are known work targets (origin + destination).
+ *  A clear stay-A → stay-B transition with both anchors and plausible speed
+ *  is treated as transport even when the GPS gap is longer. Capped to keep
+ *  half-day gaps from being silently turned into trips. */
+const MAX_GAP_MIN_KNOWN_ENDS = 240;
 const MIN_SPEED_KMH = 5;
 const MAX_SPEED_KMH = 130;
 
