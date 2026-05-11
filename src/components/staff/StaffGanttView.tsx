@@ -680,7 +680,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         </div>
       )}
 
-      {/* Gantt main surface */}
+      {/* Calendar main surface — vertical time axis, staff as columns */}
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">
@@ -693,73 +693,52 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
             Ingen aktivitet att visa för {dateLabel.toLowerCase()}.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <div className="min-w-[900px]">
-              {/* Header row */}
-              <div className="sticky top-[64px] z-20 grid grid-cols-[260px_1fr] border-b bg-card/95 backdrop-blur">
-                <div className="border-r px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Personal ({ganttStaff.length})
-                </div>
-                <div className="relative h-9">
-                  <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${totalHours}, 1fr)` }}>
-                    {Array.from({ length: totalHours }).map((_, i) => (
-                      <div key={i} className="border-r border-border/40" />
-                    ))}
+          (() => {
+            const HOUR_PX = 56;
+            const COL_MIN = 180;
+            const RAIL_PX = 64;
+            const bodyHeight = totalHours * HOUR_PX;
+            return (
+              <div className="overflow-x-auto">
+                <div
+                  className="relative grid"
+                  style={{
+                    gridTemplateColumns: `${RAIL_PX}px repeat(${ganttStaff.length}, minmax(${COL_MIN}px, 1fr))`,
+                    minWidth: RAIL_PX + ganttStaff.length * COL_MIN,
+                  }}
+                >
+                  {/* Top-left corner */}
+                  <div className="sticky left-0 top-[64px] z-30 border-b border-r bg-card/95 backdrop-blur px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Tid
                   </div>
-                  <div className="absolute inset-0 flex">
-                    {hours.map((h, idx) => (
-                      <div
-                        key={h}
-                        className="flex-1 text-center text-[10px] font-medium tabular-nums text-muted-foreground"
-                        style={{
-                          flexGrow: idx === hours.length - 1 ? 0 : 1,
-                          flexBasis: idx === hours.length - 1 ? 0 : undefined,
-                        }}
-                      >
-                        <span className="inline-block -translate-x-1/2 pt-2">{String(h).padStart(2, '0')}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
-              {/* Body rows */}
-              <div>
-                {ganttStaff.map((staff) => {
-                  const blocks = blocksByStaff[staff.id] ?? [];
-                  const live = resolveLiveStatus(staff.has_open_report, staff.latestPing);
-                  return (
-                    <div
-                      key={staff.id}
-                      className="group grid grid-cols-[260px_1fr] border-b last:border-b-0 transition-colors hover:bg-muted/30"
-                    >
-                      {/* Left sticky-ish column */}
+                  {/* Staff column headers */}
+                  {ganttStaff.map((staff) => {
+                    const blocks = blocksByStaff[staff.id] ?? [];
+                    const live = resolveLiveStatus(staff.has_open_report, staff.latestPing);
+                    const dotCls =
+                      staff.planningStatus === 'workday_active' || live === 'live'
+                        ? 'bg-emerald-500 animate-pulse'
+                        : live === 'stale'
+                          ? 'bg-destructive'
+                          : blocks.length
+                            ? 'bg-muted-foreground/40'
+                            : 'bg-muted-foreground/20';
+                    return (
                       <button
+                        key={`h-${staff.id}`}
                         type="button"
                         onClick={() => setOpenStaffId(staff.id)}
-                        className="flex flex-col items-start gap-0.5 border-r px-4 py-3 text-left"
+                        className="sticky top-[64px] z-20 flex flex-col items-start gap-0.5 border-b border-r bg-card/95 px-3 py-2 text-left backdrop-blur hover:bg-muted/40"
+                        title={staff.plannedLabels.join(' · ') || staff.role || ''}
                       >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={cn(
-                              'h-2 w-2 rounded-full',
-                              staff.planningStatus === 'workday_active' || live === 'live'
-                                ? 'bg-emerald-500 animate-pulse'
-                                : live === 'stale'
-                                  ? 'bg-destructive'
-                                  : blocks.length
-                                    ? 'bg-muted-foreground/40'
-                                    : 'bg-muted-foreground/20',
-                            )}
-                          />
-                          <span className="truncate text-sm font-medium">{staff.name}</span>
+                        <div className="flex w-full items-center gap-2">
+                          <span className={cn('h-2 w-2 shrink-0 rounded-full', dotCls)} />
+                          <span className="truncate text-sm font-semibold">{staff.name}</span>
                         </div>
-                        <div className="truncate text-[11px] text-muted-foreground">
-                          {staff.plannedLabels[0] ?? staff.role ?? '—'}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2.5 text-[11px] tabular-nums text-muted-foreground">
+                        <div className="flex w-full items-center gap-2 text-[10.5px] tabular-nums text-muted-foreground">
                           <span>
-                            <span className="font-medium text-foreground">{fmtMin(staff.metrics.activityMinutes)}</span> arbete
+                            <span className="font-semibold text-foreground">{fmtMin(staff.metrics.activityMinutes)}</span> arbete
                           </span>
                           {staff.metrics.travelMinutes > 0 && (
                             <span className="text-blue-600 dark:text-blue-400">
@@ -767,30 +746,68 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             </span>
                           )}
                         </div>
-                      </button>
-
-                      {/* Right timeline */}
-                      <div className="relative h-16">
-                        {/* hour grid */}
-                        <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${totalHours}, 1fr)` }}>
-                          {Array.from({ length: totalHours }).map((_, i) => (
-                            <div
-                              key={i}
-                              className={cn(
-                                'border-r border-border/30',
-                                i % 3 === 0 && 'border-border/60',
-                              )}
-                            />
-                          ))}
+                        <div className="w-full truncate text-[10px] text-muted-foreground/80">
+                          {staff.plannedLabels[0] ?? staff.role ?? '—'}
                         </div>
+                      </button>
+                    );
+                  })}
+
+                  {/* Hour rail (sticky left) */}
+                  <div
+                    className="sticky left-0 z-10 border-r bg-card/95 backdrop-blur"
+                    style={{ height: bodyHeight }}
+                  >
+                    {hours.slice(0, -1).map((h, i) => (
+                      <div
+                        key={h}
+                        className="relative text-[10px] tabular-nums text-muted-foreground"
+                        style={{ height: HOUR_PX }}
+                      >
+                        <span className="absolute -top-1.5 right-2 bg-card px-1">
+                          {String(h).padStart(2, '0')}:00
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Staff columns body */}
+                  {ganttStaff.map((staff) => {
+                    const blocks = blocksByStaff[staff.id] ?? [];
+                    return (
+                      <div
+                        key={`b-${staff.id}`}
+                        className="relative border-r"
+                        style={{ height: bodyHeight }}
+                        onClick={() => setOpenStaffId(staff.id)}
+                      >
+                        {/* hour grid lines */}
+                        {Array.from({ length: totalHours }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              'absolute left-0 right-0 border-t',
+                              i === 0 ? 'border-transparent' : 'border-border/40',
+                            )}
+                            style={{ top: i * HOUR_PX }}
+                          />
+                        ))}
+                        {/* half-hour subtle lines */}
+                        {Array.from({ length: totalHours }).map((_, i) => (
+                          <div
+                            key={`half-${i}`}
+                            className="absolute left-0 right-0 border-t border-dashed border-border/20"
+                            style={{ top: i * HOUR_PX + HOUR_PX / 2 }}
+                          />
+                        ))}
 
                         {/* now line */}
                         {nowFrac != null && (
                           <div
-                            className="absolute top-0 bottom-0 w-px bg-emerald-500/70"
-                            style={{ left: `${nowFrac}%` }}
+                            className="absolute left-0 right-0 z-10 h-px bg-emerald-500/80"
+                            style={{ top: (nowFrac / 100) * bodyHeight }}
                           >
-                            <div className="absolute -top-1 -left-1 h-2 w-2 rounded-full bg-emerald-500" />
+                            <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-emerald-500" />
                           </div>
                         )}
 
@@ -801,56 +818,66 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                           const clampedS = Math.max(startHour, Math.min(endHour, sH));
                           const clampedE = Math.max(startHour, Math.min(endHour, eH));
                           if (clampedE <= clampedS) return null;
-                          const left = ((clampedS - startHour) / totalHours) * 100;
-                          const width = ((clampedE - clampedS) / totalHours) * 100;
+                          const top = (clampedS - startHour) * HOUR_PX;
+                          const height = Math.max(20, (clampedE - clampedS) * HOUR_PX);
                           const style = KIND_STYLE[b.kind];
-                          const showText = width > 4;
-                          const showSub = width > 10;
+                          const showSub = height >= 44;
+                          const showMeta = height >= 66;
                           return (
                             <div
                               key={b.id}
                               role="button"
                               tabIndex={0}
-                              onClick={() => setOpenStaffId(staff.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenStaffId(staff.id);
+                              }}
                               className={cn(
-                                'absolute top-2 bottom-2 overflow-hidden rounded-md border px-2 py-1 text-[10.5px] leading-tight shadow-sm transition-shadow hover:shadow-md cursor-pointer',
+                                'absolute left-1 right-1 z-[5] cursor-pointer overflow-hidden rounded-md border px-2 py-1.5 text-[11px] leading-tight shadow-sm transition-shadow hover:z-20 hover:shadow-md',
                                 style.bg,
                                 style.border,
                                 style.text,
                               )}
-                              style={{ left: `${left}%`, width: `${width}%` }}
+                              style={{ top, height }}
                               title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`}
                             >
-                              {showText && (
-                                <div className="truncate font-semibold">
-                                  {b.title}
-                                </div>
-                              )}
-                              {showSub && (
-                                <div className="truncate opacity-80">
-                                  {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} · {fmtMin(b.durationMinutes)}
-                                </div>
-                              )}
-                              {!showText && (
-                                <div className="truncate text-center font-semibold">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="truncate text-[10px] font-medium uppercase tracking-wide opacity-80">
+                                  {style.label}
+                                </span>
+                                <span className="shrink-0 text-[10px] tabular-nums opacity-90">
                                   {fmtMin(b.durationMinutes)}
+                                </span>
+                              </div>
+                              <div className="mt-0.5 truncate font-semibold">
+                                {b.title}
+                              </div>
+                              {showSub && (
+                                <div className="truncate text-[10.5px] tabular-nums opacity-90">
+                                  {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)}
+                                </div>
+                              )}
+                              {showMeta && b.subtitle && (
+                                <div className="mt-0.5 truncate text-[10.5px] opacity-80">
+                                  {b.subtitle}
                                 </div>
                               )}
                             </div>
                           );
                         })}
+
                         {blocks.length === 0 && (
-                          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground/60">
+                          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] text-muted-foreground/60">
                             Ingen aktivitet
                           </div>
                         )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()
         )}
       </div>
 
