@@ -361,11 +361,28 @@ export function buildReportDisplayBlocks(
       const isBridgedTrip =
         !!lastKnown && !!nextKnown && lastKnown !== nextKnown && !hasOwnStopCoord;
       if (isBridgedTrip) {
-        displayTitle = `Trolig resa · ${lastKnown} → ${nextKnown}`;
+        // ── Bridged-trip promotion (parity med servern) ────────────────
+        // A→B mellan två distinkta kända arbetsplatser → klassa som
+        // transport, inte needs_review. Detta läker även gamla cachade
+        // staff_day_report_cache-rader utan att vänta på reprocess.
         const dur = block.durationMinutes ?? 0;
-        displaySubtitle = `från ${lastKnown} · till ${nextKnown}` +
-          (dur ? ` · GPS saknades ${Math.round(dur)} min – ingen stopp-evidens` : '') +
-          ' · granska';
+        displayTitle = 'Resa';
+        displaySubtitle = `${lastKnown} → ${nextKnown}` +
+          (dur ? ` · GPS saknades ~${Math.round(dur)} min under resan` : '');
+        return {
+          ...block,
+          kind: 'transport',
+          reviewState: 'ok',
+          confidence: 'medium',
+          fromLabel: lastKnown,
+          toLabel: nextKnown,
+          locationEvidence,
+          displayTitle,
+          displaySubtitle,
+          aiReviewContext: null,
+          aiHintLabel: null,
+          sourceBlockIds: [block.id],
+        };
       } else {
         const parts: string[] = [];
         if (lastKnown) parts.push(`från ${lastKnown}`);
