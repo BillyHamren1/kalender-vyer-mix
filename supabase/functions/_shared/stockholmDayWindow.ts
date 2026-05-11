@@ -70,6 +70,36 @@ export function stockholmDateKey(iso: string | null | undefined): string | null 
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+/**
+ * Klipp ett intervall (started_at, ended_at) till dagsfönstret. Returnerar
+ * null om intervallet inte alls överlappar fönstret. Används för att räkna
+ * brutto-/lönegrundande minuter PER DAG från en workday som spänner över
+ * flera dygn (t.ex. ej-stängd workday som nödstoppats senare).
+ */
+export function clipIntervalToDayWindow(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  win: StockholmDayWindow,
+  now: Date = new Date(),
+): { startUtc: string; endUtc: string | null; isOpen: boolean } | null {
+  if (!start) return null;
+  const sMs = new Date(start).getTime();
+  if (Number.isNaN(sMs)) return null;
+  const isOpenInput = !end;
+  const eMs = end ? new Date(end).getTime() : Math.min(now.getTime(), win.endUtcMs);
+  const lo = Math.max(sMs, win.startUtcMs);
+  const hi = Math.min(eMs, win.endUtcMs);
+  if (hi <= lo) return null;
+  // Behåll "öppen" status enbart om intervallet fortfarande är öppet OCH
+  // klipp-slutet ligger på dagens slut (annars är dagen klar för denna staff).
+  const isOpen = isOpenInput && hi >= win.endUtcMs;
+  return {
+    startUtc: new Date(lo).toISOString(),
+    endUtc: isOpen ? null : new Date(hi).toISOString(),
+    isOpen,
+  };
+}
+
 /** Antal minuter ett intervall överlappar [winStart, winEnd]. */
 export function overlapMinutesUtc(
   start: string | null | undefined,
