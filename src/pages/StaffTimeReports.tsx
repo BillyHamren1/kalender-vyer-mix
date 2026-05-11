@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
-import { StaffTimeReportsList } from '@/components/staff/StaffTimeReportsList';
+import { StaffGanttView } from '@/components/staff/StaffGanttView';
 import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
 
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
