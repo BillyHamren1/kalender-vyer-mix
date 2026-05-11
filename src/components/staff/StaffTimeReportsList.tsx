@@ -85,6 +85,8 @@ interface StaffTimeReportsListProps {
       blocks: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
       summary: import('./ReportCandidateTimeline').ReportCandidateSummaryUI | null;
       diagnostics?: any;
+      excludedPreWorkBlocks?: import('./ReportCandidateTimeline').ReportCandidateBlockUI[];
+      preWorkExclusionDiagnostics?: any;
       targetResolution?: any;
       presenceBlocks?: import('@/lib/staff/buildReportDisplayBlocks').PresenceBlockLite[];
       presenceRawEvidence?: any[];
