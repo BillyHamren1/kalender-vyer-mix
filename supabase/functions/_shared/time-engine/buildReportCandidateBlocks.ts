@@ -1366,6 +1366,30 @@ export function buildReportCandidateBlocks(
     }
   }
 
+  // POST-PASS 2.6: merge adjacent same-target work after sandwich inference.
+  // When a short unknown/needs_review row is reclassified to `work` with an
+  // inherited target, it can leave `work-A | work-A | work-A` as three visible
+  // rows because the earlier merge passes have already run. Fold these back
+  // together so one continuous workplace span is shown.
+  let changed25 = true;
+  let safety25 = 0;
+  while (changed25 && safety25 < 50) {
+    changed25 = false;
+    safety25 += 1;
+    for (let k = 1; k < out.length; k++) {
+      const prev = out[k - 1];
+      const cur = out[k];
+      if (prev.kind !== 'work' || cur.kind !== 'work') continue;
+      const prevKey = targetKeyOf(prev);
+      const curKey = targetKeyOf(cur);
+      if (!prevKey || !curKey || prevKey !== curKey) continue;
+      absorbInto(prev, cur);
+      out.splice(k, 1);
+      changed25 = true;
+      break;
+    }
+  }
+
   // ───────────────────────────────────────────────────────────────────────
   // POST-PASS 3: Pre-work exclusion
   //
