@@ -115,11 +115,24 @@ export function useStaffMonthStatus(month?: Date | string): Result {
     inFlight.current = true;
     setIsLoading(true);
     try {
-      const data = await callStaffSnapshotFunction<StaffMonthStatus>(
-        'get-staff-month-status',
-        { staffId, month: monthKey },
+      const data: any = await callStaffSnapshotFunction(
+        'get-mobile-staff-time-report-period',
+        { staffId, kind: 'month', startDate: bounds.startDate, endDate: bounds.endDate },
       );
-      setStatus(data);
+      // Adapt period response → StaffMonthStatus shape (totals/days same fields).
+      setStatus({
+        month: monthKey,
+        staffId,
+        days: (data?.days ?? []) as StaffMonthDayStatus[],
+        totals: (data?.totals ?? {
+          grossWorkdayMinutes: 0, breakMinutes: 0, manualDeductionMinutes: 0,
+          payableMinutes: 0, approvedPayableMinutes: 0, submittedPayableMinutes: 0,
+          awaitingUserAttestPayableMinutes: 0, awaitingAttestPayableMinutes: 0,
+          daysWithActions: 0, daysWithWork: 0,
+          projectMinutes: 0, warehouseMinutes: 0, transportMinutes: 0, otherPlaceMinutes: 0,
+        }) as StaffMonthTotals,
+        lastUpdatedAt: data?.lastUpdatedAt ?? new Date().toISOString(),
+      });
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Kunde inte ladda månadsstatus');
