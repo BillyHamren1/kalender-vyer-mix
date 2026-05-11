@@ -794,15 +794,21 @@ export function buildGpsDayTimeline(
       movementSpeedKmh: cfg.movementSpeedKmh,
     };
     if (dt <= 0) return { movement: false, reason: 'stationary', ...base };
+    // Engine 4 — REAL coordinate movement is required. computedKmh is derived
+    // from the actual displacement between two GPS pings, so it is allowed
+    // to trigger a `travel` run. Reported device speed_mps is SUPPORT
+    // EVIDENCE ONLY: it stays on `base.reportedKmh` for diagnostics but
+    // never returns `movement: true` on its own.
     if (computedKmh != null && computedKmh >= cfg.movementSpeedKmh) {
       return { movement: true, reason: 'speed_threshold', ...base };
-    }
-    if (reportedKmh != null && reportedKmh >= cfg.movementSpeedKmh) {
-      return { movement: true, reason: 'reported_speed_threshold', ...base };
     }
     if (d > cfg.stayRadiusM * 2) {
       return { movement: true, reason: 'distance_from_previous_ping', ...base };
     }
+    // reportedKmh ignored intentionally — it can no longer create transport
+    // alone. The travel-run post-pass also enforces TRANSPORT_MIN_DISTANCE_METERS
+    // on the cluster total, so any sliver of phantom motion is collapsed back
+    // into a stay.
     return { movement: false, reason: 'stationary', ...base };
   };
 
