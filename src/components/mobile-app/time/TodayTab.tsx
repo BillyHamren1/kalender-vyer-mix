@@ -31,7 +31,7 @@ import {
   type StaffDaySnapshot,
   type StaffDaySegment,
 } from '@/hooks/useStaffDaySnapshot';
-import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
+import { useStaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 import EndDayButton from './EndDayButton';
@@ -434,7 +434,7 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
 // ────────────────────────────────────────────────────────────────────
 
 export const TodayTab: React.FC = () => {
-  const { snapshot, isLoading, error, refresh } = useStaffDayStatusViaMobileReport();
+  const { snapshot, isLoading, error, refresh } = useStaffDaySnapshot();
   const { effectiveStaffId, staff } = useMobileAuth();
   const [selectedSeg, setSelectedSeg] = useState<StaffDaySegment | null>(null);
 
