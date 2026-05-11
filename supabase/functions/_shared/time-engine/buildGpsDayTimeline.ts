@@ -952,6 +952,10 @@ export function buildGpsDayTimeline(
   let travelInsideTargetMinutes = 0;
   const travelByReason: Record<string, number> = {};
 
+  // Engine 5 — ephemeral unknown_place stay suppression accumulators.
+  let ephemeralUnknownStaysSuppressedCount = 0;
+  let ephemeralUnknownStaysSuppressedMinutes = 0;
+
   // Engine 4 — TRANSPORT_MIN_DISTANCE_METERS diagnostics accumulators.
   let belowThresholdMovementSuppressedCount = 0;
   let belowThresholdMovementSuppressedMinutes = 0;
