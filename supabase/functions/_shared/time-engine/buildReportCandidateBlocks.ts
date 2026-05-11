@@ -2088,34 +2088,16 @@ export function buildReportCandidateBlocks(
           // 1) Work-block med ANNAN känd target.
           if (r.kind === 'work' && rKey && rKey !== curKey) break;
 
-          // 2) Riktig transport (>= 500 m) som leder TILL en annan känd
-          //    target. "transport utan tydlig annan destination" är
-          //    absorberbar enligt spec — endast resor som tydligt går till
-          //    en annan känd plats bryter sessionen.
+          // 2) Riktig transport (>= realTripMinDistanceMeters, default 500 m).
+          //    "transport utan tydlig annan destination" tolkas konservativt:
+          //    om GPS visar verklig förflyttning >= 500 m är det en riktig
+          //    resa och ska inte gömmas inne i sessionen — även om vi inte
+          //    har en label på destinationen. Annars riskerar vi att 90 km
+          //    bilkörning klistras in i ett 17h-arbetsblock.
           if (
             r.kind === 'transport' &&
             dist >= policy.realTripMinDistanceMeters
-          ) {
-            // Look ahead past noise to find the first work block with target.
-            let nextWorkKey: string | null = null;
-            for (let m = j + 1; m < out.length; m++) {
-              const rn = out[m];
-              if (rn.kind === 'work' && rn.targetId) {
-                nextWorkKey = sessionTargetKey(rn);
-                break;
-              }
-              // Skip noise (needs_review / unknown / further transport / otarget work).
-              if (
-                rn.kind === 'work' && !rn.targetId
-              ) continue;
-              if (rn.kind === 'needs_review' || rn.kind === 'unknown' || rn.kind === 'transport') continue;
-              break;
-            }
-            if (nextWorkKey && nextWorkKey !== curKey) break;
-            // No next work, or next work is same target → absorbable transport
-            // (real movement away and back to same site, or "transport utan
-            // tydlig annan destination").
-          }
+          ) break;
 
           // Closing same-target work
           if (r.kind === 'work' && rKey && rKey === curKey) {
@@ -2124,15 +2106,14 @@ export function buildReportCandidateBlocks(
           }
 
           // Absorbable kinds:
-          //  - needs_review (any reason)
-          //  - unknown (any size — sandwich-safe)
-          //  - transport (jitter < 500 m OR ≥ 500 m without different known
-          //    destination — handled by guard above)
+          //  - needs_review (any reason — incl. signal_gap_*, missing_transition_evidence)
+          //  - unknown (any size — sandwich-safe när bunden av samma target)
+          //  - transport < realTripMinDistanceMeters (jitter)
           //  - work without targetId (otarget arbete)
           const isAbsorbable =
             r.kind === 'needs_review' ||
             r.kind === 'unknown' ||
-            r.kind === 'transport' ||
+            (r.kind === 'transport' && dist < policy.realTripMinDistanceMeters) ||
             (r.kind === 'work' && !r.targetId);
 
           if (!isAbsorbable) break;
