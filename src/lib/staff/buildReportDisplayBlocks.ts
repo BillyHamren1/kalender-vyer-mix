@@ -575,8 +575,8 @@ export function buildReportDisplayBlocks(
         evidenceWithSecondary?.locationEvidence ??
         evidenceWithCoord?.locationEvidence ??
         null,
-      displayTitle: 'Osäker period',
-      displaySubtitle: subParts.join(' · '),
+      displayTitle: promotedTitle,
+      displaySubtitle: promoteToTransport ? promotedSubtitle : subParts.join(' · '),
       aiReviewContext: null,
       aiHintLabel: null,
       sourceBlockIds,
