@@ -137,6 +137,53 @@ const hasBreakingReason = (r: ReportCandidateBlock): boolean => {
 };
 
 /**
+ * Time Engine 2.7 — needs_review cleanup:
+ * "hårda" reasons som ALLTID motiverar att blocket behåller needs_review
+ * även efter konsolidering. Allt som INTE är i denna mängd (eller i
+ * SIGNAL_GAP_REASONS) räknas som soft och tillåter demotion till 'ok'.
+ *
+ * Täcker:
+ *  - okänd plats utan ankare
+ *  - flera konkurrerande targets utan tydlig vinnare
+ *  - faktisk resa saknar start/slut
+ *  - home/private/private_residence-konflikt
+ *  - omöjlig rutt (med faktisk distans)
+ *  - signalgap som inte kan kopplas (cross-target/unbound)
+ *  - explicit "kan ej absorberas"
+ */
+const HARD_REVIEW_REASONS = new Set<string>([
+  'unknown_place_no_anchor',
+  'no_anchor_for_unknown_place',
+  'multiple_competing_targets',
+  'target_ambiguous_no_winner',
+  'conflicting_targets',
+  'travel_missing_endpoints',
+  'travel_missing_start_or_end',
+  'home_private_conflict',
+  'private_residence',
+  'private_zone',
+  'impossible_route',
+  'route_speed_violation_with_distance',
+  'signal_gap_unbound',
+  'signal_gap_cross_target',
+  'unabsorbable_block',
+]);
+
+/**
+ * "Soft" reasons som ENSAMMA inte motiverar needs_review efter konsolidering.
+ * Innehåller signal_gap-familjen + tekniska glapp som kan absorberas.
+ */
+const SOFT_REVIEW_REASONS = new Set<string>([
+  ...SIGNAL_GAP_REASONS,
+  'low_gps_signal',
+  'speed_violation_no_distance',
+  'short_cross_target_movement',
+  'short_transport_to_unknown',
+  'absorbed_micro_movement',
+  'session_consolidated',
+]);
+
+/**
  * Stark sessionsnyckel — matchar på targetType+targetId först (täcker
  * locationId, projectId, bookingId, largeProjectId via targetType-prefix).
  * Faller tillbaka på normaliserad targetLabel när id saknas men labeln
