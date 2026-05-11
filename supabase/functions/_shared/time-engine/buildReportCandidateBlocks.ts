@@ -448,10 +448,20 @@ function fmtDuration(min: number): string {
 }
 
 function fmtClock(iso: string): string {
-  const d = new Date(iso);
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mm = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
+  // Visa alltid i Europe/Stockholm — UTC ger fel klocka i UI (t.ex. 04:57 i stället för 06:57).
+  try {
+    return new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date(iso));
+  } catch {
+    const d = new Date(iso);
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
 }
 
 /** Haversine distance in meters between two lat/lng points. */
