@@ -89,8 +89,8 @@ const REALTIME_TABLES = [
 ] as const;
 
 export function useStaffMonthStatus(month?: Date | string): Result {
-  const { staff } = useMobileAuth();
-  const staffId = staff?.id ?? null;
+  const { effectiveStaffId } = useMobileAuth();
+  const staffId = effectiveStaffId;
   const monthKey = useMemo(() => {
     const d =
       typeof month === 'string' ? new Date(`${month}-01`) : month ?? new Date();
