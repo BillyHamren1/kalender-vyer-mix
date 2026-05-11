@@ -52,7 +52,7 @@ interface StaffWithDayReport {
 
 const PLANNING_BADGE: Record<PlanningStatus, { label: string; className: string } | null> = {
   planned_not_started: { label: 'Planerad – ej startad', className: 'bg-muted text-muted-foreground border' },
-  missing_workday: { label: 'Saknar arbetsdag', className: 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 border border-amber-300/40' },
+  missing_workday: null,
   unplanned_activity: { label: 'Oplanerad aktivitet', className: 'bg-blue-100 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200 border border-blue-300/40' },
   workday_active: { label: 'Pågående arbetsdag', className: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-300/40' },
   planned: { label: 'Planerad', className: 'bg-muted text-muted-foreground border' },
