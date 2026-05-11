@@ -570,7 +570,7 @@ export const ReportCandidateTimeline: React.FC<ReportCandidateTimelineProps> = (
   return (
     <div className="space-y-1.5">
       {visible.map((b) => (
-        <BlockRow key={b.id} block={b} lookups={lookups} />
+        <BlockRow key={b.id} block={b} lookups={lookups} staffId={staffId} staffName={staffName} date={date} />
       ))}
       {summary && (
         <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 text-[11px] text-muted-foreground">
