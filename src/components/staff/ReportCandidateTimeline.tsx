@@ -465,6 +465,11 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved, aiReview
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium truncate">
             <span className="truncate">{title}</span>
+            {block.isOngoing && (
+              <Badge variant="outline" className="text-[10px] py-0 h-4 border-emerald-400 text-emerald-700">
+                Pågår
+              </Badge>
+            )}
             {block.reviewState === 'needs_review' && (
               <Badge variant="outline" className="text-[10px] py-0 h-4 border-amber-400 text-amber-700">
                 granska
