@@ -1,186 +1,131 @@
-## Scope
+## Mål
 
-Endast adminwebbens tidrapportmotor (`_shared/time-engine` + `get-staff-presence-day` + `backfill-staff-day-report-cache` + admin-vyns DecisionTrace). Inga writes. Ingen mobil. Ingen AI. Ingen ändring av rå GPS, geofence, sticky-regler eller andra personers data. Companion-rutt används endast som evidence — aldrig som kopierad rådata.
+När en "Osäker period" visas i admin-tidrapporten ska användaren direkt se **var** den ägde rum och **vad platsen är** — inte bara råkoordinater. Platsen ska aktivt slås upp mot:
 
-## Bakgrund
+1. Reverse-geocodad gatuadress (Mapbox)
+2. Kända organisations-platser (`organization_locations`)
+3. Bokningsadresser (både dagens, **framtida** och tidigare)
+4. Personalens hemadress / privata zoner (`staff_private_zones`)
+5. Personalens tidigare besök på samma koordinat (historiska `place_visits` / GPS-vistelser)
 
-Föregående task (klassa korta GPS-gap i transportkedjor som `confirmed_transport_gap`) avbröts innan den implementerades. Denna task innehåller därför **båda** delarna i en sammanhållen leverans: bas-klassificeraren + companion-route som standard-evidence (inte sista utväg, inte AI-prerequisite).
+Allt sker enbart i **adminwebbens display-lager**. Inga writes, ingen AI, ingen mobilapp.
 
-## Nytt beteende
+## Vad som ändras
 
-Ett gps_gap (≤30 min) inne i en tydlig transportkedja klassas som `confirmed_transport_gap` och absorberas i transportblocket. Adminvyn visar `Transport · A → B` med subtitle `GPS saknades N min · rutt bekräftad av M personer` (eller `GPS saknades N min under resan` om ingen companion finns). Ingen separat "Osäker period".
+### 1. Ny edge function: `resolve-unknown-stop`
 
-Companion-rutt blir första­hands­evidence: 1 stark match → high (0.90), 2+ matches eller 1+ destination bekräftad → very_high (0.95).
+`supabase/functions/resolve-unknown-stop/index.ts`
 
-## Filer
-
-```text
-NY:    supabase/functions/_shared/time-engine/classifyTransportSignalGap.ts
-NY:    supabase/functions/_shared/time-engine/findCompanionRouteEvidence.ts
-ÄNDRA: supabase/functions/_shared/time-engine/buildPresenceDayBlocks.ts
-ÄNDRA: supabase/functions/_shared/time-engine/buildReportCandidateBlocks.ts
-ÄNDRA: supabase/functions/get-staff-presence-day/index.ts
-ÄNDRA: supabase/functions/backfill-staff-day-report-cache/index.ts
-ÄNDRA: src/components/staff/DecisionTraceDrawer.tsx   (nya rader för transport-gap evidence)
-ÄNDRA: src/components/staff/ActualDayPanel.tsx        (warningLabel i transport-blockets subtitle)
-NY:    src/test/transportSignalGap.contract.test.ts   (klassificerare + companion-regler)
-```
-
-Inga DB-migrations. Ingen ny tabell. Inga nya secrets.
-
-## Tekniskt
-
-### 1. `findCompanionRouteEvidence` (pure, no DB)
-
-Helper får redan inläst `allStaffGpsTimeline: { staffId, staffName, pings: GpsPing[] }[]` (peers i samma org/dag) plus `assignments[]` (BSA + projekt­medlemskap för dagen).
-
-Algoritm per peer:
-1. Filtrera peer-pings till intervallet `[gapStart, gapEnd]`.
-2. `coverageRatio` = (täckt minutspann med ping minst varje 5 min) / `gapMinutes`.
-3. `routeStartDistanceMeters` = haversine(peer-första-ping-i-fönstret, `previousKnownPosition`).
-4. `routeEndDistanceMeters` = haversine(peer-sista-ping-i-fönstret, `nextKnownPosition`).
-5. `sameDirectionLikely` = peer rör sig från start-area mot end-area (cosine av rikt­nings­vektorer ≥ 0.3).
-6. `sameProjectOrTeam` = peer delar antingen `previousTarget` eller `nextTarget` i sina assignments.
-7. `averageSpeedKmh` = peer-distans / peer-tid i fönstret.
-
-Match-kriterier för en peer:
-- `coverageRatio >= 0.5`
-- `routeStartDistanceMeters <= 1000`
-- `routeEndDistanceMeters <= 1000`
-- `sameDirectionLikely === true`
-- `averageSpeedKmh` mellan 5 och 130
-
-Confidence-rollup:
-- 0 matches → `{ matched: false, confidence: 'low', confidenceScore: 0 }`
-- ≥1 match + `sameProjectOrTeam` → `high (0.90)`
-- ≥2 matches OR (1 match + nextTarget är warehouse/projekt/booking/location) → `very_high (0.95)`
-- Geografi OK men inget projekt/team-stöd → `medium (0.70)`
-- Bara svag geografisk likhet → `low (0.40)`
-
-### 2. `classifyTransportSignalGap` (pure, no DB)
-
-Input:
-```ts
+Input (POST):
+```json
 {
-  previousBlock, gapBlock, nextBlock,
-  previousKnownPosition, nextKnownPosition,
-  destinationCandidate,                     // resolveWorkTargets-träff på nextKnownPosition
-  conflictingSignals,                       // pre-evaluerade: anyHardGeoEntry, anyConfirmedStay, anyHomePrivate
-  companionRouteEvidence                    // resultat av findCompanionRouteEvidence
+  "organizationId": "...",
+  "staffUserId": "...",
+  "lat": 59.123,
+  "lng": 17.456,
+  "atIso": "2026-05-09T03:30:00Z",
+  "radiusMeters": 250
 }
 ```
 
 Output:
-```ts
+```json
 {
-  classification: 'confirmed_transport_gap' | 'probable_transport_gap' | 'unknown_gap_needs_review';
-  confidence: 'very_high' | 'high' | 'medium' | 'low';
-  confidenceScore: number;     // 0..1
-  countsAsTransport: boolean;
-  reasons: string[];           // t.ex. 'short_signal_gap_inside_confirmed_route', 'multi_staff_route_confirmation'
-  warningLabel: string;        // sv. text för UI
-  destinationEvidence: { label, targetType, targetSource, isWorkRelated, confidence } | null;
-  companionRouteEvidence: { matched, confidence, confidenceScore, matchedStaffCount, matchedStaff, reasons };
-  impliedSpeedKmh: number | null;
-  gapMinutes: number;
+  "reverseGeocoded": { "label": "Storgatan 5, Solna", "source": "mapbox" } | null,
+  "knownLocation": { "id": "...", "name": "FA Lager", "distanceMeters": 42 } | null,
+  "privateZone":   { "kind": "home" | "manual_ignore" | "recurring_night",
+                     "label": "Hemma", "distanceMeters": 30 } | null,
+  "matchingBookings": [
+    { "bookingId": "...", "bookingNumber": "B12345",
+      "label": "Konsert Globen", "address": "...",
+      "eventDate": "2026-05-12", "relativeDays": 3,
+      "distanceMeters": 80, "direction": "future" | "past" | "today" }
+  ],
+  "priorVisits": {
+    "count": 7, "firstSeenIso": "2026-02-11T...",
+    "lastSeenIso": "2026-04-30T...",
+    "totalMinutes": 412
+  } | null
 }
 ```
 
-Beslutslogik:
-1. Hard reject om någon `conflictingSignals.*` är true → `unknown_gap_needs_review`.
-2. Hard reject om `gapMinutes > 30` → `unknown_gap_needs_review`.
-3. Hard reject om saknas pre/post own GPS → `unknown_gap_needs_review`.
-4. Implied speed (`distanceMeters / gapMinutes`) måste vara 5–130 km/h om distans > 500 m.
-5. Confidence-pyramiden:
-   - companion `very_high` → `confirmed_transport_gap` confidence `very_high` 0.95, reason `multi_staff_route_confirmation`.
-   - companion `high` ELLER (destinationCandidate isWorkRelated + transport på båda sidor) → `confirmed_transport_gap` confidence `high` 0.90, reason `short_signal_gap_inside_confirmed_route` (+ companion reason om matchad).
-   - companion `medium` ELLER (transport på båda sidor utan destinationsstöd) → `probable_transport_gap` confidence `medium` 0.70.
-   - annars → `unknown_gap_needs_review`.
-6. `warningLabel`:
-   - 0 companions: `"GPS saknades {N} min under resan"`
-   - 1 companion: `"GPS saknades {N} min · rutt bekräftad av annan personal"`
-   - ≥2 companions: `"GPS saknades {N} min · rutt bekräftad av {M} personer"`
+Logik (read-only):
+- Reverse-geocode via befintlig Mapbox-token-flow (samma som `useReverseGeocodeRich`).
+- `organization_locations`: hämta alla i org, beräkna haversine → returnera närmaste inom `radiusMeters`.
+- `staff_private_zones` för `staffUserId`: närmaste inom radius + dess `kind`.
+- `bookings` (master data) inom org där `latitude`/`longitude` finns och haversine ≤ radius. Sortera på `abs(eventDate - atIso)`, max 5. Sätt `direction` (today/future/past) och `relativeDays`.
+- `priorVisits`: aggregera `place_visits` (eller motsvarande pings-tabell vi redan har) för samma `staffUserId` med `centerLat/Lng` inom 100 m och `endIso < atIso`. Returnera count, first/last, totala minuter. Om tabellen inte finns under detta namn — använd den vi redan läser i `_shared/timeline/`.
 
-### 3. Integration i `buildPresenceDayBlocks`
+Inga skrivningar. Multi-tenant: filtrera ALLT på `organization_id`. Caller-token = adminens JWT.
 
-I `if (seg.kind === 'gps_gap')`-grenen, **före** dagens `uncertain_transition`/`signal_gap`-emit:
+### 2. Ny hook: `useResolvedUnknownStop`
 
-- Hämta closest travel/known-arrival före och efter gapet (utöka `findPrev/NextStableStay` med `findPrev/NextTransportOrKnownAnchor`).
-- Bygg `conflictingSignals` från befintliga segment i fönstret.
-- Bygg `companionRouteEvidence` (kräver att `BuildPresenceDayBlocksInput` får ett nytt valfritt fält `peerGpsTimelines?: PeerGpsTimeline[]` + `assignments?: AssignmentLite[]` — se nästa punkt).
-- Kör `classifyTransportSignalGap`.
-- Om `countsAsTransport === true`: emittera `kind: 'transport'`-block med:
-  - `confidence: 'high' | 'medium'` (very_high mappas till high i contracts som inte har very_high — confidenceScore lagras separat i evidence)
-  - `confidenceReason: 'short_signal_gap_inside_confirmed_route'` / `'multi_staff_route_confirmation'`
-  - `evidence`: hela classifier-outputen + `signalGapMinutes`, `confidenceScore`, `companionRouteEvidence`
-  - `warningLabel` på block-nivå (nytt fält i `PresenceDayBlock.evidence.warningLabel`).
-- Annars: nuvarande beteende (signal_gap / uncertain_transition).
+`src/hooks/useResolvedUnknownStop.ts` — `useQuery` med `staleTime: 1h`, key `[lat-rounded, lng-rounded, staffUserId, dateBucket]` så två närliggande osäkra block delar cache. Anropar edge function via `supabase.functions.invoke`.
 
-Befintlig `aggregateEvidenceBlocks` slår ihop intilliggande transportblock — gap-blocket smälter därför in i resan automatiskt. Vi propagerar `warningLabel` + `companionRouteEvidence` till det aggregerade transport-rapport-blocket via `host.evidenceSummary`.
+### 3. Utöka `LocationEvidence`
 
-### 4. Peer GPS feed
-
-`get-staff-presence-day` och `backfill-staff-day-report-cache` hämtar peer-pings för hela orgen för dagen, paginerat (samma 1000-batch + `PING_DAY_CAP`-mönster som redan finns för Armands-fixen). Filter:
-- `organization_id = req.organization_id`
-- `recorded_at` inom dagen (lokal tid → UTC-fönster)
-- `staff_id != current.staffId`
-
-Trimma till peers som faktiskt har minst en ping inom någon av staff-personens upptäckta gap-fönster (cheap pre-filter).
-
-Assignments byggs en gång per request via befintlig `resolveWorkTargets` + en lättviktig BSA-läsning (`booking_staff_assignments` join `bookings` på dagen + `staff_assignments` join `large_project_team_assignments` på dagen).
-
-### 5. Diagnostics
-
-Båda funktionerna returnerar:
+I `src/lib/staff/buildReportDisplayBlocks.ts`:
 
 ```ts
-signalGapTransportDiagnostics: {
-  confirmedTransportGapCount, confirmedTransportGapMinutes,
-  probableTransportGapCount, probableTransportGapMinutes,
-  remainingUnknownTransportGapCount, remainingUnknownTransportGapMinutes,
-  destinationConfirmedCount,
-  examples: [...]
-},
-companionRouteDiagnostics: {
-  confirmedByCompanionRouteCount, confirmedByCompanionRouteMinutes,
-  veryHighConfidenceCount, highConfidenceCount, mediumConfidenceCount, lowConfidenceCandidateCount,
-  unbridgedGapCount,
-  examples: [...]
+export interface LocationEvidence {
+  // ... befintliga fält
+  resolvedAddress?:        { label: string; source: 'mapbox' } | null;
+  resolvedKnownLocation?:  { name: string; distanceMeters: number } | null;
+  resolvedPrivateZone?:    { kind: 'home' | 'manual_ignore' | 'recurring_night';
+                             label: string; distanceMeters: number } | null;
+  resolvedMatchingBookings?: Array<{
+    bookingNumber: string; label: string; eventDate: string;
+    relativeDays: number; direction: 'today' | 'future' | 'past';
+    distanceMeters: number;
+  }>;
+  resolvedPriorVisits?:    { count: number; lastSeenIso: string;
+                             totalMinutes: number } | null;
 }
 ```
 
-Sätts i `staff_day_report_cache.diagnostics_json.signalGapTransport` och `.companionRoute`.
+`buildReportDisplayBlocks` förblir pure och tar emot resolverade fält via en ny valfri input `resolvedByBlockId: Map<blockId, ResolvedUnknownStop>` och kopierar in i `locationEvidence`.
 
-### 6. UI
+### 4. UI: ny rendering för "Osäker period"
 
-- `ActualDayPanel.tsx`: lägger till en gul subtitle på transport-block där `evidence.warningLabel` finns. Inga nya kind-värden — UI ser det som ett vanligt transport-block.
-- `DecisionTraceDrawer.tsx`: ny sektion "GPS-gap i transport" som renderar `classifyTransportSignalGap`-outputens fält när blocket har det. Companion-listan renderas som tabell med staffName, overlapMinutes, coverageRatio, sameProjectOrTeam.
+I `ReportCandidateTimeline.tsx` (och `DecisionTraceDrawer.tsx` för full bevisning):
 
-### 7. Test
+För block med `kind === 'needs_review' | 'unknown'` och `locationEvidence` — visa en strukturerad "Vad vet vi om platsen?"-sektion (under befintlig titel/subtitel) med rader, i denna prioritetsordning:
 
-`src/test/transportSignalGap.contract.test.ts` täcker:
-- gap utan companion + destination = warehouse → confirmed_transport_gap high.
-- gap med 2 companions, ingen destination → confirmed_transport_gap very_high.
-- gap med 1 companion utan project-team → medium → probable.
-- gap > 30 min → unknown.
-- gap med konflikt (geo_entry på annan plats under fönstret) → unknown.
-- companion finns men coverageRatio < 0.5 → räknas inte som match.
-- routeEndDistanceMeters > 1000 → räknas inte som match.
+1. **Hemma / privat zon** — `Hemma (35 m)` → tonas som info-badge "privat — räknas inte".
+2. **Känd plats** — `FA Lager (42 m)` → klickbar länk till `organization_locations`-detalj.
+3. **Adress** — `Storgatan 5, Solna` (reverse-geocode).
+4. **Matchande bokningar** — kompakt lista:
+   - `Idag: Konsert Globen (B12345)` 
+   - `Om 3 d: Mässa Älvsjö (B12350)`
+   - `Var: Tidigare bokning (B12000) — 2026-04-12`
+5. **Historik** — `Personen har varit här 7 gånger (412 min, senast 2026-04-30)`.
+6. **Inget av ovan** — `Adress kunde inte slås upp` + koordinat.
 
-## Verifiering 2026-05-09
+Ingen rad → utelämnas (inget tomt brus).
 
-1. Deploya båda edge-funktionerna.
-2. Anropa `backfill-staff-day-report-cache` med `force:true, dryRun:false` för Markuss Minalto + Armands Birznieks (date `2026-05-09`).
-3. Hämta `report_candidate_blocks_json` + `diagnostics_json` via `supabase--read_query`.
-4. Bekräfta:
-   - **Markuss**: ~17-min "Osäker period" är borta. Transport-blocket har `evidence.warningLabel = "GPS saknades 17 min · rutt bekräftad av {M} personer"` (M ≥ 1 om Armands eller annan peer hade matchande pings) eller `"… under resan"` (om ingen peer matchade). `signalGapTransportDiagnostics.confirmedTransportGapCount` ≥ 1.
-   - **Armands**: oförändrad (han hade egna pings — inget gap att klassa). Diagnostics `companionBoostedCount` 0 för honom.
-5. Säkerhets-assert i backfill-svaret: `wroteOnlyTo: 'staff_day_report_cache'`. Inga writes till `time_reports`, `workdays`, `location_time_entries`, `travel_time_logs`, `gps_pings`. Ingen AI-anrop.
+### 5. Wiring
 
-## Out of scope
+I `StaffTimeReportsList.tsx` / `StaffDayTimelineCard.tsx`:
+- Samla unika `(lat, lng, blockId)` för alla osäkra block i synlig dag.
+- Anropa `useResolvedUnknownStop` per unikt block (eller batch-version om det blir många).
+- Skicka `resolvedByBlockId` vidare till `ReportCandidateTimeline`.
 
-- Inga nya block-kinds uppåt mot UI (det är fortfarande `transport`).
-- Ingen ändring av motståndet `gapMinutes > 30` (gap över 30 min förblir needs_review även med companion).
-- Inga nya tabeller/migrations.
-- Ingen `decision_trace`-persistens — drawern läser direkt från cache-blockets `evidence`.
-- Ingen ändring av befintlig AI-pipeline; companion ersätter inte AI:s analys av övriga oklara segment, den prioriteras bara före AI för transportgap.
+### 6. Tester
+
+- `src/test/resolveUnknownStopUI.contract.test.ts` — verifierar prioritetsordning (privat zon > känd plats > adress) och att inga rader visas när data saknas.
+- Edge function-test som mockar Supabase-klient och bekräftar org_id-filter på alla queries.
+
+## Säkerhet / icke-mål
+
+- Inga writes till `time_reports`, `workdays`, `location_time_entries`, `travel_time_logs`, `gps_pings`.
+- Ingen AI.
+- Mobilappen rörs inte.
+- Klassificeringen i `buildPresenceDayBlocks` / `classifyTransportSignalGap` ändras INTE — `kind`/`reviewState` förblir samma. Vi berikar bara display-lagret.
+- Ingen geocode-cachelagring i DB i denna iteration (Mapbox-cachen i React Query räcker).
+
+## Tekniska anteckningar
+
+- Org-isolering: edge function hämtar caller-org via JWT och filtrerar `bookings`, `organization_locations`, `staff_private_zones`, `place_visits` på `organization_id` (RESTRICTIVE RLS speglar redan detta).
+- "Future bookings"-fönster: ±60 dagar runt `atIso`, sortera närmast först.
+- Distans-tröskel: 250 m för bokning/känd plats, 100 m för privat zon och historik (matchar nuvarande precision på GPS-vistelser).
+- Mapbox-token: återanvänd `loadMapboxToken()` om edge function har motsv.; annars använd `MAPBOX_ACCESS_TOKEN` secret. Jag verifierar i implementeringen vilken som finns.
