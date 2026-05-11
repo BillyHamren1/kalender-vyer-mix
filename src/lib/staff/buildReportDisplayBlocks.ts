@@ -648,7 +648,9 @@ export function buildReportDisplayBlocks(
         evidenceWithCoord?.locationEvidence ??
         null,
       displayTitle: promotedTitle,
-      displaySubtitle: promoteToTransport ? promotedSubtitle : subParts.join(' · '),
+      displaySubtitle: (promoteToTransport || promoteAsBridgedTrip)
+        ? promotedSubtitle
+        : subParts.join(' · '),
       aiReviewContext: null,
       aiHintLabel: null,
       sourceBlockIds,
