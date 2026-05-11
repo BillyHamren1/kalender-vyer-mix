@@ -1233,15 +1233,26 @@ export function buildStaffDaySnapshot(input: SnapshotInput, now: Date = new Date
     trackingPolicy,
     assistantEvents: events,
     attestation: attestation
-      ? {
-          id: attestation.id,
-          breakMinutes: Math.max(0, attestation.break_minutes | 0),
-          comment: attestation.comment,
-          status: attestation.status,
-          attestedAt: attestation.attested_at,
-          attestedBy: attestation.attested_by,
-          locked: attestation.status === "locked",
-        }
+      ? (() => {
+          const meta = (attestation.metadata ?? {}) as Record<string, unknown>;
+          const pick = (k: string) => {
+            const v = meta[k];
+            return typeof v === "string" && v.length > 0 ? v : null;
+          };
+          return {
+            id: attestation.id,
+            breakMinutes: Math.max(0, attestation.break_minutes | 0),
+            comment: attestation.comment,
+            status: attestation.status,
+            attestedAt: attestation.attested_at,
+            attestedBy: attestation.attested_by,
+            locked: attestation.status === "locked",
+            requestedStartAt: pick("userRequestedStartAt"),
+            requestedEndAt: pick("userRequestedEndAt"),
+            originalSuggestedStartAt: pick("originalSuggestedStartAt"),
+            originalSuggestedEndAt: pick("originalSuggestedEndAt"),
+          };
+        })()
       : null,
     lastUpdatedAt: now.toISOString(),
     gpsDayTimeline,
