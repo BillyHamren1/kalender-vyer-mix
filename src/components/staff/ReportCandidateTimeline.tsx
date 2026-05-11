@@ -446,6 +446,7 @@ function BlockRow({ block, lookups, staffId, staffName, date, resolved }: { bloc
   const meta = KIND_META[block.kind] ?? KIND_META.unknown;
   const { Icon } = meta;
   const [open, setOpen] = useState(false);
+  const { organizationId } = useCurrentOrg();
   const title = block.displayTitle ?? block.title;
   const subtitle = block.displaySubtitle
     ?? block.subtitle
