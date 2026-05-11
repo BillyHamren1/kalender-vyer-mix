@@ -505,12 +505,18 @@ export function buildReportDisplayBlocks(
       );
     }
 
-    // ── Transport-dominans-promotion ───────────────────────────────────
-    // Om kedjan är dominerad av transport (>60% av tiden är transport-block,
-    // 0 work-block) OCH vi har en känd destination (nextKnown) → presentera
-    // som EN transportrad mot destinationen istället för "Osäker period".
-    // Korta UNKNOWN_PLACE-segment är då signalglapp mitt i resan.
-    // Påverkar BARA display — ingen klassificering, inga writes, ingen AI.
+    // ── Transport-promotion (KONSERVATIV) ─────────────────────────────
+    // Promote endast om kedjan är i princip en sammanhängande resa med
+    // ENBART korta äkta signalglapp (inga riktiga stopp). Krav:
+    //   - vi har en känd nästa plats (nextKnown)
+    //   - 0 work-block i kedjan
+    //   - INGET unknown_place-block har egna GPS-koordinater
+    //     (= det är inte ett riktigt stopp utan ett GPS-glapp)
+    //   - sammanlagd icke-transport-tid ≤ 20 min
+    //   - varje enskilt non-transport-block ≤ 15 min
+    // Annars: behåll som "Osäker period" så att riktiga stopp inte
+    // göms bakom fel destination (FA Warehouse är bara dagens slut,
+    // inte nästa stopp).
     const transportMinInRun = run.reduce(
       (s, b) => s + (b.kind === 'transport' ? b.durationMinutes ?? 0 : 0),
       0,
@@ -519,12 +525,27 @@ export function buildReportDisplayBlocks(
       (s, b) => s + (b.kind === 'work' ? b.durationMinutes ?? 0 : 0),
       0,
     );
-    const transportShare = durationMinutes > 0 ? transportMinInRun / durationMinutes : 0;
-    const gapMinInRun = Math.max(0, durationMinutes - transportMinInRun);
+    const nonTransportBlocks = run.filter((b) => b.kind !== 'transport');
+    const gapMinInRun = nonTransportBlocks.reduce(
+      (s, b) => s + (b.durationMinutes ?? 0),
+      0,
+    );
+    const longestNonTransportMin = nonTransportBlocks.reduce(
+      (m, b) => Math.max(m, b.durationMinutes ?? 0),
+      0,
+    );
+    const anyNonTransportHasOwnCoord = nonTransportBlocks.some(
+      (b) => b.locationEvidence?.lat != null && b.locationEvidence?.lng != null,
+    );
     const promoteToTransport =
-      !!nextKnown && workMinInRun === 0 && transportShare >= 0.6;
+      !!nextKnown &&
+      workMinInRun === 0 &&
+      !anyNonTransportHasOwnCoord &&
+      gapMinInRun <= 20 &&
+      longestNonTransportMin <= 15 &&
+      transportMinInRun > 0;
     const promotedConfidence: 'high' | 'medium' | 'low' =
-      transportShare >= 0.8 ? 'high' : 'medium';
+      gapMinInRun <= 10 ? 'high' : 'medium';
     const promotedTitle = promoteToTransport
       ? `Resa mot ${nextKnown}`
       : 'Osäker period';
