@@ -183,6 +183,12 @@ export interface ReportCandidateSummary {
     durationMinutes: number;
     distanceMeters: number | null;
   }>;
+  /** Sandwich rule: how many unknown / needs_review blocks were converted to
+   *  work because they sat between two work blocks on the same day. */
+  inferredFromNeighborsCount: number;
+  inferredFromNeighborsMinutes: number;
+  inferredFromNeighborsInheritedTargetCount: number;
+  inferredFromNeighborsUnlabeledCount: number;
 }
 
 export interface ActiveTimeRegistrationInput {
@@ -252,6 +258,11 @@ export interface ReportCandidatePolicy {
   /** Short transport adjacent to an unknown row that is shorter than this is
    *  hidden as evidence rather than emitted. Default 3 min. */
   shortUnknownTransportHideMaxMinutes?: number;
+  /** Sandwich rule: an unknown / needs_review block that lies between two
+   *  work rows on the SAME calendar day is converted to `work` (target
+   *  inherited if both sides match, otherwise unlabeled work) when its
+   *  duration is ≤ this. Default 90 min. Set to 0 to disable. */
+  sandwichInferWorkMaxMinutes?: number;
 }
 
 export interface HomeAnchorInput {
@@ -342,6 +353,7 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   sameTargetTransportAbsorbMaxDistanceMeters: 750,
   shortCrossTargetReviewMaxMinutes: 5,
   shortUnknownTransportHideMaxMinutes: 3,
+  sandwichInferWorkMaxMinutes: 90,
 };
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1271,6 +1283,74 @@ export function buildReportCandidateBlocks(
   const transportRowsAfterSameTargetAbsorption = out.filter((r) => r.kind === 'transport').length;
 
   // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 2.5: Sandwich-inferred work
+  //
+  // Short unknown / needs_review block placed between two `work` rows on the
+  // SAME calendar day → reclassify as `work` with inherited target (when both
+  // sides match) or unlabeled work otherwise. Removes review-noise for small
+  // unidentified gaps clearly inside an active work day.
+  // ───────────────────────────────────────────────────────────────────────
+  let inferredFromNeighborsCount = 0;
+  let inferredFromNeighborsMinutes = 0;
+  let inferredFromNeighborsInheritedTargetCount = 0;
+  let inferredFromNeighborsUnlabeledCount = 0;
+  if (policy.sandwichInferWorkMaxMinutes > 0) {
+    const stockholmDay = (iso: string): string => {
+      try {
+        const fmt = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Stockholm',
+          year: 'numeric', month: '2-digit', day: '2-digit',
+        });
+        return fmt.format(new Date(iso));
+      } catch {
+        return iso.slice(0, 10);
+      }
+    };
+    for (let k = 1; k < out.length - 1; k++) {
+      const cur = out[k];
+      if (cur.kind !== 'unknown' && cur.kind !== 'needs_review') continue;
+      if (cur.durationMinutes > policy.sandwichInferWorkMaxMinutes) continue;
+      const prev = out[k - 1];
+      const next = out[k + 1];
+      if (prev.kind !== 'work' || next.kind !== 'work') continue;
+      if (
+        stockholmDay(cur.startAt) !== stockholmDay(prev.endAt) ||
+        stockholmDay(cur.endAt) !== stockholmDay(next.startAt)
+      ) continue;
+
+      const prevKey = targetKeyOf(prev);
+      const nextKey = targetKeyOf(next);
+      const sameTarget = prevKey && nextKey && prevKey === nextKey;
+
+      cur.kind = 'work';
+      cur.reviewState = 'ok';
+      cur.confidence = 'low';
+      if (!cur.reviewReasons.includes('inferred_from_neighbors')) {
+        cur.reviewReasons.push('inferred_from_neighbors');
+      }
+      cur.warningLabel = null;
+      if (sameTarget) {
+        cur.targetType = prev.targetType;
+        cur.targetId = prev.targetId;
+        cur.targetLabel = prev.targetLabel;
+        cur.title = prev.targetLabel || 'Arbete';
+        inferredFromNeighborsInheritedTargetCount += 1;
+      } else {
+        cur.targetType = null;
+        cur.targetId = null;
+        cur.targetLabel = null;
+        cur.title = 'Arbete (okänd plats)';
+        inferredFromNeighborsUnlabeledCount += 1;
+      }
+      cur.fromLabel = null;
+      cur.toLabel = null;
+      cur.subtitle = `${fmtClock(cur.startAt)}–${fmtClock(cur.endAt)} · ${fmtDuration(cur.durationMinutes)}`;
+      inferredFromNeighborsCount += 1;
+      inferredFromNeighborsMinutes += cur.durationMinutes;
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
   // POST-PASS 3: Pre-work exclusion
   //
   // Time before the FIRST secure work target (a `work` block with a real
@@ -1496,6 +1576,10 @@ export function buildReportCandidateBlocks(
     sameTargetTransportRejectedByDistanceMinutes,
     sameTargetTransportRejectedExamples,
     keptCrossTargetTransportExamples,
+    inferredFromNeighborsCount,
+    inferredFromNeighborsMinutes,
+    inferredFromNeighborsInheritedTargetCount,
+    inferredFromNeighborsUnlabeledCount,
   };
   for (const r of out) {
     if (r.kind === 'work') {
