@@ -40,6 +40,7 @@ import { dayPolicy as defaultDayPolicy, nightPolicy as defaultNightPolicy } from
 import type { Confidence, GeoAnchor, ISODate, ISODateTime, UUID, WorkTarget } from './contracts.ts';
 import { isInsideGeofence, distanceToGeofenceEdge, type GeofenceTarget } from '../geofenceEval.ts';
 import { formatStockholm } from '../timeline/geo.ts';
+import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs
