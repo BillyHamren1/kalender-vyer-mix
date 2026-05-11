@@ -250,7 +250,7 @@ async function processOne(
       .select(
         'id, staff_id, organization_id, started_at, stopped_at, status, ' +
         'start_source, stop_source, start_target_type, start_target_id, ' +
-        'start_target_label, metadata',
+        'start_target_label, current_target_type, current_target_id, current_label, metadata',
       )
       .eq('organization_id', orgId)
       .eq('staff_id', staffId)
