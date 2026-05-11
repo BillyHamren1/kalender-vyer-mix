@@ -1221,6 +1221,110 @@ export function buildReportCandidateBlocks(
 
   const transportRowsAfterSameTargetAbsorption = out.filter((r) => r.kind === 'transport').length;
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 3: Pre-work exclusion
+  //
+  // Time before the FIRST secure work target (a `work` block with a real
+  // targetId — i.e. confirmed/probable on-site at a primary target) is not
+  // a time-report candidate. Unknown / needs_review / non-target work / and
+  // un-anchored transport are dropped from the main report and exposed
+  // separately as `excludedPreWorkBlocks` for Decision Trace.
+  //
+  // Special rule: if the first secure work target starts AFTER 12:00 local
+  // (Stockholm), every pre-work row is excluded with reason
+  // `no_workplace_before_noon` — including transport — because we have no
+  // evidence the morning was actual work.
+  //
+  // Anchored transport (immediately preceding the first primary target,
+  // small gap, plausible direction) is preserved when there IS a primary
+  // work target before noon.
+  // ───────────────────────────────────────────────────────────────────────
+  const excludedPreWorkBlocks: ReportCandidateBlock[] = [];
+  const preWorkExclusionDiagnostics: PreWorkExclusionDiagnostics = {
+    excludedPreWorkMinutes: 0,
+    excludedPreWorkBlocksCount: 0,
+    firstPrimaryWorkAt: null,
+    firstPrimaryTargetLabel: null,
+    excludedReasons: {},
+    examples: [],
+  };
+
+  const stockholmHour = (iso: string): number => {
+    try {
+      const fmt = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Stockholm',
+        hour: 'numeric',
+        hour12: false,
+      });
+      return Number(fmt.format(new Date(iso)));
+    } catch {
+      return new Date(iso).getUTCHours() + 1; // fallback rough
+    }
+  };
+
+  const firstPrimaryIdx = out.findIndex((r) => r.kind === 'work' && !!r.targetId);
+  if (firstPrimaryIdx > 0) {
+    const firstPrimary = out[firstPrimaryIdx];
+    preWorkExclusionDiagnostics.firstPrimaryWorkAt = firstPrimary.startAt;
+    preWorkExclusionDiagnostics.firstPrimaryTargetLabel = firstPrimary.targetLabel;
+    const noWorkBeforeNoon = stockholmHour(firstPrimary.startAt) >= 12;
+
+    const keep: boolean[] = new Array(firstPrimaryIdx).fill(true);
+    for (let k = 0; k < firstPrimaryIdx; k++) {
+      const r = out[k];
+      let reason: PreWorkExclusionReason | null = null;
+
+      if (noWorkBeforeNoon) {
+        // No secure workplace before 12:00 local → exclude everything pre-work.
+        reason = 'no_workplace_before_noon';
+      } else if (r.kind === 'unknown') {
+        reason = 'before_first_primary_work_target';
+      } else if (r.kind === 'needs_review') {
+        reason = 'before_first_primary_work_target';
+      } else if (r.kind === 'work' && !r.targetId) {
+        reason = 'before_first_primary_work_target';
+      } else if (r.kind === 'transport') {
+        const isImmediatelyBefore = k === firstPrimaryIdx - 1;
+        const gapMin =
+          (new Date(firstPrimary.startAt).getTime() - new Date(r.endAt).getTime()) / 60_000;
+        const anchored =
+          isImmediatelyBefore &&
+          gapMin <= 5 &&
+          (!r.toLabel || !firstPrimary.targetLabel || r.toLabel === firstPrimary.targetLabel);
+        if (!anchored) reason = 'before_first_primary_work_target';
+      }
+
+      if (reason) {
+        keep[k] = false;
+        preWorkExclusionDiagnostics.excludedPreWorkMinutes += r.durationMinutes;
+        preWorkExclusionDiagnostics.excludedPreWorkBlocksCount += 1;
+        preWorkExclusionDiagnostics.excludedReasons[reason] =
+          (preWorkExclusionDiagnostics.excludedReasons[reason] ?? 0) + 1;
+        if (preWorkExclusionDiagnostics.examples.length < 20) {
+          preWorkExclusionDiagnostics.examples.push({
+            startAt: r.startAt,
+            endAt: r.endAt,
+            durationMinutes: r.durationMinutes,
+            originalKind: r.kind,
+            originalLabel: r.title,
+            reason,
+          });
+        }
+        excludedPreWorkBlocks.push(r);
+      }
+    }
+
+    if (preWorkExclusionDiagnostics.excludedPreWorkBlocksCount > 0) {
+      const filtered: ReportCandidateBlock[] = [];
+      for (let k = 0; k < out.length; k++) {
+        if (k >= firstPrimaryIdx || keep[k]) filtered.push(out[k]);
+      }
+      out.length = 0;
+      out.push(...filtered);
+    }
+  }
+
+
   // Assign deterministic, position-independent ids. Same staff+day+kind+span
   // +target+source set ⇒ same id across runs. See createReportCandidateBlockId.
   out.forEach((r) => {
