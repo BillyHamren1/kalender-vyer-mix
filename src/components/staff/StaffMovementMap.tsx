@@ -166,7 +166,6 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
             paint: {
               'circle-radius': ['step', ['get', 'point_count'], 12, 5, 16, 20, 20],
               'circle-color': 'hsl(48, 96%, 53%)',
-              'circle-stroke-color: hsl(0, 0%, 20%)' as any,
               'circle-stroke-color': 'hsl(0, 0%, 20%)',
               'circle-stroke-width': 1.5,
               'circle-opacity': 0.95,
