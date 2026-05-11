@@ -241,13 +241,17 @@ const DayBody: React.FC<{
           <div className="space-y-1.5">
             {snapshot.segments.map((seg, idx) => {
               const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
+              const isActive = !!seg.isActive || !seg.endedAt;
+              if (isActive && isToday) {
+                return <ActiveTimelineRow key={`${seg.startedAt}-${idx}`} seg={seg} />;
+              }
               return (
                 <div
                   key={`${seg.startedAt}-${idx}`}
                   className={cn(
                     'flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2',
                     seg.kind === 'unknown' && 'border-amber-500/30 bg-amber-500/5',
-                    seg.isActive && 'border-primary/30 bg-primary/5',
+                    isActive && 'border-primary/30 bg-primary/5',
                   )}
                 >
                   <div className={cn('shrink-0 w-8 h-8 rounded-lg flex items-center justify-center', SEG_TONE[seg.kind])}>
@@ -266,11 +270,22 @@ const DayBody: React.FC<{
               );
             })}
           </div>
+          {/* Stoppknapp under sista raden när det är dagens datum + arbetsdag pågår. */}
+          {isToday && !!snapshot.workday?.isOpen && (
+            <div className="pt-2">
+              <EndDayButton workdayOpen onStopped={onChanged} />
+            </div>
+          )}
         </section>
       ) : (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          Inga registrerade aktiviteter denna dag.
-        </p>
+        <>
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Inga registrerade aktiviteter denna dag.
+          </p>
+          {isToday && !!snapshot.workday?.isOpen && (
+            <EndDayButton workdayOpen onStopped={onChanged} />
+          )}
+        </>
       )}
 
       {/* E. Rast/lunch + Godkänn dagen */}
