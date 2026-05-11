@@ -658,6 +658,7 @@ export function buildPresenceDayBlocks(
             impliedSpeedKmh: classification.impliedSpeedKmh,
             previousBlockKind: prevAny?.kind ?? null,
             nextBlockKind: nextAny?.kind ?? null,
+            staffOwnDisplacementMeters: ownDisplacementM,
             surroundingTargetLabels: {
               before: prevStable?.matchedTargetName ?? prevStable?.label ?? null,
               after: destinationCandidate?.label
