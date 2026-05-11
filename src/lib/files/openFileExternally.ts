@@ -11,6 +11,19 @@
 export async function openFileExternally(url: string, fileName?: string): Promise<void> {
   if (!url) return;
 
+  // On native (Capacitor) WKWebView/Android WebView, window.open() is unreliable
+  // (especially for blob: URLs and PDFs). Use the in-app Browser plugin instead.
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    if (Capacitor.isNativePlatform()) {
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url, presentationStyle: "fullscreen" });
+      return;
+    }
+  } catch {
+    // fall through to web behaviour
+  }
+
   // Try blob strategy first (bypasses adblockers blocking *.supabase.co)
   try {
     const res = await fetch(url, { credentials: "omit" });
