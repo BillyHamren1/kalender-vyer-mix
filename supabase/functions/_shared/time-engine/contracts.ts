@@ -142,6 +142,14 @@ export interface WorkTarget {
     | 'date_address_candidate'
     | 'project_linked_unassigned'
     | 'active_project_unassigned';
+  /**
+   * Engine 4 — Locations: when true this target represents a private
+   * residence / boende polygon and MUST NEVER be classified as work.
+   * It also wins semantically over nearby warehouse/work targets so a
+   * residence is never merged with a warehouse area, even within
+   * TRANSPORT_MIN_DISTANCE_METERS.
+   */
+  isPrivateResidence?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
