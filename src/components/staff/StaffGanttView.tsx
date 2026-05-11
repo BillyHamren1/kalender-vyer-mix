@@ -159,7 +159,12 @@ interface GanttBlock {
 }
 
 const mapReportCandidateKind = (b: ReportCandidateBlockUI): GanttKind => {
-  if (b.kind === 'work') return b.reviewState === 'needs_review' ? 'review' : 'work';
+  if (b.kind === 'work') {
+    if (b.reviewState === 'needs_review') return 'review';
+    const phase = detectPhase(b.title, b.subtitle);
+    if (phase) return phase;
+    return 'work';
+  }
   if (b.kind === 'transport') return 'transport';
   if (b.kind === 'needs_review') return 'review';
   if (b.kind === 'unknown') return 'unknown';
