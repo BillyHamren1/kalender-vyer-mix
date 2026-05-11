@@ -434,8 +434,14 @@ export interface GpsClassificationDiagnostics {
     privateResidenceWinsCount: number;
     /** Pings that matched a private_residence polygon (regardless of conflict). */
     privateResidenceMatchedPingsCount: number;
+    /** Engine 5 — tiny single-/few-ping unknown_place "stays" suppressed
+     *  before emission. These are ephemeral noise blips between movement
+     *  pings and would otherwise turn into 0-min "Okänd plats" segments
+     *  that downstream layers expose as report rows. */
+    ephemeralUnknownStaysSuppressedCount: number;
+    ephemeralUnknownStaysSuppressedMinutes: number;
     examples: Array<{
-      kind: 'below_threshold_demoted' | 'private_residence_wins';
+      kind: 'below_threshold_demoted' | 'private_residence_wins' | 'ephemeral_unknown_suppressed';
       startAt: ISODateTime;
       endAt: ISODateTime;
       durationMinutes: number;
@@ -706,6 +712,8 @@ export function buildGpsDayTimeline(
           falseTravelPreventedCount: 0,
           privateResidenceWinsCount: 0,
           privateResidenceMatchedPingsCount: 0,
+          ephemeralUnknownStaysSuppressedCount: 0,
+          ephemeralUnknownStaysSuppressedMinutes: 0,
           examples: [],
         },
       },
@@ -943,6 +951,10 @@ export function buildGpsDayTimeline(
   let travelInsideTargetCount = 0;
   let travelInsideTargetMinutes = 0;
   const travelByReason: Record<string, number> = {};
+
+  // Engine 5 — ephemeral unknown_place stay suppression accumulators.
+  let ephemeralUnknownStaysSuppressedCount = 0;
+  let ephemeralUnknownStaysSuppressedMinutes = 0;
 
   // Engine 4 — TRANSPORT_MIN_DISTANCE_METERS diagnostics accumulators.
   let belowThresholdMovementSuppressedCount = 0;
@@ -1209,6 +1221,41 @@ export function buildGpsDayTimeline(
       reason = tooFew ? 'too_few_pings_for_stay' : 'no_target_match';
       confidence = tooFew ? 0.2 : Math.min(0.6, 0.3 + run.pings.length / 30);
       unknownPlace++;
+    }
+
+    // ── Engine 5: ephemeral unknown_place suppression ───────────────────
+    // Ett "stay"-cluster med 1 ping (eller < minStayPings) och praktiskt
+    // taget noll varaktighet är inte en plats — det är brus mellan två
+    // rörelse-pings. Att emittera det som unknown_place leder till
+    // 0-min "Okänd plats"-segment som hamnar i presence-/report-lagret
+    // som tekniska småblock. Skippa emissionen helt om:
+    //   - segmentet inte är inne i en primär geofence (overrideOwner=null)
+    //   - inget target matchar
+    //   - duration < 1 min
+    //   - och (pings < minStayPings ELLER duration === 0)
+    // Privata zoner och known_site emitteras alltid (separat gren ovan).
+    if (
+      type === 'unknown_place' &&
+      !overrideOwner &&
+      !match &&
+      durationMin < 1 &&
+      (run.pings.length < cfg.minStayPings || durationMin === 0)
+    ) {
+      ephemeralUnknownStaysSuppressedCount += 1;
+      ephemeralUnknownStaysSuppressedMinutes += durationMin;
+      unknownPlace -= 1;
+      totalCoverageMin -= durationMin;
+      if (transportThresholdExamples.length < 10) {
+        transportThresholdExamples.push({
+          kind: 'ephemeral_unknown_suppressed',
+          startAt: first.ts,
+          endAt: last.ts,
+          durationMinutes: Math.round(durationMin * 100) / 100,
+          distanceMeters: Math.round(distanceMeters),
+          reason: `pings=${run.pings.length}_dur=${Math.round(durationMin * 100) / 100}min_no_target_no_geofence`,
+        });
+      }
+      continue;
     }
 
     segments.push({
@@ -1941,6 +1988,9 @@ export function buildGpsDayTimeline(
         falseTravelPreventedCount: belowThresholdMovementSuppressedCount,
         privateResidenceWinsCount,
         privateResidenceMatchedPingsCount,
+        ephemeralUnknownStaysSuppressedCount,
+        ephemeralUnknownStaysSuppressedMinutes:
+          Math.round(ephemeralUnknownStaysSuppressedMinutes * 100) / 100,
         examples: transportThresholdExamples,
       },
     },
