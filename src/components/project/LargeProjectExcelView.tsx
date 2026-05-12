@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { LargeProjectBooking } from "@/types/largeProject";
 
 interface Props {
@@ -33,16 +35,28 @@ interface ProductRow {
   quantity: number;
   booking_id: string;
   tags: string[];
+  parent_id: string | null;
+  is_package_component: boolean;
+  children: ProductRow[];
 }
 
-const formatProduct = (p: ProductRow) =>
+const formatProduct = (p: { name: string; quantity: number }) =>
   p.quantity && p.quantity > 1 ? `${p.quantity}× ${p.name}` : p.name;
 
 const LargeProjectExcelView = ({ bookings }: Props) => {
   const bookingIds = useMemo(() => bookings.map((b) => b.booking_id), [bookings]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const { data: allProducts = [], isLoading } = useQuery({
-    queryKey: ["large-project-excel-view-products", ...bookingIds],
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const { data: parents = [], isLoading } = useQuery({
+    queryKey: ["large-project-excel-view-products-v2", ...bookingIds],
     queryFn: async () => {
       if (bookingIds.length === 0) return [] as ProductRow[];
       const { data, error } = await supabase
@@ -51,38 +65,50 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
         .in("booking_id", bookingIds)
         .order("sort_index", { ascending: true, nullsFirst: false });
       if (error) throw error;
-      return (data || [])
-        .filter((p: any) => !p.parent_product_id && !p.is_package_component)
-        .map((p: any) => ({
-          id: p.id,
-          name: cleanName(p.name || ""),
-          quantity: p.quantity ?? 1,
-          booking_id: p.booking_id,
-          tags: mergeTags(
-            Array.isArray(p.tags) ? p.tags : [],
-            Array.isArray(p.local_tags) ? p.local_tags : [],
-          ),
-        })) as ProductRow[];
+      const all = (data || []).map((p: any) => ({
+        id: p.id,
+        name: cleanName(p.name || ""),
+        quantity: p.quantity ?? 1,
+        booking_id: p.booking_id,
+        tags: mergeTags(
+          Array.isArray(p.tags) ? p.tags : [],
+          Array.isArray(p.local_tags) ? p.local_tags : [],
+        ),
+        parent_id: p.parent_product_id ?? null,
+        is_package_component: !!p.is_package_component,
+        children: [] as ProductRow[],
+      })) as ProductRow[];
+
+      const byId = new Map(all.map((p) => [p.id, p]));
+      const roots: ProductRow[] = [];
+      for (const p of all) {
+        const isChild = p.parent_id || p.is_package_component;
+        if (isChild && p.parent_id && byId.has(p.parent_id)) {
+          byId.get(p.parent_id)!.children.push(p);
+        } else if (!isChild) {
+          roots.push(p);
+        }
+        // children utan parent i listan: skippa (samma som tidigare beteende)
+      }
+      return roots;
     },
     enabled: bookingIds.length > 0,
   });
 
-  // Collect all unique tags across all products → table headers
   const tagHeaders = useMemo(() => {
-    const seen = new Map<string, string>(); // norm-key → display
-    for (const p of allProducts) {
+    const seen = new Map<string, string>();
+    for (const p of parents) {
       for (const t of p.tags) {
         const k = norm(t);
         if (!seen.has(k)) seen.set(k, t);
       }
     }
     return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, "sv"));
-  }, [allProducts]);
+  }, [parents]);
 
-  // Build rows: per booking → tag bucket → product list
   const rows = useMemo(() => {
     return bookings.map((lpb) => {
-      const products = allProducts.filter((p) => p.booking_id === lpb.booking_id);
+      const products = parents.filter((p) => p.booking_id === lpb.booking_id);
       const byTag = new Map<string, ProductRow[]>();
       const untagged: ProductRow[] = [];
       for (const p of products) {
@@ -97,9 +123,9 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
         }
       }
       const client = lpb.booking?.client?.trim() || "Okänd kund";
-      const title = lpb.display_name?.trim() || lpb.booking?.booking_number
+      const title = lpb.display_name?.trim() || (lpb.booking?.booking_number
         ? `#${lpb.booking?.booking_number}`
-        : "";
+        : "");
       const address = lpb.booking?.deliveryaddress?.trim() || "";
       const cityParts = [lpb.booking?.delivery_postal_code, lpb.booking?.delivery_city]
         .filter(Boolean)
@@ -115,7 +141,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
         untagged,
       };
     });
-  }, [bookings, allProducts]);
+  }, [bookings, parents]);
 
   if (bookingIds.length === 0) {
     return (
@@ -140,8 +166,71 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
   const cellClass =
     "px-3 py-2 text-sm border-b border-r border-border/40 align-top";
 
+  const renderProductList = (items: ProductRow[]) => (
+    <ul className="space-y-1">
+      {items.map((p) => {
+        const hasChildren = p.children.length > 0;
+        const isOpen = expanded.has(p.id);
+        return (
+          <li key={p.id} className="text-foreground">
+            <div className="flex items-start gap-1">
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={() => toggle(p.id)}
+                  className="mt-0.5 text-muted-foreground hover:text-foreground shrink-0"
+                  aria-label={isOpen ? "Dölj tillbehör" : "Visa tillbehör"}
+                >
+                  {isOpen ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              ) : (
+                <span className="w-3.5 shrink-0" />
+              )}
+              <span className="flex-1">
+                {formatProduct(p)}
+                {hasChildren && (
+                  <span className="ml-1 text-[10px] text-muted-foreground">
+                    ({p.children.length})
+                  </span>
+                )}
+              </span>
+            </div>
+            {hasChildren && isOpen && (
+              <ul className="ml-4 mt-1 space-y-0.5 border-l border-border/40 pl-2">
+                {p.children.map((c) => (
+                  <li key={c.id} className="text-xs text-muted-foreground">
+                    {formatProduct(c)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  const expandAll = () => {
+    const all = new Set<string>();
+    for (const p of parents) if (p.children.length > 0) all.add(p.id);
+    setExpanded(all);
+  };
+  const collapseAll = () => setExpanded(new Set());
+
   return (
     <Card className="border-border/50 shadow-sm overflow-hidden w-full">
+      <div className="flex items-center justify-end gap-2 px-3 py-2 border-b border-border/40 bg-muted/20">
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={expandAll}>
+          Visa alla tillbehör
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={collapseAll}>
+          Dölj alla
+        </Button>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse min-w-[900px]">
           <thead>
@@ -177,13 +266,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       {items.length === 0 ? (
                         <span className="text-muted-foreground/50">—</span>
                       ) : (
-                        <ul className="space-y-0.5">
-                          {items.map((p) => (
-                            <li key={p.id} className="text-foreground">
-                              {formatProduct(p)}
-                            </li>
-                          ))}
-                        </ul>
+                        renderProductList(items)
                       )}
                     </td>
                   );
@@ -192,13 +275,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                   {r.untagged.length === 0 ? (
                     <span className="text-muted-foreground/50">—</span>
                   ) : (
-                    <ul className="space-y-0.5">
-                      {r.untagged.map((p) => (
-                        <li key={p.id} className="text-foreground">
-                          {formatProduct(p)}
-                        </li>
-                      ))}
-                    </ul>
+                    renderProductList(r.untagged)
                   )}
                 </td>
               </tr>
