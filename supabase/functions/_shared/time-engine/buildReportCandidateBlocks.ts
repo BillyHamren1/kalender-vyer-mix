@@ -542,6 +542,7 @@ export interface ReportCandidateSummary {
       distanceOutsideEdgeMeters: number;
       classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
     }>;
+  };
   /**
    * Time Engine 3.7 — Project label resolution diagnostics.
    *

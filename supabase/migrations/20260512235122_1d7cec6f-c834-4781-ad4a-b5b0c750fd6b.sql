@@ -1,0 +1,1 @@
+ALTER TYPE assistant_event_suggested_action ADD VALUE IF NOT EXISTS 'possible_arrival';

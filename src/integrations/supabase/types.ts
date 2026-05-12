@@ -8814,6 +8814,7 @@ export type Database = {
         | "end_workday"
         | "register_travel"
         | "review_only"
+        | "possible_arrival"
       assistant_event_target_type:
         | "location"
         | "project"
@@ -8995,6 +8996,7 @@ export const Constants = {
         "end_workday",
         "register_travel",
         "review_only",
+        "possible_arrival",
       ],
       assistant_event_target_type: [
         "location",
