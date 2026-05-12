@@ -244,15 +244,6 @@ const normalizeLooseLabel = (value: string | null | undefined): string | null =>
   return normalized.length > 2 ? normalized : null;
 };
 
-const isSoftTechnicalNeedsReview = (block: ReportCandidateBlock): boolean => {
-  if (block.kind !== 'needs_review') return false;
-  const reasons = block.reviewReasons ?? [];
-  if (reasons.length === 0) return true;
-  return reasons.every((reason) =>
-    SOFT_REVIEW_REASONS.has(reason) || SIGNAL_GAP_REASONS.has(reason),
-  );
-};
-
 const isTechnicalNoiseBlock = (
   block: ReportCandidateBlock | undefined,
   deps: ConsolidationDeps,
