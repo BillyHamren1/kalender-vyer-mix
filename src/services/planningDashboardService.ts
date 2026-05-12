@@ -127,7 +127,12 @@ const teamNames: Record<string, string> = {
   'team-8': 'Team 8',
   'team-9': 'Team 9',
   'team-10': 'Team 10',
-  'team-11': 'Live'
+  'team-11': 'Live',
+  'transport': 'Lager',
+  'warehouse': 'Lager',
+  'lager-1': 'Lager 1',
+  'lager-2': 'Lager 2',
+  'lager-3': 'Lager 3',
 };
 
 export const fetchPlanningStats = async (): Promise<PlanningStats> => {
