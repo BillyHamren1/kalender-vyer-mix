@@ -64,7 +64,7 @@ const LargeEstablishmentPage = () => {
     }
   }, [location.state]);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [pageMode, setPageMode] = useState<"plan" | "calendar">("plan");
+  const [pageMode, setPageMode] = useState<"plan" | "calendar" | "excel">("plan");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
