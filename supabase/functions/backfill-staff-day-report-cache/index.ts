@@ -46,6 +46,7 @@ import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
 import { enrichReportBlocksForCache } from '../_shared/time-engine/enrichReportBlocksForCache.ts';
+import { computeDayEndDecision } from '../_shared/time-engine/computeDayEndDecision.ts';
 import {
   computePlannedDaySignals,
   type BookingTimes,
