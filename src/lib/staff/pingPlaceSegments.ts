@@ -81,7 +81,16 @@ const centreOf = (pings: Ping[]) => ({
   lng: median(pings.map(p => p.lng)),
 });
 
-/** Närmaste kända plats inom dess egen radie. */
+/**
+ * Tolerans utöver platsens egen radie (meter).
+ * GPS-noise/accuracy gör att en stationär person nära ett känt projekt/lager
+ * ibland landar 50–150 m utanför geofencen. Vi accepterar det som matchning
+ * istället för att klassa det som "okänd plats" → annars ramlar staff ut i
+ * other_place / AI-granskning helt i onödan.
+ */
+export const KNOWN_SITE_TOLERANCE_METERS = 150;
+
+/** Närmaste kända plats inom dess egen radie + tolerans. */
 function matchKnownSite(ping: Ping, sites: KnownSite[]): KnownSite | null {
   let best: { site: KnownSite; dist: number } | null = null;
   for (const s of sites) {
@@ -89,7 +98,7 @@ function matchKnownSite(ping: Ping, sites: KnownSite[]): KnownSite | null {
       { lat: s.lat, lng: s.lng },
       { lat: ping.lat, lng: ping.lng },
     );
-    if (d <= s.radiusMeters && (!best || d < best.dist)) {
+    if (d <= s.radiusMeters + KNOWN_SITE_TOLERANCE_METERS && (!best || d < best.dist)) {
       best = { site: s, dist: d };
     }
   }
