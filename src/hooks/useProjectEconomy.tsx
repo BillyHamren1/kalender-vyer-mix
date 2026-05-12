@@ -36,9 +36,20 @@ import {
   deleteProductCostOverride,
 } from '@/services/productCostOverrideService';
 import { calculateEconomySummary, fetchProjectTimeReports } from '@/services/projectEconomyService';
+import { fetchProjectHoursSummary } from '@/services/projectHoursService';
+import type { ProjectHoursSummary } from '@/lib/projects/projectHoursFromTimeEngine';
+import { fetchLaborCosts } from '@/services/projectStaffService';
 import type { ProductCostSummary, ProductCostData } from '@/services/productCostService';
 import type { ProjectPurchase, ProjectQuote, ProjectInvoice, LinkedCostType } from '@/types/projectEconomy';
 import { createOptimisticCallbacks } from './useOptimisticMutation';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ekonomin använder samma Time Engine-cache (`staff_day_report_cache`) som
+// /staff-management/time-reports och projektvyn. Inga projekttimmar hämtas
+// från `time_reports`. `project_labor_costs` exponeras separat som
+// "manualExtraLabor*" — manuell extra kostnad — och blandas ALDRIG ihop med
+// rapporterade timmar.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const useProjectEconomy = (projectId: string | undefined, bookingId: string | null | undefined) => {
   const queryClient = useQueryClient();
@@ -50,6 +61,23 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     queryKey: ['project-budget', bookingId],
     queryFn: () => fetchBudget(bookingId!),
     enabled: hasBooking,
+  });
+
+  // Raw ProjectHoursSummary från Time Engine-cachen (samma data som
+  // /staff-management/time-reports). Detta är SANNINGEN för rapporterade
+  // personaltimmar i ekonomin.
+  const { data: projectHours } = useQuery<ProjectHoursSummary>({
+    queryKey: ['project-hours-summary', bookingId],
+    queryFn: () => fetchProjectHoursSummary(bookingId!),
+    enabled: hasBooking,
+  });
+
+  // Manuell extra labor (project_labor_costs). EJ rapporterade timmar — bara
+  // efterregistrerad manuell kostnad som visas separat i UI.
+  const { data: manualExtraLaborRows = [] } = useQuery({
+    queryKey: ['project-manual-labor', projectId],
+    queryFn: () => fetchLaborCosts(projectId!),
+    enabled: !!projectId,
   });
 
   const { data: timeReports = [], isLoading: timeReportsLoading, error: timeReportsError } = useQuery({
@@ -156,7 +184,26 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, mergedProductCosts || null, supplierInvoices);
 
-  // ===== Diagnostics: log fetch failures and data anomalies =====
+  // ===== Time Engine-derived staff hours (single source) =====
+  // Rapporterade timmar = staff_day_report_cache (Time Engine).
+  // Manuell extra labor = project_labor_costs (separat, blandas ej in).
+  const reportedStaffHoursFromTimeEngine = projectHours?.totalHours ?? 0;
+  const staffHoursByPerson = projectHours?.staffSummaries ?? [];
+  const staffHoursByDay = projectHours?.daySummaries ?? [];
+  const hoursSource: 'staff_day_report_cache' = 'staff_day_report_cache';
+
+  const manualExtraLaborHours = (manualExtraLaborRows ?? []).reduce(
+    (s, r) => s + (Number(r.hours) || 0), 0,
+  );
+  const manualExtraLaborCost = (manualExtraLaborRows ?? []).reduce(
+    (s, r) => s + (Number(r.hours) || 0) * (Number(r.hourly_rate) || 0), 0,
+  );
+
+  // Bakåtkompatibla aliaser:
+  const actualStaffHours = reportedStaffHoursFromTimeEngine;
+  const manualLaborHours = manualExtraLaborHours;
+  const totalLaborHours = reportedStaffHoursFromTimeEngine + manualExtraLaborHours;
+
   useEffect(() => {
     const tag = `[Economy:${projectId?.slice(0, 8)}]`;
 
@@ -471,6 +518,20 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     costOverrides,
     supplierInvoices,
     bookingEconomics,
+    // ── Time Engine staff hours (single source: staff_day_report_cache) ──
+    projectHours,
+    reportedStaffHoursFromTimeEngine,
+    staffHoursByPerson,
+    staffHoursByDay,
+    hoursSource,
+    // ── Manuell extra labor (project_labor_costs) — separat ──
+    manualExtraLaborRows,
+    manualExtraLaborHours,
+    manualExtraLaborCost,
+    // ── Bakåtkompatibla aliaser ──
+    actualStaffHours,
+    manualLaborHours,
+    totalLaborHours,
     summary,
     isLoading,
     hasBooking,
