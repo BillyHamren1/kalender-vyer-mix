@@ -846,6 +846,14 @@ function absorb(acc: AccumulatedBlock, b: PresenceDayBlock, asSignalGap = false)
   acc.endAt = b.endAt;
   acc.sourceIds.push(b.id);
   if (!acc.stickyWarningLabel) acc.stickyWarningLabel = pickStickyWarning(b);
+  // Time Engine 2.13 — ärva mänsklig label från victim om host saknar
+  // (förhindrar att RIGG/work-block visas namnlöst när bästa label gömmer
+  // sig i ett absorberat confirmed_on_site/probable_on_site block).
+  if (!acc.targetLabel && b.targetLabel) {
+    acc.targetLabel = b.targetLabel;
+    if (!acc.targetId && b.targetId) acc.targetId = b.targetId;
+    if (!acc.targetType && b.targetType) acc.targetType = b.targetType;
+  }
   if (b.durationMinutes <= 0) {
     acc.suppressedZeroLengthBlockCount += 1;
     acc.hiddenPresenceBlockIds.push(b.id);
