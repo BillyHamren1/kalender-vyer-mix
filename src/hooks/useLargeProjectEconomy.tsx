@@ -163,12 +163,6 @@ export const useLargeProjectEconomy = (
       } else if (pu !== undefined) {
         console.warn(`${TAG} Booking ${bId}: purchases is not an array`, typeof pu);
       }
-      const pu = bd.purchases;
-      if (Array.isArray(pu)) {
-        pu.forEach((p: any) => { totalPurchases += p.amount || 0; });
-      } else if (pu !== undefined) {
-        console.warn(`${TAG} Booking ${bId}: purchases is not an array`, typeof pu);
-      }
       // Quotes
       const qu = bd.quotes;
       if (Array.isArray(qu)) {
