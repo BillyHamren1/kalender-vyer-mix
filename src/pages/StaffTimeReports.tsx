@@ -1832,6 +1832,7 @@ const StaffTimeReports: React.FC = () => {
         reportCandidateByStaff={reportCandidateByStaff}
         engineMode={engineMode}
         bookingPhaseByDate={bookingPhaseByDate}
+        largeProjectPhaseByDate={largeProjectPhaseByDate}
       />
     </PageContainer>
   );
