@@ -529,6 +529,48 @@ export interface ReportCandidateSummary {
       distanceOutsideEdgeMeters: number;
       classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
     }>;
+  /**
+   * Time Engine 3.7 — Project label resolution diagnostics.
+   *
+   * Säkerställer att inga synliga work/rigg/lager/project-block visas med
+   * generisk titel ("Team N", "Team transport", "RIGG" utan projektnamn,
+   * "Arbete – okänd plats") när bättre källa finns.
+   *
+   * Titelprioritet:
+   *   1. explicit projectName / largeProjectName
+   *   2. bookingName / eventName
+   *   3. locationName / warehouseName
+   *   4. targetLabel om mänskligt
+   *   5. plannedAssignmentLabel
+   *   6. originalTitle om mänskligt
+   *   7. fallback: "Arbete – okänd plats"
+   */
+  labelResolutionDiagnostics?: {
+    genericTitleBlocksBefore: number;
+    genericTitleBlocksAfter: number;
+    resolvedFromProjectCount: number;
+    resolvedFromBookingCount: number;
+    resolvedFromLocationCount: number;
+    resolvedFromAssignmentCount: number;
+    fallbackUnknownCount: number;
+    examples: Array<{
+      blockKind: string;
+      startAt: ISODateTime;
+      endAt: ISODateTime;
+      originalTitle: string | null;
+      originalTargetLabel: string | null;
+      resolvedTitle: string;
+      resolvedSource:
+        | 'projectName'
+        | 'largeProjectName'
+        | 'bookingName'
+        | 'locationName'
+        | 'warehouseName'
+        | 'targetLabel'
+        | 'plannedAssignmentLabel'
+        | 'originalTitle'
+        | 'fallback';
+    }>;
   };
 }
 
