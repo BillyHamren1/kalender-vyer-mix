@@ -112,11 +112,12 @@ const ProjectProductsList = ({
       {
         prompt,
         products: mainProducts.map((p) => ({ id: p.id, name: cleanName(p.name) })),
+        currentGroups: grouping?.groups,
       },
       {
         onSuccess: () => {
           setGroupDialogOpen(false);
-          toast.success("Produkter grupperade");
+          toast.success(grouping?.groups?.length ? "Gruppering uppdaterad" : "Produkter grupperade");
         },
       }
     );
