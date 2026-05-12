@@ -131,6 +131,17 @@ export interface ReportCandidateBlock {
    *  uncertainty after consolidation (signalGapMinutes>0, signalGapCount>0,
    *  or 'signal_gap_inside_session' warning). Diagnostics + UI hint. */
   hasSignalUncertainty?: boolean;
+  /** Time Engine 2.11 — set when an open active timer's anchor was clamped
+   *  because the staff has been at a private_residence ≥ 90 minutes. The
+   *  block's endAt is moved back to the moment of arrival home and isOngoing
+   *  is forced to false. Diagnostics + UI hint. */
+  autoClosedByPrivateResidence?: boolean;
+  /** Time Engine 2.11 — ISO timestamp at which the work anchor was auto-closed
+   *  (== privateResidenceStay.startMs). */
+  autoClosedAt?: ISODateTime | null;
+  /** Time Engine 2.11 — minutes the staff has been continuously at the
+   *  private_residence at the moment we clamped the work anchor. */
+  privateResidenceDurationMinutes?: number;
   /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
