@@ -255,14 +255,16 @@ const isSoftTechnicalNeedsReview = (block: ReportCandidateBlock): boolean => {
 
 const isTechnicalNoiseBlock = (
   block: ReportCandidateBlock | undefined,
-  realTripMinDistanceMeters: number,
+  deps: ConsolidationDeps,
 ): boolean => {
   if (!block) return false;
+  // Hard reasons är aldrig "noise" — de bryter alltid session.
+  if (hasHardSessionBreakReason(block)) return false;
   if (block.kind === 'unknown') return true;
-  if (isSoftTechnicalNeedsReview(block)) return true;
+  if (block.kind === 'needs_review') return isSoftAbsorbableNeedsReview(block, deps);
   if (block.kind === 'transport') {
     const distanceMeters = block.evidenceSummary?.distanceMeters ?? 0;
-    return distanceMeters < realTripMinDistanceMeters;
+    return distanceMeters < deps.realTripMinDistanceMeters;
   }
   if (block.kind === 'work' && !sessionTargetKey(block)) return true;
   return false;
@@ -274,12 +276,18 @@ function shouldAbsorbAsProbableSameSession(
   next: ReportCandidateBlock | undefined,
   deps: ConsolidationDeps,
 ): { absorb: boolean; host?: 'prev' | 'next'; reason: string } {
-  if (!isTechnicalNoiseBlock(current, deps.realTripMinDistanceMeters)) {
+  // Hard reasons på current → får aldrig absorberas (även om kind är
+  // "noise-aktigt"). Detta är 2.10-säkringen mot att hard review smiter
+  // in i sessionen via probabilistic-passet.
+  if (hasHardSessionBreakReason(current)) {
+    return { absorb: false, reason: 'hard_session_break_reason_on_current' };
+  }
+  if (!isTechnicalNoiseBlock(current, deps)) {
     return { absorb: false, reason: 'not_technical_noise' };
   }
 
-  const prevIsWork = previous?.kind === 'work' && !hasBreakingReason(previous);
-  const nextIsWork = next?.kind === 'work' && !hasBreakingReason(next);
+  const prevIsWork = previous?.kind === 'work' && !hasHardSessionBreakReason(previous);
+  const nextIsWork = next?.kind === 'work' && !hasHardSessionBreakReason(next);
   if (!prevIsWork && !nextIsWork) {
     return { absorb: false, reason: 'no_neighbor_work_host' };
   }
@@ -291,7 +299,7 @@ function shouldAbsorbAsProbableSameSession(
   const curLabel = normalizeLooseLabel(current.targetLabel ?? current.toLabel ?? current.fromLabel);
   const currentDistance = current.evidenceSummary?.distanceMeters ?? 0;
   const noClearAlternateDestination =
-    currentDistance < deps.realTripMinDistanceMeters && !hasBreakingReason(current);
+    currentDistance < deps.realTripMinDistanceMeters && !hasHardSessionBreakReason(current);
 
   if (prevIsWork && nextIsWork) {
     const sameContext =
@@ -322,11 +330,22 @@ function shouldAbsorbAsProbableSameSession(
     }
   }
 
-  if (prevIsWork && !nextIsWork && noClearAlternateDestination) {
+  // 2.10 — trailing/leading technical noise: får ENDAST absorberas om
+  // current verkligen är soft technical noise (säkrat ovan via
+  // isTechnicalNoiseBlock + hard-reason-guard), distansen ligger under
+  // real-trip-tröskeln OCH current INTE har en tydlig egen toLabel/
+  // fromLabel som skiljer sig från host-context.
+  const currentHasOwnDistinctLabel = (() => {
+    const hostLabel = prevIsWork ? prevLabel : nextLabel;
+    if (!curLabel || !hostLabel) return false;
+    return curLabel !== hostLabel;
+  })();
+
+  if (prevIsWork && !nextIsWork && noClearAlternateDestination && !currentHasOwnDistinctLabel) {
     return { absorb: true, host: 'prev', reason: 'trailing_technical_noise' };
   }
 
-  if (nextIsWork && !prevIsWork && noClearAlternateDestination) {
+  if (nextIsWork && !prevIsWork && noClearAlternateDestination && !currentHasOwnDistinctLabel) {
     return { absorb: true, host: 'next', reason: 'leading_technical_noise' };
   }
 
