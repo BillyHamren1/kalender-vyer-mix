@@ -132,7 +132,7 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
       setArea(0);
       onChange({
         ...valueRef.current,
-        mode: 'circle',
+        mode: modeRef.current === 'polygon' ? 'polygon' : 'circle',
         polygon: null,
       });
       return;
@@ -212,26 +212,42 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
     const draw = drawRef.current;
     const current = valueRef.current;
 
-    draw.deleteAll();
-    if (current.mode === 'polygon' && current.polygon) {
-      try {
-        draw.add({ type: 'Feature', properties: {}, geometry: current.polygon } as GeoJSON.Feature<GeoJSONPolygon>);
-        setArea(polygonAreaM2(current.polygon));
-      } catch {
-        setArea(0);
-      }
+    if (current.mode === 'polygon') {
       clearCircleOverlay();
       markerRef.current?.remove();
       markerRef.current = null;
+
+      const existingPolygon = draw.getAll().features.find((feature) => feature.geometry.type === 'Polygon');
+      if (!current.polygon) {
+        if (!existingPolygon) {
+          setArea(0);
+          draw.changeMode('draw_polygon');
+        }
+        return;
+      }
+
+      const samePolygon = JSON.stringify(existingPolygon?.geometry ?? null) === JSON.stringify(current.polygon);
+      if (!samePolygon) {
+        draw.deleteAll();
+        try {
+          draw.add({ type: 'Feature', properties: {}, geometry: current.polygon } as GeoJSON.Feature<GeoJSONPolygon>);
+        } catch {
+          setArea(0);
+        }
+      }
+      setArea(polygonAreaM2(current.polygon));
       return;
     }
 
+    if (draw.getAll().features.length > 0) {
+      draw.deleteAll();
+    }
     setArea(0);
     renderCircleOverlay();
-    if (current.mode === 'circle' && hasCoordinates(current)) {
+    if (hasCoordinates(current)) {
       map.easeTo({ center: [current.longitude, current.latitude], zoom: Math.max(map.getZoom(), 18), duration: 0 });
     }
-  }, [mapReadyVersion, clearCircleOverlay, renderCircleOverlay]);
+  }, [mapReadyVersion, value.mode, value.polygon, value.latitude, value.longitude, value.radius_meters, clearCircleOverlay, renderCircleOverlay]);
 
   useEffect(() => {
     if (!mapRef.current || value.mode !== 'circle') return;

@@ -19,8 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import GeofenceMapEditor, { GeofenceValue } from './GeofenceMapEditor';
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+import { loadMapboxToken } from '@/hooks/useMapboxToken';
 
 const LOCATION_TYPE_ORDER: LocationType[] = [
   'warehouse',
@@ -133,15 +132,15 @@ const OrganizationLocationsManager = () => {
       toast.error('Ange en adress först');
       return;
     }
-    if (!MAPBOX_TOKEN) {
-      toast.error('Mapbox-token saknas');
-      return;
-    }
     setIsGeocoding(true);
     try {
+      const token = await loadMapboxToken();
       const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_TOKEN}&country=se&limit=1`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${token}&country=se&limit=1&autocomplete=false&language=sv`
       );
+      if (!res.ok) {
+        throw new Error(`Geokodning misslyckades (${res.status})`);
+      }
       const json = await res.json();
       const feature = json.features?.[0];
       if (!feature) {
@@ -154,8 +153,8 @@ const OrganizationLocationsManager = () => {
       // For circle mode also seed centroid
       setGeofence(g => g.mode === 'circle' ? { ...g, latitude: lat, longitude: lng } : g);
       toast.success('Karta centrerad');
-    } catch {
-      toast.error('Geocoding misslyckades');
+    } catch (error: any) {
+      toast.error(error?.message || 'Geocoding misslyckades');
     } finally {
       setIsGeocoding(false);
     }
