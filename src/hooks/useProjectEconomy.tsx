@@ -79,6 +79,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     queryFn: () => fetchLaborCosts(projectId!),
     enabled: !!projectId,
   });
+
   const { data: timeReports = [], isLoading: timeReportsLoading, error: timeReportsError } = useQuery({
     queryKey: ['project-time-reports', bookingId],
     queryFn: () => fetchProjectTimeReports(bookingId!),
