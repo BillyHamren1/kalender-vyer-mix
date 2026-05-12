@@ -143,7 +143,27 @@ const LargeProjectProductsOverview = ({
     return q ? flatRows.filter((r) => r.name.toLowerCase().includes(q)) : flatRows;
   }, [flatRows, search]);
 
-  const visibleIds = useMemo(() => new Set(filteredRows.map((r) => r.id)), [filteredRows]);
+  const sortRows = <T extends RowData>(rows: T[]): T[] => {
+    if (!sort) return rows;
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const key = sort.key;
+    const val = (r: T): string | number => {
+      if (key === "quantity") return r.quantity ?? 0;
+      if (key === "tags") return r.tags.length;
+      if (key === "name") return r.name?.toLowerCase() || "";
+      if (key === "client") return r.client?.toLowerCase() || "";
+      return r.deliveryaddress?.toLowerCase() || "";
+    };
+    return [...rows].sort((a, b) => {
+      const av = val(a); const bv = val(b);
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), "sv") * dir;
+    });
+  };
+
+  const sortedFilteredRows = useMemo(() => sortRows(filteredRows), [filteredRows, sort]);
+
+  const visibleIds = useMemo(() => new Set(sortedFilteredRows.map((r) => r.id)), [sortedFilteredRows]);
   const productById = useMemo(() => new Map(flatRows.map((r) => [r.id, r])), [flatRows]);
 
   const untaggedCount = useMemo(
