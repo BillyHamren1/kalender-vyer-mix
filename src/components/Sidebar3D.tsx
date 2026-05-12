@@ -73,8 +73,6 @@ const baseNavigationItems: NavItem[] = [
       { title: "Personalöversikt", url: "/staff-management", icon: Users },
       { title: "Personalplanering", url: "/calendar", icon: Calendar },
       { title: "Tidrapporter", url: "/staff-management/time-reports", icon: Clock },
-      { title: "Närvaro & GPS", url: "/admin/presence", icon: MapPin },
-      { title: "Dagöversikt", url: "/admin/presence/day-overview", icon: Activity },
     ],
   },
   {
