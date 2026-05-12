@@ -32,6 +32,7 @@ import type {
 import type { ISODate, ISODateTime, UUID } from './contracts.ts';
 import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 import { consolidateReportBlocksIntoSessions } from './consolidateReportBlocksIntoSessions.ts';
+import { getStockholmDayWindowUtc } from '../stockholmDayWindow.ts';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -760,7 +761,11 @@ function isDayOpen(
   active?: ActiveTimeRegistrationInput[],
   sessions?: StaffPresenceSessionInput[],
 ): boolean {
-  const cutoff = new Date(`${date}T23:59:59Z`).getTime();
+  // Time Engine 4.2 — använd Europe/Stockholm dagsslut, inte UTC.
+  // Tidigare bug: `${date}T23:59:59Z` (UTC) kunde ligga 1–2 h FÖRE
+  // svensk midnatt, vilket gjorde att svenska kvällsblock felaktigt
+  // klassades som "dag öppen" och fortsatte över 00:00 lokal tid.
+  const cutoff = getStockholmDayWindowUtc(date).endUtcMs;
   const end = new Date(endAt).getTime();
   if (end >= cutoff) return true;
   if (active?.some((r) => {
@@ -2008,8 +2013,13 @@ export function buildReportCandidateBlocks(
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
     const startedMs = new Date(openCtx.startedAtIso).getTime();
-    const dayCutoffMs = new Date(`${input.date}T23:59:59Z`).getTime();
-    const nowMs = Date.now();
+    // Time Engine 4.2 — Europe/Stockholm dagsfönster (inte UTC `T23:59:59Z`).
+    // Historiska dagar: clamp `nowMs` till stockholmDayEndMs så ankaret
+    // aldrig sträcks in på efterföljande svensk kalenderdag.
+    const stockholmDay = getStockholmDayWindowUtc(input.date);
+    const dayCutoffMs = stockholmDay.endUtcMs;
+    const rawNowMs = Date.now();
+    const nowMs = Math.min(rawNowMs, dayCutoffMs);
     const openTargetKey = openCtx.targetId
       ? `${openCtx.targetType ?? ''}::${openCtx.targetId}`
       : null;
@@ -3075,6 +3085,48 @@ export function buildReportCandidateBlocks(
         summary.reviewClassificationDiagnostics.signalGapWarningOnlyBlocksCount += 1;
       }
     }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Time Engine 4.2 — FINAL DAY-WINDOW CLAMP
+  // Hård invariant: inga synliga blocks får ligga utanför svensk
+  // rapportdag (Europe/Stockholm). Block helt utanför dagen tas bort,
+  // block som överlappar dagsgränsen klipps. Detta körs sist så att alla
+  // tidigare passes (open-active-timer-extend, single-timeline, session-
+  // konsolidering) inte kan smita förbi.
+  // ───────────────────────────────────────────────────────────────────────
+  {
+    const win = getStockholmDayWindowUtc(input.date);
+    const clamped: ReportCandidateBlock[] = [];
+    for (const b of out) {
+      const sMs = Date.parse(b.startAt);
+      const eMs = Date.parse(b.endAt);
+      if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) continue;
+      if (eMs <= win.startUtcMs) continue; // helt före dagen
+      if (sMs >= win.endUtcMs) continue;   // helt efter dagen
+      const newSMs = Math.max(sMs, win.startUtcMs);
+      const newEMs = Math.min(eMs, win.endUtcMs);
+      if (newEMs - newSMs < 60_000) continue; // < 1 min kvar — droppa
+      const startChanged = newSMs !== sMs;
+      const endChanged = newEMs !== eMs;
+      if (startChanged) b.startAt = new Date(newSMs).toISOString();
+      if (endChanged) {
+        b.endAt = new Date(newEMs).toISOString();
+        // Block får aldrig anses pågående utanför dagsfönstret.
+        if (b.isOngoing) b.isOngoing = false;
+      }
+      if (startChanged || endChanged) {
+        b.durationMinutes = Math.max(1, Math.round((newEMs - newSMs) / 60_000));
+        b.durationLabel = fmtDuration(b.durationMinutes);
+        b.subtitle = `${fmtClock(b.startAt)}–${fmtClock(b.endAt)} · ${fmtDuration(b.durationMinutes)}`;
+        const reasons = new Set(b.reviewReasons ?? []);
+        reasons.add('clamped_to_stockholm_day_window');
+        b.reviewReasons = Array.from(reasons);
+      }
+      clamped.push(b);
+    }
+    out.length = 0;
+    out.push(...clamped);
   }
 
   return {
