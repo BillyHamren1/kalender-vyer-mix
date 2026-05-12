@@ -1,14 +1,24 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import type { LargeProjectBooking } from "@/types/largeProject";
 
 interface Props {
   bookings: LargeProjectBooking[];
 }
+
+type SortKey =
+  | { type: "client" }
+  | { type: "address" }
+  | { type: "tag"; tag: string }
+  | { type: "untagged" };
+
+const sortKeyId = (k: SortKey) =>
+  k.type === "tag" ? `tag:${k.tag}` : k.type;
 
 const cleanName = (name: string) =>
   name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
