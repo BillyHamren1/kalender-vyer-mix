@@ -225,10 +225,68 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
   }
 }
 
+// ============== WMS ALLOCATION MIRROR ==============
+// Replicates the WMS allocation truth into wms_reservation_allocations so the
+// scanner UI can subscribe via Supabase Realtime filtered on packing_id /
+// reservation_id. Idempotent on (reservation_id, serial_number).
+type WmsAllocRow = {
+  serial_number: string
+  instance_id?: string | null
+  item_type_id?: string | null
+  sku?: string | null
+  item_type_name?: string | null
+  raw?: any
+}
+
+async function mirrorWmsAllocations(
+  supabase: any,
+  opts: {
+    orgId: string
+    packingId: string
+    reservationId: string
+    rows: WmsAllocRow[]
+    source?: string
+  },
+): Promise<number> {
+  const cleaned = (opts.rows || [])
+    .map((r) => ({
+      ...r,
+      serial_number: (r?.serial_number || '').trim(),
+    }))
+    .filter((r) => r.serial_number)
+
+  if (cleaned.length === 0) return 0
+
+  const payload = cleaned.map((r) => ({
+    organization_id: opts.orgId,
+    packing_id: opts.packingId,
+    reservation_id: opts.reservationId,
+    serial_number: r.serial_number,
+    instance_id: r.instance_id || null,
+    item_type_id: r.item_type_id || null,
+    sku: r.sku || null,
+    item_type_name: r.item_type_name || null,
+    source: opts.source || 'allocate-instance',
+    raw: r.raw ?? null,
+    allocated_at: new Date().toISOString(),
+  }))
+
+  const { error } = await supabase
+    .from('wms_reservation_allocations')
+    .upsert(payload, { onConflict: 'reservation_id,serial_number' })
+
+  if (error) {
+    console.warn('[mirrorWmsAllocations] upsert failed', { error: error.message, count: payload.length })
+    return 0
+  }
+  return payload.length
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
+
 
   try {
     const supabase = createClient(
@@ -430,7 +488,118 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(data || []), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      // ====== HYDRATE WMS allocations for a packing (called on screen mount) ======
+      // Proxies WMS get-reservation-allocations and mirrors the result into
+      // wms_reservation_allocations so the frontend can subscribe via Realtime.
+      case 'get_reservation_allocations': {
+        const { packingId } = params
+        if (!packingId) return json({ success: false, error: 'packingId krävs', allocations: [] })
+
+        const { data: packing, error: packErr } = await supabase
+          .from('packing_projects')
+          .select('booking_id')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .single()
+        if (packErr || !packing?.booking_id) {
+          return json({ success: false, error: 'Packlistan saknar bokning', allocations: [] })
+        }
+        const { data: bookingData } = await supabase
+          .from('bookings')
+          .select('booking_number')
+          .eq('id', packing.booking_id)
+          .eq('organization_id', ORG_ID)
+          .single()
+        const bookingNumber = bookingData?.booking_number
+        if (!bookingNumber) {
+          return json({ success: false, error: 'Bokningen saknar bokningsnummer', allocations: [] })
+        }
+
+        const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
+        if (!PRICELIST_API_KEY) {
+          return json({ success: false, error: 'Lagersystem ej konfigurerat', allocations: [] })
+        }
+
+        const url = `https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/get-reservation-allocations?reservation_id=${encodeURIComponent(bookingNumber)}`
+        let wmsAllocs: WmsAllocRow[] = []
+        let wmsCurrentState: any = null
+        try {
+          const resp = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+              'x-organization-id': ORG_ID,
+            },
+          })
+          const txt = await resp.text()
+          let body: any = {}
+          try { body = JSON.parse(txt) } catch { /* ignore */ }
+          console.log('[get_reservation_allocations] WMS response', {
+            status: resp.status,
+            bookingNumber,
+            packingId,
+            keys: Object.keys(body || {}),
+          })
+          if (!resp.ok) {
+            return json({
+              success: false,
+              error: body?.error || `WMS svarade ${resp.status}`,
+              allocations: [],
+              debugCode: `WMS_${resp.status}`,
+            })
+          }
+          const list: any[] = Array.isArray(body?.allocations)
+            ? body.allocations
+            : Array.isArray(body?.data?.allocations)
+              ? body.data.allocations
+              : Array.isArray(body?.results)
+                ? body.results
+                : Array.isArray(body)
+                  ? body
+                  : []
+          wmsCurrentState = body?.current_state || body?.data?.current_state || null
+          wmsAllocs = list
+            .map((row: any) => {
+              const data = row?.data && typeof row.data === 'object' ? { ...row, ...row.data } : row
+              return {
+                serial_number: data?.serial_number || data?.serial || data?.sku_serial || '',
+                instance_id: data?.instance_id || data?.id || null,
+                item_type_id: data?.item_type_id || data?.itemTypeId || null,
+                sku: data?.sku || null,
+                item_type_name: data?.item_type_name || data?.item_type || data?.product_name || data?.name || null,
+                raw: data,
+              } as WmsAllocRow
+            })
+            .filter((r) => r.serial_number)
+        } catch (err: any) {
+          console.error('[get_reservation_allocations] fetch error', err)
+          return json({
+            success: false,
+            error: err?.message || 'Kunde inte nå lagersystemet',
+            allocations: [],
+          })
+        }
+
+        const mirrored = await mirrorWmsAllocations(supabase, {
+          orgId: ORG_ID,
+          packingId,
+          reservationId: bookingNumber,
+          rows: wmsAllocs,
+          source: 'get-reservation-allocations',
+        })
+
+        return json({
+          success: true,
+          reservation_id: bookingNumber,
+          packing_id: packingId,
+          allocations: wmsAllocs,
+          current_state: wmsCurrentState,
+          mirroredCount: mirrored,
+        })
+      }
+
       case 'verify_product': {
+
         const { packingId, sku: serialNumber, verifiedBy, activeParcelId, verifiedByStaffId } = params
         console.log('[verify_product] start', { packingId, serialNumber, orgId: ORG_ID, verifiedBy: auth.staffName })
 
@@ -902,6 +1071,35 @@ Deno.serve(async (req) => {
         }
 
         await checkIfAllPacked(supabase, packingId, ORG_ID)
+
+        // Mirror WMS allocations (both successful + already_allocated) so frontend Realtime fires.
+        try {
+          const allSerials = [
+            ...(Array.isArray(allocateData.results)
+              ? allocateData.results.map((r: any) => r.serial_number)
+              : [serialNumber]),
+            ...alreadyAllocatedSerials,
+          ].filter(Boolean)
+          const uniqSerials = Array.from(new Set(allSerials))
+          if (uniqSerials.length > 0) {
+            await mirrorWmsAllocations(supabase, {
+              orgId: ORG_ID,
+              packingId,
+              reservationId: bookingNumber,
+              rows: uniqSerials.map((s: string) => ({
+                serial_number: s,
+                instance_id: wmsInstanceId,
+                item_type_id: wmsItemTypeId,
+                sku: wmsSku,
+                item_type_name: wmsItemTypeName,
+              })),
+              source: 'verify_product',
+            })
+          }
+        } catch (mirrorErr) {
+          console.warn('[verify_product] mirror skipped', mirrorErr)
+        }
+
 
         return json({
           success: true,
