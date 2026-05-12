@@ -46,6 +46,7 @@ import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
 import { enrichReportBlocksForCache } from '../_shared/time-engine/enrichReportBlocksForCache.ts';
+import { computeDayEndDecision } from '../_shared/time-engine/computeDayEndDecision.ts';
 import {
   computePlannedDaySignals,
   type BookingTimes,
@@ -521,6 +522,18 @@ async function processOne(
                 durationMinutes: b.durationMinutes,
               })),
               aggregation: (presence as any).aggregation ?? null,
+              dayEndDecision: computeDayEndDecision({
+                date,
+                dayStartUtcIso: dayStart,
+                dayEndUtcIso: dayEnd,
+                blocks: report.blocks ?? [],
+                activeRegistrations: activeRegs as any,
+                openActiveRegistration,
+                lastGpsPingAtIso: pings[pings.length - 1]?.ts ?? null,
+                homeAnchors,
+                nowIso: new Date().toISOString(),
+                plannedEndOfDayIso,
+              }),
             },
             source_watermark: {
               maxPingTs: pings[pings.length - 1]?.ts ?? null,
