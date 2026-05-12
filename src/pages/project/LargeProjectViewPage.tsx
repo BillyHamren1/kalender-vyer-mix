@@ -101,10 +101,6 @@ const LargeProjectViewPage = () => {
           <LargeProjectProductsOverview bookings={(project as any)?.bookings || []} largeProjectId={project.id} />
         </TabsContent>
 
-        <TabsContent value="excel">
-          <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
-        </TabsContent>
-
         <TabsContent value="transport">
           <ProjectTransportWidget bookingId={bookingId} />
         </TabsContent>
