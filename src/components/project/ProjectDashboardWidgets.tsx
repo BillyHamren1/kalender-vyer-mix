@@ -233,20 +233,45 @@ interface LargeProjectsListProps {
   ProjectRow: React.FC<{ item: UnifiedItem; compact?: boolean }>;
 }
 
+const RECENT_KEY = 'recentLargeProjectsOpened';
+const readRecent = (): Record<string, number> => {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '{}') || {}; } catch { return {}; }
+};
+const writeRecent = (id: string) => {
+  try {
+    const map = readRecent();
+    map[id] = Date.now();
+    // keep only 50 most recent
+    const trimmed = Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 50);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(Object.fromEntries(trimmed)));
+  } catch {
+    // ignore
+  }
+};
+
 const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow }) => {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [recent, setRecent] = useState<Record<string, number>>(() => readRecent());
   const query = search.trim().toLowerCase();
 
   const sorted = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    const upcoming = items
+    const recentItems = items
+      .filter(i => recent[i.id])
+      .sort((a, b) => (recent[b.id] ?? 0) - (recent[a.id] ?? 0));
+    const recentIds = new Set(recentItems.map(i => i.id));
+    const rest = items.filter(i => !recentIds.has(i.id));
+    const upcoming = rest
       .filter(i => i.date && i.date >= today)
       .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
-    const past = items
+    const past = rest
       .filter(i => !i.date || i.date < today)
       .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
-    return [...upcoming, ...past];
-  }, [items]);
+    return [...recentItems, ...upcoming, ...past];
+  }, [items, recent]);
 
   const filtered = useMemo(() => {
     if (!query) return sorted.slice(0, 10);
@@ -255,6 +280,12 @@ const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow
       (i.subtitle ?? '').toLowerCase().includes(query)
     );
   }, [sorted, query]);
+
+  const handleOpen = (item: UnifiedItem) => {
+    writeRecent(item.id);
+    setRecent(readRecent());
+    navigate(item.navigateTo);
+  };
 
   return (
     <Card>
