@@ -482,18 +482,15 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
 
       if (!mm.getLayer(STAFF_LABEL_LAYER_ID)) {
+        // Cluster: number centered on the dot
         mm.addLayer({
           id: STAFF_LABEL_LAYER_ID,
           type: 'symbol',
           source: STAFF_SOURCE_ID,
+          filter: ['==', ['get', 'isCluster'], 1],
           layout: {
             'text-field': ['get', 'initial'],
-            'text-size': [
-              'interpolate', ['linear'], ['get', 'clusterSize'],
-              1, 12,
-              3, 13,
-              6, 14,
-            ],
+            'text-size': 13,
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-allow-overlap': true,
             'text-ignore-placement': true,
@@ -502,6 +499,33 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             'text-color': '#ffffff',
             'text-halo-color': 'rgba(0,0,0,0.55)',
             'text-halo-width': 1.4,
+          },
+        });
+      }
+
+      // Singel-marker: förnamn som pill UNDER dot
+      const STAFF_NAME_PILL_LAYER_ID = 'ops-staff-name-pill-layer';
+      if (!mm.getLayer(STAFF_NAME_PILL_LAYER_ID)) {
+        mm.addLayer({
+          id: STAFF_NAME_PILL_LAYER_ID,
+          type: 'symbol',
+          source: STAFF_SOURCE_ID,
+          filter: ['==', ['get', 'isCluster'], 0],
+          layout: {
+            'text-field': ['get', 'initial'],
+            'text-size': 11,
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-anchor': 'top',
+            'text-offset': [0, 1.4],
+            'text-padding': 2,
+            'text-allow-overlap': false,
+            'text-optional': true,
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(15,23,42,0.92)',
+            'text-halo-width': 2.4,
+            'text-halo-blur': 0.4,
           },
         });
       }
