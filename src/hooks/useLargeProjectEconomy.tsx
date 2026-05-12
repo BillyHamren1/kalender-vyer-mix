@@ -10,7 +10,21 @@ import {
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
 import { fetchProjectTimeReports } from '@/services/projectEconomyService';
+import { fetchLargeProjectHoursSummary } from '@/services/projectHoursService';
 import type { StaffTimeReport } from '@/types/projectEconomy';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECT HOURS 6:
+// Sanningen för stora projektets personaltimmar = staff_day_report_cache
+// (samma Time Engine-cache som /staff-management/time-reports). Vi summerar
+// på LARGE PROJECT-nivå via fetchLargeProjectHoursSummary, där ett block
+// matchas på large_project_id ELLER booking_id ∈ linkedBookingIds, och
+// dedupas så samma block aldrig räknas dubbelt.
+//
+// `timeReportsByBooking` lever kvar enbart som DETALJ-breakdown per booking
+// — den är ingen totalsanning längre och får aldrig användas för LP-totaler.
+// time_reports används INTE som källa.
+// ─────────────────────────────────────────────────────────────────────────────
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -68,7 +82,8 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // Local time reports per booking (single source of truth — same as normal projects)
+  // DETAIL-only: per-booking time reports breakdown. Får inte användas som
+  // total — totalsanningen för LP är largeProjectHours nedan.
   const { data: timeReportsByBooking = {} } = useQuery({
     queryKey: ['large-project-time-reports', bookingIds],
     queryFn: async () => {
@@ -84,6 +99,15 @@ export const useLargeProjectEconomy = (
       return result;
     },
     enabled: bookingIds.length > 0,
+  });
+
+  // TOTALSANNING: LP-aggregerade Time Engine-block (samma cache som
+  // /staff-management/time-reports). Block matchas på large_project_id ELLER
+  // booking_id ∈ bookingIds, deduplicerade så inget block räknas dubbelt.
+  const { data: largeProjectHours } = useQuery({
+    queryKey: ['large-project-hours', largeProjectId, bookingIds],
+    queryFn: () => fetchLargeProjectHoursSummary(largeProjectId!, bookingIds),
+    enabled: !!largeProjectId,
   });
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
     const TAG = '[LargeProjectEcon]';
@@ -129,12 +153,9 @@ export const useLargeProjectEconomy = (
           console.warn(`${TAG} Booking ${bId}: missing product_costs.summary, using local fallback (rev: ${localRev})`);
         }
       }
-      // Staff/time — use LOCAL time_reports (single source of truth, same as normal projects)
-      const localTr = timeReportsByBooking[bId] || [];
-      localTr.forEach((r) => {
-        totalStaffCost += r.total_cost || 0;
-        totalActualHours += (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
-      });
+      // Staff/time hanteras INTE här. Totalsanningen är `largeProjectHours`
+      // (Time Engine-cache, LP-aggregerad). Per-booking loop skulle dubbelräkna
+      // block som har både booking_id och large_project_id.
       // Purchases
       const pu = bd.purchases;
       if (Array.isArray(pu)) {
@@ -181,13 +202,22 @@ export const useLargeProjectEconomy = (
   // Budget cost
   const budgetedCost = (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0);
 
+  // ── LP-aggregerade Time Engine-timmar (totalsanning) ──
+  const reportedStaffHoursFromTimeEngine = largeProjectHours?.summary.totalHours ?? 0;
+  const reportedStaffCostFromTimeEngine = largeProjectHours?.totalCost ?? 0;
+  const staffHoursByPerson = largeProjectHours?.summary.staffSummaries ?? [];
+  const staffHoursByDay = largeProjectHours?.summary.daySummaries ?? [];
+  const staffCostsByPerson = largeProjectHours?.staffCosts ?? [];
+  const hoursSource: 'staff_day_report_cache' = 'staff_day_report_cache';
+
   // Combined summary
-  // grandTotalCost includes ALL cost types: product costs + staff + purchases + invoices + supplier invoices + local purchases
+  // Staff-totalen kommer NU från LP-aggregerade Time Engine-block (inte
+  // booking-summan), eftersom samma block annars skulle räknas dubbelt.
   const agg = aggregatedBookingEconomy;
   const grandTotalCost =
     localPurchasesTotal +
     agg.totalCost +
-    agg.totalStaffCost +
+    reportedStaffCostFromTimeEngine +
     agg.totalPurchases +
     agg.totalInvoices +
     agg.totalSupplierInvoices;
@@ -199,11 +229,16 @@ export const useLargeProjectEconomy = (
     budgetedCost,
     // Local purchases
     localPurchasesTotal,
-    // Aggregated from bookings
+    // Aggregated from bookings (utan staff — den kommer från LP-Time Engine)
     ...aggregatedBookingEconomy,
+    // Override staff totals med LP-aggregerade Time Engine-värden
+    totalStaffCost: reportedStaffCostFromTimeEngine,
+    totalActualHours: reportedStaffHoursFromTimeEngine,
     // Grand totals
     grandTotalCost,
     grandTotalRevenue: agg.totalRevenue,
+    // Källa-spårning
+    staffHoursSource: hoursSource,
   };
 
   // Mutations
@@ -252,7 +287,16 @@ export const useLargeProjectEconomy = (
     summary,
     bookingEconomyData: bookingEconomyData || null,
     localProducts,
+    // Detalj-breakdown per booking — får ej användas som total.
     timeReportsByBooking,
+    // Totalsanning: LP-aggregerad Time Engine-cache.
+    largeProjectHours,
+    reportedStaffHoursFromTimeEngine,
+    reportedStaffCostFromTimeEngine,
+    staffHoursByPerson,
+    staffHoursByDay,
+    staffCostsByPerson,
+    hoursSource,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
     addPurchase: addPurchaseMutation.mutate,
