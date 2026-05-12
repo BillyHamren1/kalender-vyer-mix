@@ -306,6 +306,11 @@ export interface ReportCandidateSummary {
     demotedNeedsReviewBlocksCount?: number;
     /** Time Engine 2.9 — antal block absorberade via shouldAbsorbAsProbableSameSession. */
     probabilisticAbsorptionCount?: number;
+    /** Time Engine 3.8 — antal needs_review-block som STOPPADES från
+     *  absorption pga reason i HARD_SESSION_BREAK_REASONS. */
+    rejectedHardReviewAbsorptionCount?: number;
+    /** Time Engine 3.8 — count per hard reason som blockerade absorption. */
+    rejectedHardReviewAbsorptionReasons?: Record<string, number>;
     examples: Array<{
       staffName: string | null;
       sessionLabel: string | null;
@@ -315,7 +320,15 @@ export interface ReportCandidateSummary {
       originalBlockKinds: string[];
       originalBlockLabels: string[];
       absorbedBlockCount: number;
+      /** Time Engine 3.8 — IDs på alla absorberade block i sessionen. */
+      absorbedBlockIds?: string[];
+      /** Time Engine 3.8 — set of reasons från absorberade block. */
+      absorbedReasons?: string[];
+      /** Time Engine 3.8 — warning-reasons aggregerade på sessionen. */
+      warningReasons?: string[];
       signalGapMinutes: number;
+      /** Time Engine 3.8 — antal absorberade signal_gap-block. */
+      signalGapCount?: number;
       internalMovementMinutes: number;
       finalKind: string;
       finalReviewState: string;

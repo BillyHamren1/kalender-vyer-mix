@@ -82,10 +82,14 @@ export interface SessionConsolidationDiagnostics {
     originalBlockKinds: string[];
     originalBlockLabels: string[];
     absorbedBlockCount: number;
+    /** Time Engine 3.8 — IDs på alla absorberade block i sessionen. */
+    absorbedBlockIds: string[];
     /** Time Engine 2.9 — set of reasons + warning labels för absorberade block. */
     absorbedReasons: string[];
     warningReasons: string[];
     signalGapMinutes: number;
+    /** Time Engine 3.8 — antal signal_gap-block som absorberats i sessionen. */
+    signalGapCount: number;
     internalMovementMinutes: number;
     finalKind: string;
     finalReviewState: string;
@@ -592,9 +596,11 @@ export function consolidateReportBlocksIntoSessions(
             ...absorbedLabels,
           ],
           absorbedBlockCount: absorbedCount,
+          absorbedBlockIds: Array.from(new Set(cur.absorbedBlockIds ?? [])),
           absorbedReasons: Array.from(new Set(cur.absorbedReasons ?? [])),
           warningReasons: Array.from(new Set(cur.warningReasons ?? [])),
           signalGapMinutes: cur.signalGapMinutes,
+          signalGapCount: cur.signalGapCount ?? 0,
           internalMovementMinutes: cur.internalMovementMinutes ?? 0,
           finalKind: cur.kind,
           finalReviewState: cur.reviewState,
