@@ -280,7 +280,9 @@ const blocksFromStaff = (
           startAt: b.startAt,
           endAt: b.endAt,
           durationMinutes: b.durationMinutes,
-          title: resolveGanttBlockTitle(b),
+          title: resolveGanttBlockTitle(
+            plannedFallback ? { ...b, plannedAssignmentLabel: (b as any).plannedAssignmentLabel ?? plannedFallback } : b,
+          ),
           subtitle: 'Före arbetsdag',
         });
       }
