@@ -2581,6 +2581,10 @@ export function buildReportCandidateBlocks(
           if (!anchor.reviewReasons.includes('block_prevented_from_continuing_to_now')) {
             anchor.reviewReasons.push('block_prevented_from_continuing_to_now');
           }
+          if (extGate.reason === 'stale_evidence' &&
+              !anchor.reviewReasons.includes('active_timer_open_but_no_fresh_engine_evidence')) {
+            anchor.reviewReasons.push('active_timer_open_but_no_fresh_engine_evidence');
+          }
           anchor.warningLabel = anchor.warningLabel ??
             (extGate.reason === 'historical_date'
               ? 'Klippt – historisk dag (open timer)'
