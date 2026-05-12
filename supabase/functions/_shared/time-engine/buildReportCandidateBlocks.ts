@@ -346,6 +346,32 @@ export interface ReportCandidateSummary {
     workBlockClampedAt: ISODateTime | null;
     suppressedBlocksAfterHomeArrival: number;
   };
+  /**
+   * Time Engine 2.11 — diagnostik för open active_time_registration anchor
+   * vs. senare verkliga motorblock. Anchor får aldrig förlängas eller skapa
+   * synthetic-block som visuellt ligger ovanpå senare engine-evidens
+   * (verklig transport, work på annan target, känd plats, private residence).
+   */
+  activeTimerOverlapDiagnostics?: {
+    activeTimerAnchorsFound: number;
+    activeTimerAnchorsExtended: number;
+    activeTimerAnchorsClampedByLaterBlock: number;
+    syntheticActiveTimerBlocksCreated: number;
+    syntheticActiveTimerBlocksSkippedDueToEngineBlocks: number;
+    overlappingWorkBlocksDetected: number;
+    overlappingWorkBlocksResolved: number;
+    examples: Array<{
+      activeTimerTarget: string | null;
+      activeTimerStart: ISODateTime;
+      originalAnchorStart: ISODateTime | null;
+      originalAnchorEnd: ISODateTime | null;
+      clampedAnchorEnd: ISODateTime | null;
+      conflictingBlockLabel: string | null;
+      conflictingBlockStart: ISODateTime | null;
+      conflictingBlockEnd: ISODateTime | null;
+      reason: string;
+    }>;
+  };
 }
 
 /**
