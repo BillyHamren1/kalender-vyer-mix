@@ -472,6 +472,36 @@ export interface ReportCandidateSummary {
       nearbyWarehouseOrProjectLabel: string | null;
     }>;
   };
+  /**
+   * Time Engine 3.5 — 15-mils-policy för pendling.
+   *
+   * Resa till/från jobb är normalt inte arbetstid. Resor ≥ 150 km kan dock
+   * räknas som arbetsrelaterad transport. Diagnostiken klassar varje
+   * pendlingsetapp i dagen utan att ändra blockens kind/work-status.
+   *
+   *  - homeboundCommutesExcludedCount  = korta hemresor (< 150 km) som inte
+   *    är arbetstid (transport-block kvar i tidslinjen, men exkluderat ur
+   *    payable work; dagen slutar vid leaveWorkAt).
+   *  - outboundCommutesExcludedCount   = korta resor från boende till första
+   *    jobb (< 150 km) som inte räknas som arbetstid.
+   *  - longDistanceTravelsIncludedCount= resor ≥ 150 km (oavsett riktning)
+   *    som kan räknas som arbetsrelaterad transport.
+   */
+  commutePolicyDiagnostics?: {
+    thresholdMeters: number;
+    homeboundCommutesExcludedCount: number;
+    outboundCommutesExcludedCount: number;
+    longDistanceTravelsIncludedCount: number;
+    examples: Array<{
+      direction: 'homebound' | 'outbound';
+      transportStartAt: ISODateTime;
+      transportEndAt: ISODateTime;
+      distanceMeters: number;
+      classification: 'short_commute_excluded' | 'long_distance_included' | 'insufficient_data';
+      residenceLabel: string | null;
+      relatedWorkLabel: string | null;
+    }>;
+  };
 }
 
 /**
