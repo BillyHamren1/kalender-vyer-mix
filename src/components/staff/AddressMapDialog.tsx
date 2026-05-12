@@ -31,6 +31,8 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
   coords,
   staffId,
   date,
+  segmentStartIso,
+  segmentEndIso,
 }) => {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -43,13 +45,24 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
     !!(open && staffId && date),
   );
 
-  // Sortera pings stigande och bygg track fram till nu
+  const segStartMs = segmentStartIso ? new Date(segmentStartIso).getTime() : null;
+  const segEndMs = segmentEndIso ? new Date(segmentEndIso).getTime() : null;
+  const isSegment = segStartMs != null && segEndMs != null;
+
+  // Sortera pings stigande och bygg track. Om ett segment är angivet (t.ex. en resa)
+  // begränsar vi till pings inom det intervallet, så kartan matchar blocket man klickade på.
   const trackCoords = useMemo<[number, number][]>(() => {
     if (!pings.length) return [];
-    return [...pings]
+    const filtered = isSegment
+      ? pings.filter(p => {
+          const t = new Date(p.recorded_at).getTime();
+          return t >= (segStartMs as number) && t <= (segEndMs as number);
+        })
+      : pings;
+    return [...filtered]
       .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())
       .map((p) => [p.lng, p.lat] as [number, number]);
-  }, [pings]);
+  }, [pings, isSegment, segStartMs, segEndMs]);
 
   useEffect(() => {
     if (!open) return;
