@@ -3233,6 +3233,7 @@ export function buildReportCandidateBlocks(
     sessionConsolidationDiagnostics: sessionDiagnostics,
     openActiveTimerPrivateResidenceStatus: privateResidenceStatusDiag,
     activeTimerOverlapDiagnostics: activeTimerOverlapDiag,
+    openTimerClampDiagnostics: openTimerClampDiag,
     singleTimelineDiagnostics: singleTimelineDiag,
   };
   for (const r of out) {
