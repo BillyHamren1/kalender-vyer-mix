@@ -784,7 +784,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
             const RAIL_PX = 64;
             const bodyHeight = totalHours * HOUR_PX;
             return (
-              <div className="overflow-x-auto">
+              <div className="overflow-auto overscroll-contain max-h-[calc(100vh-220px)]">
                 <div
                   className="relative grid"
                   style={{
@@ -793,7 +793,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                   }}
                 >
                   {/* Top-left corner */}
-                  <div className="sticky top-[64px] z-30 border-b border-r bg-card px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="sticky top-0 z-30 border-b border-r bg-card px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                     Tid
                   </div>
 
@@ -814,7 +814,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                         key={`h-${staff.id}`}
                         type="button"
                         onClick={() => setOpenStaffId(staff.id)}
-                        className="sticky top-[64px] z-20 flex flex-col items-start gap-0.5 border-b border-r bg-card/95 px-3 py-2 text-left backdrop-blur hover:bg-muted/40"
+                        className="sticky top-0 z-20 flex flex-col items-start gap-0.5 border-b border-r bg-card/95 px-3 py-2 text-left backdrop-blur hover:bg-muted/40"
                         title={staff.plannedLabels.join(' · ') || staff.role || ''}
                       >
                         <div className="flex w-full items-center gap-2">
