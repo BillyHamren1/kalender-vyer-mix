@@ -917,28 +917,39 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="absolute bottom-2 left-2 bg-card/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow border border-border">
-        <div className="flex items-center gap-2">
+      {/* Premium Legend */}
+      <div className="absolute bottom-3 left-3 bg-slate-950/85 backdrop-blur-xl rounded-2xl px-4 py-3 shadow-2xl border border-white/10 text-white">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Live status</h3>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+        </div>
+        <div className="grid grid-cols-2 gap-x-5 gap-y-1.5">
+          {(Object.entries(phaseStyles) as [JobPhase, typeof phaseStyles[JobPhase]][])
+            .filter(([k]) => k !== 'other')
+            .map(([key, p]) => (
+              <span key={key} className="flex items-center gap-2 text-[10px] text-slate-200">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ background: p.fill, boxShadow: `0 0 8px ${p.ring}55` }}
+                />
+                {p.label}
+              </span>
+            ))}
           {Object.entries(statusStyles).map(([key, { color, label }]) => (
-            <span key={key} className="flex items-center gap-1 text-[9px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+            <span key={key} className="flex items-center gap-2 text-[10px] text-slate-200">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-white/40" style={{ background: color }} />
               {label}
             </span>
           ))}
-          <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-            <span className="w-2.5 h-2.5 bg-primary rotate-45 rounded-[2px] shrink-0" style={{ transform: 'rotate(45deg)', width: 8, height: 8 }} />
-            Jobb
-          </span>
           {showCameras && (
-            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full shrink-0 bg-blue-500" />
+            <span className="flex items-center gap-2 text-[10px] text-slate-200">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-blue-500" />
               Kamera
             </span>
           )}
           {showOrgLocations && orgLocations.length > 0 && (
-            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-              <span className="w-2 h-2 rounded shrink-0" style={{ background: '#7c3aed' }} />
+            <span className="flex items-center gap-2 text-[10px] text-slate-200">
+              <span className="w-2.5 h-2.5 rounded shrink-0" style={{ background: '#7c3aed' }} />
               Plats
             </span>
           )}
