@@ -308,7 +308,7 @@ const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow
         </div>
         {!query && (
           <p className="text-xs text-muted-foreground mb-2">
-            Visar de 10 nästkommande. Sök för att hitta fler.
+            Senast öppnade visas överst. Sök för att hitta fler.
           </p>
         )}
         <div className="divide-y divide-border/50">
@@ -316,7 +316,11 @@ const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow
             <p className="text-sm text-muted-foreground py-4 text-center">
               {query ? 'Inga matchande stora projekt' : 'Inga stora projekt'}
             </p>
-          ) : filtered.map(item => <ProjectRow key={`large-${item.id}`} item={item} compact />)}
+          ) : filtered.map(item => (
+            <div key={`large-${item.id}`} onClickCapture={() => writeRecent(item.id)}>
+              <ProjectRow item={item} compact />
+            </div>
+          ))}
         </div>
         {query && filtered.length > 0 && (
           <p className="text-xs text-muted-foreground mt-2">{filtered.length} träffar</p>
