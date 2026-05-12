@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Sparkles, ChevronDown, ChevronRight, MoreHorizontal, Trash2, Tag, Users, List, Wand2 } from "lucide-react";
+import { Search, Sparkles, ChevronDown, ChevronRight, MoreHorizontal, Trash2, Tag, Users, List, Wand2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
