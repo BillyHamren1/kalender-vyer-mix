@@ -2315,24 +2315,41 @@ export function buildReportCandidateBlocks(
 
       const stay = findPrivateResidenceStayAfter(startedMs);
 
-      // Time Engine 2.12 — gate auto-end mot planerad arbetsdag.
-      // Om personen kommer hem FÖRE plannedEnd − 15 min räknas det som
-      // "hem mitt på dagen" (planerad arbetsdag pågår fortfarande) och
-      // 90-min-auto-end SKA INTE trigga. Detta speglar regeln att hemma
-      // bara avslutar dagen om hemkomsten inträffar EFTER planerad
-      // arbetsdag är slut (eller om ingen planering finns).
+      // Time Engine 4.4 — Planering får inte hålla dagen levande utan färsk
+      // engine-evidence. plannedEnd är stöddata och blockerar BARA auto-end
+      // om personen faktiskt återvänt till arbete efter hemkomsten (dvs det
+      // finns senare work-evidence i `out` som inte är private_residence).
+      //
+      // Regel:
+      //   - stay >= 90 min utan senare work evidence  → auto-end (även om
+      //     plannedEnd ligger senare)
+      //   - stay >= 90 min och senare work evidence    → person återvände,
+      //     ingen auto-end (oförändrat)
+      //   - stay <  90 min                             → ingen auto-end
+      //     (täcker både hemma-paus och korta hemresor inom 90 min innan
+      //     personen återvänder till jobb)
       const PLANNED_END_GRACE_MS = 15 * 60_000;
       const plannedEndIso = input.plannedEndOfDayIso ?? null;
       const plannedEndMs = plannedEndIso ? new Date(plannedEndIso).getTime() : NaN;
+
+      const hasLaterWorkAfterStay = !!stay && out.some((b) => {
+        if (b.kind !== 'work') return false;
+        if (isPrivateResidenceCandidateBlock(b)) return false;
+        return new Date(b.startAt).getTime() > stay.endMs;
+      });
+
       const homeArrivedDuringPlannedDay =
         !!stay &&
         Number.isFinite(plannedEndMs) &&
         stay.startMs < plannedEndMs - PLANNED_END_GRACE_MS;
 
+      // plannedEnd får INTE blockera auto-end utan faktisk return-to-work.
+      const plannedEndBlocksAutoEnd = homeArrivedDuringPlannedDay && hasLaterWorkAfterStay;
+
       const autoEndTriggered =
         !!stay &&
         stay.durationMinutes >= PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN &&
-        !homeArrivedDuringPlannedDay;
+        !plannedEndBlocksAutoEnd;
 
       // 1) Klampa eller förläng anchor.endAt baserat på home-stay.
       const anchorEndMsRaw = new Date(anchor.endAt).getTime();
