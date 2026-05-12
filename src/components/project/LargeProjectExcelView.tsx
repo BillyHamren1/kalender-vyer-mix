@@ -263,4 +263,26 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
   );
 };
 
+const SortHead = ({
+  label, sortKey, sort, onToggle,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: "asc" | "desc" } | null;
+  onToggle: (k: SortKey) => void;
+}) => {
+  const active = sort && sortKeyId(sort.key) === sortKeyId(sortKey);
+  const Icon = !active ? ArrowUpDown : sort!.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(sortKey)}
+      className={`flex items-center gap-1 text-left hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
+    >
+      <span>{label}</span>
+      <Icon className="w-3 h-3 opacity-70" />
+    </button>
+  );
+};
+
 export default LargeProjectExcelView;
