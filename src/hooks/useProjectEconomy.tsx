@@ -184,7 +184,26 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, mergedProductCosts || null, supplierInvoices);
 
-  // ===== Diagnostics: log fetch failures and data anomalies =====
+  // ===== Time Engine-derived staff hours (single source) =====
+  // Rapporterade timmar = staff_day_report_cache (Time Engine).
+  // Manuell extra labor = project_labor_costs (separat, blandas ej in).
+  const reportedStaffHoursFromTimeEngine = projectHours?.totalHours ?? 0;
+  const staffHoursByPerson = projectHours?.staffSummaries ?? [];
+  const staffHoursByDay = projectHours?.daySummaries ?? [];
+  const hoursSource: 'staff_day_report_cache' = 'staff_day_report_cache';
+
+  const manualExtraLaborHours = (manualExtraLaborRows ?? []).reduce(
+    (s, r) => s + (Number(r.hours) || 0), 0,
+  );
+  const manualExtraLaborCost = (manualExtraLaborRows ?? []).reduce(
+    (s, r) => s + (Number(r.hours) || 0) * (Number(r.hourly_rate) || 0), 0,
+  );
+
+  // Bakåtkompatibla aliaser:
+  const actualStaffHours = reportedStaffHoursFromTimeEngine;
+  const manualLaborHours = manualExtraLaborHours;
+  const totalLaborHours = reportedStaffHoursFromTimeEngine + manualExtraLaborHours;
+
   useEffect(() => {
     const tag = `[Economy:${projectId?.slice(0, 8)}]`;
 
