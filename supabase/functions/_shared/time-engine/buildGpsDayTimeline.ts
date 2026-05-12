@@ -557,24 +557,67 @@ function makeId(prefix: string, idx: number): string {
  */
 export const KNOWN_SITE_TOLERANCE_METERS = 150;
 
+/**
+ * Time Engine 3.6 — alias för work-area-tolerans.
+ * Samma värde som KNOWN_SITE_TOLERANCE_METERS men namngivet enligt
+ * 3.6-policyn ("upp till 150 m utanför aktivt projekt/warehouse räknas
+ * fortfarande till samma arbetssession").
+ *
+ * Får användas:
+ *   - fortsatt aktiv session
+ *   - intern rörelse / GPS-jitter / små rörelser runt arbetsområdet
+ *
+ * Får INTE användas:
+ *   - för att starta arbetsdag (matchas bara på cluster, inte enskilda
+ *     pings i geofence-override-pre-pass — pointInsideTarget är strikt)
+ *   - för att göra boende till arbete (residence kräver inside)
+ *   - för att förlänga dag efter dayEndDecision (clamp i 4.3/3.3)
+ *   - för att slå ihop boende och warehouse (residence vinner alltid)
+ *   - för att ersätta rätt projekt/bookingnamn (priority order:
+ *     residence > confirmed target > planned > tolerance > unknown)
+ */
+export const WORK_AREA_TOLERANCE_METERS = KNOWN_SITE_TOLERANCE_METERS;
+
+/**
+ * Mutable counter som matchTarget får skriva till för att 3.6 ska kunna
+ * exponera workAreaToleranceDiagnostics. Frivillig — utan accumulator
+ * körs matchTarget exakt som tidigare.
+ */
+export interface WorkAreaToleranceCounters {
+  continuedSessionByToleranceCount: number;
+  blockedByPrivateResidenceCount: number;
+  examples: Array<{
+    atIso: ISODateTime;
+    targetLabel: string;
+    targetKind: string;
+    distanceOutsideEdgeMeters: number;
+    classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
+  }>;
+}
+
 function matchTarget(
   centerLat: number,
   centerLng: number,
   atIso: ISODateTime,
   targets: WorkTarget[],
-): { target: WorkTarget; distanceM: number } | null {
+  toleranceCounters?: WorkAreaToleranceCounters,
+): { target: WorkTarget; distanceM: number; matchedByTolerance: boolean } | null {
   const at = Date.parse(atIso);
-  let bestResidence: { target: WorkTarget; distanceM: number } | null = null;
-  let bestWork: { target: WorkTarget; distanceM: number } | null = null;
+  let bestResidence: { target: WorkTarget; distanceM: number; matchedByTolerance: boolean } | null = null;
+  let bestWork: { target: WorkTarget; distanceM: number; matchedByTolerance: boolean } | null = null;
+  let workMatchedByToleranceCandidate: { target: WorkTarget; outsideMeters: number } | null = null;
+  let residenceWouldBlockWork = false;
   for (const t of targets) {
     if (t.validFrom && Date.parse(t.validFrom) > at) continue;
     if (t.validUntil && Date.parse(t.validUntil) < at) continue;
     const inside = pointInsideTarget(centerLat, centerLng, t);
     let withinTolerance = inside;
+    let outsideMeters = 0;
     if (!inside) {
       // signedDistanceToTargetEdge: positivt = inne, negativt = utanför.
       const signed = signedDistanceToTargetEdge(centerLat, centerLng, t);
-      if (-signed <= KNOWN_SITE_TOLERANCE_METERS) withinTolerance = true;
+      outsideMeters = -signed;
+      if (outsideMeters <= WORK_AREA_TOLERANCE_METERS) withinTolerance = true;
     }
     if (!withinTolerance) continue;
     const d = haversine(centerLat, centerLng, t.center.lat, t.center.lng);
@@ -585,15 +628,51 @@ function matchTarget(
     if (t.isPrivateResidence === true) {
       if (!inside) continue;
       if (bestResidence == null || d < bestResidence.distanceM) {
-        bestResidence = { target: t, distanceM: d };
+        bestResidence = { target: t, distanceM: d, matchedByTolerance: false };
       }
       continue;
     }
+    const matchedByTolerance = !inside;
+    if (matchedByTolerance && !workMatchedByToleranceCandidate) {
+      workMatchedByToleranceCandidate = { target: t, outsideMeters };
+    }
     if (bestWork == null || d < bestWork.distanceM) {
-      bestWork = { target: t, distanceM: d };
+      bestWork = { target: t, distanceM: d, matchedByTolerance };
     }
   }
-  return bestResidence ?? bestWork;
+  if (bestResidence && workMatchedByToleranceCandidate) {
+    residenceWouldBlockWork = true;
+  }
+  const result = bestResidence ?? bestWork;
+  if (toleranceCounters) {
+    if (result === bestWork && bestWork?.matchedByTolerance) {
+      toleranceCounters.continuedSessionByToleranceCount += 1;
+      if (toleranceCounters.examples.length < 20) {
+        toleranceCounters.examples.push({
+          atIso,
+          targetLabel: bestWork.target.label,
+          targetKind: bestWork.target.kind,
+          distanceOutsideEdgeMeters:
+            workMatchedByToleranceCandidate?.outsideMeters ?? 0,
+          classification: 'continued_session_by_tolerance',
+        });
+      }
+    }
+    if (residenceWouldBlockWork && bestResidence) {
+      toleranceCounters.blockedByPrivateResidenceCount += 1;
+      if (toleranceCounters.examples.length < 20) {
+        toleranceCounters.examples.push({
+          atIso,
+          targetLabel: bestResidence.target.label,
+          targetKind: bestResidence.target.kind,
+          distanceOutsideEdgeMeters:
+            workMatchedByToleranceCandidate?.outsideMeters ?? 0,
+          classification: 'blocked_by_private_residence',
+        });
+      }
+    }
+  }
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
