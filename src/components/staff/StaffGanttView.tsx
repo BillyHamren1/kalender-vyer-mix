@@ -28,6 +28,7 @@ import { DecisionMapTab } from './DecisionMapTab';
 import { useDayPings } from '@/hooks/admin/useDayPings';
 import { useDayTimeline } from '@/hooks/admin/useDayTimeline';
 import { RawGpsDrawer } from './RawGpsDrawer';
+import { resolveGanttPhaseKind } from '@/lib/staff/ganttPhaseColor';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
@@ -293,6 +294,7 @@ interface StaffGanttViewProps {
   >;
   engineMode?: 'report_candidate' | 'actual_model_fallback';
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
+  largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
 }
 
 export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
@@ -304,6 +306,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   reportCandidateByStaff,
   engineMode = 'report_candidate',
   bookingPhaseByDate,
+  largeProjectPhaseByDate,
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -336,10 +339,10 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     const map: Record<string, GanttBlock[]> = {};
     for (const s of staffList) {
       const cand = reportCandidateByStaff?.[s.id];
-      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null, bookingPhaseByDate);
+      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null, bookingPhaseByDate, largeProjectPhaseByDate);
     }
     return map;
-  }, [staffList, reportCandidateByStaff, bookingPhaseByDate]);
+  }, [staffList, reportCandidateByStaff, bookingPhaseByDate, largeProjectPhaseByDate]);
 
   // Filter
   const filteredStaff = useMemo(() => {
