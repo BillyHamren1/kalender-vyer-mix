@@ -1,0 +1,1 @@
+ALTER TYPE assistant_event_source ADD VALUE IF NOT EXISTS 'geofence';
