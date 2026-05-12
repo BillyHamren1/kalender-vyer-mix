@@ -7,6 +7,7 @@ import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectContactCard from "@/components/project/ProjectContactCard";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
+import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 
 
 
