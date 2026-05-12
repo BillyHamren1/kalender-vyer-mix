@@ -127,6 +127,31 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
     });
   }, [bookings, allProducts]);
 
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) => {
+      if (!prev || sortKeyId(prev.key) !== sortKeyId(key)) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  };
+
+  const sortedRows = useMemo(() => {
+    if (!sort) return rows;
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const val = (r: typeof rows[number]): string | number => {
+      if (sort.key.type === "client") return r.client.toLowerCase();
+      if (sort.key.type === "address") return r.address.toLowerCase();
+      if (sort.key.type === "untagged") return r.untagged.length;
+      return (r.byTag.get(norm(sort.key.tag)) || []).length;
+    };
+    return [...rows].sort((a, b) => {
+      const av = val(a); const bv = val(b);
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), "sv") * dir;
+    });
+  }, [rows, sort]);
+
   if (bookingIds.length === 0) {
     return (
       <div className="py-8 text-center text-muted-foreground text-sm">
