@@ -53,12 +53,12 @@ describe('Time Engine 2.11 — active timer overlap clamp', () => {
         },
       ],
       openActiveRegistration: {
+        registrationId: '77777777-7777-7777-7777-777777777777',
         startedAtIso: '2026-05-11T05:55:00.000Z',
         targetType: 'organization_location',
         targetId: fa,
         targetLabel: 'FA Warehouse',
         currentLabel: 'FA Warehouse',
-        status: 'active',
       },
     });
 
