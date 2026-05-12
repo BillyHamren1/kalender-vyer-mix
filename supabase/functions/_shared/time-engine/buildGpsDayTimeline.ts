@@ -1297,7 +1297,7 @@ export function buildGpsDayTimeline(
     const overrideOwner = (run as { geofenceOwner?: WorkTarget | null }).geofenceOwner ?? null;
     const match = overrideOwner
       ? { target: overrideOwner, distanceM: haversine(center.lat, center.lng, overrideOwner.center.lat, overrideOwner.center.lng) }
-      : matchTarget(center.lat, center.lng, first.ts, input.targets);
+      : matchTarget(center.lat, center.lng, first.ts, input.targets, workAreaToleranceCounters);
     const { diag: targetDiag } = computeTargetDiagnostics(run.pings, center.lat, center.lng, first.ts);
 
     let type: GpsTimelineSegmentType;
