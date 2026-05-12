@@ -2198,9 +2198,9 @@ export function buildReportCandidateBlocks(
           `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
         workBlockClampedAt = anchor.endAt;
       } else if (stay && !autoEndTriggered) {
-        // <90 min hemma → markera anchor som icke-pågående utan att klampa
-        // bakåt; vi vet att personen just nu är hemma, men vi väntar med
-        // hård clamp.
+        // <90 min hemma — ELLER hem mitt under planerad arbetsdag.
+        // Markera anchor som icke-pågående utan att klampa bakåt; vi vet
+        // att personen just nu är hemma, men dagen är inte slut.
         if (anchorEndMsRaw < liveEndMs) {
           // Förläng INTE förbi hemkomsten — låt blocket sluta där det slutar
           // och låt "Jag är hemma"-blocket ta över visuellt.
@@ -2212,11 +2212,21 @@ export function buildReportCandidateBlocks(
           }
         }
         anchor.isOngoing = false;
+        const reasonTag = homeArrivedDuringPlannedDay
+          ? 'active_timer_home_during_planned_day'
+          : 'active_timer_currently_at_private_residence';
         anchor.warningReasons = Array.from(new Set([
           ...(anchor.warningReasons ?? []),
-          'active_timer_currently_at_private_residence',
+          reasonTag,
         ]));
-        anchor.warningLabel = anchor.warningLabel ?? 'Pausad – hemma just nu';
+        if (homeArrivedDuringPlannedDay && !anchor.reviewReasons.includes('home_during_planned_day_no_auto_end')) {
+          anchor.reviewReasons.push('home_during_planned_day_no_auto_end');
+        }
+        anchor.warningLabel = anchor.warningLabel ?? (
+          homeArrivedDuringPlannedDay
+            ? 'Pausad – hemma (planerad dag pågår)'
+            : 'Pausad – hemma just nu'
+        );
         anchor.subtitle =
           `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
       } else {
