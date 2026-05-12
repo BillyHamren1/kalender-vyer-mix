@@ -24,6 +24,7 @@ import { clearScanTimeline } from '@/hooks/scanner/scanTimeline';
 import { LiveScanStatusBar } from './LiveScanStatusBar';
 import { useRfidManager } from '@/hooks/scanner/useRfidManager';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
+import { useReservationAllocations } from '@/hooks/scanner/useReservationAllocations';
 import { getDisplayedProgressForRow } from '@/lib/packing/progress';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 import { QrParcelManager } from './QrParcelManager';
