@@ -983,10 +983,12 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             laneCount,
                           }));
 
-                          return positioned.map(({ b, top, height, shifted }) => {
+                          return positioned.map(({ b, top, height, shifted, lane, laneCount }) => {
                             const style = KIND_STYLE[b.kind];
                             const showSub = height >= 44;
                             const showMeta = height >= 66;
+                            const widthPct = 100 / laneCount;
+                            const leftPct = widthPct * lane;
                             return (
                               <div
                                 key={b.id}
@@ -1001,15 +1003,15 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   style.bg,
                                   style.border,
                                   style.text,
-                                  shifted && 'ring-1 ring-amber-400/70',
+                                  laneCount > 1 && 'ring-1 ring-amber-400/70',
                                 )}
                                 style={{
                                   top,
                                   height,
-                                  left: 2,
-                                  right: 2,
+                                  left: `calc(${leftPct}% + 2px)`,
+                                  width: `calc(${widthPct}% - 4px)`,
                                 }}
-                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${shifted ? '\n⚠ Överlappar tidigare block — visas förskjutet nedåt' : ''}`}
+                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${laneCount > 1 ? '\n⚠ Överlappar annat block — visas i sidospalt' : ''}`}
                               >
 
                                 <div className="flex items-center justify-between gap-1">
