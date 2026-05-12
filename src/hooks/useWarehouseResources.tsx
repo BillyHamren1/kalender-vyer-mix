@@ -91,20 +91,9 @@ export const useWarehouseResources = () => {
     if (team) toast(`${team.title} borttaget`);
   };
 
-  const transportResource: Resource = { id: 'transport', title: 'Transporter', eventColor: '#3B82F6' };
-
-  const teamResources = [
-    ...resources.filter(r => r.id.startsWith('lager-') || r.id === 'warehouse-event'),
-    transportResource,
-  ].sort((a, b) => {
-      // warehouse-event always goes last
-      if (a.id === 'warehouse-event') return 1;
-      if (b.id === 'warehouse-event') return -1;
-      // transport goes just before warehouse-event
-      if (a.id === 'transport' && b.id !== 'warehouse-event') return 1;
-      if (b.id === 'transport' && a.id !== 'warehouse-event') return -1;
-      if (a.id === 'transport') return -1;
-      if (b.id === 'transport') return 1;
+  const teamResources = resources
+    .filter(r => r.id.startsWith('lager-'))
+    .sort((a, b) => {
       const aNum = parseInt(a.id.replace('lager-', '')) || 0;
       const bNum = parseInt(b.id.replace('lager-', '')) || 0;
       return aNum - bNum;
