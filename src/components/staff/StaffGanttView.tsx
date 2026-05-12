@@ -911,18 +911,12 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                         )}
 
                         {/* blocks — en person kan ALDRIG vara på två ställen samtidigt.
-                            Överlappande block staplas vertikalt (under varandra) i stället för
-                            att splittas i sub-lanes bredvid varandra. */}
+                            Time Engine 2.12: enforceSingleVisibleTimeline garanterar att
+                            blocken aldrig överlappar. Vi renderar ALLTID full bredd —
+                            inga sub-lanes. Om överlapp ändå smyger sig in markeras blocket
+                            med en diskret amber ring som diagnostic warning. */}
                         {(() => {
-                          type Positioned = {
-                            b: typeof blocks[number];
-                            top: number;
-                            height: number;
-                            shifted: boolean;
-                            lane: number;
-                            laneCount: number;
-                          };
-                          // 1) compute screen-space rects (skip blocks fully outside window)
+                          // 1) Räkna fram screen-rects och hoppa över block utanför fönstret.
                           const rects: Array<{
                             b: typeof blocks[number];
                             top: number;
@@ -946,51 +940,38 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               endMs: Date.parse(b.endAt),
                             });
                           }
-                          // 2) sortera bara för stabil rendering — ingen position-mutation
                           rects.sort((a, b) =>
                             a.startMs !== b.startMs
                               ? a.startMs - b.startMs
                               : (a.endMs - a.startMs) - (b.endMs - b.startMs),
                           );
-                          // 3) Behåll varje blocks SANNA tidsposition. Ingen vertikal förskjutning
-                          //    får ske bara för att ett tidigare block överlappar — det skulle få
-                          //    ett 07:08-block att visas vid 15:00. Vid äkta överlapp delas
-                          //    bredden istället i sub-lanes så båda blocken syns på sin riktiga tid.
-                          type Lane = { endMs: number };
-                          const lanes: Lane[] = [];
-                          const laneIndexByRect: number[] = [];
-                          for (const r of rects) {
-                            let placed = -1;
-                            for (let i = 0; i < lanes.length; i++) {
-                              if (lanes[i].endMs <= r.startMs) {
-                                lanes[i].endMs = r.endMs;
-                                placed = i;
-                                break;
+                          // 2) Diagnostic — markera block som överlappar tidigare i listan.
+                          const overlapsPrev = new Set<string>();
+                          for (let i = 1; i < rects.length; i++) {
+                            const prev = rects[i - 1];
+                            const cur = rects[i];
+                            if (cur.startMs < prev.endMs) {
+                              overlapsPrev.add(cur.b.id);
+                              overlapsPrev.add(prev.b.id);
+                              if (typeof console !== 'undefined') {
+                                // eslint-disable-next-line no-console
+                                console.warn(
+                                  '[StaffGanttView] overlap detected — Time Engine bör ha löst detta',
+                                  {
+                                    a: { id: prev.b.id, startAt: prev.b.startAt, endAt: prev.b.endAt, title: prev.b.title },
+                                    b: { id: cur.b.id, startAt: cur.b.startAt, endAt: cur.b.endAt, title: cur.b.title },
+                                  },
+                                );
                               }
                             }
-                            if (placed === -1) {
-                              lanes.push({ endMs: r.endMs });
-                              placed = lanes.length - 1;
-                            }
-                            laneIndexByRect.push(placed);
                           }
-                          const laneCount = Math.max(1, lanes.length);
-                          const positioned: Positioned[] = rects.map((r, idx) => ({
-                            b: r.b,
-                            top: r.top,
-                            height: r.height,
-                            shifted: false,
-                            lane: laneIndexByRect[idx],
-                            laneCount,
-                          }));
 
-                          return positioned.map(({ b, top, height, shifted, lane, laneCount }) => {
+                          return rects.map(({ b, top, height }) => {
                             const style = KIND_STYLE[b.kind];
                             const displaySubtitle = getGanttDisplaySubtitle(b);
                             const showSub = height >= 44;
                             const showMeta = height >= 66;
-                            const widthPct = 100 / laneCount;
-                            const leftPct = widthPct * lane;
+                            const overlapping = overlapsPrev.has(b.id);
                             return (
                               <div
                                 key={b.id}
@@ -1005,15 +986,15 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   style.bg,
                                   style.border,
                                   style.text,
-                                  laneCount > 1 && 'ring-1 ring-amber-400/70',
+                                  overlapping && 'ring-1 ring-amber-400/70',
                                 )}
                                 style={{
                                   top,
                                   height,
-                                  left: `calc(${leftPct}% + 2px)`,
-                                  width: `calc(${widthPct}% - 4px)`,
+                                  left: 2,
+                                  width: 'calc(100% - 4px)',
                                 }}
-                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${laneCount > 1 ? '\n⚠ Överlappar annat block — visas i sidospalt' : ''}`}
+                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${overlapping ? '\n⚠ Engine-fel: överlappar annat block' : ''}`}
                               >
 
                                 <div className="flex items-center justify-between gap-1">
