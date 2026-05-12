@@ -448,6 +448,8 @@ export function consolidateReportBlocksIntoSessions(
             ...absorbedLabels,
           ],
           absorbedBlockCount: absorbedCount,
+          absorbedReasons: Array.from(new Set(cur.absorbedReasons ?? [])),
+          warningReasons: Array.from(new Set(cur.warningReasons ?? [])),
           signalGapMinutes: cur.signalGapMinutes,
           internalMovementMinutes: cur.internalMovementMinutes ?? 0,
           finalKind: cur.kind,
