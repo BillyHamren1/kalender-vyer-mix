@@ -282,9 +282,11 @@ async function mirrorWmsAllocations(
   return payload.length
 }
 
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
+
 
   try {
     const supabase = createClient(
