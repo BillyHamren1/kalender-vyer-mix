@@ -918,6 +918,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             top: number;
                             height: number;
                             shifted: boolean;
+                            lane: number;
+                            laneCount: number;
                           };
                           // 1) compute screen-space rects (skip blocks fully outside window)
                           const rects: Array<{
