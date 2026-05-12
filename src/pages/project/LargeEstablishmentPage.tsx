@@ -194,11 +194,22 @@ const LargeEstablishmentPage = () => {
             <CalendarDays className="h-4 w-4" />
             Kalender
           </Button>
+          <Button
+            variant={pageMode === "excel" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-6 text-sm gap-2"
+            onClick={() => setPageMode("excel")}
+          >
+            <TableIcon className="h-4 w-4" />
+            Excel-vy
+          </Button>
         </div>
       </div>
 
       {pageMode === "calendar" ? (
         <ProjectCalendarView projectId={project.id} isLargeProject={true} />
+      ) : pageMode === "excel" ? (
+        <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
       ) : (
         <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
           <div className="border-b border-border/40 px-3 py-2 flex items-center justify-end">
