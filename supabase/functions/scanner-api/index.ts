@@ -488,7 +488,118 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(data || []), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      // ====== HYDRATE WMS allocations for a packing (called on screen mount) ======
+      // Proxies WMS get-reservation-allocations and mirrors the result into
+      // wms_reservation_allocations so the frontend can subscribe via Realtime.
+      case 'get_reservation_allocations': {
+        const { packingId } = params
+        if (!packingId) return json({ success: false, error: 'packingId krävs', allocations: [] })
+
+        const { data: packing, error: packErr } = await supabase
+          .from('packing_projects')
+          .select('booking_id')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .single()
+        if (packErr || !packing?.booking_id) {
+          return json({ success: false, error: 'Packlistan saknar bokning', allocations: [] })
+        }
+        const { data: bookingData } = await supabase
+          .from('bookings')
+          .select('booking_number')
+          .eq('id', packing.booking_id)
+          .eq('organization_id', ORG_ID)
+          .single()
+        const bookingNumber = bookingData?.booking_number
+        if (!bookingNumber) {
+          return json({ success: false, error: 'Bokningen saknar bokningsnummer', allocations: [] })
+        }
+
+        const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY')
+        if (!PRICELIST_API_KEY) {
+          return json({ success: false, error: 'Lagersystem ej konfigurerat', allocations: [] })
+        }
+
+        const url = `https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/get-reservation-allocations?reservation_id=${encodeURIComponent(bookingNumber)}`
+        let wmsAllocs: WmsAllocRow[] = []
+        let wmsCurrentState: any = null
+        try {
+          const resp = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+              'x-organization-id': ORG_ID,
+            },
+          })
+          const txt = await resp.text()
+          let body: any = {}
+          try { body = JSON.parse(txt) } catch { /* ignore */ }
+          console.log('[get_reservation_allocations] WMS response', {
+            status: resp.status,
+            bookingNumber,
+            packingId,
+            keys: Object.keys(body || {}),
+          })
+          if (!resp.ok) {
+            return json({
+              success: false,
+              error: body?.error || `WMS svarade ${resp.status}`,
+              allocations: [],
+              debugCode: `WMS_${resp.status}`,
+            })
+          }
+          const list: any[] = Array.isArray(body?.allocations)
+            ? body.allocations
+            : Array.isArray(body?.data?.allocations)
+              ? body.data.allocations
+              : Array.isArray(body?.results)
+                ? body.results
+                : Array.isArray(body)
+                  ? body
+                  : []
+          wmsCurrentState = body?.current_state || body?.data?.current_state || null
+          wmsAllocs = list
+            .map((row: any) => {
+              const data = row?.data && typeof row.data === 'object' ? { ...row, ...row.data } : row
+              return {
+                serial_number: data?.serial_number || data?.serial || data?.sku_serial || '',
+                instance_id: data?.instance_id || data?.id || null,
+                item_type_id: data?.item_type_id || data?.itemTypeId || null,
+                sku: data?.sku || null,
+                item_type_name: data?.item_type_name || data?.item_type || data?.product_name || data?.name || null,
+                raw: data,
+              } as WmsAllocRow
+            })
+            .filter((r) => r.serial_number)
+        } catch (err: any) {
+          console.error('[get_reservation_allocations] fetch error', err)
+          return json({
+            success: false,
+            error: err?.message || 'Kunde inte nå lagersystemet',
+            allocations: [],
+          })
+        }
+
+        const mirrored = await mirrorWmsAllocations(supabase, {
+          orgId: ORG_ID,
+          packingId,
+          reservationId: bookingNumber,
+          rows: wmsAllocs,
+          source: 'get-reservation-allocations',
+        })
+
+        return json({
+          success: true,
+          reservation_id: bookingNumber,
+          packing_id: packingId,
+          allocations: wmsAllocs,
+          current_state: wmsCurrentState,
+          mirroredCount: mirrored,
+        })
+      }
+
       case 'verify_product': {
+
         const { packingId, sku: serialNumber, verifiedBy, activeParcelId, verifiedByStaffId } = params
         console.log('[verify_product] start', { packingId, serialNumber, orgId: ORG_ID, verifiedBy: auth.staffName })
 
