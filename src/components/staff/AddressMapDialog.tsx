@@ -183,7 +183,14 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-primary" />
-            {address}
+            <span>{address}</span>
+            {isSegment && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {new Date(segmentStartIso!).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm' })}
+                {' – '}
+                {new Date(segmentEndIso!).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm' })}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -193,13 +200,13 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
             {staffId && date && (
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Första ping
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> {isSegment ? 'Start' : 'Första ping'}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-3 w-4 rounded-sm bg-cyan-400" /> GPS-spår fram till nu
+                  <span className="inline-block h-3 w-4 rounded-sm bg-cyan-400" /> {isSegment ? 'GPS-spår för segmentet' : 'GPS-spår fram till nu'}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-blue-500" /> Senaste ping
+                  <span className="inline-block h-2 w-2 rounded-full bg-blue-500" /> {isSegment ? 'Slut' : 'Senaste ping'}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="inline-block h-2 w-2 rounded-full bg-red-500" /> Vald adress
