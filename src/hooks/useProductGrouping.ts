@@ -74,12 +74,14 @@ export const useProductGrouping = (scope: GroupingScope, scopeId: string | undef
     mutationFn: async ({
       prompt,
       products,
+      currentGroups,
     }: {
       prompt: string;
       products: { id: string; name: string }[];
+      currentGroups?: ProductGroup[];
     }) => {
       const { data, error } = await supabase.functions.invoke("group-products-ai", {
-        body: { prompt, products },
+        body: { prompt, products, currentGroups },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);

@@ -230,12 +230,13 @@ const LargeProjectProductsOverview = ({
       {
         prompt,
         products: flatRows.map((r) => ({ id: r.id, name: r.name })),
+        currentGroups: grouping?.groups,
       },
       {
         onSuccess: () => {
           setGroupDialogOpen(false);
           setGroupMode("ai");
-          toast.success("Produkter grupperade");
+          toast.success(grouping?.groups?.length ? "Gruppering uppdaterad" : "Produkter grupperade");
         },
       }
     );
@@ -477,6 +478,7 @@ const LargeProjectProductsOverview = ({
         productCount={flatRows.length}
         isGenerating={generate.isPending}
         onGenerate={handleGenerate}
+        currentGroups={grouping?.groups}
       />
 
       {moveDialog && grouping && (
