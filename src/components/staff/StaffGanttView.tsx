@@ -171,11 +171,10 @@ interface GanttBlock {
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
-  if (b.targetType === 'location') {
-    const hay = `${b.title ?? ''} ${b.subtitle ?? ''} ${b.targetLabel ?? ''}`.toLowerCase();
-    if (/lager|warehouse/.test(hay)) return true;
-  }
-  return false;
+  // Lager/warehouse identifieras på label oavsett targetType — internt lager-projekt
+  // (FA Warehouse) ligger som booking/project, inte location, men ska ändå vara lila.
+  const hay = `${b.title ?? ''} ${b.subtitle ?? ''} ${b.targetLabel ?? ''}`.toLowerCase();
+  return /\b(lager|warehouse)\b/.test(hay);
 };
 
 const mapReportCandidateKind = (
