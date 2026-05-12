@@ -67,6 +67,11 @@ export interface SessionConsolidationDiagnostics {
   /** Time Engine 2.9 — antal block absorberade via shouldAbsorbAsProbableSameSession
    *  (utan strikt closing same-target work-block). */
   probabilisticAbsorptionCount: number;
+  /** Time Engine 2.10 — antal needs_review-block som STOPPADES från
+   *  absorption på grund av en reason i HARD_SESSION_BREAK_REASONS. */
+  rejectedHardReviewAbsorptionCount: number;
+  /** Time Engine 2.10 — count per hard reason som blockerade absorption. */
+  rejectedHardReviewAbsorptionReasons: Record<string, number>;
   examples: Array<{
     /** Time Engine 2.8 — full session example for diagnostics_json. */
     staffName: string | null;
