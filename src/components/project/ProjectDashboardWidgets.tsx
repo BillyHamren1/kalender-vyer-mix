@@ -257,14 +257,10 @@ const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow
   const query = search.trim().toLowerCase();
 
   // Refresh from localStorage when window regains focus (covers cross-tab/back-nav)
-  useMemo(() => {
+  useEffect(() => {
     const onFocus = () => setRecent(readRecent());
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', onFocus);
-    }
-    return () => {
-      if (typeof window !== 'undefined') window.removeEventListener('focus', onFocus);
-    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const sorted = useMemo(() => {
