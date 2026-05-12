@@ -132,12 +132,15 @@ const formatRelativeDate = (date: Date): string => {
 };
 
 // ── Block kind → visual style ──────────────────────────────────────────────
-type GanttKind = 'work' | 'rig' | 'rigdown' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
+type GanttKind = 'work' | 'warehouse' | 'rig' | 'rigdown' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
 const KIND_STYLE: Record<
   GanttKind,
   { bg: string; border: string; text: string; ring?: string; label: string }
 > = {
-  work:      { bg: 'bg-primary/85',                                                        border: 'border-primary',                  text: 'text-primary-foreground', label: 'Arbete' },
+  // Generellt event-/projektarbete (ej rig, ej rigdown, ej lager) — neutral slate så lila reserveras för warehouse
+  work:      { bg: 'bg-slate-300/70 dark:bg-slate-500/40',                                  border: 'border-slate-400',                text: 'text-slate-900 dark:text-slate-50',     label: 'Arbete' },
+  // Warehouse/lager = lila (matchar planeringens lager-tagg)
+  warehouse: { bg: 'bg-[#E5DEFF] dark:bg-[#E5DEFF]/30',                                     border: 'border-[#BFB1F5]',                text: 'text-[#2a1f5e] dark:text-[#E5DEFF]',    label: 'Lager' },
   // rig + rigdown matchar planeringskalenderns BookingEvent-färger exakt
   // (#F2FCE2 / #FFDEE2). Inga tailwind-emerald/rose — det blev fel ton.
   rig:       { bg: 'bg-[#F2FCE2] dark:bg-[#F2FCE2]/30',                                     border: 'border-[#C9E8A8]',                text: 'text-[#1f3b14] dark:text-[#F2FCE2]',    label: 'Rigg' },
@@ -167,12 +170,22 @@ interface GanttBlock {
   isOpen?: boolean;
 }
 
+const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
+  if (b.targetType === 'location') {
+    const hay = `${b.title ?? ''} ${b.subtitle ?? ''} ${b.targetLabel ?? ''}`.toLowerCase();
+    if (/lager|warehouse/.test(hay)) return true;
+  }
+  return false;
+};
+
 const mapReportCandidateKind = (
   b: ReportCandidateBlockUI,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
 ): GanttKind => {
   if (b.kind === 'work') {
     if (b.reviewState === 'needs_review') return 'review';
+    // Warehouse vinner över annan klassning — ska alltid vara lila
+    if (isWarehouseTarget(b)) return 'warehouse';
     // Prefer authoritative phase from bookings.rigdaydate/eventdate/rigdowndate
     if (b.targetType === 'booking' && b.targetId) {
       const phase = bookingPhaseByDate?.[b.targetId];
