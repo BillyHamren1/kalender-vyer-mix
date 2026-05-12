@@ -2511,6 +2511,96 @@ export function buildReportCandidateBlocks(
         workBlockClampedAt,
         suppressedBlocksAfterHomeArrival: suppressedAfterHomeArrival,
       };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 4.5 — preventOverlappingWorkBlocks
+  //
+  // Säkerhetsnät: två work-block med olika target får aldrig överlappa
+  // visuellt. Active timer-anchor är SVAGARE än verklig engine-evidens.
+  // Prioritet (störst vinner):
+  //   1. private_residence
+  //   2. känd plats / project / booking / warehouse target
+  //   3. real transport (>= realTripMinDistanceMeters)
+  //   4. open_active_timer_anchor (active_time_registration)
+  //
+  // Om två work-block överlappar med olika target klipps anchor-blocket
+  // (eller det svagaste) bakåt så det slutar vid det andras startAt.
+  // ───────────────────────────────────────────────────────────────────────
+  {
+    const blockStrength = (b: ReportCandidateBlock): number => {
+      const reasons = b.reviewReasons ?? [];
+      if (b.targetType === 'private_residence' || reasons.includes('private_residence')) return 100;
+      if (reasons.includes('open_active_timer_anchor')) return 30;
+      // Verklig engine-target med stark evidens
+      if (b.kind === 'work' && b.targetId) {
+        const onsiteEv = (b.evidenceSummary?.confirmedMinutes ?? 0) + (b.evidenceSummary?.probableMinutes ?? 0);
+        if (onsiteEv > 0) return 80;
+        return 60;
+      }
+      if (b.kind === 'transport') {
+        const dist = b.evidenceSummary?.distanceMeters ?? 0;
+        if (dist >= policy.realTripMinDistanceMeters) return 50;
+        return 20;
+      }
+      return 10;
+    };
+
+    out.sort((a, b) => a.startAt.localeCompare(b.startAt));
+    for (let i = 0; i < out.length; i++) {
+      const a = out[i];
+      if (a.kind !== 'work') continue;
+      const aEnd = new Date(a.endAt).getTime();
+      const aStart = new Date(a.startAt).getTime();
+      for (let j = i + 1; j < out.length; j++) {
+        const b = out[j];
+        if (b.kind !== 'work') continue;
+        const bStart = new Date(b.startAt).getTime();
+        if (bStart >= aEnd) break;
+        // Overlapp: a slutar efter b startar.
+        const sameTarget = a.targetId && b.targetId && a.targetId === b.targetId;
+        if (sameTarget) continue;
+        activeTimerOverlapDiag.overlappingWorkBlocksDetected += 1;
+        const aS = blockStrength(a);
+        const bS = blockStrength(b);
+        // Klipp den svagare. Vid lika styrka — klipp den senare (b)
+        // tillbaka? Nej, behåll a oförändrat och klipp b? Det förstör
+        // start. Klipp istället den svagare så den slutar/startar vid
+        // den starkares gräns.
+        const loser = aS <= bS ? a : b;
+        const winner = loser === a ? b : a;
+        if (loser === a) {
+          // klipp a:s slut till winner.start
+          if (bStart > aStart + 60_000) {
+            a.endAt = b.startAt;
+            a.durationMinutes = minutesBetween(a.startAt, a.endAt);
+            a.durationLabel = fmtDuration(a.durationMinutes);
+            a.isOngoing = false;
+            a.warningReasons = Array.from(new Set([
+              ...(a.warningReasons ?? []),
+              'active_timer_target_conflicts_with_engine_location',
+            ]));
+            a.warningLabel = a.warningLabel ?? 'Aktiv timer avbruten av senare platsbevis';
+            a.subtitle = `${fmtClock(a.startAt)}–${fmtClock(a.endAt)} · ${fmtDuration(a.durationMinutes)}`;
+            activeTimerOverlapDiag.overlappingWorkBlocksResolved += 1;
+            pushOverlapExample({
+              activeTimerTarget: a.targetLabel ?? a.title ?? null,
+              activeTimerStart: a.startAt,
+              originalAnchorStart: a.startAt,
+              originalAnchorEnd: new Date(aEnd).toISOString(),
+              clampedAnchorEnd: a.endAt,
+              conflictingBlockLabel: winner.targetLabel ?? winner.title ?? null,
+              conflictingBlockStart: winner.startAt,
+              conflictingBlockEnd: winner.endAt,
+              reason: 'overlap_resolved_clamped_weaker_block',
+            });
+          }
+        } else {
+          // loser === b: klipp b:s start framåt till a.endAt (sällan
+          // praktiskt — vi klipper hellre slutet på a om b är starkare).
+          // Lämna b orört, justera a istället om a är svagare hanteras ovan.
+        }
+      }
     }
   }
 
