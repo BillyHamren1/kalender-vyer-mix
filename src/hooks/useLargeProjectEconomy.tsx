@@ -82,7 +82,8 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // Local time reports per booking (single source of truth — same as normal projects)
+  // DETAIL-only: per-booking time reports breakdown. Får inte användas som
+  // total — totalsanningen för LP är largeProjectHours nedan.
   const { data: timeReportsByBooking = {} } = useQuery({
     queryKey: ['large-project-time-reports', bookingIds],
     queryFn: async () => {
@@ -98,6 +99,15 @@ export const useLargeProjectEconomy = (
       return result;
     },
     enabled: bookingIds.length > 0,
+  });
+
+  // TOTALSANNING: LP-aggregerade Time Engine-block (samma cache som
+  // /staff-management/time-reports). Block matchas på large_project_id ELLER
+  // booking_id ∈ bookingIds, deduplicerade så inget block räknas dubbelt.
+  const { data: largeProjectHours } = useQuery({
+    queryKey: ['large-project-hours', largeProjectId, bookingIds],
+    queryFn: () => fetchLargeProjectHoursSummary(largeProjectId!, bookingIds),
+    enabled: !!largeProjectId,
   });
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
     const TAG = '[LargeProjectEcon]';
