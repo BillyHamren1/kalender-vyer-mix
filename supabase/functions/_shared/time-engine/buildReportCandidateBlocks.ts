@@ -33,6 +33,7 @@ import type { ISODate, ISODateTime, UUID } from './contracts.ts';
 import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 import { consolidateReportBlocksIntoSessions } from './consolidateReportBlocksIntoSessions.ts';
 import { getStockholmDayWindowUtc, stockholmDateKey } from '../stockholmDayWindow.ts';
+import { COMMUTE_DISTANCE_THRESHOLD_METERS } from './computeDayEndDecision.ts';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -470,6 +471,36 @@ export interface ReportCandidateSummary {
         | 'returned_to_work_within_window'
         | 'visit_only';
       nearbyWarehouseOrProjectLabel: string | null;
+    }>;
+  };
+  /**
+   * Time Engine 3.5 — 15-mils-policy för pendling.
+   *
+   * Resa till/från jobb är normalt inte arbetstid. Resor ≥ 150 km kan dock
+   * räknas som arbetsrelaterad transport. Diagnostiken klassar varje
+   * pendlingsetapp i dagen utan att ändra blockens kind/work-status.
+   *
+   *  - homeboundCommutesExcludedCount  = korta hemresor (< 150 km) som inte
+   *    är arbetstid (transport-block kvar i tidslinjen, men exkluderat ur
+   *    payable work; dagen slutar vid leaveWorkAt).
+   *  - outboundCommutesExcludedCount   = korta resor från boende till första
+   *    jobb (< 150 km) som inte räknas som arbetstid.
+   *  - longDistanceTravelsIncludedCount= resor ≥ 150 km (oavsett riktning)
+   *    som kan räknas som arbetsrelaterad transport.
+   */
+  commutePolicyDiagnostics?: {
+    thresholdMeters: number;
+    homeboundCommutesExcludedCount: number;
+    outboundCommutesExcludedCount: number;
+    longDistanceTravelsIncludedCount: number;
+    examples: Array<{
+      direction: 'homebound' | 'outbound';
+      transportStartAt: ISODateTime;
+      transportEndAt: ISODateTime;
+      distanceMeters: number;
+      classification: 'short_commute_excluded' | 'long_distance_included' | 'insufficient_data';
+      residenceLabel: string | null;
+      relatedWorkLabel: string | null;
     }>;
   };
 }
@@ -2901,6 +2932,106 @@ export function buildReportCandidateBlocks(
   };
 
   // ───────────────────────────────────────────────────────────────────────
+  // Time Engine 3.5 — commutePolicyDiagnostics (15-mils-regel, READ-ONLY)
+  //
+  // Klassar transport-block som pendling när de ligger i direkt anslutning
+  // till en private_residence-vistelse:
+  //   - homebound : transport som slutar nära prVisit.startMs (±15 min)
+  //   - outbound  : transport som startar nära prVisit.endMs   (±15 min)
+  //                 OCH följs av ett work-block samma dag.
+  //
+  // Distans hämtas från evidenceSummary.distanceMeters (GPS-rutt). Saknas
+  // distans → classification='insufficient_data' (räknas inte mot någon
+  // counter). Ingen kind/work-flagga ändras här.
+  // ───────────────────────────────────────────────────────────────────────
+  const COMMUTE_ADJACENCY_MS = 15 * 60_000;
+  const commutePolicyDiag: NonNullable<
+    ReportCandidateSummary['commutePolicyDiagnostics']
+  > = {
+    thresholdMeters: COMMUTE_DISTANCE_THRESHOLD_METERS,
+    homeboundCommutesExcludedCount: 0,
+    outboundCommutesExcludedCount: 0,
+    longDistanceTravelsIncludedCount: 0,
+    examples: [],
+  };
+
+  const transports = out.filter((b) => b.kind === 'transport');
+  const works = out.filter((b) => b.kind === 'work').sort(
+    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+  );
+
+  for (const t of transports) {
+    const tStartMs = new Date(t.startAt).getTime();
+    const tEndMs = new Date(t.endAt).getTime();
+    const dist = Number(t.evidenceSummary?.distanceMeters ?? (t as any).distanceMeters ?? NaN);
+    const hasDist = Number.isFinite(dist) && dist >= 0;
+
+    // Homebound: transport ends ≈ residence enter
+    let homeboundResidence: typeof prVisits[number] | null = null;
+    for (const v of prVisits) {
+      if (Math.abs(v.startMs - tEndMs) <= COMMUTE_ADJACENCY_MS) {
+        homeboundResidence = v;
+        break;
+      }
+    }
+
+    // Outbound: transport starts ≈ residence exit AND a work block follows
+    let outboundResidence: typeof prVisits[number] | null = null;
+    for (const v of prVisits) {
+      if (Math.abs(tStartMs - v.endMs) <= COMMUTE_ADJACENCY_MS) {
+        const followingWork = works.find(
+          (w) => new Date(w.startAt).getTime() >= tEndMs - COMMUTE_ADJACENCY_MS,
+        );
+        if (followingWork) {
+          outboundResidence = v;
+          break;
+        }
+      }
+    }
+
+    if (!homeboundResidence && !outboundResidence) continue;
+
+    const direction: 'homebound' | 'outbound' = homeboundResidence ? 'homebound' : 'outbound';
+    const residence = homeboundResidence ?? outboundResidence!;
+    let classification: 'short_commute_excluded' | 'long_distance_included' | 'insufficient_data';
+    if (!hasDist) {
+      classification = 'insufficient_data';
+    } else if (dist >= COMMUTE_DISTANCE_THRESHOLD_METERS) {
+      classification = 'long_distance_included';
+      commutePolicyDiag.longDistanceTravelsIncludedCount += 1;
+    } else {
+      classification = 'short_commute_excluded';
+      if (direction === 'homebound') commutePolicyDiag.homeboundCommutesExcludedCount += 1;
+      else commutePolicyDiag.outboundCommutesExcludedCount += 1;
+    }
+
+    let relatedWorkLabel: string | null = null;
+    if (direction === 'homebound') {
+      const prev = [...works].reverse().find(
+        (w) => new Date(w.endAt).getTime() <= tStartMs + COMMUTE_ADJACENCY_MS,
+      );
+      relatedWorkLabel = prev?.targetLabel ?? prev?.title ?? null;
+    } else {
+      const next = works.find(
+        (w) => new Date(w.startAt).getTime() >= tEndMs - COMMUTE_ADJACENCY_MS,
+      );
+      relatedWorkLabel = next?.targetLabel ?? next?.title ?? null;
+    }
+
+    if (commutePolicyDiag.examples.length < 20) {
+      commutePolicyDiag.examples.push({
+        direction,
+        transportStartAt: t.startAt,
+        transportEndAt: t.endAt,
+        distanceMeters: hasDist ? Math.round(dist) : 0,
+        classification,
+        residenceLabel: residence.label,
+        relatedWorkLabel,
+      });
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
   // POST-PASS 4.5 — preventOverlappingWorkBlocks
   //
   // Säkerhetsnät: två work-block med olika target får aldrig överlappa
@@ -3373,6 +3504,7 @@ export function buildReportCandidateBlocks(
     activeTimerOverlapDiagnostics: activeTimerOverlapDiag,
     openTimerClampDiagnostics: openTimerClampDiag,
     privateResidenceDayEndDiagnostics: privateResidenceDayEndDiag,
+    commutePolicyDiagnostics: commutePolicyDiag,
     singleTimelineDiagnostics: singleTimelineDiag,
   };
   for (const r of out) {
