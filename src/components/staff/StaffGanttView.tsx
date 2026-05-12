@@ -170,12 +170,22 @@ interface GanttBlock {
   isOpen?: boolean;
 }
 
+const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
+  if (b.targetType === 'location') {
+    const hay = `${b.title ?? ''} ${b.subtitle ?? ''} ${b.targetLabel ?? ''}`.toLowerCase();
+    if (/lager|warehouse/.test(hay)) return true;
+  }
+  return false;
+};
+
 const mapReportCandidateKind = (
   b: ReportCandidateBlockUI,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
 ): GanttKind => {
   if (b.kind === 'work') {
     if (b.reviewState === 'needs_review') return 'review';
+    // Warehouse vinner över annan klassning — ska alltid vara lila
+    if (isWarehouseTarget(b)) return 'warehouse';
     // Prefer authoritative phase from bookings.rigdaydate/eventdate/rigdowndate
     if (b.targetType === 'booking' && b.targetId) {
       const phase = bookingPhaseByDate?.[b.targetId];
