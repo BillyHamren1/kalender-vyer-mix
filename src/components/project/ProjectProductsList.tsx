@@ -292,6 +292,7 @@ const ProjectProductsList = ({
         productCount={mainProducts.length}
         isGenerating={generate.isPending}
         onGenerate={handleGenerate}
+        currentGroups={grouping?.groups}
       />
 
       {moveDialog && grouping && (
