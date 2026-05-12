@@ -2013,8 +2013,13 @@ export function buildReportCandidateBlocks(
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
     const startedMs = new Date(openCtx.startedAtIso).getTime();
-    const dayCutoffMs = new Date(`${input.date}T23:59:59Z`).getTime();
-    const nowMs = Date.now();
+    // Time Engine 4.2 — Europe/Stockholm dagsfönster (inte UTC `T23:59:59Z`).
+    // Historiska dagar: clamp `nowMs` till stockholmDayEndMs så ankaret
+    // aldrig sträcks in på efterföljande svensk kalenderdag.
+    const stockholmDay = getStockholmDayWindowUtc(input.date);
+    const dayCutoffMs = stockholmDay.endUtcMs;
+    const rawNowMs = Date.now();
+    const nowMs = Math.min(rawNowMs, dayCutoffMs);
     const openTargetKey = openCtx.targetId
       ? `${openCtx.targetType ?? ''}::${openCtx.targetId}`
       : null;
