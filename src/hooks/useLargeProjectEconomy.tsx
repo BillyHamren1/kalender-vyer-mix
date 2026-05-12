@@ -153,13 +153,16 @@ export const useLargeProjectEconomy = (
           console.warn(`${TAG} Booking ${bId}: missing product_costs.summary, using local fallback (rev: ${localRev})`);
         }
       }
-      // Staff/time — use LOCAL time_reports (single source of truth, same as normal projects)
-      const localTr = timeReportsByBooking[bId] || [];
-      localTr.forEach((r) => {
-        totalStaffCost += r.total_cost || 0;
-        totalActualHours += (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
-      });
+      // Staff/time hanteras INTE här. Totalsanningen är `largeProjectHours`
+      // (Time Engine-cache, LP-aggregerad). Per-booking loop skulle dubbelräkna
+      // block som har både booking_id och large_project_id.
       // Purchases
+      const pu = bd.purchases;
+      if (Array.isArray(pu)) {
+        pu.forEach((p: any) => { totalPurchases += p.amount || 0; });
+      } else if (pu !== undefined) {
+        console.warn(`${TAG} Booking ${bId}: purchases is not an array`, typeof pu);
+      }
       const pu = bd.purchases;
       if (Array.isArray(pu)) {
         pu.forEach((p: any) => { totalPurchases += p.amount || 0; });
