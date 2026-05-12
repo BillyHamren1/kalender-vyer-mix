@@ -542,6 +542,12 @@ export interface BuildReportCandidateBlocksInput {
    *  Anchor markeras icke-pågående utan bakåtklamp. Räknas ut i callsite
    *  via `_shared/workday/plannedDay.ts` → computePlannedDaySignals. */
   plannedEndOfDayIso?: string | null;
+  /** Time Engine 3.3 — senaste färska engine-evidens (typiskt sista GPS-pingens
+   *  recorded_at). Används för att avgöra om en open active_time_registration
+   *  tillåts förlänga ett synligt block till `now/dayEnd` eller om blocket ska
+   *  klippas vid senaste säkra evidens. Krävs för att historiska dagar och
+   *  stale open timers inte ska sträcka block över rapportdagens slut. */
+  lastFreshEvidenceAtIso?: string | null;
   policy?: ReportCandidatePolicy;
 }
 
