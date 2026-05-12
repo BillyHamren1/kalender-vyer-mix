@@ -2692,6 +2692,7 @@ export function buildReportCandidateBlocks(
     },
     sessionConsolidationDiagnostics: sessionDiagnostics,
     openActiveTimerPrivateResidenceStatus: privateResidenceStatusDiag,
+    activeTimerOverlapDiagnostics: activeTimerOverlapDiag,
   };
   for (const r of out) {
     if (r.kind === 'work') {
