@@ -401,6 +401,41 @@ export interface ReportCandidateSummary {
       reason: string;
     }>;
   };
+
+  /**
+   * Time Engine 3.3 — open-timer clamp diagnostics.
+   * En open active_time_registration får ALDRIG förlänga ett synligt block
+   * till `now`/`dayEnd` om
+   *   - input.date inte är dagens datum i Europe/Stockholm, ELLER
+   *   - det saknas färsk engine-evidens efter ankarets endAt (stale).
+   * När förlängning blockeras klipps blocket vid senaste säkra evidens och
+   * en diagnostic 'block_prevented_from_continuing_to_now' sätts.
+   */
+  openTimerClampDiagnostics?: {
+    activeTimersSeen: number;
+    activeTimersAllowedToExtend: number;
+    activeTimersNotExtendedDueToStaleEvidence: number;
+    activeTimersNotExtendedBecauseHistoricalDate: number;
+    blocksPreventedFromContinuingToNow: number;
+    /** Stale-window i minuter som tillämpas på lastFreshEvidenceAtIso. */
+    freshEvidenceWindowMinutes: number;
+    isStockholmToday: boolean;
+    lastFreshEvidenceAtIso: ISODateTime | null;
+    examples: Array<{
+      reason:
+        | 'historical_date_open_timer_not_extended'
+        | 'stale_evidence_open_timer_not_extended'
+        | 'block_prevented_from_continuing_to_now'
+        | 'historical_date_synthetic_block_skipped'
+        | 'stale_evidence_synthetic_block_skipped';
+      activeTimerStart: ISODateTime;
+      activeTimerTarget: string | null;
+      anchorEndBefore: ISODateTime | null;
+      anchorEndAfter: ISODateTime | null;
+      lastFreshEvidenceAtIso: ISODateTime | null;
+      stockholmDayEndUtc: ISODateTime;
+    }>;
+  };
 }
 
 /**
