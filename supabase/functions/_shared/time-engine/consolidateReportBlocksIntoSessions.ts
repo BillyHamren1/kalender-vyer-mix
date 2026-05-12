@@ -454,19 +454,23 @@ export function consolidateReportBlocksIntoSessions(
         }
 
         // Absorbable kinds:
-        //  - needs_review där reasons ENBART är signal-gap-/transition-
-        //    relaterade (annars bryter SESSION_BREAK_REASONS ovan)
+        //  - needs_review ENDAST om soft (isSoftAbsorbableNeedsReview).
+        //    Hard needs_review räknas i rejectedHardReviewAbsorption och
+        //    bryter session.
         //  - unknown (any size — sandwich-safe när bunden av samma target)
         //  - transport < realTripMinDistanceMeters (jitter / utan tydlig
         //    destination)
         //  - work without targetId (otarget arbete)
         const isAbsorbable =
-          r.kind === 'needs_review' ||
+          (r.kind === 'needs_review' && isSoftAbsorbableNeedsReview(r, deps)) ||
           r.kind === 'unknown' ||
           (r.kind === 'transport' && dist < deps.realTripMinDistanceMeters) ||
           (r.kind === 'work' && !r.targetId);
 
-        if (!isAbsorbable) break;
+        if (!isAbsorbable) {
+          if (r.kind === 'needs_review') recordRejectedHardReviewAbsorption(r);
+          break;
+        }
 
         absorbedKinds.push(r.kind);
         absorbedLabels.push(r.targetLabel ?? r.toLabel ?? r.fromLabel ?? r.kind);
