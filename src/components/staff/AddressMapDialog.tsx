@@ -15,6 +15,9 @@ interface AddressMapDialogProps {
   /** Om satta visas hela personens GPS-spår fram till nu på kartan */
   staffId?: string;
   date?: string;
+  /** Om satta visas endast pings inom detta tidsintervall (för t.ex. en resa) */
+  segmentStartIso?: string;
+  segmentEndIso?: string;
 }
 
 /**
