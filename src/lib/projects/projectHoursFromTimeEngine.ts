@@ -483,3 +483,171 @@ export function summarizeProjectHoursFromDayReports(
     warnings,
   };
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Large project aggregation
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface LargeProjectHoursTarget {
+  large_project_id: string;
+  booking_ids: string[];
+}
+
+/**
+ * True om blocket hör till ett large project. Räknas om:
+ *   • block.large_project_id === target.large_project_id, ELLER
+ *   • block.booking_id finns i target.booking_ids, ELLER
+ *   • metadata/evidence pekar på samma large_project_id (samma normalisering
+ *     som getBlockProjectRefs gör).
+ *
+ * Vi kör matchningen en gång per block — inget block räknas dubbelt.
+ */
+export function blockMatchesLargeProjectTarget(
+  block: ProjectTimeEngineBlock,
+  target: LargeProjectHoursTarget,
+): boolean {
+  if (!target?.large_project_id && (!target?.booking_ids || target.booking_ids.length === 0)) {
+    return false;
+  }
+  const refs = getBlockProjectRefs(block);
+  if (
+    target.large_project_id &&
+    refs.large_project_id &&
+    refs.large_project_id === target.large_project_id
+  ) {
+    return true;
+  }
+  if (
+    refs.booking_id &&
+    target.booking_ids &&
+    target.booking_ids.includes(refs.booking_id)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Summera large projectets timmar från staff_day_report_cache.
+ *
+ * Sanningsmodell (PROJECT HOURS 6):
+ *  - Source: samma staff_day_report_cache som /staff-management/time-reports.
+ *  - Aggregeringen sker på LARGE PROJECT-nivå, inte per booking.
+ *  - Ett block räknas en (1) gång om det matchar large_project_id eller
+ *    någon av de länkade booking_ids.
+ *  - Booking-level breakdown är detaljvy, inte total.
+ */
+export function summarizeLargeProjectHoursFromDayReports(
+  dayReports: StaffDayReportInput[] | null | undefined,
+  target: LargeProjectHoursTarget,
+): ProjectHoursSummary {
+  const warnings: string[] = [];
+  const empty: ProjectHoursSummary = {
+    target: { large_project_id: target?.large_project_id ?? null },
+    totalMinutes: 0,
+    totalHours: 0,
+    staffCount: 0,
+    staffSummaries: [],
+    daySummaries: [],
+    blocks: [],
+    warnings,
+  };
+
+  if (!target?.large_project_id && (!target?.booking_ids || target.booking_ids.length === 0)) {
+    warnings.push('empty_large_project_target');
+    return empty;
+  }
+  if (!Array.isArray(dayReports) || dayReports.length === 0) return empty;
+
+  const perStaff = new Map<string, ProjectHoursStaffSummary>();
+  const perDay = new Map<string, { totalMinutes: number; staff: Set<string> }>();
+  const allBlocks: ProjectTimeEngineBlock[] = [];
+  // Dedup nyckel: föredra block.id/block_id, annars syntetisk via staff+date+start+end
+  const seen = new Set<string>();
+
+  for (const row of dayReports) {
+    if (!row || !row.staff_id || !row.date) continue;
+    const blocks = Array.isArray(row.blocks) ? row.blocks : [];
+    if (blocks.length === 0) continue;
+
+    let staffSummary = perStaff.get(row.staff_id);
+    if (!staffSummary) {
+      staffSummary = {
+        staff_id: row.staff_id,
+        staff_name: row.staff_name ?? null,
+        totalMinutes: 0,
+        totalHours: 0,
+        days: [],
+        blocks: [],
+      };
+      perStaff.set(row.staff_id, staffSummary);
+    } else if (!staffSummary.staff_name && row.staff_name) {
+      staffSummary.staff_name = row.staff_name;
+    }
+
+    let dayMinutesForStaff = 0;
+    for (const rawBlock of blocks) {
+      if (!rawBlock || typeof rawBlock !== 'object') continue;
+      const block = rawBlock as ProjectTimeEngineBlock;
+
+      if (!isProjectWorkBlock(block)) continue;
+      if (!blockMatchesLargeProjectTarget(block, target)) continue;
+
+      const startIso = (block.startAt as string | null) ?? (block.start_at as string | null) ?? '';
+      const endIso = (block.endAt as string | null) ?? (block.end_at as string | null) ?? '';
+      const blockKey =
+        (block.id as string | undefined) ||
+        (block.block_id as string | undefined) ||
+        `${row.staff_id}|${row.date}|${startIso}|${endIso}`;
+      if (seen.has(blockKey)) continue;
+      seen.add(blockKey);
+
+      const minutes = getBlockDurationMinutes(block);
+      if (minutes <= 0) continue;
+
+      staffSummary.totalMinutes += minutes;
+      staffSummary.blocks.push(block);
+      if (!staffSummary.days.includes(row.date)) staffSummary.days.push(row.date);
+      allBlocks.push(block);
+      dayMinutesForStaff += minutes;
+    }
+
+    if (dayMinutesForStaff > 0) {
+      const d = perDay.get(row.date) ?? { totalMinutes: 0, staff: new Set<string>() };
+      d.totalMinutes += dayMinutesForStaff;
+      d.staff.add(row.staff_id);
+      perDay.set(row.date, d);
+    }
+  }
+
+  const staffSummaries: ProjectHoursStaffSummary[] = [];
+  let totalMinutes = 0;
+  for (const s of perStaff.values()) {
+    if (s.totalMinutes <= 0) continue;
+    s.totalHours = +(s.totalMinutes / 60).toFixed(2);
+    s.days.sort();
+    staffSummaries.push(s);
+    totalMinutes += s.totalMinutes;
+  }
+  staffSummaries.sort((a, b) => b.totalMinutes - a.totalMinutes);
+
+  const daySummaries: ProjectHoursDaySummary[] = Array.from(perDay.entries())
+    .map(([date, v]) => ({
+      date,
+      totalMinutes: v.totalMinutes,
+      totalHours: +(v.totalMinutes / 60).toFixed(2),
+      staffCount: v.staff.size,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    target: { large_project_id: target.large_project_id },
+    totalMinutes,
+    totalHours: +(totalMinutes / 60).toFixed(2),
+    staffCount: staffSummaries.length,
+    staffSummaries,
+    daySummaries,
+    blocks: allBlocks,
+    warnings,
+  };
+}
