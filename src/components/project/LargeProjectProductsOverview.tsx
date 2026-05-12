@@ -393,11 +393,11 @@ const LargeProjectProductsOverview = ({
         <Card className="border-border/50 shadow-sm overflow-hidden w-full">
           <div className="bg-card">
             <div className="grid grid-cols-[2fr_80px_1.3fr_1.3fr_1.5fr_40px] gap-4 border-b border-border/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <div>Produkt</div>
-              <div>Antal</div>
-              <div>Taggar</div>
-              <div>Kund</div>
-              <div>Levadress</div>
+              <SortHeader label="Produkt" sortKey="name" sort={sort} onToggle={toggleSort} />
+              <SortHeader label="Antal" sortKey="quantity" sort={sort} onToggle={toggleSort} />
+              <SortHeader label="Taggar" sortKey="tags" sort={sort} onToggle={toggleSort} />
+              <SortHeader label="Kund" sortKey="client" sort={sort} onToggle={toggleSort} />
+              <SortHeader label="Levadress" sortKey="deliveryaddress" sort={sort} onToggle={toggleSort} />
               <div></div>
             </div>
 
