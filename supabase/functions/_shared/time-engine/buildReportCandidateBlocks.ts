@@ -2812,12 +2812,94 @@ export function buildReportCandidateBlocks(
   }
 
   // ───────────────────────────────────────────────────────────────────────
-  // POST-PASS 4.5 — preventOverlappingWorkBlocks
+  // Time Engine 3.4 — Private residence day-end policy diagnostics.
   //
-  // Säkerhetsnät: två work-block med olika target får aldrig överlappa
-  // visuellt. Active timer-anchor är SVAGARE än verklig engine-evidens.
-  // Prioritet (störst vinner):
-  //   1. private_residence
+  // Aggregera per-staff-dag-statistik från excludedPrivateResidenceBlocks
+  // (residence-vistelser plockade ur huvudvyn av Engine 4) plus stay/auto-
+  // end-utfall från POST-PASS 4. Bekräftelsefönstret är 90 min — sluttiden
+  // styrs av commute-policyn (4.6) i computeDayEndDecision.
+  // ───────────────────────────────────────────────────────────────────────
+  const prVisits = (excludedPrivateResidenceBlocks ?? [])
+    .map((b) => ({
+      startMs: new Date(b.startAt).getTime(),
+      endMs: new Date(b.endAt).getTime(),
+      durationMinutes: b.durationMinutes ?? 0,
+      label:
+        ((b.evidence as any)?.privateResidenceLabel as string | undefined) ??
+        'Privat/Boende',
+      sourceId: b.id,
+    }))
+    .filter((v) => v.endMs > v.startMs)
+    .sort((a, b) => a.startMs - b.startMs);
+
+  const prDayEndsCount =
+    privateResidenceStatusDiag?.autoEndTriggered ? 1 : 0;
+  const prShortBreaksCount = prVisits.filter((v) => {
+    if (privateResidenceStatusDiag?.autoEndTriggered) return false;
+    return v.durationMinutes < PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN;
+  }).length;
+
+  // preventedWarehouseMerge: residence-vistelse vars tidsfönster överlappar
+  // ett warehouse-/projekt-work-block i `out`. Då hade GPS-jitter/150 m-
+  // tolerans kunnat slå ihop dem; vår modell hindrar det genom att flytta
+  // vistelsen till `excludedPrivateResidenceBlocks`.
+  let preventedMergeCount = 0;
+  const exampleMergeLabels: Map<string, string | null> = new Map();
+  for (const v of prVisits) {
+    for (const w of out) {
+      if (w.kind !== 'work') continue;
+      if (w.targetType === 'private_residence') continue;
+      const ws = new Date(w.startAt).getTime();
+      const we = new Date(w.endAt).getTime();
+      if (we <= v.startMs || ws >= v.endMs) continue;
+      preventedMergeCount += 1;
+      exampleMergeLabels.set(v.sourceId, w.targetLabel ?? w.title ?? null);
+      break;
+    }
+  }
+
+  const prExamples: NonNullable<
+    ReportCandidateSummary['privateResidenceDayEndDiagnostics']
+  >['examples'] = [];
+  for (const v of prVisits.slice(0, 20)) {
+    let decision: NonNullable<
+      ReportCandidateSummary['privateResidenceDayEndDiagnostics']
+    >['examples'][number]['decision'] = 'visit_only';
+    if (privateResidenceStatusDiag?.autoEndTriggered) {
+      // Commute-policyn (4.6) avgör short vs long; här markerar vi bara att
+      // auto-end skedde. Etikett härleds vid behov i computeDayEndDecision.
+      decision = 'day_end_short_commute';
+    } else if (
+      v.durationMinutes < PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN &&
+      out.some((b) => b.kind === 'work' && new Date(b.startAt).getTime() > v.endMs)
+    ) {
+      decision = 'returned_to_work_within_window';
+    } else if (v.durationMinutes < PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN) {
+      decision = 'short_break_no_day_end';
+    }
+    prExamples.push({
+      residenceLabel: v.label,
+      residenceEnterAt: new Date(v.startMs).toISOString(),
+      residenceConfirmedUntil: v.durationMinutes >= PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN
+        ? new Date(v.startMs + PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN * 60_000).toISOString()
+        : null,
+      residenceDurationMinutes: v.durationMinutes,
+      decision,
+      nearbyWarehouseOrProjectLabel: exampleMergeLabels.get(v.sourceId) ?? null,
+    });
+  }
+
+  const privateResidenceDayEndDiag: NonNullable<
+    ReportCandidateSummary['privateResidenceDayEndDiagnostics']
+  > = {
+    privateResidenceVisitsCount: prVisits.length,
+    privateResidenceDayEndsCount: prDayEndsCount,
+    privateResidenceShortBreaksCount: prShortBreaksCount,
+    preventedWarehouseMergeCount: preventedMergeCount,
+    thresholdMinutes: PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN,
+    examples: prExamples,
+  };
+
   //   2. känd plats / project / booking / warehouse target
   //   3. real transport (>= realTripMinDistanceMeters)
   //   4. open_active_timer_anchor (active_time_registration)
