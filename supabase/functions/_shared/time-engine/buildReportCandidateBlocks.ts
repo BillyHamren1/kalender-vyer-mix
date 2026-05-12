@@ -1951,6 +1951,24 @@ export function buildReportCandidateBlocks(
     | NonNullable<ReportCandidateSummary['openActiveTimerPrivateResidenceStatus']>
     | undefined = undefined;
 
+  // Time Engine 2.11 — Active timer overlap diagnostics. Active timer-ankaret
+  // får aldrig förlängas (eller spawnas som synthetic block) ovanpå senare
+  // verkliga motorblock (real transport, annan-target work, private_residence,
+  // känd plats med engine-evidens).
+  const activeTimerOverlapDiag: NonNullable<ReportCandidateSummary['activeTimerOverlapDiagnostics']> = {
+    activeTimerAnchorsFound: 0,
+    activeTimerAnchorsExtended: 0,
+    activeTimerAnchorsClampedByLaterBlock: 0,
+    syntheticActiveTimerBlocksCreated: 0,
+    syntheticActiveTimerBlocksSkippedDueToEngineBlocks: 0,
+    overlappingWorkBlocksDetected: 0,
+    overlappingWorkBlocksResolved: 0,
+    examples: [],
+  };
+  const pushOverlapExample = (ex: NonNullable<ReportCandidateSummary['activeTimerOverlapDiagnostics']>['examples'][number]) => {
+    if (activeTimerOverlapDiag.examples.length < 20) activeTimerOverlapDiag.examples.push(ex);
+  };
+
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
     const startedMs = new Date(openCtx.startedAtIso).getTime();
