@@ -478,6 +478,7 @@ const LargeProjectProductsOverview = ({
         productCount={flatRows.length}
         isGenerating={generate.isPending}
         onGenerate={handleGenerate}
+        currentGroups={grouping?.groups}
       />
 
       {moveDialog && grouping && (
