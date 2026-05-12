@@ -2295,6 +2295,7 @@ export function buildReportCandidateBlocks(
         anchorIdx = insertAt;
         activeTimerOverlapDiag.syntheticActiveTimerBlocksCreated += 1;
       }
+      } // end Time Engine 3.3 synth-gate else
     }
 
     if (anchorIdx >= 0) {
