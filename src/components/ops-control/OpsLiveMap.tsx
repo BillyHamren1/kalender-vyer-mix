@@ -636,13 +636,18 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       bounds.extend([job.longitude, job.latitude]);
 
       const el = document.createElement('div');
-      el.style.cssText = 'width: 32px; height: 44px; cursor: pointer; z-index: 10;';
-      const pinColor = job.isActive ? '#ef4444' : '#7c3aed';
+      el.style.cssText = 'width: 40px; height: 52px; cursor: pointer; z-index: 10; position: relative; display:flex; align-items:flex-end; justify-content:center;';
+      const phase = classifyJobPhase(job.eventType);
+      const ph = phaseStyles[phase];
+      const glow = job.isActive
+        ? `<div style="position:absolute;left:50%;top:14px;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:9999px;background:${ph.ring};opacity:0.22;filter:blur(10px);animation:opspulse 2.2s ease-in-out infinite;"></div>`
+        : '';
       el.innerHTML = `
-        <svg width="32" height="44" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" 
-                fill="${pinColor}" stroke="white" stroke-width="1.5"/>
-          <circle cx="12" cy="12" r="4" fill="white"/>
+        ${glow}
+        <svg width="34" height="46" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
+          <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z"
+                fill="${ph.fill}" stroke="${ph.ring}" stroke-width="1.8"/>
+          <circle cx="12" cy="12" r="4.2" fill="#ffffff" stroke="${ph.ring}" stroke-width="1"/>
         </svg>
       `;
 
