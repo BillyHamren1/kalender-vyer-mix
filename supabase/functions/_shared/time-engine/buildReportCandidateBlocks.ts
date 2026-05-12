@@ -32,7 +32,7 @@ import type {
 import type { ISODate, ISODateTime, UUID } from './contracts.ts';
 import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 import { consolidateReportBlocksIntoSessions } from './consolidateReportBlocksIntoSessions.ts';
-import { getStockholmDayWindowUtc } from '../stockholmDayWindow.ts';
+import { getStockholmDayWindowUtc, stockholmDateKey } from '../stockholmDayWindow.ts';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -401,6 +401,41 @@ export interface ReportCandidateSummary {
       reason: string;
     }>;
   };
+
+  /**
+   * Time Engine 3.3 — open-timer clamp diagnostics.
+   * En open active_time_registration får ALDRIG förlänga ett synligt block
+   * till `now`/`dayEnd` om
+   *   - input.date inte är dagens datum i Europe/Stockholm, ELLER
+   *   - det saknas färsk engine-evidens efter ankarets endAt (stale).
+   * När förlängning blockeras klipps blocket vid senaste säkra evidens och
+   * en diagnostic 'block_prevented_from_continuing_to_now' sätts.
+   */
+  openTimerClampDiagnostics?: {
+    activeTimersSeen: number;
+    activeTimersAllowedToExtend: number;
+    activeTimersNotExtendedDueToStaleEvidence: number;
+    activeTimersNotExtendedBecauseHistoricalDate: number;
+    blocksPreventedFromContinuingToNow: number;
+    /** Stale-window i minuter som tillämpas på lastFreshEvidenceAtIso. */
+    freshEvidenceWindowMinutes: number;
+    isStockholmToday: boolean;
+    lastFreshEvidenceAtIso: ISODateTime | null;
+    examples: Array<{
+      reason:
+        | 'historical_date_open_timer_not_extended'
+        | 'stale_evidence_open_timer_not_extended'
+        | 'block_prevented_from_continuing_to_now'
+        | 'historical_date_synthetic_block_skipped'
+        | 'stale_evidence_synthetic_block_skipped';
+      activeTimerStart: ISODateTime;
+      activeTimerTarget: string | null;
+      anchorEndBefore: ISODateTime | null;
+      anchorEndAfter: ISODateTime | null;
+      lastFreshEvidenceAtIso: ISODateTime | null;
+      stockholmDayEndUtc: ISODateTime;
+    }>;
+  };
 }
 
 /**
@@ -542,6 +577,12 @@ export interface BuildReportCandidateBlocksInput {
    *  Anchor markeras icke-pågående utan bakåtklamp. Räknas ut i callsite
    *  via `_shared/workday/plannedDay.ts` → computePlannedDaySignals. */
   plannedEndOfDayIso?: string | null;
+  /** Time Engine 3.3 — senaste färska engine-evidens (typiskt sista GPS-pingens
+   *  recorded_at). Används för att avgöra om en open active_time_registration
+   *  tillåts förlänga ett synligt block till `now/dayEnd` eller om blocket ska
+   *  klippas vid senaste säkra evidens. Krävs för att historiska dagar och
+   *  stale open timers inte ska sträcka block över rapportdagens slut. */
+  lastFreshEvidenceAtIso?: string | null;
   policy?: ReportCandidatePolicy;
 }
 
@@ -2010,8 +2051,62 @@ export function buildReportCandidateBlocks(
     if (activeTimerOverlapDiag.examples.length < 20) activeTimerOverlapDiag.examples.push(ex);
   };
 
+  // Time Engine 3.3 — open-timer clamp diagnostics.
+  const FRESH_EVIDENCE_WINDOW_MIN = 30;
+  const todayStockholm = stockholmDateKey(new Date().toISOString());
+  const isStockholmToday = todayStockholm === input.date;
+  const lastFreshEvidenceMs = input.lastFreshEvidenceAtIso
+    ? new Date(input.lastFreshEvidenceAtIso).getTime()
+    : NaN;
+  const stockholmDayWindowAll = getStockholmDayWindowUtc(input.date);
+  const openTimerClampDiag: NonNullable<ReportCandidateSummary['openTimerClampDiagnostics']> = {
+    activeTimersSeen: 0,
+    activeTimersAllowedToExtend: 0,
+    activeTimersNotExtendedDueToStaleEvidence: 0,
+    activeTimersNotExtendedBecauseHistoricalDate: 0,
+    blocksPreventedFromContinuingToNow: 0,
+    freshEvidenceWindowMinutes: FRESH_EVIDENCE_WINDOW_MIN,
+    isStockholmToday,
+    lastFreshEvidenceAtIso: input.lastFreshEvidenceAtIso ?? null,
+    examples: [],
+  };
+  const pushClampExample = (ex: NonNullable<ReportCandidateSummary['openTimerClampDiagnostics']>['examples'][number]) => {
+    if (openTimerClampDiag.examples.length < 20) openTimerClampDiag.examples.push(ex);
+  };
+  /**
+   * Avgör om en open active_time_registration får förlänga ett synligt block
+   * mot now/dayEnd. Returnerar ett beslut som callers använder för att klampa.
+   *
+   * Villkor för 'allowed':
+   *  - input.date är dagens svenska datum
+   *  - color: lastFreshEvidenceAtIso finns och inte är äldre än
+   *    FRESH_EVIDENCE_WINDOW_MIN gentemot now
+   *  - lastFreshEvidenceMs ligger efter ankarets nuvarande endAt − tolerance
+   */
+  const evaluateOpenTimerExtension = (params: {
+    anchorEndMs: number | null;
+  }): { allowed: boolean; reason: 'historical_date' | 'stale_evidence' | 'allowed' } => {
+    if (!isStockholmToday) return { allowed: false, reason: 'historical_date' };
+    if (!Number.isFinite(lastFreshEvidenceMs)) return { allowed: false, reason: 'stale_evidence' };
+    const ageMs = Date.now() - lastFreshEvidenceMs;
+    if (ageMs > FRESH_EVIDENCE_WINDOW_MIN * 60_000) {
+      return { allowed: false, reason: 'stale_evidence' };
+    }
+    if (params.anchorEndMs != null) {
+      // Färsk evidens måste ligga efter ankarets nuvarande endAt − tolerance
+      // (annars finns ingen NY evidens som motiverar förlängning).
+      const tolMs = 5 * 60_000;
+      if (lastFreshEvidenceMs < params.anchorEndMs - tolMs) {
+        return { allowed: false, reason: 'stale_evidence' };
+      }
+    }
+    return { allowed: true, reason: 'allowed' };
+  };
+
+
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
+    openTimerClampDiag.activeTimersSeen += 1;
     const startedMs = new Date(openCtx.startedAtIso).getTime();
     // Time Engine 4.2 — Europe/Stockholm dagsfönster (inte UTC `T23:59:59Z`).
     // Historiska dagar: clamp `nowMs` till stockholmDayEndMs så ankaret
@@ -2019,7 +2114,9 @@ export function buildReportCandidateBlocks(
     const stockholmDay = getStockholmDayWindowUtc(input.date);
     const dayCutoffMs = stockholmDay.endUtcMs;
     const rawNowMs = Date.now();
-    const nowMs = Math.min(rawNowMs, dayCutoffMs);
+    // Time Engine 3.3 — på historiska dagar får Date.now ALDRIG vara visible
+    // end. Klampa hårt till stockholmDayEndMs (clamp.ts upprepar för säkerhet).
+    const nowMs = isStockholmToday ? Math.min(rawNowMs, dayCutoffMs) : dayCutoffMs;
     const openTargetKey = openCtx.targetId
       ? `${openCtx.targetType ?? ''}::${openCtx.targetId}`
       : null;
@@ -2076,6 +2173,36 @@ export function buildReportCandidateBlocks(
 
     // Skapa syntetiskt block om inget work-block matchar
     if (anchorIdx === -1 && openTargetKey) {
+      // Time Engine 3.3 — open timer får inte spawna synthetic block som går
+      // till now/dayEnd om dagen är historisk eller evidens är stale.
+      const synthGate = evaluateOpenTimerExtension({ anchorEndMs: startedMs });
+      if (!synthGate.allowed) {
+        if (synthGate.reason === 'historical_date') {
+          openTimerClampDiag.activeTimersNotExtendedBecauseHistoricalDate += 1;
+          pushClampExample({
+            reason: 'historical_date_synthetic_block_skipped',
+            activeTimerStart: openCtx.startedAtIso,
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            anchorEndBefore: null,
+            anchorEndAfter: null,
+            lastFreshEvidenceAtIso: input.lastFreshEvidenceAtIso ?? null,
+            stockholmDayEndUtc: new Date(stockholmDayWindowAll.endUtcMs).toISOString(),
+          });
+        } else {
+          openTimerClampDiag.activeTimersNotExtendedDueToStaleEvidence += 1;
+          pushClampExample({
+            reason: 'stale_evidence_synthetic_block_skipped',
+            activeTimerStart: openCtx.startedAtIso,
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            anchorEndBefore: null,
+            anchorEndAfter: null,
+            lastFreshEvidenceAtIso: input.lastFreshEvidenceAtIso ?? null,
+            stockholmDayEndUtc: new Date(stockholmDayWindowAll.endUtcMs).toISOString(),
+          });
+        }
+        // Hoppa hela synth-grenen — vi spawnar inget visible block.
+        // (anchorIdx förblir -1, ingen vidare anchor-logik körs nedan.)
+      } else {
       const liveEndMsRaw = Math.min(nowMs, dayCutoffMs);
       // Time Engine 2.11 — synth-block får ALDRIG sträcka sig in i / ovanpå
       // ett senare verkligt motorblock (real transport, annan-target work,
@@ -2168,6 +2295,7 @@ export function buildReportCandidateBlocks(
         anchorIdx = insertAt;
         activeTimerOverlapDiag.syntheticActiveTimerBlocksCreated += 1;
       }
+      } // end Time Engine 3.3 synth-gate else
     }
 
     if (anchorIdx >= 0) {
@@ -2415,50 +2543,107 @@ export function buildReportCandidateBlocks(
       } else {
         // Ingen home-stay — gammal beteende: förläng till min(now, dayEnd).
         // Time Engine 2.11 — men ALDRIG förbi senare verkligt motorblock.
+        // Time Engine 3.3 — och ENDAST om dagen är dagens svenska datum
+        // OCH färsk engine-evidens finns. Annars klipps blocket vid senaste
+        // säkra evidens (anchorEndMsRaw eller lastFreshEvidenceAt) och
+        // diagnostic 'block_prevented_from_continuing_to_now' sätts.
         const anchorStartMs = new Date(anchor.startAt).getTime();
         const liveEndMsRaw2 = Math.min(nowMs, dayCutoffMs);
         const firstBreak2 = findFirstHardBreakAfter(anchorStartMs);
         const breakStartMs = firstBreak2 ? firstBreak2.startMs : Number.POSITIVE_INFINITY;
-        const targetEndMs = Math.min(liveEndMsRaw2, breakStartMs);
-        const wasClampedByBreak = firstBreak2 != null && breakStartMs < liveEndMsRaw2;
 
-        if (targetEndMs > anchorEndMsRaw) {
-          anchor.endAt = new Date(targetEndMs).toISOString();
-          anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
-          anchor.durationLabel = fmtDuration(anchor.durationMinutes);
-          activeTimerOverlapDiag.activeTimerAnchorsExtended += 1;
-        } else if (wasClampedByBreak && anchorEndMsRaw > breakStartMs) {
-          // Ankaret var redan extended förbi den hårda breaken — klampa bakåt.
-          anchor.endAt = new Date(breakStartMs).toISOString();
-          anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
-          anchor.durationLabel = fmtDuration(anchor.durationMinutes);
-        }
-
-        if (wasClampedByBreak) {
+        const extGate = evaluateOpenTimerExtension({ anchorEndMs: anchorEndMsRaw });
+        if (!extGate.allowed) {
+          // Förläng INTE — låt blocket sluta vid senaste säkra evidens.
+          // Säker endpoint = max(anchorEndMsRaw, lastFreshEvidence∩dayWindow)
+          // men aldrig efter hard-break eller dayCutoff.
+          let secureEndMs = anchorEndMsRaw;
+          if (Number.isFinite(lastFreshEvidenceMs) &&
+              lastFreshEvidenceMs > secureEndMs &&
+              lastFreshEvidenceMs <= dayCutoffMs) {
+            secureEndMs = Math.min(lastFreshEvidenceMs, dayCutoffMs);
+          }
+          if (Number.isFinite(breakStartMs)) {
+            secureEndMs = Math.min(secureEndMs, breakStartMs);
+          }
+          // Krymp aldrig blocket bakåt under den ursprungliga endAt.
+          secureEndMs = Math.max(secureEndMs, anchorEndMsRaw);
+          if (secureEndMs !== anchorEndMsRaw) {
+            anchor.endAt = new Date(secureEndMs).toISOString();
+            anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
+            anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+          }
           anchor.isOngoing = false;
           anchor.warningReasons = Array.from(new Set([
             ...(anchor.warningReasons ?? []),
-            'active_timer_context_cut_by_later_engine_block',
+            'block_prevented_from_continuing_to_now',
           ]));
-          anchor.warningLabel = 'Aktiv timer avbruten av senare platsbevis';
-          anchor.subtitle = `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
-          activeTimerOverlapDiag.activeTimerAnchorsClampedByLaterBlock += 1;
-          pushOverlapExample({
-            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+          if (!anchor.reviewReasons.includes('block_prevented_from_continuing_to_now')) {
+            anchor.reviewReasons.push('block_prevented_from_continuing_to_now');
+          }
+          anchor.warningLabel = anchor.warningLabel ??
+            (extGate.reason === 'historical_date'
+              ? 'Klippt – historisk dag (open timer)'
+              : 'Klippt – stale evidens (open timer)');
+          anchor.subtitle =
+            `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
+          openTimerClampDiag.blocksPreventedFromContinuingToNow += 1;
+          if (extGate.reason === 'historical_date') {
+            openTimerClampDiag.activeTimersNotExtendedBecauseHistoricalDate += 1;
+          } else {
+            openTimerClampDiag.activeTimersNotExtendedDueToStaleEvidence += 1;
+          }
+          pushClampExample({
+            reason: 'block_prevented_from_continuing_to_now',
             activeTimerStart: openCtx.startedAtIso,
-            originalAnchorStart: anchor.startAt,
-            originalAnchorEnd: new Date(Math.max(anchorEndMsRaw, liveEndMsRaw2)).toISOString(),
-            clampedAnchorEnd: anchor.endAt,
-            conflictingBlockLabel: firstBreak2!.block.targetLabel ?? firstBreak2!.block.title ?? null,
-            conflictingBlockStart: firstBreak2!.block.startAt,
-            conflictingBlockEnd: firstBreak2!.block.endAt,
-            reason: 'active_timer_context_cut_by_later_engine_block',
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            anchorEndBefore: new Date(anchorEndMsRaw).toISOString(),
+            anchorEndAfter: anchor.endAt,
+            lastFreshEvidenceAtIso: input.lastFreshEvidenceAtIso ?? null,
+            stockholmDayEndUtc: new Date(stockholmDayWindowAll.endUtcMs).toISOString(),
           });
         } else {
-          anchor.isOngoing = true;
-          anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
-          anchor.subtitle =
-            `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
+          openTimerClampDiag.activeTimersAllowedToExtend += 1;
+          const targetEndMs = Math.min(liveEndMsRaw2, breakStartMs);
+          const wasClampedByBreak = firstBreak2 != null && breakStartMs < liveEndMsRaw2;
+
+          if (targetEndMs > anchorEndMsRaw) {
+            anchor.endAt = new Date(targetEndMs).toISOString();
+            anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
+            anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+            activeTimerOverlapDiag.activeTimerAnchorsExtended += 1;
+          } else if (wasClampedByBreak && anchorEndMsRaw > breakStartMs) {
+            anchor.endAt = new Date(breakStartMs).toISOString();
+            anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
+            anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+          }
+
+          if (wasClampedByBreak) {
+            anchor.isOngoing = false;
+            anchor.warningReasons = Array.from(new Set([
+              ...(anchor.warningReasons ?? []),
+              'active_timer_context_cut_by_later_engine_block',
+            ]));
+            anchor.warningLabel = 'Aktiv timer avbruten av senare platsbevis';
+            anchor.subtitle = `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
+            activeTimerOverlapDiag.activeTimerAnchorsClampedByLaterBlock += 1;
+            pushOverlapExample({
+              activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+              activeTimerStart: openCtx.startedAtIso,
+              originalAnchorStart: anchor.startAt,
+              originalAnchorEnd: new Date(Math.max(anchorEndMsRaw, liveEndMsRaw2)).toISOString(),
+              clampedAnchorEnd: anchor.endAt,
+              conflictingBlockLabel: firstBreak2!.block.targetLabel ?? firstBreak2!.block.title ?? null,
+              conflictingBlockStart: firstBreak2!.block.startAt,
+              conflictingBlockEnd: firstBreak2!.block.endAt,
+              reason: 'active_timer_context_cut_by_later_engine_block',
+            });
+          } else {
+            anchor.isOngoing = true;
+            anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
+            anchor.subtitle =
+              `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
+          }
         }
       }
 
@@ -3048,6 +3233,7 @@ export function buildReportCandidateBlocks(
     sessionConsolidationDiagnostics: sessionDiagnostics,
     openActiveTimerPrivateResidenceStatus: privateResidenceStatusDiag,
     activeTimerOverlapDiagnostics: activeTimerOverlapDiag,
+    openTimerClampDiagnostics: openTimerClampDiag,
     singleTimelineDiagnostics: singleTimelineDiag,
   };
   for (const r of out) {
