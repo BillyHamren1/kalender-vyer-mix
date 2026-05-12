@@ -40,6 +40,7 @@ import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import type { ReportCandidateBlockUI, ReportCandidateSummaryUI } from './ReportCandidateTimeline';
+import { EvidencePanel } from './ReportCandidateTimeline';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
@@ -1145,30 +1146,45 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
             </TabsList>
 
             <TabsContent value="overview" className="mt-0">
-              <StaffDayTimelineCard
-                staffName={staff.name}
-                staffId={staff.id}
-                date={dateStr}
-                model={staff.actualModel}
-                lastPingIso={staff.latestPing?.updated_at ?? null}
-                reportCandidateBlocks={blocks}
-                reportCandidateSummary={reportCandidate?.summary ?? null}
-                reportCandidateLoading={reportCandidate?.loading ?? false}
-                reportCandidatePresenceBlocks={reportCandidate?.presenceBlocks ?? null}
-                reportCandidateTargets={reportCandidate?.targets ?? null}
-                reportCandidateDiagnostics={reportCandidate?.diagnostics ?? null}
-                reportCandidateExcludedPreWorkBlocks={reportCandidate?.excludedPreWorkBlocks ?? null}
-                reportCandidatePreWorkExclusionDiagnostics={reportCandidate?.preWorkExclusionDiagnostics ?? null}
-                reportCandidateTargetResolution={reportCandidate?.targetResolution ?? null}
-                reportCandidatePresenceRawEvidence={reportCandidate?.presenceRawEvidence ?? null}
-                reportCandidateRawGpsTimeline={reportCandidate?.rawGpsTimeline ?? null}
-                reportCandidateTechnicalTimeline={reportCandidate?.technicalTimeline ?? null}
-                reportCandidatePresenceDaySummary={reportCandidate?.presenceDaySummary ?? null}
-                reportCandidatePresenceDayAggregation={reportCandidate?.presenceDayAggregation ?? null}
-                reportCandidateTargetMatchSummary={reportCandidate?.targetMatchSummary ?? null}
-                reportCandidateCounts={reportCandidate?.counts ?? null}
-                engineMode="report_candidate"
-              />
+              {/*
+                BLOCK-DETALJ — visar ENBART det valda blockets information.
+                (Tidigare renderades hela dagens StaffDayTimelineCard här,
+                vilket gjorde att klick på ett block återöppnade hela dagen.)
+                Använder samma EvidencePanel som /staff-management/time-reports
+                så data och layout är identisk per block.
+              */}
+              <div className="space-y-3">
+                <div className="rounded-md border bg-card px-3 py-2">
+                  <div className="text-sm font-semibold text-foreground truncate">
+                    {selectedBlock.title}
+                  </div>
+                  {selectedBlock.subtitle && (
+                    <div className="text-xs text-muted-foreground truncate">
+                      {selectedBlock.subtitle}
+                    </div>
+                  )}
+                  <div className="mt-1 text-xs text-muted-foreground tabular-nums">
+                    {formatStockholmHm(selectedBlock.startAt)} – {formatStockholmHm(selectedBlock.endAt)}
+                    {selectedBlock.durationLabel
+                      ? ` · ${selectedBlock.durationLabel}`
+                      : ''}
+                  </div>
+                </div>
+                <EvidencePanel
+                  block={selectedBlock}
+                  lookups={{
+                    presenceById: new Map(
+                      (reportCandidate?.presenceBlocks ?? []).map((p: any) => [p.id, p]),
+                    ),
+                    targetById: new Map(
+                      (reportCandidate?.targets ?? []).map((t: any) => [t.id, t]),
+                    ),
+                  }}
+                  staffId={staff.id}
+                  staffName={staff.name}
+                  date={dateStr}
+                />
+              </div>
             </TabsContent>
 
             <TabsContent value="map" className="mt-0">
