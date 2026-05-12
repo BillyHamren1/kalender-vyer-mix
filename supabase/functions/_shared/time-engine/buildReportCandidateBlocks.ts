@@ -1928,10 +1928,11 @@ export function buildReportCandidateBlocks(
           break;
         }
         if (cur.durationMinutes < policy.shortCrossTargetReviewMaxMinutes) {
-          flipToNeedsReview(cur, 'short_transport_to_unknown');
+          // Time Engine 3.10 — håll som transport, lägg warning. Ingen "Granska".
+          markAsWarningTransport(cur, 'short_transport_to_unknown');
           shortUnknownTransportReviewCount += 1;
-          changed2 = true;
-          break;
+          crossTargetTransportKeptCount += 1;
+          continue;
         }
         crossTargetTransportKeptCount += 1;
         continue;
@@ -1942,10 +1943,11 @@ export function buildReportCandidateBlocks(
         prevWork && nextWork && prevKey && nextKey && prevKey !== nextKey &&
         cur.durationMinutes < policy.shortCrossTargetReviewMaxMinutes
       ) {
-        flipToNeedsReview(cur, 'short_cross_target_movement');
+        // Time Engine 3.10 — kort cross-target jitter blir warning, inte review.
+        markAsWarningTransport(cur, 'short_cross_target_movement');
         shortCrossTargetTransportReviewCount += 1;
-        changed2 = true;
-        break;
+        crossTargetTransportKeptCount += 1;
+        continue;
       }
 
       crossTargetTransportKeptCount += 1;
