@@ -377,7 +377,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         const memberIds = g.members.map(loc => loc.id).join(',');
         const label = isCluster
           ? String(g.members.length)
-          : g.members[0].name.charAt(0).toUpperCase();
+          : getFirstName(g.members[0].name);
 
         return {
           type: 'Feature',
