@@ -45,6 +45,7 @@ import { loadGeoAnchors } from '../_shared/time-engine/loadGeoAnchors.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
+import { enrichReportBlocksForCache } from '../_shared/time-engine/enrichReportBlocksForCache.ts';
 import {
   computePlannedDaySignals,
   type BookingTimes,
