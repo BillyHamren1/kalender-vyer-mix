@@ -522,6 +522,18 @@ async function processOne(
                 durationMinutes: b.durationMinutes,
               })),
               aggregation: (presence as any).aggregation ?? null,
+              dayEndDecision: computeDayEndDecision({
+                date,
+                dayStartUtcIso: dayStart,
+                dayEndUtcIso: dayEnd,
+                blocks: report.blocks ?? [],
+                activeRegistrations: activeRegs as any,
+                openActiveRegistration,
+                lastGpsPingAtIso: pings[pings.length - 1]?.ts ?? null,
+                homeAnchors,
+                nowIso: new Date().toISOString(),
+                plannedEndOfDayIso,
+              }),
             },
             source_watermark: {
               maxPingTs: pings[pings.length - 1]?.ts ?? null,
