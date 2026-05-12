@@ -2581,6 +2581,10 @@ export function buildReportCandidateBlocks(
           if (!anchor.reviewReasons.includes('block_prevented_from_continuing_to_now')) {
             anchor.reviewReasons.push('block_prevented_from_continuing_to_now');
           }
+          if (extGate.reason === 'stale_evidence' &&
+              !anchor.reviewReasons.includes('active_timer_open_but_no_fresh_engine_evidence')) {
+            anchor.reviewReasons.push('active_timer_open_but_no_fresh_engine_evidence');
+          }
           anchor.warningLabel = anchor.warningLabel ??
             (extGate.reason === 'historical_date'
               ? 'Klippt – historisk dag (open timer)'
@@ -2604,8 +2608,17 @@ export function buildReportCandidateBlocks(
           });
         } else {
           openTimerClampDiag.activeTimersAllowedToExtend += 1;
-          const targetEndMs = Math.min(liveEndMsRaw2, breakStartMs);
-          const wasClampedByBreak = firstBreak2 != null && breakStartMs < liveEndMsRaw2;
+          // Time Engine 4.3 — open active timer får ALDRIG förlänga visible
+          // block förbi lastFreshEvidenceAt, även när extension är allowed.
+          // active_time_registration är context/live-signal, inte arbetstid
+          // i sig. Endast färsk engine-evidence (GPS-ping etc.) får skjuta
+          // fram synligt blockslut.
+          const evidenceCapMs = Number.isFinite(lastFreshEvidenceMs)
+            ? Math.min(lastFreshEvidenceMs, dayCutoffMs)
+            : anchorEndMsRaw;
+          const liveEndCapped = Math.min(liveEndMsRaw2, evidenceCapMs);
+          const targetEndMs = Math.min(liveEndCapped, breakStartMs);
+          const wasClampedByBreak = firstBreak2 != null && breakStartMs < liveEndCapped;
 
           if (targetEndMs > anchorEndMsRaw) {
             anchor.endAt = new Date(targetEndMs).toISOString();
