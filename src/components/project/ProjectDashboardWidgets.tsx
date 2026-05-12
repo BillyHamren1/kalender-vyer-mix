@@ -252,10 +252,20 @@ const writeRecent = (id: string) => {
 };
 
 const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow }) => {
-  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [recent, setRecent] = useState<Record<string, number>>(() => readRecent());
   const query = search.trim().toLowerCase();
+
+  // Refresh from localStorage when window regains focus (covers cross-tab/back-nav)
+  useMemo(() => {
+    const onFocus = () => setRecent(readRecent());
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus);
+    }
+    return () => {
+      if (typeof window !== 'undefined') window.removeEventListener('focus', onFocus);
+    };
+  }, []);
 
   const sorted = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -281,10 +291,9 @@ const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow
     );
   }, [sorted, query]);
 
-  const handleOpen = (item: UnifiedItem) => {
-    writeRecent(item.id);
+  const trackOpen = (id: string) => {
+    writeRecent(id);
     setRecent(readRecent());
-    navigate(item.navigateTo);
   };
 
   return (
