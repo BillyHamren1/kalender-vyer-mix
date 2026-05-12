@@ -16,11 +16,19 @@
  * Inga writes till time_reports / workdays / location_time_entries /
  * travel_time_logs.
  *
- * Absorberas in i föregående work-blockets session:
- *   - needs_review (vilken anledning som helst — inkl. signal_gap_*,
- *     missing_transition_evidence, short_cross_target_movement,
- *     short_transport_to_unknown) NÄR ett work-block med samma target
- *     dyker upp efter rad-blocket
+ * Time Engine 2.10 — EN canonical lista (HARD_SESSION_BREAK_REASONS) styr
+ * både sandwich-passet och probabilistic-passet. Soft/signal-baserade
+ * needs_review-block absorberas. Hard needs_review-block bryter session
+ * och behålls som "Granska". Det får inte längre finnas två separata
+ * listor som kan glida isär.
+ *
+ * Absorberas in i föregående/efterföljande work-blockets session:
+ *   - needs_review ENDAST om reasons är tomma eller alla är soft/signal
+ *     (signal_gap_*, missing_transition_evidence, low_gps_signal,
+ *     speed_violation_no_distance, short_cross_target_movement,
+ *     short_transport_to_unknown, absorbed_micro_movement,
+ *     session_consolidated, uncertain_transition,
+ *     probabilistic_session_absorption) → isSoftAbsorbableNeedsReview()
  *   - unknown (vilken som helst storlek)
  *   - transport med distanceMeters < realTripMinDistanceMeters (jitter
  *     eller transport utan tydlig destination)
@@ -29,16 +37,16 @@
  * BRYTER session (block efter detta absorberas EJ):
  *   - work-block med ANNAN känd target
  *   - transport med distanceMeters >= realTripMinDistanceMeters (riktig
- *     resa till annan plats)
+ *     resa till annan plats) — speed_mps ensamt skapar aldrig transport
+ *   - block med någon reason i HARD_SESSION_BREAK_REASONS (t.ex.
+ *     unknown_place_no_anchor, conflicting_targets, private_residence,
+ *     workday_ended, planned_assignment_target_change, impossible_route,
+ *     signal_gap_unbound, unabsorbable_block …)
  *
- * Garantier:
- *   - Aldrig writes till time_reports/workdays/LTE/travel.
- *   - Riktig transport >= realTripMinDistanceMeters (default 500 m) till
- *     annan plats förblir egen rad.
- *   - GRANSKA blir aldrig automatiskt arbete utan ett efterföljande
- *     work-block med samma target som "binder" sessionen.
- *   - signalGapMinutes och internalMovementMinutes ökas på sessionen och
- *     visas som warning ("Signal saknades periodvis").
+ * Diagnostics:
+ *   - rejectedHardReviewAbsorptionCount + rejectedHardReviewAbsorptionReasons
+ *     räknar varje gång ett needs_review-block STOPPADES från absorption
+ *     på grund av en hard reason.
  */
 
 import type { ReportCandidateBlock } from './buildReportCandidateBlocks.ts';
@@ -59,6 +67,11 @@ export interface SessionConsolidationDiagnostics {
   /** Time Engine 2.9 — antal block absorberade via shouldAbsorbAsProbableSameSession
    *  (utan strikt closing same-target work-block). */
   probabilisticAbsorptionCount: number;
+  /** Time Engine 2.10 — antal needs_review-block som STOPPADES från
+   *  absorption på grund av en reason i HARD_SESSION_BREAK_REASONS. */
+  rejectedHardReviewAbsorptionCount: number;
+  /** Time Engine 2.10 — count per hard reason som blockerade absorption. */
+  rejectedHardReviewAbsorptionReasons: Record<string, number>;
   examples: Array<{
     /** Time Engine 2.8 — full session example for diagnostics_json. */
     staffName: string | null;
@@ -117,27 +130,37 @@ const SIGNAL_GAP_REASONS = new Set<string>([
 ]);
 
 /**
- * Time Engine 2.4 — review-reasons som ALLTID bryter en session.
- * Om något av dessa förekommer på ett efterföljande block får sessionen
- * inte absorbera vidare; blocket behålls som eget block (eller separat
- * transport/session enligt befintlig modell).
+ * Time Engine 2.10 — EN canonical lista över hard reasons.
  *
- * Täcker:
- *  - private_residence / boende / home-konflikt
- *  - tydligt stoppad arbetsdag (workday_ended / workday_stopped /
- *    explicit_stop) om uppströms-motorn satt en sådan markör
- *  - ny planerad assignment med annan target
- *  - tydlig annan destination
- *  - omöjlig rutt (speed/teleport som faktiskt har distans bakom sig)
- *  - flera konkurrerande targets utan vinnare
+ * Alla dessa reasons:
+ *  - bryter session i sandwich-passet (ett block som har dem absorberas EJ)
+ *  - blockerar probabilistic absorption (current/host får inte ha dem)
+ *  - håller kvar reviewState='needs_review' i cleanup-passet
  *
- * OBS: bara signal_gap-baserade reasons + uncertain transition får
- * absorberas. Allt annat = break.
+ * SESSION_BREAK_REASONS och HARD_REVIEW_REASONS är borttagna — använd
+ * ENDAST denna lista, annars kan reglerna glida isär igen.
  */
-const SESSION_BREAK_REASONS = new Set<string>([
+const HARD_SESSION_BREAK_REASONS = new Set<string>([
+  'unknown_place',
+  'unknown_place_no_anchor',
+  'no_anchor_for_unknown_place',
+  'no_anchor_coordinates',
+  'conflicting_target_evidence',
+  'conflicting_targets',
+  'multiple_competing_targets',
+  'target_ambiguous_no_winner',
+  'travel_missing_endpoints',
+  'travel_missing_start_or_end',
+  'home_private_conflict',
   'private_residence',
   'private_zone',
-  'home_private_conflict',
+  'open_active_timer_in_private_residence',
+  'impossible_route',
+  'impossible_speed',
+  'route_speed_violation_with_distance',
+  'signal_gap_unbound',
+  'signal_gap_cross_target',
+  'unabsorbable_block',
   'workday_ended',
   'workday_stopped',
   'explicit_stop',
@@ -145,64 +168,58 @@ const SESSION_BREAK_REASONS = new Set<string>([
   'new_planned_assignment_other_target',
   'planned_assignment_target_change',
   'clear_other_destination',
-  'impossible_route',
-  'route_speed_violation_with_distance',
-  'multiple_competing_targets',
-  'target_ambiguous_no_winner',
-  'conflicting_targets',
-]);
-
-const hasBreakingReason = (r: ReportCandidateBlock): boolean => {
-  const reasons = r.reviewReasons ?? [];
-  return reasons.some((rr) => SESSION_BREAK_REASONS.has(rr));
-};
-
-/**
- * Time Engine 2.7 — needs_review cleanup:
- * "hårda" reasons som ALLTID motiverar att blocket behåller needs_review
- * även efter konsolidering. Allt som INTE är i denna mängd (eller i
- * SIGNAL_GAP_REASONS) räknas som soft och tillåter demotion till 'ok'.
- *
- * Täcker:
- *  - okänd plats utan ankare
- *  - flera konkurrerande targets utan tydlig vinnare
- *  - faktisk resa saknar start/slut
- *  - home/private/private_residence-konflikt
- *  - omöjlig rutt (med faktisk distans)
- *  - signalgap som inte kan kopplas (cross-target/unbound)
- *  - explicit "kan ej absorberas"
- */
-const HARD_REVIEW_REASONS = new Set<string>([
-  'unknown_place_no_anchor',
-  'no_anchor_for_unknown_place',
-  'multiple_competing_targets',
-  'target_ambiguous_no_winner',
-  'conflicting_targets',
-  'travel_missing_endpoints',
-  'travel_missing_start_or_end',
-  'home_private_conflict',
-  'private_residence',
-  'private_zone',
-  'impossible_route',
-  'route_speed_violation_with_distance',
-  'signal_gap_unbound',
-  'signal_gap_cross_target',
-  'unabsorbable_block',
 ]);
 
 /**
- * "Soft" reasons som ENSAMMA inte motiverar needs_review efter konsolidering.
- * Innehåller signal_gap-familjen + tekniska glapp som kan absorberas.
+ * Soft / signal / technical reasons. Block med ENDAST dessa reasons får
+ * absorberas (om kind tillåter). Inga av dessa får överlappa med
+ * HARD_SESSION_BREAK_REASONS.
  */
 const SOFT_REVIEW_REASONS = new Set<string>([
   ...SIGNAL_GAP_REASONS,
   'low_gps_signal',
   'speed_violation_no_distance',
+  'targets_differ_without_movement',
   'short_cross_target_movement',
   'short_transport_to_unknown',
   'absorbed_micro_movement',
   'session_consolidated',
+  'uncertain_transition',
+  'probabilistic_session_absorption',
 ]);
+
+/** True om blocket har minst en reason som finns i HARD_SESSION_BREAK_REASONS. */
+function hasHardSessionBreakReason(block: ReportCandidateBlock | undefined): boolean {
+  if (!block) return false;
+  const reasons = block.reviewReasons ?? [];
+  return reasons.some((rr) => HARD_SESSION_BREAK_REASONS.has(rr));
+}
+
+/** Bakåtkompatibel alias — all gammal kod använder samma canonical list. */
+const hasBreakingReason = hasHardSessionBreakReason;
+
+/**
+ * True endast om needs_review-blocket är tryggt att absorbera:
+ *  - kind === 'needs_review'
+ *  - reviewReasons saknas/är tom ELLER alla reasons är soft/signal
+ *  - INGEN reason finns i HARD_SESSION_BREAK_REASONS
+ *
+ * `deps` är reserverad för framtida utvidgning (t.ex. distansjusteringar);
+ * tas emot för API-stabilitet.
+ */
+// deno-lint-ignore no-unused-vars
+function isSoftAbsorbableNeedsReview(
+  block: ReportCandidateBlock,
+  _deps: ConsolidationDeps,
+): boolean {
+  if (block.kind !== 'needs_review') return false;
+  const reasons = block.reviewReasons ?? [];
+  if (reasons.some((rr) => HARD_SESSION_BREAK_REASONS.has(rr))) return false;
+  if (reasons.length === 0) return true;
+  return reasons.every(
+    (rr) => SOFT_REVIEW_REASONS.has(rr) || SIGNAL_GAP_REASONS.has(rr),
+  );
+}
 
 /**
  * Stark sessionsnyckel — matchar på targetType+targetId först (täcker
@@ -227,25 +244,18 @@ const normalizeLooseLabel = (value: string | null | undefined): string | null =>
   return normalized.length > 2 ? normalized : null;
 };
 
-const isSoftTechnicalNeedsReview = (block: ReportCandidateBlock): boolean => {
-  if (block.kind !== 'needs_review') return false;
-  const reasons = block.reviewReasons ?? [];
-  if (reasons.length === 0) return true;
-  return reasons.every((reason) =>
-    SOFT_REVIEW_REASONS.has(reason) || SIGNAL_GAP_REASONS.has(reason),
-  );
-};
-
 const isTechnicalNoiseBlock = (
   block: ReportCandidateBlock | undefined,
-  realTripMinDistanceMeters: number,
+  deps: ConsolidationDeps,
 ): boolean => {
   if (!block) return false;
+  // Hard reasons är aldrig "noise" — de bryter alltid session.
+  if (hasHardSessionBreakReason(block)) return false;
   if (block.kind === 'unknown') return true;
-  if (isSoftTechnicalNeedsReview(block)) return true;
+  if (block.kind === 'needs_review') return isSoftAbsorbableNeedsReview(block, deps);
   if (block.kind === 'transport') {
     const distanceMeters = block.evidenceSummary?.distanceMeters ?? 0;
-    return distanceMeters < realTripMinDistanceMeters;
+    return distanceMeters < deps.realTripMinDistanceMeters;
   }
   if (block.kind === 'work' && !sessionTargetKey(block)) return true;
   return false;
@@ -257,12 +267,18 @@ function shouldAbsorbAsProbableSameSession(
   next: ReportCandidateBlock | undefined,
   deps: ConsolidationDeps,
 ): { absorb: boolean; host?: 'prev' | 'next'; reason: string } {
-  if (!isTechnicalNoiseBlock(current, deps.realTripMinDistanceMeters)) {
+  // Hard reasons på current → får aldrig absorberas (även om kind är
+  // "noise-aktigt"). Detta är 2.10-säkringen mot att hard review smiter
+  // in i sessionen via probabilistic-passet.
+  if (hasHardSessionBreakReason(current)) {
+    return { absorb: false, reason: 'hard_session_break_reason_on_current' };
+  }
+  if (!isTechnicalNoiseBlock(current, deps)) {
     return { absorb: false, reason: 'not_technical_noise' };
   }
 
-  const prevIsWork = previous?.kind === 'work' && !hasBreakingReason(previous);
-  const nextIsWork = next?.kind === 'work' && !hasBreakingReason(next);
+  const prevIsWork = previous?.kind === 'work' && !hasHardSessionBreakReason(previous);
+  const nextIsWork = next?.kind === 'work' && !hasHardSessionBreakReason(next);
   if (!prevIsWork && !nextIsWork) {
     return { absorb: false, reason: 'no_neighbor_work_host' };
   }
@@ -274,7 +290,7 @@ function shouldAbsorbAsProbableSameSession(
   const curLabel = normalizeLooseLabel(current.targetLabel ?? current.toLabel ?? current.fromLabel);
   const currentDistance = current.evidenceSummary?.distanceMeters ?? 0;
   const noClearAlternateDestination =
-    currentDistance < deps.realTripMinDistanceMeters && !hasBreakingReason(current);
+    currentDistance < deps.realTripMinDistanceMeters && !hasHardSessionBreakReason(current);
 
   if (prevIsWork && nextIsWork) {
     const sameContext =
@@ -305,11 +321,22 @@ function shouldAbsorbAsProbableSameSession(
     }
   }
 
-  if (prevIsWork && !nextIsWork && noClearAlternateDestination) {
+  // 2.10 — trailing/leading technical noise: får ENDAST absorberas om
+  // current verkligen är soft technical noise (säkrat ovan via
+  // isTechnicalNoiseBlock + hard-reason-guard), distansen ligger under
+  // real-trip-tröskeln OCH current INTE har en tydlig egen toLabel/
+  // fromLabel som skiljer sig från host-context.
+  const currentHasOwnDistinctLabel = (() => {
+    const hostLabel = prevIsWork ? prevLabel : nextLabel;
+    if (!curLabel || !hostLabel) return false;
+    return curLabel !== hostLabel;
+  })();
+
+  if (prevIsWork && !nextIsWork && noClearAlternateDestination && !currentHasOwnDistinctLabel) {
     return { absorb: true, host: 'prev', reason: 'trailing_technical_noise' };
   }
 
-  if (nextIsWork && !prevIsWork && noClearAlternateDestination) {
+  if (nextIsWork && !prevIsWork && noClearAlternateDestination && !currentHasOwnDistinctLabel) {
     return { absorb: true, host: 'next', reason: 'leading_technical_noise' };
   }
 
@@ -342,7 +369,23 @@ export function consolidateReportBlocksIntoSessions(
     preservedTransportBlocksCount: 0,
     demotedNeedsReviewBlocksCount: 0,
     probabilisticAbsorptionCount: 0,
+    rejectedHardReviewAbsorptionCount: 0,
+    rejectedHardReviewAbsorptionReasons: {},
     examples: [],
+  };
+
+  // Helper: registrera ett needs_review-block som STOPPADES från absorption
+  // pga hard reason. Räknar både totalsumman och per-reason.
+  const recordRejectedHardReviewAbsorption = (block: ReportCandidateBlock): void => {
+    if (block.kind !== 'needs_review') return;
+    const reasons = block.reviewReasons ?? [];
+    const hardReasons = reasons.filter((rr) => HARD_SESSION_BREAK_REASONS.has(rr));
+    if (hardReasons.length === 0) return;
+    diagnostics.rejectedHardReviewAbsorptionCount += 1;
+    for (const rr of hardReasons) {
+      diagnostics.rejectedHardReviewAbsorptionReasons[rr] =
+        (diagnostics.rejectedHardReviewAbsorptionReasons[rr] ?? 0) + 1;
+    }
   };
 
   let changed = true;
@@ -402,19 +445,23 @@ export function consolidateReportBlocksIntoSessions(
         }
 
         // Absorbable kinds:
-        //  - needs_review där reasons ENBART är signal-gap-/transition-
-        //    relaterade (annars bryter SESSION_BREAK_REASONS ovan)
+        //  - needs_review ENDAST om soft (isSoftAbsorbableNeedsReview).
+        //    Hard needs_review räknas i rejectedHardReviewAbsorption och
+        //    bryter session.
         //  - unknown (any size — sandwich-safe när bunden av samma target)
         //  - transport < realTripMinDistanceMeters (jitter / utan tydlig
         //    destination)
         //  - work without targetId (otarget arbete)
         const isAbsorbable =
-          r.kind === 'needs_review' ||
+          (r.kind === 'needs_review' && isSoftAbsorbableNeedsReview(r, deps)) ||
           r.kind === 'unknown' ||
           (r.kind === 'transport' && dist < deps.realTripMinDistanceMeters) ||
           (r.kind === 'work' && !r.targetId);
 
-        if (!isAbsorbable) break;
+        if (!isAbsorbable) {
+          if (r.kind === 'needs_review') recordRejectedHardReviewAbsorption(r);
+          break;
+        }
 
         absorbedKinds.push(r.kind);
         absorbedLabels.push(r.targetLabel ?? r.toLabel ?? r.fromLabel ?? r.kind);
@@ -591,7 +638,10 @@ export function consolidateReportBlocksIntoSessions(
     for (let i = 0; i < out.length; i++) {
       const cur = out[i];
       if (cur.kind === 'work') continue;
-      if (hasBreakingReason(cur)) continue;
+      if (hasHardSessionBreakReason(cur)) {
+        recordRejectedHardReviewAbsorption(cur);
+        continue;
+      }
       const prev = i > 0 ? out[i - 1] : undefined;
       const next = i < out.length - 1 ? out[i + 1] : undefined;
 
@@ -675,7 +725,7 @@ export function consolidateReportBlocksIntoSessions(
       diagnostics.demotedNeedsReviewBlocksCount += 1;
       continue;
     }
-    const hasHard = reasons.some((rr) => HARD_REVIEW_REASONS.has(rr));
+    const hasHard = reasons.some((rr) => HARD_SESSION_BREAK_REASONS.has(rr));
     if (hasHard) continue; // legitim needs_review, behåll.
 
     const allSoft = reasons.every(
