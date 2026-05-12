@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
-// @ts-ignore - no types shipped
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Pentagon, Circle, Trash2, Crosshair, Satellite, Map as MapIcon, Loader2 } from 'lucide-react';
+import { Pentagon, Circle, Trash2, Crosshair, Satellite, Map as MapIcon } from 'lucide-react';
+import MapboxMap, { type MapStyle } from '@/components/maps/MapboxMap';
+import circleToPolygon from '@/lib/maps/circleToPolygon';
 import { polygonAreaM2, polygonCentroid, type GeoJSONPolygon } from '@/lib/geofenceEval';
 
 export interface GeofenceValue {
@@ -20,303 +20,245 @@ export interface GeofenceValue {
 interface Props {
   value: GeofenceValue;
   onChange: (v: GeofenceValue) => void;
-  /** Optional address-derived coordinate to recenter on. */
   centerOn?: { lat: number; lng: number } | null;
   height?: number;
 }
 
+const DEFAULT_CENTER: [number, number] = [18.0686, 59.3293];
 const FILL_COLOR = '#7c3aed';
+const CIRCLE_SOURCE_ID = 'org-location-circle';
+const CIRCLE_FILL_ID = 'org-location-circle-fill';
+const CIRCLE_LINE_ID = 'org-location-circle-line';
+
+const hasCoordinates = (value: GeofenceValue) =>
+  Number.isFinite(value.latitude) &&
+  Number.isFinite(value.longitude) &&
+  (Math.abs(value.latitude) > 0.000001 || Math.abs(value.longitude) > 0.000001);
 
 const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) => {
-  const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const drawRef = useRef<any>(null);
-  const circleSourceId = 'gf-circle-src';
-  const circleLayerId = 'gf-circle-layer';
+  const drawRef = useRef<MapboxDraw | null>(null);
+  const markerRef = useRef<mapboxgl.Marker | null>(null);
   const valueRef = useRef(value);
-  const [ready, setReady] = useState(false);
-  const [styleMode, setStyleMode] = useState<'streets' | 'satellite'>('satellite');
-  const [area, setArea] = useState<number>(0);
-  const [tokenLoading, setTokenLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const modeRef = useRef(value.mode);
+  const [mapStyle, setMapStyle] = useState<MapStyle>('satellite');
+  const [mapReadyVersion, setMapReadyVersion] = useState(0);
+  const [area, setArea] = useState(0);
 
-  useEffect(() => { valueRef.current = value; }, [value]);
-
-  // Init map
   useEffect(() => {
-    let cancelled = false;
-    let loadTimeout: ReturnType<typeof setTimeout> | null = null;
+    valueRef.current = value;
+    modeRef.current = value.mode;
+  }, [value]);
 
-    const waitForContainerSize = (): Promise<HTMLDivElement | null> =>
-      new Promise((resolve) => {
-        const start = Date.now();
-        const tick = () => {
-          if (cancelled) return resolve(null);
-          const el = containerRef.current;
-          if (el && el.clientWidth > 0 && el.clientHeight > 0) return resolve(el);
-          if (Date.now() - start > 2500) return resolve(el); // give up waiting, init anyway
-          requestAnimationFrame(tick);
-        };
-        tick();
-      });
-
-    (async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('mapbox-token');
-        if (cancelled) return;
-        if (error) {
-          console.warn('[GeofenceMapEditor] mapbox-token error', error);
-          setLoadError(`Kunde inte hämta Mapbox-token (${error.message ?? 'okänt fel'})`);
-          setTokenLoading(false);
-          return;
-        }
-        if (!data?.token) {
-          console.warn('[GeofenceMapEditor] mapbox-token missing in response', data);
-          setLoadError('Mapbox-token saknas — be admin lägga till MAPBOX_PUBLIC_TOKEN');
-          setTokenLoading(false);
-          return;
-        }
-        mapboxgl.accessToken = data.token;
-
-        // Wait until container actually has dimensions (dialog animation)
-        const containerEl = await waitForContainerSize();
-        if (cancelled) return;
-        if (!containerEl) {
-          setLoadError('Kartcontainer saknas');
-          setTokenLoading(false);
-          return;
-        }
-        if (mapRef.current) return;
-
-        const initialCenter: [number, number] =
-          value.longitude && value.latitude
-            ? [value.longitude, value.latitude]
-            : centerOn
-            ? [centerOn.lng, centerOn.lat]
-            : [15.5, 58.5];
-        const initialZoom = value.longitude && value.latitude ? 18 : 5;
-
-        const m = new mapboxgl.Map({
-          container: containerEl,
-          style: 'mapbox://styles/mapbox/satellite-streets-v12',
-          center: initialCenter,
-          zoom: initialZoom,
-          projection: 'mercator',
-          attributionControl: false,
-        });
-        mapRef.current = m;
-
-        let styleFallbackTried = false;
-        m.on('error', (e: any) => {
-          const err = e?.error ?? e;
-          console.warn('[GeofenceMapEditor] mapbox runtime error', err);
-          const status = err?.status;
-          const msg = err?.message ?? '';
-          // Broaden fallback: any style/sprite/tile failure → switch to streets-v12 once
-          const isStyleIssue =
-            status === 401 || status === 403 || status === 404 ||
-            /style|sprite|tile|glyph/i.test(msg);
-          if (isStyleIssue && !styleFallbackTried) {
-            styleFallbackTried = true;
-            try {
-              m.setStyle('mapbox://styles/mapbox/streets-v12');
-              setStyleMode('streets');
-            } catch {/* ignore */}
-          }
-        });
-
-        const draw = new MapboxDraw({
-          displayControlsDefault: false,
-          controls: {},
-          defaultMode: 'simple_select',
-          styles: [
-            // Polygon fill
-            { id: 'gl-draw-polygon-fill', type: 'fill', filter: ['all', ['==', '$type', 'Polygon']], paint: { 'fill-color': FILL_COLOR, 'fill-opacity': 0.2 } },
-            { id: 'gl-draw-polygon-stroke', type: 'line', filter: ['all', ['==', '$type', 'Polygon']], paint: { 'line-color': FILL_COLOR, 'line-width': 2 } },
-            { id: 'gl-draw-polygon-midpoint', type: 'circle', filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']], paint: { 'circle-radius': 4, 'circle-color': '#fff', 'circle-stroke-color': FILL_COLOR, 'circle-stroke-width': 1.5 } },
-            { id: 'gl-draw-polygon-vertex', type: 'circle', filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'vertex']], paint: { 'circle-radius': 5, 'circle-color': FILL_COLOR, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } },
-            // Active line while drawing
-            { id: 'gl-draw-line-active', type: 'line', filter: ['all', ['==', '$type', 'LineString'], ['==', 'active', 'true']], paint: { 'line-color': FILL_COLOR, 'line-width': 2, 'line-dasharray': [2, 2] } },
-          ],
-        });
-        drawRef.current = draw;
-        m.addControl(draw as any);
-        m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
-
-        // Watchdog: if load doesn't fire within 8s, surface an error so user can retry
-        loadTimeout = setTimeout(() => {
-          if (cancelled) return;
-          if (!ready && tokenLoading) {
-            console.warn('[GeofenceMapEditor] map load timeout');
-            setLoadError('Karta tog för lång tid att ladda — försök igen.');
-            setTokenLoading(false);
-          }
-        }, 8000);
-
-        m.on('load', () => {
-          if (cancelled) return;
-          if (loadTimeout) { clearTimeout(loadTimeout); loadTimeout = null; }
-          setReady(true);
-          setTokenLoading(false);
-          // Multiple resize attempts: dialogs animate in, container size grows over a few frames.
-          requestAnimationFrame(() => m.resize());
-          setTimeout(() => m.resize(), 100);
-          setTimeout(() => m.resize(), 400);
-          setTimeout(() => m.resize(), 800);
-          m.once('idle', () => m.resize());
-        });
-
-        // Auto-resize when container dimensions change (e.g. dialog opens)
-        if (typeof ResizeObserver !== 'undefined') {
-          const ro = new ResizeObserver(() => {
-            if (mapRef.current) mapRef.current.resize();
-          });
-          ro.observe(containerEl);
-          (m as any).__ro = ro;
-        }
-
-        // Listen for draw events
-        const syncFromDraw = () => {
-          const fc = draw.getAll();
-          const feature = fc.features[0];
-          if (!feature || feature.geometry.type !== 'Polygon') return;
-          const polygon = feature.geometry as GeoJSONPolygon;
-          const c = polygonCentroid(polygon);
-          const a = polygonAreaM2(polygon);
-          setArea(a);
-          onChange({
-            mode: 'polygon',
-            polygon,
-            latitude: c.lat,
-            longitude: c.lng,
-            radius_meters: valueRef.current.radius_meters,
-          });
-        };
-        m.on('draw.create', syncFromDraw);
-        m.on('draw.update', syncFromDraw);
-        m.on('draw.delete', () => {
-          setArea(0);
-          onChange({
-            ...valueRef.current,
-            mode: 'circle',
-            polygon: null,
-          });
-        });
-      } catch (e) {
-        console.warn('[GeofenceMapEditor] init error', e);
-        setLoadError('Kunde inte initiera kartan');
-        setTokenLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (loadTimeout) clearTimeout(loadTimeout);
-      const m = mapRef.current;
-      const ro = (m as any)?.__ro as ResizeObserver | undefined;
-      ro?.disconnect();
-      m?.remove();
-      mapRef.current = null;
-      drawRef.current = null;
-      setReady(false);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reloadKey]);
-
-  // Style toggle
-  useEffect(() => {
-    if (!mapRef.current || !ready) return;
-    const url = styleMode === 'satellite'
-      ? 'mapbox://styles/mapbox/satellite-streets-v12'
-      : 'mapbox://styles/mapbox/streets-v12';
-    mapRef.current.setStyle(url);
-    // After style reload, re-add circle layer + draw layers (draw handles itself)
-    mapRef.current.once('style.load', () => {
-      renderCircle();
+  const updateCircleCenter = useCallback((lat: number, lng: number) => {
+    onChange({
+      ...valueRef.current,
+      latitude: lat,
+      longitude: lng,
     });
-  }, [styleMode, ready]);
+  }, [onChange]);
 
-  // Push current value into draw + circle
-  const renderCircle = useCallback(() => {
-    const m = mapRef.current;
-    if (!m || !m.isStyleLoaded()) return;
-    const v = valueRef.current;
-    // Remove old
-    if (m.getLayer(circleLayerId)) m.removeLayer(circleLayerId);
-    if (m.getSource(circleSourceId)) m.removeSource(circleSourceId);
-    if (v.mode !== 'circle' || !v.latitude || !v.longitude || !v.radius_meters) return;
-    const points = 64;
-    const radiusKm = v.radius_meters / 1000;
-    const coords: [number, number][] = [];
-    for (let j = 0; j < points; j++) {
-      const angle = (j / points) * 2 * Math.PI;
-      const dx = radiusKm * Math.cos(angle);
-      const dy = radiusKm * Math.sin(angle);
-      const lat = v.latitude + (dy / 111.32);
-      const lng = v.longitude + (dx / (111.32 * Math.cos(v.latitude * Math.PI / 180)));
-      coords.push([lng, lat]);
-    }
-    coords.push(coords[0]);
-    m.addSource(circleSourceId, {
-      type: 'geojson',
-      data: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [coords] } },
-    });
-    m.addLayer({
-      id: circleLayerId,
-      type: 'fill',
-      source: circleSourceId,
-      paint: { 'fill-color': FILL_COLOR, 'fill-opacity': 0.18, 'fill-outline-color': FILL_COLOR },
-    });
+  const clearCircleOverlay = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    if (map.getLayer(CIRCLE_LINE_ID)) map.removeLayer(CIRCLE_LINE_ID);
+    if (map.getLayer(CIRCLE_FILL_ID)) map.removeLayer(CIRCLE_FILL_ID);
+    if (map.getSource(CIRCLE_SOURCE_ID)) map.removeSource(CIRCLE_SOURCE_ID);
   }, []);
 
-  // Initial load: hydrate draw + circle from value
-  useEffect(() => {
-    if (!ready || !mapRef.current || !drawRef.current) return;
-    const m = mapRef.current;
+  const renderCircleOverlay = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const current = valueRef.current;
+    const shouldShowCircle = current.mode === 'circle' && hasCoordinates(current) && current.radius_meters > 0;
+
+    if (shouldShowCircle) {
+      const center: [number, number] = [current.longitude, current.latitude];
+      const geometry = circleToPolygon(center, current.radius_meters, 64);
+      const data: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', properties: {}, geometry }],
+      };
+
+      const source = map.getSource(CIRCLE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+      if (source) {
+        source.setData(data);
+      } else {
+        map.addSource(CIRCLE_SOURCE_ID, { type: 'geojson', data });
+        map.addLayer({
+          id: CIRCLE_FILL_ID,
+          type: 'fill',
+          source: CIRCLE_SOURCE_ID,
+          paint: { 'fill-color': FILL_COLOR, 'fill-opacity': 0.16 },
+        });
+        map.addLayer({
+          id: CIRCLE_LINE_ID,
+          type: 'line',
+          source: CIRCLE_SOURCE_ID,
+          paint: { 'line-color': FILL_COLOR, 'line-width': 2 },
+        });
+      }
+
+      if (!markerRef.current) {
+        markerRef.current = new mapboxgl.Marker({ color: FILL_COLOR, draggable: true })
+          .setLngLat(center)
+          .addTo(map);
+        markerRef.current.on('dragend', () => {
+          const lngLat = markerRef.current?.getLngLat();
+          if (!lngLat) return;
+          updateCircleCenter(lngLat.lat, lngLat.lng);
+        });
+      } else {
+        markerRef.current.setLngLat(center);
+        if (!markerRef.current.getElement().isConnected) {
+          markerRef.current.addTo(map);
+        }
+      }
+      return;
+    }
+
+    clearCircleOverlay();
+    markerRef.current?.remove();
+    markerRef.current = null;
+  }, [clearCircleOverlay, updateCircleCenter]);
+
+  const syncPolygonFromDraw = useCallback(() => {
     const draw = drawRef.current;
-    draw.deleteAll();
-    if (value.mode === 'polygon' && value.polygon) {
-      draw.add({ type: 'Feature', properties: {}, geometry: value.polygon });
-      setArea(polygonAreaM2(value.polygon));
-      // Fit bounds
-      const ring = value.polygon.coordinates[0];
-      const bounds = ring.reduce(
-        (b, c) => b.extend(c as [number, number]),
-        new mapboxgl.LngLatBounds(ring[0] as [number, number], ring[0] as [number, number]),
-      );
-      m.fitBounds(bounds, { padding: 40, duration: 0, maxZoom: 19 });
+    if (!draw) return;
+    const polygonFeature = draw.getAll().features.find((feature) => feature.geometry.type === 'Polygon');
+
+    if (!polygonFeature) {
+      setArea(0);
+      onChange({
+        ...valueRef.current,
+        mode: 'circle',
+        polygon: null,
+      });
+      return;
+    }
+
+    const polygon = polygonFeature.geometry as GeoJSONPolygon;
+    const centroid = polygonCentroid(polygon);
+    setArea(polygonAreaM2(polygon));
+    onChange({
+      ...valueRef.current,
+      mode: 'polygon',
+      polygon,
+      latitude: centroid.lat,
+      longitude: centroid.lng,
+    });
+  }, [onChange]);
+
+  const handleMapReady = useCallback((map: mapboxgl.Map) => {
+    mapRef.current = map;
+    setMapReadyVersion((version) => version + 1);
+
+    map.on('click', (event) => {
+      if (modeRef.current !== 'circle') return;
+      updateCircleCenter(event.lngLat.lat, event.lngLat.lng);
+    });
+
+    const draw = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: {},
+      defaultMode: 'simple_select',
+      styles: [
+        { id: 'gl-draw-polygon-fill', type: 'fill', filter: ['all', ['==', '$type', 'Polygon']], paint: { 'fill-color': FILL_COLOR, 'fill-opacity': 0.2 } },
+        { id: 'gl-draw-polygon-stroke', type: 'line', filter: ['all', ['==', '$type', 'Polygon']], paint: { 'line-color': FILL_COLOR, 'line-width': 2 } },
+        { id: 'gl-draw-polygon-midpoint', type: 'circle', filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']], paint: { 'circle-radius': 4, 'circle-color': '#fff', 'circle-stroke-color': FILL_COLOR, 'circle-stroke-width': 1.5 } },
+        { id: 'gl-draw-polygon-vertex', type: 'circle', filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'vertex']], paint: { 'circle-radius': 5, 'circle-color': FILL_COLOR, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } },
+        { id: 'gl-draw-line-active', type: 'line', filter: ['all', ['==', '$type', 'LineString'], ['==', 'active', 'true']], paint: { 'line-color': FILL_COLOR, 'line-width': 2, 'line-dasharray': [2, 2] } },
+      ],
+    });
+    drawRef.current = draw;
+    map.addControl(draw, 'top-left');
+    map.on('draw.create', syncPolygonFromDraw);
+    map.on('draw.update', syncPolygonFromDraw);
+    map.on('draw.delete', syncPolygonFromDraw);
+
+    const current = valueRef.current;
+    if (current.mode === 'polygon' && current.polygon) {
+      try {
+        draw.add({ type: 'Feature', properties: {}, geometry: current.polygon } as GeoJSON.Feature<GeoJSONPolygon>);
+        setArea(polygonAreaM2(current.polygon));
+      } catch {
+        setArea(0);
+      }
     } else {
       setArea(0);
-      renderCircle();
-      if (value.latitude && value.longitude) {
-        m.flyTo({ center: [value.longitude, value.latitude], zoom: 18, duration: 0 });
-      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
 
-  // Re-render circle whenever it changes (radius via parent input)
-  useEffect(() => {
-    if (!ready) return;
-    if (value.mode === 'circle') renderCircle();
-  }, [value.radius_meters, value.latitude, value.longitude, value.mode, ready, renderCircle]);
+    const initialCenter = hasCoordinates(current)
+      ? [current.longitude, current.latitude] as [number, number]
+      : centerOn
+      ? [centerOn.lng, centerOn.lat] as [number, number]
+      : DEFAULT_CENTER;
+    const initialZoom = hasCoordinates(current) || centerOn ? 18 : 11;
+    map.jumpTo({ center: initialCenter, zoom: initialZoom });
+    map.once('idle', renderCircleOverlay);
+  }, [centerOn, renderCircleOverlay, syncPolygonFromDraw, updateCircleCenter]);
 
-  // Recenter when address changes
+  const handleMapDestroy = useCallback(() => {
+    drawRef.current = null;
+    markerRef.current = null;
+    mapRef.current = null;
+    setArea(0);
+  }, []);
+
   useEffect(() => {
-    if (!ready || !mapRef.current || !centerOn) return;
+    if (!mapReadyVersion || !mapRef.current || !drawRef.current) return;
+    const map = mapRef.current;
+    const draw = drawRef.current;
+    const current = valueRef.current;
+
+    draw.deleteAll();
+    if (current.mode === 'polygon' && current.polygon) {
+      try {
+        draw.add({ type: 'Feature', properties: {}, geometry: current.polygon } as GeoJSON.Feature<GeoJSONPolygon>);
+        setArea(polygonAreaM2(current.polygon));
+      } catch {
+        setArea(0);
+      }
+      clearCircleOverlay();
+      markerRef.current?.remove();
+      markerRef.current = null;
+      return;
+    }
+
+    setArea(0);
+    renderCircleOverlay();
+    if (current.mode === 'circle' && hasCoordinates(current)) {
+      map.easeTo({ center: [current.longitude, current.latitude], zoom: Math.max(map.getZoom(), 18), duration: 0 });
+    }
+  }, [mapReadyVersion, clearCircleOverlay, renderCircleOverlay]);
+
+  useEffect(() => {
+    if (!mapRef.current || value.mode !== 'circle') return;
+    renderCircleOverlay();
+  }, [value.mode, value.latitude, value.longitude, value.radius_meters, renderCircleOverlay]);
+
+  useEffect(() => {
+    if (!mapRef.current || !centerOn) return;
     mapRef.current.flyTo({ center: [centerOn.lng, centerOn.lat], zoom: 18, duration: 600 });
     if (valueRef.current.mode === 'circle') {
-      onChange({ ...valueRef.current, latitude: centerOn.lat, longitude: centerOn.lng });
+      onChange({
+        ...valueRef.current,
+        latitude: centerOn.lat,
+        longitude: centerOn.lng,
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerOn?.lat, centerOn?.lng, ready]);
+  }, [centerOn?.lat, centerOn?.lng, onChange]);
 
   const startDrawPolygon = () => {
     const draw = drawRef.current;
     if (!draw) return;
-    draw.deleteAll();
+    clearCircleOverlay();
+    markerRef.current?.remove();
+    markerRef.current = null;
     setArea(0);
+    onChange({ ...valueRef.current, mode: 'polygon', polygon: null });
+    draw.deleteAll();
     draw.changeMode('draw_polygon');
   };
 
@@ -324,21 +266,27 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
     drawRef.current?.deleteAll();
     setArea(0);
     onChange({ ...valueRef.current, mode: 'circle', polygon: null });
+    renderCircleOverlay();
   };
 
   const clearAll = () => {
     drawRef.current?.deleteAll();
     setArea(0);
     onChange({ ...valueRef.current, mode: 'circle', polygon: null });
+    renderCircleOverlay();
   };
 
   const goToMyPosition = () => {
     if (!navigator.geolocation || !mapRef.current) return;
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        mapRef.current!.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 19, duration: 600 });
+      (position) => {
+        mapRef.current?.flyTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: 19,
+          duration: 600,
+        });
       },
-      (err) => console.warn('GPS error', err),
+      () => undefined,
       { enableHighAccuracy: true, timeout: 8000 },
     );
   };
@@ -349,62 +297,46 @@ const GeofenceMapEditor = ({ value, onChange, centerOn, height = 360 }: Props) =
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5">
-        <Button type="button" size="sm" variant={value.mode === 'polygon' ? 'default' : 'outline'} className="h-7 text-xs gap-1" onClick={startDrawPolygon}>
-          <Pentagon className="w-3 h-3" /> Rita polygon
+        <Button type="button" size="sm" variant={value.mode === 'polygon' ? 'default' : 'outline'} className="h-7 gap-1 text-xs" onClick={startDrawPolygon}>
+          <Pentagon className="h-3 w-3" /> Rita polygon
         </Button>
-        <Button type="button" size="sm" variant={value.mode === 'circle' ? 'default' : 'outline'} className="h-7 text-xs gap-1" onClick={switchToCircle}>
-          <Circle className="w-3 h-3" /> Cirkel
+        <Button type="button" size="sm" variant={value.mode === 'circle' ? 'default' : 'outline'} className="h-7 gap-1 text-xs" onClick={switchToCircle}>
+          <Circle className="h-3 w-3" /> Cirkel
         </Button>
-        <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={clearAll}>
-          <Trash2 className="w-3 h-3" /> Rensa
+        <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={clearAll}>
+          <Trash2 className="h-3 w-3" /> Rensa
         </Button>
-        <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={goToMyPosition}>
-          <Crosshair className="w-3 h-3" /> Min pos
+        <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={goToMyPosition}>
+          <Crosshair className="h-3 w-3" /> Min pos
         </Button>
-        <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1 ml-auto" onClick={() => setStyleMode(s => s === 'satellite' ? 'streets' : 'satellite')}>
-          {styleMode === 'satellite' ? <><MapIcon className="w-3 h-3" /> Karta</> : <><Satellite className="w-3 h-3" /> Satellit</>}
+        <Button type="button" size="sm" variant="outline" className="ml-auto h-7 gap-1 text-xs" onClick={() => setMapStyle((current) => current === 'satellite' ? 'streets' : 'satellite')}>
+          {mapStyle === 'satellite' ? <><MapIcon className="h-3 w-3" /> Karta</> : <><Satellite className="h-3 w-3" /> Satellit</>}
         </Button>
       </div>
 
-      <div className="relative rounded-md border border-border overflow-hidden bg-muted" style={{ height }}>
-        <div ref={containerRef} className="absolute inset-0" />
-        {tokenLoading && !loadError && (
-          <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin mr-2" /> Laddar karta…
-          </div>
-        )}
-        {loadError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-destructive p-3 text-center bg-muted">
-            <span>{loadError}</span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={() => {
-                setLoadError(null);
-                setTokenLoading(true);
-                setReady(false);
-                setReloadKey((k) => k + 1);
-              }}
-            >
-              Ladda om kartan
-            </Button>
-          </div>
-        )}
+      <div className="relative overflow-hidden rounded-md border border-border bg-muted" style={{ height }}>
+        <MapboxMap
+          key={mapStyle}
+          style={mapStyle}
+          initialCenter={hasCoordinates(value) ? [value.longitude, value.latitude] : centerOn ? [centerOn.lng, centerOn.lat] : DEFAULT_CENTER}
+          initialZoom={hasCoordinates(value) || centerOn ? 18 : 11}
+          onReady={handleMapReady}
+          onDestroy={handleMapDestroy}
+          className="absolute inset-0"
+        />
       </div>
 
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         {value.mode === 'polygon' ? (
           <span>
             Yta: <strong className="text-foreground">{Math.round(area)} m²</strong>
-            {tooBig && <span className="text-destructive ml-2">⚠ stor yta — risk för falska larm</span>}
-            {tooSmall && <span className="text-muted-foreground ml-2">⚠ mycket liten — kan missa GPS-drift</span>}
+            {tooBig && <span className="ml-2 text-destructive">⚠ stor yta — risk för falska larm</span>}
+            {tooSmall && <span className="ml-2">⚠ mycket liten — kan missa GPS-drift</span>}
           </span>
         ) : (
           <span>Cirkel-läge: använd radie-fältet nedan ({value.radius_meters} m)</span>
         )}
-        <span>{value.mode === 'polygon' ? 'Klicka för hörn, dubbelklick stänger' : 'Centrera på adress med sökknappen'}</span>
+        <span>{value.mode === 'polygon' ? 'Klicka för hörn, dubbelklick stänger' : 'Klicka i kartan eller centrera på adress'}</span>
       </div>
     </div>
   );

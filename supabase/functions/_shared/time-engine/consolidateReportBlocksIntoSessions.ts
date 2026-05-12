@@ -219,6 +219,103 @@ const sessionTargetKey = (r: ReportCandidateBlock | undefined): string | null =>
   return null;
 };
 
+const normalizeLooseLabel = (value: string | null | undefined): string | null => {
+  const normalized = (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  return normalized.length > 2 ? normalized : null;
+};
+
+const isSoftTechnicalNeedsReview = (block: ReportCandidateBlock): boolean => {
+  if (block.kind !== 'needs_review') return false;
+  const reasons = block.reviewReasons ?? [];
+  if (reasons.length === 0) return true;
+  return reasons.every((reason) =>
+    SOFT_REVIEW_REASONS.has(reason) || SIGNAL_GAP_REASONS.has(reason),
+  );
+};
+
+const isTechnicalNoiseBlock = (
+  block: ReportCandidateBlock | undefined,
+  realTripMinDistanceMeters: number,
+): boolean => {
+  if (!block) return false;
+  if (block.kind === 'unknown') return true;
+  if (isSoftTechnicalNeedsReview(block)) return true;
+  if (block.kind === 'transport') {
+    const distanceMeters = block.evidenceSummary?.distanceMeters ?? 0;
+    return distanceMeters < realTripMinDistanceMeters;
+  }
+  if (block.kind === 'work' && !sessionTargetKey(block)) return true;
+  return false;
+};
+
+function shouldAbsorbAsProbableSameSession(
+  previous: ReportCandidateBlock | undefined,
+  current: ReportCandidateBlock,
+  next: ReportCandidateBlock | undefined,
+  deps: ConsolidationDeps,
+): { absorb: boolean; host?: 'prev' | 'next'; reason: string } {
+  if (!isTechnicalNoiseBlock(current, deps.realTripMinDistanceMeters)) {
+    return { absorb: false, reason: 'not_technical_noise' };
+  }
+
+  const prevIsWork = previous?.kind === 'work' && !hasBreakingReason(previous);
+  const nextIsWork = next?.kind === 'work' && !hasBreakingReason(next);
+  if (!prevIsWork && !nextIsWork) {
+    return { absorb: false, reason: 'no_neighbor_work_host' };
+  }
+
+  const prevKey = sessionTargetKey(previous);
+  const nextKey = sessionTargetKey(next);
+  const prevLabel = normalizeLooseLabel(previous?.targetLabel ?? previous?.toLabel ?? previous?.fromLabel);
+  const nextLabel = normalizeLooseLabel(next?.targetLabel ?? next?.toLabel ?? next?.fromLabel);
+  const curLabel = normalizeLooseLabel(current.targetLabel ?? current.toLabel ?? current.fromLabel);
+  const currentDistance = current.evidenceSummary?.distanceMeters ?? 0;
+  const noClearAlternateDestination =
+    currentDistance < deps.realTripMinDistanceMeters && !hasBreakingReason(current);
+
+  if (prevIsWork && nextIsWork) {
+    const sameContext =
+      (prevKey && nextKey && prevKey === nextKey) ||
+      (prevLabel && nextLabel && prevLabel === nextLabel);
+    if (sameContext && noClearAlternateDestination) {
+      return { absorb: true, host: 'prev', reason: 'same_context_neighbors' };
+    }
+  }
+
+  if (prevIsWork) {
+    const prevMatchesCurrent =
+      (prevKey && curLabel && prevLabel === curLabel) ||
+      (prevLabel && curLabel && prevLabel === curLabel) ||
+      (!!prevKey && !curLabel);
+    if (prevMatchesCurrent && noClearAlternateDestination) {
+      return { absorb: true, host: 'prev', reason: 'previous_context_match' };
+    }
+  }
+
+  if (nextIsWork) {
+    const nextMatchesCurrent =
+      (nextKey && curLabel && nextLabel === curLabel) ||
+      (nextLabel && curLabel && nextLabel === curLabel) ||
+      (!!nextKey && !curLabel);
+    if (nextMatchesCurrent && noClearAlternateDestination) {
+      return { absorb: true, host: 'next', reason: 'next_context_match' };
+    }
+  }
+
+  if (prevIsWork && !nextIsWork && noClearAlternateDestination) {
+    return { absorb: true, host: 'prev', reason: 'trailing_technical_noise' };
+  }
+
+  if (nextIsWork && !prevIsWork && noClearAlternateDestination) {
+    return { absorb: true, host: 'next', reason: 'leading_technical_noise' };
+  }
+
+  return { absorb: false, reason: 'insufficient_context' };
+}
+
 export interface ConsolidationResult {
   blocks: ReportCandidateBlock[];
   diagnostics: SessionConsolidationDiagnostics;
