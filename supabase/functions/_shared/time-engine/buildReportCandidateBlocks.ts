@@ -503,6 +503,33 @@ export interface ReportCandidateSummary {
       relatedWorkLabel: string | null;
     }>;
   };
+  /**
+   * Time Engine 3.6 — work-area-tolerance (150 m) diagnostics.
+   *
+   * Speglas från GpsClassificationDiagnostics.workAreaToleranceDiagnostics
+   * (buildGpsDayTimeline) plus blockedAfterDayEndCount som beräknas i
+   * report-candidate-builderns POST-PASS clamp.
+   *
+   * Toleransen får BARA hjälpa redan aktiv session — får aldrig:
+   *   - starta arbetsdag
+   *   - göra boende till arbete
+   *   - förlänga dag efter dayEndDecision
+   *   - slå ihop boende och warehouse
+   *   - ersätta rätt projekt/bookingnamn
+   */
+  workAreaToleranceDiagnostics?: {
+    toleranceMeters: number;
+    continuedSessionByToleranceCount: number;
+    blockedByPrivateResidenceCount: number;
+    blockedAfterDayEndCount: number;
+    examples: Array<{
+      atIso: ISODateTime;
+      targetLabel: string;
+      targetKind: string;
+      distanceOutsideEdgeMeters: number;
+      classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
+    }>;
+  };
 }
 
 /**
