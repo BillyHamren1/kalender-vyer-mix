@@ -139,7 +139,9 @@ const PlaceLabel: React.FC<{
   place: PlaceLike;
   fallback?: string | null;
   className?: string;
-}> = ({ place, fallback, className }) => {
+  segmentStartIso?: string;
+  segmentEndIso?: string;
+}> = ({ place, fallback, className, segmentStartIso, segmentEndIso }) => {
   const label = safePlaceLabel(place, fallback);
   const hasCoord = place?.lat != null && place?.lng != null;
   const { staffId, date } = useContext(MapContext);
@@ -165,6 +167,8 @@ const PlaceLabel: React.FC<{
         coords={{ lat: place!.lat as number, lng: place!.lng as number }}
         staffId={staffId}
         date={date}
+        segmentStartIso={segmentStartIso}
+        segmentEndIso={segmentEndIso}
       />
     </>
   );
