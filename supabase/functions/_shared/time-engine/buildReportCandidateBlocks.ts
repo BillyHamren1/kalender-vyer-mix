@@ -436,6 +436,42 @@ export interface ReportCandidateSummary {
       stockholmDayEndUtc: ISODateTime;
     }>;
   };
+
+  /**
+   * Time Engine 3.4 — Private residence day-end policy diagnostics.
+   *
+   * Reglar:
+   *  - private_residence är aldrig arbete och är aldrig transport.
+   *  - private_residence vinner över warehouse/projekt även om GPS-positionen
+   *    ligger inom KNOWN_SITE_TOLERANCE_METERS (150 m). Den får aldrig slås
+   *    ihop med ett warehouse-/projekt-block.
+   *  - PRIVATE_RESIDENCE_DAY_END_MINUTES = 90 är ett bekräftelsefönster, INTE
+   *    sluttiden. Sluttiden styrs av commute-policyn (Time Engine 4.6):
+   *      • short commute (<150 km)  → dag slutar vid leaveWorkAt
+   *      • long  commute (≥150 km)  → dag slutar vid residenceEnterAt
+   *  - Om personen återvänder till arbete inom 90 min: ingen day-end,
+   *    boendevistelsen räknas inte som arbete.
+   */
+  privateResidenceDayEndDiagnostics?: {
+    privateResidenceVisitsCount: number;
+    privateResidenceDayEndsCount: number;
+    privateResidenceShortBreaksCount: number;
+    preventedWarehouseMergeCount: number;
+    thresholdMinutes: number;
+    examples: Array<{
+      residenceLabel: string | null;
+      residenceEnterAt: ISODateTime;
+      residenceConfirmedUntil: ISODateTime | null;
+      residenceDurationMinutes: number;
+      decision:
+        | 'day_end_short_commute'
+        | 'day_end_long_commute'
+        | 'short_break_no_day_end'
+        | 'returned_to_work_within_window'
+        | 'visit_only';
+      nearbyWarehouseOrProjectLabel: string | null;
+    }>;
+  };
 }
 
 /**
