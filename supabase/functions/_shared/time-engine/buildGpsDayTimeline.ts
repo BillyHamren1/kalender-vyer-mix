@@ -857,6 +857,13 @@ export function buildGpsDayTimeline(
           ephemeralUnknownStaysSuppressedMinutes: 0,
           examples: [],
         },
+        workAreaToleranceDiagnostics: {
+          toleranceMeters: WORK_AREA_TOLERANCE_METERS,
+          continuedSessionByToleranceCount: 0,
+          blockedByPrivateResidenceCount: 0,
+          blockedAfterDayEndCount: 0,
+          examples: [],
+        },
       },
     };
   }
