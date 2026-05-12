@@ -6,6 +6,16 @@
 //   1. staff_day_report_cache  (Time Engine cache — same as admin web)
 //   2. staff_day_submissions   (user inskick/attest)
 //
+// FALLBACK (Time App Mirror Fix 1):
+//   If the cache for staff/date is missing / stale / errored / has 0 blocks,
+//   we invoke `get-staff-presence-day` (the SAME live Time Engine call that
+//   /staff-management/time-reports uses) and mirror its
+//   `reportCandidateBlocks` + `reportCandidateSummary` 1:1.
+//
+//   This is NOT a separate mobile engine — it's the exact same server-side
+//   Time Engine read the admin web uses. The mobile mirror just gets the
+//   live result instead of silently returning 0h when the cache is cold.
+//
 // MUST NOT read:
 //   - workdays
 //   - time_reports
@@ -13,7 +23,7 @@
 //   - travel_time_logs
 //   - day_attestations
 //   - active_time_registrations
-// These remain legacy/debug. Liveness is derived from the cache only.
+// These remain legacy/debug. Liveness is derived from the cache/engine result only.
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
 import {
@@ -28,11 +38,71 @@ interface RequestBody {
   force?: boolean;
 }
 
+type DebugSource = "cache" | "live_engine" | "missing" | "missing_engine_result";
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function blockArrayLength(v: unknown): number {
+  return Array.isArray(v) ? v.length : 0;
+}
+
+/**
+ * Invoke the same live Time Engine read that admin web uses
+ * (`/staff-management/time-reports` → `get-staff-presence-day`).
+ * Returns a CacheRow-shaped object so it can be passed straight through
+ * `buildMobileSnapshot` without changing the mapper.
+ */
+async function fetchLiveEngineAsCacheRow(
+  staffId: string,
+  organizationId: string,
+  date: string,
+): Promise<{ row: CacheRow | null; raw: any; error: string | null }> {
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!SUPABASE_URL || !SERVICE_KEY) {
+    return { row: null, raw: null, error: "missing_supabase_env" };
+  }
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/get-staff-presence-day`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_KEY}`,
+        apikey: SERVICE_KEY,
+      },
+      body: JSON.stringify({ staffId, organizationId, date }),
+    });
+    const json = await resp.json().catch(() => null);
+    if (!resp.ok || !json || json.ok === false) {
+      return {
+        row: null,
+        raw: json,
+        error: json?.error ?? `presence_day_http_${resp.status}`,
+      };
+    }
+    const blocks = Array.isArray(json.reportCandidateBlocks)
+      ? json.reportCandidateBlocks
+      : [];
+    const summary = json.reportCandidateSummary ?? null;
+    const row: CacheRow = {
+      engine_version: json?.reportCandidateDiagnostics?.engineVersion ?? "live",
+      summary_json: summary ?? {},
+      report_candidate_blocks_json: blocks,
+      display_blocks_json: blocks,
+      diagnostics_json: json.reportCandidateDiagnostics ?? null,
+      built_at: new Date().toISOString(),
+      stale: false,
+      error: null,
+    };
+    return { row, raw: json, error: null };
+  } catch (e) {
+    return { row: null, raw: null, error: (e as Error)?.message ?? String(e) };
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -59,6 +129,7 @@ Deno.serve(async (req: Request) => {
 
   // 1) Cache row — pick the row matching the latest engine_version for this staff/date.
   let cache: CacheRow | null = null;
+  let cacheFetchError: string | null = null;
   try {
     const { data, error } = await admin
       .from("staff_day_report_cache")
@@ -72,11 +143,13 @@ Deno.serve(async (req: Request) => {
       .limit(1)
       .maybeSingle();
     if (error) {
+      cacheFetchError = error.message ?? String(error);
       console.error("[get-mobile-staff-day-report] cache fetch error", error);
     } else if (data) {
       cache = data as unknown as CacheRow;
     }
   } catch (e) {
+    cacheFetchError = (e as Error)?.message ?? String(e);
     console.error("[get-mobile-staff-day-report] cache exception", e);
   }
 
@@ -97,10 +170,62 @@ Deno.serve(async (req: Request) => {
     console.error("[get-mobile-staff-day-report] submission exception", e);
   }
 
-  // NOTE: workdays / active_time_registrations are intentionally NOT read here.
-  // The cache (active_block_json / summary_json) carries the only liveness
-  // signal the mirror exposes. See buildMobileSnapshot.workdayStatusFromCache.
+  // 3) Decide whether to use cache or fall back to live engine.
+  // The mobile mirror MUST NOT show 0h if admin web's live engine has data.
+  const cacheBlockCount = cache ? blockArrayLength(cache.report_candidate_blocks_json) : 0;
+  const cacheUnusable =
+    !cache ||
+    !!cache.error ||
+    !!cache.stale ||
+    cacheBlockCount === 0 ||
+    body.force === true;
 
-  const snapshot = buildMobileSnapshot({ date, staffId, cache, submission });
-  return jsonResponse(snapshot);
+  let debugSource: DebugSource = cache ? "cache" : "missing";
+  let liveEngineError: string | null = null;
+  let effectiveCache: CacheRow | null = cache;
+
+  if (cacheUnusable) {
+    const live = await fetchLiveEngineAsCacheRow(staffId, orgId, date);
+    if (live.row && blockArrayLength(live.row.report_candidate_blocks_json) > 0) {
+      effectiveCache = live.row;
+      debugSource = "live_engine";
+    } else if (!cache) {
+      // Neither cache nor live engine produced anything.
+      debugSource = live.error ? "missing_engine_result" : "missing";
+      liveEngineError = live.error;
+    } else {
+      // Cache exists but empty/stale and live didn't help — keep cache as-is.
+      debugSource = "cache";
+      liveEngineError = live.error;
+    }
+  }
+
+  // NOTE: workdays / active_time_registrations are intentionally NOT read here.
+  const snapshot = buildMobileSnapshot({
+    date,
+    staffId,
+    cache: effectiveCache,
+    submission,
+  });
+
+  const debug = {
+    debugSource,
+    blockCount: snapshot.segments.length,
+    summaryWorkMinutes: snapshot.summary.workMinutes,
+    summaryTransportMinutes: snapshot.summary.travelMinutes,
+    summaryReviewMinutes: snapshot.summary.reviewMinutes,
+    engineVersion: effectiveCache?.engine_version ?? null,
+    cacheBuiltAt: cache?.built_at ?? null,
+    cacheStale: cache?.stale ?? null,
+    cacheError: cache?.error ?? null,
+    cacheFetchError,
+    cacheBlockCount,
+    liveEngineError,
+  };
+
+  console.info("[get-mobile-staff-day-report] mirror", {
+    staffId, date, ...debug,
+  });
+
+  return jsonResponse({ ...snapshot, debug });
 });
