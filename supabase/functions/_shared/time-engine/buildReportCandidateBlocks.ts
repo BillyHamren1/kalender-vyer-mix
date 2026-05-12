@@ -123,6 +123,14 @@ export interface ReportCandidateBlock {
     absorbedOriginalKind: string;
     absorbedReason: string | null;
   }>;
+  /** Time Engine 2.9 — set true when at least one block was absorbed via the
+   *  probabilistic same-session pass (i.e. without a strict closing same-target
+   *  work block). Diagnostics only. */
+  hasProbabilisticConsolidation?: boolean;
+  /** Time Engine 2.9 — set true when the session carries any signal-related
+   *  uncertainty after consolidation (signalGapMinutes>0, signalGapCount>0,
+   *  or 'signal_gap_inside_session' warning). Diagnostics + UI hint. */
+  hasSignalUncertainty?: boolean;
   /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
@@ -283,6 +291,8 @@ export interface ReportCandidateSummary {
     preservedNeedsReviewBlocksCount: number;
     preservedTransportBlocksCount: number;
     demotedNeedsReviewBlocksCount?: number;
+    /** Time Engine 2.9 — antal block absorberade via shouldAbsorbAsProbableSameSession. */
+    probabilisticAbsorptionCount?: number;
     examples: Array<{
       staffName: string | null;
       sessionLabel: string | null;

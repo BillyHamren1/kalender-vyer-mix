@@ -56,6 +56,9 @@ export interface SessionConsolidationDiagnostics {
   /** Time Engine 2.7 — antal needs_review-block som efter konsolidering
    *  demoterades till reviewState='ok' (rena soft-skäl, ingen hård orsak). */
   demotedNeedsReviewBlocksCount: number;
+  /** Time Engine 2.9 — antal block absorberade via shouldAbsorbAsProbableSameSession
+   *  (utan strikt closing same-target work-block). */
+  probabilisticAbsorptionCount: number;
   examples: Array<{
     /** Time Engine 2.8 — full session example for diagnostics_json. */
     staffName: string | null;
@@ -66,6 +69,9 @@ export interface SessionConsolidationDiagnostics {
     originalBlockKinds: string[];
     originalBlockLabels: string[];
     absorbedBlockCount: number;
+    /** Time Engine 2.9 — set of reasons + warning labels för absorberade block. */
+    absorbedReasons: string[];
+    warningReasons: string[];
     signalGapMinutes: number;
     internalMovementMinutes: number;
     finalKind: string;
@@ -238,6 +244,7 @@ export function consolidateReportBlocksIntoSessions(
     preservedNeedsReviewBlocksCount: 0,
     preservedTransportBlocksCount: 0,
     demotedNeedsReviewBlocksCount: 0,
+    probabilisticAbsorptionCount: 0,
     examples: [],
   };
 
@@ -441,6 +448,8 @@ export function consolidateReportBlocksIntoSessions(
             ...absorbedLabels,
           ],
           absorbedBlockCount: absorbedCount,
+          absorbedReasons: Array.from(new Set(cur.absorbedReasons ?? [])),
+          warningReasons: Array.from(new Set(cur.warningReasons ?? [])),
           signalGapMinutes: cur.signalGapMinutes,
           internalMovementMinutes: cur.internalMovementMinutes ?? 0,
           finalKind: cur.kind,
@@ -457,6 +466,99 @@ export function consolidateReportBlocksIntoSessions(
 
       changed = true;
       break;
+    }
+  }
+
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Time Engine 2.9 — Probabilistic same-session absorption pass.
+  //
+  // Den strikta sandwich-passen ovan kräver ett "closing" work-block med
+  // SAMMA target. Det missar verkliga fall där arbetet slutar utan ett
+  // följande work-block (dagens sista session, pågående timer som ännu inte
+  // stoppats), eller där host-blocket före ensamt äger kontexten.
+  //
+  // Denna pass är sannolikhetsbaserad: ett tekniskt brus-block (signal_gap,
+  // unknown, soft needs_review, transport <500m utan tydlig destination)
+  // absorberas in i föregående eller efterföljande work-host om
+  // shouldAbsorbAsProbableSameSession säger ja.
+  //
+  // Bryts av samma hårda regler (private_residence, workday_ended,
+  // clear_other_destination, riktig resa ≥500 m, konkurrerande targets).
+  // ───────────────────────────────────────────────────────────────────────
+  let probaChanged = true;
+  let probaSafety = 0;
+  while (probaChanged && probaSafety < 200) {
+    probaChanged = false;
+    probaSafety += 1;
+    for (let i = 0; i < out.length; i++) {
+      const cur = out[i];
+      if (cur.kind === 'work') continue;
+      if (hasBreakingReason(cur)) continue;
+      const prev = i > 0 ? out[i - 1] : undefined;
+      const next = i < out.length - 1 ? out[i + 1] : undefined;
+
+      const decision = shouldAbsorbAsProbableSameSession(prev, cur, next, deps);
+      if (!decision.absorb || !decision.host) continue;
+
+      const host = decision.host === 'prev' ? prev! : next!;
+      const sessionId =
+        host.sessionId ??
+        `session::${host.startAt}::${host.targetType ?? 'na'}::${host.targetId ?? host.targetLabel ?? 'unknown'}`;
+      host.sessionId = sessionId;
+      host.hasProbabilisticConsolidation = true;
+
+      const trail = host.absorbedTrail ?? [];
+      trail.push({
+        absorbedIntoSessionId: sessionId,
+        absorbedOriginalKind: cur.kind,
+        absorbedReason: (cur.reviewReasons ?? [])[0] ?? decision.reason,
+      });
+      host.absorbedTrail = trail;
+
+      const dist = cur.evidenceSummary?.distanceMeters ?? 0;
+      if (cur.kind === 'needs_review') {
+        const isSignalGap = (cur.reviewReasons ?? []).some((rr) => SIGNAL_GAP_REASONS.has(rr));
+        if (isSignalGap) diagnostics.absorbedSignalGapBlocksCount += 1;
+        else diagnostics.absorbedNeedsReviewBlocksCount += 1;
+      } else if (cur.kind === 'unknown') {
+        diagnostics.absorbedUnknownBlocksCount += 1;
+      } else if (cur.kind === 'transport') {
+        diagnostics.absorbedInternalTransportBlocksCount += 1;
+        host.internalMovementMinutes =
+          (host.internalMovementMinutes ?? 0) + cur.durationMinutes;
+        host.internalMovementDistanceMeters =
+          (host.internalMovementDistanceMeters ?? 0) + dist;
+      }
+
+      deps.absorbInto(host, cur);
+      out.splice(i, 1);
+
+      if (!host.reviewReasons.includes('session_consolidated')) {
+        host.reviewReasons.push('session_consolidated');
+      }
+      host.warningReasons = Array.from(new Set([
+        ...(host.warningReasons ?? []),
+        'probabilistic_session_absorption',
+      ]));
+      host.subtitle =
+        `${deps.fmtClock(host.startAt)}–${deps.fmtClock(host.endAt)} · ${deps.fmtDuration(host.durationMinutes)}`;
+
+      diagnostics.probabilisticAbsorptionCount += 1;
+      probaChanged = true;
+      break;
+    }
+  }
+
+  // Mark hasSignalUncertainty on all sessions/blocks for downstream UI hint.
+  for (const r of out) {
+    const sigMin = r.signalGapMinutes ?? 0;
+    const sigCount = r.signalGapCount ?? 0;
+    const sigWarn = (r.warningReasons ?? []).some(
+      (w) => w === 'signal_gap_inside_session',
+    );
+    if (sigMin > 0 || sigCount > 0 || sigWarn) {
+      r.hasSignalUncertainty = true;
     }
   }
 
