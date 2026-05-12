@@ -7,7 +7,6 @@ import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectContactCard from "@/components/project/ProjectContactCard";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
-import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 
 
 
@@ -75,9 +74,6 @@ const LargeProjectViewPage = () => {
             <TabsTrigger value="products" className={tabTriggerClass}>
               Produkter
             </TabsTrigger>
-            <TabsTrigger value="excel" className={tabTriggerClass}>
-              Excel-vy
-            </TabsTrigger>
             <TabsTrigger value="transport" className={tabTriggerClass}>
               Transport
               {transportAssignments.length > 0 && (
@@ -100,10 +96,6 @@ const LargeProjectViewPage = () => {
 
         <TabsContent value="products">
           <LargeProjectProductsOverview bookings={(project as any)?.bookings || []} largeProjectId={project.id} />
-        </TabsContent>
-
-        <TabsContent value="excel">
-          <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
         </TabsContent>
 
         <TabsContent value="transport">

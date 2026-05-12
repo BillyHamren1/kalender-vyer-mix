@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { List, Users, CalendarDays, ClipboardList } from "lucide-react";
+import { List, Users, CalendarDays, ClipboardList, Table as TableIcon } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
+import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import type { OverviewFilter } from "@/components/project/planning/ProjectControlPanel";
 
@@ -63,7 +64,7 @@ const LargeEstablishmentPage = () => {
     }
   }, [location.state]);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [pageMode, setPageMode] = useState<"plan" | "calendar">("plan");
+  const [pageMode, setPageMode] = useState<"plan" | "calendar" | "excel">("plan");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
@@ -193,11 +194,22 @@ const LargeEstablishmentPage = () => {
             <CalendarDays className="h-4 w-4" />
             Kalender
           </Button>
+          <Button
+            variant={pageMode === "excel" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-6 text-sm gap-2"
+            onClick={() => setPageMode("excel")}
+          >
+            <TableIcon className="h-4 w-4" />
+            Excel-vy
+          </Button>
         </div>
       </div>
 
       {pageMode === "calendar" ? (
         <ProjectCalendarView projectId={project.id} isLargeProject={true} />
+      ) : pageMode === "excel" ? (
+        <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
       ) : (
         <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
           <div className="border-b border-border/40 px-3 py-2 flex items-center justify-end">
