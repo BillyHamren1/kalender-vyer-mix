@@ -2051,6 +2051,59 @@ export function buildReportCandidateBlocks(
     if (activeTimerOverlapDiag.examples.length < 20) activeTimerOverlapDiag.examples.push(ex);
   };
 
+  // Time Engine 3.3 — open-timer clamp diagnostics.
+  const FRESH_EVIDENCE_WINDOW_MIN = 30;
+  const todayStockholm = stockholmDateKey(new Date().toISOString());
+  const isStockholmToday = todayStockholm === input.date;
+  const lastFreshEvidenceMs = input.lastFreshEvidenceAtIso
+    ? new Date(input.lastFreshEvidenceAtIso).getTime()
+    : NaN;
+  const stockholmDayWindowAll = getStockholmDayWindowUtc(input.date);
+  const openTimerClampDiag: NonNullable<ReportCandidateSummary['openTimerClampDiagnostics']> = {
+    activeTimersSeen: 0,
+    activeTimersAllowedToExtend: 0,
+    activeTimersNotExtendedDueToStaleEvidence: 0,
+    activeTimersNotExtendedBecauseHistoricalDate: 0,
+    blocksPreventedFromContinuingToNow: 0,
+    freshEvidenceWindowMinutes: FRESH_EVIDENCE_WINDOW_MIN,
+    isStockholmToday,
+    lastFreshEvidenceAtIso: input.lastFreshEvidenceAtIso ?? null,
+    examples: [],
+  };
+  const pushClampExample = (ex: NonNullable<ReportCandidateSummary['openTimerClampDiagnostics']>['examples'][number]) => {
+    if (openTimerClampDiag.examples.length < 20) openTimerClampDiag.examples.push(ex);
+  };
+  /**
+   * Avgör om en open active_time_registration får förlänga ett synligt block
+   * mot now/dayEnd. Returnerar ett beslut som callers använder för att klampa.
+   *
+   * Villkor för 'allowed':
+   *  - input.date är dagens svenska datum
+   *  - color: lastFreshEvidenceAtIso finns och inte är äldre än
+   *    FRESH_EVIDENCE_WINDOW_MIN gentemot now
+   *  - lastFreshEvidenceMs ligger efter ankarets nuvarande endAt − tolerance
+   */
+  const evaluateOpenTimerExtension = (params: {
+    anchorEndMs: number | null;
+  }): { allowed: boolean; reason: 'historical_date' | 'stale_evidence' | 'allowed' } => {
+    if (!isStockholmToday) return { allowed: false, reason: 'historical_date' };
+    if (!Number.isFinite(lastFreshEvidenceMs)) return { allowed: false, reason: 'stale_evidence' };
+    const ageMs = Date.now() - lastFreshEvidenceMs;
+    if (ageMs > FRESH_EVIDENCE_WINDOW_MIN * 60_000) {
+      return { allowed: false, reason: 'stale_evidence' };
+    }
+    if (params.anchorEndMs != null) {
+      // Färsk evidens måste ligga efter ankarets nuvarande endAt − tolerance
+      // (annars finns ingen NY evidens som motiverar förlängning).
+      const tolMs = 5 * 60_000;
+      if (lastFreshEvidenceMs < params.anchorEndMs - tolMs) {
+        return { allowed: false, reason: 'stale_evidence' };
+      }
+    }
+    return { allowed: true, reason: 'allowed' };
+  };
+
+
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
     const startedMs = new Date(openCtx.startedAtIso).getTime();
