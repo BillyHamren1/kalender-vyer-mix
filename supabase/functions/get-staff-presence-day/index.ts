@@ -816,6 +816,8 @@ Deno.serve(async (req) => {
           }
         : null;
 
+      const plannedEndOfDayIso = await resolvePlannedEndOfDayIso(admin, orgId, staffId, date);
+
       reportCandidateResult = buildReportCandidateBlocks({
         staffId,
         organizationId: orgId,
@@ -824,6 +826,7 @@ Deno.serve(async (req) => {
         activeTimeRegistrations: activeRegs,
         homeAnchors,
         openActiveRegistration,
+        plannedEndOfDayIso,
       });
     } catch (e: any) {
       reportCandidateError = e?.message ?? String(e);
