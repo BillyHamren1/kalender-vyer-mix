@@ -3655,7 +3655,156 @@ export function buildReportCandidateBlocks(
   }
 
   // ───────────────────────────────────────────────────────────────────────
-  // Time Engine 4.2 — FINAL DAY-WINDOW CLAMP
+  // Time Engine 3.7 — Project label resolution diagnostics.
+  // Säkerställer att inga work/rigg/lager-block visas med generisk titel
+  // ("Team N", "Team transport", "RIGG", "Arbete – okänd plats") när
+  // projekt/booking/location/assignment finns. Påverkar inte blocken — bara
+  // diagnostics som engine-output exponerar för observability + tester.
+  // ───────────────────────────────────────────────────────────────────────
+  {
+    const GENERIC_LABEL_SET = new Set<string>(
+      [
+        '',
+        'arbete',
+        'arbete – okänd plats',
+        'arbete - okänd plats',
+        'arbete (okänd plats)',
+        'work',
+        'rigg',
+        'rig',
+        'rigdown',
+        'rig down',
+        'lager',
+        'warehouse',
+        'transport',
+        'resa',
+        'behöver granskas',
+        'okänd plats',
+        'unknown',
+        'signal saknas',
+        'signal_gap',
+        'gps-glapp',
+        'gps glapp',
+        'sammanslagen okänd plats',
+      ].map((s) => s.toLowerCase()),
+    );
+    const TEAM_PATTERNS: RegExp[] = [
+      /^team[\s\-_]/i,
+      /^team\s*\d+$/i,
+      /^team\s+(transport|rigg|rig|lager|warehouse|down)$/i,
+      /^lager\s*team$/i,
+    ];
+    const isGenericLabel = (v: string | null | undefined): boolean => {
+      if (!v) return true;
+      const t = v.trim();
+      if (!t) return true;
+      const low = t.toLowerCase();
+      if (GENERIC_LABEL_SET.has(low)) return true;
+      if (low.startsWith('sammanslagen okänd plats') || low.startsWith('okänd plats')) return true;
+      if (TEAM_PATTERNS.some((re) => re.test(t))) return true;
+      return false;
+    };
+
+    type LabelSource =
+      | 'projectName'
+      | 'largeProjectName'
+      | 'bookingName'
+      | 'locationName'
+      | 'warehouseName'
+      | 'targetLabel'
+      | 'plannedAssignmentLabel'
+      | 'originalTitle'
+      | 'fallback';
+
+    const labelDiag: NonNullable<ReportCandidateSummary['labelResolutionDiagnostics']> = {
+      genericTitleBlocksBefore: 0,
+      genericTitleBlocksAfter: 0,
+      resolvedFromProjectCount: 0,
+      resolvedFromBookingCount: 0,
+      resolvedFromLocationCount: 0,
+      resolvedFromAssignmentCount: 0,
+      fallbackUnknownCount: 0,
+      examples: [],
+    };
+
+    for (const r of out) {
+      if (r.kind !== 'work' && r.kind !== 'unknown' && r.kind !== 'needs_review') continue;
+      const wasGeneric = isGenericLabel(r.title);
+      if (wasGeneric) labelDiag.genericTitleBlocksBefore += 1;
+
+      // Härled targetType-baserad source från targetLabel + targetType.
+      const tt = (r.targetType ?? '').toLowerCase();
+      const targetIsProject = tt.includes('project') || tt.includes('large_project');
+      const targetIsBooking = tt.includes('booking') || tt.includes('event');
+      const targetIsLocation = tt.includes('location') || tt.includes('warehouse');
+
+      const ordered: Array<[string | null | undefined, LabelSource]> = [
+        // Engine har bara targetLabel/targetType; mappar till rätt källa.
+        [
+          targetIsProject ? r.targetLabel : null,
+          tt.includes('large_project') ? 'largeProjectName' : 'projectName',
+        ],
+        [targetIsBooking ? r.targetLabel : null, 'bookingName'],
+        [
+          targetIsLocation ? r.targetLabel : null,
+          tt.includes('warehouse') ? 'warehouseName' : 'locationName',
+        ],
+        [r.targetLabel, 'targetLabel'],
+        [!isGenericLabel(r.title) ? r.title : null, 'originalTitle'],
+      ];
+
+      let resolvedSource: LabelSource = 'fallback';
+      let resolvedTitle = '';
+      for (const [val, src] of ordered) {
+        if (val && !isGenericLabel(val)) {
+          resolvedSource = src;
+          resolvedTitle = val.trim();
+          break;
+        }
+      }
+      if (resolvedSource === 'fallback') {
+        resolvedTitle =
+          r.kind === 'unknown'
+            ? 'Okänd plats'
+            : r.kind === 'needs_review'
+              ? 'Behöver granskas'
+              : 'Arbete – okänd plats';
+      }
+
+      const stillGeneric = isGenericLabel(resolvedTitle);
+      if (stillGeneric) labelDiag.genericTitleBlocksAfter += 1;
+
+      if (resolvedSource === 'projectName' || resolvedSource === 'largeProjectName') {
+        labelDiag.resolvedFromProjectCount += 1;
+      } else if (resolvedSource === 'bookingName') {
+        labelDiag.resolvedFromBookingCount += 1;
+      } else if (resolvedSource === 'locationName' || resolvedSource === 'warehouseName') {
+        labelDiag.resolvedFromLocationCount += 1;
+      } else if (resolvedSource === 'plannedAssignmentLabel') {
+        labelDiag.resolvedFromAssignmentCount += 1;
+      } else if (resolvedSource === 'fallback') {
+        labelDiag.fallbackUnknownCount += 1;
+      }
+
+      if (
+        labelDiag.examples.length < 20 &&
+        (wasGeneric || resolvedSource === 'fallback' || stillGeneric)
+      ) {
+        labelDiag.examples.push({
+          blockKind: r.kind,
+          startAt: r.startAt,
+          endAt: r.endAt,
+          originalTitle: r.title ?? null,
+          originalTargetLabel: r.targetLabel ?? null,
+          resolvedTitle,
+          resolvedSource,
+        });
+      }
+    }
+
+    summary.labelResolutionDiagnostics = labelDiag;
+  }
+
   // Hård invariant: inga synliga blocks får ligga utanför svensk
   // rapportdag (Europe/Stockholm). Block helt utanför dagen tas bort,
   // block som överlappar dagsgränsen klipps. Detta körs sist så att alla
