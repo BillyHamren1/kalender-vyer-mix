@@ -22,6 +22,9 @@ const GENERIC_TITLES = new Set(
   [
     '',
     'arbete',
+    'arbete – okänd plats',
+    'arbete - okänd plats',
+    'arbete (okänd plats)',
     'work',
     'rigg',
     'rig',
@@ -33,8 +36,15 @@ const GENERIC_TITLES = new Set(
     'behöver granskas',
     'okänd plats',
     'unknown',
+    'signal saknas',
+    'signal_gap',
+    'gps-glapp',
+    'gps glapp',
+    'sammanslagen okänd plats',
   ].map((s) => s.toLowerCase()),
 );
+
+const GENERIC_PREFIXES = ['sammanslagen okänd plats', 'okänd plats'];
 
 const isGeneric = (value: string | null | undefined): boolean => {
   if (!value) return true;
