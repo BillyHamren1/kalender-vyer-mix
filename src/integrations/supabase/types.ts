@@ -2726,6 +2726,42 @@ export type Database = {
           },
         ]
       }
+      large_project_view_config: {
+        Row: {
+          column_order: Json
+          created_at: string
+          created_by: string | null
+          custom_columns: Json
+          custom_values: Json
+          id: string
+          large_project_id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          column_order?: Json
+          created_at?: string
+          created_by?: string | null
+          custom_columns?: Json
+          custom_values?: Json
+          id?: string
+          large_project_id: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          column_order?: Json
+          created_at?: string
+          created_by?: string | null
+          custom_columns?: Json
+          custom_values?: Json
+          id?: string
+          large_project_id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       large_projects: {
         Row: {
           address: string | null
