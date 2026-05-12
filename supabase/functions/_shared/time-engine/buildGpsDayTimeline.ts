@@ -542,6 +542,21 @@ function makeId(prefix: string, idx: number): string {
 // Target matching (no DB, pure)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * GPS-noise tolerans utöver platsens egen geofence (meter).
+ * En stationär person nära ett känt projekt/lager landar ofta 50–150 m
+ * utanför geofencen p.g.a. accuracy. Vi matchar ändå mot platsen istället
+ * för att klassa stayen som unknown_place → annars hamnar den som
+ * other_place / "Behöver granskas" helt i onödan.
+ *
+ * Speglas i src/lib/staff/pingPlaceSegments.ts → KNOWN_SITE_TOLERANCE_METERS.
+ *
+ * OBS: Tolerans appliceras ENDAST i stay-cluster-matchningen (matchTarget
+ * nedan). pointInsideTarget används på enskilda pings i andra grenar och
+ * måste fortsätta vara strikt geofence-inside.
+ */
+export const KNOWN_SITE_TOLERANCE_METERS = 150;
+
 function matchTarget(
   centerLat: number,
   centerLng: number,
@@ -554,12 +569,21 @@ function matchTarget(
   for (const t of targets) {
     if (t.validFrom && Date.parse(t.validFrom) > at) continue;
     if (t.validUntil && Date.parse(t.validUntil) < at) continue;
-    if (!pointInsideTarget(centerLat, centerLng, t)) continue;
+    const inside = pointInsideTarget(centerLat, centerLng, t);
+    let withinTolerance = inside;
+    if (!inside) {
+      // signedDistanceToTargetEdge: positivt = inne, negativt = utanför.
+      const signed = signedDistanceToTargetEdge(centerLat, centerLng, t);
+      if (-signed <= KNOWN_SITE_TOLERANCE_METERS) withinTolerance = true;
+    }
+    if (!withinTolerance) continue;
     const d = haversine(centerLat, centerLng, t.center.lat, t.center.lng);
     // Engine 4 — private_residence vinner alltid över Warehouse/work
     // när pingen ligger inne i en residence-polygon. Kortavstånd får aldrig
-    // göra att Boende slås ihop med Warehouse.
+    // göra att Boende slås ihop med Warehouse. Tolerans gäller INTE residence
+    // (annars skulle grannars Warehouse kunna ätas av "Boende").
     if (t.isPrivateResidence === true) {
+      if (!inside) continue;
       if (bestResidence == null || d < bestResidence.distanceM) {
         bestResidence = { target: t, distanceM: d };
       }
