@@ -15,6 +15,9 @@ interface AddressMapDialogProps {
   /** Om satta visas hela personens GPS-spår fram till nu på kartan */
   staffId?: string;
   date?: string;
+  /** Om satta visas endast pings inom detta tidsintervall (för t.ex. en resa) */
+  segmentStartIso?: string;
+  segmentEndIso?: string;
 }
 
 /**
@@ -28,6 +31,8 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
   coords,
   staffId,
   date,
+  segmentStartIso,
+  segmentEndIso,
 }) => {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -40,13 +45,24 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
     !!(open && staffId && date),
   );
 
-  // Sortera pings stigande och bygg track fram till nu
+  const segStartMs = segmentStartIso ? new Date(segmentStartIso).getTime() : null;
+  const segEndMs = segmentEndIso ? new Date(segmentEndIso).getTime() : null;
+  const isSegment = segStartMs != null && segEndMs != null;
+
+  // Sortera pings stigande och bygg track. Om ett segment är angivet (t.ex. en resa)
+  // begränsar vi till pings inom det intervallet, så kartan matchar blocket man klickade på.
   const trackCoords = useMemo<[number, number][]>(() => {
     if (!pings.length) return [];
-    return [...pings]
+    const filtered = isSegment
+      ? pings.filter(p => {
+          const t = new Date(p.recorded_at).getTime();
+          return t >= (segStartMs as number) && t <= (segEndMs as number);
+        })
+      : pings;
+    return [...filtered]
       .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())
       .map((p) => [p.lng, p.lat] as [number, number]);
-  }, [pings]);
+  }, [pings, isSegment, segStartMs, segEndMs]);
 
   useEffect(() => {
     if (!open) return;
@@ -130,11 +146,11 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
         const last = trackCoords[trackCoords.length - 1];
         new mapboxgl.Marker({ color: '#10b981' })
           .setLngLat(first)
-          .setPopup(new mapboxgl.Popup({ offset: 16 }).setText('Första GPS-pingen idag'))
+          .setPopup(new mapboxgl.Popup({ offset: 16 }).setText(isSegment ? 'Start för segmentet' : 'Första GPS-pingen idag'))
           .addTo(map);
         new mapboxgl.Marker({ color: '#3b82f6' })
           .setLngLat(last)
-          .setPopup(new mapboxgl.Popup({ offset: 16 }).setText('Senaste GPS-pingen'))
+          .setPopup(new mapboxgl.Popup({ offset: 16 }).setText(isSegment ? 'Slut för segmentet' : 'Senaste GPS-pingen'))
           .addTo(map);
       }
 
@@ -167,7 +183,14 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-primary" />
-            {address}
+            <span>{address}</span>
+            {isSegment && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {new Date(segmentStartIso!).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm' })}
+                {' – '}
+                {new Date(segmentEndIso!).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm' })}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -177,13 +200,13 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
             {staffId && date && (
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Första ping
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> {isSegment ? 'Start' : 'Första ping'}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-3 w-4 rounded-sm bg-cyan-400" /> GPS-spår fram till nu
+                  <span className="inline-block h-3 w-4 rounded-sm bg-cyan-400" /> {isSegment ? 'GPS-spår för segmentet' : 'GPS-spår fram till nu'}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-blue-500" /> Senaste ping
+                  <span className="inline-block h-2 w-2 rounded-full bg-blue-500" /> {isSegment ? 'Slut' : 'Senaste ping'}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="inline-block h-2 w-2 rounded-full bg-red-500" /> Vald adress

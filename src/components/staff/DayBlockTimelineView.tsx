@@ -139,7 +139,9 @@ const PlaceLabel: React.FC<{
   place: PlaceLike;
   fallback?: string | null;
   className?: string;
-}> = ({ place, fallback, className }) => {
+  segmentStartIso?: string;
+  segmentEndIso?: string;
+}> = ({ place, fallback, className, segmentStartIso, segmentEndIso }) => {
   const label = safePlaceLabel(place, fallback);
   const hasCoord = place?.lat != null && place?.lng != null;
   const { staffId, date } = useContext(MapContext);
@@ -165,6 +167,8 @@ const PlaceLabel: React.FC<{
         coords={{ lat: place!.lat as number, lng: place!.lng as number }}
         staffId={staffId}
         date={date}
+        segmentStartIso={segmentStartIso}
+        segmentEndIso={segmentEndIso}
       />
     </>
   );
@@ -658,9 +662,9 @@ const JourneyRow: React.FC<{ block: JourneyBlock }> = ({ block }) => {
           <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${accentIconBg.journey}`}>
             <Car className="h-3.5 w-3.5" />
           </span>
-          <PlaceLabel place={block.fromPlace} fallback={block.fromLabel} className="font-medium text-foreground truncate" />
+          <PlaceLabel place={block.fromPlace} fallback={block.fromLabel} className="font-medium text-foreground truncate" segmentStartIso={block.startIso} segmentEndIso={block.endIso} />
           <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-          <PlaceLabel place={block.toPlace} fallback={block.toLabel} className="font-medium text-foreground truncate" />
+          <PlaceLabel place={block.toPlace} fallback={block.toLabel} className="font-medium text-foreground truncate" segmentStartIso={block.startIso} segmentEndIso={block.endIso} />
         </div>
 
         <div className="flex items-center justify-end overflow-hidden">
