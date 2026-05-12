@@ -393,9 +393,9 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                           {items.length === 0 ? (
                             <span className="text-muted-foreground/40 font-light">—</span>
                           ) : (
-                            <ul className="space-y-1">
+                            <ul className="space-y-0.5">
                               {items.map((p) => (
-                                <li key={p.id} className="inline-flex items-center px-2 py-0.5 mr-1 rounded-md bg-secondary/60 text-secondary-foreground text-xs font-medium border border-border/60">
+                                <li key={p.id} className="text-sm text-foreground">
                                   {formatProduct(p)}
                                 </li>
                               ))}
