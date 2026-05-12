@@ -2658,6 +2658,297 @@ export function buildReportCandidateBlocks(
   out.push(...consolidationResult.blocks);
   const sessionDiagnostics = consolidationResult.diagnostics;
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 6 — enforceSingleVisibleTimeline (Time Engine 2.12)
+  //
+  // Hård invariant: en person kan inte vara på två platser samtidigt.
+  // Detta pass kör EFTER all consolidering och garanterar att de slutliga
+  // blocken är strikt sekventiella per staff/dag innan summary_json /
+  // display_blocks_json / staff_day_report_cache skrivs.
+  //
+  // Prioritet (störst vinner):
+  //   1. private_residence
+  //   2. confirmed work/known site med stark target-evidens
+  //   3. project/booking/warehouse work-session från engine
+  //   4. real transport (>= realTripMinDistanceMeters)
+  //   5. probable work/known site
+  //   6. probable transport
+  //   7. warning-only/signalproblem
+  //   8. needs_review
+  //   9. open_active_timer_anchor (svagast — får aldrig vinna)
+  // ───────────────────────────────────────────────────────────────────────
+  const singleTimelineDiag: NonNullable<
+    ReportCandidateSummary['singleTimelineDiagnostics']
+  > = {
+    blocksBeforeSingleTimeline: out.length,
+    blocksAfterSingleTimeline: 0,
+    overlapsDetectedCount: 0,
+    overlapsResolvedCount: 0,
+    blocksMergedCount: 0,
+    blocksClippedCount: 0,
+    blocksAbsorbedCount: 0,
+    syntheticActiveTimerBlocksRemovedCount: 0,
+    remainingOverlapsCount: 0,
+    examples: [],
+  };
+  const pushSTExample = (
+    ex: NonNullable<ReportCandidateSummary['singleTimelineDiagnostics']>['examples'][number],
+  ) => {
+    if (singleTimelineDiag.examples.length < 25) singleTimelineDiag.examples.push(ex);
+  };
+  {
+    const ABSORB_MAX_REMAINDER_MIN = 3;
+    const strengthOf = (b: ReportCandidateBlock): number => {
+      const reasons = b.reviewReasons ?? [];
+      if (b.targetType === 'private_residence' || reasons.includes('private_residence')) return 100;
+      if (reasons.includes('open_active_timer_anchor')) return 5;
+      const onsiteEv =
+        (b.evidenceSummary?.confirmedMinutes ?? 0) +
+        (b.evidenceSummary?.probableMinutes ?? 0);
+      if (b.kind === 'work' && b.targetId && onsiteEv > 0) return 90;
+      if (b.kind === 'work' && b.targetId) return 70;
+      if (b.kind === 'transport') {
+        const dist = b.evidenceSummary?.distanceMeters ?? 0;
+        if (dist >= policy.realTripMinDistanceMeters) return 60;
+        return 25;
+      }
+      if (b.kind === 'work') return 40;
+      if (b.kind === 'needs_review') return 20;
+      if (b.kind === 'unknown') return 15;
+      return 10;
+    };
+    const labelOf = (b: ReportCandidateBlock): string | null =>
+      b.targetLabel ?? b.title ?? null;
+    const sameTargetKey = (a: ReportCandidateBlock, b: ReportCandidateBlock) => {
+      if (!a.targetId || !b.targetId) return false;
+      return a.targetId === b.targetId && (a.targetType ?? '') === (b.targetType ?? '');
+    };
+    const recompute = (b: ReportCandidateBlock) => {
+      b.durationMinutes = minutesBetween(b.startAt, b.endAt);
+      b.durationLabel = fmtDuration(b.durationMinutes);
+      b.subtitle = `${fmtClock(b.startAt)}–${fmtClock(b.endAt)} · ${fmtDuration(b.durationMinutes)}`;
+    };
+
+    let safety = 0;
+    while (safety++ < 200) {
+      out.sort((a, b) =>
+        a.startAt !== b.startAt ? a.startAt.localeCompare(b.startAt) : b.endAt.localeCompare(a.endAt),
+      );
+      let foundOverlap = false;
+      for (let i = 0; i < out.length - 1; i++) {
+        const a = out[i];
+        const b = out[i + 1];
+        const aStart = Date.parse(a.startAt);
+        const aEnd = Date.parse(a.endAt);
+        const bStart = Date.parse(b.startAt);
+        const bEnd = Date.parse(b.endAt);
+        if (bStart >= aEnd) continue; // ingen overlap
+        foundOverlap = true;
+        singleTimelineDiag.overlapsDetectedCount += 1;
+        const overlapStart = a.startAt > b.startAt ? a.startAt : b.startAt;
+        const overlapEnd = a.endAt < b.endAt ? a.endAt : b.endAt;
+
+        // Same-target work merge
+        if (a.kind === 'work' && b.kind === 'work' && sameTargetKey(a, b)) {
+          absorbInto(a, b);
+          out.splice(i + 1, 1);
+          singleTimelineDiag.blocksMergedCount += 1;
+          singleTimelineDiag.overlapsResolvedCount += 1;
+          pushSTExample({
+            staffName: null,
+            overlapStart,
+            overlapEnd,
+            strongerBlockLabel: labelOf(a),
+            strongerBlockKind: a.kind,
+            weakerBlockLabel: labelOf(b),
+            weakerBlockKind: b.kind,
+            action: 'merged',
+            reason: 'same_target_work_merged',
+          });
+          break;
+        }
+
+        const aS = strengthOf(a);
+        const bS = strengthOf(b);
+        const winner = aS >= bS ? a : b;
+        const loser = winner === a ? b : a;
+        const isSyntheticAnchor = (loser.reviewReasons ?? []).includes('open_active_timer_anchor');
+
+        // Loser fully inside winner → absorb/remove
+        const loserStart = Date.parse(loser.startAt);
+        const loserEnd = Date.parse(loser.endAt);
+        const winnerStart = Date.parse(winner.startAt);
+        const winnerEnd = Date.parse(winner.endAt);
+        if (loserStart >= winnerStart && loserEnd <= winnerEnd) {
+          // remove loser
+          const idx = out.indexOf(loser);
+          if (idx >= 0) out.splice(idx, 1);
+          singleTimelineDiag.blocksAbsorbedCount += 1;
+          singleTimelineDiag.overlapsResolvedCount += 1;
+          if (isSyntheticAnchor) singleTimelineDiag.syntheticActiveTimerBlocksRemovedCount += 1;
+          pushSTExample({
+            staffName: null,
+            overlapStart,
+            overlapEnd,
+            strongerBlockLabel: labelOf(winner),
+            strongerBlockKind: winner.kind,
+            weakerBlockLabel: labelOf(loser),
+            weakerBlockKind: loser.kind,
+            action: isSyntheticAnchor ? 'removed' : 'absorbed',
+            reason: 'loser_fully_inside_winner',
+          });
+          break;
+        }
+
+        // Annars: klipp loser så den inte överlappar winner.
+        // a ligger alltid före b i tid (sorted). Två fall:
+        if (loser === a) {
+          // klipp a:s slut till b.start
+          const newEnd = b.startAt;
+          if (Date.parse(newEnd) - aStart < 60_000) {
+            // för litet kvar → ta bort
+            out.splice(i, 1);
+            singleTimelineDiag.blocksAbsorbedCount += 1;
+            if (isSyntheticAnchor) singleTimelineDiag.syntheticActiveTimerBlocksRemovedCount += 1;
+            pushSTExample({
+              staffName: null,
+              overlapStart,
+              overlapEnd,
+              strongerBlockLabel: labelOf(b),
+              strongerBlockKind: b.kind,
+              weakerBlockLabel: labelOf(a),
+              weakerBlockKind: a.kind,
+              action: 'removed',
+              reason: 'remainder_too_small_after_clip',
+            });
+          } else {
+            a.endAt = newEnd;
+            a.isOngoing = false;
+            recompute(a);
+            const remainder = minutesBetween(a.startAt, a.endAt);
+            if (remainder < ABSORB_MAX_REMAINDER_MIN) {
+              out.splice(i, 1);
+              singleTimelineDiag.blocksAbsorbedCount += 1;
+              if (isSyntheticAnchor) singleTimelineDiag.syntheticActiveTimerBlocksRemovedCount += 1;
+              pushSTExample({
+                staffName: null,
+                overlapStart,
+                overlapEnd,
+                strongerBlockLabel: labelOf(b),
+                strongerBlockKind: b.kind,
+                weakerBlockLabel: labelOf(a),
+                weakerBlockKind: a.kind,
+                action: 'absorbed',
+                reason: 'remainder_below_3min',
+              });
+            } else {
+              singleTimelineDiag.blocksClippedCount += 1;
+              pushSTExample({
+                staffName: null,
+                overlapStart,
+                overlapEnd,
+                strongerBlockLabel: labelOf(b),
+                strongerBlockKind: b.kind,
+                weakerBlockLabel: labelOf(a),
+                weakerBlockKind: a.kind,
+                action: 'clipped',
+                reason: 'weaker_clipped_end_to_winner_start',
+              });
+            }
+          }
+        } else {
+          // loser === b → klipp b:s start framåt till a.endAt
+          const newStart = a.endAt;
+          if (bEnd - Date.parse(newStart) < 60_000) {
+            const idx = out.indexOf(b);
+            if (idx >= 0) out.splice(idx, 1);
+            singleTimelineDiag.blocksAbsorbedCount += 1;
+            if (isSyntheticAnchor) singleTimelineDiag.syntheticActiveTimerBlocksRemovedCount += 1;
+            pushSTExample({
+              staffName: null,
+              overlapStart,
+              overlapEnd,
+              strongerBlockLabel: labelOf(a),
+              strongerBlockKind: a.kind,
+              weakerBlockLabel: labelOf(b),
+              weakerBlockKind: b.kind,
+              action: 'removed',
+              reason: 'remainder_too_small_after_clip',
+            });
+          } else {
+            b.startAt = newStart;
+            recompute(b);
+            const remainder = minutesBetween(b.startAt, b.endAt);
+            if (remainder < ABSORB_MAX_REMAINDER_MIN) {
+              const idx = out.indexOf(b);
+              if (idx >= 0) out.splice(idx, 1);
+              singleTimelineDiag.blocksAbsorbedCount += 1;
+              if (isSyntheticAnchor) singleTimelineDiag.syntheticActiveTimerBlocksRemovedCount += 1;
+              pushSTExample({
+                staffName: null,
+                overlapStart,
+                overlapEnd,
+                strongerBlockLabel: labelOf(a),
+                strongerBlockKind: a.kind,
+                weakerBlockLabel: labelOf(b),
+                weakerBlockKind: b.kind,
+                action: 'absorbed',
+                reason: 'remainder_below_3min',
+              });
+            } else {
+              singleTimelineDiag.blocksClippedCount += 1;
+              pushSTExample({
+                staffName: null,
+                overlapStart,
+                overlapEnd,
+                strongerBlockLabel: labelOf(a),
+                strongerBlockKind: a.kind,
+                weakerBlockLabel: labelOf(b),
+                weakerBlockKind: b.kind,
+                action: 'clipped',
+                reason: 'weaker_clipped_start_to_winner_end',
+              });
+            }
+          }
+        }
+        singleTimelineDiag.overlapsResolvedCount += 1;
+        break; // re-sort and re-scan
+      }
+      if (!foundOverlap) break;
+    }
+
+    // Hård invariant — sista säkerhetsnät. Om något fortfarande överlappar:
+    // klipp current.startAt till previous.endAt och räkna som engine error.
+    out.sort((a, b) => a.startAt.localeCompare(b.startAt));
+    for (let i = 1; i < out.length; i++) {
+      const prev = out[i - 1];
+      const cur = out[i];
+      if (Date.parse(prev.endAt) > Date.parse(cur.startAt)) {
+        singleTimelineDiag.remainingOverlapsCount += 1;
+        warnings.push(
+          `engine_error: remaining overlap after enforceSingleVisibleTimeline ${prev.endAt} > ${cur.startAt}`,
+        );
+        if (Date.parse(prev.endAt) < Date.parse(cur.endAt)) {
+          cur.startAt = prev.endAt;
+          recompute(cur);
+          pushSTExample({
+            staffName: null,
+            overlapStart: cur.startAt,
+            overlapEnd: prev.endAt,
+            strongerBlockLabel: labelOf(prev),
+            strongerBlockKind: prev.kind,
+            weakerBlockLabel: labelOf(cur),
+            weakerBlockKind: cur.kind,
+            action: 'invariant_clipped',
+            reason: 'engine_error_safety_net',
+          });
+        }
+      }
+    }
+    singleTimelineDiag.blocksAfterSingleTimeline = out.length;
+  }
+
+
   // +target+source set ⇒ same id across runs. See createReportCandidateBlockId.
   const assignId = (r: ReportCandidateBlock) => {
     r.id = createReportCandidateBlockId({
