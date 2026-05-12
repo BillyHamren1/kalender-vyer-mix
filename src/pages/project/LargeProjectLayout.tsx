@@ -22,6 +22,7 @@ import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
+import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 
 const navItems = [
