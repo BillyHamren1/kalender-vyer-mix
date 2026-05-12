@@ -647,7 +647,10 @@ export function consolidateReportBlocksIntoSessions(
     for (let i = 0; i < out.length; i++) {
       const cur = out[i];
       if (cur.kind === 'work') continue;
-      if (hasBreakingReason(cur)) continue;
+      if (hasHardSessionBreakReason(cur)) {
+        recordRejectedHardReviewAbsorption(cur);
+        continue;
+      }
       const prev = i > 0 ? out[i - 1] : undefined;
       const next = i < out.length - 1 ? out[i + 1] : undefined;
 
