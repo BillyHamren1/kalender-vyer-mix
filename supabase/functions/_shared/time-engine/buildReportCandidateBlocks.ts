@@ -346,6 +346,32 @@ export interface ReportCandidateSummary {
     workBlockClampedAt: ISODateTime | null;
     suppressedBlocksAfterHomeArrival: number;
   };
+  /**
+   * Time Engine 2.11 — diagnostik för open active_time_registration anchor
+   * vs. senare verkliga motorblock. Anchor får aldrig förlängas eller skapa
+   * synthetic-block som visuellt ligger ovanpå senare engine-evidens
+   * (verklig transport, work på annan target, känd plats, private residence).
+   */
+  activeTimerOverlapDiagnostics?: {
+    activeTimerAnchorsFound: number;
+    activeTimerAnchorsExtended: number;
+    activeTimerAnchorsClampedByLaterBlock: number;
+    syntheticActiveTimerBlocksCreated: number;
+    syntheticActiveTimerBlocksSkippedDueToEngineBlocks: number;
+    overlappingWorkBlocksDetected: number;
+    overlappingWorkBlocksResolved: number;
+    examples: Array<{
+      activeTimerTarget: string | null;
+      activeTimerStart: ISODateTime;
+      originalAnchorStart: ISODateTime | null;
+      originalAnchorEnd: ISODateTime | null;
+      clampedAnchorEnd: ISODateTime | null;
+      conflictingBlockLabel: string | null;
+      conflictingBlockStart: ISODateTime | null;
+      conflictingBlockEnd: ISODateTime | null;
+      reason: string;
+    }>;
+  };
 }
 
 /**
@@ -1925,6 +1951,24 @@ export function buildReportCandidateBlocks(
     | NonNullable<ReportCandidateSummary['openActiveTimerPrivateResidenceStatus']>
     | undefined = undefined;
 
+  // Time Engine 2.11 — Active timer overlap diagnostics. Active timer-ankaret
+  // får aldrig förlängas (eller spawnas som synthetic block) ovanpå senare
+  // verkliga motorblock (real transport, annan-target work, private_residence,
+  // känd plats med engine-evidens).
+  const activeTimerOverlapDiag: NonNullable<ReportCandidateSummary['activeTimerOverlapDiagnostics']> = {
+    activeTimerAnchorsFound: 0,
+    activeTimerAnchorsExtended: 0,
+    activeTimerAnchorsClampedByLaterBlock: 0,
+    syntheticActiveTimerBlocksCreated: 0,
+    syntheticActiveTimerBlocksSkippedDueToEngineBlocks: 0,
+    overlappingWorkBlocksDetected: 0,
+    overlappingWorkBlocksResolved: 0,
+    examples: [],
+  };
+  const pushOverlapExample = (ex: NonNullable<ReportCandidateSummary['activeTimerOverlapDiagnostics']>['examples'][number]) => {
+    if (activeTimerOverlapDiag.examples.length < 20) activeTimerOverlapDiag.examples.push(ex);
+  };
+
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
     const startedMs = new Date(openCtx.startedAtIso).getTime();
@@ -1937,6 +1981,36 @@ export function buildReportCandidateBlocks(
       if (!openTargetKey) return false;
       if (!r.targetId) return false;
       return `${r.targetType ?? ''}::${r.targetId}` === openTargetKey;
+    };
+
+    // Time Engine 2.11 — hård-break efter active timer:
+    //  - real transport (>= realTripMinDistanceMeters)
+    //  - work-block med ANNAN target än aktiv registration
+    //  - private_residence (boende / hemma)
+    //  - block med private_residence-relaterade reviewReasons
+    const isHardBreakBlock = (r: ReportCandidateBlock): boolean => {
+      const dist = r.evidenceSummary?.distanceMeters ?? 0;
+      if (r.kind === 'transport' && dist >= policy.realTripMinDistanceMeters) return true;
+      if (
+        r.kind === 'work' &&
+        !!r.targetId &&
+        openTargetKey != null &&
+        !isOpenTarget(r)
+      ) return true;
+      if (r.targetType === 'private_residence') return true;
+      const reasons = r.reviewReasons ?? [];
+      if (reasons.some((rr) => rr === 'private_residence' || rr === 'private_residence_status' || rr === 'home_private_conflict')) return true;
+      return false;
+    };
+    const findFirstHardBreakAfter = (afterMs: number): { block: ReportCandidateBlock; startMs: number } | null => {
+      let best: { block: ReportCandidateBlock; startMs: number } | null = null;
+      for (const r of out) {
+        const sMs = new Date(r.startAt).getTime();
+        if (sMs <= afterMs) continue;
+        if (!isHardBreakBlock(r)) continue;
+        if (!best || sMs < best.startMs) best = { block: r, startMs: sMs };
+      }
+      return best;
     };
 
     // Hitta ankaret: senaste work-block (helst med matchande target) som
@@ -1956,57 +2030,103 @@ export function buildReportCandidateBlocks(
 
     // Skapa syntetiskt block om inget work-block matchar
     if (anchorIdx === -1 && openTargetKey) {
-      const synthEnd = new Date(Math.min(nowMs, dayCutoffMs)).toISOString();
-      const synthStart = openCtx.startedAtIso;
-      const dur = Math.max(1, Math.round((new Date(synthEnd).getTime() - startedMs) / 60_000));
-      const synth: ReportCandidateBlock = {
-        id: '',
-        kind: 'work',
-        startAt: synthStart,
-        endAt: synthEnd,
-        durationMinutes: dur,
-        durationLabel: fmtDuration(dur),
-        title: openCtx.targetLabel ?? openCtx.currentLabel ?? 'Arbete',
-        subtitle: `${fmtClock(synthStart)}– pågår · ${fmtDuration(dur)}`,
-        targetType: openCtx.targetType,
-        targetId: openCtx.targetId,
-        targetLabel: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
-        fromLabel: null,
-        toLabel: null,
-        confidence: 'medium',
-        reviewState: 'ok',
-        reviewReasons: ['open_active_timer_anchor'],
-        warningLabel: null,
-        evidenceSummary: {
-          confirmedMinutes: 0,
-          probableMinutes: 0,
+      const liveEndMsRaw = Math.min(nowMs, dayCutoffMs);
+      // Time Engine 2.11 — synth-block får ALDRIG sträcka sig in i / ovanpå
+      // ett senare verkligt motorblock (real transport, annan-target work,
+      // private_residence). Klampa till första hard-break.startAt.
+      const firstBreak = findFirstHardBreakAfter(startedMs);
+      const synthEndMs = firstBreak ? Math.min(liveEndMsRaw, firstBreak.startMs) : liveEndMsRaw;
+      const synthDurMin = Math.round((synthEndMs - startedMs) / 60_000);
+      if (synthDurMin < 1) {
+        // Inget meningsfullt synth-block — engine har redan tydlig senare
+        // session. Använd active timer endast som live-metadata.
+        activeTimerOverlapDiag.syntheticActiveTimerBlocksSkippedDueToEngineBlocks += 1;
+        if (firstBreak) {
+          pushOverlapExample({
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            activeTimerStart: openCtx.startedAtIso,
+            originalAnchorStart: null,
+            originalAnchorEnd: null,
+            clampedAnchorEnd: null,
+            conflictingBlockLabel: firstBreak.block.targetLabel ?? firstBreak.block.title ?? null,
+            conflictingBlockStart: firstBreak.block.startAt,
+            conflictingBlockEnd: firstBreak.block.endAt,
+            reason: 'synthetic_active_timer_block_skipped_due_to_later_engine_block',
+          });
+        }
+      } else {
+        const synthEnd = new Date(synthEndMs).toISOString();
+        const synthStart = openCtx.startedAtIso;
+        const dur = Math.max(1, synthDurMin);
+        const synth: ReportCandidateBlock = {
+          id: '',
+          kind: 'work',
+          startAt: synthStart,
+          endAt: synthEnd,
+          durationMinutes: dur,
+          durationLabel: fmtDuration(dur),
+          title: openCtx.targetLabel ?? openCtx.currentLabel ?? 'Arbete',
+          subtitle: firstBreak
+            ? `${fmtClock(synthStart)}–${fmtClock(synthEnd)} · ${fmtDuration(dur)}`
+            : `${fmtClock(synthStart)}– pågår · ${fmtDuration(dur)}`,
+          targetType: openCtx.targetType,
+          targetId: openCtx.targetId,
+          targetLabel: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+          fromLabel: null,
+          toLabel: null,
+          confidence: 'medium',
+          reviewState: 'ok',
+          reviewReasons: ['open_active_timer_anchor'],
+          warningLabel: firstBreak ? 'Aktiv timer avbruten av senare platsbevis' : null,
+          evidenceSummary: {
+            confirmedMinutes: 0,
+            probableMinutes: 0,
+            signalGapMinutes: 0,
+            transportMinutes: 0,
+            unknownMinutes: 0,
+            presenceBlockCount: 0,
+            suppressedSignalGapBlockCount: 0,
+            suppressedUnknownBlockCount: 0,
+            suppressedZeroLengthBlockCount: 0,
+          },
+          sourcePresenceBlockIds: [],
+          hiddenSignalGapIds: [],
+          hiddenPresenceBlockIds: [],
           signalGapMinutes: 0,
-          transportMinutes: 0,
-          unknownMinutes: 0,
-          presenceBlockCount: 0,
-          suppressedSignalGapBlockCount: 0,
-          suppressedUnknownBlockCount: 0,
-          suppressedZeroLengthBlockCount: 0,
-        },
-        sourcePresenceBlockIds: [],
-        hiddenSignalGapIds: [],
-        hiddenPresenceBlockIds: [],
-        signalGapMinutes: 0,
-        firstConfirmedAt: null,
-        lastConfirmedAt: null,
-        isOngoing: true,
-      };
-      // sätt in i sorterad ordning
-      let insertAt = out.length;
-      for (let k = 0; k < out.length; k++) {
-        if (out[k].startAt > synthStart) { insertAt = k; break; }
+          firstConfirmedAt: null,
+          lastConfirmedAt: null,
+          isOngoing: !firstBreak,
+        };
+        if (firstBreak) {
+          synth.warningReasons = ['active_timer_context_cut_by_later_engine_block'];
+          synth.reviewReasons.push('active_timer_clamped_by_later_block');
+          activeTimerOverlapDiag.activeTimerAnchorsClampedByLaterBlock += 1;
+          pushOverlapExample({
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            activeTimerStart: openCtx.startedAtIso,
+            originalAnchorStart: synthStart,
+            originalAnchorEnd: new Date(liveEndMsRaw).toISOString(),
+            clampedAnchorEnd: synthEnd,
+            conflictingBlockLabel: firstBreak.block.targetLabel ?? firstBreak.block.title ?? null,
+            conflictingBlockStart: firstBreak.block.startAt,
+            conflictingBlockEnd: firstBreak.block.endAt,
+            reason: 'active_timer_context_cut_by_later_engine_block',
+          });
+        }
+        // sätt in i sorterad ordning
+        let insertAt = out.length;
+        for (let k = 0; k < out.length; k++) {
+          if (out[k].startAt > synthStart) { insertAt = k; break; }
+        }
+        out.splice(insertAt, 0, synth);
+        anchorIdx = insertAt;
+        activeTimerOverlapDiag.syntheticActiveTimerBlocksCreated += 1;
       }
-      out.splice(insertAt, 0, synth);
-      anchorIdx = insertAt;
     }
 
     if (anchorIdx >= 0) {
       const anchor = out[anchorIdx];
+      activeTimerOverlapDiag.activeTimerAnchorsFound += 1;
       // Adoptera open-target på ankaret om det saknar target
       if (!anchor.targetId && openCtx.targetId) {
         anchor.targetType = openCtx.targetType;
@@ -2231,16 +2351,52 @@ export function buildReportCandidateBlocks(
           `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
       } else {
         // Ingen home-stay — gammal beteende: förläng till min(now, dayEnd).
-        const targetEndMs = Math.min(nowMs, dayCutoffMs);
+        // Time Engine 2.11 — men ALDRIG förbi senare verkligt motorblock.
+        const anchorStartMs = new Date(anchor.startAt).getTime();
+        const liveEndMsRaw2 = Math.min(nowMs, dayCutoffMs);
+        const firstBreak2 = findFirstHardBreakAfter(anchorStartMs);
+        const breakStartMs = firstBreak2 ? firstBreak2.startMs : Number.POSITIVE_INFINITY;
+        const targetEndMs = Math.min(liveEndMsRaw2, breakStartMs);
+        const wasClampedByBreak = firstBreak2 != null && breakStartMs < liveEndMsRaw2;
+
         if (targetEndMs > anchorEndMsRaw) {
           anchor.endAt = new Date(targetEndMs).toISOString();
           anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
           anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+          activeTimerOverlapDiag.activeTimerAnchorsExtended += 1;
+        } else if (wasClampedByBreak && anchorEndMsRaw > breakStartMs) {
+          // Ankaret var redan extended förbi den hårda breaken — klampa bakåt.
+          anchor.endAt = new Date(breakStartMs).toISOString();
+          anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
+          anchor.durationLabel = fmtDuration(anchor.durationMinutes);
         }
-        anchor.isOngoing = true;
-        anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
-        anchor.subtitle =
-          `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
+
+        if (wasClampedByBreak) {
+          anchor.isOngoing = false;
+          anchor.warningReasons = Array.from(new Set([
+            ...(anchor.warningReasons ?? []),
+            'active_timer_context_cut_by_later_engine_block',
+          ]));
+          anchor.warningLabel = 'Aktiv timer avbruten av senare platsbevis';
+          anchor.subtitle = `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
+          activeTimerOverlapDiag.activeTimerAnchorsClampedByLaterBlock += 1;
+          pushOverlapExample({
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            activeTimerStart: openCtx.startedAtIso,
+            originalAnchorStart: anchor.startAt,
+            originalAnchorEnd: new Date(Math.max(anchorEndMsRaw, liveEndMsRaw2)).toISOString(),
+            clampedAnchorEnd: anchor.endAt,
+            conflictingBlockLabel: firstBreak2!.block.targetLabel ?? firstBreak2!.block.title ?? null,
+            conflictingBlockStart: firstBreak2!.block.startAt,
+            conflictingBlockEnd: firstBreak2!.block.endAt,
+            reason: 'active_timer_context_cut_by_later_engine_block',
+          });
+        } else {
+          anchor.isOngoing = true;
+          anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
+          anchor.subtitle =
+            `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
+        }
       }
 
       anchor.reviewState = 'ok';
@@ -2359,6 +2515,97 @@ export function buildReportCandidateBlocks(
   }
 
   // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 4.5 — preventOverlappingWorkBlocks
+  //
+  // Säkerhetsnät: två work-block med olika target får aldrig överlappa
+  // visuellt. Active timer-anchor är SVAGARE än verklig engine-evidens.
+  // Prioritet (störst vinner):
+  //   1. private_residence
+  //   2. känd plats / project / booking / warehouse target
+  //   3. real transport (>= realTripMinDistanceMeters)
+  //   4. open_active_timer_anchor (active_time_registration)
+  //
+  // Om två work-block överlappar med olika target klipps anchor-blocket
+  // (eller det svagaste) bakåt så det slutar vid det andras startAt.
+  // ───────────────────────────────────────────────────────────────────────
+  {
+    const blockStrength = (b: ReportCandidateBlock): number => {
+      const reasons = b.reviewReasons ?? [];
+      if (b.targetType === 'private_residence' || reasons.includes('private_residence')) return 100;
+      if (reasons.includes('open_active_timer_anchor')) return 30;
+      // Verklig engine-target med stark evidens
+      if (b.kind === 'work' && b.targetId) {
+        const onsiteEv = (b.evidenceSummary?.confirmedMinutes ?? 0) + (b.evidenceSummary?.probableMinutes ?? 0);
+        if (onsiteEv > 0) return 80;
+        return 60;
+      }
+      if (b.kind === 'transport') {
+        const dist = b.evidenceSummary?.distanceMeters ?? 0;
+        if (dist >= policy.realTripMinDistanceMeters) return 50;
+        return 20;
+      }
+      return 10;
+    };
+
+    out.sort((a, b) => a.startAt.localeCompare(b.startAt));
+    for (let i = 0; i < out.length; i++) {
+      const a = out[i];
+      if (a.kind !== 'work') continue;
+      const aEnd = new Date(a.endAt).getTime();
+      const aStart = new Date(a.startAt).getTime();
+      for (let j = i + 1; j < out.length; j++) {
+        const b = out[j];
+        if (b.kind !== 'work') continue;
+        const bStart = new Date(b.startAt).getTime();
+        if (bStart >= aEnd) break;
+        // Overlapp: a slutar efter b startar.
+        const sameTarget = a.targetId && b.targetId && a.targetId === b.targetId;
+        if (sameTarget) continue;
+        activeTimerOverlapDiag.overlappingWorkBlocksDetected += 1;
+        const aS = blockStrength(a);
+        const bS = blockStrength(b);
+        // Klipp den svagare. Vid lika styrka — klipp den senare (b)
+        // tillbaka? Nej, behåll a oförändrat och klipp b? Det förstör
+        // start. Klipp istället den svagare så den slutar/startar vid
+        // den starkares gräns.
+        const loser = aS <= bS ? a : b;
+        const winner = loser === a ? b : a;
+        if (loser === a) {
+          // klipp a:s slut till winner.start
+          if (bStart > aStart + 60_000) {
+            a.endAt = b.startAt;
+            a.durationMinutes = minutesBetween(a.startAt, a.endAt);
+            a.durationLabel = fmtDuration(a.durationMinutes);
+            a.isOngoing = false;
+            a.warningReasons = Array.from(new Set([
+              ...(a.warningReasons ?? []),
+              'active_timer_target_conflicts_with_engine_location',
+            ]));
+            a.warningLabel = a.warningLabel ?? 'Aktiv timer avbruten av senare platsbevis';
+            a.subtitle = `${fmtClock(a.startAt)}–${fmtClock(a.endAt)} · ${fmtDuration(a.durationMinutes)}`;
+            activeTimerOverlapDiag.overlappingWorkBlocksResolved += 1;
+            pushOverlapExample({
+              activeTimerTarget: a.targetLabel ?? a.title ?? null,
+              activeTimerStart: a.startAt,
+              originalAnchorStart: a.startAt,
+              originalAnchorEnd: new Date(aEnd).toISOString(),
+              clampedAnchorEnd: a.endAt,
+              conflictingBlockLabel: winner.targetLabel ?? winner.title ?? null,
+              conflictingBlockStart: winner.startAt,
+              conflictingBlockEnd: winner.endAt,
+              reason: 'overlap_resolved_clamped_weaker_block',
+            });
+          }
+        } else {
+          // loser === b: klipp b:s start framåt till a.endAt (sällan
+          // praktiskt — vi klipper hellre slutet på a om b är starkare).
+          // Lämna b orört, justera a istället om a är svagare hanteras ovan.
+        }
+      }
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
   // POST-PASS 5: consolidateReportBlocksIntoSessions
   //
   // Sista Time Engine pass innan summary_json / display_blocks_json /
@@ -2446,6 +2693,7 @@ export function buildReportCandidateBlocks(
     },
     sessionConsolidationDiagnostics: sessionDiagnostics,
     openActiveTimerPrivateResidenceStatus: privateResidenceStatusDiag,
+    activeTimerOverlapDiagnostics: activeTimerOverlapDiag,
   };
   for (const r of out) {
     if (r.kind === 'work') {
