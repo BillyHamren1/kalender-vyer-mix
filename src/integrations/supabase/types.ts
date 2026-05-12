@@ -8719,6 +8719,7 @@ export type Database = {
         | "app_manual"
         | "system_inferred"
         | "cron"
+        | "geofence"
       assistant_event_suggested_action:
         | "start_workday"
         | "start_activity"
@@ -8898,6 +8899,7 @@ export const Constants = {
         "app_manual",
         "system_inferred",
         "cron",
+        "geofence",
       ],
       assistant_event_suggested_action: [
         "start_workday",
