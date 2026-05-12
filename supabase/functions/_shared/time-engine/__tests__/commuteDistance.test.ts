@@ -111,7 +111,7 @@ Deno.test('4.6 short commute (<150 km): day ends at leaveWorkAt, not at residenc
     nowIso: '2026-05-12T18:00:00Z',
   });
   assertEquals(r.dayEnded, true);
-  assertEquals(r.endedAt, '2026-05-12T16:00:00.000Z');
+  assertEquals(r.endedAt, '2026-05-12T16:00:00Z');
   assertEquals(r.endReason, 'left_last_work_before_private_residence_commute');
 });
 
@@ -133,7 +133,7 @@ Deno.test('4.6 long commute (>=150 km): day ends at residenceEnterAt', () => {
     nowIso: '2026-05-12T20:00:00Z',
   });
   assertEquals(r.dayEnded, true);
-  assertEquals(r.endedAt, '2026-05-12T18:30:00.000Z');
+  assertEquals(r.endedAt, '2026-05-12T18:30:00Z');
   assertEquals(r.endReason, 'long_distance_homebound_travel');
 });
 
@@ -157,7 +157,7 @@ Deno.test('4.6 no transport between work and residence → treated as short comm
     homeAnchors: [],
     nowIso: '2026-05-12T18:00:00Z',
   });
-  assertEquals(r.endedAt, '2026-05-12T16:00:00.000Z');
+  assertEquals(r.endedAt, '2026-05-12T16:00:00Z');
   assertEquals(r.endReason, 'left_last_work_before_private_residence_commute');
   assert(r.evidence.some((e) => e.includes('commute_m=0')));
 });
