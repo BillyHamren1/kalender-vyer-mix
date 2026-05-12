@@ -248,17 +248,51 @@ export function computeDayEndDecision(
     const lastWorkEnd = lastWork?.endAt ?? null;
     const lastEv = lastEvidenceFromBlocks(blocks);
 
-    // 4a. last block kind = private_residence-marked work that auto-closed
+    // 4a. last block kind = private_residence-marked work that auto-closed.
+    // Time Engine 4.6 — 15-mils-regel:
+    //   - residenceEnterAt = autoClosedAt
+    //   - leaveWorkAt      = autoClosed.lastConfirmedAt ?? autoClosed.endAt
+    //   - commuteDistance  = summa transport mellan leaveWorkAt..residenceEnterAt
+    //   - commuteDistance >= 150 km → restid räknas som arbete, dag slutar
+    //                                 vid residenceEnterAt
+    //   - commuteDistance <  150 km → restid är privat, dag slutar vid
+    //                                 leaveWorkAt (kalendern går INTE till
+    //                                 ankomst boende)
+    //   - 90-min-vistelse hemma används bara som bekräftelse, inte som
+    //     sluttid (autoClosedAt = stay.startMs ≈ residenceEnterAt).
     const autoClosed = blocks.find((b) => b.autoClosedByPrivateResidence);
     if (autoClosed && autoClosed.autoClosedAt) {
-      evidence.push(
-        `private_residence_auto_close at=${autoClosed.autoClosedAt} ` +
-          `duration=${autoClosed.privateResidenceDurationMinutes ?? '?'}min`,
+      const residenceEnterAt = autoClosed.autoClosedAt;
+      const leaveWorkAt = autoClosed.lastConfirmedAt ?? autoClosed.endAt ?? residenceEnterAt;
+      const commuteDistanceMeters = sumCommuteDistanceMeters(
+        blocks,
+        leaveWorkAt,
+        residenceEnterAt,
       );
+      const longCommute = commuteDistanceMeters >= COMMUTE_DISTANCE_THRESHOLD_METERS;
+
+      evidence.push(
+        `private_residence_auto_close residence_enter=${residenceEnterAt} ` +
+          `leave_work=${leaveWorkAt} commute_m=${commuteDistanceMeters} ` +
+          `threshold_m=${COMMUTE_DISTANCE_THRESHOLD_METERS} ` +
+          `stay_min=${autoClosed.privateResidenceDurationMinutes ?? '?'}`,
+      );
+
+      if (longCommute) {
+        return {
+          dayEnded: true,
+          endedAt: clampToDay(residenceEnterAt, dayStartUtcIso, dayEndUtcIso),
+          endReason: 'long_distance_homebound_travel',
+          confidence: 'high',
+          evidence,
+          diagnostic: 'active_timer_open_but_not_enough_engine_evidence',
+        };
+      }
+
       return {
         dayEnded: true,
-        endedAt: clampToDay(autoClosed.autoClosedAt, dayStartUtcIso, dayEndUtcIso),
-        endReason: 'private_residence_after_last_work',
+        endedAt: clampToDay(leaveWorkAt, dayStartUtcIso, dayEndUtcIso),
+        endReason: 'left_last_work_before_private_residence_commute',
         confidence: 'high',
         evidence,
         diagnostic: 'active_timer_open_but_not_enough_engine_evidence',
