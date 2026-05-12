@@ -1072,6 +1072,35 @@ Deno.serve(async (req) => {
 
         await checkIfAllPacked(supabase, packingId, ORG_ID)
 
+        // Mirror WMS allocations (both successful + already_allocated) so frontend Realtime fires.
+        try {
+          const allSerials = [
+            ...(Array.isArray(allocateData.results)
+              ? allocateData.results.map((r: any) => r.serial_number)
+              : [serialNumber]),
+            ...alreadyAllocatedSerials,
+          ].filter(Boolean)
+          const uniqSerials = Array.from(new Set(allSerials))
+          if (uniqSerials.length > 0) {
+            await mirrorWmsAllocations(supabase, {
+              orgId: ORG_ID,
+              packingId,
+              reservationId: bookingNumber,
+              rows: uniqSerials.map((s: string) => ({
+                serial_number: s,
+                instance_id: wmsInstanceId,
+                item_type_id: wmsItemTypeId,
+                sku: wmsSku,
+                item_type_name: wmsItemTypeName,
+              })),
+              source: 'verify_product',
+            })
+          }
+        } catch (mirrorErr) {
+          console.warn('[verify_product] mirror skipped', mirrorErr)
+        }
+
+
         return json({
           success: true,
           overscan: isAlreadyFull,
