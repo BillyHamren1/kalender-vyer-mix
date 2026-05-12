@@ -131,6 +131,17 @@ export interface ReportCandidateBlock {
    *  uncertainty after consolidation (signalGapMinutes>0, signalGapCount>0,
    *  or 'signal_gap_inside_session' warning). Diagnostics + UI hint. */
   hasSignalUncertainty?: boolean;
+  /** Time Engine 2.11 — set when an open active timer's anchor was clamped
+   *  because the staff has been at a private_residence ≥ 90 minutes. The
+   *  block's endAt is moved back to the moment of arrival home and isOngoing
+   *  is forced to false. Diagnostics + UI hint. */
+  autoClosedByPrivateResidence?: boolean;
+  /** Time Engine 2.11 — ISO timestamp at which the work anchor was auto-closed
+   *  (== privateResidenceStay.startMs). */
+  autoClosedAt?: ISODateTime | null;
+  /** Time Engine 2.11 — minutes the staff has been continuously at the
+   *  private_residence at the moment we clamped the work anchor. */
+  privateResidenceDurationMinutes?: number;
   /**
    * Förberedd kontext för framtida AI-granskning. Sätts EJ av denna builder.
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
@@ -314,6 +325,26 @@ export interface ReportCandidateSummary {
       sessionEndAt: ISODateTime;
       absorbedKinds: string[];
     }>;
+  };
+  /**
+   * Time Engine 2.11 — diagnostics for the "Jag är hemma" / private_residence
+   * status row that's shown immediately when a private_residence stay starts
+   * inside the open active timer window. After 90 minutes the previous work
+   * session is clamped and `autoEndTriggered` flips true.
+   */
+  openActiveTimerPrivateResidenceStatus?: {
+    detected: boolean;
+    label: 'Jag är hemma';
+    privateResidenceLabel: string | null;
+    privateResidenceStartAt: ISODateTime | null;
+    privateResidenceEndAt: ISODateTime | null;
+    privateResidenceDurationMinutes: number | null;
+    isOngoing: boolean;
+    shownImmediately: boolean;
+    thresholdMinutes: 90;
+    autoEndTriggered: boolean;
+    workBlockClampedAt: ISODateTime | null;
+    suppressedBlocksAfterHomeArrival: number;
   };
 }
 
@@ -1873,14 +1904,21 @@ export function buildReportCandidateBlocks(
   // transport-rader UTAN faktisk förflyttning som ligger efter
   // openActiveStartedAt absorberas in i ETT sammanhållet pågående
   // arbetsblock — inte synas som separata GRANSKA/Okänd plats/Transport-
-  // rader. Privata zoner (boende) är redan bortfiltrerade i Engine 4.
+  // rader. Privata zoner (boende) hanteras separat (Time Engine 2.11):
+  // direkt synlig "Jag är hemma"-status + 90-min auto-end på work-anchor.
   //
   // Stoppvillkor (segmenten EFTER ankaret behåller sin egen rad):
   //   - work-block med ANNAN target än aktiv registration
   //   - transport med distance >= realTripMinDistanceMeters (verklig resa)
   //
-  // Inga writes till time_reports/workdays/LTE/travel.
+  // Inga writes till time_reports/workdays/LTE/travel/active_time_registrations.
   // ───────────────────────────────────────────────────────────────────────
+  // Time Engine 2.11 — diagnostics row för "Jag är hemma" status.
+  const PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN = 90;
+  let privateResidenceStatusDiag:
+    | NonNullable<ReportCandidateSummary['openActiveTimerPrivateResidenceStatus']>
+    | undefined = undefined;
+
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
     const startedMs = new Date(openCtx.startedAtIso).getTime();
@@ -2000,16 +2038,178 @@ export function buildReportCandidateBlocks(
         break;
       }
 
-      // Förläng ankaret till min(now, dayEnd) om timern fortfarande är öppen
-      const targetEndMs = Math.min(nowMs, dayCutoffMs);
-      const anchorEndMs = new Date(anchor.endAt).getTime();
-      if (targetEndMs > anchorEndMs) {
-        anchor.endAt = new Date(targetEndMs).toISOString();
+      // ─────────────────────────────────────────────────────────────────
+      // Time Engine 2.11 — "Jag är hemma" + 90-min auto-end on home arrival.
+      //
+      // Hitta första private_residence-vistelse efter aktiv timer-start.
+      // Källan är `excludedPrivateResidenceBlocks` (filtrerad innan builder
+      // körs där `evidence.privateResidence === true`). Vi tar även hänsyn
+      // till block i `out` som markerats med private_residence-relaterade
+      // reviewReasons / targetType, så identifieringen blir robust.
+      // ─────────────────────────────────────────────────────────────────
+      type PrivateResidenceStay = {
+        startMs: number;
+        endMs: number;
+        durationMinutes: number;
+        label: string;
+        targetId: string | null;
+        isOngoing: boolean;
+        sourcePresenceBlockIds: string[];
+      };
+
+      const PRIVATE_RESIDENCE_REASON_HINTS = new Set<string>([
+        'private_residence',
+        'private_zone',
+        'open_active_timer_in_private_residence',
+        'home_private_conflict',
+      ]);
+
+      const isPrivateResidenceCandidateBlock = (b: ReportCandidateBlock): boolean => {
+        if (b.targetType === 'private_residence') return true;
+        const reasons = b.reviewReasons ?? [];
+        if (reasons.some((rr) => PRIVATE_RESIDENCE_REASON_HINTS.has(rr))) return true;
+        return false;
+      };
+
+      const findPrivateResidenceStayAfter = (
+        openStartMs: number,
+      ): PrivateResidenceStay | null => {
+        // Källa 1 — Engine-4-exkluderade presence-block (privacy-polygon).
+        const fromExcluded = (excludedPrivateResidenceBlocks ?? [])
+          .filter((b) => new Date(b.endAt).getTime() > openStartMs)
+          .map((b) => ({
+            startMs: Math.max(openStartMs, new Date(b.startAt).getTime()),
+            endMs: new Date(b.endAt).getTime(),
+            label:
+              ((b.evidence as any)?.privateResidenceLabel as string | undefined) ??
+              'Hemma',
+            targetId:
+              ((b.evidence as any)?.privateResidenceTargetId as string | undefined) ?? null,
+            sourceId: b.id,
+          }));
+
+        // Källa 2 — block som redan ligger i `out` med private-residence-hint.
+        const fromCandidates = out
+          .filter((r) => {
+            const e = new Date(r.endAt).getTime();
+            return e > openStartMs && isPrivateResidenceCandidateBlock(r);
+          })
+          .map((r) => ({
+            startMs: Math.max(openStartMs, new Date(r.startAt).getTime()),
+            endMs: new Date(r.endAt).getTime(),
+            label: r.targetLabel ?? r.title ?? 'Hemma',
+            targetId: r.targetId ?? null,
+            sourceId: r.id,
+          }));
+
+        const merged = [...fromExcluded, ...fromCandidates]
+          .filter((s) => s.endMs > s.startMs)
+          .sort((a, b) => a.startMs - b.startMs);
+        if (merged.length === 0) return null;
+
+        // Slå ihop närliggande private-residence-segment (gap < 20 min) som
+        // sannolikt hör till samma hemmavistelse.
+        const MERGE_GAP_MS = 20 * 60_000;
+        let stayStart = merged[0].startMs;
+        let stayEnd = merged[0].endMs;
+        let label = merged[0].label;
+        let targetId = merged[0].targetId;
+        const ids: string[] = [merged[0].sourceId];
+        for (let m = 1; m < merged.length; m++) {
+          if (merged[m].startMs - stayEnd <= MERGE_GAP_MS) {
+            stayEnd = Math.max(stayEnd, merged[m].endMs);
+            ids.push(merged[m].sourceId);
+            if (!targetId && merged[m].targetId) targetId = merged[m].targetId;
+            if ((!label || label === 'Hemma') && merged[m].label) label = merged[m].label;
+          } else {
+            // Endast första vistelsen är intressant för auto-end-policyn.
+            break;
+          }
+        }
+
+        const isOngoing = stayEnd >= nowMs - 5 * 60_000;
+        const effectiveEnd = isOngoing ? Math.min(nowMs, dayCutoffMs) : stayEnd;
+        const durationMinutes = Math.max(0, Math.round((effectiveEnd - stayStart) / 60_000));
+        return {
+          startMs: stayStart,
+          endMs: effectiveEnd,
+          durationMinutes,
+          label,
+          targetId,
+          isOngoing,
+          sourcePresenceBlockIds: ids.filter((x) => typeof x === 'string' && x.length > 0),
+        };
+      };
+
+      const stay = findPrivateResidenceStayAfter(startedMs);
+      const autoEndTriggered =
+        !!stay && stay.durationMinutes >= PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN;
+
+      // 1) Klampa eller förläng anchor.endAt baserat på home-stay.
+      const anchorEndMsRaw = new Date(anchor.endAt).getTime();
+      const liveEndMs = Math.min(nowMs, dayCutoffMs);
+      let workBlockClampedAt: string | null = null;
+
+      if (stay && autoEndTriggered) {
+        // ≥90 min hemma → avsluta sessionen bakåt vid hemkomsttiden.
+        const clampMs = Math.max(new Date(anchor.startAt).getTime() + 60_000, stay.startMs);
+        anchor.endAt = new Date(clampMs).toISOString();
         anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
         anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+        anchor.isOngoing = false;
+        anchor.autoClosedByPrivateResidence = true;
+        anchor.autoClosedAt = anchor.endAt;
+        anchor.privateResidenceDurationMinutes = stay.durationMinutes;
+        anchor.warningReasons = Array.from(new Set([
+          ...(anchor.warningReasons ?? []),
+          'active_timer_auto_closed_by_private_residence',
+        ]));
+        if (!anchor.reviewReasons.includes('open_active_timer_reached_private_residence')) {
+          anchor.reviewReasons.push('open_active_timer_reached_private_residence');
+        }
+        if (!anchor.reviewReasons.includes('private_residence_auto_end_after_90_min')) {
+          anchor.reviewReasons.push('private_residence_auto_end_after_90_min');
+        }
+        anchor.warningLabel = 'Avslutad – hemkomst (90 min)';
+        anchor.subtitle =
+          `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
+        workBlockClampedAt = anchor.endAt;
+      } else if (stay && !autoEndTriggered) {
+        // <90 min hemma → markera anchor som icke-pågående utan att klampa
+        // bakåt; vi vet att personen just nu är hemma, men vi väntar med
+        // hård clamp.
+        if (anchorEndMsRaw < liveEndMs) {
+          // Förläng INTE förbi hemkomsten — låt blocket sluta där det slutar
+          // och låt "Jag är hemma"-blocket ta över visuellt.
+          const safeEndMs = Math.min(liveEndMs, stay.startMs);
+          if (safeEndMs > anchorEndMsRaw) {
+            anchor.endAt = new Date(safeEndMs).toISOString();
+            anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
+            anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+          }
+        }
+        anchor.isOngoing = false;
+        anchor.warningReasons = Array.from(new Set([
+          ...(anchor.warningReasons ?? []),
+          'active_timer_currently_at_private_residence',
+        ]));
+        anchor.warningLabel = anchor.warningLabel ?? 'Pausad – hemma just nu';
+        anchor.subtitle =
+          `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
+      } else {
+        // Ingen home-stay — gammal beteende: förläng till min(now, dayEnd).
+        const targetEndMs = Math.min(nowMs, dayCutoffMs);
+        if (targetEndMs > anchorEndMsRaw) {
+          anchor.endAt = new Date(targetEndMs).toISOString();
+          anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
+          anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+        }
+        anchor.isOngoing = true;
+        anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
+        anchor.subtitle =
+          `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
       }
 
-      anchor.isOngoing = true;
       anchor.reviewState = 'ok';
       if (!anchor.reviewReasons.includes('open_active_timer_consolidated') && absorbedAny) {
         anchor.reviewReasons.push('open_active_timer_consolidated');
@@ -2018,63 +2218,110 @@ export function buildReportCandidateBlocks(
       anchor.reviewReasons = anchor.reviewReasons.filter(
         (rr) => !BLOCKING_REVIEW_REASONS.has(rr) || WARNING_ONLY_REASONS.has(rr),
       );
-      anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
-      anchor.subtitle = `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
-    }
 
-    // Privat plats + öppen timer: lägg till HÖGST ETT diagnostics-block
-    // (needs_review) som signalerar att aktiv arbetstid pågår från en
-    // privat plats. Detta hindrar repetition av många små "Boende"-rader.
-    const privateInWindow = excludedPrivateResidenceBlocks.filter((b) => {
-      const e = new Date(b.endAt).getTime();
-      const s = new Date(b.startAt).getTime();
-      return e > startedMs && s < dayCutoffMs;
-    });
-    const hasOngoingPrivateNote = out.some((r) =>
-      (r.reviewReasons ?? []).includes('open_active_timer_in_private_residence'),
-    );
-    if (privateInWindow.length > 0 && !hasOngoingPrivateNote) {
-      const noteStart = privateInWindow[0].startAt;
-      const noteEnd = privateInWindow[privateInWindow.length - 1].endAt;
-      const noteDur = Math.max(1, minutesBetween(noteStart, noteEnd));
-      out.push({
-        id: '',
-        kind: 'needs_review',
-        startAt: noteStart,
-        endAt: noteEnd,
-        durationMinutes: noteDur,
-        durationLabel: fmtDuration(noteDur),
-        title: 'Aktiv timer från privat plats',
-        subtitle: `${fmtClock(noteStart)}–${fmtClock(noteEnd)} · ${fmtDuration(noteDur)}`,
-        targetType: null,
-        targetId: null,
-        targetLabel: null,
-        fromLabel: null,
-        toLabel: null,
-        confidence: 'low',
-        reviewState: 'needs_review',
-        reviewReasons: ['open_active_timer_in_private_residence'],
-        warningLabel: 'Pågår – aktiv timer i boende/privat zon',
-        evidenceSummary: {
-          confirmedMinutes: 0,
-          probableMinutes: 0,
+      // 2) "Jag är hemma" status-block + suppress brus efter hemkomst.
+      let suppressedAfterHomeArrival = 0;
+      if (stay) {
+        // Suppressa småblock efter hemkomsttiden: signal_gap, unknown,
+        // jitter-transport, soft needs_review. Riktig transport >=500m
+        // (ny arbetsresa) lämnas kvar.
+        const filtered: ReportCandidateBlock[] = [];
+        for (const r of out) {
+          const rStart = new Date(r.startAt).getTime();
+          if (rStart < stay.startMs) {
+            filtered.push(r);
+            continue;
+          }
+          // Skydda anchor + redan-private-residence-noteringar.
+          if (r === anchor) { filtered.push(r); continue; }
+          if (isPrivateResidenceCandidateBlock(r)) { filtered.push(r); continue; }
+
+          const dist = r.evidenceSummary?.distanceMeters ?? 0;
+          const isSoftNoise =
+            r.kind === 'unknown' ||
+            (r.kind === 'transport' && dist < policy.realTripMinDistanceMeters) ||
+            (r.kind === 'needs_review');
+          const isRealNewTrip =
+            r.kind === 'transport' && dist >= policy.realTripMinDistanceMeters;
+          if (isSoftNoise && !isRealNewTrip) {
+            suppressedAfterHomeArrival += 1;
+            continue;
+          }
+          filtered.push(r);
+        }
+        out.length = 0;
+        out.push(...filtered);
+
+        // Lägg in / behåll exakt ETT "Jag är hemma"-block.
+        const homeStartIso = new Date(stay.startMs).toISOString();
+        const homeEndIso = new Date(stay.endMs).toISOString();
+        const homeDur = Math.max(1, Math.round((stay.endMs - stay.startMs) / 60_000));
+        // Ta bort ev. äldre private-residence-noteringar i out.
+        for (let k = out.length - 1; k >= 0; k--) {
+          const r = out[k];
+          if ((r.reviewReasons ?? []).includes('private_residence_status')) {
+            out.splice(k, 1);
+          }
+        }
+        out.push({
+          id: '',
+          kind: 'needs_review', // bibehåller typkontrakt; reviewState='ok' + title styr UI
+          startAt: homeStartIso,
+          endAt: homeEndIso,
+          durationMinutes: homeDur,
+          durationLabel: fmtDuration(homeDur),
+          title: 'Jag är hemma',
+          subtitle: stay.isOngoing
+            ? `${fmtClock(homeStartIso)}– pågår · ${fmtDuration(homeDur)}`
+            : `${fmtClock(homeStartIso)}–${fmtClock(homeEndIso)} · ${fmtDuration(homeDur)}`,
+          targetType: 'private_residence',
+          targetId: stay.targetId,
+          targetLabel: stay.label || 'Hemma',
+          fromLabel: null,
+          toLabel: null,
+          confidence: 'high',
+          reviewState: 'ok',
+          // 'private_residence' finns i HARD_SESSION_BREAK_REASONS i
+          // consolidateReportBlocksIntoSessions → blocket kan aldrig
+          // absorberas in i FA Warehouse / work-session.
+          reviewReasons: ['private_residence_status', 'private_residence'],
+          warningLabel: stay.isOngoing ? 'Pågår – hemma' : null,
+          evidenceSummary: {
+            confirmedMinutes: 0,
+            probableMinutes: 0,
+            signalGapMinutes: 0,
+            transportMinutes: 0,
+            unknownMinutes: 0,
+            presenceBlockCount: stay.sourcePresenceBlockIds.length,
+            suppressedSignalGapBlockCount: 0,
+            suppressedUnknownBlockCount: 0,
+            suppressedZeroLengthBlockCount: 0,
+          },
+          sourcePresenceBlockIds: stay.sourcePresenceBlockIds,
+          hiddenSignalGapIds: [],
+          hiddenPresenceBlockIds: stay.sourcePresenceBlockIds,
           signalGapMinutes: 0,
-          transportMinutes: 0,
-          unknownMinutes: 0,
-          presenceBlockCount: privateInWindow.length,
-          suppressedSignalGapBlockCount: 0,
-          suppressedUnknownBlockCount: 0,
-          suppressedZeroLengthBlockCount: 0,
-        },
-        sourcePresenceBlockIds: privateInWindow.map((b) => b.id),
-        hiddenSignalGapIds: [],
-        hiddenPresenceBlockIds: privateInWindow.map((b) => b.id),
-        signalGapMinutes: 0,
-        firstConfirmedAt: null,
-        lastConfirmedAt: null,
-        isOngoing: false,
-      });
-      out.sort((a, b) => a.startAt.localeCompare(b.startAt));
+          firstConfirmedAt: null,
+          lastConfirmedAt: null,
+          isOngoing: stay.isOngoing,
+        });
+        out.sort((a, b) => a.startAt.localeCompare(b.startAt));
+      }
+
+      privateResidenceStatusDiag = {
+        detected: !!stay,
+        label: 'Jag är hemma',
+        privateResidenceLabel: stay?.label ?? null,
+        privateResidenceStartAt: stay ? new Date(stay.startMs).toISOString() : null,
+        privateResidenceEndAt: stay ? new Date(stay.endMs).toISOString() : null,
+        privateResidenceDurationMinutes: stay?.durationMinutes ?? null,
+        isOngoing: stay?.isOngoing ?? false,
+        shownImmediately: !!stay,
+        thresholdMinutes: PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN,
+        autoEndTriggered,
+        workBlockClampedAt,
+        suppressedBlocksAfterHomeArrival: suppressedAfterHomeArrival,
+      };
     }
   }
 
@@ -2165,6 +2412,7 @@ export function buildReportCandidateBlocks(
       clearWorkBlocksIncorrectlyReviewCount: 0,
     },
     sessionConsolidationDiagnostics: sessionDiagnostics,
+    openActiveTimerPrivateResidenceStatus: privateResidenceStatusDiag,
   };
   for (const r of out) {
     if (r.kind === 'work') {
