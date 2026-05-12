@@ -185,6 +185,8 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     const teamsByStaff = new Map<string, Array<{ teamId: string; teamName: string }>>();
     const formatTeamName = (id: string) =>
       id === 'team-11' ? 'Live'
+        : id === 'transport' ? 'Lager'
+        : id === 'warehouse' ? 'Lager'
         : id.startsWith('team-') ? 'Team ' + id.replace('team-', '')
         : id.startsWith('lager-') ? 'Lager ' + id.replace('lager-', '')
         : id;

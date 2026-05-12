@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { deriveStaffEvents } from "@/lib/staffCalendar/deriveStaffEvents";
 import { validateLargeProjectGrouping } from "@/lib/staffCalendar/validateLargeProjectGrouping";
 import { resolveLargeProjectMembershipFromRows } from "@/lib/largeProject/resolveLargeProjectMembership";
+import { formatTeamLabel } from "@/lib/teamLabel";
 
 export interface StaffResource {
   id: string;
@@ -313,7 +314,7 @@ export const getStaffCalendarEvents = async (
         eventType: d.phase,
         staffName: d.staffName,
         client: d.client,
-        teamName: d.teamId ? `Team ${d.teamId}` : undefined,
+        teamName: d.teamId ? formatTeamLabel(d.teamId) : undefined,
         largeProjectId: d.largeProjectId,
         largeProjectName: d.largeProjectName,
         consolidatedBookingIds: d.consolidatedBookingIds,

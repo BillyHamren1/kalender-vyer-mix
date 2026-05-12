@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay, addHours } from "date-fns";
+import { formatTeamLabel } from "@/lib/teamLabel";
 
 // === Map-specific types ===
 export interface OpsMapJob {
@@ -360,8 +361,8 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
       // Get primary team assignment
       const staffTeamAssign = assignments.filter(a => a.staff_id === s.id)[0];
       const teamId = staffTeamAssign?.team_id || staffBookingAssigns[0]?.team_id || null;
-      // Derive team name from team_id pattern "team-N"
-      const teamName = teamId ? teamId.replace('team-', 'Team ') : null;
+      // Centralized label (handles transport→Lager, team-11→Live, etc.)
+      const teamName = teamId ? formatTeamLabel(teamId) : null;
 
       return {
         id: s.id,

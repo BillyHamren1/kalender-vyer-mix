@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { formatTeamLabel } from '@/lib/teamLabel';
 
 export interface MonthlyBookingSchedule {
   id: string;
@@ -140,7 +141,7 @@ export const fetchMonthlyBookingSchedule = async (currentDate: Date): Promise<Mo
         internalNotes: booking.internalnotes,
         status: booking.status,
         teamId: dayTeams[0],
-        teamName: `Team ${dayTeams[0]}`
+        teamName: formatTeamLabel(dayTeams[0])
       });
     }
   }
