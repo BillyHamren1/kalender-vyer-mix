@@ -8038,6 +8038,57 @@ export type Database = {
           },
         ]
       }
+      wms_reservation_allocations: {
+        Row: {
+          allocated_at: string
+          created_at: string
+          id: string
+          instance_id: string | null
+          item_type_id: string | null
+          item_type_name: string | null
+          organization_id: string
+          packing_id: string
+          raw: Json | null
+          reservation_id: string
+          serial_number: string
+          sku: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          allocated_at?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          item_type_id?: string | null
+          item_type_name?: string | null
+          organization_id: string
+          packing_id: string
+          raw?: Json | null
+          reservation_id: string
+          serial_number: string
+          sku?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          allocated_at?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          item_type_id?: string | null
+          item_type_name?: string | null
+          organization_id?: string
+          packing_id?: string
+          raw?: Json | null
+          reservation_id?: string
+          serial_number?: string
+          sku?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       workday_flags: {
         Row: {
           assistant_decision_kind: string | null
