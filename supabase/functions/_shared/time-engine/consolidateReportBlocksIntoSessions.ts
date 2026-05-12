@@ -16,11 +16,19 @@
  * Inga writes till time_reports / workdays / location_time_entries /
  * travel_time_logs.
  *
- * Absorberas in i föregående work-blockets session:
- *   - needs_review (vilken anledning som helst — inkl. signal_gap_*,
- *     missing_transition_evidence, short_cross_target_movement,
- *     short_transport_to_unknown) NÄR ett work-block med samma target
- *     dyker upp efter rad-blocket
+ * Time Engine 2.10 — EN canonical lista (HARD_SESSION_BREAK_REASONS) styr
+ * både sandwich-passet och probabilistic-passet. Soft/signal-baserade
+ * needs_review-block absorberas. Hard needs_review-block bryter session
+ * och behålls som "Granska". Det får inte längre finnas två separata
+ * listor som kan glida isär.
+ *
+ * Absorberas in i föregående/efterföljande work-blockets session:
+ *   - needs_review ENDAST om reasons är tomma eller alla är soft/signal
+ *     (signal_gap_*, missing_transition_evidence, low_gps_signal,
+ *     speed_violation_no_distance, short_cross_target_movement,
+ *     short_transport_to_unknown, absorbed_micro_movement,
+ *     session_consolidated, uncertain_transition,
+ *     probabilistic_session_absorption) → isSoftAbsorbableNeedsReview()
  *   - unknown (vilken som helst storlek)
  *   - transport med distanceMeters < realTripMinDistanceMeters (jitter
  *     eller transport utan tydlig destination)
@@ -29,16 +37,16 @@
  * BRYTER session (block efter detta absorberas EJ):
  *   - work-block med ANNAN känd target
  *   - transport med distanceMeters >= realTripMinDistanceMeters (riktig
- *     resa till annan plats)
+ *     resa till annan plats) — speed_mps ensamt skapar aldrig transport
+ *   - block med någon reason i HARD_SESSION_BREAK_REASONS (t.ex.
+ *     unknown_place_no_anchor, conflicting_targets, private_residence,
+ *     workday_ended, planned_assignment_target_change, impossible_route,
+ *     signal_gap_unbound, unabsorbable_block …)
  *
- * Garantier:
- *   - Aldrig writes till time_reports/workdays/LTE/travel.
- *   - Riktig transport >= realTripMinDistanceMeters (default 500 m) till
- *     annan plats förblir egen rad.
- *   - GRANSKA blir aldrig automatiskt arbete utan ett efterföljande
- *     work-block med samma target som "binder" sessionen.
- *   - signalGapMinutes och internalMovementMinutes ökas på sessionen och
- *     visas som warning ("Signal saknades periodvis").
+ * Diagnostics:
+ *   - rejectedHardReviewAbsorptionCount + rejectedHardReviewAbsorptionReasons
+ *     räknar varje gång ett needs_review-block STOPPADES från absorption
+ *     på grund av en hard reason.
  */
 
 import type { ReportCandidateBlock } from './buildReportCandidateBlocks.ts';
