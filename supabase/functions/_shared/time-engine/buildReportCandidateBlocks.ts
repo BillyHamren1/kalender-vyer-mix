@@ -3013,6 +3013,7 @@ export function buildReportCandidateBlocks(
     sessionConsolidationDiagnostics: sessionDiagnostics,
     openActiveTimerPrivateResidenceStatus: privateResidenceStatusDiag,
     activeTimerOverlapDiagnostics: activeTimerOverlapDiag,
+    singleTimelineDiagnostics: singleTimelineDiag,
   };
   for (const r of out) {
     if (r.kind === 'work') {
