@@ -2351,16 +2351,52 @@ export function buildReportCandidateBlocks(
           `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
       } else {
         // Ingen home-stay — gammal beteende: förläng till min(now, dayEnd).
-        const targetEndMs = Math.min(nowMs, dayCutoffMs);
+        // Time Engine 2.11 — men ALDRIG förbi senare verkligt motorblock.
+        const anchorStartMs = new Date(anchor.startAt).getTime();
+        const liveEndMsRaw2 = Math.min(nowMs, dayCutoffMs);
+        const firstBreak2 = findFirstHardBreakAfter(anchorStartMs);
+        const breakStartMs = firstBreak2 ? firstBreak2.startMs : Number.POSITIVE_INFINITY;
+        const targetEndMs = Math.min(liveEndMsRaw2, breakStartMs);
+        const wasClampedByBreak = firstBreak2 != null && breakStartMs < liveEndMsRaw2;
+
         if (targetEndMs > anchorEndMsRaw) {
           anchor.endAt = new Date(targetEndMs).toISOString();
           anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
           anchor.durationLabel = fmtDuration(anchor.durationMinutes);
+          activeTimerOverlapDiag.activeTimerAnchorsExtended += 1;
+        } else if (wasClampedByBreak && anchorEndMsRaw > breakStartMs) {
+          // Ankaret var redan extended förbi den hårda breaken — klampa bakåt.
+          anchor.endAt = new Date(breakStartMs).toISOString();
+          anchor.durationMinutes = minutesBetween(anchor.startAt, anchor.endAt);
+          anchor.durationLabel = fmtDuration(anchor.durationMinutes);
         }
-        anchor.isOngoing = true;
-        anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
-        anchor.subtitle =
-          `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
+
+        if (wasClampedByBreak) {
+          anchor.isOngoing = false;
+          anchor.warningReasons = Array.from(new Set([
+            ...(anchor.warningReasons ?? []),
+            'active_timer_context_cut_by_later_engine_block',
+          ]));
+          anchor.warningLabel = 'Aktiv timer avbruten av senare platsbevis';
+          anchor.subtitle = `${fmtClock(anchor.startAt)}–${fmtClock(anchor.endAt)} · ${fmtDuration(anchor.durationMinutes)}`;
+          activeTimerOverlapDiag.activeTimerAnchorsClampedByLaterBlock += 1;
+          pushOverlapExample({
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            activeTimerStart: openCtx.startedAtIso,
+            originalAnchorStart: anchor.startAt,
+            originalAnchorEnd: new Date(Math.max(anchorEndMsRaw, liveEndMsRaw2)).toISOString(),
+            clampedAnchorEnd: anchor.endAt,
+            conflictingBlockLabel: firstBreak2!.block.targetLabel ?? firstBreak2!.block.title ?? null,
+            conflictingBlockStart: firstBreak2!.block.startAt,
+            conflictingBlockEnd: firstBreak2!.block.endAt,
+            reason: 'active_timer_context_cut_by_later_engine_block',
+          });
+        } else {
+          anchor.isOngoing = true;
+          anchor.warningLabel = anchor.warningLabel ?? 'Pågår – aktiv timer';
+          anchor.subtitle =
+            `${fmtClock(anchor.startAt)}– pågår · ${fmtDuration(anchor.durationMinutes)}`;
+        }
       }
 
       anchor.reviewState = 'ok';
