@@ -365,7 +365,105 @@ async function processOne(
       plannedEndOfDayIso,
     });
 
-    // Aggregate
+    // ─── Enrich blocks med projekt/booking/assignment-koppling ──────────
+    // Lookups (best-effort, tolerant mot saknad data):
+    let staffName: string | null = null;
+    const bookingMap = new Map<string, { projectId: string | null; largeProjectId: string | null }>();
+    const normalProjectIds = new Set<string>();
+    const largeProjectIds = new Set<string>();
+    const bookingAssignmentMap = new Map<string, string>();
+    try {
+      // 1) staff name
+      const { data: staffRow } = await admin
+        .from('staff_members')
+        .select('name')
+        .eq('id', staffId)
+        .maybeSingle();
+      staffName = staffRow?.name ?? null;
+
+      // 2) bookingId-set från target-block + BSA
+      const blockBookingIds = new Set<string>();
+      for (const b of report.blocks ?? []) {
+        if (b.targetType === 'booking' && b.targetId) blockBookingIds.add(b.targetId);
+      }
+      const { data: bsaRows } = await admin
+        .from('booking_staff_assignments')
+        .select('id, booking_id')
+        .eq('organization_id', orgId)
+        .eq('staff_id', staffId)
+        .eq('assignment_date', date);
+      for (const r of bsaRows ?? []) {
+        if (r.booking_id) {
+          blockBookingIds.add(r.booking_id);
+          if (!bookingAssignmentMap.has(r.booking_id)) {
+            bookingAssignmentMap.set(r.booking_id, r.id);
+          }
+        }
+      }
+
+      // 3) bookings → project_id (om kolumnen finns)
+      if (blockBookingIds.size > 0) {
+        const ids = Array.from(blockBookingIds);
+        try {
+          const { data: bks } = await admin
+            .from('bookings')
+            .select('id, project_id')
+            .in('id', ids);
+          for (const r of bks ?? []) {
+            bookingMap.set(r.id, {
+              projectId: r.project_id ?? null,
+              largeProjectId: null,
+            });
+          }
+        } catch {
+          // project_id-kolumnen kanske saknas — fortsätt utan
+        }
+        // 4) large_project_bookings → large_project_id per booking
+        try {
+          const { data: lpb } = await admin
+            .from('large_project_bookings')
+            .select('booking_id, large_project_id')
+            .in('booking_id', ids);
+          for (const r of lpb ?? []) {
+            const prev = bookingMap.get(r.booking_id) ?? { projectId: null, largeProjectId: null };
+            prev.largeProjectId = r.large_project_id ?? prev.largeProjectId;
+            bookingMap.set(r.booking_id, prev);
+          }
+        } catch {}
+      }
+
+      // 5) skilj normal project vs large_project för project-targets
+      const projectTargetIds = new Set<string>();
+      for (const b of report.blocks ?? []) {
+        if (b.targetType === 'project' && b.targetId) projectTargetIds.add(b.targetId);
+      }
+      if (projectTargetIds.size > 0) {
+        const ids = Array.from(projectTargetIds);
+        try {
+          const { data: ps } = await admin.from('projects').select('id').in('id', ids);
+          for (const r of ps ?? []) normalProjectIds.add(r.id);
+        } catch {}
+        try {
+          const { data: lps } = await admin.from('large_projects').select('id').in('id', ids);
+          for (const r of lps ?? []) largeProjectIds.add(r.id);
+        } catch {}
+      }
+    } catch {
+      // enrichment är best-effort — vi får ändå skriva råblocken
+    }
+
+    const enrichment = enrichReportBlocksForCache(report.blocks ?? [], {
+      staffId,
+      staffName,
+      date,
+      bookingMap,
+      normalProjectIds,
+      largeProjectIds,
+      bookingAssignmentMap,
+    });
+    const enrichedBlocks = enrichment.blocks;
+
+    // Aggregate (kvar oförändrad — räknar samma kind/reviewState)
     let work = 0, unknown = 0, needsReview = 0;
     for (const b of report.blocks) {
       const dur = Number(b.durationMinutes ?? 0);
