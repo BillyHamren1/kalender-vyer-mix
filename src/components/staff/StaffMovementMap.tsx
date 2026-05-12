@@ -150,32 +150,24 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
               })),
             },
           });
+          // ETT enda symbol-lager för både prick och tid. När Mapbox
+          // collision-hider en label så försvinner pricken med — så det
+          // ritas ALDRIG en prick utan en synlig tid bredvid.
+          // Pricken är en bullet ovanför tiden i samma text-field.
           map.current.addLayer({
             id: 'ping-dots',
-            type: 'circle',
-            source: 'pings',
-            paint: {
-              'circle-radius': 4,
-              'circle-color': 'hsl(48, 96%, 53%)',
-              'circle-stroke-color': 'hsl(0, 0%, 20%)',
-              'circle-stroke-width': 1,
-              'circle-opacity': 0.95,
-            },
-          });
-          map.current.addLayer({
-            id: 'ping-labels',
             type: 'symbol',
             source: 'pings',
             layout: {
-              'text-field': ['get', 'time'],
-              'text-size': 11,
-              'text-offset': [0, -1.1],
-              'text-anchor': 'bottom',
-              // Let Mapbox drop overlapping labels automatically — that is what
-              // gives us "fewer pings, but each one shows its time" when zoomed out.
+              'text-field': ['concat', '●\n', ['get', 'time']],
+              'text-size': ['step', ['zoom'], 11, 14, 12],
+              'text-line-height': 1,
+              'text-anchor': 'center',
+              'text-justify': 'center',
               'text-allow-overlap': false,
               'text-ignore-placement': false,
               'text-optional': false,
+              'text-padding': 4,
               'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
               'symbol-sort-key': ['get', 'tsec'],
             },
