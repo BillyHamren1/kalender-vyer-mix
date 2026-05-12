@@ -1734,27 +1734,60 @@ const StaffTimeReports: React.FC = () => {
       ? 'actual_model_fallback'
       : 'report_candidate';
 
-  // ── Phase per booking on selected date (rig/event/rigdown) for Gantt color coding.
-  // UI-only: queries bookings table with date columns. Does not touch time engine.
-  const { data: bookingPhaseByDate = {} } = useQuery({
-    queryKey: ['staff-tr-booking-phase-by-date', dateStr],
-    queryFn: async (): Promise<Record<string, 'rig' | 'event' | 'rigdown'>> => {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id, rigdaydate, eventdate, rigdowndate')
-        .or(`rigdaydate.eq.${dateStr},eventdate.eq.${dateStr},rigdowndate.eq.${dateStr}`);
-      if (error) return {};
-      const map: Record<string, 'rig' | 'event' | 'rigdown'> = {};
-      for (const r of data ?? []) {
-        // Priority: rig > rigdown > event when same booking has multiple matches on the date
-        if (r.rigdaydate === dateStr) map[r.id] = 'rig';
-        else if (r.rigdowndate === dateStr) map[r.id] = 'rigdown';
-        else if (r.eventdate === dateStr) map[r.id] = 'event';
+  // ── Phase per booking/large_project på valt datum (rig/event/rigdown) för Gantt-färgning.
+  // Sanning: personalkalendern (calendar_events.event_type), INTE bookings.rig/event/rigdowndate.
+  // Förrigg-events kan ligga i kalendern utan att bookings-datumkolumnerna uppdaterats.
+  const { data: phaseMaps = { bookingPhaseByDate: {}, largeProjectPhaseByDate: {} } } = useQuery({
+    queryKey: ['staff-tr-phase-by-date-v2', dateStr],
+    queryFn: async (): Promise<{
+      bookingPhaseByDate: Record<string, 'rig' | 'event' | 'rigdown'>;
+      largeProjectPhaseByDate: Record<string, 'rig' | 'event' | 'rigdown'>;
+    }> => {
+      const startIso = `${dateStr}T00:00:00.000Z`;
+      const endIso = `${dateStr}T23:59:59.999Z`;
+      const { data: events, error: evErr } = await supabase
+        .from('calendar_events')
+        .select('booking_id, event_type, start_time')
+        .gte('start_time', startIso)
+        .lte('start_time', endIso)
+        .in('event_type', ['rig', 'event', 'rigdown']);
+      if (evErr || !events) return { bookingPhaseByDate: {}, largeProjectPhaseByDate: {} };
+
+      const priority: Record<'rig' | 'event' | 'rigdown', number> = { rig: 3, rigdown: 2, event: 1 };
+      const bookingPhaseByDate: Record<string, 'rig' | 'event' | 'rigdown'> = {};
+      for (const r of events) {
+        const bid = (r as any).booking_id as string | null;
+        const et = (r as any).event_type as 'rig' | 'event' | 'rigdown' | null;
+        if (!bid || !et) continue;
+        const existing = bookingPhaseByDate[bid];
+        if (!existing || priority[et] > priority[existing]) bookingPhaseByDate[bid] = et;
       }
-      return map;
+
+      const bookingIds = Object.keys(bookingPhaseByDate);
+      const largeProjectPhaseByDate: Record<string, 'rig' | 'event' | 'rigdown'> = {};
+      if (bookingIds.length) {
+        const { data: bks } = await supabase
+          .from('bookings')
+          .select('id, large_project_id')
+          .in('id', bookingIds);
+        for (const b of bks ?? []) {
+          const lpId = (b as any).large_project_id as string | null;
+          if (!lpId) continue;
+          const phase = bookingPhaseByDate[(b as any).id];
+          if (!phase) continue;
+          const existing = largeProjectPhaseByDate[lpId];
+          if (!existing || priority[phase] > priority[existing]) {
+            largeProjectPhaseByDate[lpId] = phase;
+          }
+        }
+      }
+
+      return { bookingPhaseByDate, largeProjectPhaseByDate };
     },
     staleTime: 60_000,
   });
+  const bookingPhaseByDate = phaseMaps.bookingPhaseByDate;
+  const largeProjectPhaseByDate = phaseMaps.largeProjectPhaseByDate;
 
   if (selectedStaffId) {
     return (
