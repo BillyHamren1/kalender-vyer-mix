@@ -900,17 +900,17 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
 
                   {/* Hour rail (lives in grid column 1, not sticky horizontally so it doesn't overlay blocks) */}
                   <div
-                    className="relative border-r bg-card"
+                    className="relative border-r bg-muted/20"
                     style={{ height: bodyHeight }}
                   >
                     {hours.slice(0, -1).map((h, i) => (
                       <div
                         key={h}
-                        className="relative text-[10px] tabular-nums text-muted-foreground"
+                        className="relative text-[11px] tabular-nums text-muted-foreground border-b border-border/30"
                         style={{ height: HOUR_PX }}
                       >
-                        <span className="absolute -top-1.5 right-2 bg-card px-1">
-                          {String(h).padStart(2, '0')}:00
+                        <span className="absolute top-1 right-2 font-medium">
+                          {String(h).padStart(2, '0')}
                         </span>
                       </div>
                     ))}
