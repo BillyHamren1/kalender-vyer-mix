@@ -543,6 +543,26 @@ async function processOne(
             diagnostics_json: {
               ...((report as any).diagnostics ?? {}),
               sessionConsolidation: report.summary?.sessionConsolidationDiagnostics ?? null,
+              // Time Engine 3.12 — samlad diagnostik-vy för felsökning av motorn.
+              // Alla underdiagnostik-objekt äger fortfarande sina respektive
+              // räknare (count/minutes/examples/reason). Här grupperar vi dem
+              // på en enda läsbar plats utan att duplicera datakällor.
+              timeEngineClarityDiagnostics: {
+                dayEndDecision,
+                sessionConsolidationDiagnostics:
+                  report.summary?.sessionConsolidationDiagnostics ?? null,
+                singleTimelineDiagnostics:
+                  (report.summary as any)?.singleTimelineDiagnostics ?? null,
+                labelResolutionDiagnostics:
+                  (report.summary as any)?.labelResolutionDiagnostics ?? null,
+                commutePolicyDiagnostics:
+                  (report.summary as any)?.commutePolicyDiagnostics ?? null,
+                workAreaToleranceDiagnostics:
+                  (report.summary as any)?.workAreaToleranceDiagnostics ?? null,
+                openTimerClampDiagnostics:
+                  (report.summary as any)?.openTimerClampDiagnostics ?? null,
+                dayEndClampDiagnostics: clamp.dayEndClampDiagnostics ?? null,
+              },
               signalGapTransport: (presence as any).signalGapTransportDiagnostics ?? null,
               companionRoute: (presence as any).companionRouteDiagnostics ?? null,
               missingProjectReferenceBlocks: enrichment.missingProjectReferenceBlocks,
