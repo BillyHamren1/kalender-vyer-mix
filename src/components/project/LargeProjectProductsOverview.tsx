@@ -34,6 +34,7 @@ interface LargeProjectProductsOverviewProps {
 }
 
 type GroupMode = "none" | "ai" | "tag" | "client";
+type SortKey = "name" | "quantity" | "tags" | "client" | "deliveryaddress";
 
 const cleanName = (name: string) =>
   name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
