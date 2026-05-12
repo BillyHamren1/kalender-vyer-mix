@@ -45,7 +45,38 @@ import { loadGeoAnchors } from '../_shared/time-engine/loadGeoAnchors.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
+import {
+  computePlannedDaySignals,
+  type BookingTimes,
+} from '../_shared/workday/plannedDay.ts';
 import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
+
+async function resolvePlannedEndOfDayIso(
+  admin: any,
+  organizationId: string,
+  staffId: string,
+  date: string,
+): Promise<string | null> {
+  try {
+    const { data: assignments } = await admin
+      .from('booking_staff_assignments')
+      .select('booking_id')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .eq('assignment_date', date);
+    const ids = Array.from(new Set((assignments ?? []).map((a: any) => a.booking_id).filter(Boolean)));
+    if (ids.length === 0) return null;
+    const { data: bookings } = await admin
+      .from('bookings')
+      .select('id, eventdate, rigdaydate, rigdowndate, event_start_time, event_end_time, rig_start_time, rig_end_time, rigdown_start_time, rigdown_end_time')
+      .in('id', ids);
+    if (!bookings || bookings.length === 0) return null;
+    const anchor = new Date(`${date}T12:00:00Z`);
+    return computePlannedDaySignals(bookings as BookingTimes[], anchor).plannedEndOfDay;
+  } catch {
+    return null;
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -319,6 +350,8 @@ async function processOne(
         }
       : null;
 
+    const plannedEndOfDayIso = await resolvePlannedEndOfDayIso(admin, orgId, staffId, date);
+
     // --- report blocks ---
     const report = buildReportCandidateBlocks({
       staffId,
@@ -328,6 +361,7 @@ async function processOne(
       activeTimeRegistrations: activeRegs,
       homeAnchors,
       openActiveRegistration,
+      plannedEndOfDayIso,
     });
 
     // Aggregate
