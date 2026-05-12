@@ -3504,6 +3504,7 @@ export function buildReportCandidateBlocks(
     activeTimerOverlapDiagnostics: activeTimerOverlapDiag,
     openTimerClampDiagnostics: openTimerClampDiag,
     privateResidenceDayEndDiagnostics: privateResidenceDayEndDiag,
+    commutePolicyDiagnostics: commutePolicyDiag,
     singleTimelineDiagnostics: singleTimelineDiag,
   };
   for (const r of out) {
