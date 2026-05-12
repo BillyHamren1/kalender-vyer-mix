@@ -481,3 +481,28 @@ export const identifyProduct = async (serialOrSku: string): Promise<{
 }> => {
   return callScannerApi('identify_product', { serialNumber: serialOrSku });
 };
+
+// ============== WMS RESERVATION ALLOCATIONS ==============
+export interface WmsAllocation {
+  serial_number: string;
+  instance_id?: string | null;
+  item_type_id?: string | null;
+  sku?: string | null;
+  item_type_name?: string | null;
+}
+export interface ReservationAllocationsResponse {
+  success: boolean;
+  reservation_id?: string;
+  packing_id?: string;
+  allocations: WmsAllocation[];
+  current_state?: any;
+  error?: string;
+}
+
+/** Hydrera lokal scan-state med WMS-allokerade serienummer för denna packlista. */
+export const getReservationAllocations = async (
+  packingId: string,
+): Promise<ReservationAllocationsResponse> => {
+  return callScannerApi('get_reservation_allocations', { packingId });
+};
+
