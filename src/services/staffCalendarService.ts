@@ -313,7 +313,7 @@ export const getStaffCalendarEvents = async (
         eventType: d.phase,
         staffName: d.staffName,
         client: d.client,
-        teamName: d.teamId ? `Team ${d.teamId}` : undefined,
+        teamName: d.teamId ? formatTeamLabel(d.teamId) : undefined,
         largeProjectId: d.largeProjectId,
         largeProjectName: d.largeProjectName,
         consolidatedBookingIds: d.consolidatedBookingIds,
