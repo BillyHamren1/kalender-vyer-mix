@@ -182,19 +182,23 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
           <thead>
             <tr>
               <th className={`${headerCellClass} sticky left-0 z-10 bg-muted/60 min-w-[220px]`}>
-                Kund / Bokning
+                <SortHead label="Kund / Bokning" sortKey={{ type: "client" }} sort={sort} onToggle={toggleSort} />
               </th>
-              <th className={`${headerCellClass} min-w-[200px]`}>Plats / Adress</th>
+              <th className={`${headerCellClass} min-w-[200px]`}>
+                <SortHead label="Plats / Adress" sortKey={{ type: "address" }} sort={sort} onToggle={toggleSort} />
+              </th>
               {tagHeaders.map((tag) => (
                 <th key={tag} className={`${headerCellClass} min-w-[160px]`}>
-                  {tag}
+                  <SortHead label={tag} sortKey={{ type: "tag", tag }} sort={sort} onToggle={toggleSort} />
                 </th>
               ))}
-              <th className={`${headerCellClass} min-w-[180px]`}>Övrigt</th>
+              <th className={`${headerCellClass} min-w-[180px]`}>
+                <SortHead label="Övrigt" sortKey={{ type: "untagged" }} sort={sort} onToggle={toggleSort} />
+              </th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, idx) => (
+            {sortedRows.map((r, idx) => (
               <tr key={r.id} className={idx % 2 === 0 ? "bg-card" : "bg-muted/10"}>
                 <td className={`${cellClass} sticky left-0 z-10 ${idx % 2 === 0 ? "bg-card" : "bg-muted/10"}`}>
                   <div className="font-semibold text-foreground">{r.client}</div>
