@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Search,
   ChevronLeft,
@@ -466,14 +466,21 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   const hours = Array.from({ length: totalHours + 1 }, (_, i) => startHour + i);
 
   // Now line position
+  // Re-tick every 30s so the "now" line follows real time on today's view.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isToday(selectedDate)) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [selectedDate]);
   const nowFrac = useMemo(() => {
     if (!isToday(selectedDate)) return null;
-    const p = stockholmParts(new Date().toISOString());
+    const p = stockholmParts(new Date(nowTick).toISOString());
     if (!p) return null;
     const h = p.h + p.m / 60;
     if (h < startHour || h > endHour) return null;
     return ((h - startHour) / totalHours) * 100;
-  }, [selectedDate, startHour, endHour, totalHours]);
+  }, [selectedDate, startHour, endHour, totalHours, nowTick]);
 
   const openStaff = openStaffId ? staffList.find((s) => s.id === openStaffId) ?? null : null;
 
