@@ -243,7 +243,7 @@ const blocksFromStaff = (
       if (!b.title || !b.title.trim()) labelDiagnostics.missingTitleBlocksCount += 1;
       if (reason === 'displayTitle') labelDiagnostics.resolvedFromDisplayTitleCount += 1;
       else if (reason === 'targetLabel') labelDiagnostics.resolvedFromTargetLabelCount += 1;
-      else if (reason === 'assignment') labelDiagnostics.resolvedFromAssignmentCount += 1;
+      else if (reason === 'plannedAssignmentLabel') labelDiagnostics.resolvedFromAssignmentCount += 1;
       else if (reason === 'fallback') {
         labelDiagnostics.fallbackTitleCount += 1;
         if (labelDiagnostics.examples.length < 5) {

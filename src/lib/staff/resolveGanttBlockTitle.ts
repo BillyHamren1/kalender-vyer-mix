@@ -29,6 +29,7 @@ const GENERIC_TITLES = new Set(
     'rigg',
     'rig',
     'rigdown',
+    'rig down',
     'lager',
     'warehouse',
     'transport',
@@ -46,6 +47,15 @@ const GENERIC_TITLES = new Set(
 
 const GENERIC_PREFIXES = ['sammanslagen okänd plats', 'okänd plats'];
 
+// Time Engine 3.7 — Team är metadata, aldrig huvudtitel.
+// "Team 1", "Team transport", "team-2", "Lager team" osv. ska aldrig vara title.
+const TEAM_PATTERNS: RegExp[] = [
+  /^team[\s\-_]/i,
+  /^team\s*\d+$/i,
+  /^team\s+(transport|rigg|rig|lager|warehouse|down)$/i,
+  /^lager\s*team$/i,
+];
+
 const isGeneric = (value: string | null | undefined): boolean => {
   if (!value) return true;
   const trimmed = value.trim();
@@ -53,6 +63,7 @@ const isGeneric = (value: string | null | undefined): boolean => {
   const low = trimmed.toLowerCase();
   if (GENERIC_TITLES.has(low)) return true;
   if (GENERIC_PREFIXES.some((p) => low.startsWith(p))) return true;
+  if (TEAM_PATTERNS.some((re) => re.test(trimmed))) return true;
   return false;
 };
 
@@ -78,33 +89,71 @@ const fallbackForKind = (b: GanttBlockInput): string => {
   }
 };
 
-export function resolveGanttBlockTitle(block: GanttBlockInput): string {
-  const candidates: Array<string | null | undefined> = [
-    block.displayTitle,
-    block.targetLabel,
-    block.projectName,
-    block.bookingName,
-    block.largeProjectName,
-    block.plannedAssignmentLabel,
-    !isGeneric(block.title) ? block.title : null,
+export type GanttTitleSource =
+  | 'displayTitle'
+  | 'projectName'
+  | 'largeProjectName'
+  | 'bookingName'
+  | 'locationName'
+  | 'warehouseName'
+  | 'targetLabel'
+  | 'plannedAssignmentLabel'
+  | 'originalTitle'
+  | 'fallback';
+
+export type GanttBlockInputExtended = GanttBlockInput & {
+  // Time Engine 3.7 — explicita källor (enrichment-fält).
+  eventName?: string | null;
+  locationName?: string | null;
+  warehouseName?: string | null;
+};
+
+/**
+ * Time Engine 3.7 — Title-prioritetsordning:
+ *   1. displayTitle (explicit override)
+ *   2. projectName / largeProjectName
+ *   3. bookingName / eventName
+ *   4. locationName / warehouseName
+ *   5. targetLabel om mänskligt
+ *   6. plannedAssignmentLabel
+ *   7. originalTitle om mänskligt
+ *   8. fallback per kind
+ *
+ * Team-strängar ("Team 1", "Team transport") räknas som generiska
+ * och blockas redan i isGeneric → faller alltid igenom till nästa nivå.
+ */
+function pickResolved(
+  block: GanttBlockInputExtended,
+): { title: string; source: GanttTitleSource } {
+  const ordered: Array<[string | null | undefined, GanttTitleSource]> = [
+    [block.displayTitle, 'displayTitle'],
+    [block.projectName, 'projectName'],
+    [block.largeProjectName, 'largeProjectName'],
+    [block.bookingName, 'bookingName'],
+    [block.eventName, 'bookingName'],
+    [block.locationName, 'locationName'],
+    [block.warehouseName, 'warehouseName'],
+    [block.targetLabel, 'targetLabel'],
+    [block.plannedAssignmentLabel, 'plannedAssignmentLabel'],
+    [!isGeneric(block.title) ? block.title : null, 'originalTitle'],
   ];
-
-  for (const c of candidates) {
-    if (c && !isGeneric(c)) return c.trim();
+  for (const [val, src] of ordered) {
+    if (val && !isGeneric(val)) return { title: val.trim(), source: src };
   }
-
-  return fallbackForKind(block);
+  return { title: fallbackForKind(block), source: 'fallback' };
 }
 
-/** Visa Time Engine 2.13 diagnostik live i devtools om block saknar namn. */
+export function resolveGanttBlockTitle(block: GanttBlockInputExtended): string {
+  return pickResolved(block).title;
+}
+
+/** Visa Time Engine 2.13/3.7 diagnostik live i devtools om block saknar namn. */
 export function classifyGanttTitleResolution(
-  block: GanttBlockInput,
+  block: GanttBlockInputExtended,
   resolved: string,
-): 'displayTitle' | 'targetLabel' | 'assignment' | 'originalTitle' | 'fallback' {
-  if (block.displayTitle && resolved === block.displayTitle.trim()) return 'displayTitle';
-  if (block.targetLabel && resolved === block.targetLabel.trim()) return 'targetLabel';
-  if (block.plannedAssignmentLabel && resolved === block.plannedAssignmentLabel.trim()) return 'assignment';
-  if (block.title && !isGeneric(block.title) && resolved === block.title.trim()) return 'originalTitle';
+): GanttTitleSource {
+  const picked = pickResolved(block);
+  if (picked.title === resolved) return picked.source;
   return 'fallback';
 }
 
