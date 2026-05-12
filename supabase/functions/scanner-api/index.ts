@@ -225,7 +225,63 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
   }
 }
 
-Deno.serve(async (req) => {
+// ============== WMS ALLOCATION MIRROR ==============
+// Replicates the WMS allocation truth into wms_reservation_allocations so the
+// scanner UI can subscribe via Supabase Realtime filtered on packing_id /
+// reservation_id. Idempotent on (reservation_id, serial_number).
+type WmsAllocRow = {
+  serial_number: string
+  instance_id?: string | null
+  item_type_id?: string | null
+  sku?: string | null
+  item_type_name?: string | null
+  raw?: any
+}
+
+async function mirrorWmsAllocations(
+  supabase: any,
+  opts: {
+    orgId: string
+    packingId: string
+    reservationId: string
+    rows: WmsAllocRow[]
+    source?: string
+  },
+): Promise<number> {
+  const cleaned = (opts.rows || [])
+    .map((r) => ({
+      ...r,
+      serial_number: (r?.serial_number || '').trim(),
+    }))
+    .filter((r) => r.serial_number)
+
+  if (cleaned.length === 0) return 0
+
+  const payload = cleaned.map((r) => ({
+    organization_id: opts.orgId,
+    packing_id: opts.packingId,
+    reservation_id: opts.reservationId,
+    serial_number: r.serial_number,
+    instance_id: r.instance_id || null,
+    item_type_id: r.item_type_id || null,
+    sku: r.sku || null,
+    item_type_name: r.item_type_name || null,
+    source: opts.source || 'allocate-instance',
+    raw: r.raw ?? null,
+    allocated_at: new Date().toISOString(),
+  }))
+
+  const { error } = await supabase
+    .from('wms_reservation_allocations')
+    .upsert(payload, { onConflict: 'reservation_id,serial_number' })
+
+  if (error) {
+    console.warn('[mirrorWmsAllocations] upsert failed', { error: error.message, count: payload.length })
+    return 0
+  }
+  return payload.length
+}
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
