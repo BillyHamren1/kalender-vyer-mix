@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Sparkles, ChevronDown, ChevronRight, MoreHorizontal, Trash2, Tag, Users, List, Wand2 } from "lucide-react";
+import { Search, Sparkles, ChevronDown, ChevronRight, MoreHorizontal, Trash2, Tag, Users, List, Wand2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +34,7 @@ interface LargeProjectProductsOverviewProps {
 }
 
 type GroupMode = "none" | "ai" | "tag" | "client";
+type SortKey = "name" | "quantity" | "tags" | "client" | "deliveryaddress";
 
 const cleanName = (name: string) =>
   name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
@@ -62,6 +63,14 @@ const LargeProjectProductsOverview = ({
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  };
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [moveDialog, setMoveDialog] = useState<{ productId: string; name: string } | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -134,7 +143,27 @@ const LargeProjectProductsOverview = ({
     return q ? flatRows.filter((r) => r.name.toLowerCase().includes(q)) : flatRows;
   }, [flatRows, search]);
 
-  const visibleIds = useMemo(() => new Set(filteredRows.map((r) => r.id)), [filteredRows]);
+  const sortRows = <T extends RowData>(rows: T[]): T[] => {
+    if (!sort) return rows;
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const key = sort.key;
+    const val = (r: T): string | number => {
+      if (key === "quantity") return r.quantity ?? 0;
+      if (key === "tags") return r.tags.length;
+      if (key === "name") return r.name?.toLowerCase() || "";
+      if (key === "client") return r.client?.toLowerCase() || "";
+      return r.deliveryaddress?.toLowerCase() || "";
+    };
+    return [...rows].sort((a, b) => {
+      const av = val(a); const bv = val(b);
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), "sv") * dir;
+    });
+  };
+
+  const sortedFilteredRows = useMemo(() => sortRows(filteredRows), [filteredRows, sort]);
+
+  const visibleIds = useMemo(() => new Set(sortedFilteredRows.map((r) => r.id)), [sortedFilteredRows]);
   const productById = useMemo(() => new Map(flatRows.map((r) => [r.id, r])), [flatRows]);
 
   const untaggedCount = useMemo(
@@ -190,7 +219,11 @@ const LargeProjectProductsOverview = ({
       .map((key) => ({ id: `derived:${key}`, name: key, rows: buckets.get(key)! }));
   }, [groupMode, filteredRows]);
 
-  const groupedView = aiGroupedView ?? derivedGroupedView;
+  const groupedView = useMemo(() => {
+    const view = aiGroupedView ?? derivedGroupedView;
+    if (!view) return null;
+    return view.map((g) => ({ ...g, rows: sortRows(g.rows as RowData[]) }));
+  }, [aiGroupedView, derivedGroupedView, sort]);
 
   const handleGenerate = (prompt: string) => {
     generate.mutate(
@@ -360,11 +393,11 @@ const LargeProjectProductsOverview = ({
         <Card className="border-border/50 shadow-sm overflow-hidden w-full">
           <div className="bg-card">
             <div className="grid grid-cols-[2fr_80px_1.3fr_1.3fr_1.5fr_40px] gap-4 border-b border-border/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <div>Produkt</div>
-              <div>Antal</div>
-              <div>Taggar</div>
-              <div>Kund</div>
-              <div>Levadress</div>
+              <SortHeader label="Produkt" sortKey="name" sort={sort} onToggle={toggleSort} />
+              <SortHeader label="Antal" sortKey="quantity" sort={sort} onToggle={toggleSort} />
+              <SortHeader label="Taggar" sortKey="tags" sort={sort} onToggle={toggleSort} />
+              <SortHeader label="Kund" sortKey="client" sort={sort} onToggle={toggleSort} />
+              <SortHeader label="Levadress" sortKey="deliveryaddress" sort={sort} onToggle={toggleSort} />
               <div></div>
             </div>
 
@@ -414,7 +447,7 @@ const LargeProjectProductsOverview = ({
               </div>
             ) : (
               <div className="divide-y divide-border/40">
-                {filteredRows.map((row) => (
+                {sortedFilteredRows.map((row) => (
                   <ProductRow
                     key={row.id}
                     row={row}
@@ -561,5 +594,27 @@ const ProductRow = ({
     </div>
   </div>
 );
+
+const SortHeader = ({
+  label, sortKey, sort, onToggle,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: "asc" | "desc" } | null;
+  onToggle: (k: SortKey) => void;
+}) => {
+  const active = sort?.key === sortKey;
+  const Icon = !active ? ArrowUpDown : sort!.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(sortKey)}
+      className={`flex items-center gap-1 text-left hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
+    >
+      <span>{label}</span>
+      <Icon className="w-3 h-3 opacity-70" />
+    </button>
+  );
+};
 
 export default LargeProjectProductsOverview;

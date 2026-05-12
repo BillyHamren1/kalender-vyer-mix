@@ -1,14 +1,24 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import type { LargeProjectBooking } from "@/types/largeProject";
 
 interface Props {
   bookings: LargeProjectBooking[];
 }
+
+type SortKey =
+  | { type: "client" }
+  | { type: "address" }
+  | { type: "tag"; tag: string }
+  | { type: "untagged" };
+
+const sortKeyId = (k: SortKey) =>
+  k.type === "tag" ? `tag:${k.tag}` : k.type;
 
 const cleanName = (name: string) =>
   name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
@@ -117,6 +127,31 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
     });
   }, [bookings, allProducts]);
 
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) => {
+      if (!prev || sortKeyId(prev.key) !== sortKeyId(key)) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  };
+
+  const sortedRows = useMemo(() => {
+    if (!sort) return rows;
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const val = (r: typeof rows[number]): string | number => {
+      if (sort.key.type === "client") return r.client.toLowerCase();
+      if (sort.key.type === "address") return r.address.toLowerCase();
+      if (sort.key.type === "untagged") return r.untagged.length;
+      return (r.byTag.get(norm(sort.key.tag)) || []).length;
+    };
+    return [...rows].sort((a, b) => {
+      const av = val(a); const bv = val(b);
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), "sv") * dir;
+    });
+  }, [rows, sort]);
+
   if (bookingIds.length === 0) {
     return (
       <div className="py-8 text-center text-muted-foreground text-sm">
@@ -147,19 +182,23 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
           <thead>
             <tr>
               <th className={`${headerCellClass} sticky left-0 z-10 bg-muted/60 min-w-[220px]`}>
-                Kund / Bokning
+                <SortHead label="Kund / Bokning" sortKey={{ type: "client" }} sort={sort} onToggle={toggleSort} />
               </th>
-              <th className={`${headerCellClass} min-w-[200px]`}>Plats / Adress</th>
+              <th className={`${headerCellClass} min-w-[200px]`}>
+                <SortHead label="Plats / Adress" sortKey={{ type: "address" }} sort={sort} onToggle={toggleSort} />
+              </th>
               {tagHeaders.map((tag) => (
                 <th key={tag} className={`${headerCellClass} min-w-[160px]`}>
-                  {tag}
+                  <SortHead label={tag} sortKey={{ type: "tag", tag }} sort={sort} onToggle={toggleSort} />
                 </th>
               ))}
-              <th className={`${headerCellClass} min-w-[180px]`}>Övrigt</th>
+              <th className={`${headerCellClass} min-w-[180px]`}>
+                <SortHead label="Övrigt" sortKey={{ type: "untagged" }} sort={sort} onToggle={toggleSort} />
+              </th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, idx) => (
+            {sortedRows.map((r, idx) => (
               <tr key={r.id} className={idx % 2 === 0 ? "bg-card" : "bg-muted/10"}>
                 <td className={`${cellClass} sticky left-0 z-10 ${idx % 2 === 0 ? "bg-card" : "bg-muted/10"}`}>
                   <div className="font-semibold text-foreground">{r.client}</div>
@@ -221,6 +260,28 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
         )}
       </div>
     </Card>
+  );
+};
+
+const SortHead = ({
+  label, sortKey, sort, onToggle,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: "asc" | "desc" } | null;
+  onToggle: (k: SortKey) => void;
+}) => {
+  const active = sort && sortKeyId(sort.key) === sortKeyId(sortKey);
+  const Icon = !active ? ArrowUpDown : sort!.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(sortKey)}
+      className={`flex items-center gap-1 text-left hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
+    >
+      <span>{label}</span>
+      <Icon className="w-3 h-3 opacity-70" />
+    </button>
   );
 };
 
