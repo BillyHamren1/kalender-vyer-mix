@@ -22,6 +22,7 @@ import { format, addDays, subDays, isToday, isYesterday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
+import { getGanttDisplaySubtitle } from '@/lib/staff/ganttBlockSubtitle';
 import { TimeReportReviewTable } from './TimeReportReviewTable';
 import { StaffDayTimelineCard } from './StaffDayTimelineCard';
 import { DecisionMapTab } from './DecisionMapTab';
@@ -985,6 +986,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
 
                           return positioned.map(({ b, top, height, shifted, lane, laneCount }) => {
                             const style = KIND_STYLE[b.kind];
+                            const displaySubtitle = getGanttDisplaySubtitle(b);
                             const showSub = height >= 44;
                             const showMeta = height >= 66;
                             const widthPct = 100 / laneCount;
@@ -1030,9 +1032,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)}
                                   </div>
                                 )}
-                                {showMeta && b.subtitle && (
+                                {showMeta && displaySubtitle && (
                                   <div className="mt-0.5 truncate text-[10.5px] opacity-80">
-                                    {b.subtitle}
+                                    {displaySubtitle}
                                   </div>
                                 )}
                               </div>
