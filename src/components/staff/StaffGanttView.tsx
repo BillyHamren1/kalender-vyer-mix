@@ -28,6 +28,7 @@ import { DecisionMapTab } from './DecisionMapTab';
 import { useDayPings } from '@/hooks/admin/useDayPings';
 import { useDayTimeline } from '@/hooks/admin/useDayTimeline';
 import { RawGpsDrawer } from './RawGpsDrawer';
+import { resolveGanttPhaseKind } from '@/lib/staff/ganttPhaseColor';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
@@ -180,18 +181,20 @@ const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
 const mapReportCandidateKind = (
   b: ReportCandidateBlockUI,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+  largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
 ): GanttKind => {
   if (b.kind === 'work') {
     if (b.reviewState === 'needs_review') return 'review';
     // Warehouse vinner över annan klassning — ska alltid vara lila
     if (isWarehouseTarget(b)) return 'warehouse';
-    // Prefer authoritative phase from bookings.rigdaydate/eventdate/rigdowndate
-    if (b.targetType === 'booking' && b.targetId) {
-      const phase = bookingPhaseByDate?.[b.targetId];
-      if (phase === 'rig') return 'rig';
-      if (phase === 'rigdown') return 'rigdown';
-      if (phase === 'event') return 'work';
-    }
+    // Phase från personalkalendern (calendar_events.event_type) — sanning för fas-färg
+    const phaseKind = resolveGanttPhaseKind({
+      targetType: b.targetType,
+      targetId: b.targetId,
+      bookingPhaseByDate,
+      largeProjectPhaseByDate,
+    });
+    if (phaseKind) return phaseKind;
     // Fallback: heuristic on title/subtitle text
     const phase = detectPhase(b.title, b.subtitle);
     if (phase) return phase;
@@ -209,13 +212,14 @@ const blocksFromStaff = (
   candidate: ReportCandidateBlockUI[] | null | undefined,
   excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+  largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
 ): GanttBlock[] => {
   const out: GanttBlock[] = [];
   if (candidate && candidate.length) {
     for (const b of candidate) {
       out.push({
         id: b.id,
-        kind: mapReportCandidateKind(b, bookingPhaseByDate),
+        kind: mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate),
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
@@ -290,6 +294,7 @@ interface StaffGanttViewProps {
   >;
   engineMode?: 'report_candidate' | 'actual_model_fallback';
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
+  largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
 }
 
 export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
@@ -301,6 +306,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   reportCandidateByStaff,
   engineMode = 'report_candidate',
   bookingPhaseByDate,
+  largeProjectPhaseByDate,
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -333,10 +339,10 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     const map: Record<string, GanttBlock[]> = {};
     for (const s of staffList) {
       const cand = reportCandidateByStaff?.[s.id];
-      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null, bookingPhaseByDate);
+      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null, bookingPhaseByDate, largeProjectPhaseByDate);
     }
     return map;
-  }, [staffList, reportCandidateByStaff, bookingPhaseByDate]);
+  }, [staffList, reportCandidateByStaff, bookingPhaseByDate, largeProjectPhaseByDate]);
 
   // Filter
   const filteredStaff = useMemo(() => {

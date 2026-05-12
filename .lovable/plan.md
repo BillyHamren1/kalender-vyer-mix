@@ -1,40 +1,78 @@
 ## Problem
 
-I dialogen "Ny fast plats" på `/ops-control` står kartrutan grå, utan tiles, utan spinner och utan felmeddelande. Token-edge-funktionen svarar OK (annars hade röd `loadError`-text visats), men `mapboxgl.Map` initieras innan `DialogContent` är fullt animerad/utvikt och hamnar då med ett 0×0 WebGL-canvas. När `m.on('load')` skjuts sätts `tokenLoading=false`, men inga tiles ritas ut eftersom canvas är tom — och de tre `m.resize()`-anropen råkar köras innan Radix-animationen är färdig på vissa preview-storlekar.
+"Swedish game fair"-blocken på 2026-05-12 visas som grå **ARBETE** i Gantt-vyn (`/staff-management/time-reports`), men i personalkalendern visas samma datum som **rig** (ljusgrön).
 
-Ingen logik utanför kartkomponenten är trasig — det är bara init-sekvensen som behöver bli robust.
+### Rotorsak
 
-## Fix (endast `src/components/ops-control/GeofenceMapEditor.tsx`)
+`StaffTimeReports.tsx` bygger `bookingPhaseByDate` genom att läsa `bookings.rigdaydate / eventdate / rigdowndate`:
 
-1. **Vänta tills containern har storlek innan `new mapboxgl.Map(...)`**
-   Efter att token är hämtad: pollar via ResizeObserver/`requestAnimationFrame` tills `containerRef.current.clientWidth > 0 && clientHeight > 0` (max ~2 s). Då först skapas mapinstansen.
+```ts
+.from('bookings')
+.select('id, rigdaydate, eventdate, rigdowndate')
+.or(`rigdaydate.eq.${dateStr},eventdate.eq.${dateStr},rigdowndate.eq.${dateStr}`);
+```
 
-2. **Tvinga resize i flera steg + på `idle`-event**
-   Behåll de tre `resize()`-stegen, men lägg även till `m.once('idle', () => m.resize())` och en sista `setTimeout(800)` för att täcka långsamma dialog-animationer.
+Men för det stora projektet "Swedish game fair" (large_project `f11cd5b3…`) säger varje syskonbokning `rigdaydate = 2026-05-25`. Trots det finns ett **calendar_event** den 2026-05-12 med `event_type = 'rig'` (verifierat i DB: booking `LOGOSOL AB`, team-1, 08:00–18:00). Det är detta event som personalkalendern och mobilen visar som "rig idag" — det är **förrigg** som lagts in direkt i kalendern utan att uppdatera bookings-datumkolumnerna.
 
-3. **Tydligare style-felhantering**
-   Bredda `m.on('error')`-fallbacken till streets-v12: alla style-/sprite-/tile-fel (inte bara 401/403) ska byta style och logga warning. Om `load` aldrig fyrar inom 8 s → sätt `loadError = "Karta tog för lång tid att ladda — försök igen."` så att rutan inte är tyst grå.
+Eftersom phasen inte hittas i bookings-tabellen faller `mapReportCandidateKind` tillbaka på `'work'` → grå.
 
-4. **Manuell omladdningsknapp i fel-läget**
-   I `loadError`-blocket: lägg till liten "Ladda om kartan"-knapp som river ner `mapRef.current` och kör om init-effekten (via en intern `reloadKey`-state).
+Dessutom: även om vi hittade phasen så skulle nuvarande check bara träffa `targetType === 'booking'`. För stora projekt har candidate-blocket sannolikt `targetType === 'large_project'` (eller `'project'`) och `targetId = large_project_id`, vilket aldrig matchar en `bookings.id`-keyed map.
 
-5. **Mindre städ**
-   - Säkerställ att `ro.disconnect()` körs även om `mapRef.current` redan satts till null.
-   - Bibehåll alla diff-skydd (gör inget om `cancelled`).
+## Lösning
 
-## Vad som INTE rörs
+Personalkalendern ÄR sanningen för fas-visualisering — så Gantt-vyn ska härleda phase från `calendar_events.event_type` på det valda datumet, inte från bookings-datumkolumnerna.
 
-- Ingen UI-ombyggnad av dialogen (`OrganizationLocationsManager.tsx`).
-- Ingen ändring av `mapbox-token`-edge-funktionen.
-- Ingen ändring av Mapbox-token, secrets eller adressökning.
-- Ingen ändring av `polygonAreaM2` / `polygonCentroid` / RLS / DB.
-- Inget rört utanför `GeofenceMapEditor.tsx`.
+### Steg
 
-## Verifiering
+1. **Ersätt phase-queryn i `src/pages/StaffTimeReports.tsx` (rad 1739–1757).**
+   Läs `calendar_events` för dagen istället:
+   ```sql
+   select id, booking_id, event_type, start_time
+   from calendar_events
+   where start_time::date = :dateStr
+     and event_type in ('rig','event','rigdown')
+   ```
+   Bygg två maps:
+   - `bookingPhaseByDate: Record<bookingId, 'rig'|'event'|'rigdown'>` — direkt från event_type.
+   - `largeProjectPhaseByDate: Record<largeProjectId, 'rig'|'event'|'rigdown'>` — slå upp `bookings.large_project_id` för alla träffade booking_id, prioritera rig > rigdown > event om flera syskonbokningar har olika event_type samma dag.
 
-- Ladda `/ops-control` → "Lägg till fast plats" → dialog öppnas → satellitkartan visas inom ~1 s.
-- Skriv "Storgatan 1, Stockholm" + sök → kartan flyger dit.
-- "Cirkel" + radie 100 → lila cirkel ritas ut.
-- "Rita polygon" → klickbara hörn fungerar; yta visas.
-- Toggle Karta/Satellit byter style utan att tappa polygon.
-- Stänga + öppna dialog igen ska fortsatt rita kartan korrekt.
+   Behåll prio rig > rigdown > event vid flera matches per booking.
+
+2. **Skicka båda mapparna till `StaffGanttView`** (`src/components/staff/StaffGanttView.tsx`).
+   Lägg till `largeProjectPhaseByDate` i props, gänga ner till `blocksFromStaff` och `mapReportCandidateKind`.
+
+3. **Uppdatera `mapReportCandidateKind` (rad 184–198):**
+   ```ts
+   if (b.targetType === 'booking' && b.targetId) {
+     const phase = bookingPhaseByDate?.[b.targetId];
+     if (phase) return phase === 'event' ? 'work' : phase;
+   }
+   if ((b.targetType === 'large_project' || b.targetType === 'project') && b.targetId) {
+     const phase = largeProjectPhaseByDate?.[b.targetId];
+     if (phase) return phase === 'event' ? 'work' : phase;
+   }
+   ```
+   Behåll heuristik (`detectPhase`) som sista fallback.
+
+4. **Test (vitest):** lägg till en testfil `src/test/staffGanttView.phaseColor.test.ts` med två fall:
+   - Booking-block där `bookingPhaseByDate[id] = 'rig'` → `mapReportCandidateKind` returnerar `'rig'`.
+   - Large-project-block där `largeProjectPhaseByDate[id] = 'rig'` → returnerar `'rig'`.
+   - Block utan phase → `'work'`.
+
+   Eftersom `mapReportCandidateKind` är intern, exportera den (eller wrap-funktionen) eller flytta logiken till `src/lib/staff/ganttPhaseColor.ts` och importera den i komponenten — föredra extraktion för testbarhet och för att hålla komponentfilen liten (memory: file-size).
+
+5. **Verifiera i preview** på `/staff-management/time-reports` 2026-05-12: "Swedish game fair"-blocken ska bli ljusgröna (rig) istället för grå.
+
+### Filer som påverkas
+
+- `src/pages/StaffTimeReports.tsx` — ny phase-query mot calendar_events + ny map.
+- `src/components/staff/StaffGanttView.tsx` — ny prop, utökad phase-lookup.
+- `src/lib/staff/ganttPhaseColor.ts` (ny) — extraherad ren funktion.
+- `src/test/staffGanttView.phaseColor.test.ts` (ny) — vitest.
+
+### Vad som INTE ändras
+
+- Inga schemaändringar.
+- KIND_STYLE-färgerna rörs inte (lila/ljusgrön/ljusröd kvar).
+- Time engine och buildReportCandidateBlocks rörs inte — det här är ren UI-färgkodning.
+- bookings.rigdaydate-kolumnen behålls som auktoritativ för planerings-API:t; vi använder den bara inte längre för Gantt-färgning.
