@@ -15,7 +15,6 @@ const defaultWarehouseTeams: Resource[] = [
   { id: 'lager-8', title: 'Lager 8', eventColor: '#9370db' },
   { id: 'lager-9', title: 'Lager 9', eventColor: '#ba55d3' },
   { id: 'lager-10', title: 'Lager 10', eventColor: '#da70d6' },
-  { id: 'warehouse-event', title: 'Transport', eventColor: '#f59e0b' },
 ];
 
 const loadFromStorage = (): Resource[] => {
@@ -38,28 +37,25 @@ export const useWarehouseResources = () => {
   useEffect(() => {
     let loaded = loadFromStorage();
 
+    // Strip legacy Transport/Transporter columns – only Lager-N remains.
+    const before = loaded.length;
+    loaded = loaded.filter(r => r.id !== 'warehouse-event' && r.id !== 'transport');
+    const stripped = before !== loaded.length;
+
     if (loaded.length === 0) {
       loaded = [...defaultWarehouseTeams];
     } else {
       // Ensure all defaults exist
-      let changed = false;
       defaultWarehouseTeams.forEach(def => {
         const existing = loaded.find(r => r.id === def.id);
         if (!existing) {
           loaded.push(def);
-          changed = true;
-        } else if (def.id === 'warehouse-event' && existing.title === 'Event') {
-          // Migrate old "Event" label to "Transport"
-          existing.title = 'Transport';
-          changed = true;
         }
       });
-      if (changed) {
-        toast.success('Lagerteam återställda', { description: 'Saknade lagerteam har lagts till' });
-      }
     }
 
-    saveToStorage(loaded);
+    if (stripped) saveToStorage(loaded);
+    else saveToStorage(loaded);
     setResources(loaded);
 
     const maxNum = loaded
@@ -95,20 +91,9 @@ export const useWarehouseResources = () => {
     if (team) toast(`${team.title} borttaget`);
   };
 
-  const transportResource: Resource = { id: 'transport', title: 'Transporter', eventColor: '#3B82F6' };
-
-  const teamResources = [
-    ...resources.filter(r => r.id.startsWith('lager-') || r.id === 'warehouse-event'),
-    transportResource,
-  ].sort((a, b) => {
-      // warehouse-event always goes last
-      if (a.id === 'warehouse-event') return 1;
-      if (b.id === 'warehouse-event') return -1;
-      // transport goes just before warehouse-event
-      if (a.id === 'transport' && b.id !== 'warehouse-event') return 1;
-      if (b.id === 'transport' && a.id !== 'warehouse-event') return -1;
-      if (a.id === 'transport') return -1;
-      if (b.id === 'transport') return 1;
+  const teamResources = resources
+    .filter(r => r.id.startsWith('lager-'))
+    .sort((a, b) => {
       const aNum = parseInt(a.id.replace('lager-', '')) || 0;
       const bNum = parseInt(b.id.replace('lager-', '')) || 0;
       return aNum - bNum;
