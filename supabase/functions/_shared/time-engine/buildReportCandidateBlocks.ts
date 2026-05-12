@@ -481,6 +481,12 @@ export interface BuildReportCandidateBlocksInput {
   /** Optional: when a registration is open (status='active' & stopped_at IS NULL),
    *  consolidate trailing noise after `startedAtIso` into one ongoing work block. */
   openActiveRegistration?: OpenActiveRegistrationContext | null;
+  /** Time Engine 2.12 — planerad arbetsdagsslut för (staff, date), ISO.
+   *  När satt och personen kommer hem FÖRE plannedEndOfDayIso − 15 min,
+   *  räknas det som "hem mitt på dagen" och 90-min-auto-end SUPPRESSAS.
+   *  Anchor markeras icke-pågående utan bakåtklamp. Räknas ut i callsite
+   *  via `_shared/workday/plannedDay.ts` → computePlannedDaySignals. */
+  plannedEndOfDayIso?: string | null;
   policy?: ReportCandidatePolicy;
 }
 
@@ -2142,8 +2148,25 @@ export function buildReportCandidateBlocks(
       };
 
       const stay = findPrivateResidenceStayAfter(startedMs);
+
+      // Time Engine 2.12 — gate auto-end mot planerad arbetsdag.
+      // Om personen kommer hem FÖRE plannedEnd − 15 min räknas det som
+      // "hem mitt på dagen" (planerad arbetsdag pågår fortfarande) och
+      // 90-min-auto-end SKA INTE trigga. Detta speglar regeln att hemma
+      // bara avslutar dagen om hemkomsten inträffar EFTER planerad
+      // arbetsdag är slut (eller om ingen planering finns).
+      const PLANNED_END_GRACE_MS = 15 * 60_000;
+      const plannedEndIso = input.plannedEndOfDayIso ?? null;
+      const plannedEndMs = plannedEndIso ? new Date(plannedEndIso).getTime() : NaN;
+      const homeArrivedDuringPlannedDay =
+        !!stay &&
+        Number.isFinite(plannedEndMs) &&
+        stay.startMs < plannedEndMs - PLANNED_END_GRACE_MS;
+
       const autoEndTriggered =
-        !!stay && stay.durationMinutes >= PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN;
+        !!stay &&
+        stay.durationMinutes >= PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN &&
+        !homeArrivedDuringPlannedDay;
 
       // 1) Klampa eller förläng anchor.endAt baserat på home-stay.
       const anchorEndMsRaw = new Date(anchor.endAt).getTime();
