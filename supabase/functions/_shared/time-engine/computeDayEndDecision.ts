@@ -82,6 +82,18 @@ export interface ComputeDayEndDecisionInput {
  *  many minutes of the open active timer's last activity. */
 const FRESH_EVIDENCE_WINDOW_MIN = 30;
 
+/**
+ * Time Engine 4.6 — 15-mils-regel.
+ * Hemresa < 15 mil räknas inte som arbete och får inte hålla dagen levande
+ * fram till boende. Hemresa ≥ 15 mil kan vara arbetsrelaterad restid och
+ * dagen kan då sluta vid residenceEnterAt.
+ */
+export const COMMUTE_DISTANCE_THRESHOLD_METERS = 150_000;
+
+/** Buffer för att fånga transportblock som slutar strax efter
+ *  residenceEnterAt p.g.a. GPS-jitter. */
+const COMMUTE_TRANSPORT_BUFFER_MS = 5 * 60_000;
+
 /** Treat a long stop_source as an explicit admin/emergency stop. */
 const ADMIN_STOP_SOURCES = new Set([
   'admin',
@@ -101,6 +113,30 @@ const MANUAL_STOP_SOURCES = new Set([
   'web_user',
   'staff',
 ]);
+
+/**
+ * Summa transport-distans (meter) för transportblock som ligger mellan
+ * leaveWorkAt och residenceEnterAt (+ buffer). Används för att avgöra om
+ * hemresan ska räknas som arbete (≥ 150 km) eller inte.
+ */
+function sumCommuteDistanceMeters(
+  blocks: ReportCandidateBlock[],
+  leaveWorkAtIso: string,
+  residenceEnterAtIso: string,
+): number {
+  const fromMs = new Date(leaveWorkAtIso).getTime();
+  const toMs = new Date(residenceEnterAtIso).getTime() + COMMUTE_TRANSPORT_BUFFER_MS;
+  let sum = 0;
+  for (const b of blocks) {
+    if (b.kind !== 'transport') continue;
+    const sMs = new Date(b.startAt).getTime();
+    const eMs = new Date(b.endAt).getTime();
+    if (eMs <= fromMs || sMs >= toMs) continue;
+    const dist = Number(b.evidenceSummary?.distanceMeters ?? (b as any).distanceMeters ?? 0);
+    if (Number.isFinite(dist) && dist > 0) sum += dist;
+  }
+  return Math.round(sum);
+}
 
 function clampToDay(iso: string | null, dayStart: string, dayEnd: string): string | null {
   if (!iso) return null;
