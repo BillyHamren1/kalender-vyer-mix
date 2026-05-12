@@ -969,6 +969,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             height: number;
                             startMs: number;
                             endMs: number;
+                            lane: number;
+                            laneCount: number;
                           }> = [];
                           for (const b of blocks) {
                             const sH = hourOfDay(b.startAt, dateStr);
@@ -984,6 +986,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               height,
                               startMs: Date.parse(b.startAt),
                               endMs: Date.parse(b.endAt),
+                              lane: 0,
+                              laneCount: 1,
                             });
                           }
                           rects.sort((a, b) =>
@@ -991,33 +995,64 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               ? a.startMs - b.startMs
                               : (a.endMs - a.startMs) - (b.endMs - b.startMs),
                           );
-                          // 2) Diagnostic — markera block som överlappar tidigare i listan.
+
+                          // 2) Lane-assignment (FullCalendar-stil): grupp av överlappande
+                          // block delar bredden i parallella kolumner. Diagnostic warning
+                          // loggas fortfarande, men visuellt mangelar inget ihop sig.
                           const overlapsPrev = new Set<string>();
-                          for (let i = 1; i < rects.length; i++) {
-                            const prev = rects[i - 1];
-                            const cur = rects[i];
-                            if (cur.startMs < prev.endMs) {
-                              overlapsPrev.add(cur.b.id);
-                              overlapsPrev.add(prev.b.id);
-                              if (typeof console !== 'undefined') {
-                                // eslint-disable-next-line no-console
-                                console.warn(
-                                  '[StaffGanttView] overlap detected — Time Engine bör ha löst detta',
-                                  {
-                                    a: { id: prev.b.id, startAt: prev.b.startAt, endAt: prev.b.endAt, title: prev.b.title },
-                                    b: { id: cur.b.id, startAt: cur.b.startAt, endAt: cur.b.endAt, title: cur.b.title },
-                                  },
-                                );
+                          let group: typeof rects = [];
+                          let groupEnd = -Infinity;
+                          const flushGroup = () => {
+                            if (group.length === 0) return;
+                            // Greedy lane packing inom gruppen
+                            const laneEnds: number[] = [];
+                            for (const r of group) {
+                              let placed = false;
+                              for (let li = 0; li < laneEnds.length; li++) {
+                                if (r.startMs >= laneEnds[li]) {
+                                  r.lane = li;
+                                  laneEnds[li] = r.endMs;
+                                  placed = true;
+                                  break;
+                                }
+                              }
+                              if (!placed) {
+                                r.lane = laneEnds.length;
+                                laneEnds.push(r.endMs);
                               }
                             }
+                            const laneCount = laneEnds.length;
+                            for (const r of group) r.laneCount = laneCount;
+                            group = [];
+                          };
+                          for (const r of rects) {
+                            if (r.startMs >= groupEnd) {
+                              flushGroup();
+                              groupEnd = r.endMs;
+                            } else {
+                              groupEnd = Math.max(groupEnd, r.endMs);
+                              // markera diagnostic — gruppen har ≥2 block
+                              for (const g of group) {
+                                overlapsPrev.add(g.b.id);
+                                overlapsPrev.add(r.b.id);
+                              }
+                            }
+                            group.push(r);
                           }
+                          flushGroup();
 
-                          return rects.map(({ b, top, height }) => {
+                          return rects.map(({ b, top, height, lane, laneCount }) => {
                             const style = KIND_STYLE[b.kind];
                             const displaySubtitle = getGanttDisplaySubtitle(b);
                             const showSub = height >= 56;
-                            const showMeta = height >= 80;
+                            const showMeta = height >= 80 && laneCount === 1;
                             const overlapping = overlapsPrev.has(b.id);
+                            // Smalare kolumner när block överlappar — kantöverlapp på
+                            // 4px så blocken visuellt "stackar" lite (likt personalkalendern)
+                            const GAP = 2;
+                            const OVERLAP_PX = laneCount > 1 ? 4 : 0;
+                            const colWidthPct = 100 / laneCount;
+                            const leftPct = lane * colWidthPct;
                             return (
                               <div
                                 key={b.id}
@@ -1028,7 +1063,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   setSelectedBlock({ staffId: staff.id, blockId: b.id });
                                 }}
                                 className={cn(
-                                  'absolute z-[5] cursor-pointer overflow-hidden rounded-[4px] border px-2 pt-3 pb-3 text-[12px] leading-tight transition-transform hover:scale-[1.02] hover:z-20',
+                                  'absolute cursor-pointer overflow-hidden rounded-[4px] border px-1.5 pt-2 pb-2 text-[12px] leading-tight transition-transform hover:scale-[1.02] hover:z-20',
                                   style.bg,
                                   style.border,
                                   overlapping && 'ring-1 ring-amber-400/70',
@@ -1036,12 +1071,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 style={{
                                   top,
                                   height,
-                                  left: 2,
-                                  width: 'calc(100% - 4px)',
+                                  left: `calc(${leftPct}% + ${GAP}px)`,
+                                  width: `calc(${colWidthPct}% - ${GAP * 2}px + ${OVERLAP_PX}px)`,
+                                  zIndex: 5 + lane,
                                   color: '#000000',
                                   boxShadow: '0 1px 2px hsl(var(--foreground) / 0.08)',
                                 }}
-                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${overlapping ? '\n⚠ Engine-fel: överlappar annat block' : ''}`}
+                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${overlapping ? '\n⚠ Överlappar annat block' : ''}`}
                               >
                                 <div
                                   className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-0.5 w-fit"
