@@ -227,9 +227,19 @@ const blocksFromStaff = (
       fallbackTitleCount: 0,
       examples: [] as Array<Record<string, unknown>>,
     };
+    // Time Engine 2.14 — använd dagens planerade jobb som fallback-namn så
+    // block aldrig fastnar på "Signal saknas" / "Arbete – okänd plats" när
+    // personalen har ett enda planerat projekt för dagen.
+    const plannedFallback =
+      staff.plannedLabels && staff.plannedLabels.length === 1
+        ? staff.plannedLabels[0]
+        : null;
     for (const b of candidate) {
-      const resolved = resolveGanttBlockTitle(b);
-      const reason = classifyGanttTitleResolution(b, resolved);
+      const enriched = plannedFallback
+        ? { ...b, plannedAssignmentLabel: (b as any).plannedAssignmentLabel ?? plannedFallback }
+        : b;
+      const resolved = resolveGanttBlockTitle(enriched);
+      const reason = classifyGanttTitleResolution(enriched, resolved);
       if (!b.title || !b.title.trim()) labelDiagnostics.missingTitleBlocksCount += 1;
       if (reason === 'displayTitle') labelDiagnostics.resolvedFromDisplayTitleCount += 1;
       else if (reason === 'targetLabel') labelDiagnostics.resolvedFromTargetLabelCount += 1;
@@ -243,6 +253,7 @@ const blocksFromStaff = (
             kind: b.kind,
             originalTitle: b.title,
             targetLabel: b.targetLabel ?? null,
+            plannedFallback,
             finalTitle: resolved,
             reason,
           });
@@ -269,7 +280,9 @@ const blocksFromStaff = (
           startAt: b.startAt,
           endAt: b.endAt,
           durationMinutes: b.durationMinutes,
-          title: resolveGanttBlockTitle(b),
+          title: resolveGanttBlockTitle(
+            plannedFallback ? { ...b, plannedAssignmentLabel: (b as any).plannedAssignmentLabel ?? plannedFallback } : b,
+          ),
           subtitle: 'Före arbetsdag',
         });
       }

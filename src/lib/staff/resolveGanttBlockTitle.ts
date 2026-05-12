@@ -22,6 +22,9 @@ const GENERIC_TITLES = new Set(
   [
     '',
     'arbete',
+    'arbete – okänd plats',
+    'arbete - okänd plats',
+    'arbete (okänd plats)',
     'work',
     'rigg',
     'rig',
@@ -33,14 +36,24 @@ const GENERIC_TITLES = new Set(
     'behöver granskas',
     'okänd plats',
     'unknown',
+    'signal saknas',
+    'signal_gap',
+    'gps-glapp',
+    'gps glapp',
+    'sammanslagen okänd plats',
   ].map((s) => s.toLowerCase()),
 );
+
+const GENERIC_PREFIXES = ['sammanslagen okänd plats', 'okänd plats'];
 
 const isGeneric = (value: string | null | undefined): boolean => {
   if (!value) return true;
   const trimmed = value.trim();
   if (!trimmed) return true;
-  return GENERIC_TITLES.has(trimmed.toLowerCase());
+  const low = trimmed.toLowerCase();
+  if (GENERIC_TITLES.has(low)) return true;
+  if (GENERIC_PREFIXES.some((p) => low.startsWith(p))) return true;
+  return false;
 };
 
 const isWarehouseEvidence = (b: GanttBlockInput): boolean => {

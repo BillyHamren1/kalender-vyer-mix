@@ -46,4 +46,18 @@ describe('resolveGanttBlockTitle', () => {
       ),
     ).toBe('GOPA');
   });
+
+  it('treats "Signal saknas" as generic and falls back to project name', () => {
+    const block = Object.assign(base({ title: 'RIGG', targetLabel: 'Signal saknas' }), {
+      plannedAssignmentLabel: 'Bergman Event AB',
+    });
+    expect(resolveGanttBlockTitle(block)).toBe('Bergman Event AB');
+  });
+
+  it('treats "Arbete – okänd plats" as generic', () => {
+    const block = Object.assign(base({ title: 'Arbete – okänd plats' }), {
+      plannedAssignmentLabel: 'Swedish Game Fair',
+    });
+    expect(resolveGanttBlockTitle(block)).toBe('Swedish Game Fair');
+  });
 });
