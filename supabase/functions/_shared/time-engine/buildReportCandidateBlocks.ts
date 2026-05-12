@@ -2900,6 +2900,13 @@ export function buildReportCandidateBlocks(
     examples: prExamples,
   };
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 4.5 — preventOverlappingWorkBlocks
+  //
+  // Säkerhetsnät: två work-block med olika target får aldrig överlappa
+  // visuellt. Active timer-anchor är SVAGARE än verklig engine-evidens.
+  // Prioritet (störst vinner):
+  //   1. private_residence
   //   2. känd plats / project / booking / warehouse target
   //   3. real transport (>= realTripMinDistanceMeters)
   //   4. open_active_timer_anchor (active_time_registration)
