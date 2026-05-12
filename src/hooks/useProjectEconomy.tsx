@@ -518,6 +518,20 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     costOverrides,
     supplierInvoices,
     bookingEconomics,
+    // ── Time Engine staff hours (single source: staff_day_report_cache) ──
+    projectHours,
+    reportedStaffHoursFromTimeEngine,
+    staffHoursByPerson,
+    staffHoursByDay,
+    hoursSource,
+    // ── Manuell extra labor (project_labor_costs) — separat ──
+    manualExtraLaborRows,
+    manualExtraLaborHours,
+    manualExtraLaborCost,
+    // ── Bakåtkompatibla aliaser ──
+    actualStaffHours,
+    manualLaborHours,
+    totalLaborHours,
     summary,
     isLoading,
     hasBooking,
