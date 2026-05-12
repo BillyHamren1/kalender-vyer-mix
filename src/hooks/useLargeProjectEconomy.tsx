@@ -287,7 +287,16 @@ export const useLargeProjectEconomy = (
     summary,
     bookingEconomyData: bookingEconomyData || null,
     localProducts,
+    // Detalj-breakdown per booking — får ej användas som total.
     timeReportsByBooking,
+    // Totalsanning: LP-aggregerad Time Engine-cache.
+    largeProjectHours,
+    reportedStaffHoursFromTimeEngine,
+    reportedStaffCostFromTimeEngine,
+    staffHoursByPerson,
+    staffHoursByDay,
+    staffCostsByPerson,
+    hoursSource,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
     addPurchase: addPurchaseMutation.mutate,
