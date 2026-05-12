@@ -1827,6 +1827,23 @@ export function buildReportCandidateBlocks(
     r.subtitle = `${fmtClock(r.startAt)}–${fmtClock(r.endAt)} · ${fmtDuration(r.durationMinutes)}`;
   };
 
+  /**
+   * Time Engine 3.10 — short transport stays as transport with warning, never
+   * as a visible "Granska"-block. Distance < 500 m / cross-target jitter is
+   * informativ noise, inte mänsklig granskning.
+   */
+  const markAsWarningTransport = (r: ReportCandidateBlock, reason: string) => {
+    if (!r.warningReasons) r.warningReasons = [];
+    if (!r.warningReasons.includes(reason)) r.warningReasons.push(reason);
+    if (!r.warningLabel) {
+      r.warningLabel = reason === 'short_transport_to_unknown'
+        ? 'Kort förflyttning mot okänd plats'
+        : 'Kort förflyttning mellan platser';
+    }
+    // Confidence sänks men kind/title behålls — ingen mänsklig granskning krävs.
+    if (r.confidence === 'high') r.confidence = 'medium';
+  };
+
   let changed2 = true;
   let safety2 = 0;
   while (changed2 && safety2 < 50) {
