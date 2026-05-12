@@ -2511,6 +2511,7 @@ export function buildReportCandidateBlocks(
         workBlockClampedAt,
         suppressedBlocksAfterHomeArrival: suppressedAfterHomeArrival,
       };
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────
