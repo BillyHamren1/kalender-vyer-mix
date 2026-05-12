@@ -130,27 +130,37 @@ const SIGNAL_GAP_REASONS = new Set<string>([
 ]);
 
 /**
- * Time Engine 2.4 — review-reasons som ALLTID bryter en session.
- * Om något av dessa förekommer på ett efterföljande block får sessionen
- * inte absorbera vidare; blocket behålls som eget block (eller separat
- * transport/session enligt befintlig modell).
+ * Time Engine 2.10 — EN canonical lista över hard reasons.
  *
- * Täcker:
- *  - private_residence / boende / home-konflikt
- *  - tydligt stoppad arbetsdag (workday_ended / workday_stopped /
- *    explicit_stop) om uppströms-motorn satt en sådan markör
- *  - ny planerad assignment med annan target
- *  - tydlig annan destination
- *  - omöjlig rutt (speed/teleport som faktiskt har distans bakom sig)
- *  - flera konkurrerande targets utan vinnare
+ * Alla dessa reasons:
+ *  - bryter session i sandwich-passet (ett block som har dem absorberas EJ)
+ *  - blockerar probabilistic absorption (current/host får inte ha dem)
+ *  - håller kvar reviewState='needs_review' i cleanup-passet
  *
- * OBS: bara signal_gap-baserade reasons + uncertain transition får
- * absorberas. Allt annat = break.
+ * SESSION_BREAK_REASONS och HARD_REVIEW_REASONS är borttagna — använd
+ * ENDAST denna lista, annars kan reglerna glida isär igen.
  */
-const SESSION_BREAK_REASONS = new Set<string>([
+const HARD_SESSION_BREAK_REASONS = new Set<string>([
+  'unknown_place',
+  'unknown_place_no_anchor',
+  'no_anchor_for_unknown_place',
+  'no_anchor_coordinates',
+  'conflicting_target_evidence',
+  'conflicting_targets',
+  'multiple_competing_targets',
+  'target_ambiguous_no_winner',
+  'travel_missing_endpoints',
+  'travel_missing_start_or_end',
+  'home_private_conflict',
   'private_residence',
   'private_zone',
-  'home_private_conflict',
+  'open_active_timer_in_private_residence',
+  'impossible_route',
+  'impossible_speed',
+  'route_speed_violation_with_distance',
+  'signal_gap_unbound',
+  'signal_gap_cross_target',
+  'unabsorbable_block',
   'workday_ended',
   'workday_stopped',
   'explicit_stop',
@@ -158,64 +168,58 @@ const SESSION_BREAK_REASONS = new Set<string>([
   'new_planned_assignment_other_target',
   'planned_assignment_target_change',
   'clear_other_destination',
-  'impossible_route',
-  'route_speed_violation_with_distance',
-  'multiple_competing_targets',
-  'target_ambiguous_no_winner',
-  'conflicting_targets',
-]);
-
-const hasBreakingReason = (r: ReportCandidateBlock): boolean => {
-  const reasons = r.reviewReasons ?? [];
-  return reasons.some((rr) => SESSION_BREAK_REASONS.has(rr));
-};
-
-/**
- * Time Engine 2.7 — needs_review cleanup:
- * "hårda" reasons som ALLTID motiverar att blocket behåller needs_review
- * även efter konsolidering. Allt som INTE är i denna mängd (eller i
- * SIGNAL_GAP_REASONS) räknas som soft och tillåter demotion till 'ok'.
- *
- * Täcker:
- *  - okänd plats utan ankare
- *  - flera konkurrerande targets utan tydlig vinnare
- *  - faktisk resa saknar start/slut
- *  - home/private/private_residence-konflikt
- *  - omöjlig rutt (med faktisk distans)
- *  - signalgap som inte kan kopplas (cross-target/unbound)
- *  - explicit "kan ej absorberas"
- */
-const HARD_REVIEW_REASONS = new Set<string>([
-  'unknown_place_no_anchor',
-  'no_anchor_for_unknown_place',
-  'multiple_competing_targets',
-  'target_ambiguous_no_winner',
-  'conflicting_targets',
-  'travel_missing_endpoints',
-  'travel_missing_start_or_end',
-  'home_private_conflict',
-  'private_residence',
-  'private_zone',
-  'impossible_route',
-  'route_speed_violation_with_distance',
-  'signal_gap_unbound',
-  'signal_gap_cross_target',
-  'unabsorbable_block',
 ]);
 
 /**
- * "Soft" reasons som ENSAMMA inte motiverar needs_review efter konsolidering.
- * Innehåller signal_gap-familjen + tekniska glapp som kan absorberas.
+ * Soft / signal / technical reasons. Block med ENDAST dessa reasons får
+ * absorberas (om kind tillåter). Inga av dessa får överlappa med
+ * HARD_SESSION_BREAK_REASONS.
  */
 const SOFT_REVIEW_REASONS = new Set<string>([
   ...SIGNAL_GAP_REASONS,
   'low_gps_signal',
   'speed_violation_no_distance',
+  'targets_differ_without_movement',
   'short_cross_target_movement',
   'short_transport_to_unknown',
   'absorbed_micro_movement',
   'session_consolidated',
+  'uncertain_transition',
+  'probabilistic_session_absorption',
 ]);
+
+/** True om blocket har minst en reason som finns i HARD_SESSION_BREAK_REASONS. */
+function hasHardSessionBreakReason(block: ReportCandidateBlock | undefined): boolean {
+  if (!block) return false;
+  const reasons = block.reviewReasons ?? [];
+  return reasons.some((rr) => HARD_SESSION_BREAK_REASONS.has(rr));
+}
+
+/** Bakåtkompatibel alias — all gammal kod använder samma canonical list. */
+const hasBreakingReason = hasHardSessionBreakReason;
+
+/**
+ * True endast om needs_review-blocket är tryggt att absorbera:
+ *  - kind === 'needs_review'
+ *  - reviewReasons saknas/är tom ELLER alla reasons är soft/signal
+ *  - INGEN reason finns i HARD_SESSION_BREAK_REASONS
+ *
+ * `deps` är reserverad för framtida utvidgning (t.ex. distansjusteringar);
+ * tas emot för API-stabilitet.
+ */
+// deno-lint-ignore no-unused-vars
+function isSoftAbsorbableNeedsReview(
+  block: ReportCandidateBlock,
+  _deps: ConsolidationDeps,
+): boolean {
+  if (block.kind !== 'needs_review') return false;
+  const reasons = block.reviewReasons ?? [];
+  if (reasons.some((rr) => HARD_SESSION_BREAK_REASONS.has(rr))) return false;
+  if (reasons.length === 0) return true;
+  return reasons.every(
+    (rr) => SOFT_REVIEW_REASONS.has(rr) || SIGNAL_GAP_REASONS.has(rr),
+  );
+}
 
 /**
  * Stark sessionsnyckel — matchar på targetType+targetId först (täcker
