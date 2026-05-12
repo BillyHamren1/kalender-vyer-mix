@@ -588,33 +588,64 @@ export interface ReportCandidateSummary {
 }
 
 /**
- * Reasons som faktiskt kräver mänsklig granskning.
- * Endast dessa lyfter ett block till reviewState='needs_review'.
+ * Time Engine 3.10 — needs_review är sista utväg.
+ *
+ * Endast dessa reasons lyfter ett block till reviewState='needs_review'.
+ * Allt annat går till warningReasons / warningLabel / diagnostics.
+ *
+ * Behåll needs_review endast vid:
+ *   - okänd plats utan ankare           (unknown_place, no_anchor_coordinates)
+ *   - flera konkurrerande targets       (conflicting_target_evidence,
+ *                                        targets_differ_without_movement)
+ *   - faktisk resa utan start/slut      (missing_transition_evidence)
+ *   - private/home conflict             (home_private_conflict)
+ *   - omöjlig rutt                      (impossible_speed)
+ *   - signalgap som inte kan kopplas    (signal_gap_unresolved)
  */
 const BLOCKING_REVIEW_REASONS = new Set<string>([
   'missing_transition_evidence',
   'signal_gap_unresolved',
-  'signal_gap_open_day',
   'unknown_place',
-  'short_cross_target_movement',
-  'short_transport_to_unknown',
   'conflicting_target_evidence',
+  'targets_differ_without_movement',
   'home_private_conflict',
   'impossible_speed',
   'no_anchor_coordinates',
 ]);
 
 /**
- * Reasons som är informativa men inte kräver granskning. Visas som
- * warningLabel / Decision Trace, aldrig som "Granska" i UI.
+ * Time Engine 3.10 — informativa reasons som ALDRIG ska bli "Granska".
+ * Visas som warningLabel / warningReasons / Decision Trace / diagnostics.
+ *
+ * Listan täcker bl.a.:
+ *   - signalproblem inne i tydlig session
+ *   - GPS-glapp som motorn redan kopplat till session/plats/rutt
+ *   - medium confidence
+ *   - transport < 500 m (short_transport_to_unknown / short_cross_target_movement)
+ *   - speed_mps-konflikt utan att ruten är omöjlig
+ *   - active timer-konflikt som engine evidence redan löser
+ *   - generisk titel (Team 1 / assignment-label) där projektnamn finns
+ *   - signal_gap_open_day (dagen löser sig när den stängs)
  */
 const WARNING_ONLY_REASONS = new Set<string>([
   'signal_gaps_inside_work_block',
+  'signal_gap_open_day',
   'same_target_transport_missing_distance',
   'same_target_roundtrip_long_distance',
   'movement_inside_same_target',
   'absorbed_micro_movement',
   'partial_outside_sticky_geofence',
+  'short_cross_target_movement',
+  'short_transport_to_unknown',
+  'medium_confidence',
+  'speed_conflict_non_impossible',
+  'open_active_timer_anchor',
+  'open_active_timer_consolidated',
+  'active_timer_open_but_no_fresh_engine_evidence',
+  'active_timer_clamped_by_later_block',
+  'active_timer_context_cut_by_later_engine_block',
+  'active_timer_target_conflicts_with_engine_location',
+  'generic_assignment_label_resolved_to_project',
 ]);
 
 export { BLOCKING_REVIEW_REASONS, WARNING_ONLY_REASONS };
