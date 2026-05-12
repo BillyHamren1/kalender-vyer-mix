@@ -447,7 +447,7 @@ const LargeProjectProductsOverview = ({
               </div>
             ) : (
               <div className="divide-y divide-border/40">
-                {filteredRows.map((row) => (
+                {sortedFilteredRows.map((row) => (
                   <ProductRow
                     key={row.id}
                     row={row}
