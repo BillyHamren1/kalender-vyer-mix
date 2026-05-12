@@ -42,6 +42,7 @@ import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import type { ReportCandidateBlockUI, ReportCandidateSummaryUI } from './ReportCandidateTimeline';
+import { resolveGanttBlockTitle, classifyGanttTitleResolution } from '@/lib/staff/resolveGanttBlockTitle';
 import { EvidencePanel } from './ReportCandidateTimeline';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -217,16 +218,48 @@ const blocksFromStaff = (
 ): GanttBlock[] => {
   const out: GanttBlock[] = [];
   if (candidate && candidate.length) {
+    const labelDiagnostics = {
+      missingTitleBlocksCount: 0,
+      genericTitleBlocksCount: 0,
+      resolvedFromDisplayTitleCount: 0,
+      resolvedFromTargetLabelCount: 0,
+      resolvedFromAssignmentCount: 0,
+      fallbackTitleCount: 0,
+      examples: [] as Array<Record<string, unknown>>,
+    };
     for (const b of candidate) {
+      const resolved = resolveGanttBlockTitle(b);
+      const reason = classifyGanttTitleResolution(b, resolved);
+      if (!b.title || !b.title.trim()) labelDiagnostics.missingTitleBlocksCount += 1;
+      if (reason === 'displayTitle') labelDiagnostics.resolvedFromDisplayTitleCount += 1;
+      else if (reason === 'targetLabel') labelDiagnostics.resolvedFromTargetLabelCount += 1;
+      else if (reason === 'assignment') labelDiagnostics.resolvedFromAssignmentCount += 1;
+      else if (reason === 'fallback') {
+        labelDiagnostics.fallbackTitleCount += 1;
+        if (labelDiagnostics.examples.length < 5) {
+          labelDiagnostics.examples.push({
+            staffName: staff.name,
+            blockId: b.id,
+            kind: b.kind,
+            originalTitle: b.title,
+            targetLabel: b.targetLabel ?? null,
+            finalTitle: resolved,
+            reason,
+          });
+        }
+      }
       out.push({
         id: b.id,
         kind: mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate),
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
-        title: b.title,
+        title: resolved,
         subtitle: b.subtitle ?? null,
       });
+    }
+    if (labelDiagnostics.fallbackTitleCount > 0 && typeof console !== 'undefined') {
+      console.warn('[Gantt 2.13] ganttLabelDiagnostics', labelDiagnostics);
     }
     if (excludedPreWork) {
       for (const b of excludedPreWork) {
@@ -236,7 +269,7 @@ const blocksFromStaff = (
           startAt: b.startAt,
           endAt: b.endAt,
           durationMinutes: b.durationMinutes,
-          title: b.title,
+          title: resolveGanttBlockTitle(b),
           subtitle: 'Före arbetsdag',
         });
       }
