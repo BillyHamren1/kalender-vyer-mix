@@ -36,9 +36,20 @@ import {
   deleteProductCostOverride,
 } from '@/services/productCostOverrideService';
 import { calculateEconomySummary, fetchProjectTimeReports } from '@/services/projectEconomyService';
+import { fetchProjectHoursSummary } from '@/services/projectHoursService';
+import type { ProjectHoursSummary } from '@/lib/projects/projectHoursFromTimeEngine';
+import { fetchLaborCosts } from '@/services/projectStaffService';
 import type { ProductCostSummary, ProductCostData } from '@/services/productCostService';
 import type { ProjectPurchase, ProjectQuote, ProjectInvoice, LinkedCostType } from '@/types/projectEconomy';
 import { createOptimisticCallbacks } from './useOptimisticMutation';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ekonomin använder samma Time Engine-cache (`staff_day_report_cache`) som
+// /staff-management/time-reports och projektvyn. Inga projekttimmar hämtas
+// från `time_reports`. `project_labor_costs` exponeras separat som
+// "manualExtraLabor*" — manuell extra kostnad — och blandas ALDRIG ihop med
+// rapporterade timmar.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const useProjectEconomy = (projectId: string | undefined, bookingId: string | null | undefined) => {
   const queryClient = useQueryClient();
