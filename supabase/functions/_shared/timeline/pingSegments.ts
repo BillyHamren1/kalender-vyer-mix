@@ -56,11 +56,20 @@ const centreOf = (pings: RawPing[]) => ({
   lng: median(pings.map((p) => p.lng)),
 });
 
+/**
+ * Tolerans utöver platsens egen radie (meter). Speglar
+ * src/lib/staff/pingPlaceSegments.ts → KNOWN_SITE_TOLERANCE_METERS.
+ * GPS-noise gör att en stationär person nära ett känt projekt/lager ofta
+ * landar 50–150 m utanför geofencen — acceptera som matchning istället för
+ * att klassa som okänd plats.
+ */
+export const KNOWN_SITE_TOLERANCE_METERS = 150;
+
 function matchKnownSite(ping: RawPing, sites: KnownPlace[]): KnownPlace | null {
   let best: { site: KnownPlace; dist: number } | null = null;
   for (const s of sites) {
     const d = distanceMeters(s.lat, s.lng, ping.lat, ping.lng);
-    if (d <= s.radiusM && (!best || d < best.dist)) {
+    if (d <= s.radiusM + KNOWN_SITE_TOLERANCE_METERS && (!best || d < best.dist)) {
       best = { site: s, dist: d };
     }
   }
