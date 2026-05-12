@@ -3087,6 +3087,48 @@ export function buildReportCandidateBlocks(
     }
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // Time Engine 4.2 — FINAL DAY-WINDOW CLAMP
+  // Hård invariant: inga synliga blocks får ligga utanför svensk
+  // rapportdag (Europe/Stockholm). Block helt utanför dagen tas bort,
+  // block som överlappar dagsgränsen klipps. Detta körs sist så att alla
+  // tidigare passes (open-active-timer-extend, single-timeline, session-
+  // konsolidering) inte kan smita förbi.
+  // ───────────────────────────────────────────────────────────────────────
+  {
+    const win = getStockholmDayWindowUtc(input.date);
+    const clamped: ReportCandidateBlock[] = [];
+    for (const b of out) {
+      const sMs = Date.parse(b.startAt);
+      const eMs = Date.parse(b.endAt);
+      if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) continue;
+      if (eMs <= win.startUtcMs) continue; // helt före dagen
+      if (sMs >= win.endUtcMs) continue;   // helt efter dagen
+      const newSMs = Math.max(sMs, win.startUtcMs);
+      const newEMs = Math.min(eMs, win.endUtcMs);
+      if (newEMs - newSMs < 60_000) continue; // < 1 min kvar — droppa
+      const startChanged = newSMs !== sMs;
+      const endChanged = newEMs !== eMs;
+      if (startChanged) b.startAt = new Date(newSMs).toISOString();
+      if (endChanged) {
+        b.endAt = new Date(newEMs).toISOString();
+        // Block får aldrig anses pågående utanför dagsfönstret.
+        if (b.isOngoing) b.isOngoing = false;
+      }
+      if (startChanged || endChanged) {
+        b.durationMinutes = Math.max(1, Math.round((newEMs - newSMs) / 60_000));
+        b.durationLabel = fmtDuration(b.durationMinutes);
+        b.subtitle = `${fmtClock(b.startAt)}–${fmtClock(b.endAt)} · ${fmtDuration(b.durationMinutes)}`;
+        const reasons = new Set(b.reviewReasons ?? []);
+        reasons.add('clamped_to_stockholm_day_window');
+        b.reviewReasons = Array.from(reasons);
+      }
+      clamped.push(b);
+    }
+    out.length = 0;
+    out.push(...clamped);
+  }
+
   return {
     staffId: input.staffId,
     organizationId: input.organizationId,
