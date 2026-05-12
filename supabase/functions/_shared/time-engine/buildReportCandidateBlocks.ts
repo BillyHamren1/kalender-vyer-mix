@@ -2106,6 +2106,7 @@ export function buildReportCandidateBlocks(
 
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
+    openTimerClampDiag.activeTimersSeen += 1;
     const startedMs = new Date(openCtx.startedAtIso).getTime();
     // Time Engine 4.2 — Europe/Stockholm dagsfönster (inte UTC `T23:59:59Z`).
     // Historiska dagar: clamp `nowMs` till stockholmDayEndMs så ankaret
@@ -2113,7 +2114,9 @@ export function buildReportCandidateBlocks(
     const stockholmDay = getStockholmDayWindowUtc(input.date);
     const dayCutoffMs = stockholmDay.endUtcMs;
     const rawNowMs = Date.now();
-    const nowMs = Math.min(rawNowMs, dayCutoffMs);
+    // Time Engine 3.3 — på historiska dagar får Date.now ALDRIG vara visible
+    // end. Klampa hårt till stockholmDayEndMs (clamp.ts upprepar för säkerhet).
+    const nowMs = isStockholmToday ? Math.min(rawNowMs, dayCutoffMs) : dayCutoffMs;
     const openTargetKey = openCtx.targetId
       ? `${openCtx.targetType ?? ''}::${openCtx.targetId}`
       : null;
