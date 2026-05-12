@@ -3547,6 +3547,15 @@ export function buildReportCandidateBlocks(
     openTimerClampDiagnostics: openTimerClampDiag,
     privateResidenceDayEndDiagnostics: privateResidenceDayEndDiag,
     commutePolicyDiagnostics: commutePolicyDiag,
+    workAreaToleranceDiagnostics: {
+      toleranceMeters: input.workAreaToleranceFromGps?.toleranceMeters ?? 150,
+      continuedSessionByToleranceCount:
+        input.workAreaToleranceFromGps?.continuedSessionByToleranceCount ?? 0,
+      blockedByPrivateResidenceCount:
+        input.workAreaToleranceFromGps?.blockedByPrivateResidenceCount ?? 0,
+      blockedAfterDayEndCount: 0,
+      examples: input.workAreaToleranceFromGps?.examples ?? [],
+    },
     singleTimelineDiagnostics: singleTimelineDiag,
   };
   for (const r of out) {
