@@ -253,22 +253,32 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
   }
 
   const headerCellClass =
-    "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b border-r border-border/60 bg-muted/40 align-bottom whitespace-nowrap";
-  const cellClass = "px-3 py-2 text-sm border-b border-r border-border/40 align-top";
+    "px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border align-middle whitespace-nowrap";
+  const cellClass = "px-5 py-3.5 text-sm align-top";
 
   return (
-    <Card className="border-border/50 shadow-sm overflow-hidden w-full">
-      <div className="px-3 py-2 border-b border-border/40 flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={openAddCol}>
-          <Plus className="w-3.5 h-3.5 mr-1" /> Lägg till kolumn
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          Dra kolumnrubriker för att ändra ordning. Egna kolumner kan redigeras direkt i tabellen.
-        </span>
+    <Card className="border-border/60 rounded-2xl shadow-xl shadow-foreground/5 overflow-hidden w-full bg-card">
+      {/* Toolbar */}
+      <div className="px-5 py-3 border-b border-border/70 flex items-center justify-between bg-card sticky top-0 z-30 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={openAddCol}
+            className="rounded-lg shadow-sm hover:shadow transition-all active:scale-[0.98]"
+          >
+            <Plus className="w-4 h-4 mr-1.5 text-muted-foreground" />
+            Lägg till kolumn
+          </Button>
+          <span className="text-xs text-muted-foreground hidden md:inline">
+            Dra kolumnrubriker för att ändra ordning. Egna kolumner kan redigeras direkt i tabellen.
+          </span>
+        </div>
       </div>
+
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse min-w-[900px]">
-          <thead>
+        <table className="w-full border-separate border-spacing-0 text-left min-w-[900px]">
+          <thead className="bg-muted/40 backdrop-blur-sm">
             <tr>
               {orderedColumns.map((col, idx) => {
                 const isCustom = col.kind === "custom";
@@ -283,22 +293,27 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                     onDragOver={(e) => { e.preventDefault(); }}
                     onDrop={() => onDrop(col.id)}
                     onDragEnd={() => setDragId(null)}
-                    className={`${headerCellClass} min-w-[180px] ${sticky ? "sticky left-0 z-10 bg-muted/60" : ""} ${dragId === col.id ? "opacity-50" : ""} cursor-move`}
+                    className={`${headerCellClass} min-w-[180px] ${sticky ? "sticky left-0 z-20 bg-muted/60 border-r min-w-[240px]" : ""} ${dragId === col.id ? "opacity-50 ring-2 ring-primary/50" : ""} cursor-move group/th transition-colors hover:bg-muted/60`}
                   >
-                    <div className="flex items-center gap-1">
-                      <GripVertical className="w-3 h-3 opacity-40 shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <GripVertical className="w-3.5 h-3.5 opacity-30 group-hover/th:opacity-70 transition-opacity shrink-0" />
                       <button
                         type="button"
                         onClick={() => toggleSort(col.id)}
-                        className={`flex items-center gap-1 text-left hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
+                        className={`flex items-center gap-1.5 text-left transition-colors ${active ? "text-foreground" : "hover:text-foreground"}`}
                       >
-                        <span>{col.label}</span>
-                        <Icon className="w-3 h-3 opacity-70" />
+                        <span className="truncate">{col.label}</span>
+                        <Icon className={`w-3 h-3 transition-opacity ${active ? "opacity-100" : "opacity-40 group-hover/th:opacity-70"}`} />
                       </button>
                       {isCustom && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button type="button" className="ml-auto opacity-50 hover:opacity-100 px-1">⋯</button>
+                            <button
+                              type="button"
+                              className="ml-auto opacity-0 group-hover/th:opacity-60 hover:!opacity-100 px-1.5 rounded hover:bg-foreground/10 transition-all"
+                            >
+                              ⋯
+                            </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openRenameCol(col.id, col.label)}>
@@ -317,75 +332,106 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
             </tr>
           </thead>
           <tbody>
-            {sortedRows.map((r, idx) => (
-              <tr key={r.id} className={idx % 2 === 0 ? "bg-card" : "bg-muted/10"}>
-                {orderedColumns.map((col, cidx) => {
-                  const sticky = cidx === 0;
-                  const stickyBg = idx % 2 === 0 ? "bg-card" : "bg-muted/10";
-                  const stickyClass = sticky ? `sticky left-0 z-10 ${stickyBg}` : "";
-                  if (col.kind === "client") {
+            {sortedRows.map((r, idx) => {
+              const zebra = idx % 2 === 1;
+              const rowBg = zebra ? "bg-muted/20" : "bg-card";
+              return (
+                <tr
+                  key={r.id}
+                  className={`group/row ${rowBg} hover:bg-accent/40 transition-colors`}
+                >
+                  {orderedColumns.map((col, cidx) => {
+                    const sticky = cidx === 0;
+                    const stickyClass = sticky
+                      ? `sticky left-0 z-10 ${rowBg} group-hover/row:bg-accent/40 border-r border-border/60 shadow-[6px_0_12px_-8px_hsl(var(--foreground)/0.15)]`
+                      : "border-b border-border/40";
+                    const baseCell = `${cellClass} ${sticky ? "border-b border-border/40" : ""} ${stickyClass}`;
+                    if (col.kind === "client") {
+                      return (
+                        <td key={col.id} className={baseCell}>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-semibold text-foreground leading-tight">{r.client}</span>
+                            {r.title && (
+                              <span className="text-[11px] font-medium text-primary/80 uppercase tracking-wide font-mono">
+                                {r.title}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    }
+                    if (col.kind === "address") {
+                      return (
+                        <td key={col.id} className={baseCell}>
+                          {r.address ? (
+                            <div className="text-sm text-foreground/80 leading-snug">{r.address}</div>
+                          ) : (
+                            <span className="text-muted-foreground/40 font-light">—</span>
+                          )}
+                        </td>
+                      );
+                    }
+                    if (col.kind === "untagged") {
+                      return (
+                        <td key={col.id} className={baseCell}>
+                          {r.untagged.length === 0 ? (
+                            <span className="text-muted-foreground/40 font-light">—</span>
+                          ) : (
+                            <ul className="space-y-0.5">
+                              {r.untagged.map((p) => (
+                                <li key={p.id} className="text-sm text-foreground/90">{formatProduct(p)}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </td>
+                      );
+                    }
+                    if (col.kind === "tag") {
+                      const items = r.byTag.get(col.tagKey!) || [];
+                      return (
+                        <td key={col.id} className={baseCell}>
+                          {items.length === 0 ? (
+                            <span className="text-muted-foreground/40 font-light">—</span>
+                          ) : (
+                            <ul className="space-y-1">
+                              {items.map((p) => (
+                                <li key={p.id} className="inline-flex items-center px-2 py-0.5 mr-1 rounded-md bg-secondary/60 text-secondary-foreground text-xs font-medium border border-border/60">
+                                  {formatProduct(p)}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </td>
+                      );
+                    }
+                    // custom
                     return (
-                      <td key={col.id} className={`${cellClass} ${stickyClass}`}>
-                        <div className="font-semibold text-foreground">{r.client}</div>
-                        {r.title && (<div className="text-xs text-muted-foreground mt-0.5">{r.title}</div>)}
+                      <td key={col.id} className={baseCell}>
+                        <CustomCell
+                          initial={config.custom_values[r.booking_id]?.[col.id] || ""}
+                          onCommit={(v) => setCustomValue(r.booking_id, col.id, v)}
+                        />
                       </td>
                     );
-                  }
-                  if (col.kind === "address") {
-                    return (
-                      <td key={col.id} className={`${cellClass} ${stickyClass}`}>
-                        <span className="text-sm text-foreground">{r.address || "—"}</span>
-                      </td>
-                    );
-                  }
-                  if (col.kind === "untagged") {
-                    return (
-                      <td key={col.id} className={`${cellClass} ${stickyClass}`}>
-                        {r.untagged.length === 0 ? (
-                          <span className="text-muted-foreground/50">—</span>
-                        ) : (
-                          <ul className="space-y-0.5">
-                            {r.untagged.map((p) => (
-                              <li key={p.id} className="text-foreground">{formatProduct(p)}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </td>
-                    );
-                  }
-                  if (col.kind === "tag") {
-                    const items = r.byTag.get(col.tagKey!) || [];
-                    return (
-                      <td key={col.id} className={`${cellClass} ${stickyClass}`}>
-                        {items.length === 0 ? (
-                          <span className="text-muted-foreground/50">—</span>
-                        ) : (
-                          <ul className="space-y-0.5">
-                            {items.map((p) => (
-                              <li key={p.id} className="text-foreground">{formatProduct(p)}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </td>
-                    );
-                  }
-                  // custom
-                  return (
-                    <td key={col.id} className={`${cellClass} ${stickyClass}`}>
-                      <CustomCell
-                        initial={config.custom_values[r.booking_id]?.[col.id] || ""}
-                        onCommit={(v) => setCustomValue(r.booking_id, col.id, v)}
-                      />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      <div className="px-4 py-2 border-t border-border/40 text-xs text-muted-foreground">
-        {rows.length} bokningar · {orderedColumns.length} kolumner
+
+      <div className="px-5 py-3 border-t border-border/60 bg-muted/20 flex items-center justify-between">
+        <div className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest">
+          Visar {rows.length} bokningar · {orderedColumns.length} kolumner
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="relative flex w-2 h-2">
+            <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-500/60 animate-ping" />
+            <span className="relative inline-flex rounded-full w-2 h-2 bg-emerald-500" />
+          </span>
+          <span className="text-xs font-medium text-muted-foreground">Realtidsuppdaterad vy</span>
+        </div>
       </div>
 
       <Dialog open={!!colDialog} onOpenChange={(o) => !o && setColDialog(null)}>
@@ -423,7 +469,7 @@ const CustomCell = ({ initial, onCommit }: { initial: string; onCommit: (v: stri
         if (e.key === "Escape") { setVal(initial); (e.currentTarget as HTMLInputElement).blur(); }
       }}
       placeholder="—"
-      className="h-8 text-sm border-transparent hover:border-border focus:border-ring bg-transparent"
+      className="h-9 text-sm border-transparent hover:border-border/70 hover:bg-card focus:border-ring focus:bg-card bg-transparent transition-colors rounded-md placeholder:text-muted-foreground/40 placeholder:font-light"
     />
   );
 };
