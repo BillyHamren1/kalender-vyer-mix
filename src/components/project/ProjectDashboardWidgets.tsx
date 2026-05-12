@@ -322,7 +322,7 @@ const LargeProjectsList: React.FC<LargeProjectsListProps> = ({ items, ProjectRow
               {query ? 'Inga matchande stora projekt' : 'Inga stora projekt'}
             </p>
           ) : filtered.map(item => (
-            <div key={`large-${item.id}`} onClickCapture={() => writeRecent(item.id)}>
+            <div key={`large-${item.id}`} onClickCapture={() => trackOpen(item.id)}>
               <ProjectRow item={item} compact />
             </div>
           ))}
