@@ -677,6 +677,21 @@ export interface BuildReportCandidateBlocksInput {
    *  klippas vid senaste säkra evidens. Krävs för att historiska dagar och
    *  stale open timers inte ska sträcka block över rapportdagens slut. */
   lastFreshEvidenceAtIso?: string | null;
+  /** Time Engine 3.6 — workAreaToleranceDiagnostics speglas från
+   *  buildGpsDayTimeline.classificationDiagnostics. Skicka in när
+   *  diagnostiken finns; annars exponeras bara konstanten + nollor. */
+  workAreaToleranceFromGps?: {
+    toleranceMeters: number;
+    continuedSessionByToleranceCount: number;
+    blockedByPrivateResidenceCount: number;
+    examples: Array<{
+      atIso: ISODateTime;
+      targetLabel: string;
+      targetKind: string;
+      distanceOutsideEdgeMeters: number;
+      classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
+    }>;
+  } | null;
   policy?: ReportCandidatePolicy;
 }
 
