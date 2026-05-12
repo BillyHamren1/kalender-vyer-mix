@@ -146,11 +146,11 @@ export const AddressMapDialog: React.FC<AddressMapDialogProps> = ({
         const last = trackCoords[trackCoords.length - 1];
         new mapboxgl.Marker({ color: '#10b981' })
           .setLngLat(first)
-          .setPopup(new mapboxgl.Popup({ offset: 16 }).setText('Första GPS-pingen idag'))
+          .setPopup(new mapboxgl.Popup({ offset: 16 }).setText(isSegment ? 'Start för segmentet' : 'Första GPS-pingen idag'))
           .addTo(map);
         new mapboxgl.Marker({ color: '#3b82f6' })
           .setLngLat(last)
-          .setPopup(new mapboxgl.Popup({ offset: 16 }).setText('Senaste GPS-pingen'))
+          .setPopup(new mapboxgl.Popup({ offset: 16 }).setText(isSegment ? 'Slut för segmentet' : 'Senaste GPS-pingen'))
           .addTo(map);
       }
 
