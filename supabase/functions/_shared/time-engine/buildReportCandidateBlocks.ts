@@ -2608,8 +2608,17 @@ export function buildReportCandidateBlocks(
           });
         } else {
           openTimerClampDiag.activeTimersAllowedToExtend += 1;
-          const targetEndMs = Math.min(liveEndMsRaw2, breakStartMs);
-          const wasClampedByBreak = firstBreak2 != null && breakStartMs < liveEndMsRaw2;
+          // Time Engine 4.3 — open active timer får ALDRIG förlänga visible
+          // block förbi lastFreshEvidenceAt, även när extension är allowed.
+          // active_time_registration är context/live-signal, inte arbetstid
+          // i sig. Endast färsk engine-evidence (GPS-ping etc.) får skjuta
+          // fram synligt blockslut.
+          const evidenceCapMs = Number.isFinite(lastFreshEvidenceMs)
+            ? Math.min(lastFreshEvidenceMs, dayCutoffMs)
+            : anchorEndMsRaw;
+          const liveEndCapped = Math.min(liveEndMsRaw2, evidenceCapMs);
+          const targetEndMs = Math.min(liveEndCapped, breakStartMs);
+          const wasClampedByBreak = firstBreak2 != null && breakStartMs < liveEndCapped;
 
           if (targetEndMs > anchorEndMsRaw) {
             anchor.endAt = new Date(targetEndMs).toISOString();
