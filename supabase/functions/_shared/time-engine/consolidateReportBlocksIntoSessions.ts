@@ -82,10 +82,14 @@ export interface SessionConsolidationDiagnostics {
     originalBlockKinds: string[];
     originalBlockLabels: string[];
     absorbedBlockCount: number;
+    /** Time Engine 3.8 — IDs på alla absorberade block i sessionen. */
+    absorbedBlockIds: string[];
     /** Time Engine 2.9 — set of reasons + warning labels för absorberade block. */
     absorbedReasons: string[];
     warningReasons: string[];
     signalGapMinutes: number;
+    /** Time Engine 3.8 — antal signal_gap-block som absorberats i sessionen. */
+    signalGapCount: number;
     internalMovementMinutes: number;
     finalKind: string;
     finalReviewState: string;
