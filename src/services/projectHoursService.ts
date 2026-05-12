@@ -63,11 +63,7 @@ interface BookingContext {
 async function loadBookingContext(bookingId: string): Promise<BookingContext | null> {
   const { data, error } = await supabase
     .from('bookings')
-    .select(
-      'organization_id, large_project_id, assigned_project_id, ' +
-      'rigdaydate, rigdowndate, eventdate, ' +
-      'rig_start_time, rigdown_end_time, event_start_time',
-    )
+    .select('organization_id, large_project_id, assigned_project_id, rigdaydate, rigdowndate, eventdate, rig_start_time, rigdown_end_time, event_start_time')
     .eq('id', bookingId)
     .maybeSingle();
   if (error || !data) return null;
