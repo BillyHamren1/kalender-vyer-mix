@@ -734,7 +734,7 @@ export function consolidateReportBlocksIntoSessions(
       diagnostics.demotedNeedsReviewBlocksCount += 1;
       continue;
     }
-    const hasHard = reasons.some((rr) => HARD_REVIEW_REASONS.has(rr));
+    const hasHard = reasons.some((rr) => HARD_SESSION_BREAK_REASONS.has(rr));
     if (hasHard) continue; // legitim needs_review, behåll.
 
     const allSoft = reasons.every(
