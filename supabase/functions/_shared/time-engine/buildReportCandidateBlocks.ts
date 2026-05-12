@@ -372,6 +372,34 @@ export interface ReportCandidateSummary {
       reason: string;
     }>;
   };
+
+  /**
+   * Time Engine 2.12 — single visible timeline diagnostics.
+   * Ett finalt pass garanterar att inga block (oavsett kind) får överlappa
+   * inom samma staff/dag innan summary_json/display_blocks_json skrivs.
+   */
+  singleTimelineDiagnostics?: {
+    blocksBeforeSingleTimeline: number;
+    blocksAfterSingleTimeline: number;
+    overlapsDetectedCount: number;
+    overlapsResolvedCount: number;
+    blocksMergedCount: number;
+    blocksClippedCount: number;
+    blocksAbsorbedCount: number;
+    syntheticActiveTimerBlocksRemovedCount: number;
+    remainingOverlapsCount: number;
+    examples: Array<{
+      staffName: string | null;
+      overlapStart: ISODateTime;
+      overlapEnd: ISODateTime;
+      strongerBlockLabel: string | null;
+      strongerBlockKind: string;
+      weakerBlockLabel: string | null;
+      weakerBlockKind: string;
+      action: 'absorbed' | 'clipped' | 'merged' | 'removed' | 'invariant_clipped';
+      reason: string;
+    }>;
+  };
 }
 
 /**
