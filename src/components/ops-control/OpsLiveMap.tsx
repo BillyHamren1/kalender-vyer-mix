@@ -40,6 +40,27 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   idle: { color: '#9ca3af', label: 'Inaktiv' },
 };
 
+// Job phase classification — drives premium pin coloring
+type JobPhase = 'build' | 'teardown' | 'event' | 'other';
+const phaseStyles: Record<JobPhase, { fill: string; ring: string; label: string }> = {
+  build:    { fill: '#86efac', ring: '#16a34a', label: 'Bygg / Rig' },     // light green
+  teardown: { fill: '#fca5a5', ring: '#dc2626', label: 'Riv / Rigdown' },  // light red
+  event:    { fill: '#fcd34d', ring: '#d97706', label: 'Event' },          // amber
+  other:    { fill: '#c4b5fd', ring: '#7c3aed', label: 'Övrigt' },         // soft purple
+};
+
+function classifyJobPhase(eventType: string | null | undefined): JobPhase {
+  const t = (eventType || '').toLowerCase();
+  if (/(rig\s*down|rigdown|teardown|riv|nedrig|nedmont)/.test(t)) return 'teardown';
+  if (/(rig|bygg|build|mont|uppst|setup|laddning|leverans)/.test(t)) return 'build';
+  if (/(event|show|gig|live)/.test(t)) return 'event';
+  return 'other';
+}
+
+function getFirstName(name: string): string {
+  return (name || '').trim().split(/\s+/)[0] || '?';
+}
+
 const STAFF_SOURCE_ID = 'ops-staff-source';
 const STAFF_HIGHLIGHT_LAYER_ID = 'ops-staff-highlight-layer';
 const STAFF_MARKER_LAYER_ID = 'ops-staff-marker-layer';
