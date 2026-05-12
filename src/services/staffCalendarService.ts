@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { deriveStaffEvents } from "@/lib/staffCalendar/deriveStaffEvents";
 import { validateLargeProjectGrouping } from "@/lib/staffCalendar/validateLargeProjectGrouping";
 import { resolveLargeProjectMembershipFromRows } from "@/lib/largeProject/resolveLargeProjectMembership";
+import { formatTeamLabel } from "@/lib/teamLabel";
 
 export interface StaffResource {
   id: string;

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay, addHours } from "date-fns";
+import { formatTeamLabel } from "@/lib/teamLabel";
 
 // === Map-specific types ===
 export interface OpsMapJob {
