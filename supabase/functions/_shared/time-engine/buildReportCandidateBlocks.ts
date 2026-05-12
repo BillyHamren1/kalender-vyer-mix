@@ -436,6 +436,42 @@ export interface ReportCandidateSummary {
       stockholmDayEndUtc: ISODateTime;
     }>;
   };
+
+  /**
+   * Time Engine 3.4 — Private residence day-end policy diagnostics.
+   *
+   * Reglar:
+   *  - private_residence är aldrig arbete och är aldrig transport.
+   *  - private_residence vinner över warehouse/projekt även om GPS-positionen
+   *    ligger inom KNOWN_SITE_TOLERANCE_METERS (150 m). Den får aldrig slås
+   *    ihop med ett warehouse-/projekt-block.
+   *  - PRIVATE_RESIDENCE_DAY_END_MINUTES = 90 är ett bekräftelsefönster, INTE
+   *    sluttiden. Sluttiden styrs av commute-policyn (Time Engine 4.6):
+   *      • short commute (<150 km)  → dag slutar vid leaveWorkAt
+   *      • long  commute (≥150 km)  → dag slutar vid residenceEnterAt
+   *  - Om personen återvänder till arbete inom 90 min: ingen day-end,
+   *    boendevistelsen räknas inte som arbete.
+   */
+  privateResidenceDayEndDiagnostics?: {
+    privateResidenceVisitsCount: number;
+    privateResidenceDayEndsCount: number;
+    privateResidenceShortBreaksCount: number;
+    preventedWarehouseMergeCount: number;
+    thresholdMinutes: number;
+    examples: Array<{
+      residenceLabel: string | null;
+      residenceEnterAt: ISODateTime;
+      residenceConfirmedUntil: ISODateTime | null;
+      residenceDurationMinutes: number;
+      decision:
+        | 'day_end_short_commute'
+        | 'day_end_long_commute'
+        | 'short_break_no_day_end'
+        | 'returned_to_work_within_window'
+        | 'visit_only';
+      nearbyWarehouseOrProjectLabel: string | null;
+    }>;
+  };
 }
 
 /**
@@ -2776,6 +2812,95 @@ export function buildReportCandidateBlocks(
   }
 
   // ───────────────────────────────────────────────────────────────────────
+  // Time Engine 3.4 — Private residence day-end policy diagnostics.
+  //
+  // Aggregera per-staff-dag-statistik från excludedPrivateResidenceBlocks
+  // (residence-vistelser plockade ur huvudvyn av Engine 4) plus stay/auto-
+  // end-utfall från POST-PASS 4. Bekräftelsefönstret är 90 min — sluttiden
+  // styrs av commute-policyn (4.6) i computeDayEndDecision.
+  // ───────────────────────────────────────────────────────────────────────
+  const prVisits = (excludedPrivateResidenceBlocks ?? [])
+    .map((b) => ({
+      startMs: new Date(b.startAt).getTime(),
+      endMs: new Date(b.endAt).getTime(),
+      durationMinutes: b.durationMinutes ?? 0,
+      label:
+        ((b.evidence as any)?.privateResidenceLabel as string | undefined) ??
+        'Privat/Boende',
+      sourceId: b.id,
+    }))
+    .filter((v) => v.endMs > v.startMs)
+    .sort((a, b) => a.startMs - b.startMs);
+
+  const prDayEndsCount =
+    privateResidenceStatusDiag?.autoEndTriggered ? 1 : 0;
+  const prShortBreaksCount = prVisits.filter((v) => {
+    if (privateResidenceStatusDiag?.autoEndTriggered) return false;
+    return v.durationMinutes < PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN;
+  }).length;
+
+  // preventedWarehouseMerge: residence-vistelse vars tidsfönster överlappar
+  // ett warehouse-/projekt-work-block i `out`. Då hade GPS-jitter/150 m-
+  // tolerans kunnat slå ihop dem; vår modell hindrar det genom att flytta
+  // vistelsen till `excludedPrivateResidenceBlocks`.
+  let preventedMergeCount = 0;
+  const exampleMergeLabels: Map<string, string | null> = new Map();
+  for (const v of prVisits) {
+    for (const w of out) {
+      if (w.kind !== 'work') continue;
+      if (w.targetType === 'private_residence') continue;
+      const ws = new Date(w.startAt).getTime();
+      const we = new Date(w.endAt).getTime();
+      if (we <= v.startMs || ws >= v.endMs) continue;
+      preventedMergeCount += 1;
+      exampleMergeLabels.set(v.sourceId, w.targetLabel ?? w.title ?? null);
+      break;
+    }
+  }
+
+  const prExamples: NonNullable<
+    ReportCandidateSummary['privateResidenceDayEndDiagnostics']
+  >['examples'] = [];
+  for (const v of prVisits.slice(0, 20)) {
+    let decision: NonNullable<
+      ReportCandidateSummary['privateResidenceDayEndDiagnostics']
+    >['examples'][number]['decision'] = 'visit_only';
+    if (privateResidenceStatusDiag?.autoEndTriggered) {
+      // Commute-policyn (4.6) avgör short vs long; här markerar vi bara att
+      // auto-end skedde. Etikett härleds vid behov i computeDayEndDecision.
+      decision = 'day_end_short_commute';
+    } else if (
+      v.durationMinutes < PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN &&
+      out.some((b) => b.kind === 'work' && new Date(b.startAt).getTime() > v.endMs)
+    ) {
+      decision = 'returned_to_work_within_window';
+    } else if (v.durationMinutes < PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN) {
+      decision = 'short_break_no_day_end';
+    }
+    prExamples.push({
+      residenceLabel: v.label,
+      residenceEnterAt: new Date(v.startMs).toISOString(),
+      residenceConfirmedUntil: v.durationMinutes >= PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN
+        ? new Date(v.startMs + PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN * 60_000).toISOString()
+        : null,
+      residenceDurationMinutes: v.durationMinutes,
+      decision,
+      nearbyWarehouseOrProjectLabel: exampleMergeLabels.get(v.sourceId) ?? null,
+    });
+  }
+
+  const privateResidenceDayEndDiag: NonNullable<
+    ReportCandidateSummary['privateResidenceDayEndDiagnostics']
+  > = {
+    privateResidenceVisitsCount: prVisits.length,
+    privateResidenceDayEndsCount: prDayEndsCount,
+    privateResidenceShortBreaksCount: prShortBreaksCount,
+    preventedWarehouseMergeCount: preventedMergeCount,
+    thresholdMinutes: PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN,
+    examples: prExamples,
+  };
+
+  // ───────────────────────────────────────────────────────────────────────
   // POST-PASS 4.5 — preventOverlappingWorkBlocks
   //
   // Säkerhetsnät: två work-block med olika target får aldrig överlappa
@@ -3247,6 +3372,7 @@ export function buildReportCandidateBlocks(
     openActiveTimerPrivateResidenceStatus: privateResidenceStatusDiag,
     activeTimerOverlapDiagnostics: activeTimerOverlapDiag,
     openTimerClampDiagnostics: openTimerClampDiag,
+    privateResidenceDayEndDiagnostics: privateResidenceDayEndDiag,
     singleTimelineDiagnostics: singleTimelineDiag,
   };
   for (const r of out) {
