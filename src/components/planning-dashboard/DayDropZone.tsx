@@ -36,7 +36,9 @@ const teamNames: Record<string, string> = {
   'team-8': 'Team 8',
   'team-9': 'Team 9',
   'team-10': 'Team 10',
-  'team-11': 'Live'
+  'team-11': 'Live',
+  'transport': 'Lager',
+  'warehouse': 'Lager',
 };
 
 const SingleDayDropZone = ({ 
