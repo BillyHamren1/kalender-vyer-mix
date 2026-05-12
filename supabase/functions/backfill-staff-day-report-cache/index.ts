@@ -370,7 +370,7 @@ async function processOne(
     // Time Engine 4.5 — slutgiltig dag-slut-klamp.
     // Beräkna dayEndDecision EN gång och klamp alla synliga block mot endedAt
     // innan enrichment/aggregate. Inget block får leva förbi endedAt.
-    const nowIso = new Date().toISOString();
+    // (nowIso already declared earlier in this function)
     const dayEndDecision = computeDayEndDecision({
       date,
       dayStartUtcIso: dayStart,
