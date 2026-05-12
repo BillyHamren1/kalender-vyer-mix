@@ -260,7 +260,7 @@ function WhyReview({ block }: { block: ReportCandidateBlockUI }) {
   );
 }
 
-function EvidencePanel({
+export function EvidencePanel({
   block,
   lookups,
   staffId,
