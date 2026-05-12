@@ -326,6 +326,26 @@ export interface ReportCandidateSummary {
       absorbedKinds: string[];
     }>;
   };
+  /**
+   * Time Engine 2.11 — diagnostics for the "Jag är hemma" / private_residence
+   * status row that's shown immediately when a private_residence stay starts
+   * inside the open active timer window. After 90 minutes the previous work
+   * session is clamped and `autoEndTriggered` flips true.
+   */
+  openActiveTimerPrivateResidenceStatus?: {
+    detected: boolean;
+    label: 'Jag är hemma';
+    privateResidenceLabel: string | null;
+    privateResidenceStartAt: ISODateTime | null;
+    privateResidenceEndAt: ISODateTime | null;
+    privateResidenceDurationMinutes: number | null;
+    isOngoing: boolean;
+    shownImmediately: boolean;
+    thresholdMinutes: 90;
+    autoEndTriggered: boolean;
+    workBlockClampedAt: ISODateTime | null;
+    suppressedBlocksAfterHomeArrival: number;
+  };
 }
 
 /**
