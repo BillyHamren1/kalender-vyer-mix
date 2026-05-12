@@ -378,7 +378,23 @@ export function consolidateReportBlocksIntoSessions(
     preservedTransportBlocksCount: 0,
     demotedNeedsReviewBlocksCount: 0,
     probabilisticAbsorptionCount: 0,
+    rejectedHardReviewAbsorptionCount: 0,
+    rejectedHardReviewAbsorptionReasons: {},
     examples: [],
+  };
+
+  // Helper: registrera ett needs_review-block som STOPPADES från absorption
+  // pga hard reason. Räknar både totalsumman och per-reason.
+  const recordRejectedHardReviewAbsorption = (block: ReportCandidateBlock): void => {
+    if (block.kind !== 'needs_review') return;
+    const reasons = block.reviewReasons ?? [];
+    const hardReasons = reasons.filter((rr) => HARD_SESSION_BREAK_REASONS.has(rr));
+    if (hardReasons.length === 0) return;
+    diagnostics.rejectedHardReviewAbsorptionCount += 1;
+    for (const rr of hardReasons) {
+      diagnostics.rejectedHardReviewAbsorptionReasons[rr] =
+        (diagnostics.rejectedHardReviewAbsorptionReasons[rr] ?? 0) + 1;
+    }
   };
 
   let changed = true;
