@@ -503,6 +503,33 @@ export interface ReportCandidateSummary {
       relatedWorkLabel: string | null;
     }>;
   };
+  /**
+   * Time Engine 3.6 — work-area-tolerance (150 m) diagnostics.
+   *
+   * Speglas från GpsClassificationDiagnostics.workAreaToleranceDiagnostics
+   * (buildGpsDayTimeline) plus blockedAfterDayEndCount som beräknas i
+   * report-candidate-builderns POST-PASS clamp.
+   *
+   * Toleransen får BARA hjälpa redan aktiv session — får aldrig:
+   *   - starta arbetsdag
+   *   - göra boende till arbete
+   *   - förlänga dag efter dayEndDecision
+   *   - slå ihop boende och warehouse
+   *   - ersätta rätt projekt/bookingnamn
+   */
+  workAreaToleranceDiagnostics?: {
+    toleranceMeters: number;
+    continuedSessionByToleranceCount: number;
+    blockedByPrivateResidenceCount: number;
+    blockedAfterDayEndCount: number;
+    examples: Array<{
+      atIso: ISODateTime;
+      targetLabel: string;
+      targetKind: string;
+      distanceOutsideEdgeMeters: number;
+      classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
+    }>;
+  };
 }
 
 /**
@@ -650,6 +677,21 @@ export interface BuildReportCandidateBlocksInput {
    *  klippas vid senaste säkra evidens. Krävs för att historiska dagar och
    *  stale open timers inte ska sträcka block över rapportdagens slut. */
   lastFreshEvidenceAtIso?: string | null;
+  /** Time Engine 3.6 — workAreaToleranceDiagnostics speglas från
+   *  buildGpsDayTimeline.classificationDiagnostics. Skicka in när
+   *  diagnostiken finns; annars exponeras bara konstanten + nollor. */
+  workAreaToleranceFromGps?: {
+    toleranceMeters: number;
+    continuedSessionByToleranceCount: number;
+    blockedByPrivateResidenceCount: number;
+    examples: Array<{
+      atIso: ISODateTime;
+      targetLabel: string;
+      targetKind: string;
+      distanceOutsideEdgeMeters: number;
+      classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
+    }>;
+  } | null;
   policy?: ReportCandidatePolicy;
 }
 
@@ -3505,6 +3547,15 @@ export function buildReportCandidateBlocks(
     openTimerClampDiagnostics: openTimerClampDiag,
     privateResidenceDayEndDiagnostics: privateResidenceDayEndDiag,
     commutePolicyDiagnostics: commutePolicyDiag,
+    workAreaToleranceDiagnostics: {
+      toleranceMeters: input.workAreaToleranceFromGps?.toleranceMeters ?? 150,
+      continuedSessionByToleranceCount:
+        input.workAreaToleranceFromGps?.continuedSessionByToleranceCount ?? 0,
+      blockedByPrivateResidenceCount:
+        input.workAreaToleranceFromGps?.blockedByPrivateResidenceCount ?? 0,
+      blockedAfterDayEndCount: 0,
+      examples: input.workAreaToleranceFromGps?.examples ?? [],
+    },
     singleTimelineDiagnostics: singleTimelineDiag,
   };
   for (const r of out) {

@@ -449,6 +449,37 @@ export interface GpsClassificationDiagnostics {
       reason: string;
     }>;
   };
+
+  /**
+   * Time Engine 3.6 — work-area-tolerance-räknare. 150 m tolerans får bara
+   * hjälpa en redan aktiv session, aldrig starta dag, äta boende eller
+   * förlänga dag förbi dayEndDecision.
+   *
+   * - continuedSessionByToleranceCount: hur många stay-cluster som matchade
+   *   ett work-target via toleransen (utanför geofence men ≤150 m från
+   *   edge).
+   * - blockedByPrivateResidenceCount: hur många stay-cluster som låg
+   *   inne i en private_residence-polygon samtidigt som ett work-target
+   *   låg inom 150 m — residence vann och tolerance fick INTE göra
+   *   warehouse av boendet.
+   * - blockedAfterDayEndCount: hur många work-stays som klipptes bort
+   *   eftersom dayEndDecision.endedAt redan passerats. Räknas i
+   *   buildReportCandidateBlocks (POST-PASS clamp); här i timeline-
+   *   diagnostiken är värdet alltid 0 (timeline känner inte till dayEnd).
+   */
+  workAreaToleranceDiagnostics: {
+    toleranceMeters: number;
+    continuedSessionByToleranceCount: number;
+    blockedByPrivateResidenceCount: number;
+    blockedAfterDayEndCount: number;
+    examples: Array<{
+      atIso: ISODateTime;
+      targetLabel: string;
+      targetKind: string;
+      distanceOutsideEdgeMeters: number;
+      classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
+    }>;
+  };
 }
 
 export interface GpsDayTimelineResult {
@@ -557,24 +588,67 @@ function makeId(prefix: string, idx: number): string {
  */
 export const KNOWN_SITE_TOLERANCE_METERS = 150;
 
+/**
+ * Time Engine 3.6 — alias för work-area-tolerans.
+ * Samma värde som KNOWN_SITE_TOLERANCE_METERS men namngivet enligt
+ * 3.6-policyn ("upp till 150 m utanför aktivt projekt/warehouse räknas
+ * fortfarande till samma arbetssession").
+ *
+ * Får användas:
+ *   - fortsatt aktiv session
+ *   - intern rörelse / GPS-jitter / små rörelser runt arbetsområdet
+ *
+ * Får INTE användas:
+ *   - för att starta arbetsdag (matchas bara på cluster, inte enskilda
+ *     pings i geofence-override-pre-pass — pointInsideTarget är strikt)
+ *   - för att göra boende till arbete (residence kräver inside)
+ *   - för att förlänga dag efter dayEndDecision (clamp i 4.3/3.3)
+ *   - för att slå ihop boende och warehouse (residence vinner alltid)
+ *   - för att ersätta rätt projekt/bookingnamn (priority order:
+ *     residence > confirmed target > planned > tolerance > unknown)
+ */
+export const WORK_AREA_TOLERANCE_METERS = KNOWN_SITE_TOLERANCE_METERS;
+
+/**
+ * Mutable counter som matchTarget får skriva till för att 3.6 ska kunna
+ * exponera workAreaToleranceDiagnostics. Frivillig — utan accumulator
+ * körs matchTarget exakt som tidigare.
+ */
+export interface WorkAreaToleranceCounters {
+  continuedSessionByToleranceCount: number;
+  blockedByPrivateResidenceCount: number;
+  examples: Array<{
+    atIso: ISODateTime;
+    targetLabel: string;
+    targetKind: string;
+    distanceOutsideEdgeMeters: number;
+    classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
+  }>;
+}
+
 function matchTarget(
   centerLat: number,
   centerLng: number,
   atIso: ISODateTime,
   targets: WorkTarget[],
-): { target: WorkTarget; distanceM: number } | null {
+  toleranceCounters?: WorkAreaToleranceCounters,
+): { target: WorkTarget; distanceM: number; matchedByTolerance: boolean } | null {
   const at = Date.parse(atIso);
-  let bestResidence: { target: WorkTarget; distanceM: number } | null = null;
-  let bestWork: { target: WorkTarget; distanceM: number } | null = null;
+  let bestResidence: { target: WorkTarget; distanceM: number; matchedByTolerance: boolean } | null = null;
+  let bestWork: { target: WorkTarget; distanceM: number; matchedByTolerance: boolean } | null = null;
+  let workMatchedByToleranceCandidate: { target: WorkTarget; outsideMeters: number } | null = null;
+  let residenceWouldBlockWork = false;
   for (const t of targets) {
     if (t.validFrom && Date.parse(t.validFrom) > at) continue;
     if (t.validUntil && Date.parse(t.validUntil) < at) continue;
     const inside = pointInsideTarget(centerLat, centerLng, t);
     let withinTolerance = inside;
+    let outsideMeters = 0;
     if (!inside) {
       // signedDistanceToTargetEdge: positivt = inne, negativt = utanför.
       const signed = signedDistanceToTargetEdge(centerLat, centerLng, t);
-      if (-signed <= KNOWN_SITE_TOLERANCE_METERS) withinTolerance = true;
+      outsideMeters = -signed;
+      if (outsideMeters <= WORK_AREA_TOLERANCE_METERS) withinTolerance = true;
     }
     if (!withinTolerance) continue;
     const d = haversine(centerLat, centerLng, t.center.lat, t.center.lng);
@@ -585,15 +659,51 @@ function matchTarget(
     if (t.isPrivateResidence === true) {
       if (!inside) continue;
       if (bestResidence == null || d < bestResidence.distanceM) {
-        bestResidence = { target: t, distanceM: d };
+        bestResidence = { target: t, distanceM: d, matchedByTolerance: false };
       }
       continue;
     }
+    const matchedByTolerance = !inside;
+    if (matchedByTolerance && !workMatchedByToleranceCandidate) {
+      workMatchedByToleranceCandidate = { target: t, outsideMeters };
+    }
     if (bestWork == null || d < bestWork.distanceM) {
-      bestWork = { target: t, distanceM: d };
+      bestWork = { target: t, distanceM: d, matchedByTolerance };
     }
   }
-  return bestResidence ?? bestWork;
+  if (bestResidence && workMatchedByToleranceCandidate) {
+    residenceWouldBlockWork = true;
+  }
+  const result = bestResidence ?? bestWork;
+  if (toleranceCounters) {
+    if (result === bestWork && bestWork?.matchedByTolerance) {
+      toleranceCounters.continuedSessionByToleranceCount += 1;
+      if (toleranceCounters.examples.length < 20) {
+        toleranceCounters.examples.push({
+          atIso,
+          targetLabel: bestWork.target.label,
+          targetKind: bestWork.target.kind,
+          distanceOutsideEdgeMeters:
+            workMatchedByToleranceCandidate?.outsideMeters ?? 0,
+          classification: 'continued_session_by_tolerance',
+        });
+      }
+    }
+    if (residenceWouldBlockWork && bestResidence) {
+      toleranceCounters.blockedByPrivateResidenceCount += 1;
+      if (toleranceCounters.examples.length < 20) {
+        toleranceCounters.examples.push({
+          atIso,
+          targetLabel: bestResidence.target.label,
+          targetKind: bestResidence.target.kind,
+          distanceOutsideEdgeMeters:
+            workMatchedByToleranceCandidate?.outsideMeters ?? 0,
+          classification: 'blocked_by_private_residence',
+        });
+      }
+    }
+  }
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -646,6 +756,13 @@ export function buildGpsDayTimeline(
 
   const gaps: GpsTimelineGap[] = [];
   const segments: GpsTimelineSegment[] = [];
+
+  // Time Engine 3.6 — work-area-tolerance counters (skrivs av matchTarget).
+  const workAreaToleranceCounters: WorkAreaToleranceCounters = {
+    continuedSessionByToleranceCount: 0,
+    blockedByPrivateResidenceCount: 0,
+    examples: [],
+  };
 
   if (accepted.length === 0) {
     return {
@@ -738,6 +855,13 @@ export function buildGpsDayTimeline(
           privateResidenceMatchedPingsCount: 0,
           ephemeralUnknownStaysSuppressedCount: 0,
           ephemeralUnknownStaysSuppressedMinutes: 0,
+          examples: [],
+        },
+        workAreaToleranceDiagnostics: {
+          toleranceMeters: WORK_AREA_TOLERANCE_METERS,
+          continuedSessionByToleranceCount: 0,
+          blockedByPrivateResidenceCount: 0,
+          blockedAfterDayEndCount: 0,
           examples: [],
         },
       },
@@ -1180,7 +1304,7 @@ export function buildGpsDayTimeline(
     const overrideOwner = (run as { geofenceOwner?: WorkTarget | null }).geofenceOwner ?? null;
     const match = overrideOwner
       ? { target: overrideOwner, distanceM: haversine(center.lat, center.lng, overrideOwner.center.lat, overrideOwner.center.lng) }
-      : matchTarget(center.lat, center.lng, first.ts, input.targets);
+      : matchTarget(center.lat, center.lng, first.ts, input.targets, workAreaToleranceCounters);
     const { diag: targetDiag } = computeTargetDiagnostics(run.pings, center.lat, center.lng, first.ts);
 
     let type: GpsTimelineSegmentType;
@@ -2016,6 +2140,13 @@ export function buildGpsDayTimeline(
         ephemeralUnknownStaysSuppressedMinutes:
           Math.round(ephemeralUnknownStaysSuppressedMinutes * 100) / 100,
         examples: transportThresholdExamples,
+      },
+      workAreaToleranceDiagnostics: {
+        toleranceMeters: WORK_AREA_TOLERANCE_METERS,
+        continuedSessionByToleranceCount: workAreaToleranceCounters.continuedSessionByToleranceCount,
+        blockedByPrivateResidenceCount: workAreaToleranceCounters.blockedByPrivateResidenceCount,
+        blockedAfterDayEndCount: 0,
+        examples: workAreaToleranceCounters.examples,
       },
     },
     // Back-compat top-level mirrors (consumers like report-candidate-blocks-health
