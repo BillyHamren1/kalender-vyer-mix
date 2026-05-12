@@ -50,7 +50,10 @@ const isGeneric = (value: string | null | undefined): boolean => {
   if (!value) return true;
   const trimmed = value.trim();
   if (!trimmed) return true;
-  return GENERIC_TITLES.has(trimmed.toLowerCase());
+  const low = trimmed.toLowerCase();
+  if (GENERIC_TITLES.has(low)) return true;
+  if (GENERIC_PREFIXES.some((p) => low.startsWith(p))) return true;
+  return false;
 };
 
 const isWarehouseEvidence = (b: GanttBlockInput): boolean => {
