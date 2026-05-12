@@ -22,6 +22,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import {
   summarizeProjectHoursFromDayReports,
+  summarizeLargeProjectHoursFromDayReports,
+  type LargeProjectHoursTarget,
   type ProjectHoursSummary,
   type ProjectHoursTarget,
   type ProjectTimeEngineBlock,
