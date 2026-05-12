@@ -2030,57 +2030,103 @@ export function buildReportCandidateBlocks(
 
     // Skapa syntetiskt block om inget work-block matchar
     if (anchorIdx === -1 && openTargetKey) {
-      const synthEnd = new Date(Math.min(nowMs, dayCutoffMs)).toISOString();
-      const synthStart = openCtx.startedAtIso;
-      const dur = Math.max(1, Math.round((new Date(synthEnd).getTime() - startedMs) / 60_000));
-      const synth: ReportCandidateBlock = {
-        id: '',
-        kind: 'work',
-        startAt: synthStart,
-        endAt: synthEnd,
-        durationMinutes: dur,
-        durationLabel: fmtDuration(dur),
-        title: openCtx.targetLabel ?? openCtx.currentLabel ?? 'Arbete',
-        subtitle: `${fmtClock(synthStart)}– pågår · ${fmtDuration(dur)}`,
-        targetType: openCtx.targetType,
-        targetId: openCtx.targetId,
-        targetLabel: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
-        fromLabel: null,
-        toLabel: null,
-        confidence: 'medium',
-        reviewState: 'ok',
-        reviewReasons: ['open_active_timer_anchor'],
-        warningLabel: null,
-        evidenceSummary: {
-          confirmedMinutes: 0,
-          probableMinutes: 0,
+      const liveEndMsRaw = Math.min(nowMs, dayCutoffMs);
+      // Time Engine 2.11 — synth-block får ALDRIG sträcka sig in i / ovanpå
+      // ett senare verkligt motorblock (real transport, annan-target work,
+      // private_residence). Klampa till första hard-break.startAt.
+      const firstBreak = findFirstHardBreakAfter(startedMs);
+      const synthEndMs = firstBreak ? Math.min(liveEndMsRaw, firstBreak.startMs) : liveEndMsRaw;
+      const synthDurMin = Math.round((synthEndMs - startedMs) / 60_000);
+      if (synthDurMin < 1) {
+        // Inget meningsfullt synth-block — engine har redan tydlig senare
+        // session. Använd active timer endast som live-metadata.
+        activeTimerOverlapDiag.syntheticActiveTimerBlocksSkippedDueToEngineBlocks += 1;
+        if (firstBreak) {
+          pushOverlapExample({
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            activeTimerStart: openCtx.startedAtIso,
+            originalAnchorStart: null,
+            originalAnchorEnd: null,
+            clampedAnchorEnd: null,
+            conflictingBlockLabel: firstBreak.block.targetLabel ?? firstBreak.block.title ?? null,
+            conflictingBlockStart: firstBreak.block.startAt,
+            conflictingBlockEnd: firstBreak.block.endAt,
+            reason: 'synthetic_active_timer_block_skipped_due_to_later_engine_block',
+          });
+        }
+      } else {
+        const synthEnd = new Date(synthEndMs).toISOString();
+        const synthStart = openCtx.startedAtIso;
+        const dur = Math.max(1, synthDurMin);
+        const synth: ReportCandidateBlock = {
+          id: '',
+          kind: 'work',
+          startAt: synthStart,
+          endAt: synthEnd,
+          durationMinutes: dur,
+          durationLabel: fmtDuration(dur),
+          title: openCtx.targetLabel ?? openCtx.currentLabel ?? 'Arbete',
+          subtitle: firstBreak
+            ? `${fmtClock(synthStart)}–${fmtClock(synthEnd)} · ${fmtDuration(dur)}`
+            : `${fmtClock(synthStart)}– pågår · ${fmtDuration(dur)}`,
+          targetType: openCtx.targetType,
+          targetId: openCtx.targetId,
+          targetLabel: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+          fromLabel: null,
+          toLabel: null,
+          confidence: 'medium',
+          reviewState: 'ok',
+          reviewReasons: ['open_active_timer_anchor'],
+          warningLabel: firstBreak ? 'Aktiv timer avbruten av senare platsbevis' : null,
+          evidenceSummary: {
+            confirmedMinutes: 0,
+            probableMinutes: 0,
+            signalGapMinutes: 0,
+            transportMinutes: 0,
+            unknownMinutes: 0,
+            presenceBlockCount: 0,
+            suppressedSignalGapBlockCount: 0,
+            suppressedUnknownBlockCount: 0,
+            suppressedZeroLengthBlockCount: 0,
+          },
+          sourcePresenceBlockIds: [],
+          hiddenSignalGapIds: [],
+          hiddenPresenceBlockIds: [],
           signalGapMinutes: 0,
-          transportMinutes: 0,
-          unknownMinutes: 0,
-          presenceBlockCount: 0,
-          suppressedSignalGapBlockCount: 0,
-          suppressedUnknownBlockCount: 0,
-          suppressedZeroLengthBlockCount: 0,
-        },
-        sourcePresenceBlockIds: [],
-        hiddenSignalGapIds: [],
-        hiddenPresenceBlockIds: [],
-        signalGapMinutes: 0,
-        firstConfirmedAt: null,
-        lastConfirmedAt: null,
-        isOngoing: true,
-      };
-      // sätt in i sorterad ordning
-      let insertAt = out.length;
-      for (let k = 0; k < out.length; k++) {
-        if (out[k].startAt > synthStart) { insertAt = k; break; }
+          firstConfirmedAt: null,
+          lastConfirmedAt: null,
+          isOngoing: !firstBreak,
+        };
+        if (firstBreak) {
+          synth.warningReasons = ['active_timer_context_cut_by_later_engine_block'];
+          synth.reviewReasons.push('active_timer_clamped_by_later_block');
+          activeTimerOverlapDiag.activeTimerAnchorsClampedByLaterBlock += 1;
+          pushOverlapExample({
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            activeTimerStart: openCtx.startedAtIso,
+            originalAnchorStart: synthStart,
+            originalAnchorEnd: new Date(liveEndMsRaw).toISOString(),
+            clampedAnchorEnd: synthEnd,
+            conflictingBlockLabel: firstBreak.block.targetLabel ?? firstBreak.block.title ?? null,
+            conflictingBlockStart: firstBreak.block.startAt,
+            conflictingBlockEnd: firstBreak.block.endAt,
+            reason: 'active_timer_context_cut_by_later_engine_block',
+          });
+        }
+        // sätt in i sorterad ordning
+        let insertAt = out.length;
+        for (let k = 0; k < out.length; k++) {
+          if (out[k].startAt > synthStart) { insertAt = k; break; }
+        }
+        out.splice(insertAt, 0, synth);
+        anchorIdx = insertAt;
+        activeTimerOverlapDiag.syntheticActiveTimerBlocksCreated += 1;
       }
-      out.splice(insertAt, 0, synth);
-      anchorIdx = insertAt;
     }
 
     if (anchorIdx >= 0) {
       const anchor = out[anchorIdx];
+      activeTimerOverlapDiag.activeTimerAnchorsFound += 1;
       // Adoptera open-target på ankaret om det saknar target
       if (!anchor.targetId && openCtx.targetId) {
         anchor.targetType = openCtx.targetType;
