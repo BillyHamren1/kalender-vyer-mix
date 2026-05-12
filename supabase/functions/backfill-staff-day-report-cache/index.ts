@@ -365,6 +365,8 @@ async function processOne(
       homeAnchors,
       openActiveRegistration,
       plannedEndOfDayIso,
+      // Time Engine 3.3 — färsk evidens-signal för open-timer extension gate.
+      lastFreshEvidenceAtIso: pings[pings.length - 1]?.ts ?? null,
     });
 
     // Time Engine 4.5 — slutgiltig dag-slut-klamp.
