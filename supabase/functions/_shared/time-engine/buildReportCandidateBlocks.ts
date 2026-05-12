@@ -33,6 +33,7 @@ import type { ISODate, ISODateTime, UUID } from './contracts.ts';
 import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 import { consolidateReportBlocksIntoSessions } from './consolidateReportBlocksIntoSessions.ts';
 import { getStockholmDayWindowUtc, stockholmDateKey } from '../stockholmDayWindow.ts';
+import { COMMUTE_DISTANCE_THRESHOLD_METERS } from './computeDayEndDecision.ts';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
