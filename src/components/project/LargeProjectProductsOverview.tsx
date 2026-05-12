@@ -219,7 +219,11 @@ const LargeProjectProductsOverview = ({
       .map((key) => ({ id: `derived:${key}`, name: key, rows: buckets.get(key)! }));
   }, [groupMode, filteredRows]);
 
-  const groupedView = aiGroupedView ?? derivedGroupedView;
+  const groupedView = useMemo(() => {
+    const view = aiGroupedView ?? derivedGroupedView;
+    if (!view) return null;
+    return view.map((g) => ({ ...g, rows: sortRows(g.rows as RowData[]) }));
+  }, [aiGroupedView, derivedGroupedView, sort]);
 
   const handleGenerate = (prompt: string) => {
     generate.mutate(
