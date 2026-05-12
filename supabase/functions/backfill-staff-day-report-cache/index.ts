@@ -397,6 +397,8 @@ async function processOne(
     (report as any).blocks = clamp.blocks;
     (report as any).droppedAfterDayEnd = clamp.dropped;
     (report as any).clampDiagnostics = clamp.diagnostics;
+    // Time Engine 3.11 — namngivna räknare per spec, exponeras i summary/diagnostics_json.
+    (report as any).dayEndClampDiagnostics = clamp.dayEndClampDiagnostics;
 
     // ─── Enrich blocks med projekt/booking/assignment-koppling ──────────
     // Lookups (best-effort, tolerant mot saknad data):
