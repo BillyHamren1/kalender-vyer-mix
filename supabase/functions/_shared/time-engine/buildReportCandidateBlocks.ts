@@ -1904,14 +1904,21 @@ export function buildReportCandidateBlocks(
   // transport-rader UTAN faktisk förflyttning som ligger efter
   // openActiveStartedAt absorberas in i ETT sammanhållet pågående
   // arbetsblock — inte synas som separata GRANSKA/Okänd plats/Transport-
-  // rader. Privata zoner (boende) är redan bortfiltrerade i Engine 4.
+  // rader. Privata zoner (boende) hanteras separat (Time Engine 2.11):
+  // direkt synlig "Jag är hemma"-status + 90-min auto-end på work-anchor.
   //
   // Stoppvillkor (segmenten EFTER ankaret behåller sin egen rad):
   //   - work-block med ANNAN target än aktiv registration
   //   - transport med distance >= realTripMinDistanceMeters (verklig resa)
   //
-  // Inga writes till time_reports/workdays/LTE/travel.
+  // Inga writes till time_reports/workdays/LTE/travel/active_time_registrations.
   // ───────────────────────────────────────────────────────────────────────
+  // Time Engine 2.11 — diagnostics row för "Jag är hemma" status.
+  const PRIVATE_RESIDENCE_AUTO_END_THRESHOLD_MIN = 90;
+  let privateResidenceStatusDiag:
+    | NonNullable<ReportCandidateSummary['openActiveTimerPrivateResidenceStatus']>
+    | undefined = undefined;
+
   const openCtx = input.openActiveRegistration ?? null;
   if (openCtx && openCtx.startedAtIso) {
     const startedMs = new Date(openCtx.startedAtIso).getTime();
