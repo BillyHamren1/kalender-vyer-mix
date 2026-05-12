@@ -40,6 +40,27 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   idle: { color: '#9ca3af', label: 'Inaktiv' },
 };
 
+// Job phase classification — drives premium pin coloring
+type JobPhase = 'build' | 'teardown' | 'event' | 'other';
+const phaseStyles: Record<JobPhase, { fill: string; ring: string; label: string }> = {
+  build:    { fill: '#86efac', ring: '#16a34a', label: 'Bygg / Rig' },     // light green
+  teardown: { fill: '#fca5a5', ring: '#dc2626', label: 'Riv / Rigdown' },  // light red
+  event:    { fill: '#fcd34d', ring: '#d97706', label: 'Event' },          // amber
+  other:    { fill: '#c4b5fd', ring: '#7c3aed', label: 'Övrigt' },         // soft purple
+};
+
+function classifyJobPhase(eventType: string | null | undefined): JobPhase {
+  const t = (eventType || '').toLowerCase();
+  if (/(rig\s*down|rigdown|teardown|riv|nedrig|nedmont)/.test(t)) return 'teardown';
+  if (/(rig|bygg|build|mont|uppst|setup|laddning|leverans)/.test(t)) return 'build';
+  if (/(event|show|gig|live)/.test(t)) return 'event';
+  return 'other';
+}
+
+function getFirstName(name: string): string {
+  return (name || '').trim().split(/\s+/)[0] || '?';
+}
+
 const STAFF_SOURCE_ID = 'ops-staff-source';
 const STAFF_HIGHLIGHT_LAYER_ID = 'ops-staff-highlight-layer';
 const STAFF_MARKER_LAYER_ID = 'ops-staff-marker-layer';
@@ -356,7 +377,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         const memberIds = g.members.map(loc => loc.id).join(',');
         const label = isCluster
           ? String(g.members.length)
-          : g.members[0].name.charAt(0).toUpperCase();
+          : getFirstName(g.members[0].name);
 
         return {
           type: 'Feature',
@@ -461,18 +482,15 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
 
       if (!mm.getLayer(STAFF_LABEL_LAYER_ID)) {
+        // Cluster: number centered on the dot
         mm.addLayer({
           id: STAFF_LABEL_LAYER_ID,
           type: 'symbol',
           source: STAFF_SOURCE_ID,
+          filter: ['==', ['get', 'isCluster'], 1],
           layout: {
             'text-field': ['get', 'initial'],
-            'text-size': [
-              'interpolate', ['linear'], ['get', 'clusterSize'],
-              1, 12,
-              3, 13,
-              6, 14,
-            ],
+            'text-size': 13,
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-allow-overlap': true,
             'text-ignore-placement': true,
@@ -481,6 +499,33 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             'text-color': '#ffffff',
             'text-halo-color': 'rgba(0,0,0,0.55)',
             'text-halo-width': 1.4,
+          },
+        });
+      }
+
+      // Singel-marker: förnamn som pill UNDER dot
+      const STAFF_NAME_PILL_LAYER_ID = 'ops-staff-name-pill-layer';
+      if (!mm.getLayer(STAFF_NAME_PILL_LAYER_ID)) {
+        mm.addLayer({
+          id: STAFF_NAME_PILL_LAYER_ID,
+          type: 'symbol',
+          source: STAFF_SOURCE_ID,
+          filter: ['==', ['get', 'isCluster'], 0],
+          layout: {
+            'text-field': ['get', 'initial'],
+            'text-size': 11,
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-anchor': 'top',
+            'text-offset': [0, 1.4],
+            'text-padding': 2,
+            'text-allow-overlap': false,
+            'text-optional': true,
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(15,23,42,0.92)',
+            'text-halo-width': 2.4,
+            'text-halo-blur': 0.4,
           },
         });
       }
@@ -615,13 +660,18 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       bounds.extend([job.longitude, job.latitude]);
 
       const el = document.createElement('div');
-      el.style.cssText = 'width: 32px; height: 44px; cursor: pointer; z-index: 10;';
-      const pinColor = job.isActive ? '#ef4444' : '#7c3aed';
+      el.style.cssText = 'width: 40px; height: 52px; cursor: pointer; z-index: 10; position: relative; display:flex; align-items:flex-end; justify-content:center;';
+      const phase = classifyJobPhase(job.eventType);
+      const ph = phaseStyles[phase];
+      const glow = job.isActive
+        ? `<div style="position:absolute;left:50%;top:14px;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:9999px;background:${ph.ring};opacity:0.22;filter:blur(10px);animation:opspulse 2.2s ease-in-out infinite;"></div>`
+        : '';
       el.innerHTML = `
-        <svg width="32" height="44" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" 
-                fill="${pinColor}" stroke="white" stroke-width="1.5"/>
-          <circle cx="12" cy="12" r="4" fill="white"/>
+        ${glow}
+        <svg width="34" height="46" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
+          <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z"
+                fill="${ph.fill}" stroke="${ph.ring}" stroke-width="1.8"/>
+          <circle cx="12" cy="12" r="4.2" fill="#ffffff" stroke="${ph.ring}" stroke-width="1"/>
         </svg>
       `;
 
@@ -795,6 +845,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
     >
       <div ref={mapContainer} className="w-full h-full" />
+      <style>{`@keyframes opspulse { 0%,100% { opacity:.18; transform:translate(-50%,-50%) scale(1);} 50% { opacity:.42; transform:translate(-50%,-50%) scale(1.25);} }`}</style>
 
       {/* Loading */}
       {(isLoading || !mapReady) && (
@@ -867,28 +918,39 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="absolute bottom-2 left-2 bg-card/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow border border-border">
-        <div className="flex items-center gap-2">
+      {/* Premium Legend */}
+      <div className="absolute bottom-3 left-3 bg-slate-950/85 backdrop-blur-xl rounded-2xl px-4 py-3 shadow-2xl border border-white/10 text-white">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Live status</h3>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+        </div>
+        <div className="grid grid-cols-2 gap-x-5 gap-y-1.5">
+          {(Object.entries(phaseStyles) as [JobPhase, typeof phaseStyles[JobPhase]][])
+            .filter(([k]) => k !== 'other')
+            .map(([key, p]) => (
+              <span key={key} className="flex items-center gap-2 text-[10px] text-slate-200">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ background: p.fill, boxShadow: `0 0 8px ${p.ring}55` }}
+                />
+                {p.label}
+              </span>
+            ))}
           {Object.entries(statusStyles).map(([key, { color, label }]) => (
-            <span key={key} className="flex items-center gap-1 text-[9px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+            <span key={key} className="flex items-center gap-2 text-[10px] text-slate-200">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-white/40" style={{ background: color }} />
               {label}
             </span>
           ))}
-          <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-            <span className="w-2.5 h-2.5 bg-primary rotate-45 rounded-[2px] shrink-0" style={{ transform: 'rotate(45deg)', width: 8, height: 8 }} />
-            Jobb
-          </span>
           {showCameras && (
-            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full shrink-0 bg-blue-500" />
+            <span className="flex items-center gap-2 text-[10px] text-slate-200">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-blue-500" />
               Kamera
             </span>
           )}
           {showOrgLocations && orgLocations.length > 0 && (
-            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-              <span className="w-2 h-2 rounded shrink-0" style={{ background: '#7c3aed' }} />
+            <span className="flex items-center gap-2 text-[10px] text-slate-200">
+              <span className="w-2.5 h-2.5 rounded shrink-0" style={{ background: '#7c3aed' }} />
               Plats
             </span>
           )}
