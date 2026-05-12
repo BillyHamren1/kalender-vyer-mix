@@ -367,6 +367,35 @@ async function processOne(
       plannedEndOfDayIso,
     });
 
+    // Time Engine 4.5 — slutgiltig dag-slut-klamp.
+    // Beräkna dayEndDecision EN gång och klamp alla synliga block mot endedAt
+    // innan enrichment/aggregate. Inget block får leva förbi endedAt.
+    const nowIso = new Date().toISOString();
+    const dayEndDecision = computeDayEndDecision({
+      date,
+      dayStartUtcIso: dayStart,
+      dayEndUtcIso: dayEnd,
+      blocks: report.blocks ?? [],
+      activeRegistrations: activeRegs as any,
+      openActiveRegistration,
+      lastGpsPingAtIso: pings[pings.length - 1]?.ts ?? null,
+      homeAnchors,
+      nowIso,
+      plannedEndOfDayIso,
+    });
+    const clamp = clampBlocksToDayEndDecision({
+      date,
+      blocks: report.blocks ?? [],
+      dayEndDecision,
+      nowIso,
+      openActiveStartedAtIso: openActiveRegistration?.startedAtIso ?? null,
+    });
+    // Mutera in-place: alla downstream-konsumenter (enrichment, aggregate,
+    // session consolidation diagnostics) ser klampade block.
+    (report as any).blocks = clamp.blocks;
+    (report as any).droppedAfterDayEnd = clamp.dropped;
+    (report as any).clampDiagnostics = clamp.diagnostics;
+
     // ─── Enrich blocks med projekt/booking/assignment-koppling ──────────
     // Lookups (best-effort, tolerant mot saknad data):
     let staffName: string | null = null;
