@@ -1015,8 +1015,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                           return rects.map(({ b, top, height }) => {
                             const style = KIND_STYLE[b.kind];
                             const displaySubtitle = getGanttDisplaySubtitle(b);
-                            const showSub = height >= 44;
-                            const showMeta = height >= 66;
+                            const showSub = height >= 56;
+                            const showMeta = height >= 80;
                             const overlapping = overlapsPrev.has(b.id);
                             return (
                               <div
@@ -1028,10 +1028,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   setSelectedBlock({ staffId: staff.id, blockId: b.id });
                                 }}
                                 className={cn(
-                                  'absolute z-[5] cursor-pointer overflow-hidden rounded-md border px-2 py-1.5 text-[11px] leading-tight shadow-sm transition-shadow hover:z-20 hover:shadow-md',
+                                  'absolute z-[5] cursor-pointer overflow-hidden rounded-[4px] border px-2 pt-3 pb-3 text-[12px] leading-tight transition-transform hover:scale-[1.02] hover:z-20',
                                   style.bg,
                                   style.border,
-                                  style.text,
                                   overlapping && 'ring-1 ring-amber-400/70',
                                 )}
                                 style={{
@@ -1039,28 +1038,30 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   height,
                                   left: 2,
                                   width: 'calc(100% - 4px)',
+                                  color: '#000000',
+                                  boxShadow: '0 1px 2px hsl(var(--foreground) / 0.08)',
                                 }}
                                 title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${overlapping ? '\n⚠ Engine-fel: överlappar annat block' : ''}`}
                               >
-
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="truncate text-[10px] font-medium uppercase tracking-wide opacity-80">
-                                    {style.label}
-                                  </span>
-                                  <span className="shrink-0 text-[10px] tabular-nums opacity-90">
-                                    {fmtMin(b.durationMinutes)}
-                                  </span>
+                                <div
+                                  className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-0.5 w-fit"
+                                  style={{
+                                    backgroundColor: 'hsl(var(--primary) / 0.15)',
+                                    color: 'hsl(var(--primary))',
+                                  }}
+                                >
+                                  {style.label}
                                 </div>
-                                <div className="mt-0.5 truncate font-semibold">
+                                <div className="font-bold leading-tight truncate" style={{ color: '#000000' }}>
                                   {b.title}
                                 </div>
                                 {showSub && (
-                                  <div className="truncate text-[10.5px] tabular-nums opacity-90">
-                                    {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)}
+                                  <div className="text-[10px] tabular-nums mt-0.5 truncate" style={{ color: '#000000' }}>
+                                    {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} · {fmtMin(b.durationMinutes)}
                                   </div>
                                 )}
                                 {showMeta && displaySubtitle && (
-                                  <div className="mt-0.5 truncate text-[10.5px] opacity-80">
+                                  <div className="text-[10px] mt-0.5 truncate" style={{ color: '#000000', opacity: 0.8 }}>
                                     {displaySubtitle}
                                   </div>
                                 )}
