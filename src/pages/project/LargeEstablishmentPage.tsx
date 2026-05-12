@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { List, Users, CalendarDays, ClipboardList } from "lucide-react";
+import { List, Users, CalendarDays, ClipboardList, Table as TableIcon } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
+import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import type { OverviewFilter } from "@/components/project/planning/ProjectControlPanel";
 
