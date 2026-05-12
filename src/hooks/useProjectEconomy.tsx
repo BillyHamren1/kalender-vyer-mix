@@ -63,6 +63,22 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: hasBooking,
   });
 
+  // Raw ProjectHoursSummary från Time Engine-cachen (samma data som
+  // /staff-management/time-reports). Detta är SANNINGEN för rapporterade
+  // personaltimmar i ekonomin.
+  const { data: projectHours } = useQuery<ProjectHoursSummary>({
+    queryKey: ['project-hours-summary', bookingId],
+    queryFn: () => fetchProjectHoursSummary(bookingId!),
+    enabled: hasBooking,
+  });
+
+  // Manuell extra labor (project_labor_costs). EJ rapporterade timmar — bara
+  // efterregistrerad manuell kostnad som visas separat i UI.
+  const { data: manualExtraLaborRows = [] } = useQuery({
+    queryKey: ['project-manual-labor', projectId],
+    queryFn: () => fetchLaborCosts(projectId!),
+    enabled: !!projectId,
+  });
   const { data: timeReports = [], isLoading: timeReportsLoading, error: timeReportsError } = useQuery({
     queryKey: ['project-time-reports', bookingId],
     queryFn: () => fetchProjectTimeReports(bookingId!),
