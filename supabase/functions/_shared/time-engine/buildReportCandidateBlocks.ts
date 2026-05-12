@@ -2412,6 +2412,7 @@ export function buildReportCandidateBlocks(
       clearWorkBlocksIncorrectlyReviewCount: 0,
     },
     sessionConsolidationDiagnostics: sessionDiagnostics,
+    openActiveTimerPrivateResidenceStatus: privateResidenceStatusDiag,
   };
   for (const r of out) {
     if (r.kind === 'work') {
