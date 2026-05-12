@@ -133,7 +133,9 @@ Deno.test('private_residence auto-close ends the day', () => {
     nowIso: '2026-05-12T18:00:00.000Z',
   });
   assertEquals(r.dayEnded, true);
-  assertEquals(r.endReason, 'private_residence_after_last_work');
-  assertEquals(r.endedAt, '2026-05-12T14:30:00.000Z');
+  // Time Engine 4.6 — utan transportblock räknas commute som 0 m → kort hemresa
+  // → dagen slutar vid leaveWorkAt (lastConfirmedAt = 15:00), inte vid residenceEnterAt.
+  assertEquals(r.endReason, 'left_last_work_before_private_residence_commute');
+  assertEquals(r.endedAt, '2026-05-12T15:00:00.000Z');
   assertEquals(r.confidence, 'high');
 });
