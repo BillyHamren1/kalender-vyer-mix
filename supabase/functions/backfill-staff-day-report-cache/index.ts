@@ -503,13 +503,14 @@ async function processOne(
             date,
             engine_version: engineVersion,
             summary_json: summary,
-            report_candidate_blocks_json: report.blocks ?? [],
-            display_blocks_json: report.blocks ?? [],
+            report_candidate_blocks_json: enrichedBlocks,
+            display_blocks_json: enrichedBlocks,
             diagnostics_json: {
               ...((report as any).diagnostics ?? {}),
               sessionConsolidation: report.summary?.sessionConsolidationDiagnostics ?? null,
               signalGapTransport: (presence as any).signalGapTransportDiagnostics ?? null,
               companionRoute: (presence as any).companionRouteDiagnostics ?? null,
+              missingProjectReferenceBlocks: enrichment.missingProjectReferenceBlocks,
               presenceDayBlocks: (presence.blocks ?? []).map((b: any) => ({
                 kind: b.kind, startAt: b.startAt, endAt: b.endAt,
                 durationMinutes: b.durationMinutes, confidence: b.confidence,
