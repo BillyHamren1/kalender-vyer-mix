@@ -1983,6 +1983,36 @@ export function buildReportCandidateBlocks(
       return `${r.targetType ?? ''}::${r.targetId}` === openTargetKey;
     };
 
+    // Time Engine 2.11 — hård-break efter active timer:
+    //  - real transport (>= realTripMinDistanceMeters)
+    //  - work-block med ANNAN target än aktiv registration
+    //  - private_residence (boende / hemma)
+    //  - block med private_residence-relaterade reviewReasons
+    const isHardBreakBlock = (r: ReportCandidateBlock): boolean => {
+      const dist = r.evidenceSummary?.distanceMeters ?? 0;
+      if (r.kind === 'transport' && dist >= policy.realTripMinDistanceMeters) return true;
+      if (
+        r.kind === 'work' &&
+        !!r.targetId &&
+        openTargetKey != null &&
+        !isOpenTarget(r)
+      ) return true;
+      if (r.targetType === 'private_residence') return true;
+      const reasons = r.reviewReasons ?? [];
+      if (reasons.some((rr) => rr === 'private_residence' || rr === 'private_residence_status' || rr === 'home_private_conflict')) return true;
+      return false;
+    };
+    const findFirstHardBreakAfter = (afterMs: number): { block: ReportCandidateBlock; startMs: number } | null => {
+      let best: { block: ReportCandidateBlock; startMs: number } | null = null;
+      for (const r of out) {
+        const sMs = new Date(r.startAt).getTime();
+        if (sMs <= afterMs) continue;
+        if (!isHardBreakBlock(r)) continue;
+        if (!best || sMs < best.startMs) best = { block: r, startMs: sMs };
+      }
+      return best;
+    };
+
     // Hitta ankaret: senaste work-block (helst med matchande target) som
     // ligger inom eller överlappar [startedAt, dayEnd].
     let anchorIdx = -1;
