@@ -449,6 +449,37 @@ export interface GpsClassificationDiagnostics {
       reason: string;
     }>;
   };
+
+  /**
+   * Time Engine 3.6 — work-area-tolerance-räknare. 150 m tolerans får bara
+   * hjälpa en redan aktiv session, aldrig starta dag, äta boende eller
+   * förlänga dag förbi dayEndDecision.
+   *
+   * - continuedSessionByToleranceCount: hur många stay-cluster som matchade
+   *   ett work-target via toleransen (utanför geofence men ≤150 m från
+   *   edge).
+   * - blockedByPrivateResidenceCount: hur många stay-cluster som låg
+   *   inne i en private_residence-polygon samtidigt som ett work-target
+   *   låg inom 150 m — residence vann och tolerance fick INTE göra
+   *   warehouse av boendet.
+   * - blockedAfterDayEndCount: hur många work-stays som klipptes bort
+   *   eftersom dayEndDecision.endedAt redan passerats. Räknas i
+   *   buildReportCandidateBlocks (POST-PASS clamp); här i timeline-
+   *   diagnostiken är värdet alltid 0 (timeline känner inte till dayEnd).
+   */
+  workAreaToleranceDiagnostics: {
+    toleranceMeters: number;
+    continuedSessionByToleranceCount: number;
+    blockedByPrivateResidenceCount: number;
+    blockedAfterDayEndCount: number;
+    examples: Array<{
+      atIso: ISODateTime;
+      targetLabel: string;
+      targetKind: string;
+      distanceOutsideEdgeMeters: number;
+      classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
+    }>;
+  };
 }
 
 export interface GpsDayTimelineResult {
