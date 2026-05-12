@@ -2141,6 +2141,13 @@ export function buildGpsDayTimeline(
           Math.round(ephemeralUnknownStaysSuppressedMinutes * 100) / 100,
         examples: transportThresholdExamples,
       },
+      workAreaToleranceDiagnostics: {
+        toleranceMeters: WORK_AREA_TOLERANCE_METERS,
+        continuedSessionByToleranceCount: workAreaToleranceCounters.continuedSessionByToleranceCount,
+        blockedByPrivateResidenceCount: workAreaToleranceCounters.blockedByPrivateResidenceCount,
+        blockedAfterDayEndCount: 0,
+        examples: workAreaToleranceCounters.examples,
+      },
     },
     // Back-compat top-level mirrors (consumers like report-candidate-blocks-health
     // read these at the result root). Same values as inside classificationDiagnostics.
