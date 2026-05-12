@@ -757,6 +757,13 @@ export function buildGpsDayTimeline(
   const gaps: GpsTimelineGap[] = [];
   const segments: GpsTimelineSegment[] = [];
 
+  // Time Engine 3.6 — work-area-tolerance counters (skrivs av matchTarget).
+  const workAreaToleranceCounters: WorkAreaToleranceCounters = {
+    continuedSessionByToleranceCount: 0,
+    blockedByPrivateResidenceCount: 0,
+    examples: [],
+  };
+
   if (accepted.length === 0) {
     return {
       staffId: input.staffId,
