@@ -335,10 +335,7 @@ export async function fetchProjectStaffHoursAsTimeReports(
 // Large project — read same Time Engine cache, scoped by LP + linked bookings
 // ────────────────────────────────────────────────────────────────────────────
 
-import {
-  summarizeLargeProjectHoursFromDayReports,
-  type LargeProjectHoursTarget,
-} from '@/lib/projects/projectHoursFromTimeEngine';
+
 
 interface LargeProjectContext {
   organization_id: string;
