@@ -29,6 +29,7 @@ const GENERIC_TITLES = new Set(
     'rigg',
     'rig',
     'rigdown',
+    'rig down',
     'lager',
     'warehouse',
     'transport',
@@ -46,6 +47,15 @@ const GENERIC_TITLES = new Set(
 
 const GENERIC_PREFIXES = ['sammanslagen okänd plats', 'okänd plats'];
 
+// Time Engine 3.7 — Team är metadata, aldrig huvudtitel.
+// "Team 1", "Team transport", "team-2", "Lager team" osv. ska aldrig vara title.
+const TEAM_PATTERNS: RegExp[] = [
+  /^team[\s\-_]/i,
+  /^team\s*\d+$/i,
+  /^team\s+(transport|rigg|rig|lager|warehouse|down)$/i,
+  /^lager\s*team$/i,
+];
+
 const isGeneric = (value: string | null | undefined): boolean => {
   if (!value) return true;
   const trimmed = value.trim();
@@ -53,6 +63,7 @@ const isGeneric = (value: string | null | undefined): boolean => {
   const low = trimmed.toLowerCase();
   if (GENERIC_TITLES.has(low)) return true;
   if (GENERIC_PREFIXES.some((p) => low.startsWith(p))) return true;
+  if (TEAM_PATTERNS.some((re) => re.test(trimmed))) return true;
   return false;
 };
 
