@@ -761,7 +761,11 @@ function isDayOpen(
   active?: ActiveTimeRegistrationInput[],
   sessions?: StaffPresenceSessionInput[],
 ): boolean {
-  const cutoff = new Date(`${date}T23:59:59Z`).getTime();
+  // Time Engine 4.2 — använd Europe/Stockholm dagsslut, inte UTC.
+  // Tidigare bug: `${date}T23:59:59Z` (UTC) kunde ligga 1–2 h FÖRE
+  // svensk midnatt, vilket gjorde att svenska kvällsblock felaktigt
+  // klassades som "dag öppen" och fortsatte över 00:00 lokal tid.
+  const cutoff = getStockholmDayWindowUtc(date).endUtcMs;
   const end = new Date(endAt).getTime();
   if (end >= cutoff) return true;
   if (active?.some((r) => {
