@@ -62,6 +62,14 @@ const LargeProjectProductsOverview = ({
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  };
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [moveDialog, setMoveDialog] = useState<{ productId: string; name: string } | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
