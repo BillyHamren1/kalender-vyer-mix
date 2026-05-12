@@ -845,6 +845,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
     >
       <div ref={mapContainer} className="w-full h-full" />
+      <style>{`@keyframes opspulse { 0%,100% { opacity:.18; transform:translate(-50%,-50%) scale(1);} 50% { opacity:.42; transform:translate(-50%,-50%) scale(1.25);} }`}</style>
 
       {/* Loading */}
       {(isLoading || !mapReady) && (
