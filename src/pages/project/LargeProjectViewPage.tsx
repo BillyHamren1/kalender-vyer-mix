@@ -75,6 +75,9 @@ const LargeProjectViewPage = () => {
             <TabsTrigger value="products" className={tabTriggerClass}>
               Produkter
             </TabsTrigger>
+            <TabsTrigger value="excel" className={tabTriggerClass}>
+              Excel-vy
+            </TabsTrigger>
             <TabsTrigger value="transport" className={tabTriggerClass}>
               Transport
               {transportAssignments.length > 0 && (
