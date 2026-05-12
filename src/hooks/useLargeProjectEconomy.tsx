@@ -202,13 +202,22 @@ export const useLargeProjectEconomy = (
   // Budget cost
   const budgetedCost = (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0);
 
+  // ── LP-aggregerade Time Engine-timmar (totalsanning) ──
+  const reportedStaffHoursFromTimeEngine = largeProjectHours?.summary.totalHours ?? 0;
+  const reportedStaffCostFromTimeEngine = largeProjectHours?.totalCost ?? 0;
+  const staffHoursByPerson = largeProjectHours?.summary.staffSummaries ?? [];
+  const staffHoursByDay = largeProjectHours?.summary.daySummaries ?? [];
+  const staffCostsByPerson = largeProjectHours?.staffCosts ?? [];
+  const hoursSource: 'staff_day_report_cache' = 'staff_day_report_cache';
+
   // Combined summary
-  // grandTotalCost includes ALL cost types: product costs + staff + purchases + invoices + supplier invoices + local purchases
+  // Staff-totalen kommer NU från LP-aggregerade Time Engine-block (inte
+  // booking-summan), eftersom samma block annars skulle räknas dubbelt.
   const agg = aggregatedBookingEconomy;
   const grandTotalCost =
     localPurchasesTotal +
     agg.totalCost +
-    agg.totalStaffCost +
+    reportedStaffCostFromTimeEngine +
     agg.totalPurchases +
     agg.totalInvoices +
     agg.totalSupplierInvoices;
@@ -220,11 +229,16 @@ export const useLargeProjectEconomy = (
     budgetedCost,
     // Local purchases
     localPurchasesTotal,
-    // Aggregated from bookings
+    // Aggregated from bookings (utan staff — den kommer från LP-Time Engine)
     ...aggregatedBookingEconomy,
+    // Override staff totals med LP-aggregerade Time Engine-värden
+    totalStaffCost: reportedStaffCostFromTimeEngine,
+    totalActualHours: reportedStaffHoursFromTimeEngine,
     // Grand totals
     grandTotalCost,
     grandTotalRevenue: agg.totalRevenue,
+    // Källa-spårning
+    staffHoursSource: hoursSource,
   };
 
   // Mutations
