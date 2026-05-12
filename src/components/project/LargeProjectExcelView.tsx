@@ -469,7 +469,7 @@ const CustomCell = ({ initial, onCommit }: { initial: string; onCommit: (v: stri
         if (e.key === "Escape") { setVal(initial); (e.currentTarget as HTMLInputElement).blur(); }
       }}
       placeholder="—"
-      className="h-8 text-sm border-transparent hover:border-border focus:border-ring bg-transparent"
+      className="h-9 text-sm border-transparent hover:border-border/70 hover:bg-card focus:border-ring focus:bg-card bg-transparent transition-colors rounded-md placeholder:text-muted-foreground/40 placeholder:font-light"
     />
   );
 };
