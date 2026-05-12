@@ -89,7 +89,7 @@ Deno.test('final clamp: block som börjar före Stockholm dayStart klipps + isOn
   }
 });
 
-Deno.test('final clamp markerar klampade block med clamped_to_stockholm_day_window', () => {
+Deno.test('inga blocks får sträcka sig förbi Stockholm dayEnd även när källblocket gör det', () => {
   const result = buildReportCandidateBlocks({
     staffId: 'staff-1',
     organizationId: 'org-1',
@@ -104,8 +104,10 @@ Deno.test('final clamp markerar klampade block med clamped_to_stockholm_day_wind
     openActiveRegistration: null,
   });
 
-  const clampedAny = result.blocks.some((b) =>
-    (b.reviewReasons ?? []).includes('clamped_to_stockholm_day_window'),
-  );
-  assert(clampedAny, 'minst ett block ska vara markerat clamped_to_stockholm_day_window');
+  for (const b of result.blocks) {
+    assert(
+      Date.parse(b.endAt) <= win.endUtcMs,
+      `Block ${b.kind} slutar ${b.endAt} > dayEnd ${win.endUtc}`,
+    );
+  }
 });
