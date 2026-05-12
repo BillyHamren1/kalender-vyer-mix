@@ -420,11 +420,15 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   }, [staffList]);
 
   // Time axis bounds
-  // Dynamic time bounds — auto-fit to data when compactRange is on
+  // Always show the full working window 06–20. Data outside that range
+  // simply extends the axis so the user can scroll up/down to reach it,
+  // but 06–20 is guaranteed to be present without compressing the scale.
   const { startHour, endHour } = useMemo(() => {
+    const BASE_START = 6;
+    const BASE_END = 20;
     if (!compactRange) return { startHour: 0, endHour: 24 };
-    let minH = 24;
-    let maxH = 0;
+    let minH = BASE_START;
+    let maxH = BASE_END;
     for (const s of sortedStaff) {
       const blocks = blocksByStaff[s.id] ?? [];
       for (const b of blocks) {
@@ -435,14 +439,10 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         if (Number.isFinite(eH) && eH > maxH) maxH = eH;
       }
     }
-    if (minH >= 24 || maxH <= 0 || maxH <= minH) {
-      return { startHour: 6, endHour: 22 };
-    }
-    // Pad with 1 hour on each side and floor/ceil
-    const pad = 1;
-    const s = Math.max(0, Math.floor(minH) - pad);
-    const e = Math.min(24, Math.ceil(maxH) + pad);
-    return { startHour: s, endHour: Math.max(s + 4, e) };
+    // Pad with 1 hour on each side when data extends outside 06–20
+    const s = Math.max(0, minH < BASE_START ? Math.floor(minH) - 1 : BASE_START);
+    const e = Math.min(24, maxH > BASE_END ? Math.ceil(maxH) + 1 : BASE_END);
+    return { startHour: s, endHour: e };
   }, [compactRange, sortedStaff, blocksByStaff, dateStr]);
   const totalHours = endHour - startHour;
   const hours = Array.from({ length: totalHours + 1 }, (_, i) => startHour + i);
