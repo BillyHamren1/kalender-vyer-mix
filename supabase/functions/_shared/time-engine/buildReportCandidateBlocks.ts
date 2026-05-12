@@ -2173,6 +2173,36 @@ export function buildReportCandidateBlocks(
 
     // Skapa syntetiskt block om inget work-block matchar
     if (anchorIdx === -1 && openTargetKey) {
+      // Time Engine 3.3 — open timer får inte spawna synthetic block som går
+      // till now/dayEnd om dagen är historisk eller evidens är stale.
+      const synthGate = evaluateOpenTimerExtension({ anchorEndMs: startedMs });
+      if (!synthGate.allowed) {
+        if (synthGate.reason === 'historical_date') {
+          openTimerClampDiag.activeTimersNotExtendedBecauseHistoricalDate += 1;
+          pushClampExample({
+            reason: 'historical_date_synthetic_block_skipped',
+            activeTimerStart: openCtx.startedAtIso,
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            anchorEndBefore: null,
+            anchorEndAfter: null,
+            lastFreshEvidenceAtIso: input.lastFreshEvidenceAtIso ?? null,
+            stockholmDayEndUtc: new Date(stockholmDayWindowAll.endUtcMs).toISOString(),
+          });
+        } else {
+          openTimerClampDiag.activeTimersNotExtendedDueToStaleEvidence += 1;
+          pushClampExample({
+            reason: 'stale_evidence_synthetic_block_skipped',
+            activeTimerStart: openCtx.startedAtIso,
+            activeTimerTarget: openCtx.targetLabel ?? openCtx.currentLabel ?? null,
+            anchorEndBefore: null,
+            anchorEndAfter: null,
+            lastFreshEvidenceAtIso: input.lastFreshEvidenceAtIso ?? null,
+            stockholmDayEndUtc: new Date(stockholmDayWindowAll.endUtcMs).toISOString(),
+          });
+        }
+        // Hoppa hela synth-grenen — vi spawnar inget visible block.
+        // (anchorIdx förblir -1, ingen vidare anchor-logik körs nedan.)
+      } else {
       const liveEndMsRaw = Math.min(nowMs, dayCutoffMs);
       // Time Engine 2.11 — synth-block får ALDRIG sträcka sig in i / ovanpå
       // ett senare verkligt motorblock (real transport, annan-target work,
