@@ -918,6 +918,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             top: number;
                             height: number;
                             shifted: boolean;
+                            lane: number;
+                            laneCount: number;
                           };
                           // 1) compute screen-space rects (skip blocks fully outside window)
                           const rects: Array<{
@@ -943,29 +945,50 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               endMs: Date.parse(b.endAt),
                             });
                           }
-                          // 2) sort by start time, sedan kortast först vid samma start
+                          // 2) sortera bara för stabil rendering — ingen position-mutation
                           rects.sort((a, b) =>
                             a.startMs !== b.startMs
                               ? a.startMs - b.startMs
                               : (a.endMs - a.startMs) - (b.endMs - b.startMs),
                           );
-                          // 3) sekventiell vertikal stapling — ingen får börja innan föregående slutat visuellt
-                          const positioned: Positioned[] = [];
-                          let cursor = 0;
+                          // 3) Behåll varje blocks SANNA tidsposition. Ingen vertikal förskjutning
+                          //    får ske bara för att ett tidigare block överlappar — det skulle få
+                          //    ett 07:08-block att visas vid 15:00. Vid äkta överlapp delas
+                          //    bredden istället i sub-lanes så båda blocken syns på sin riktiga tid.
+                          type Lane = { endMs: number };
+                          const lanes: Lane[] = [];
+                          const laneIndexByRect: number[] = [];
                           for (const r of rects) {
-                            const top = Math.max(r.top, cursor);
-                            positioned.push({
-                              b: r.b,
-                              top,
-                              height: r.height,
-                              shifted: top > r.top + 0.5,
-                            });
-                            cursor = top + r.height;
+                            let placed = -1;
+                            for (let i = 0; i < lanes.length; i++) {
+                              if (lanes[i].endMs <= r.startMs) {
+                                lanes[i].endMs = r.endMs;
+                                placed = i;
+                                break;
+                              }
+                            }
+                            if (placed === -1) {
+                              lanes.push({ endMs: r.endMs });
+                              placed = lanes.length - 1;
+                            }
+                            laneIndexByRect.push(placed);
                           }
-                          return positioned.map(({ b, top, height, shifted }) => {
+                          const laneCount = Math.max(1, lanes.length);
+                          const positioned: Positioned[] = rects.map((r, idx) => ({
+                            b: r.b,
+                            top: r.top,
+                            height: r.height,
+                            shifted: false,
+                            lane: laneIndexByRect[idx],
+                            laneCount,
+                          }));
+
+                          return positioned.map(({ b, top, height, shifted, lane, laneCount }) => {
                             const style = KIND_STYLE[b.kind];
                             const showSub = height >= 44;
                             const showMeta = height >= 66;
+                            const widthPct = 100 / laneCount;
+                            const leftPct = widthPct * lane;
                             return (
                               <div
                                 key={b.id}
@@ -980,15 +1003,15 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   style.bg,
                                   style.border,
                                   style.text,
-                                  shifted && 'ring-1 ring-amber-400/70',
+                                  laneCount > 1 && 'ring-1 ring-amber-400/70',
                                 )}
                                 style={{
                                   top,
                                   height,
-                                  left: 2,
-                                  right: 2,
+                                  left: `calc(${leftPct}% + 2px)`,
+                                  width: `calc(${widthPct}% - 4px)`,
                                 }}
-                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${shifted ? '\n⚠ Överlappar tidigare block — visas förskjutet nedåt' : ''}`}
+                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${laneCount > 1 ? '\n⚠ Överlappar annat block — visas i sidospalt' : ''}`}
                               >
 
                                 <div className="flex items-center justify-between gap-1">
