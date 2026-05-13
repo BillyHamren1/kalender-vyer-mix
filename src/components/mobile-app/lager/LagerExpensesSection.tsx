@@ -115,9 +115,9 @@ const LagerExpensesSection = () => {
           {purchases.map((p: any) => (
             <div key={p.id} className="rounded-2xl border bg-card p-3 flex items-center gap-3">
               {p.receipt_url ? (
-                <a href={p.receipt_url} target="_blank" rel="noreferrer" className="shrink-0">
+                <button type="button" onClick={() => openFileExternally(p.receipt_url, p.description || 'Kvitto')} className="shrink-0">
                   <img src={p.receipt_url} alt="" className="w-12 h-12 rounded-lg object-cover bg-muted" />
-                </a>
+                </button>
               ) : (
                 <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
                   <Receipt className="w-5 h-5 text-muted-foreground/50" />
