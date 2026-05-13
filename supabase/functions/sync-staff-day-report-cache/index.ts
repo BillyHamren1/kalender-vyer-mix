@@ -67,15 +67,31 @@ Deno.serve(async (req) => {
   const perOrg: any[] = [];
 
   for (const orgId of orgIds) {
-    // Find staff with recent ping activity (last 36h)
+    // Find staff with recent ping activity (last 36h). Paginate so dominant
+    // staff don't crowd less-active ones out of the discovery batch.
     const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-    const { data: recent } = await admin
-      .from('staff_location_history')
-      .select('staff_id')
-      .eq('organization_id', orgId)
-      .gte('recorded_at', since)
-      .limit(2000);
-    const staffIds = Array.from(new Set((recent ?? []).map((r: any) => r.staff_id)));
+    const seen = new Set<string>();
+    {
+      const PAGE = 1000;
+      const CAP = 50_000; // discovery only — read just staff_id column
+      let from = 0;
+      while (seen.size < 1000 && from < CAP) {
+        const to = from + PAGE - 1;
+        const { data: batch, error } = await admin
+          .from('staff_location_history')
+          .select('staff_id')
+          .eq('organization_id', orgId)
+          .gte('recorded_at', since)
+          .order('recorded_at', { ascending: false })
+          .range(from, to);
+        if (error) break;
+        const rows = batch ?? [];
+        for (const r of rows) seen.add((r as any).staff_id);
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+    }
+    const staffIds = Array.from(seen);
     if (staffIds.length === 0) {
       perOrg.push({ orgId, skipped: 'no_recent_pings' });
       continue;

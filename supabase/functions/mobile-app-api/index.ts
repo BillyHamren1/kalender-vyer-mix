@@ -12469,6 +12469,7 @@ async function handleAutoRepairMissingWorkdaysFromEvidence(
 
 // ============================================================================
 import { buildDayReality, type RealitySessionInput, type KnownSite } from '../_shared/dayReality.ts'
+import { fetchAllStaffLocationPings } from '../_shared/timeEngine/fetchAllStaffLocationPings.ts'
 
 async function handleGetStaffDayReality(supabase: any, callerStaffId: string, data: any, organizationId: string) {
   const { staff_id, date } = data || {}
@@ -12484,11 +12485,20 @@ async function handleGetStaffDayReality(supabase: any, callerStaffId: string, da
   const fromIso = `${date}T00:00:00.000Z`
   const toIso = `${date}T23:59:59.999Z`
 
-  // Fetch in parallel.
-  const [pingsRes, reportsRes, ltesRes, workdaysRes, locationsRes] = await Promise.all([
-    supabase.from('staff_location_history').select('lat, lng, accuracy, speed, recorded_at')
-      .eq('staff_id', staff_id).eq('organization_id', organizationId)
-      .gte('recorded_at', fromIso).lte('recorded_at', toIso).order('recorded_at', { ascending: true }).limit(5000),
+  // Day-wide pings via canonical paginated reader (replaces .limit(5000)).
+  const pingsFetch = await fetchAllStaffLocationPings({
+    supabaseAdmin: supabase,
+    organizationId,
+    staffId: staff_id,
+    startUtc: fromIso,
+    endUtc: toIso,
+  })
+  const pingsRes = { data: pingsFetch.rows, error: pingsFetch.diagnostics.errorMessage ? { message: pingsFetch.diagnostics.errorMessage } : null }
+
+  const [reportsRes, ltesRes, workdaysRes, locationsRes] = await Promise.all([
+    supabase.from('time_reports')
+      .select('id, booking_id, large_project_id, location_id, start_time, end_time, report_date')
+      .eq('staff_id', staff_id).eq('organization_id', organizationId).eq('report_date', date).eq('is_subdivision', false),
     supabase.from('time_reports')
       .select('id, booking_id, large_project_id, location_id, start_time, end_time, report_date')
       .eq('staff_id', staff_id).eq('organization_id', organizationId).eq('report_date', date).eq('is_subdivision', false),
