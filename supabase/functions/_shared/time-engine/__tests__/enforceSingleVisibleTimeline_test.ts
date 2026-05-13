@@ -31,7 +31,7 @@ Deno.test('single timeline: same place merges into one block', () => {
   ];
   const r = enforceSingleVisibleTimeline(blocks);
   assertEquals(r.blocks.length, 1);
-  assertEquals(r.blocks[0].endAt, '2025-01-01T11:00:00Z');
+  assertEquals(Date.parse(r.blocks[0].endAt), Date.parse('2025-01-01T11:00:00Z'));
   assert(r.diagnostics.overlapsResolvedCount >= 1);
 });
 
