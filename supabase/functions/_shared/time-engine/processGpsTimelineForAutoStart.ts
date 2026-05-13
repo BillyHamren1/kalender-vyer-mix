@@ -754,6 +754,7 @@ export async function processGpsTimelineForAutoStart(
         ? { lat: (seg as any).centerLat as number, lng: (seg as any).centerLng as number }
         : null;
     const enclosing = findEnclosingPrivateZone(segPoint, privateZones);
+    const declineMatch = findMatchingDecline(target, segPoint, declines);
 
     const decideTarget = toDecideTarget(target);
     const decision = decideAutoStart({
@@ -764,6 +765,14 @@ export async function processGpsTimelineForAutoStart(
       insidePrivateResidence: enclosing
         ? { distanceMeters: enclosing.distanceMeters, zoneKind: enclosing.zone.zoneKind }
         : null,
+      userDeclinedToday: declineMatch
+        ? {
+            matchedTarget: declineMatch.matchedTarget,
+            matchedRadiusMeters: declineMatch.matchedRadiusMeters,
+            declineId: declineMatch.decline.id,
+            expiresAt: declineMatch.decline.expiresAt,
+          }
+        : null,
     });
 
     const entry: AutoStartDecisionLogEntry = {
@@ -773,10 +782,26 @@ export async function processGpsTimelineForAutoStart(
       matchedTargetId: target.id,
       matchedTargetName: target.name,
       decision,
-      skippedReason: enclosing
-        ? 'inside_private_residence'
-        : (active ? 'already_active_registration' : undefined),
+      skippedReason: declineMatch
+        ? 'user_declined_today'
+        : enclosing
+          ? 'inside_private_residence'
+          : (active ? 'already_active_registration' : undefined),
     };
+
+    if (declineMatch) {
+      declineSuppressedCount += 1;
+      if (declineMatch.matchedTarget) declineMatchedByTarget += 1;
+      else declineMatchedByRadius += 1;
+      entry.declineDiagnostics = {
+        userDeclineFound: true,
+        declineMatchedTarget: declineMatch.matchedTarget,
+        declineMatchedRadius: declineMatch.matchedRadiusMeters,
+        suppressedAutoStartBecauseDeclined: true,
+        declineId: declineMatch.decline.id,
+        expiresAt: declineMatch.decline.expiresAt,
+      };
+    }
 
     if (enclosing) {
       privateResidenceSuppressedSegments += 1;
