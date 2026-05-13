@@ -193,7 +193,7 @@ export async function buildTimerOwnershipDiagnostics(args: {
       .limit(1)
       .maybeSingle();
     if (sup) {
-      out.autoStartRejectedReason = (sup.reason as string | null) ?? 'suppressed';
+      out.autoStartRejectedReason = ((sup as any).reason as string | null) ?? 'suppressed';
     }
   } catch (_) { /* ignore */ }
 
