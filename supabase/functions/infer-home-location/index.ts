@@ -106,11 +106,39 @@ Deno.serve(async (req) => {
     timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
   });
 
+  let workExclusions: WorkExclusion[] = [];
+  let pingsExcludedAtWork = 0;
+  let homesSkippedAtWork = 0;
+
   try {
+    // Load active org locations that are NOT private residences. Anything
+    // inside their radius is a workplace, never a home.
+    {
+      const { data: orgLocs } = await supabase
+        .from('organization_locations')
+        .select('organization_id, name, latitude, longitude, radius_meters, location_type, is_active')
+        .eq('is_active', true);
+      workExclusions = (orgLocs ?? [])
+        .filter((l: any) =>
+          l.latitude != null &&
+          l.longitude != null &&
+          (l.location_type ?? '') !== 'private_residence',
+        )
+        .map((l: any) => ({
+          org: l.organization_id as string,
+          lat: Number(l.latitude),
+          lng: Number(l.longitude),
+          radiusM: Number(l.radius_meters ?? 200) || 200,
+          name: l.name as string,
+        }));
+      console.log(`[infer-home] loaded ${workExclusions.length} work exclusions`);
+    }
+
     // 1+2. Pull night pings (cursor pagination on recorded_at to bypass
     // Supabase's 1000-row response cap; previous range()-loop silently
     // stopped after the first 1000 rows).
     const buckets = new Map<string, { staff_id: string; org: string; date: string; key: string; lat: number; lng: number; count: number }>();
+
 
     const PAGE = 1000;
     let cursor = since;
