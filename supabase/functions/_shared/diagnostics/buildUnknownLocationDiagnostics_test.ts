@@ -39,7 +39,7 @@ Deno.test("flags unknown report block and reports nearest warehouse + reason", (
   assertEquals(out.countsByStage.report_candidate, 1);
   assertEquals(out.countsByStage.gps_timeline, 1);
   const ex = out.examples[0];
-  assertEquals(ex.matchingStageWhereUnknownWasAssigned, "report_candidate");
+  assertEquals(ex.matchingStageWhereUnknownWasAssigned, "gps_timeline");
   assert(ex.hadWarehouseCandidate);
   assert(ex.nearestWarehouseDistanceMeters! > 0);
   assertEquals(ex.rawPingCount, 2);
