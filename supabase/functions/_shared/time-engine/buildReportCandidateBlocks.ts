@@ -2081,6 +2081,7 @@ export function buildReportCandidateBlocks(
     excludedPreWorkBlocksCount: 0,
     firstPrimaryWorkAt: null,
     firstPrimaryTargetLabel: null,
+    actualWorkStartAt: input.actualWorkStartIso ?? null,
     excludedReasons: {},
     examples: [],
     homeAnchorsCount: input.homeAnchors?.length ?? 0,
@@ -2116,12 +2117,26 @@ export function buildReportCandidateBlocks(
     }
   };
 
-  const firstPrimaryIdx = out.findIndex((r) => r.kind === 'work' && !!r.targetId);
+  const actualWorkStartMs = input.actualWorkStartIso
+    ? new Date(input.actualWorkStartIso).getTime()
+    : null;
+  let firstPrimaryIdx = out.findIndex((r) => r.kind === 'work' && !!r.targetId);
+  if (actualWorkStartMs != null) {
+    const firstBlockAtOrAfterActual = out.findIndex((r) => new Date(r.endAt).getTime() > actualWorkStartMs);
+    if (firstBlockAtOrAfterActual >= 0 && (firstPrimaryIdx < 0 || firstBlockAtOrAfterActual < firstPrimaryIdx)) {
+      firstPrimaryIdx = firstBlockAtOrAfterActual;
+    }
+  }
   if (firstPrimaryIdx > 0) {
     const firstPrimary = out[firstPrimaryIdx];
-    preWorkExclusionDiagnostics.firstPrimaryWorkAt = firstPrimary.startAt;
+    const primaryStartMs = new Date(firstPrimary.startAt).getTime();
+    const effectiveBoundaryMs = actualWorkStartMs != null && actualWorkStartMs < primaryStartMs
+      ? actualWorkStartMs
+      : primaryStartMs;
+    const effectiveBoundaryIso = new Date(effectiveBoundaryMs).toISOString();
+    preWorkExclusionDiagnostics.firstPrimaryWorkAt = effectiveBoundaryIso;
     preWorkExclusionDiagnostics.firstPrimaryTargetLabel = firstPrimary.targetLabel;
-    const noWorkBeforeNoon = stockholmHour(firstPrimary.startAt) >= 12;
+    const noWorkBeforeNoon = stockholmHour(effectiveBoundaryIso) >= 12;
 
     const keep: boolean[] = new Array(firstPrimaryIdx).fill(true);
     for (let k = 0; k < firstPrimaryIdx; k++) {
@@ -2140,6 +2155,10 @@ export function buildReportCandidateBlocks(
         }
       }
 
+      if (!reason && actualWorkStartMs != null && new Date(r.endAt).getTime() <= actualWorkStartMs) {
+        reason = 'before_first_primary_work_target';
+      }
+
       if (!reason) {
         if (noWorkBeforeNoon) {
           reason = 'no_workplace_before_noon';
@@ -2152,7 +2171,7 @@ export function buildReportCandidateBlocks(
         } else if (r.kind === 'transport') {
           const isImmediatelyBefore = k === firstPrimaryIdx - 1;
           const gapMin =
-            (new Date(firstPrimary.startAt).getTime() - new Date(r.endAt).getTime()) / 60_000;
+            (effectiveBoundaryMs - new Date(r.endAt).getTime()) / 60_000;
           const anchored =
             isImmediatelyBefore &&
             gapMin <= 5 &&
