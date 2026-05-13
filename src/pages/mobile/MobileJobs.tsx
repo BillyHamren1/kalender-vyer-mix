@@ -6,7 +6,7 @@ import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import { HeaderShell } from '@/components/mobile-app/MobileHeader';
-import CompactWorkDayTimer from '@/components/mobile-app/CompactWorkDayTimer';
+import { Clock } from 'lucide-react';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
@@ -116,9 +116,21 @@ const MobileJobs = () => {
             </div>
           </button>
         </div>
-        {/* Compact workday timer strip */}
+        {/* Genväg till Time-sidan — start/stopp av dag sker bara där */}
         <div className="px-5 pb-2">
-          <CompactWorkDayTimer />
+          <button
+            type="button"
+            onClick={() => navigate('/m/report')}
+            className="w-full h-11 px-3 flex items-center gap-2 bg-primary-foreground/10 rounded-xl active:scale-[0.99] transition-all"
+          >
+            <Clock className="w-4 h-4 text-primary-foreground/90" />
+            <span className="text-xs font-semibold text-primary-foreground/90 flex-1 text-left">
+              Öppna Time
+            </span>
+            <span className="text-[11px] text-primary-foreground/70">
+              Starta/avsluta arbetsdag
+            </span>
+          </button>
         </div>
       </HeaderShell>
 
