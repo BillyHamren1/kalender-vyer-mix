@@ -42,6 +42,44 @@ function snapKey(lat: number, lng: number): { key: string; lat: number; lng: num
   return { key: `${sLat.toFixed(4)}:${sLng.toFixed(4)}`, lat: sLat, lng: sLng };
 }
 
+// Haversine in meters.
+function distanceM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+interface WorkExclusion {
+  org: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+  name: string;
+}
+
+/**
+ * People do not live at the warehouse / office. Any cluster that lands
+ * inside an active org-location radius (excluding `private_residence`
+ * which IS a home) must be excluded from home inference.
+ */
+function isInsideWorkExclusion(
+  org: string,
+  lat: number,
+  lng: number,
+  exclusions: WorkExclusion[],
+): WorkExclusion | null {
+  for (const ex of exclusions) {
+    if (ex.org !== org) continue;
+    if (distanceM(lat, lng, ex.lat, ex.lng) < ex.radiusM + 50) return ex;
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -68,11 +106,39 @@ Deno.serve(async (req) => {
     timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
   });
 
+  let workExclusions: WorkExclusion[] = [];
+  let pingsExcludedAtWork = 0;
+  let homesSkippedAtWork = 0;
+
   try {
+    // Load active org locations that are NOT private residences. Anything
+    // inside their radius is a workplace, never a home.
+    {
+      const { data: orgLocs } = await supabase
+        .from('organization_locations')
+        .select('organization_id, name, latitude, longitude, radius_meters, location_type, is_active')
+        .eq('is_active', true);
+      workExclusions = (orgLocs ?? [])
+        .filter((l: any) =>
+          l.latitude != null &&
+          l.longitude != null &&
+          (l.location_type ?? '') !== 'private_residence',
+        )
+        .map((l: any) => ({
+          org: l.organization_id as string,
+          lat: Number(l.latitude),
+          lng: Number(l.longitude),
+          radiusM: Number(l.radius_meters ?? 200) || 200,
+          name: l.name as string,
+        }));
+      console.log(`[infer-home] loaded ${workExclusions.length} work exclusions`);
+    }
+
     // 1+2. Pull night pings (cursor pagination on recorded_at to bypass
     // Supabase's 1000-row response cap; previous range()-loop silently
     // stopped after the first 1000 rows).
     const buckets = new Map<string, { staff_id: string; org: string; date: string; key: string; lat: number; lng: number; count: number }>();
+
 
     const PAGE = 1000;
     let cursor = since;
@@ -98,6 +164,19 @@ Deno.serve(async (req) => {
         const hour = parseInt(hourFmt.format(ts), 10);
         if (hour < NIGHT_START_HOUR || hour >= NIGHT_END_HOUR) continue;
         const dateStr = dateFmt.format(ts);
+
+        // EXCLUSION: pings inside an active workplace radius are never
+        // home — drop them so the cluster can't form in the first place.
+        const hitWork = isInsideWorkExclusion(
+          r.organization_id as string,
+          r.lat as number,
+          r.lng as number,
+          workExclusions,
+        );
+        if (hitWork) {
+          pingsExcludedAtWork++;
+          continue;
+        }
 
         const snap = snapKey(r.lat as number, r.lng as number);
         const bucketKey = `${r.staff_id}|${dateStr}|${snap.key}`;
@@ -202,6 +281,21 @@ Deno.serve(async (req) => {
       }
       if (!primary || primary.data.count < 2) continue;
 
+      // Defense in depth: even if a cluster slipped through (e.g. an org
+      // location was added AFTER pings were ingested), never persist a
+      // home that lands inside a workplace radius.
+      if (
+        isInsideWorkExclusion(
+          primary.data.org as string,
+          primary.data.lat,
+          primary.data.lng,
+          workExclusions,
+        )
+      ) {
+        homesSkippedAtWork++;
+        continue;
+      }
+
       const { error: pErr } = await supabase
         .from('staff_inferred_home_locations')
         .upsert(
@@ -226,7 +320,11 @@ Deno.serve(async (req) => {
       const newestKey = obs[0].cluster_key;
       if (newestKey !== primary.key) {
         const tempRun = runs.get(newestKey);
-        if (tempRun && tempRun.count >= 2) {
+        if (
+          tempRun &&
+          tempRun.count >= 2 &&
+          !isInsideWorkExclusion(tempRun.org, tempRun.lat, tempRun.lng, workExclusions)
+        ) {
           const validUntil = new Date(Date.now() + 2 * 86400000).toISOString();
           const { error: tErr } = await supabase
             .from('staff_inferred_home_locations')
@@ -269,6 +367,9 @@ Deno.serve(async (req) => {
         success: true,
         ms: Date.now() - startedAt,
         pings_scanned: pingsScanned,
+        pings_excluded_at_work: pingsExcludedAtWork,
+        homes_skipped_at_work: homesSkippedAtWork,
+        work_exclusions_loaded: workExclusions.length,
         observations_written: observationsWritten,
         primaries_upserted: primariesUpserted,
         temporaries_upserted: temporariesUpserted,
