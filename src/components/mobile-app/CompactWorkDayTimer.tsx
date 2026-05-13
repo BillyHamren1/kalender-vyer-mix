@@ -1,10 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Play, Square, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
-import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
 import { mobileApi } from '@/services/mobileApiService';
 import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
 
@@ -21,21 +19,12 @@ const formatDuration = (totalSeconds: number) => {
 
 const CompactWorkDayTimer: React.FC = () => {
   const { staff } = useMobileAuth();
-  const { data: bookings = [] } = useMobileBookings();
-  const geo = useGeofencingContextOptional();
   const { data: timer, refresh } = useActiveTimerStatus(!!staff);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
 
-  const startDayLocations = useMemo(
-    () =>
-      (geo?.orgLocations ?? [])
-        .filter((loc: any) => loc.show_as_project === true)
-        .map((loc: any) => ({ id: loc.id, name: loc.name, address: loc.address ?? null })),
-    [geo?.orgLocations],
-  );
 
   const notifyChanged = () => {
     window.dispatchEvent(new Event('timer-state-changed'));
