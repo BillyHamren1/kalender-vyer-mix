@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
 
   const { data: staff, error: staffErr } = await admin
     .from("staff_members")
-    .select("id, organization_id, full_name")
+    .select("id, organization_id, name")
     .eq("id", parsed.staffId)
     .maybeSingle();
   if (staffErr || !staff) {
