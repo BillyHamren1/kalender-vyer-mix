@@ -1253,6 +1253,8 @@ function makeDiag(
   pingMatch: LocationPingMatchDiagnostics,
   privateResidenceMatch: PrivateResidenceMatchDiagnostics,
   workAreaTolerance: WorkAreaToleranceDiagnostics,
+  locationSegment: LocationSegmentDiagnostics,
+  locationGapBridge: LocationGapBridgeDiagnostics,
 ): LocationTruthDiagnostics {
   let signalGapSegmentCount = 0;
   let movementSegmentCount = 0;
@@ -1286,5 +1288,7 @@ function makeDiag(
     pingMatch,
     privateResidenceMatch,
     workAreaTolerance,
+    locationSegment,
+    locationGapBridge,
   };
 }
