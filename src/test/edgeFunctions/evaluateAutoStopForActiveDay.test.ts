@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import {
   evaluateAutoStopForActiveDay,
   type EvaluateAutoStopInput,
-} from '../evaluateAutoStopForActiveDay.ts';
+} from '../../../supabase/functions/_shared/time-engine/evaluateAutoStopForActiveDay.ts';
 
 const NOW = '2026-05-13T18:00:00Z';
 
