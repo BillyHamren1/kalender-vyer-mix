@@ -96,6 +96,7 @@ export interface GpsDayTimeline {
 
 export type WorkTargetKind =
   | 'project'
+  | 'large_project'
   | 'booking'
   | 'warehouse'
   | 'organization_location';
