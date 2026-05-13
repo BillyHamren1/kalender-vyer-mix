@@ -37,7 +37,7 @@ import type { ISODate, UUID } from './contracts.ts';
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type WorkTargetType = 'booking' | 'project' | 'warehouse' | 'location';
+export type WorkTargetType = 'booking' | 'project' | 'large_project' | 'warehouse' | 'location';
 
 export type TargetSource =
   | 'planned_today'
@@ -522,7 +522,7 @@ export async function resolveWorkTargets(
 
         targets.push({
           id: r.id,
-          type: 'project',
+          type: 'large_project',
           name: r.name ?? 'Stort projekt',
           latitude: lat,
           longitude: lng,
@@ -793,7 +793,7 @@ export async function resolveWorkTargets(
         anchor = 'date_address_candidate';
       }
     } else {
-      // type === 'project'
+      // type === 'project' | 'large_project'
       const linkedBookingId = projectIdToBookingId.get(t.id);
       if (assignedLargeProjectIds.has(t.id)) {
         role = 'primary';
@@ -955,6 +955,7 @@ export function toWorkTarget(rt: ResolvedWorkTarget): WorkTarget | null {
   if (rt.canAutoMatchAsWork === false && rt.isPrivateResidence !== true) return null;
   const kind: WorkTargetKind =
     rt.type === 'project' ? 'project'
+    : rt.type === 'large_project' ? 'large_project'
     : rt.type === 'booking' ? 'booking'
     : rt.type === 'warehouse' ? 'warehouse'
     : 'organization_location';
