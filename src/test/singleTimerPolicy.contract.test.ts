@@ -24,13 +24,13 @@ const SRC = readFileSync(
 
 describe('single-timer-policy-v1', () => {
   it('performStart kallar inte startSession', () => {
-    // Hitta performStart-blocket
-    const idx = SRC.indexOf('const performStart');
-    expect(idx).toBeGreaterThan(-1);
-    // Vi tittar i hela filen — startSession får inte längre stå
-    // som funktionsanrop någonstans i useTimerStartFlow.
-    // (Importen av useWorkSession är OK; vi förbjuder anropsledet.)
-    const callMatches = SRC.match(/\bstartSession\s*\(/g) ?? [];
+    // Strippa kommentarer (single + jsdoc) så vi bara matchar riktig kod.
+    const codeOnly = SRC
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n');
+    const callMatches = codeOnly.match(/\bstartSession\s*\(/g) ?? [];
     expect(
       callMatches.length,
       `useTimerStartFlow får inte längre anropa startSession(). Hittade ${callMatches.length} anrop.`,
