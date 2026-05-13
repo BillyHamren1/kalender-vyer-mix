@@ -7,6 +7,7 @@
 // Multi-tenancy: härleder organization_id från användaren och filtrerar allt.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { fetchAllStaffLocationPings } from "../_shared/timeEngine/fetchAllStaffLocationPings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -254,6 +255,20 @@ Deno.serve(async (req) => {
     const travels = travelRes.data || [];
     const pings = (pingsRes.data || []) as Ping[];
     const workdays = workdayRes.data || [];
+
+    // Day-wide GPS pings via canonical paginated reader (replaces .limit(2000)).
+    const pingsFetch = await fetchAllStaffLocationPings({
+      supabaseAdmin: admin,
+      organizationId: orgId,
+      staffId,
+      startUtc: dayStartIso,
+      endUtc: dayEndIso,
+      select: "recorded_at, lat, lng, accuracy, speed",
+    });
+    const pingsAll = pingsFetch.rows as Ping[];
+    // Override the placeholder above so downstream `pings` references work.
+    (pings as any).length = 0;
+    (pings as any).push(...pingsAll);
 
     // Resolve booking + location + large_project labels for context
     const bookingIds = [
