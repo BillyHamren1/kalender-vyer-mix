@@ -49,17 +49,19 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const token = getToken();
     const storedStaff = getStoredStaff();
 
+    console.log('[ScannerStartup] MobileAuth loading start', { hasToken: !!token, hasStoredStaff: !!storedStaff });
     if (token && storedStaff) {
       setStaff(storedStaff);
-      // Verify token in background. We deliberately do NOT impose a tight
-      // timeout here — the API layer already enforces a 30s ceiling for
-      // `me`. Any failure short of an explicit 401 keeps the user logged in
-      // (sliding 30-day session + transparent token rotation handle the
-      // rest server-side).
+      // Restore session optimistically so the UI is usable immediately.
+      // Verify token in background — never block the UI on the `me` call,
+      // which can hang on cold starts or flaky mobile networks.
+      setIsLoading(false);
+      console.log('[ScannerStartup] MobileAuth loading done (restored from storage)');
       mobileApi.me()
         .then((res: any) => {
           setStaff(res.staff);
           setAuth(getToken() ?? token, res.staff);
+          console.log('[ScannerStartup] MobileAuth background verify ok');
         })
         .catch((err) => {
           // Only clear auth on explicit 401 (Session expired). Network
@@ -71,10 +73,10 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           } else {
             console.warn('[MobileAuth] Session verify failed (keeping session):', err?.message);
           }
-        })
-        .finally(() => setIsLoading(false));
+        });
     } else {
       setIsLoading(false);
+      console.log('[ScannerStartup] MobileAuth loading done (no stored session)');
     }
   }, []);
 

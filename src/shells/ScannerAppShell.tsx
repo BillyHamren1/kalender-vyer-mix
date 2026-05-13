@@ -11,6 +11,9 @@ import ScannerLogin from '@/pages/scanner/ScannerLogin';
 import MobileScannerApp from '@/pages/MobileScannerApp';
 
 const ScannerAppShell: React.FC = () => {
+  React.useEffect(() => {
+    console.log('[ScannerStartup] Shell mounted');
+  }, []);
   return (
     <ShellProvider mode="scanner" appName="EventFlow Scanner" appTagline="Scanning & packing">
       <LanguageProvider>
