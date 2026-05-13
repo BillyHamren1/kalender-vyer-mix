@@ -22,48 +22,41 @@ const TARGET = '33333333-3333-3333-3333-333333333333';
 const DATE = '2026-05-13';
 
 function makeAdmin(captured: { insert?: any } = {}) {
+  // Generic chain proxy: every method returns a thenable that resolves to
+  // { data: null, error: null } and also exposes itself as a chain target.
+  // `.maybeSingle()` and `.single()` resolve immediately. Insert is captured.
+  const emptyResult = { data: null, error: null };
+  const arrayResult = { data: [], error: null };
+
+  function chain(): any {
+    const p: any = new Proxy(function () { /* no-op */ } as any, {
+      get(_t, prop) {
+        if (prop === 'then') {
+          // Make awaitable → resolve with empty array (covers .gt(...).await()
+          // patterns used by loadAutoStartDeclines).
+          return (resolve: (v: any) => void) => resolve(arrayResult);
+        }
+        if (prop === 'maybeSingle' || prop === 'single') {
+          return async () => emptyResult;
+        }
+        return chain;
+      },
+      apply() {
+        return chain();
+      },
+    });
+    return p;
+  }
+
   return {
-    from(table: string) {
+    from(_table: string) {
       return {
-        select() {
-          return {
-            eq: () => ({
-              eq: () => ({
-                eq: () => ({
-                  limit: () => ({
-                    maybeSingle: async () => ({ data: null, error: null }),
-                  }),
-                  gte: () => ({
-                    lte: () => ({
-                      order: () => ({
-                        limit: () => ({
-                          maybeSingle: async () => ({ data: null, error: null }),
-                        }),
-                      }),
-                    }),
-                  }),
-                  gt: () => ({
-                    order: () => ({
-                      limit: () => ({
-                        maybeSingle: async () => ({ data: null, error: null }),
-                      }),
-                    }),
-                  }),
-                  is: () => ({ limit: async () => ({ data: [], error: null }) }),
-                }),
-                gt: async () => ({ data: [], error: null }),
-              }),
-            }),
-          };
-        },
-        insert(payload: any) {
+        select: () => chain(),
+        insert: (payload: any) => {
           captured.insert = payload;
           return {
             select: () => ({
-              maybeSingle: async () => ({
-                data: { id: 'reg-1' },
-                error: null,
-              }),
+              maybeSingle: async () => ({ data: { id: 'reg-1' }, error: null }),
             }),
           };
         },
