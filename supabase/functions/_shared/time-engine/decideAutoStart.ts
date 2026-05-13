@@ -236,6 +236,19 @@ export interface DecideAutoStartInput {
     distanceMeters: number;
     zoneKind: string | null;
   } | null;
+  /**
+   * Set by the caller (processGpsTimelineForAutoStart) when an active
+   * decline row in `auto_start_decline_log` matches this candidate
+   * (target_id match, or lat/lng within radius). When present,
+   * decideAutoStart denies with `blocked_user_declined_today`.
+   * Manual start (start_time_registration) bypasses this engine entirely.
+   */
+  userDeclinedToday?: {
+    matchedTarget: boolean;
+    matchedRadiusMeters: number | null;
+    declineId: string;
+    expiresAt: ISODateTime;
+  } | null;
 }
 
 export type AutoStartSource = 'gps_geofence_auto_start';
