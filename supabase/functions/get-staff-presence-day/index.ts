@@ -38,6 +38,7 @@ import {
   type TimerMarkerInput,
 } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
+import { resolveActualWorkStartIso } from '../_shared/time-engine/resolveActualWorkStart.ts';
 import { computeDayEndDecision } from '../_shared/time-engine/computeDayEndDecision.ts';
 import { clampBlocksToDayEndDecision } from '../_shared/time-engine/clampBlocksToDayEndDecision.ts';
 // Location Truth pipeline (1.2 → 1.7) — pure transforms, never writes.
@@ -882,6 +883,12 @@ Deno.serve(async (req) => {
 
       const plannedEndOfDayIso = await resolvePlannedEndOfDayIso(admin, orgId, staffId, date);
 
+      // Time Engine — autoritativ "verkligt arbetsstart"-gräns. Suppresserar
+      // pre-work geofence/midnatts-brus (00:00 ENTER nära warehouse osv).
+      const actualWorkStartIso = await resolveActualWorkStartIso(
+        admin, orgId, staffId, dayStart, dayEnd,
+      );
+
       reportCandidateResult = buildReportCandidateBlocks({
         staffId,
         organizationId: orgId,
@@ -891,6 +898,7 @@ Deno.serve(async (req) => {
         homeAnchors,
         openActiveRegistration,
         plannedEndOfDayIso,
+        actualWorkStartIso,
         lastFreshEvidenceAtIso: pings[pings.length - 1]?.ts ?? null,
       });
 
