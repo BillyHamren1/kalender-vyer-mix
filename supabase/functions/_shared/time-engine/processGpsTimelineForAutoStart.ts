@@ -86,7 +86,8 @@ export interface AutoStartDecisionLogEntry {
     | 'target_not_valid_for_autostart'
     | 'already_active_registration'
     | 'duplicate_segment'
-    | 'inside_private_residence';
+    | 'inside_private_residence'
+    | 'user_declined_today';
   /**
    * Home-wins-over-work diagnostics for this segment. Populated when the
    * candidate sits inside a staff private zone (home / private_residence /
@@ -102,6 +103,20 @@ export interface AutoStartDecisionLogEntry {
       | null;
     homeWonOverWorkTarget: boolean;
     suppressedAutoStartBecauseHome: true;
+  };
+  /**
+   * User-decline diagnostics for this segment. Populated when an active
+   * row in `auto_start_decline_log` matches this candidate (target_id or
+   * geographic radius). Auto-start is suppressed for the rest of the local
+   * day; manual start (start_time_registration) bypasses entirely.
+   */
+  declineDiagnostics?: {
+    userDeclineFound: true;
+    declineMatchedTarget: boolean;
+    declineMatchedRadius: number | null;
+    suppressedAutoStartBecauseDeclined: true;
+    declineId: string;
+    expiresAt: ISODateTime;
   };
 }
 
@@ -160,6 +175,17 @@ export interface ProcessAutoStartResult {
     homeWonOverWorkTargetCount: number;
     nearestZoneKind: string | null;
     nearestDistanceMeters: number | null;
+  } | null;
+  /**
+   * Aggregate diagnostics when one or more candidate segments were
+   * suppressed because the user previously declined (auto_start_decline_log).
+   */
+  declineLock?: {
+    userDeclineFound: true;
+    suppressedAutoStartBecauseDeclined: true;
+    suppressedSegmentsCount: number;
+    matchedByTargetCount: number;
+    matchedByRadiusCount: number;
   } | null;
   computedAt: ISODateTime;
 }
@@ -383,6 +409,85 @@ async function loadStaffPrivateZones(
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto-start decline log loader (user said "no" to a prior arrival prompt).
+// Mobile app owns only day start/stop. GPS/geofence is evidence only.
+// A decline row hard-blocks GPS auto-start for the same staff/day/target
+// (or geographic point) until expires_at. Manual start bypasses entirely.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AutoStartDecline {
+  id: string;
+  targetType: string | null;
+  targetId: string | null;
+  lat: number | null;
+  lng: number | null;
+  radiusM: number | null;
+  expiresAt: ISODateTime;
+}
+
+async function loadAutoStartDeclines(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+  date: ISODate,
+  nowIso: ISODateTime,
+): Promise<AutoStartDecline[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('auto_start_decline_log')
+      .select('id, target_type, target_id, lat, lng, radius_m, expires_at')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .eq('local_date', date)
+      .eq('response', 'declined')
+      .gt('expires_at', nowIso);
+    if (error) {
+      console.warn('[time-engine] loadAutoStartDeclines failed:', error.message);
+      return [];
+    }
+    return (data || []).map((r: any) => ({
+      id: r.id as string,
+      targetType: (r.target_type as string | null) ?? null,
+      targetId: (r.target_id as string | null) ?? null,
+      lat: r.lat != null ? Number(r.lat) : null,
+      lng: r.lng != null ? Number(r.lng) : null,
+      radiusM: r.radius_m != null ? Number(r.radius_m) : null,
+      expiresAt: r.expires_at as ISODateTime,
+    }));
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * Returns the matching decline (target match wins over geographic match).
+ */
+function findMatchingDecline(
+  target: ResolvedWorkTarget | null,
+  segPoint: { lat: number; lng: number } | null,
+  declines: AutoStartDecline[],
+): { decline: AutoStartDecline; matchedTarget: boolean; matchedRadiusMeters: number | null } | null {
+  if (declines.length === 0) return null;
+  if (target) {
+    const t = declines.find(
+      (d) => d.targetId && d.targetId === target.id && (!d.targetType || d.targetType === target.type),
+    );
+    if (t) return { decline: t, matchedTarget: true, matchedRadiusMeters: null };
+  }
+  if (segPoint) {
+    for (const d of declines) {
+      if (d.lat == null || d.lng == null) continue;
+      const r = d.radiusM ?? 150;
+      const dist = haversineMeters(segPoint, { lat: d.lat, lng: d.lng });
+      if (dist <= r) {
+        return { decline: d, matchedTarget: false, matchedRadiusMeters: Math.round(r) };
+      }
+    }
+  }
+  return null;
+}
+
 function haversineMeters(
   a: { lat: number; lng: number },
   b: { lat: number; lng: number },
@@ -577,6 +682,7 @@ export async function processGpsTimelineForAutoStart(
             registrationId: dayStoppedSynth.registrationId,
           }
         : null,
+      declineLock: null,
       computedAt: new Date().toISOString(),
     };
   }
@@ -592,6 +698,16 @@ export async function processGpsTimelineForAutoStart(
   let privateResidenceHomeWonOverWorkCount = 0;
   let nearestPrivateZoneKind: string | null = null;
   let nearestPrivateZoneDistance: number | null = null;
+
+  // 3e) User decline log — load active "no" rows for this staff/local-day.
+  // Auto-start MUST respect a prior decline; manual start bypasses (does
+  // not run through this engine).
+  const declines = await loadAutoStartDeclines(
+    supabaseAdmin, organizationId, staffId, date, nowIso,
+  );
+  let declineSuppressedCount = 0;
+  let declineMatchedByTarget = 0;
+  let declineMatchedByRadius = 0;
 
   for (const seg of candidates) {
     const target = findTargetForSegment(seg, resolvedTargets);
@@ -639,6 +755,7 @@ export async function processGpsTimelineForAutoStart(
         ? { lat: (seg as any).centerLat as number, lng: (seg as any).centerLng as number }
         : null;
     const enclosing = findEnclosingPrivateZone(segPoint, privateZones);
+    const declineMatch = findMatchingDecline(target, segPoint, declines);
 
     const decideTarget = toDecideTarget(target);
     const decision = decideAutoStart({
@@ -649,6 +766,14 @@ export async function processGpsTimelineForAutoStart(
       insidePrivateResidence: enclosing
         ? { distanceMeters: enclosing.distanceMeters, zoneKind: enclosing.zone.zoneKind }
         : null,
+      userDeclinedToday: declineMatch
+        ? {
+            matchedTarget: declineMatch.matchedTarget,
+            matchedRadiusMeters: declineMatch.matchedRadiusMeters,
+            declineId: declineMatch.decline.id,
+            expiresAt: declineMatch.decline.expiresAt,
+          }
+        : null,
     });
 
     const entry: AutoStartDecisionLogEntry = {
@@ -658,10 +783,26 @@ export async function processGpsTimelineForAutoStart(
       matchedTargetId: target.id,
       matchedTargetName: target.name,
       decision,
-      skippedReason: enclosing
-        ? 'inside_private_residence'
-        : (active ? 'already_active_registration' : undefined),
+      skippedReason: declineMatch
+        ? 'user_declined_today'
+        : enclosing
+          ? 'inside_private_residence'
+          : (active ? 'already_active_registration' : undefined),
     };
+
+    if (declineMatch) {
+      declineSuppressedCount += 1;
+      if (declineMatch.matchedTarget) declineMatchedByTarget += 1;
+      else declineMatchedByRadius += 1;
+      entry.declineDiagnostics = {
+        userDeclineFound: true,
+        declineMatchedTarget: declineMatch.matchedTarget,
+        declineMatchedRadius: declineMatch.matchedRadiusMeters,
+        suppressedAutoStartBecauseDeclined: true,
+        declineId: declineMatch.decline.id,
+        expiresAt: declineMatch.decline.expiresAt,
+      };
+    }
 
     if (enclosing) {
       privateResidenceSuppressedSegments += 1;
@@ -774,6 +915,15 @@ export async function processGpsTimelineForAutoStart(
           nearestDistanceMeters: nearestPrivateZoneDistance !== null
             ? Math.round(nearestPrivateZoneDistance)
             : null,
+        }
+      : null,
+    declineLock: declineSuppressedCount > 0
+      ? {
+          userDeclineFound: true,
+          suppressedAutoStartBecauseDeclined: true,
+          suppressedSegmentsCount: declineSuppressedCount,
+          matchedByTargetCount: declineMatchedByTarget,
+          matchedByRadiusCount: declineMatchedByRadius,
         }
       : null,
     computedAt: new Date().toISOString(),

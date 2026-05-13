@@ -180,7 +180,17 @@ export type AutoStartDecisionReason =
    *   competingWorkTarget, homeWonOverWorkTarget,
    *   suppressedAutoStartBecauseHome.
    */
-  | 'blocked_inside_private_residence';
+  | 'blocked_inside_private_residence'
+  /**
+   * The user explicitly tapped "Nej" / "Detta är inte arbete" on a previous
+   * arrival prompt for THIS staff/day/target (or geographic point). Auto-start
+   * MUST respect that for at least the rest of the local day. Manual start
+   * via `start_time_registration` bypasses (it does not run through this
+   * engine and always wins over a prior decline). Diagnostics:
+   *   userDeclineFound, declineMatchedTarget, declineMatchedRadius,
+   *   suppressedAutoStartBecauseDeclined.
+   */
+  | 'blocked_user_declined_today';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
@@ -225,6 +235,19 @@ export interface DecideAutoStartInput {
   insidePrivateResidence?: {
     distanceMeters: number;
     zoneKind: string | null;
+  } | null;
+  /**
+   * Set by the caller (processGpsTimelineForAutoStart) when an active
+   * decline row in `auto_start_decline_log` matches this candidate
+   * (target_id match, or lat/lng within radius). When present,
+   * decideAutoStart denies with `blocked_user_declined_today`.
+   * Manual start (start_time_registration) bypasses this engine entirely.
+   */
+  userDeclinedToday?: {
+    matchedTarget: boolean;
+    matchedRadiusMeters: number | null;
+    declineId: string;
+    expiresAt: ISODateTime;
   } | null;
 }
 
@@ -353,6 +376,13 @@ export function decideAutoStart(input: DecideAutoStartInput): AutoStartDecisionR
   // (matchedPrivateResidence, homeWonOverWorkTarget, …).
   if (input.insidePrivateResidence) {
     return deny('blocked_inside_private_residence', evidence, seg.confidence);
+  }
+
+  // USER DECLINED TODAY — hard respect of an explicit "no" from the user
+  // (arrival prompt / "Detta var inte arbete"). Auto-start MUST NOT loop
+  // here. Manual start bypasses (it never runs through this engine).
+  if (input.userDeclinedToday) {
+    return deny('blocked_user_declined_today', evidence, seg.confidence);
   }
 
   // Movement / transport never auto-starts.
