@@ -320,7 +320,11 @@ Deno.serve(async (req) => {
       const newestKey = obs[0].cluster_key;
       if (newestKey !== primary.key) {
         const tempRun = runs.get(newestKey);
-        if (tempRun && tempRun.count >= 2) {
+        if (
+          tempRun &&
+          tempRun.count >= 2 &&
+          !isInsideWorkExclusion(tempRun.org, tempRun.lat, tempRun.lng, workExclusions)
+        ) {
           const validUntil = new Date(Date.now() + 2 * 86400000).toISOString();
           const { error: tErr } = await supabase
             .from('staff_inferred_home_locations')
