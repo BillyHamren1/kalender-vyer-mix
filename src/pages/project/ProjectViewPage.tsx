@@ -148,13 +148,6 @@ const ProjectViewPage = () => {
               projectLeader={projectLeaderDisplay}
               bookingAttachments={bookingAttachments}
             />
-            <div className="px-1 pb-1">
-              <ProjectContactCard
-                contactName={(displayBooking as any).contact_name}
-                contactPhone={(displayBooking as any).contact_phone}
-                contactEmail={(displayBooking as any).contact_email}
-              />
-            </div>
           </div>
         )}
 
