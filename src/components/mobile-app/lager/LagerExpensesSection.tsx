@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv, enUS } from 'date-fns/locale';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { openFileExternally } from '@/lib/files/openFileExternally';
 
 const LagerExpensesSection = () => {
   const { t, locale } = useLanguage();
