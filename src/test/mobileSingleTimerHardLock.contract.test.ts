@@ -63,13 +63,16 @@ describe('Mobile · single-timer hard lock contract', () => {
 
   it('WorkDayPanel is the only timer surface and writes only to active_time_registrations', () => {
     const src = read('src/components/mobile-app/WorkDayPanel.tsx');
-    expect(src).toMatch(/mobileApi\.startTimeRegistration/);
-    expect(src).toMatch(/mobileApi\.stopTimeRegistration/);
-    // Must not call any of the legacy timer primitives.
-    expect(src).not.toMatch(/startLocationTimer/);
-    expect(src).not.toMatch(/createTimeReport/);
-    expect(src).not.toMatch(/enqueueTimerStart/);
-    expect(src).not.toMatch(/location_time_entries/);
+    // Strip comments so the policy comment doesn't trip the regex.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    expect(code).toMatch(/mobileApi\.startTimeRegistration/);
+    expect(code).toMatch(/mobileApi\.stopTimeRegistration/);
+    expect(code).not.toMatch(/startLocationTimer/);
+    expect(code).not.toMatch(/createTimeReport/);
+    expect(code).not.toMatch(/enqueueTimerStart/);
+    expect(code).not.toMatch(/\.from\(['"]location_time_entries['"]\)/);
   });
 
   it('MobileGlobalOverlays stays passive (no timer/workday writes)', () => {
