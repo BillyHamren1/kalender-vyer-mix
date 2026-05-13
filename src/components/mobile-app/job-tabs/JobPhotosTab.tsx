@@ -4,6 +4,7 @@ import { Image, Camera, Loader2, X, FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { takePhotoBase64 } from '@/utils/capacitorCamera';
+import { openFileExternally } from '@/lib/files/openFileExternally';
 
 interface JobPhotosTabProps {
   bookingId: string;
@@ -173,20 +174,20 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
           <div className="space-y-1.5">
             {otherFiles.map((file: any) => {
               const isPdf = file.file_type === 'application/pdf' || /\.pdf$/i.test(file.url || '');
+              const fileName = file.file_name || file.name || 'File';
               return (
-                <a
+                <button
                   key={file.id || file.url}
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-xl border bg-card p-3 active:scale-[0.98] transition-transform"
+                  type="button"
+                  onClick={() => openFileExternally(file.url, fileName)}
+                  className="w-full flex items-center gap-3 rounded-xl border bg-card p-3 active:scale-[0.98] transition-transform text-left"
                 >
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isPdf ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>
                     <FileText className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">
-                      {file.file_name || file.name || 'File'}
+                      {fileName}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
                       {file.source === 'booking' ? 'From booking' : 'From project'}
@@ -194,7 +195,7 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
                     </p>
                   </div>
                   <Download className="w-4 h-4 text-muted-foreground shrink-0" />
-                </a>
+                </button>
               );
             })}
           </div>

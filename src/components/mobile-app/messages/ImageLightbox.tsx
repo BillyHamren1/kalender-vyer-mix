@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { X, Download } from 'lucide-react';
+import { openFileExternally } from '@/lib/files/openFileExternally';
 
 interface Props {
   url: string;
@@ -45,18 +46,15 @@ export const ImageLightbox = ({ url, name, onClose }: Props) => {
         <X className="w-5 h-5" />
       </button>
 
-      <a
-        href={url}
-        download={name || true}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); openFileExternally(url, name || undefined); }}
         className="absolute top-3 left-3 w-10 h-10 rounded-full bg-white/15 backdrop-blur text-white flex items-center justify-center active:scale-95"
         aria-label="Ladda ner"
         style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}
       >
         <Download className="w-5 h-5" />
-      </a>
+      </button>
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { Check, CheckCheck, FileText, Download } from 'lucide-react';
 import ImageLightbox from './ImageLightbox';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { openFileExternally } from '@/lib/files/openFileExternally';
 
 export interface ChatMessage {
   id: string;
@@ -69,13 +70,11 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
             />
           </button>
         ) : msg.file_url ? (
-          <a
-            href={msg.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            download={msg.file_name || true}
+          <button
+            type="button"
+            onClick={() => openFileExternally(msg.file_url!, msg.file_name || undefined)}
             className={cn(
-              'flex items-center gap-2 px-3.5 py-2.5 rounded-[20px] text-sm leading-snug shadow-sm group',
+              'flex items-center gap-2 px-3.5 py-2.5 rounded-[20px] text-sm leading-snug shadow-sm group text-left',
               isMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
               hasTail && (isMe ? 'rounded-br-md' : 'rounded-bl-md')
             )}
@@ -83,7 +82,7 @@ export const MessageBubble = ({ message: msg, isMe, showSenderName, hasTail, sho
             <FileText className="w-4 h-4 shrink-0 opacity-80" />
             <span className="truncate flex-1 min-w-0">{msg.file_name || t('msg.attachedFile')}</span>
             <Download className="w-3.5 h-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
-          </a>
+          </button>
         ) : (
           <div
             className={cn(
