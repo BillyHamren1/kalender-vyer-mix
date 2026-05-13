@@ -46,9 +46,9 @@ function makeSupabase(tables: Record<string, Row[]>) {
       return api;
     };
     api.limit = (_n: number) => api;
-    api.then = (resolve: (v: any) => any) => {
+    api.then = (resolve: (v: any) => any, reject?: (e: any) => any) => {
       const data = rows.filter((r) => filters.every((f) => f(r)));
-      return Promise.resolve({ data, error: null }).then(resolve);
+      return Promise.resolve({ data, error: null }).then(resolve, reject);
     };
     // mutationer skulle vara fel — registrera om de skulle anropas
     api.insert = () => {
