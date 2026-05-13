@@ -176,6 +176,17 @@ export interface ProcessAutoStartResult {
     nearestZoneKind: string | null;
     nearestDistanceMeters: number | null;
   } | null;
+  /**
+   * Aggregate diagnostics when one or more candidate segments were
+   * suppressed because the user previously declined (auto_start_decline_log).
+   */
+  declineLock?: {
+    userDeclineFound: true;
+    suppressedAutoStartBecauseDeclined: true;
+    suppressedSegmentsCount: number;
+    matchedByTargetCount: number;
+    matchedByRadiusCount: number;
+  } | null;
   computedAt: ISODateTime;
 }
 
