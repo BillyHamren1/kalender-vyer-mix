@@ -45,6 +45,7 @@ import {
   type DecideAutoStartTarget,
 } from './decideAutoStart.ts';
 import { assertNoLegacySources } from './assertNoLegacySources.ts';
+import { getStockholmDayWindowUtc } from '../stockholmDayWindow.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs / outputs
