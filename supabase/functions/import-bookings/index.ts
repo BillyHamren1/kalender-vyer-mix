@@ -2202,12 +2202,17 @@ serve(async (req) => {
 
     console.log(`Fetched ${externalData.data.length} bookings from external API`)
 
-    if (syncMode === 'incremental' && !isHistoricalImport && !isSingleBookingRefresh) {
+    // Queue ALL batch modes (incremental, full-sync, historical) to the worker
+    // to avoid 150s edge function timeout. Only single-booking refresh runs inline.
+    if (!isSingleBookingRefresh) {
+      const queueEventType = isHistoricalImport
+        ? 'booking.historical'
+        : (isFullSync ? 'booking.full_sync' : (webhookEventType || 'booking.incremental'));
       const queueSummary = await enqueueIncrementalSyncJobs(
         supabase,
         externalData.data,
         organizationId,
-        webhookEventType,
+        queueEventType,
       );
 
       const importCompletedAt = new Date().toISOString();
@@ -2228,7 +2233,7 @@ serve(async (req) => {
           updated_at: importCompletedAt,
         }, { onConflict: 'sync_type' });
 
-      console.log('[import-bookings] Incremental batch queued for worker', JSON.stringify({
+      console.log(`[import-bookings] ${queueEventType} batch queued for worker`, JSON.stringify({
         organization_id: organizationId,
         queue_summary: queueSummary,
         cursor_advanced_to: nextSyncCursor,
@@ -2256,7 +2261,7 @@ serve(async (req) => {
             products_updated_bookings: [],
             product_changes: [],
             errors: [],
-            sync_mode: 'incremental',
+            sync_mode: queueEventType,
             queued_jobs: queueSummary.queued,
             already_queued_jobs: queueSummary.alreadyQueued,
             team_distribution: {
