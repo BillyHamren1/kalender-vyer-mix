@@ -14,7 +14,7 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv, enUS } from 'date-fns/locale';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
-import { mobileApiService } from '@/services/mobileApiService';
+import { mobileApi } from '@/services/mobileApiService';
 import { useState } from 'react';
 
 
