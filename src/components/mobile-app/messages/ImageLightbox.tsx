@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { X, Download } from 'lucide-react';
+import { openFileExternally } from '@/lib/files/openFileExternally';
 
 interface Props {
   url: string;
