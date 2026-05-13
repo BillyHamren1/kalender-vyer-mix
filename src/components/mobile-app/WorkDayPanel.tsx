@@ -1,11 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Play, Square, Loader2, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
-import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
 import { mobileApi } from '@/services/mobileApiService';
 import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
 
