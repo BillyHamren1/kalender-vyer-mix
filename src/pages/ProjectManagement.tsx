@@ -137,8 +137,8 @@ const ProjectManagement = () => {
   });
 
   const handleCreateProject = (bookingId: string) => {
-    setSelectedBookingId(bookingId);
-    setIsCreateOpen(true);
+    setCreateProjectBookingId(bookingId);
+    setIsCreateProjectOpen(true);
   };
 
   const handleCreateLargeProject = (bookingId: string) => {
