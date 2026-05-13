@@ -160,6 +160,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
     switch (col.kind) {
       case "client": return r.client.toLowerCase();
       case "address": return r.address.toLowerCase();
+      case "qty": return r.untagged.length + Array.from(r.byTag.values()).reduce((s, v) => s + v.length, 0);
       case "untagged": return r.untagged.length;
       case "tag": return (r.byTag.get(col.tagKey!) || []).length;
       case "custom": return (config.custom_values[r.booking_id]?.[col.id] || "").toLowerCase();
@@ -177,6 +178,37 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
       return String(av).localeCompare(String(bv), "sv") * dir;
     });
   }, [rows, sortId, orderedColumns, config.custom_values]);
+
+  // Flatten: one row per product within each booking. Bookings without
+  // products still produce a single empty row so the booking remains visible.
+  const flatRows = useMemo(() => {
+    type Flat = {
+      key: string;
+      bookingRow: typeof sortedRows[number];
+      product: ProductRow | null;
+      isFirstInBooking: boolean;
+      bookingRowSpan: number;
+    };
+    const out: Flat[] = [];
+    for (const br of sortedRows) {
+      const products: ProductRow[] = [];
+      // Preserve original product order: untagged + tagged (deduped by id)
+      const seen = new Set<string>();
+      for (const p of br.untagged) { if (!seen.has(p.id)) { seen.add(p.id); products.push(p); } }
+      for (const arr of br.byTag.values()) {
+        for (const p of arr) { if (!seen.has(p.id)) { seen.add(p.id); products.push(p); } }
+      }
+      const span = Math.max(1, products.length);
+      if (products.length === 0) {
+        out.push({ key: `${br.id}:empty`, bookingRow: br, product: null, isFirstInBooking: true, bookingRowSpan: 1 });
+      } else {
+        products.forEach((p, i) => {
+          out.push({ key: `${br.id}:${p.id}`, bookingRow: br, product: p, isFirstInBooking: i === 0, bookingRowSpan: span });
+        });
+      }
+    }
+    return out;
+  }, [sortedRows]);
 
   // Column reordering (HTML5 DnD)
   const [dragId, setDragId] = useState<string | null>(null);
