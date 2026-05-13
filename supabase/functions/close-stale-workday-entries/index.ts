@@ -35,9 +35,15 @@ const corsHeaders = {
 const SAFETY_HORIZON_HOURS = 14;
 const PROVISIONAL_DURATION_HOURS = 8;
 const PROVISIONAL_TRAVEL_HOURS = 1;
-// Workdays without `ended_at` for longer than this are considered abandoned
-// and will be force-closed. Keep generous so genuine night shifts survive.
+// Workdays open longer than this are FLAGGED (signal_stale) but not closed.
+// Telefon tyst / batterislut får inte ensamt stänga arbetsdagen.
 const WORKDAY_STALE_HOURS = 18;
+// Workdays open longer than this are considered ABANDONED (no realistic
+// shift lasts this long) and are force-closed by the watchdog. Cap = +10h.
+const WORKDAY_ABANDONED_HOURS = 36;
+// Active time registrations open longer than this are force-stopped.
+// Längsta möjliga riktiga pass + säkerhetsmarginal.
+const ACTIVE_REG_ABANDONED_HOURS = 24;
 const WORKDAY_FALLBACK_DURATION_HOURS = 10;
 
 type Suggestion =
