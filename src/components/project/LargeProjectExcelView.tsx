@@ -39,8 +39,6 @@ const mergeTags = (a: string[], b: string[]): string[] => {
 interface ProductRow {
   id: string; name: string; quantity: number; booking_id: string; tags: string[];
 }
-const formatProduct = (p: ProductRow) =>
-  p.quantity && p.quantity > 1 ? `${p.quantity}× ${p.name}` : p.name;
 
 // Column id system: "client" | "address" | "untagged" | "tag:<norm>" | "custom:<uuid>"
 type ColId = string;
