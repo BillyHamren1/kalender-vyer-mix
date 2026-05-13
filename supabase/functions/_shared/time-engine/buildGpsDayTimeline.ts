@@ -498,6 +498,8 @@ export interface GpsDayTimelineResult {
   qualitySummary: GpsTimelineQualitySummary;
   targetMatchSummary: GpsTimelineTargetMatchSummary;
   classificationDiagnostics: GpsClassificationDiagnostics;
+  /** Diagnostics for the unknown_place → known_site absorption post-pass. */
+  unknownAbsorptionDiagnostics?: AbsorbDiagnostics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
