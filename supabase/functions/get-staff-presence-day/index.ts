@@ -56,6 +56,7 @@ import {
 import { enforceSingleVisibleTimeline } from '../_shared/time-engine/enforceSingleVisibleTimeline.ts';
 import { cleanupNeedsReviewFromLocationTruth } from '../_shared/time-engine/cleanupNeedsReviewFromLocationTruth.ts';
 import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFromLocationTruth.ts';
+import { buildUnknownLocationDiagnostics } from '../_shared/diagnostics/buildUnknownLocationDiagnostics.ts';
 import {
   computePlannedDaySignals,
   type BookingTimes,
