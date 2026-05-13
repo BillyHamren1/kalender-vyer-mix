@@ -158,7 +158,18 @@ export type AutoStartDecisionReason =
    * is the source of truth. Manual start from WorkDayPanel is NOT
    * blocked by this reason — only background auto-start is.
    */
-  | 'blocked_user_ended_workday';
+  | 'blocked_user_ended_workday'
+  /**
+   * The day timer for this staff/local-date was already stopped (auto OR
+   * user). The Time Engine MUST NOT re-open the day from GPS for the
+   * remainder of the local day. Only an explicit manual start via
+   * `start_time_registration` may resume it.
+   *
+   * Lock-policy from the user spec:
+   *   "stoppad dagtimer = dagen är stoppad"
+   *   "stopped day cannot be reopened by GPS batch"
+   */
+  | 'blocked_day_already_stopped';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
