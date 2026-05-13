@@ -180,7 +180,17 @@ export type AutoStartDecisionReason =
    *   competingWorkTarget, homeWonOverWorkTarget,
    *   suppressedAutoStartBecauseHome.
    */
-  | 'blocked_inside_private_residence';
+  | 'blocked_inside_private_residence'
+  /**
+   * The user explicitly tapped "Nej" / "Detta är inte arbete" on a previous
+   * arrival prompt for THIS staff/day/target (or geographic point). Auto-start
+   * MUST respect that for at least the rest of the local day. Manual start
+   * via `start_time_registration` bypasses (it does not run through this
+   * engine and always wins over a prior decline). Diagnostics:
+   *   userDeclineFound, declineMatchedTarget, declineMatchedRadius,
+   *   suppressedAutoStartBecauseDeclined.
+   */
+  | 'blocked_user_declined_today';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
