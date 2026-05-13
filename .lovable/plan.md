@@ -1,25 +1,40 @@
-## Mål
-Återställ produktraderna på bokning **2604-119** (Creative Meetings Unlimited, eventdate 2026-05-18, large project Handelsbanken `fcb35596-…`) som är tom (`booking_products = 0`) medan systerbokningen 2604-90 har 11 produkter.
+# Plan: Säkerställ att uppdateringar från Booking når Planning direkt
 
-## Steg
+## Vad jag hittade när jag undersökte 2603-103
 
-1. **Anropa `import-bookings` riktat mot 2604-119**
-   - Kör edge-funktionen med `bookingNumber: "2604-119"` och `mode: "force"` så att huvud-merge + produktloopen körs igen mot Bokning-API:t.
-   - Funktionen är single-writer för bokningar/produkter och respekterar core-regeln "Booking system = single source of truth".
+- Bokningen i Planning (`e0f22435-…`) hade kvar gammalt kundnamn `"Vile AB / Jobbfestivalen"`. Källsystemet hade ändrat det till `"bosse with friends AB"`.
+- Jag triggade `import-bookings` manuellt i `single`-läge → kundnamnet uppdaterades direkt och produktlistan rättades. Update‑pathen i `import-bookings` (`hasBookingChanged` + UPDATE-blocket) fungerar alltså korrekt — `client`, `booking_number`, `status`, datum, tider, kontakt, m.m. uppdateras när data faktiskt processas.
+- I `booking_sync_jobs` finns INGA jobb för 2603-103 idag innan min manuella körning. Senaste jobb var igår 21:08. Dvs Booking-systemet skickade aldrig någon `booking.updated`-webhook för dagens namnändring.
+- Vi har bara en cron: `process-sync-jobs-every-minute` som dränerar kön. Det finns ingen periodisk `incremental` poll mot Booking-systemet som skulle fånga ändringar som missar webhooken.
 
-2. **Verifiera resultatet i DB**
-   - `SELECT count(*) FROM booking_products WHERE booking_id = 'a9f8b78b-…'` → ska bli > 0.
-   - Lista produkter (namn, qty, tags) och jämför att de matchar källan.
+**Slutsats:** Pipelinen (receive-booking → booking_sync_jobs → process-sync-jobs → import-bookings) är korrekt. Problemet är att vi är 100% beroende av att källsystemet skickar webhook för varje fältändring. När den uteblir (som idag för kundnamn på 2603-103) ser vi ingenting förrän någon manuellt re-syncar.
 
-3. **Diagnos om tomt även efter re-sync**
-   - Då är källan själv tom för 2604-119 → felet ligger i Bokning-systemet, inte hos oss. Rapportera tillbaka med exakt API-svar (status, products[]-längd) så användaren kan åtgärda i källan.
-   - Granska samtidigt `import-bookings` produktloop (recovery ~rad 2951 + huvud-merge ~rad 3495) för att utesluta att vi tappat raderna lokalt vid en tidigare körning.
+## Förslag
 
-4. **Ingen lokal "skapa produkter"-fix**
-   - Vi skapar inte produkter manuellt lokalt — det skulle bryta single-source-policyn och skrivas över vid nästa sync.
+### 1. Säkerhetsnät: incremental sync var 5:e minut (rekommenderat)
+Ny cron som anropar `import-bookings` med `syncMode: 'incremental'` per organisation. `import-bookings` använder redan `last_sync_timestamp` och `since`-parametern mot `export_bookings`, så detta plockar upp ALLT som ändrats sen sist (inkl. kundnamn, booking_number, datum osv.) — även när webhooken aldrig kom.
 
-## Inga kodändringar planerade
-Det här är en data-/sync-operation. Endast kodändringar görs om steg 3 visar en bugg i `import-bookings`.
+- Påverkar inte realtid när webhook fungerar (de är fortfarande primär väg, ankommer på sekunder).
+- Worst case-latens utan webhook: ~5 minuter istället för "aldrig".
+- Ingen risk för dubbel-import: `hasBookingChanged` skippar oförändrade rader.
 
-## Efter implementation
-Rapporterar antal produkter före/efter, samt om problemet låg lokalt (sync-bugg) eller i källan (Bokning-API).
+### 2. Direktverifiering på 2603-103
+Redan gjort under undersökningen. `client = "bosse with friends AB"`, `updated_at = 2026-05-13 10:14`. Inget mer behövs på just denna bokning.
+
+### 3. (Valfritt, om webhooken ska bli pålitligare) Kontakta Booking-sidan
+Om Booking-systemet är vårt eget och vi vill att webhook ska skickas även vid kundnamnsändring — felet ligger där, inte i Planning. Men det ligger utanför vad jag kan fixa här.
+
+## Tekniska detaljer
+
+- Ny cron-jobb (skapas via migration på `cron.schedule`):
+  - Schedule: `*/5 * * * *`
+  - POST → `https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/import-bookings`
+  - Body: `{ "syncMode": "incremental" }` (utan `organization_id` → kör för alla aktiva orgs; behöver verifieras att `import-bookings` stöder det, annars en rad per org).
+- Jag kollar att `import-bookings` redan hanterar `incremental` utan `booking_id` och loopar per organisation. Om inte → enkel patch i `import-bookings` att iterera över aktiva orgs.
+- Inga schemaändringar.
+
+## Frågor jag behöver svar på
+
+1. Vill du att jag lägger upp **incremental poll var 5:e minut** som säkerhetsnät? (Ja = jag implementerar direkt efter godkännande.)
+2. Är intervallet 5 min OK, eller vill du tätare (t.ex. var minut)?
+
