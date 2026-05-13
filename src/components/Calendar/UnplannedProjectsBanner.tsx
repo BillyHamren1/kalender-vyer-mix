@@ -98,9 +98,9 @@ export const UnplannedProjectsBanner: React.FC = () => {
               </Button>
             </button>
           ))}
+        </div>
       </div>
       )}
-      </div>
 
       {openId && openKind && (
         <ProjectPlanningSheet
