@@ -219,6 +219,14 @@ export interface OrganizationLocationMobile {
   show_as_project?: boolean;
   geofence_mode?: 'circle' | 'polygon';
   geofence_polygon?: { type: 'Polygon'; coordinates: number[][][] } | null;
+  /**
+   * Privata bostadsplatser (t.ex. "Boende - Vällsta") fungerar som
+   * "stäng-av-dagen-zon": ingen auto-arrival/start, och om man går IN
+   * i polygonen med en aktiv timer triggas End-Of-Day-flödet.
+   */
+  location_type?: string | null;
+  is_private_residence?: boolean | null;
+  privacy_level?: string | null;
 }
 
 interface GpsSettings {
