@@ -42,7 +42,6 @@ import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import type { ReportCandidateBlockUI, ReportCandidateSummaryUI } from './ReportCandidateTimeline';
-import { resolveGanttBlockTitle, classifyGanttTitleResolution } from '@/lib/staff/resolveGanttBlockTitle';
 import { resolveActualLocationTargetForBlock } from '@/lib/staff/resolveActualLocationTarget';
 import { EvidencePanel } from './ReportCandidateTimeline';
 import { supabase } from '@/integrations/supabase/client';
