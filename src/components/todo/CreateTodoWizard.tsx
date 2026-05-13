@@ -38,6 +38,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
   const [typeId, setTypeId] = useState<string>('');
   const [showNewType, setShowNewType] = useState(false);
   const [newTypeLabel, setNewTypeLabel] = useState('');
+  const [bookingPickerOpen, setBookingPickerOpen] = useState(false);
 
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
   const [title, setTitle] = useState('');
