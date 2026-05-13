@@ -1,36 +1,35 @@
 ## Problem
 
-På iOS (Capacitor WKWebView) öppnas inte bilder eller PDF:er i mobilappen. Orsaken är att flera ställen använder vanliga `<a target="_blank">` eller `window.open()` direkt mot `*.supabase.co`. WKWebView blockerar nya fönster och blob: URL:er fungerar dåligt — länkarna blir tysta no-ops.
+To-don sparas korrekt i `calendar_events` (event_type='todo' + resource_id = team), men personalkalendern visar den inte. Konsolloggen säger `non-project rows skipped (non-staffable event_type) 31` — det är `buildPlannerCalendarEvents` som filtrerar bort allt vars `event_type` inte är `rig`/`event`/`rigDown`.
 
-Vi har redan en korrekt helper `src/lib/files/openFileExternally.ts` som på native använder `@capacitor/browser` (`Browser.open({ url, presentationStyle: "fullscreen" })`). Den används i `JobAttachmentsSection`, men inte överallt.
+## Lösning
 
-## Fix
+I `src/services/plannerCalendarDerivation.ts`, i loopen runt rad 272–360:
 
-Routea alla bild-/fil-/PDF-öppningar i mobilappen genom `openFileExternally`.
+- Innan `phase`-allowlisten, lägg till en passthrough för `row.event_type === 'todo'`:
+  - kräv `resource_id` (annars hoppa)
+  - hoppa om raden är knuten till booking som tillhör large project (samma guard som befintliga raden)
+  - pusha via `mapRealRowToCalendarEvent(row, booking, undefined)`
+  - ny räknare `todoEventsEmitted` i debug-loggen
 
-**Filer att ändra (presentation-/UI-lager):**
+- I `mapRealRowToCalendarEvent`:
+  - Behåll `eventType: 'todo'` när `event_type === 'todo'` (idag returneras `undefined` eftersom `normalizePhase` ger null). Enklast: efter `normalizePhase`-fallback, sätt `eventType: row.event_type === 'todo' ? 'todo' : (normalizePhase(...) || undefined)` på både `eventType` och `extendedProps.eventType`.
+  - Title: `row.title` används redan som sista fallback när booking saknas → OK.
 
-1. `src/components/mobile-app/job-tabs/JobPhotosTab.tsx`
-   - Byt `<a href={file.url} target="_blank">` (dokument/PDF) mot `<button onClick={() => openFileExternally(file.url, file.file_name)}>`.
-   - Behåll inline-lightbox för bilder, men lägg en "Öppna i full skärm"-knapp som anropar `openFileExternally` (fallback om iOS-bildvisaren strular).
+## Test
 
-2. `src/components/mobile-app/messages/ImageLightbox.tsx`
-   - Byt nedladdnings-/öppna-länken (`<a href target="_blank">`) mot knapp som kallar `openFileExternally`.
+- Lägg till `src/services/__tests__/plannerCalendarDerivation.todo.test.ts`:
+  - Given en rad med `event_type='todo'`, `resource_id='team-1'`, `booking_id=null`, `title='Upphämtning – Kund X'`, `source_date='2026-05-14'`.
+  - Förvänta att outputen innehåller exakt 1 event med `eventType:'todo'`, `resourceId:'team-1'`, korrekt title.
+  - Andra fallet: `resource_id=null` → ska hoppas.
+- Kör `bunx vitest run src/services/__tests__/plannerCalendarDerivation.todo.test.ts` efter ändringen.
 
-3. `src/components/mobile-app/messages/MessageBubble.tsx`
-   - Byt fil-attachment `<a href={msg.file_url} target="_blank">` mot `<button onClick={() => openFileExternally(msg.file_url, msg.file_name)}>` (behåll samma styling).
+## Verifiering i UI
 
-4. `src/components/mobile-app/lager/LagerExpensesSection.tsx`
-   - Byt kvitto-`<a target="_blank">` mot knapp som kallar `openFileExternally`.
+- ResourceData/CustomEvent har redan styling för `'todo'` (orange) → kortet renderas.
+- Realtime: kalendern lyssnar redan på `calendar_events` (befintlig "Real-time calendar subscription established") så INSERT triggar refetch — ingen ändring behövs där.
 
-## Verifiering
+## Filer som ändras
 
-- Lägg till ett vitest-test som scannar `src/components/mobile-app/**` och `src/pages/mobile/**` och misslyckas om en `<a … target="_blank">` används för supabase-storage-länkar (file_url, receipt_url, attachment.url) — låser fixen så den inte regrederar.
-- Kör `bash scripts/test-time-reporting.sh` (om tillämpligt) + `bunx vitest run`.
-- Manuell verifiering kräver iOS-build (`npx cap sync ios` efter pull).
-
-## Vad jag INTE ändrar
-
-- `tel:` / `mailto:` / Google Maps-länkar (de fungerar redan via `_system` / native intents).
-- `openFileExternally` i sig — den är redan korrekt.
-- Backend / signed URL-logik.
+- `src/services/plannerCalendarDerivation.ts` (passthrough + eventType-mappning)
+- `src/services/__tests__/plannerCalendarDerivation.todo.test.ts` (nytt)
