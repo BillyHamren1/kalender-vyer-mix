@@ -975,6 +975,38 @@ export async function processGpsTimelineForAutoStart(
           matchedByRadiusCount: declineMatchedByRadius,
         }
       : null,
+    autoStartEvaluated: true,
+    autoStartCreated: !!createdRegistrationId,
+    autoStartReason: (() => {
+      const allowed = decisions.find((d) => d.decision.allowed);
+      return allowed ? allowed.decision.reason : null;
+    })(),
+    rejectedReason: (() => {
+      if (createdRegistrationId) return null;
+      if (active) return 'already_active_registration';
+      if (declineSuppressedCount > 0) return 'user_declined_today';
+      if (privateResidenceSuppressedSegments > 0) return 'inside_private_residence';
+      if (decisions.length === 0) return 'no_qualified_segment';
+      const anyAllowed = decisions.some((d) => d.decision.allowed);
+      return anyAllowed ? null : 'policy_blocked';
+    })(),
+    evidenceTarget: (() => {
+      const winning = decisions.find((d) => d.decision.allowed && d.matchedTargetId);
+      if (winning && winning.matchedTargetId) {
+        const rt = resolvedTargets!.find((t) => t.id === winning.matchedTargetId);
+        return rt ? { id: rt.id, type: rt.type as string, name: rt.name } : null;
+      }
+      // Fall back to any matched candidate (even if blocked) so admin sees
+      // which target the GPS evidence pointed at.
+      const anyMatched = decisions.find((d) => d.matchedTargetId);
+      if (anyMatched && anyMatched.matchedTargetId) {
+        const rt = resolvedTargets!.find((t) => t.id === anyMatched.matchedTargetId);
+        return rt ? { id: rt.id, type: rt.type as string, name: rt.name } : null;
+      }
+      return null;
+    })(),
+    existingActiveRegistrationFound: !!active,
+    deniedByUserToday: declineSuppressedCount > 0,
     computedAt: new Date().toISOString(),
   };
 }
