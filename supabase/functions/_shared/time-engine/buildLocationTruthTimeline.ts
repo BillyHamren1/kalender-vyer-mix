@@ -452,7 +452,8 @@ function matchPing(
     }
 
     // Sticky tolerance — only when this candidate IS the previous segment's place.
-    if (opts.stickyKey && c.key === opts.stickyKey) {
+    // stickyKey uses the same shape as pingMatchKey: `${targetType}:${refId}`.
+    if (opts.stickyKey && `${c.targetType}:${c.refId}` === opts.stickyKey) {
       const signed = distanceToGeofenceEdge(lat, lng, gf);
       const outsideM = -signed;
       if (outsideM <= opts.stickyToleranceM) {

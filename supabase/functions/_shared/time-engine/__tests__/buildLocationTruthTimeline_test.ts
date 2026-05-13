@@ -93,8 +93,8 @@ Deno.test("buildLocationTruthTimeline: private_residence wins over warehouse at 
     resolvedTargets: [warehouse],
     privateResidenceLocations: [{ id: "h1", label: "Hemma", center: { lat: 59.33, lng: 18.06 }, radiusM: 75 }],
     gpsPings: [
-      ping("2026-05-13T22:30:00Z", 59.33, 18.06),
-      ping("2026-05-13T22:31:00Z", 59.33, 18.06),
+      ping("2026-05-13T20:30:00Z", 59.33, 18.06),
+      ping("2026-05-13T20:31:00Z", 59.33, 18.06),
     ],
   }));
   const seg = r.locationTruthSegments.find((s) => s.kind === "private_residence");
