@@ -223,6 +223,42 @@ export interface LocationPingMatchDiagnostics {
   }>;
 }
 
+/**
+ * Location Truth 1.3 — private_residence override accounting.
+ * Counts how often the boende rule shadowed a would-have-matched warehouse,
+ * project, or 150 m tolerance hit.
+ */
+export interface PrivateResidenceMatchDiagnostics {
+  pingsInsideResidence: number;
+  residenceOverrodeWarehouseCount: number;
+  residenceOverrodeProjectCount: number;
+  residenceBlockedToleranceCount: number;
+  examples: Array<{
+    ts: ISODateTime;
+    residenceLabel: string;
+    overrode: Array<'warehouse' | 'project' | 'booking' | 'location' | 'tolerance'>;
+  }>;
+}
+
+/**
+ * Location Truth 1.3 — 150 m work-area tolerance accounting.
+ * Tracks where tolerance fired vs. where it was deliberately suppressed.
+ */
+export interface WorkAreaToleranceDiagnostics {
+  toleranceMeters: number;
+  continuedSessionByToleranceCount: number;
+  blockedByPrivateResidenceCount: number;
+  blockedBecauseNoActiveSessionCount: number;
+  blockedAfterDayEndCount: number;
+  examples: Array<{
+    ts: ISODateTime;
+    outcome: 'continued' | 'blocked_private_residence' | 'blocked_no_active_session' | 'blocked_after_day_end';
+    candidateLabel: string | null;
+    candidateTargetType: string | null;
+    distanceToEdgeM: number | null;
+  }>;
+}
+
 export interface LocationTruthDiagnostics {
   staffId: UUID;
   date: ISODate;
@@ -235,6 +271,8 @@ export interface LocationTruthDiagnostics {
   privateResidenceSegmentCount: number;
   policy: Required<BuildLocationTruthPolicy>;
   pingMatch: LocationPingMatchDiagnostics;
+  privateResidenceMatch: PrivateResidenceMatchDiagnostics;
+  workAreaTolerance: WorkAreaToleranceDiagnostics;
 }
 
 export interface BuildLocationTruthTimelineResult {
