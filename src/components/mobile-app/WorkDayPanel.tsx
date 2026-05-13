@@ -144,11 +144,8 @@ export const WorkDayPanel: React.FC = () => {
           <p className="text-muted-foreground">
             Startad: <span className="font-semibold text-foreground">{startedLabel}</span>
           </p>
-          <p className="text-muted-foreground">
-            Just nu: <span className="font-semibold text-foreground">{timer.registrationLabel}</span>
-          </p>
-          <p className="text-[11px] text-muted-foreground/70 italic pt-1">
-            Dagens fördelning kommer senare
+          <p className="text-[11px] text-muted-foreground/80 italic pt-1">
+            Plats/projekt fördelas automatiskt i tidrapporten.
           </p>
         </div>
 
