@@ -840,11 +840,11 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         ) : (
           (() => {
             const HOUR_PX = 56;
-            const COL_MIN = 180;
-            const RAIL_PX = 64;
+            const COL_MIN = 150;
+            const RAIL_PX = 56;
             const bodyHeight = totalHours * HOUR_PX;
             return (
-              <div className="overflow-auto overscroll-contain max-h-[calc(100vh-220px)]">
+              <div className="overflow-auto overscroll-contain max-h-[calc(100vh-180px)]">
                 <div
                   className="relative grid"
                   style={{

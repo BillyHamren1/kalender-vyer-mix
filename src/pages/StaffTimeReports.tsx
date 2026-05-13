@@ -1813,28 +1813,31 @@ const StaffTimeReports: React.FC = () => {
   }
 
   return (
-    <PageContainer theme="purple">
-      <PageHeader
-        icon={Clock}
-        title="Tidrapporter"
-        subtitle="Översikt av rapporterad tid per personal"
-        variant="purple"
-      />
-      <StaffGanttView
-        staffList={staffList}
-        isLoading={isLoading}
-        onSelectStaff={(id, name) => {
-          setSelectedStaffId(id);
-          setSelectedStaffName(name);
-        }}
-        selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
-        reportCandidateByStaff={reportCandidateByStaff}
-        engineMode={engineMode}
-        bookingPhaseByDate={bookingPhaseByDate}
-        largeProjectPhaseByDate={largeProjectPhaseByDate}
-      />
-    </PageContainer>
+    <div className="h-screen flex flex-col bg-background overflow-hidden theme-purple">
+      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2 border-b">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-primary" />
+          <h1 className="text-sm font-semibold">Tidrapporter</h1>
+          <span className="text-xs text-muted-foreground">· Översikt av rapporterad tid per personal</span>
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 px-2 pt-2 pb-2 overflow-hidden">
+        <StaffGanttView
+          staffList={staffList}
+          isLoading={isLoading}
+          onSelectStaff={(id, name) => {
+            setSelectedStaffId(id);
+            setSelectedStaffName(name);
+          }}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          reportCandidateByStaff={reportCandidateByStaff}
+          engineMode={engineMode}
+          bookingPhaseByDate={bookingPhaseByDate}
+          largeProjectPhaseByDate={largeProjectPhaseByDate}
+        />
+      </div>
+    </div>
   );
 };
 
