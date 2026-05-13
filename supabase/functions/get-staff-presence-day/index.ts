@@ -809,15 +809,17 @@ Deno.serve(async (req) => {
       const openReg = (timers ?? []).find(
         (t: any) => !t.stopped_at && (t.status ?? '').toLowerCase() === 'active',
       );
+      // Timer 1.7 — active_time_registration är dagfönster, INTE target.
+      // Strippa target-fälten innan vi skickar in i Time Engine. Builder
+      // får inte använda dem för work attribution / synth-block / extension.
       const openActiveRegistration = openReg
         ? {
             registrationId: openReg.id,
             startedAtIso: openReg.started_at,
-            targetType: openReg.current_target_type ?? openReg.start_target_type ?? null,
-            targetId: openReg.current_target_id ?? openReg.start_target_id ?? null,
-            targetLabel:
-              openReg.current_label ?? openReg.start_target_label ?? null,
-            currentLabel: openReg.current_label ?? null,
+            targetType: null,
+            targetId: null,
+            targetLabel: null,
+            currentLabel: null,
           }
         : null;
 
