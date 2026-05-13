@@ -48,7 +48,7 @@ const LargeProjectLayout = () => {
   const [editSubtitle, setEditSubtitle] = useState("");
   const subtitleInputRef = useRef<HTMLInputElement>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
-  const [linkedView, setLinkedView] = useState<'bookings' | 'products'>('bookings');
+  const [linkedView, setLinkedView] = useState<'excel' | 'bookings' | 'products'>('bookings');
   const toggleBookingExpanded = useCallback((bookingId: string) => {
     setExpandedBookingIds(prev => {
       const next = new Set(prev);
