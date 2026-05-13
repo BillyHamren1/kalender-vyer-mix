@@ -39,8 +39,6 @@ const mergeTags = (a: string[], b: string[]): string[] => {
 interface ProductRow {
   id: string; name: string; quantity: number; booking_id: string; tags: string[];
 }
-const formatProduct = (p: ProductRow) =>
-  p.quantity && p.quantity > 1 ? `${p.quantity}× ${p.name}` : p.name;
 
 // Column id system: "client" | "address" | "untagged" | "tag:<norm>" | "custom:<uuid>"
 type ColId = string;
@@ -89,9 +87,10 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
 
   // Build available columns
   const allColumns = useMemo(() => {
-    const cols: { id: ColId; label: string; kind: "client" | "address" | "tag" | "untagged" | "custom"; tagKey?: string }[] = [
+    const cols: { id: ColId; label: string; kind: "client" | "address" | "qty" | "tag" | "untagged" | "custom"; tagKey?: string }[] = [
       { id: "client", label: "Kund / Bokning", kind: "client" },
       { id: "address", label: "Plats / Adress", kind: "address" },
+      { id: "qty", label: "Antal", kind: "qty" },
     ];
     for (const [k, label] of Array.from(tagDisplay.entries()).sort((a, b) => a[1].localeCompare(b[1], "sv"))) {
       cols.push({ id: `tag:${k}`, label, kind: "tag", tagKey: k });
@@ -161,6 +160,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
     switch (col.kind) {
       case "client": return r.client.toLowerCase();
       case "address": return r.address.toLowerCase();
+      case "qty": return r.untagged.length + Array.from(r.byTag.values()).reduce((s, v) => s + v.length, 0);
       case "untagged": return r.untagged.length;
       case "tag": return (r.byTag.get(col.tagKey!) || []).length;
       case "custom": return (config.custom_values[r.booking_id]?.[col.id] || "").toLowerCase();
@@ -178,6 +178,37 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
       return String(av).localeCompare(String(bv), "sv") * dir;
     });
   }, [rows, sortId, orderedColumns, config.custom_values]);
+
+  // Flatten: one row per product within each booking. Bookings without
+  // products still produce a single empty row so the booking remains visible.
+  const flatRows = useMemo(() => {
+    type Flat = {
+      key: string;
+      bookingRow: typeof sortedRows[number];
+      product: ProductRow | null;
+      isFirstInBooking: boolean;
+      bookingRowSpan: number;
+    };
+    const out: Flat[] = [];
+    for (const br of sortedRows) {
+      const products: ProductRow[] = [];
+      // Preserve original product order: untagged + tagged (deduped by id)
+      const seen = new Set<string>();
+      for (const p of br.untagged) { if (!seen.has(p.id)) { seen.add(p.id); products.push(p); } }
+      for (const arr of br.byTag.values()) {
+        for (const p of arr) { if (!seen.has(p.id)) { seen.add(p.id); products.push(p); } }
+      }
+      const span = Math.max(1, products.length);
+      if (products.length === 0) {
+        out.push({ key: `${br.id}:empty`, bookingRow: br, product: null, isFirstInBooking: true, bookingRowSpan: 1 });
+      } else {
+        products.forEach((p, i) => {
+          out.push({ key: `${br.id}:${p.id}`, bookingRow: br, product: p, isFirstInBooking: i === 0, bookingRowSpan: span });
+        });
+      }
+    }
+    return out;
+  }, [sortedRows]);
 
   // Column reordering (HTML5 DnD)
   const [dragId, setDragId] = useState<string | null>(null);
@@ -332,12 +363,16 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
             </tr>
           </thead>
           <tbody>
-            {sortedRows.map((r, idx) => {
-              const zebra = idx % 2 === 1;
+            {flatRows.map((fr, idx) => {
+              const r = fr.bookingRow;
+              const p = fr.product;
+              // Zebra by booking, not by row, so a single booking stays visually together
+              const bookingIdx = sortedRows.findIndex((sr) => sr.id === r.id);
+              const zebra = bookingIdx % 2 === 1;
               const rowBg = zebra ? "bg-muted/20" : "bg-card";
               return (
                 <tr
-                  key={r.id}
+                  key={fr.key}
                   className={`group/row ${rowBg} hover:bg-accent/40 transition-colors`}
                 >
                   {orderedColumns.map((col, cidx) => {
@@ -346,9 +381,13 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       ? `sticky left-0 z-10 ${rowBg} group-hover/row:bg-accent/40 border-r border-border/60 shadow-[6px_0_12px_-8px_hsl(var(--foreground)/0.15)]`
                       : "border-b border-border/40";
                     const baseCell = `${cellClass} ${sticky ? "border-b border-border/40" : ""} ${stickyClass}`;
+                    const mergedCell = `${baseCell} align-top`;
+
+                    // Booking-level cells (rowSpan): client, address, custom
                     if (col.kind === "client") {
+                      if (!fr.isFirstInBooking) return null;
                       return (
-                        <td key={col.id} className={baseCell}>
+                        <td key={col.id} className={mergedCell} rowSpan={fr.bookingRowSpan}>
                           <div className="flex flex-col gap-0.5">
                             <span className="text-sm font-semibold text-foreground leading-tight">{r.client}</span>
                             {r.title && (
@@ -361,8 +400,9 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       );
                     }
                     if (col.kind === "address") {
+                      if (!fr.isFirstInBooking) return null;
                       return (
-                        <td key={col.id} className={baseCell}>
+                        <td key={col.id} className={mergedCell} rowSpan={fr.bookingRowSpan}>
                           {r.address ? (
                             <div className="text-sm text-foreground/80 leading-snug">{r.address}</div>
                           ) : (
@@ -371,48 +411,55 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                         </td>
                       );
                     }
-                    if (col.kind === "untagged") {
+                    if (col.kind === "custom") {
+                      if (!fr.isFirstInBooking) return null;
+                      return (
+                        <td key={col.id} className={mergedCell} rowSpan={fr.bookingRowSpan}>
+                          <CustomCell
+                            initial={config.custom_values[r.booking_id]?.[col.id] || ""}
+                            onCommit={(v) => setCustomValue(r.booking_id, col.id, v)}
+                          />
+                        </td>
+                      );
+                    }
+
+                    // Product-level cells: qty, untagged, tag
+                    if (col.kind === "qty") {
                       return (
                         <td key={col.id} className={baseCell}>
-                          {r.untagged.length === 0 ? (
-                            <span className="text-muted-foreground/40 font-light">—</span>
+                          {p ? (
+                            <span className="text-sm font-mono tabular-nums text-foreground/90">{p.quantity ?? 1}</span>
                           ) : (
-                            <ul className="space-y-0.5">
-                              {r.untagged.map((p) => (
-                                <li key={p.id} className="text-sm text-foreground/90">{formatProduct(p)}</li>
-                              ))}
-                            </ul>
+                            <span className="text-muted-foreground/40 font-light">—</span>
+                          )}
+                        </td>
+                      );
+                    }
+                    if (col.kind === "untagged") {
+                      const show = p && p.tags.length === 0;
+                      return (
+                        <td key={col.id} className={baseCell}>
+                          {show ? (
+                            <span className="text-sm text-foreground/90">{p!.name}</span>
+                          ) : (
+                            <span className="text-muted-foreground/40 font-light">—</span>
                           )}
                         </td>
                       );
                     }
                     if (col.kind === "tag") {
-                      const items = r.byTag.get(col.tagKey!) || [];
+                      const show = p && p.tags.some((t) => norm(t) === col.tagKey);
                       return (
                         <td key={col.id} className={baseCell}>
-                          {items.length === 0 ? (
-                            <span className="text-muted-foreground/40 font-light">—</span>
+                          {show ? (
+                            <span className="text-sm text-foreground">{p!.name}</span>
                           ) : (
-                            <ul className="space-y-0.5">
-                              {items.map((p) => (
-                                <li key={p.id} className="text-sm text-foreground">
-                                  {formatProduct(p)}
-                                </li>
-                              ))}
-                            </ul>
+                            <span className="text-muted-foreground/40 font-light">—</span>
                           )}
                         </td>
                       );
                     }
-                    // custom
-                    return (
-                      <td key={col.id} className={baseCell}>
-                        <CustomCell
-                          initial={config.custom_values[r.booking_id]?.[col.id] || ""}
-                          onCommit={(v) => setCustomValue(r.booking_id, col.id, v)}
-                        />
-                      </td>
-                    );
+                    return null;
                   })}
                 </tr>
               );
