@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeBookingStatus } from "../_shared/booking-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,13 +86,7 @@ const extractTimePart = (value: unknown): string | undefined => {
   return undefined;
 };
 
-const normalizeStatus = (status: string | null | undefined): string => {
-  const s = (status || "PENDING").toString().trim().toUpperCase();
-  if (s === "BEKRÄFTAD" || s === "CONFIRMED") return "CONFIRMED";
-  if (s === "AVBOKAD" || s === "CANCELLED") return "CANCELLED";
-  if (s === "DRAFT" || s === "UTKAST") return "OFFER";
-  return s;
-};
+const normalizeStatus = normalizeBookingStatus;
 
 /**
  * Normalize an external booking from export_bookings API format
