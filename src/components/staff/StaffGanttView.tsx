@@ -1104,7 +1104,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   color: '#000000',
                                   boxShadow: '0 1px 2px hsl(var(--foreground) / 0.08)',
                                 }}
-                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${overlapping ? '\n⚠ Överlappar annat block' : ''}`}
+                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`}
                               >
                                 <div
                                   className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-1 w-fit"
@@ -1118,6 +1118,19 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 <div className="font-bold leading-tight break-words" style={{ color: '#000000' }}>
                                   {b.title}
                                 </div>
+                                {b.plannedBadgeLabel && height >= 40 && (
+                                  <div
+                                    className="mt-0.5 inline-block max-w-full truncate rounded px-1 py-px text-[9px] font-medium"
+                                    style={{
+                                      backgroundColor: 'hsl(var(--muted) / 0.6)',
+                                      color: 'hsl(var(--muted-foreground))',
+                                      border: '1px dashed hsl(var(--border))',
+                                    }}
+                                    title={`Planerat enligt schemaläggning: ${b.plannedBadgeLabel}`}
+                                  >
+                                    Planerat: {b.plannedBadgeLabel}
+                                  </div>
+                                )}
                                 {showSub && (
                                   <div className="text-[10px] tabular-nums mt-0.5 break-words" style={{ color: '#000000' }}>
                                     {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} · {fmtMin(b.durationMinutes)}
