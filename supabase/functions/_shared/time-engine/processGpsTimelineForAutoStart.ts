@@ -392,7 +392,7 @@ export async function processGpsTimelineForAutoStart(
         matchedTargetName: target?.name ?? seg.matchedTargetName,
         decision: {
           allowed: false,
-          reason: 'blocked_user_ended_workday',
+          reason: suppressionReasonForDecisions,
           confidence: seg.confidence,
           startAt: null,
           targetId: null,
