@@ -153,7 +153,7 @@ Deno.test("buildLocationTruthTimeline: tolerance does NOT originate a session wh
 // ──────────────────────────────────────────────────────────────────────────────
 // 6. Signal gap > maxPingIntervalSeconds emits a signal_gap segment.
 // ──────────────────────────────────────────────────────────────────────────────
-Deno.test("buildLocationTruthTimeline: gap > policy emits signal_gap", () => {
+Deno.test("buildLocationTruthTimeline: same-place gap is bridged into the project segment (no separate signal_gap)", () => {
   const project = circleTarget({ refId: "p1", kind: "project", label: "Bygge", lat: 59.33, lng: 18.06 });
   const pings = [
     ping("2026-05-13T08:00:00Z", 59.33, 18.06),
@@ -164,8 +164,14 @@ Deno.test("buildLocationTruthTimeline: gap > policy emits signal_gap", () => {
   ];
   const r = buildLocationTruthTimeline(baseInput({ resolvedTargets: [project], gpsPings: pings }));
   const gaps = r.locationTruthSegments.filter((s) => s.kind === "signal_gap");
-  assertEquals(gaps.length, 1);
-  assert(gaps[0].signalGapMinutes >= 25);
+  assertEquals(gaps.length, 0, "same-place gap should NOT emit a standalone signal_gap segment");
+  const proj = r.locationTruthSegments.filter((s) => s.kind === "project");
+  assertEquals(proj.length, 1);
+  assert(proj[0].signalGapMinutes >= 25);
+  assertEquals(proj[0].signalGapCount, 1);
+  assertEquals(proj[0].signalQuality, "gappy");
+  assert(proj[0].warningReasons.includes("signal_gap_inside_same_location"));
+  assertEquals(r.diagnostics.locationGapBridge.samePlaceGapsBridgedCount, 1);
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
