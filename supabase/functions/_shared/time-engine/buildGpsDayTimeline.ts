@@ -41,6 +41,7 @@ import type { Confidence, GeoAnchor, ISODate, ISODateTime, UUID, WorkTarget } fr
 import { isInsideGeofence, distanceToGeofenceEdge, type GeofenceTarget } from '../geofenceEval.ts';
 import { formatStockholm } from '../timeline/geo.ts';
 import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
+import { absorbUnknownStayIntoOwner, type AbsorbDiagnostics } from './absorbUnknownStayIntoOwner.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs
