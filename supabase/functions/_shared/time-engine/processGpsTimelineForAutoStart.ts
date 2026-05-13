@@ -713,6 +713,13 @@ export async function processGpsTimelineForAutoStart(
           }
         : null,
       declineLock: null,
+      autoStartEvaluated: true,
+      autoStartCreated: false,
+      autoStartReason: null,
+      rejectedReason: dayStoppedSynth ? 'day_already_stopped' : 'user_ended_workday',
+      evidenceTarget: null,
+      existingActiveRegistrationFound: !!active,
+      deniedByUserToday: false,
       computedAt: new Date().toISOString(),
     };
   }
