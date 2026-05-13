@@ -214,9 +214,10 @@ const MobileProfile = () => {
               variant={endDayConfirm ? 'destructive' : 'outline'}
               className="w-full h-11 rounded-xl text-sm gap-2 font-semibold border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all active:scale-[0.98]"
               onClick={handleEndDay}
+              disabled={endingDay}
             >
               <LogOut className="w-4.5 h-4.5" />
-              {endDayConfirm ? 'Tryck igen för att bekräfta' : 'Avsluta dagen'}
+              {endingDay ? 'Stoppar…' : endDayConfirm ? 'Tryck igen för att bekräfta' : 'Avsluta dagen'}
             </Button>
           </div>
         )}
