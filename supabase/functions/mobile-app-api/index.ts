@@ -6024,17 +6024,18 @@ async function handleLegacyStartLocationTimerForward(
   supabase: any, staffId: string, data: any, organizationId: string,
 ) {
   const d = data || {}
-  let target_type: 'location' | 'booking' | 'large_project' | 'project' | null = null
-  let target_id: string | null = null
-  if (d.large_project_id) { target_type = 'large_project'; target_id = d.large_project_id }
-  else if (d.booking_id)  { target_type = 'booking';       target_id = d.booking_id }
-  else if (d.project_id)  { target_type = 'project';       target_id = d.project_id }
-  else if (d.location_id) { target_type = 'location';      target_id = d.location_id }
-
-  console.warn('[mobile-app-api] LEGACY start_location_timer forwarded → start_time_registration', { target_type, target_id })
+  // Single-day-timer policy: legacy target fields are intentionally dropped.
+  // Only `started_at` is forwarded — the resulting registration is always a
+  // pure workday timer with no target binding.
+  console.warn('[mobile-app-api] LEGACY start_location_timer forwarded → start_time_registration (target stripped, single_day_timer)', {
+    had_large_project_id: !!d.large_project_id,
+    had_booking_id: !!d.booking_id,
+    had_project_id: !!d.project_id,
+    had_location_id: !!d.location_id,
+  })
   return await handleStartTimeRegistration(
     supabase, staffId,
-    { target_type, target_id, started_at: d.started_at },
+    { started_at: d.started_at },
     organizationId,
   )
 }
@@ -6055,38 +6056,21 @@ async function handleStartTimeRegistration(
   supabase: any, staffId: string, data: any, organizationId: string,
 ) {
   const { target_type, target_id, started_at } = data || {}
-  const allowedTypes = new Set(['booking', 'large_project', 'project', 'location', null, undefined])
-  if (target_type && !allowedTypes.has(target_type)) {
+
+  // ── Single Day Timer policy (Timer 1.5) ────────────────────────────────
+  // start_time_registration ALWAYS starts a pure workday timer.
+  // No project/booking/location/warehouse target binding is allowed here —
+  // Time Engine attributes activity later. Reject any caller that still
+  // tries to pass target_type/target_id.
+  if (target_type != null || target_id != null) {
+    console.warn('[start_time_registration] target_timer_not_allowed', { target_type, target_id })
     return new Response(
-      JSON.stringify({ error: 'invalid target_type' }),
+      JSON.stringify({
+        error: 'target_timer_not_allowed',
+        message: 'Starta endast arbetsdag. Projekt/plats kopplas av Time Engine.',
+      }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
-  }
-
-  // Resolve label for the chosen target.
-  let currentKind = 'unknown_place'
-  let currentLabel = 'Okänd plats'
-  if (target_type === 'large_project' && target_id) {
-    currentKind = 'project'
-    const { data: lp } = await supabase.from('large_projects')
-      .select('name').eq('id', target_id).maybeSingle()
-    currentLabel = lp?.name ?? 'Projekt'
-  } else if (target_type === 'project' && target_id) {
-    currentKind = 'project'
-    const { data: p } = await supabase.from('projects')
-      .select('name').eq('id', target_id).maybeSingle()
-    currentLabel = p?.name ?? 'Projekt'
-  } else if (target_type === 'booking' && target_id) {
-    currentKind = 'booking'
-    const { data: b } = await supabase.from('bookings')
-      .select('client, title, booking_number')
-      .eq('id', target_id).maybeSingle()
-    currentLabel = b?.client || b?.title || b?.booking_number || 'Bokning'
-  } else if (target_type === 'location' && target_id) {
-    currentKind = 'warehouse'
-    const { data: l } = await supabase.from('organization_locations')
-      .select('name').eq('id', target_id).maybeSingle()
-    currentLabel = l?.name ?? 'Plats'
   }
 
   // Resolve start time (within last 24h, not in future).
@@ -6118,18 +6102,18 @@ async function handleStartTimeRegistration(
     status: 'active',
     started_at: startedAtIso,
     started_by: staffId,
-    start_source: 'user_timer',
+    start_source: 'user_day_start',
     auto_started: false,
-    start_target_type: target_type ?? null,
-    start_target_id: target_id ?? null,
-    start_target_label: currentLabel,
-    current_kind: currentKind,
-    current_label: currentLabel,
-    current_target_type: target_type ?? null,
-    current_target_id: target_id ?? null,
-    current_confidence: target_id ? 1 : 0,
-    needs_user_choice: !target_id,
-    metadata: {},
+    start_target_type: null,
+    start_target_id: null,
+    start_target_label: null,
+    current_kind: 'day_active',
+    current_label: 'Arbetsdag aktiv',
+    current_target_type: null,
+    current_target_id: null,
+    current_confidence: 0,
+    needs_user_choice: false,
+    metadata: { timerModel: 'single_day_timer' },
   }
 
   const { data: row, error } = await supabase
