@@ -35,8 +35,12 @@ function makeClient(allRows: any[]) {
       if (this._filters.ne_staff_id) {
         pool = pool.filter((r: any) => r.staff_id !== this._filters.ne_staff_id);
       }
-      pool = pool.filter((r: any) => r.recorded_at >= this._filters.gte);
-      pool = pool.filter((r: any) => r.recorded_at <= this._filters.lte);
+      const gteMs = Date.parse(this._filters.gte);
+      const lteMs = Date.parse(this._filters.lte);
+      pool = pool.filter((r: any) => {
+        const t = Date.parse(r.recorded_at);
+        return t >= gteMs && t <= lteMs;
+      });
       return { data: pool.slice(from, to + 1), error: null };
     },
   };
