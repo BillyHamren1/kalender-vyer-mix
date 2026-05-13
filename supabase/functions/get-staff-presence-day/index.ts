@@ -264,6 +264,43 @@ Deno.serve(async (req) => {
   let hasActiveTimer = false;
   let activeTimerInfo: any = null;
 
+  // Location Truth 1.5 — bevis: active_time_registrations används BARA som
+  // dagfönster. Räkna förekomsten av target-fält som motorn medvetet ignorerar.
+  const activeTimerLocationIsolationDiagnostics = {
+    activeRegistrationsSeen: 0,
+    ignoredTargetFieldsCount: 0,
+    usedAsDayWindowCount: 0,
+    examples: [] as Array<{
+      registrationId: string;
+      startedAt: string | null;
+      stoppedAt: string | null;
+      ignoredFields: string[];
+    }>,
+  };
+
+  for (const t of timers ?? []) {
+    activeTimerLocationIsolationDiagnostics.activeRegistrationsSeen += 1;
+    activeTimerLocationIsolationDiagnostics.usedAsDayWindowCount += 1;
+    const ignored: string[] = [];
+    if ((t as any).start_target_type) ignored.push('start_target_type');
+    if ((t as any).start_target_id) ignored.push('start_target_id');
+    if ((t as any).start_target_label) ignored.push('start_target_label');
+    if ((t as any).current_label) ignored.push('current_label');
+    if ((t as any).current_target_type) ignored.push('current_target_type');
+    if ((t as any).current_target_id) ignored.push('current_target_id');
+    if (ignored.length > 0) {
+      activeTimerLocationIsolationDiagnostics.ignoredTargetFieldsCount += ignored.length;
+      if (activeTimerLocationIsolationDiagnostics.examples.length < 10) {
+        activeTimerLocationIsolationDiagnostics.examples.push({
+          registrationId: t.id,
+          startedAt: t.started_at ?? null,
+          stoppedAt: t.stopped_at ?? null,
+          ignoredFields: ignored,
+        });
+      }
+    }
+  }
+
   for (const t of timers ?? []) {
     const meta = (t.metadata as any) ?? {};
     const evidence = meta.evidence ?? {};
@@ -941,6 +978,7 @@ Deno.serve(async (req) => {
         smoothedRowCount: smoothing.stats.smoothedRows,
       },
     },
+    activeTimerLocationIsolationDiagnostics,
     timeline: smoothedTimeline,
     rawTimeline: dedupedTimeline,
     smoothedBlocks: smoothing.blocks,
