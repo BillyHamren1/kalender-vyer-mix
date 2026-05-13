@@ -947,6 +947,141 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.error('[presence-day] dayEnd clamp failed', e);
       }
+
+      // ── Location Truth pipeline (1.2 → 1.7) ──
+      // Pure parallel pipeline that answers: "Where is the person over time?"
+      // Runs independently of reportCandidate. Never writes anything. Never
+      // touches LTE/time_reports/workdays. Output is exposed under
+      // `locationTruth` for /staff-management/time-reports audit + diagnostics.
+      try {
+        // 1) Map pings to LocationTruthGpsPing
+        const ltPings: LocationTruthGpsPing[] = pings.map((p: any, i: number) => ({
+          id: `p${i}`,
+          ts: p.ts,
+          lat: p.lat,
+          lng: p.lng,
+          accuracyM: p.accuracyM ?? null,
+          speedMps: p.speedMps ?? null,
+        }));
+
+        // 2) Build extra locations (warehouses + organization_locations) from
+        //    resolveWorkTargets output. WorkTargets we already pass via
+        //    `resolvedTargets`; the matcher dedups by key.
+        const extraLocations: LocationTruthExtraLocation[] = [];
+        for (const r of resolvedTargetsAll ?? []) {
+          if (r.type !== 'warehouse' && r.type !== 'organization_location') continue;
+          if (r.latitude == null || r.longitude == null) continue;
+          extraLocations.push({
+            id: r.id,
+            label: r.name ?? 'Plats',
+            kind: r.type === 'warehouse' ? 'warehouse' : 'organization_location',
+            center: { lat: Number(r.latitude), lng: Number(r.longitude) },
+            radiusM: Number(r.radiusMeters ?? 200),
+            polygon: r.polygon ?? null,
+          });
+        }
+
+        // 3) Private residences from already-loaded homeAnchors (inferred + zones).
+        const privateResidenceLocations: LocationTruthPrivateResidence[] =
+          (homeAnchors ?? []).map((h) => ({
+            id: h.id,
+            label: h.label ?? null,
+            center: { lat: h.lat, lng: h.lng },
+            radiusM: h.radiusM,
+            polygon: null,
+          }));
+
+        // 4) Build NameLookup so team labels never become titles.
+        const nameLookup: NameLookup = {
+          projectName: {},
+          largeProjectName: {},
+          bookingName: {},
+          locationName: {},
+          plannedAssignmentLabel: {},
+        };
+        for (const r of resolvedTargetsAll ?? []) {
+          if (!r?.id || !r?.name) continue;
+          if (r.type === 'project') nameLookup.projectName![r.id] = r.name;
+          else if (r.type === 'large_project') nameLookup.largeProjectName![r.id] = r.name;
+          else if (r.type === 'booking') nameLookup.bookingName![r.id] = r.name;
+          else if (r.type === 'warehouse' || r.type === 'organization_location') {
+            nameLookup.locationName![r.id] = r.name;
+          }
+        }
+
+        const ltWorkTargets = (resolvedTargetsAll ?? [])
+          .map(toWorkTarget)
+          .filter((t: any) => !!t);
+
+        // 5) buildLocationTruthTimeline
+        const ltTimeline = buildLocationTruthTimeline({
+          staffId,
+          organizationId: orgId,
+          date,
+          gpsPings: ltPings,
+          resolvedTargets: ltWorkTargets,
+          locations: extraLocations,
+          privateResidenceLocations,
+          assignments: [],
+          stockholmDayWindow: { startUtc: dayStart, endUtc: dayEnd },
+        });
+
+        // 6) buildTransportFromLocationTruth
+        const ltTransport = buildTransportFromLocationTruth({
+          locationTruthSegments: ltTimeline.segments,
+        });
+
+        // 7) buildReportBlocksFromLocationTruth
+        const ltReport = buildReportBlocksFromLocationTruth({
+          locationTruthSegments: ltTimeline.segments,
+          transportSegments: ltTransport.transportSegments,
+          nameLookup,
+        });
+
+        // 8) enforceSingleVisibleTimeline
+        const ltSingle = enforceSingleVisibleTimeline(ltReport.reportBlocks);
+
+        // 9) cleanupNeedsReviewFromLocationTruth
+        const ltCleanup = cleanupNeedsReviewFromLocationTruth(ltSingle.blocks);
+
+        // 10) decideDayEndFromLocationTruth — uses active timer ONLY for
+        //     start/stop window, never for target/label.
+        const ltDayEnd = decideDayEndFromLocationTruth({
+          date,
+          staffId,
+          stockholmDayWindow: { startUtc: dayStart, endUtc: dayEnd },
+          locationTruthSegments: ltTimeline.segments,
+          transportSegments: ltTransport.transportSegments,
+          activeTimer: openReg
+            ? {
+                startedAt: openReg.started_at ?? null,
+                stoppedAt: openReg.stopped_at ?? null,
+                status: (openReg.status ?? 'active') as any,
+              }
+            : null,
+          isHistorical: dayEnd < nowIso,
+          lastGpsPingAt: pings[pings.length - 1]?.ts ?? null,
+        });
+
+        locationTruthResult = {
+          segments: ltTimeline.segments,
+          transportSegments: ltTransport.transportSegments,
+          reportBlocks: ltCleanup.blocks,
+          dayEndDecision: ltDayEnd.decision,
+          diagnostics: {
+            ...ltTimeline.diagnostics,
+            transport: ltTransport.diagnostics,
+            internalMovementsAbsorbed: ltTransport.internalMovementAbsorptions,
+            label: ltReport.diagnostics,
+            singleTimeline: ltSingle.diagnostics,
+            needsReviewCleanup: ltCleanup.diagnostics,
+            dayEnd: ltDayEnd.diagnostics,
+          },
+        };
+      } catch (e: any) {
+        locationTruthError = e?.message ?? String(e);
+        console.error('[presence-day] locationTruth pipeline failed', e);
+      }
     } catch (e: any) {
       reportCandidateError = e?.message ?? String(e);
       console.error('[presence-day] buildReportCandidateBlocks failed', e);
