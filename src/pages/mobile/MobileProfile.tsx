@@ -26,21 +26,32 @@ const MobileProfile = () => {
   // Lokala reduce över time_reports/travel_time_logs är förbjudna här.
   const { status: monthStatus, isLoading: isLoadingMonth } = useStaffMonthStatus(startOfMonth(new Date()));
   const { t, locale, setLocale } = useLanguage();
-  const { current: currentWorkday } = useWorkDay();
+  // Timer 1.8 — single source of truth: active_time_registrations via
+  // useActiveTimerStatus. Inga useWorkDay/useWorkSession-imports.
+  const { timerActive } = useActiveTimerStatus(!!staff);
   const [endDayConfirm, setEndDayConfirm] = useState(false);
+  const [endingDay, setEndingDay] = useState(false);
 
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
-  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
+  const workdayOpen = timerActive;
 
-  const handleEndDay = () => {
+  const handleEndDay = async () => {
     if (!endDayConfirm) {
       setEndDayConfirm(true);
       window.setTimeout(() => setEndDayConfirm(false), 4000);
       return;
     }
     setEndDayConfirm(false);
-    window.dispatchEvent(new CustomEvent('request-end-day'));
+    setEndingDay(true);
+    try {
+      await mobileApi.stopTimeRegistration({ stop_source: 'user_manual' });
+      window.dispatchEvent(new CustomEvent('timer-state-changed'));
+    } catch (e) {
+      console.error('[MobileProfile] stopTimeRegistration failed', e);
+    } finally {
+      setEndingDay(false);
+    }
   };
 
   const handleLogout = () => {
