@@ -1924,7 +1924,21 @@ export function buildGpsDayTimeline(
     }
   }
 
-  // Aggregated diagnostic: remaining travel/transport segments that still
+  // ── Time Engine — absorb unknown_place stays into surrounding sticky owner.
+  // Closes rule #6: "Om ett okänt block ligger mellan två block med samma
+  // target, absorbera det." Pure post-pass, mutates segments in place.
+  const absorbDiagnostics: AbsorbDiagnostics = absorbUnknownStayIntoOwner(segments, input.targets);
+  if (absorbDiagnostics.absorbedUnknownStaysCount > 0) {
+    knownSite += absorbDiagnostics.absorbedUnknownStaysCount;
+    unknownPlace = Math.max(0, unknownPlace - absorbDiagnostics.absorbedUnknownStaysCount);
+    for (const ex of absorbDiagnostics.absorbedExamples) {
+      // also bump uniqueTargetsHit to keep summary truthful
+      const t = input.targets.find((tt) => tt.refId === ex.targetId);
+      if (t) targetsHit.add(t.key);
+    }
+  }
+
+
   // sit inside 1km of the (last seen) sticky target. These are warnings the
   // health-check surfaces.
   let remainingTransportNearStickyCount = 0;
