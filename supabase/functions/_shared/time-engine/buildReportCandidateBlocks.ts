@@ -780,6 +780,11 @@ export interface BuildReportCandidateBlocksInput {
       classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
     }>;
   } | null;
+  /** Faktisk arbetsstart från workday/timer/rapport. När satt används den som
+   *  auktoritativ pre-work-klippgräns före första GPS-bekräftade work-target,
+   *  så midnatts-GPS på känd plats inte visas som arbete om arbetsdagen
+   *  faktiskt började senare. */
+  actualWorkStartIso?: ISODateTime | null;
   policy?: ReportCandidatePolicy;
 }
 
@@ -803,6 +808,7 @@ export interface PreWorkExclusionDiagnostics {
   excludedPreWorkBlocksCount: number;
   firstPrimaryWorkAt: ISODateTime | null;
   firstPrimaryTargetLabel: string | null;
+  actualWorkStartAt?: ISODateTime | null;
   excludedReasons: Record<string, number>;
   examples: PreWorkExclusionExample[];
   /** How many home anchors were supplied for this staff/day. */
@@ -2075,6 +2081,7 @@ export function buildReportCandidateBlocks(
     excludedPreWorkBlocksCount: 0,
     firstPrimaryWorkAt: null,
     firstPrimaryTargetLabel: null,
+    actualWorkStartAt: input.actualWorkStartIso ?? null,
     excludedReasons: {},
     examples: [],
     homeAnchorsCount: input.homeAnchors?.length ?? 0,
@@ -2110,12 +2117,34 @@ export function buildReportCandidateBlocks(
     }
   };
 
-  const firstPrimaryIdx = out.findIndex((r) => r.kind === 'work' && !!r.targetId);
-  if (firstPrimaryIdx > 0) {
+  const actualWorkStartMs = input.actualWorkStartIso
+    ? new Date(input.actualWorkStartIso).getTime()
+    : null;
+  let firstPrimaryIdx = out.findIndex((r) => r.kind === 'work' && !!r.targetId);
+  if (actualWorkStartMs != null) {
+    const firstBlockAtOrAfterActual = out.findIndex((r) => new Date(r.endAt).getTime() > actualWorkStartMs);
+    if (firstBlockAtOrAfterActual >= 0 && (firstPrimaryIdx < 0 || firstBlockAtOrAfterActual < firstPrimaryIdx)) {
+      firstPrimaryIdx = firstBlockAtOrAfterActual;
+    }
+  }
+  if (firstPrimaryIdx >= 0) {
     const firstPrimary = out[firstPrimaryIdx];
-    preWorkExclusionDiagnostics.firstPrimaryWorkAt = firstPrimary.startAt;
+    const primaryStartMs = new Date(firstPrimary.startAt).getTime();
+    const primaryEndMs = new Date(firstPrimary.endAt).getTime();
+    const effectiveBoundaryMs = actualWorkStartMs != null ? actualWorkStartMs : primaryStartMs;
+    const effectiveBoundaryIso = new Date(effectiveBoundaryMs).toISOString();
+    if (effectiveBoundaryMs > primaryStartMs && effectiveBoundaryMs < primaryEndMs) {
+      firstPrimary.startAt = effectiveBoundaryIso;
+      firstPrimary.durationMinutes = minutesBetween(firstPrimary.startAt, firstPrimary.endAt);
+      firstPrimary.durationLabel = fmtDuration(firstPrimary.durationMinutes);
+      firstPrimary.subtitle = `${fmtClock(firstPrimary.startAt)}–${fmtClock(firstPrimary.endAt)} · ${fmtDuration(firstPrimary.durationMinutes)}`;
+      if (firstPrimary.firstConfirmedAt && new Date(firstPrimary.firstConfirmedAt).getTime() < effectiveBoundaryMs) {
+        firstPrimary.firstConfirmedAt = effectiveBoundaryIso;
+      }
+    }
+    preWorkExclusionDiagnostics.firstPrimaryWorkAt = effectiveBoundaryIso;
     preWorkExclusionDiagnostics.firstPrimaryTargetLabel = firstPrimary.targetLabel;
-    const noWorkBeforeNoon = stockholmHour(firstPrimary.startAt) >= 12;
+    const noWorkBeforeNoon = stockholmHour(effectiveBoundaryIso) >= 12;
 
     const keep: boolean[] = new Array(firstPrimaryIdx).fill(true);
     for (let k = 0; k < firstPrimaryIdx; k++) {
@@ -2134,6 +2163,10 @@ export function buildReportCandidateBlocks(
         }
       }
 
+      if (!reason && actualWorkStartMs != null && new Date(r.endAt).getTime() <= actualWorkStartMs) {
+        reason = 'before_first_primary_work_target';
+      }
+
       if (!reason) {
         if (noWorkBeforeNoon) {
           reason = 'no_workplace_before_noon';
@@ -2146,7 +2179,7 @@ export function buildReportCandidateBlocks(
         } else if (r.kind === 'transport') {
           const isImmediatelyBefore = k === firstPrimaryIdx - 1;
           const gapMin =
-            (new Date(firstPrimary.startAt).getTime() - new Date(r.endAt).getTime()) / 60_000;
+            (effectiveBoundaryMs - new Date(r.endAt).getTime()) / 60_000;
           const anchored =
             isImmediatelyBefore &&
             gapMin <= 5 &&
