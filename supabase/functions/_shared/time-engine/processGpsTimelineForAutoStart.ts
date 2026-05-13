@@ -332,9 +332,42 @@ export async function processGpsTimelineForAutoStart(
   // day. Manual start via WorkDayPanel bypasses this (it goes through
   // start_time_registration directly, not through this engine).
   const nowIso = input.localTime ?? new Date().toISOString();
-  const suppression = await fetchActiveSuppression(
+  let suppression = await fetchActiveSuppression(
     supabaseAdmin, organizationId, staffId, date, nowIso,
   );
+
+  // 3c) Day-already-stopped lock — covers AUTO stops as well.
+  // If we have NO active row but the latest registration for this local day
+  // is `status='stopped'`, the day is over and GPS must NOT reopen it.
+  // Diagnostics keys: dayWasAlreadyStopped, preventedLegacyReopen,
+  // activeRegistrationStatus, stopSource, finalDayEnd.
+  let dayStoppedSynth: {
+    registrationId: UUID;
+    stoppedAt: ISODateTime;
+    stopSource: string | null;
+    stoppedBy: string | null;
+  } | null = null;
+  if (!active && !suppression) {
+    const lastStopped = await fetchLatestStoppedRegistrationForLocalDate(
+      supabaseAdmin, organizationId, staffId, date,
+    );
+    if (lastStopped) {
+      dayStoppedSynth = {
+        registrationId: lastStopped.id,
+        stoppedAt: lastStopped.stoppedAt,
+        stopSource: lastStopped.stopSource,
+        stoppedBy: lastStopped.stoppedBy,
+      };
+      // Synthesize a suppression so the existing block below short-circuits
+      // identically and emits per-candidate decisions for the debug surface.
+      suppression = {
+        id: lastStopped.id,
+        suppressedUntil: nowIso, // virtual — we recompute on each call
+        reason: 'day_already_stopped',
+        source: lastStopped.stopSource ?? 'system_day_stop',
+      };
+    }
+  }
 
   // 4) Decide on relevant stay segments
   const candidates = timeline.segments.filter(
@@ -344,8 +377,10 @@ export async function processGpsTimelineForAutoStart(
   let createdRegistrationId: UUID | null = null;
 
   // If suppression is active we still emit one decision per candidate so the
-  // health check / debug surface clearly shows `blocked_user_ended_workday`,
-  // but we never insert a registration row.
+  // health check / debug surface clearly shows the block reason, but we never
+  // insert a registration row.
+  const suppressionReasonForDecisions: 'blocked_user_ended_workday' | 'blocked_day_already_stopped' =
+    dayStoppedSynth ? 'blocked_day_already_stopped' : 'blocked_user_ended_workday';
   if (suppression) {
     for (const seg of candidates) {
       const target = findTargetForSegment(seg, resolvedTargets);
