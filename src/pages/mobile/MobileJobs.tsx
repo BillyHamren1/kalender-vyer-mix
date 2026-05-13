@@ -6,7 +6,7 @@ import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
 import { HeaderShell } from '@/components/mobile-app/MobileHeader';
-import CompactWorkDayTimer from '@/components/mobile-app/CompactWorkDayTimer';
+import { Clock } from 'lucide-react';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
