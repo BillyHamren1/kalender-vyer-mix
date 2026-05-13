@@ -146,7 +146,7 @@ export async function buildTimerOwnershipDiagnostics(args: {
       .order('recorded_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (ping?.recorded_at) out.lastGpsPingAt = ping.recorded_at as string;
+    if (ping && (ping as any).recorded_at) out.lastGpsPingAt = (ping as any).recorded_at as string;
   } catch (_) { /* ignore */ }
 
   // --- 3) Home / private-zone presence (curated or inferred) ---
