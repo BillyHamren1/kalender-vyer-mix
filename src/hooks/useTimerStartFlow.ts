@@ -291,9 +291,6 @@ export function useTimerStartFlow(
         })
         .catch(() => {});
       // SINGLE-TIMER POLICY: returnera 'already_running' tyst.
-      // Inget toast, inga off-site-flaggor (admin avgör från tidslinjen),
-      // ingen gap-travel (admin markerar resor från GPS-segment).
-      void ok; // keep for future toggling
       return 'already_running';
     },
     [userPosition, ensureWorkDayActive],
