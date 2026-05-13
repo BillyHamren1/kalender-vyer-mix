@@ -383,6 +383,85 @@ async function loadStaffPrivateZones(
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto-start decline log loader (user said "no" to a prior arrival prompt).
+// Mobile app owns only day start/stop. GPS/geofence is evidence only.
+// A decline row hard-blocks GPS auto-start for the same staff/day/target
+// (or geographic point) until expires_at. Manual start bypasses entirely.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AutoStartDecline {
+  id: string;
+  targetType: string | null;
+  targetId: string | null;
+  lat: number | null;
+  lng: number | null;
+  radiusM: number | null;
+  expiresAt: ISODateTime;
+}
+
+async function loadAutoStartDeclines(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+  date: ISODate,
+  nowIso: ISODateTime,
+): Promise<AutoStartDecline[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('auto_start_decline_log')
+      .select('id, target_type, target_id, lat, lng, radius_m, expires_at')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .eq('local_date', date)
+      .eq('response', 'declined')
+      .gt('expires_at', nowIso);
+    if (error) {
+      console.warn('[time-engine] loadAutoStartDeclines failed:', error.message);
+      return [];
+    }
+    return (data || []).map((r: any) => ({
+      id: r.id as string,
+      targetType: (r.target_type as string | null) ?? null,
+      targetId: (r.target_id as string | null) ?? null,
+      lat: r.lat != null ? Number(r.lat) : null,
+      lng: r.lng != null ? Number(r.lng) : null,
+      radiusM: r.radius_m != null ? Number(r.radius_m) : null,
+      expiresAt: r.expires_at as ISODateTime,
+    }));
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * Returns the matching decline (target match wins over geographic match).
+ */
+function findMatchingDecline(
+  target: ResolvedWorkTarget | null,
+  segPoint: { lat: number; lng: number } | null,
+  declines: AutoStartDecline[],
+): { decline: AutoStartDecline; matchedTarget: boolean; matchedRadiusMeters: number | null } | null {
+  if (declines.length === 0) return null;
+  if (target) {
+    const t = declines.find(
+      (d) => d.targetId && d.targetId === target.id && (!d.targetType || d.targetType === target.type),
+    );
+    if (t) return { decline: t, matchedTarget: true, matchedRadiusMeters: null };
+  }
+  if (segPoint) {
+    for (const d of declines) {
+      if (d.lat == null || d.lng == null) continue;
+      const r = d.radiusM ?? 150;
+      const dist = haversineMeters(segPoint, { lat: d.lat, lng: d.lng });
+      if (dist <= r) {
+        return { decline: d, matchedTarget: false, matchedRadiusMeters: Math.round(r) };
+      }
+    }
+  }
+  return null;
+}
+
 function haversineMeters(
   a: { lat: number; lng: number },
   b: { lat: number; lng: number },
