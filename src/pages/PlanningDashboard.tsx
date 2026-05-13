@@ -20,7 +20,7 @@ import DashboardUpdatedBookings from "@/components/dashboard/DashboardUpdatedBoo
 import DashboardCancelledBookings from "@/components/dashboard/DashboardCancelledBookings";
 import DashboardAllProjects from "@/components/dashboard/DashboardAllProjects";
 
-import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
+import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 
 const PlanningDashboard = () => {
