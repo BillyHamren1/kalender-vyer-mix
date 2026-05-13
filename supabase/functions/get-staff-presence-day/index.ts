@@ -267,17 +267,20 @@ Deno.serve(async (req) => {
   for (const t of timers ?? []) {
     const meta = (t.metadata as any) ?? {};
     const evidence = meta.evidence ?? {};
-    const targetType = t.current_target_type ?? t.start_target_type ?? null;
-    const targetId = t.current_target_id ?? t.start_target_id ?? null;
-    const label = t.current_label ?? t.start_target_label ?? targetType ?? 'Aktivitet';
+    // Timer 1.7 — active_time_registration är bara dagfönster.
+    // Target-fält (start_target_*, current_*) är diagnostic-only och får
+    // ALDRIG användas som work target av Time Engine. Vi bevarar dem inte
+    // i timeline/markers längre — projekt/plats kommer från GPS/geofence/
+    // assignment/location/session.
+    const diagnosticLabel = 'Arbetsdag';
     if (t.started_at && t.started_at >= dayStart && t.started_at <= dayEnd) {
       timeline.push({
         at: t.started_at,
         type: 'active_timer_started',
-        label: `Timer startad (${label})`,
-        targetType,
-        targetId,
-        targetLabel: label,
+        label: 'Arbetsdag startad',
+        targetType: null,
+        targetId: null,
+        targetLabel: null,
         registrationId: t.id,
         confidence: null,
         source: t.start_source ?? evidence.engine ?? 'time-engine',
@@ -287,9 +290,9 @@ Deno.serve(async (req) => {
         id: `tm-start-${t.id}`,
         kind: 'started',
         at: t.started_at,
-        label: `Timer: ${label}`,
-        targetType,
-        targetId,
+        label: 'Arbetsdag startad',
+        targetType: null,
+        targetId: null,
         registrationId: t.id,
         source: t.start_source ?? evidence.engine ?? 'time-engine',
       });
@@ -298,10 +301,10 @@ Deno.serve(async (req) => {
       timeline.push({
         at: t.stopped_at,
         type: 'active_timer_stopped',
-        label: `Timer stoppad (${t.stop_source ?? 'okänd'})`,
-        targetType,
-        targetId,
-        targetLabel: label,
+        label: `Arbetsdag stoppad (${t.stop_source ?? 'okänd'})`,
+        targetType: null,
+        targetId: null,
+        targetLabel: null,
         registrationId: t.id,
         confidence: null,
         source: t.stop_source ?? 'unknown',
@@ -310,9 +313,9 @@ Deno.serve(async (req) => {
         id: `tm-stop-${t.id}`,
         kind: 'stopped',
         at: t.stopped_at,
-        label: `Timer slut: ${label}`,
-        targetType,
-        targetId,
+        label: 'Arbetsdag slut',
+        targetType: null,
+        targetId: null,
         registrationId: t.id,
         source: t.stop_source ?? null,
       });
@@ -322,9 +325,9 @@ Deno.serve(async (req) => {
       activeTimerInfo = {
         id: t.id,
         startedAt: t.started_at,
-        label,
-        targetType,
-        targetId,
+        label: diagnosticLabel,
+        targetType: null,
+        targetId: null,
       };
     }
   }
@@ -755,10 +758,13 @@ Deno.serve(async (req) => {
           status: r.status ?? null,
           startSource: r.start_source ?? null,
           stopSource: r.stop_source ?? null,
-          targetType: r.start_target_type ?? null,
-          targetId: r.start_target_id ?? null,
-          targetLabel: r.start_target_label ?? null,
-          metadata: r.metadata ?? null,
+          autoStarted: r.auto_started ?? null,
+          // Timer 1.7 — target stripped (diagnostic only); active_time_registration
+          // is day window only and must not drive work attribution.
+          targetType: null,
+          targetId: null,
+          targetLabel: null,
+          metadata: { diagnostic_only: true, original_metadata: r.metadata ?? null },
         };
       });
       // Read-only home/sleep anchors for this staff. Used by report engine
@@ -806,15 +812,17 @@ Deno.serve(async (req) => {
       const openReg = (timers ?? []).find(
         (t: any) => !t.stopped_at && (t.status ?? '').toLowerCase() === 'active',
       );
+      // Timer 1.7 — active_time_registration är dagfönster, INTE target.
+      // Strippa target-fälten innan vi skickar in i Time Engine. Builder
+      // får inte använda dem för work attribution / synth-block / extension.
       const openActiveRegistration = openReg
         ? {
             registrationId: openReg.id,
             startedAtIso: openReg.started_at,
-            targetType: openReg.current_target_type ?? openReg.start_target_type ?? null,
-            targetId: openReg.current_target_id ?? openReg.start_target_id ?? null,
-            targetLabel:
-              openReg.current_label ?? openReg.start_target_label ?? null,
-            currentLabel: openReg.current_label ?? null,
+            targetType: null,
+            targetId: null,
+            targetLabel: null,
+            currentLabel: null,
           }
         : null;
 

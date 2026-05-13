@@ -441,7 +441,8 @@ export interface ReportCandidateSummary {
         | 'stale_evidence_open_timer_not_extended'
         | 'block_prevented_from_continuing_to_now'
         | 'historical_date_synthetic_block_skipped'
-        | 'stale_evidence_synthetic_block_skipped';
+        | 'stale_evidence_synthetic_block_skipped'
+        | 'active_day_timer_open_without_place_evidence';
       activeTimerStart: ISODateTime;
       activeTimerTarget: string | null;
       anchorEndBefore: ISODateTime | null;
@@ -2320,7 +2321,44 @@ export function buildReportCandidateBlocks(
 
 
   const openCtx = input.openActiveRegistration ?? null;
-  if (openCtx && openCtx.startedAtIso) {
+  // ─────────────────────────────────────────────────────────────────────
+  // Timer 1.7 — active_time_registration är BARA dagfönster.
+  // Den får inte:
+  //   - skapa work-block (inte ens synthetic open_active_timer_anchor)
+  //   - förlänga work-block mot now/dayEnd
+  //   - adoptera target på existerande block
+  //   - vinna över GPS/geofence/assignment/location/session evidence
+  // Den får BARA användas som:
+  //   - dayStartWindow / dayStopWindow
+  //   - suppress auto-start after manual stop
+  //   - isActive/live indicator i diagnostics
+  //
+  // Caller (get-staff-presence-day) strippar target-fält från openCtx
+  // sedan Timer 1.7. Som defensiv guard kortsluter vi POST-PASS 4 om
+  // openCtx saknar targetId — och om dagtimern är öppen utan färsk
+  // engine-evidence skriver vi diagnostic 'active_day_timer_open_without_place_evidence'.
+  // ─────────────────────────────────────────────────────────────────────
+  if (openCtx && !openCtx.targetId) {
+    openTimerClampDiag.activeTimersSeen += 1;
+    const startedMsDiag = openCtx.startedAtIso ? new Date(openCtx.startedAtIso).getTime() : NaN;
+    const hasFreshEvidenceAfterStart =
+      Number.isFinite(startedMsDiag) &&
+      Number.isFinite(lastFreshEvidenceMs) &&
+      lastFreshEvidenceMs >= startedMsDiag;
+    if (!hasFreshEvidenceAfterStart) {
+      pushClampExample({
+        reason: 'active_day_timer_open_without_place_evidence',
+        activeTimerStart: openCtx.startedAtIso,
+        activeTimerTarget: null,
+        anchorEndBefore: null,
+        anchorEndAfter: null,
+        lastFreshEvidenceAtIso: input.lastFreshEvidenceAtIso ?? null,
+        stockholmDayEndUtc: new Date(stockholmDayWindowAll.endUtcMs).toISOString(),
+      });
+    }
+    // Hoppa hela POST-PASS 4 — ingen synth, ingen extension, ingen adopt.
+  } else if (openCtx && openCtx.startedAtIso) {
+
     openTimerClampDiag.activeTimersSeen += 1;
     const startedMs = new Date(openCtx.startedAtIso).getTime();
     // Time Engine 4.2 — Europe/Stockholm dagsfönster (inte UTC `T23:59:59Z`).
