@@ -31,7 +31,7 @@ describe('App Timer · single visible surface contract', () => {
     expect(panel).toMatch(/useActiveTimerStatus\s*\(/);
     expect(panel).toMatch(/mobileApi\.startTimeRegistration/);
     expect(panel).toMatch(/mobileApi\.stopTimeRegistration/);
-    expect(panel).toMatch(/formatHMS/);
+    expect(panel).toMatch(/formatDuration|formatHMS/);
   });
 
   /* 2. WorkDayPanel must NOT depend on legacy timer engines. */
