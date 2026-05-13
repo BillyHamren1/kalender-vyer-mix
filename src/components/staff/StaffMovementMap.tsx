@@ -130,12 +130,10 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
             },
           });
 
-          // Show every ping as an individual dot+time label. We do NOT cluster
-          // into "N pings"-bubbles — admins always want to see the actual time
-          // for each visible ping. When zoomed out, Mapbox automatically hides
-          // overlapping time labels (text-allow-overlap=false), which naturally
-          // thins the visible set while every shown ping still carries its
-          // real time. Zooming in reveals more labels.
+          // Två lager: alla pings ritas alltid som små prickar (allow-overlap),
+          // medan tids-labels följer collision-rules och tunnas ut vid utzoomning.
+          // Det säkerställer att alla 300+ stationära pings syns visuellt även när
+          // labels inte ryms.
           map.current.addSource('pings', {
             type: 'geojson',
             cluster: false,
@@ -150,26 +148,34 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
               })),
             },
           });
-          // ETT enda symbol-lager för både prick och tid. När Mapbox
-          // collision-hider en label så försvinner pricken med — så det
-          // ritas ALDRIG en prick utan en synlig tid bredvid.
-          // Pricken är en bullet ovanför tiden i samma text-field.
+          // Prick-lagret: alltid synligt, ingen collision.
           map.current.addLayer({
             id: 'ping-dots',
+            type: 'circle',
+            source: 'pings',
+            paint: {
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 3, 17, 4],
+              'circle-color': 'hsl(217, 91%, 45%)',
+              'circle-stroke-color': 'hsl(0, 0%, 100%)',
+              'circle-stroke-width': 1,
+              'circle-opacity': 0.9,
+            },
+          });
+          // Tids-label: collision-baserad utgallring (text-optional behåller pricken).
+          map.current.addLayer({
+            id: 'ping-times',
             type: 'symbol',
             source: 'pings',
             layout: {
-              'text-field': ['concat', '●\n', ['get', 'time']],
-              'text-size': ['step', ['zoom'], 11, 14, 12],
-              'text-line-height': 1,
-              'text-anchor': 'center',
-              'text-justify': 'center',
+              'text-field': ['get', 'time'],
+              'text-size': ['step', ['zoom'], 10, 14, 11],
+              'text-anchor': 'top',
+              'text-offset': [0, 0.6],
               'text-allow-overlap': false,
               'text-ignore-placement': false,
-              'text-optional': false,
-              'text-padding': 4,
+              'text-optional': true,
+              'text-padding': 6,
               'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-              'symbol-sort-key': ['get', 'tsec'],
             },
             paint: {
               'text-color': 'hsl(0, 0%, 15%)',
