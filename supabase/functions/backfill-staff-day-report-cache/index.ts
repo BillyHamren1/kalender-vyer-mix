@@ -45,6 +45,7 @@ import { loadGeoAnchors } from '../_shared/time-engine/loadGeoAnchors.ts';
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
+import { resolveActualWorkStartIso } from '../_shared/time-engine/resolveActualWorkStart.ts';
 import { enrichReportBlocksForCache } from '../_shared/time-engine/enrichReportBlocksForCache.ts';
 import { computeDayEndDecision } from '../_shared/time-engine/computeDayEndDecision.ts';
 import { clampBlocksToDayEndDecision } from '../_shared/time-engine/clampBlocksToDayEndDecision.ts';
