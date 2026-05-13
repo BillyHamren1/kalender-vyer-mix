@@ -758,10 +758,13 @@ Deno.serve(async (req) => {
           status: r.status ?? null,
           startSource: r.start_source ?? null,
           stopSource: r.stop_source ?? null,
-          targetType: r.start_target_type ?? null,
-          targetId: r.start_target_id ?? null,
-          targetLabel: r.start_target_label ?? null,
-          metadata: r.metadata ?? null,
+          autoStarted: r.auto_started ?? null,
+          // Timer 1.7 — target stripped (diagnostic only); active_time_registration
+          // is day window only and must not drive work attribution.
+          targetType: null,
+          targetId: null,
+          targetLabel: null,
+          metadata: { diagnostic_only: true, original_metadata: r.metadata ?? null },
         };
       });
       // Read-only home/sleep anchors for this staff. Used by report engine
