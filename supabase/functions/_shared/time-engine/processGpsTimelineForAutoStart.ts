@@ -86,7 +86,8 @@ export interface AutoStartDecisionLogEntry {
     | 'target_not_valid_for_autostart'
     | 'already_active_registration'
     | 'duplicate_segment'
-    | 'inside_private_residence';
+    | 'inside_private_residence'
+    | 'user_declined_today';
   /**
    * Home-wins-over-work diagnostics for this segment. Populated when the
    * candidate sits inside a staff private zone (home / private_residence /
