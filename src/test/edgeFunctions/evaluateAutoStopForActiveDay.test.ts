@@ -67,11 +67,11 @@ describe('evaluateAutoStopForActiveDay', () => {
         targetId: 'loc-1',
         label: 'Lager',
         enteredAtIso: '2026-05-13T16:00:00Z',
-        exitedAtIso: '2026-05-13T17:10:00Z',
+        exitedAtIso: '2026-05-13T17:10:00.000Z',
         lat: 59.40, lng: 17.95,
       }],
       pingsAfterLastAnchor: [
-        { recordedAtIso: '2026-05-13T17:15:00Z', lat: 59.30, lng: 18.10 },
+        { recordedAtIso: '2026-05-13T17:15:00.000Z', lat: 59.30, lng: 18.10 },
         { recordedAtIso: '2026-05-13T17:45:00Z', lat: 59.30, lng: 18.10 },
         { recordedAtIso: '2026-05-13T18:30:00Z', lat: 59.30, lng: 18.10 },
         { recordedAtIso: '2026-05-13T18:55:00Z', lat: 59.30, lng: 18.10 },
@@ -83,7 +83,7 @@ describe('evaluateAutoStopForActiveDay', () => {
     if (r.stop) {
       expect(r.stopSource).toBe('gps_home_auto_stop');
       // Backdatas till firstHomeHit = 17:15 (efter exit 17:10).
-      expect(r.stopAtIso).toBe('2026-05-13T17:15:00Z');
+      expect(r.stopAtIso).toBe('2026-05-13T17:15:00.000Z');
       expect(r.diagnostics.homeDetected).toBe(true);
     }
   });
@@ -98,7 +98,7 @@ describe('evaluateAutoStopForActiveDay', () => {
         targetId: 'loc-1',
         label: 'Lager',
         enteredAtIso: '2026-05-13T16:00:00Z',
-        exitedAtIso: '2026-05-13T17:10:00Z',
+        exitedAtIso: '2026-05-13T17:10:00.000Z',
         lat: 59.40, lng: 17.95,
       }],
       pingsAfterLastAnchor: [
@@ -113,7 +113,7 @@ describe('evaluateAutoStopForActiveDay', () => {
     if (r.stop) {
       expect(r.stopSource).toBe('gps_left_last_workplace_auto_stop');
       // Backdatas till exit-tiden 17:10.
-      expect(r.stopAtIso).toBe('2026-05-13T17:10:00Z');
+      expect(r.stopAtIso).toBe('2026-05-13T17:10:00.000Z');
       expect(r.diagnostics.idleAfterWorkMinutes).toBe(95);
     }
   });
@@ -210,10 +210,10 @@ describe('evaluateAutoStopForActiveDay', () => {
           exitedAtIso: '2026-05-13T15:30:00Z' },
         { kind: 'warehouse', targetId: 'loc-1', label: 'Lager', lat: 59.40, lng: 17.95,
           enteredAtIso: '2026-05-13T16:00:00Z',
-          exitedAtIso: '2026-05-13T17:10:00Z' },
+          exitedAtIso: '2026-05-13T17:10:00.000Z' },
       ],
       pingsAfterLastAnchor: [
-        { recordedAtIso: '2026-05-13T17:15:00Z', lat: 59.30, lng: 18.10 },
+        { recordedAtIso: '2026-05-13T17:15:00.000Z', lat: 59.30, lng: 18.10 },
         { recordedAtIso: '2026-05-13T18:00:00Z', lat: 59.30, lng: 18.10 },
         { recordedAtIso: '2026-05-13T18:55:00Z', lat: 59.30, lng: 18.10 },
       ],
@@ -224,7 +224,7 @@ describe('evaluateAutoStopForActiveDay', () => {
     if (r.stop) {
       // Måste backdates till EFTER lager-exit, inte till projekt-exit.
       expect(new Date(r.stopAtIso).getTime()).toBeGreaterThanOrEqual(
-        new Date('2026-05-13T17:10:00Z').getTime(),
+        new Date('2026-05-13T17:10:00.000Z').getTime(),
       );
       expect(r.diagnostics.lastWorkAnchor?.kind).toBe('warehouse');
     }
