@@ -327,6 +327,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const watchIdRef = useRef<number | null>(null);
   const triggeredEnterRef = useRef<Set<string>>(new Set());
   const triggeredExitRef = useRef<Set<string>>(new Set());
+  // Private-residence "kill switch" — minns vilka hemzoner vi redan har
+  // dispatchat End-Of-Day för under aktuellt besök. Rensas vid utträde.
+  const triggeredHomeEndDayRef = useRef<Set<string>>(new Set());
   const lastLocationReportRef = useRef<number>(0);
   const staffIdRef = useRef(staffId);
   const activeTimersRef = useRef(activeTimers);
