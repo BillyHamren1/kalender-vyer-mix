@@ -1,10 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Play, Square, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
-import { useMobileBookings } from '@/hooks/useMobileData';
-import { useGeofencingContextOptional } from '@/contexts/GeofencingContext';
 import { mobileApi } from '@/services/mobileApiService';
 import StartDayDialog, { type StartDaySelection } from './StartDayDialog';
 
@@ -21,21 +19,12 @@ const formatDuration = (totalSeconds: number) => {
 
 const CompactWorkDayTimer: React.FC = () => {
   const { staff } = useMobileAuth();
-  const { data: bookings = [] } = useMobileBookings();
-  const geo = useGeofencingContextOptional();
   const { data: timer, refresh } = useActiveTimerStatus(!!staff);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
 
-  const startDayLocations = useMemo(
-    () =>
-      (geo?.orgLocations ?? [])
-        .filter((loc: any) => loc.show_as_project === true)
-        .map((loc: any) => ({ id: loc.id, name: loc.name, address: loc.address ?? null })),
-    [geo?.orgLocations],
-  );
 
   const notifyChanged = () => {
     window.dispatchEvent(new Event('timer-state-changed'));
@@ -67,30 +56,16 @@ const CompactWorkDayTimer: React.FC = () => {
   const handleDialogConfirm = async (selection: StartDaySelection) => {
     setStarting(true);
     try {
-      if (selection.kind === 'target') {
-        const t = selection.target as any;
-        let target_type: 'booking' | 'large_project' | 'location' | null = null;
-        let target_id: string | null = null;
-        if (t.kind === 'project' && t.largeProjectId) {
-          target_type = 'large_project'; target_id = t.largeProjectId;
-        } else if (t.kind === 'booking' && t.bookingId) {
-          target_type = 'booking'; target_id = t.bookingId;
-        } else if (t.kind === 'location' && t.locationId) {
-          target_type = 'location'; target_id = t.locationId;
-        }
-        if (!target_type || !target_id) { toast.error('Ogiltigt mål.'); return; }
-        const res = await mobileApi.startTimeRegistration({
-          started_at: selection.startedAtIso,
-          target_type,
-          target_id,
-        });
-        if (res?.success === false) { toast.error('Kunde inte starta arbetsdagen.'); return; }
-        toast.success(`Arbetsdag startad på ${selection.label}`);
-        notifyChanged();
-        setDialogOpen(false);
+      const res = await mobileApi.startTimeRegistration({
+        started_at: selection.startedAtIso,
+      });
+      if (res?.success === false) {
+        toast.error('Kunde inte starta arbetsdagen.');
         return;
       }
-      toast.error('Välj projekt eller plats.');
+      toast.success('Arbetsdag startad');
+      notifyChanged();
+      setDialogOpen(false);
     } finally {
       setStarting(false);
     }
@@ -116,8 +91,6 @@ const CompactWorkDayTimer: React.FC = () => {
           open={dialogOpen}
           onClose={() => setDialogOpen(false)}
           onConfirm={handleDialogConfirm}
-          bookings={bookings}
-          locations={startDayLocations}
           starting={starting}
         />
       </>
