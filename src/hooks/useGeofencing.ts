@@ -1275,6 +1275,36 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       const locKey = `location-${loc.id}`;
       const hasTimer = activeTimers.has(locKey);
 
+      // ── PRIVATE RESIDENCE / HOME ZONE ────────────────────────────────
+      // Hemadresser (t.ex. "Boende - Vällsta") får ALDRIG bli arbetsplats:
+      //   • ingen auto-arrival/start
+      //   • ingen ankomst-prompt
+      //   • OM man går in i polygonen och har en aktiv timer/workday
+      //     → trigga End-Of-Day-flödet (banner stoppar timers, EOD-dialog).
+      // One-shot per besök: triggeredHomeEndDayRef rensas på utträde.
+      if (loc.is_private_residence === true) {
+        if (inside && accuracyOk) {
+          if (activeTimers.size > 0 && !triggeredHomeEndDayRef.current.has(locKey)) {
+            triggeredHomeEndDayRef.current.add(locKey);
+            console.log(`[Geofence] Inside private residence "${loc.name}" with ${activeTimers.size} active timer(s) → dispatching request-end-day`);
+            try {
+              window.dispatchEvent(new CustomEvent('request-end-day', {
+                detail: { reason: 'arrived_home', locationId: loc.id, locationName: loc.name },
+              }));
+              toast.message(`Hemma (${loc.name}) — avslutar dagen automatiskt`);
+            } catch (err) {
+              console.warn('[Geofence] failed to dispatch request-end-day for home zone:', err);
+            }
+          }
+        } else if (!inside) {
+          // Lämnat polygonen → tillåt ny end-day vid nästa hemkomst.
+          triggeredHomeEndDayRef.current.delete(locKey);
+        }
+        // Hoppa över alla auto-arrival/-start/-exit-grenar för denna location.
+        continue;
+      }
+
+
       // ENTER: CONFIDENCE-GATE — hysteresis + GPS accuracy gate (se ENTER-contract).
       // Låg confidence (dålig accuracy eller utanför hysteresis) → ingen autostart.
       if (
