@@ -126,8 +126,6 @@ export const WorkDayPanel: React.FC = () => {
           open={dialogOpen}
           onClose={() => setDialogOpen(false)}
           onConfirm={handleDialogConfirm}
-          bookings={bookings}
-          locations={startDayLocations}
           starting={starting}
         />
       </>
