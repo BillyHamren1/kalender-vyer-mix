@@ -267,6 +267,43 @@ export interface WorkAreaToleranceDiagnostics {
   }>;
 }
 
+/**
+ * Location Truth 1.4 — segment-build diagnostics.
+ * Shows how many merged ping-runs vs. raw segments, and the kind breakdown.
+ */
+export interface LocationSegmentDiagnostics {
+  segmentsCreatedCount: number;
+  mergedPingRunsCount: number;
+  unknownSegmentsCount: number;
+  privateResidenceSegmentsCount: number;
+  workLocationSegmentsCount: number;
+  examples: Array<{
+    ts: ISODateTime;
+    kind: LocationTruthSegmentKind;
+    label: string;
+    pingCount: number;
+    durationMin: number;
+  }>;
+}
+
+/**
+ * Location Truth 1.4 — gap bridging diagnostics.
+ * Tracks how many signal_gaps were bridged into the same place vs. left as
+ * standalone transition gaps for downstream layers.
+ */
+export interface LocationGapBridgeDiagnostics {
+  samePlaceGapsBridgedCount: number;
+  samePlaceGapMinutes: number;
+  transitionGapsCount: number;
+  unresolvedGapsCount: number;
+  examples: Array<{
+    ts: ISODateTime;
+    durationMin: number;
+    outcome: 'bridged_same_place' | 'transition_gap' | 'unresolved_gap';
+    bridgedSegmentLabel: string | null;
+  }>;
+}
+
 export interface LocationTruthDiagnostics {
   staffId: UUID;
   date: ISODate;
@@ -281,6 +318,8 @@ export interface LocationTruthDiagnostics {
   pingMatch: LocationPingMatchDiagnostics;
   privateResidenceMatch: PrivateResidenceMatchDiagnostics;
   workAreaTolerance: WorkAreaToleranceDiagnostics;
+  locationSegment: LocationSegmentDiagnostics;
+  locationGapBridge: LocationGapBridgeDiagnostics;
 }
 
 export interface BuildLocationTruthTimelineResult {
