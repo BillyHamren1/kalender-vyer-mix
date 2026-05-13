@@ -1145,6 +1145,19 @@ Deno.serve(async (req) => {
     reportCandidateSummary: reportCandidateResult?.summary ?? null,
     excludedPreWorkBlocks: reportCandidateResult?.excludedPreWorkBlocks ?? [],
     preWorkExclusionDiagnostics: reportCandidateResult?.preWorkExclusionDiagnostics ?? null,
+    // ── Location Truth pipeline output (1.2 → 1.7) ──
+    // Pure parallel pipeline. Read-only audit input for /staff-management/time-reports.
+    locationTruth: locationTruthResult
+      ? {
+          available: true,
+          segments: locationTruthResult.segments,
+          transportSegments: locationTruthResult.transportSegments,
+          reportBlocks: locationTruthResult.reportBlocks,
+          dayEndDecision: locationTruthResult.dayEndDecision,
+          diagnostics: locationTruthResult.diagnostics,
+          error: null,
+        }
+      : { available: false, error: locationTruthError },
     reportCandidateDiagnostics: reportCandidateResult
       ? {
           presenceDayBlocksCount: presenceDayBlocksResult?.blocks?.length ?? 0,
