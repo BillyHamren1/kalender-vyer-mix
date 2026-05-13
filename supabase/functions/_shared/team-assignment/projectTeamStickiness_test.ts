@@ -130,8 +130,14 @@ Deno.test('helper utför inga skrivningar', async () => {
 
 Deno.test('large project: exakt match på (phase, date) vinner', async () => {
   const supabase = makeSupabase({
-    large_project_bookings: [{ booking_id: 'b1' }, { booking_id: 'b2' }],
-    bookings: [{ id: 'b1' }, { id: 'b2' }],
+    large_project_bookings: [
+      { large_project_id: 'lp-1', booking_id: 'b1' },
+      { large_project_id: 'lp-1', booking_id: 'b2' },
+    ],
+    bookings: [
+      { id: 'b1', large_project_id: 'lp-1' },
+      { id: 'b2', large_project_id: 'lp-1' },
+    ],
     calendar_events: [
       { booking_id: 'b1', organization_id: ORG, resource_id: 'team-2', event_type: 'rig', source_date: '2026-06-01' },
       { booking_id: 'b2', organization_id: ORG, resource_id: 'team-3', event_type: 'rigDown', source_date: '2026-06-05' },
@@ -143,8 +149,8 @@ Deno.test('large project: exakt match på (phase, date) vinner', async () => {
 
 Deno.test('large project: ingen exakt match → fallback till vanligaste team', async () => {
   const supabase = makeSupabase({
-    large_project_bookings: [{ booking_id: 'b1' }],
-    bookings: [{ id: 'b1' }],
+    large_project_bookings: [{ large_project_id: 'lp-1', booking_id: 'b1' }],
+    bookings: [{ id: 'b1', large_project_id: 'lp-1' }],
     calendar_events: [
       { booking_id: 'b1', organization_id: ORG, resource_id: 'team-5', event_type: 'rig', source_date: '2026-06-01' },
       { booking_id: 'b1', organization_id: ORG, resource_id: 'team-5', event_type: 'rigDown', source_date: '2026-06-05' },
