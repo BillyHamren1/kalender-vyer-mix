@@ -6,19 +6,18 @@ import { processGpsTimelineForAutoStart } from "./processGpsTimelineForAutoStart
 
 function stubAdmin(rows: Record<string, any[]>): any {
   function table(name: string) {
-    let data = rows[name] ?? [];
+    let data = [...(rows[name] ?? [])];
     const builder: any = {
-      _filtered: data,
       select: () => builder,
-      eq: (_c: string, _v: any) => builder,
+      eq: (col: string, val: any) => { data = data.filter(r => r[col] === val); return builder; },
       gte: () => builder,
       lte: () => builder,
       gt: () => builder,
-      is: () => builder,
+      is: (col: string, val: any) => { if (val === null) data = data.filter(r => r[col] == null); return builder; },
       lt: () => builder,
       order: () => builder,
       limit: () => builder,
-      maybeSingle: async () => ({ data: builder._filtered[0] ?? null, error: null }),
+      maybeSingle: async () => ({ data: data[0] ?? null, error: null }),
       insert: async () => ({ data: null, error: null }),
     };
     return builder;
