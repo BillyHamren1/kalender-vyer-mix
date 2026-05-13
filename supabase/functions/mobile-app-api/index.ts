@@ -739,6 +739,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleLinkPurchaseIntent(supabase, staffId, data, organizationId)
       case 'reject_arrival_suggestion':
         return await handleRejectArrivalSuggestion(supabase, staffId, data, organizationId)
+      case 'record_auto_start_decline':
+        return await handleRecordAutoStartDecline(supabase, staffId, data, organizationId)
       case 'correct_stale_day_end':
         return await handleCorrectStaleDayEnd(supabase, staffId, data, organizationId)
       // ── Planner overview (gated on user_roles row presence) ──
