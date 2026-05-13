@@ -34,22 +34,19 @@ export function TodoPlanningSheet({ todoId, onClose }: TodoPlanningSheetProps) {
     },
   });
 
-  // Resources from localStorage (samma mönster som CustomEvent.tsx via loadResourcesFromStorage),
-  // men för att hålla det enkelt: använd team1..team5 + 'project'.
-  const teams = [
-    { id: 'team1', label: 'Team 1' },
-    { id: 'team2', label: 'Team 2' },
-    { id: 'team3', label: 'Team 3' },
-    { id: 'team4', label: 'Team 4' },
-    { id: 'team5', label: 'Team 5' },
-  ];
+  // Personalkalenderns kolumner är 'team-1'..'team-10' (se useTeamResources.defaultTeams).
+  // Vi MÅSTE använda samma id-format här, annars hamnar to-don i tomma luften.
+  const teams = Array.from({ length: 10 }, (_, i) => ({
+    id: `team-${i + 1}`,
+    label: `Team ${i + 1}`,
+  }));
 
   useEffect(() => {
     if (!todo) return;
     setDate(todo.scheduled_date || new Date().toISOString().slice(0, 10));
     setStart(todo.start_time?.slice(0, 5) || '08:00');
     setEnd(todo.end_time?.slice(0, 5) || '16:00');
-    if (!resourceId) setResourceId('team1');
+    if (!resourceId) setResourceId('team-1');
   }, [todo, resourceId]);
 
   const place = useMutation({
