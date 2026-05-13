@@ -254,6 +254,18 @@ const ProjectManagement = () => {
           }}
         />
 
+        <CreateProjectWizard
+          open={isCreateProjectOpen}
+          onOpenChange={setIsCreateProjectOpen}
+          preselectedBookingId={createProjectBookingId}
+          onSuccess={() => {
+            setIsCreateProjectOpen(false);
+            setCreateProjectBookingId(null);
+            queryClient.invalidateQueries({ queryKey: ['projects'] });
+            queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+          }}
+        />
+
         <AddToLargeProjectDialog
           open={!!largeProjectBookingId}
           onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
