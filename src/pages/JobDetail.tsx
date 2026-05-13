@@ -89,7 +89,7 @@ const JobDetail = () => {
 
   const { data: allStaff = [] } = useQuery({
     queryKey: ['staff-members'],
-    queryFn: fetchStaffMembers
+    queryFn: () => fetchStaffMembers()
   });
 
   const statusMutation = useMutation({
