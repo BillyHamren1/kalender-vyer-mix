@@ -2127,13 +2127,21 @@ export function buildReportCandidateBlocks(
       firstPrimaryIdx = firstBlockAtOrAfterActual;
     }
   }
-  if (firstPrimaryIdx > 0) {
+  if (firstPrimaryIdx >= 0) {
     const firstPrimary = out[firstPrimaryIdx];
     const primaryStartMs = new Date(firstPrimary.startAt).getTime();
-    const effectiveBoundaryMs = actualWorkStartMs != null && actualWorkStartMs < primaryStartMs
-      ? actualWorkStartMs
-      : primaryStartMs;
+    const primaryEndMs = new Date(firstPrimary.endAt).getTime();
+    const effectiveBoundaryMs = actualWorkStartMs != null ? actualWorkStartMs : primaryStartMs;
     const effectiveBoundaryIso = new Date(effectiveBoundaryMs).toISOString();
+    if (effectiveBoundaryMs > primaryStartMs && effectiveBoundaryMs < primaryEndMs) {
+      firstPrimary.startAt = effectiveBoundaryIso;
+      firstPrimary.durationMinutes = minutesBetween(firstPrimary.startAt, firstPrimary.endAt);
+      firstPrimary.durationLabel = fmtDuration(firstPrimary.durationMinutes);
+      firstPrimary.subtitle = `${fmtClock(firstPrimary.startAt)}–${fmtClock(firstPrimary.endAt)} · ${fmtDuration(firstPrimary.durationMinutes)}`;
+      if (firstPrimary.firstConfirmedAt && new Date(firstPrimary.firstConfirmedAt).getTime() < effectiveBoundaryMs) {
+        firstPrimary.firstConfirmedAt = effectiveBoundaryIso;
+      }
+    }
     preWorkExclusionDiagnostics.firstPrimaryWorkAt = effectiveBoundaryIso;
     preWorkExclusionDiagnostics.firstPrimaryTargetLabel = firstPrimary.targetLabel;
     const noWorkBeforeNoon = stockholmHour(effectiveBoundaryIso) >= 12;
