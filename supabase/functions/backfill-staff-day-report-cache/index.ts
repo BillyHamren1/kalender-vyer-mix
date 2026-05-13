@@ -356,6 +356,12 @@ async function processOne(
 
     const plannedEndOfDayIso = await resolvePlannedEndOfDayIso(admin, orgId, staffId, date);
 
+    // Time Engine — autoritativ "verkligt arbetsstart"-gräns. Suppresserar
+    // pre-work geofence/midnatts-brus (00:00 ENTER nära warehouse osv).
+    const actualWorkStartIso = await resolveActualWorkStartIso(
+      admin, orgId, staffId, dayStart, dayEnd,
+    );
+
     // --- report blocks ---
     const report = buildReportCandidateBlocks({
       staffId,
@@ -366,6 +372,7 @@ async function processOne(
       homeAnchors,
       openActiveRegistration,
       plannedEndOfDayIso,
+      actualWorkStartIso,
       // Time Engine 3.3 — färsk evidens-signal för open-timer extension gate.
       lastFreshEvidenceAtIso: pings[pings.length - 1]?.ts ?? null,
     });
