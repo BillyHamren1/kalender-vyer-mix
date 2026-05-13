@@ -1191,7 +1191,8 @@ async function reconcileCalendarEvents(
         bookingData.organization_id || organizationId,
         desired.start_time,
         desired.end_time,
-        desired.isExplicitStart
+        desired.isExplicitStart,
+        largeProjectIdForGuard,
       );
 
       if (results.team_distribution[placement.team] !== undefined) {
