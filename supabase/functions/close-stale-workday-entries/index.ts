@@ -519,7 +519,101 @@ async function processOrganization(supabase: any, organizationId: string) {
     staffWithClosure.add(wd.staff_id);
   }
 
-  // ── E. Morning push to affected staff ──
+  // ── F. workdays ABANDONED (>36h) — force-close ──
+  //
+  // Tyst telefon ska bara FLAGGAS (sektion D). Men en workday som varit
+  // öppen >36h är inte längre en pågående arbetsdag — det är en spökrad
+  // som annars fortsätter rulla i dagar och förorenar
+  // /staff-management/time-reports. Vi stänger den hårt och clampar
+  // ended_at till started_at + 10h (men aldrig i framtiden).
+  let abandonedWorkdaysClosed = 0;
+  const abandonedWorkdayIso = new Date(
+    now.getTime() - WORKDAY_ABANDONED_HOURS * 60 * 60 * 1000,
+  ).toISOString();
+  const { data: abandonedWorkdays } = await supabase
+    .from("workdays")
+    .select("id, staff_id, started_at, notes, metadata")
+    .eq("organization_id", organizationId)
+    .is("ended_at", null)
+    .lt("started_at", abandonedWorkdayIso);
+
+  for (const wd of abandonedWorkdays || []) {
+    const startedMs = new Date(wd.started_at).getTime();
+    const cap = new Date(
+      Math.min(now.getTime(), startedMs + WORKDAY_FALLBACK_DURATION_HOURS * 60 * 60 * 1000),
+    ).toISOString();
+    const { error } = await supabase
+      .from("workdays")
+      .update({
+        ended_at: cap,
+        ended_by: "system_stale_watchdog",
+        review_status: "needs_review",
+        notes:
+          (wd.notes ? wd.notes + " | " : "") +
+          `[auto-closed by watchdog: open > ${WORKDAY_ABANDONED_HOURS}h]`,
+        metadata: {
+          ...(wd.metadata || {}),
+          autoClosedByWatchdog: true,
+          autoClosedAt: now.toISOString(),
+          autoClosedReason: `workday_open_more_than_${WORKDAY_ABANDONED_HOURS}h`,
+          autoClosedSource: "close-stale-workday-entries",
+          originalStartedAt: wd.started_at,
+        },
+      })
+      .eq("id", wd.id)
+      .is("ended_at", null);
+    if (error) {
+      console.error(`[stale-cron] workdays abandoned ${wd.id} update failed`, error.message);
+      continue;
+    }
+    abandonedWorkdaysClosed++;
+    staffWithClosure.add(wd.staff_id);
+  }
+
+  // ── G. active_time_registrations ABANDONED (>24h) — force-stop ──
+  //
+  // Aktiva timer-registreringar som varit öppna >24h är spökrader som
+  // hindrar nya starter och fortsätter visa staff som "pågående" i
+  // admin-vyn. Stäng dem och markera tydligt.
+  let abandonedActiveRegsClosed = 0;
+  const abandonedActiveRegIso = new Date(
+    now.getTime() - ACTIVE_REG_ABANDONED_HOURS * 60 * 60 * 1000,
+  ).toISOString();
+  const { data: abandonedActiveRegs } = await supabase
+    .from("active_time_registrations")
+    .select("id, staff_id, started_at, metadata")
+    .eq("organization_id", organizationId)
+    .or("stopped_at.is.null,status.eq.active")
+    .lt("started_at", abandonedActiveRegIso);
+
+  for (const reg of abandonedActiveRegs || []) {
+    const { error } = await supabase
+      .from("active_time_registrations")
+      .update({
+        status: "stopped",
+        stopped_at: now.toISOString(),
+        stop_source: "system_stale_watchdog",
+        stopped_by: "system_stale_watchdog",
+        metadata: {
+          ...(reg.metadata || {}),
+          autoStoppedByWatchdog: true,
+          autoStoppedAt: now.toISOString(),
+          autoStoppedReason: `active_timer_open_more_than_${ACTIVE_REG_ABANDONED_HOURS}h`,
+          autoStoppedSource: "close-stale-workday-entries",
+          originalStartedAt: reg.started_at,
+        },
+        updated_at: now.toISOString(),
+      })
+      .eq("id", reg.id);
+    if (error) {
+      console.error(`[stale-cron] active_time_registrations ${reg.id} update failed`, error.message);
+      continue;
+    }
+    abandonedActiveRegsClosed++;
+    staffWithClosure.add(reg.staff_id);
+  }
+
+  // ── H. Morning push to affected staff ──
   let pushesSent = 0;
   if (staffWithClosure.size > 0) {
     try {
@@ -552,6 +646,8 @@ async function processOrganization(supabase: any, organizationId: string) {
     travelClosed,
     reportsClosed,
     workdaysClosed,
+    abandonedWorkdaysClosed,
+    abandonedActiveRegsClosed,
     flagsCreated,
     pushesSent,
   };
