@@ -201,7 +201,7 @@ const PlanningDashboard = () => {
       </div>
 
       {/* Dialogs */}
-      <CreateTodoWizard
+      <CreateProjectWizard
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         preselectedBookingId={selectedBookingId}
