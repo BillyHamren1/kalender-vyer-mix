@@ -269,7 +269,20 @@ export const buildPlannerCalendarEvents = ({
   // läcka in i personalkalendern (ingen explicit "staffingRequired"-flagga
   // finns idag i schemat — opt-in saknas).
   let nonProjectSkippedNonStaffable = 0;
+  let todoEventsEmitted = 0;
   for (const row of sortedRealEvents) {
+    // To-do passthrough: en to-do är en fristående personalkalender-händelse
+    // utan projekt/booking-koppling. Den måste ha resource_id (team).
+    if (row.event_type === 'todo') {
+      if (!row.resource_id) continue;
+      const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
+      const guardLpId = (row.booking_id ? bookingToProject.get(row.booking_id) : undefined) || booking?.large_project_id;
+      if (guardLpId) continue;
+      events.push(mapRealRowToCalendarEvent(row, booking, undefined));
+      todoEventsEmitted++;
+      continue;
+    }
+
     const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
     // Master: large_project_bookings; fallback: bookings.large_project_id
     const projectId = (row.booking_id ? bookingToProject.get(row.booking_id) : undefined) || booking?.large_project_id;
