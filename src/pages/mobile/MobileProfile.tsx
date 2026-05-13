@@ -34,7 +34,7 @@ const MobileProfile = () => {
 
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
-  const workdayOpen = timerActive;
+  const workdayOpen = timerStatus.timerActive;
 
   const handleEndDay = async () => {
     if (!endDayConfirm) {
