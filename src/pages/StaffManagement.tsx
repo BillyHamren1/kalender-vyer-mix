@@ -32,7 +32,7 @@ const StaffManagement: React.FC = () => {
     refetch 
   } = useQuery({
     queryKey: ['staffMembers'],
-    queryFn: fetchStaffMembers,
+    queryFn: () => fetchStaffMembers({ includeInactive: true }),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
