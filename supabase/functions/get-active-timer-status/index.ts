@@ -17,6 +17,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
+import { buildTimerOwnershipDiagnostics } from "../_shared/diagnostics/buildTimerOwnershipDiagnostics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,6 +84,13 @@ Deno.serve(async (req) => {
     .limit(1)
     .maybeSingle();
 
+  // READ-ONLY ownership diagnostics (Single Timer Policy verifier).
+  // Do not reintroduce project timers in mobile app.
+  // Only active_time_registrations may represent an active workday.
+  const diagnostics = await buildTimerOwnershipDiagnostics({
+    admin, organizationId, staffId,
+  });
+
   if (!active) {
     return json(200, {
       _deprecated: "use get-active-time-registration-status",
@@ -100,6 +108,7 @@ Deno.serve(async (req) => {
       confidence: 0,
       needsUserChoice: false,
       canGpsStartTimer: false,
+      diagnostics,
     });
   }
 
@@ -148,5 +157,6 @@ Deno.serve(async (req) => {
     confidence,
     needsUserChoice,
     canGpsStartTimer: false,
+    diagnostics,
   });
 });
