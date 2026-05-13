@@ -958,6 +958,31 @@ Deno.serve(async (req) => {
           targetResolution,
           legacyLocationTimeEntriesUsedAsInput: false,
           preWorkExclusion: reportCandidateResult.preWorkExclusionDiagnostics ?? null,
+          dayEndDecision: (reportCandidateResult as any).dayEndDecision ?? null,
+          dayEndClampDiagnostics:
+            (reportCandidateResult as any).dayEndClampDiagnostics ?? null,
+          droppedAfterDayEnd:
+            ((reportCandidateResult as any).droppedAfterDayEnd ?? []).map((b: any) => ({
+              id: b.id, kind: b.kind, startAt: b.startAt, endAt: b.endAt,
+              targetLabel: b.targetLabel ?? b.title ?? null,
+            })),
+          timeEngineClarityDiagnostics: {
+            dayEndDecision: (reportCandidateResult as any).dayEndDecision ?? null,
+            sessionConsolidationDiagnostics:
+              reportCandidateResult.summary?.sessionConsolidationDiagnostics ?? null,
+            singleTimelineDiagnostics:
+              (reportCandidateResult.summary as any)?.singleTimelineDiagnostics ?? null,
+            labelResolutionDiagnostics:
+              (reportCandidateResult.summary as any)?.labelResolutionDiagnostics ?? null,
+            commutePolicyDiagnostics:
+              (reportCandidateResult.summary as any)?.commutePolicyDiagnostics ?? null,
+            workAreaToleranceDiagnostics:
+              (reportCandidateResult.summary as any)?.workAreaToleranceDiagnostics ?? null,
+            openTimerClampDiagnostics:
+              (reportCandidateResult.summary as any)?.openTimerClampDiagnostics ?? null,
+            dayEndClampDiagnostics:
+              (reportCandidateResult as any).dayEndClampDiagnostics ?? null,
+          },
           error: null,
         }
       : { error: reportCandidateError, available: false, targetResolution, legacyLocationTimeEntriesUsedAsInput: false },
