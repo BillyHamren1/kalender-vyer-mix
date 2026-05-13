@@ -780,6 +780,11 @@ export interface BuildReportCandidateBlocksInput {
       classification: 'continued_session_by_tolerance' | 'blocked_by_private_residence';
     }>;
   } | null;
+  /** Faktisk arbetsstart från workday/timer/rapport. När satt används den som
+   *  auktoritativ pre-work-klippgräns före första GPS-bekräftade work-target,
+   *  så midnatts-GPS på känd plats inte visas som arbete om arbetsdagen
+   *  faktiskt började senare. */
+  actualWorkStartIso?: ISODateTime | null;
   policy?: ReportCandidatePolicy;
 }
 
@@ -803,6 +808,7 @@ export interface PreWorkExclusionDiagnostics {
   excludedPreWorkBlocksCount: number;
   firstPrimaryWorkAt: ISODateTime | null;
   firstPrimaryTargetLabel: string | null;
+  actualWorkStartAt?: ISODateTime | null;
   excludedReasons: Record<string, number>;
   examples: PreWorkExclusionExample[];
   /** How many home anchors were supplied for this staff/day. */
