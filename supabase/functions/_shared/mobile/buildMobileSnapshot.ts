@@ -9,7 +9,7 @@ import type {
   MobileSummary,
   MobileWorkdayStatus,
 } from "./types.ts";
-import { mapReportBlocksToSegments } from "./mapReportBlocksToSegments.ts";
+import { mapReportBlocksToSegments, pickCacheBlocks } from "./mapReportBlocksToSegments.ts";
 
 export interface CacheRow {
   engine_version: string | null;
