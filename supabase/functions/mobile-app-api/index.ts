@@ -10759,6 +10759,81 @@ async function handleRejectArrivalSuggestion(
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
+// ============= Auto-start decline log =============
+// User explicitly tapped "Nej" / "Detta är inte arbete" on an arrival prompt.
+// Persist a hard suppression so GPS auto-start never tries the same target /
+// place again until expires_at (defaults to end-of-local-day).
+//
+// Mobile app owns only day start/stop. GPS/geofence is evidence only —
+// this row blocks the auto-start engine, NOT manual start.
+async function handleRecordAutoStartDecline(
+  supabase: any,
+  staffId: string,
+  data: any,
+  organizationId: string,
+) {
+  const {
+    target_type,        // 'project' | 'booking' | 'warehouse' | 'organization_location' | null
+    target_id,          // UUID/text or null
+    target_label,       // optional human label for diagnostics
+    lat, lng, radius_m, // optional geographic point (used when target_id is null)
+    local_date,         // 'YYYY-MM-DD' Stockholm-local; defaults to today
+    expires_at,         // optional ISO; defaults to local end-of-day
+    source,             // optional, defaults to 'user_arrival_prompt'
+    metadata,           // optional jsonb
+  } = data || {}
+
+  // Compute defaults: rest of the local day at minimum.
+  const nowIso = new Date().toISOString()
+  const today = (local_date && /^\d{4}-\d{2}-\d{2}$/.test(local_date))
+    ? local_date
+    : new Date().toISOString().slice(0, 10)
+  const defaultExpiry = `${today}T23:59:59.000Z`
+  const finalExpiry = (typeof expires_at === 'string' && expires_at) ? expires_at : defaultExpiry
+
+  // Need at least target_id OR a coordinate pair to be useful.
+  if (!target_id && (typeof lat !== 'number' || typeof lng !== 'number')) {
+    return new Response(
+      JSON.stringify({ error: 'record_auto_start_decline requires target_id or lat+lng' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('auto_start_decline_log')
+    .insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      declined_at: nowIso,
+      local_date: today,
+      target_type: target_type ?? null,
+      target_id: target_id ?? null,
+      target_label: target_label ?? null,
+      lat: typeof lat === 'number' ? lat : null,
+      lng: typeof lng === 'number' ? lng : null,
+      radius_m: typeof radius_m === 'number' ? radius_m : null,
+      expires_at: finalExpiry,
+      day_scope: true,
+      source: source || 'user_arrival_prompt',
+      response: 'declined',
+      metadata: metadata && typeof metadata === 'object' ? metadata : {},
+    })
+    .select('id, expires_at')
+    .maybeSingle()
+
+  if (error) {
+    console.error('[mobile-app-api] record_auto_start_decline failed:', error.message)
+    return new Response(JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
+  return new Response(JSON.stringify({
+    success: true,
+    decline_id: inserted?.id ?? null,
+    expires_at: inserted?.expires_at ?? finalExpiry,
+  }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
 // ============= Stale day end correction =============
 // Called from StaleDayCorrectionDialog when the user picks the actual
 // end-of-day time. Adjusts the affected entries (listed in flag.context.
