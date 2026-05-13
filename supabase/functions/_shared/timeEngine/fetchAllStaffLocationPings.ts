@@ -101,14 +101,14 @@ export async function fetchAllStaffLocationPings<T = any>(
       .select(select)
       .eq('organization_id', organizationId)
       .gte('recorded_at', startUtc)
-      .lte('recorded_at', endUtc)
-      .order('recorded_at', { ascending: true })
-      .range(from, to);
+      .lte('recorded_at', endUtc);
 
     if (staffId) q = q.eq('staff_id', staffId);
     if (excludeStaffId) q = q.neq('staff_id', excludeStaffId);
 
-    const { data, error } = await q;
+    const { data, error } = await q
+      .order('recorded_at', { ascending: true })
+      .range(from, to);
     pageCount += 1;
 
     if (error) {
