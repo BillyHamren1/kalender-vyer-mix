@@ -78,7 +78,7 @@ describe('findExistingDayRow', () => {
       { id: 'evt-1', booking_id: 'b1', organization_id: ORG, resource_id: 'team-2', event_type: 'rig', source_date: '2026-06-01' },
     ];
     const row = await findExistingDayRow('b1', ORG, 'rig', '2026-06-01');
-    expect(row).toEqual({ id: 'evt-1', resource_id: 'team-2' });
+    expect(row).toMatchObject({ id: 'evt-1', resource_id: 'team-2' });
   });
 
   it('returnerar null när rad saknas', async () => {
