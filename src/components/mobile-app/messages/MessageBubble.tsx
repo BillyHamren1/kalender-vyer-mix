@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { Check, CheckCheck, FileText, Download } from 'lucide-react';
 import ImageLightbox from './ImageLightbox';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { openFileExternally } from '@/lib/files/openFileExternally';
 
 export interface ChatMessage {
   id: string;
