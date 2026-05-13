@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
-import CreateProjectWizard from "@/components/project/CreateProjectWizard";
+import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { UpdatedBookingsList } from "@/components/project/UpdatedBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
@@ -175,7 +175,7 @@ const ProjectManagement = () => {
             className="rounded-lg h-8 shadow-sm bg-primary hover:bg-[hsl(var(--primary-hover))]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
-            Nytt projekt
+            Skapa to do
           </Button>
         </PageHeader>
 
@@ -239,7 +239,7 @@ const ProjectManagement = () => {
         />
 
 
-        <CreateProjectWizard 
+        <CreateTodoWizard 
           open={isCreateOpen} 
           onOpenChange={setIsCreateOpen}
           preselectedBookingId={selectedBookingId}
