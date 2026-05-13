@@ -888,6 +888,8 @@ serve(async (req) => {
       travel_closed: 0,
       reports_closed: 0,
       workdays_closed: 0,
+      abandoned_workdays_closed: 0,
+      abandoned_active_regs_closed: 0,
       flags_created: 0,
       pushes_sent: 0,
     };
@@ -899,6 +901,8 @@ serve(async (req) => {
       summary.travel_closed += r.travelClosed;
       summary.reports_closed += r.reportsClosed;
       summary.workdays_closed += r.workdaysClosed;
+      summary.abandoned_workdays_closed += r.abandonedWorkdaysClosed;
+      summary.abandoned_active_regs_closed += r.abandonedActiveRegsClosed;
       summary.flags_created += r.flagsCreated;
       summary.pushes_sent += r.pushesSent;
     }
