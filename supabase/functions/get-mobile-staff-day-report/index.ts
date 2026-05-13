@@ -52,6 +52,19 @@ function blockArrayLength(v: unknown): number {
 }
 
 /**
+ * Mirror of `pickCacheBlocks` in _shared/mobile/mapReportBlocksToSegments.ts.
+ * Centralises priority: display_blocks_json → report_candidate_blocks_json.
+ * Used here only for the `cacheUnusable` decision; the actual mapping in
+ * `buildMobileSnapshot` calls `pickCacheBlocks` directly.
+ */
+function effectiveCacheBlockCount(cache: CacheRow | null): number {
+  if (!cache) return 0;
+  const display = blockArrayLength(cache.display_blocks_json);
+  if (display > 0) return display;
+  return blockArrayLength(cache.report_candidate_blocks_json);
+}
+
+/**
  * Invoke the same live Time Engine read that admin web uses
  * (`/staff-management/time-reports` → `get-staff-presence-day`).
  * Returns a CacheRow-shaped object so it can be passed straight through
@@ -172,7 +185,8 @@ Deno.serve(async (req: Request) => {
 
   // 3) Decide whether to use cache or fall back to live engine.
   // The mobile mirror MUST NOT show 0h if admin web's live engine has data.
-  const cacheBlockCount = cache ? blockArrayLength(cache.report_candidate_blocks_json) : 0;
+  // Priority: display_blocks_json → report_candidate_blocks_json → live engine.
+  const cacheBlockCount = effectiveCacheBlockCount(cache);
   const cacheUnusable =
     !cache ||
     !!cache.error ||
@@ -186,7 +200,7 @@ Deno.serve(async (req: Request) => {
 
   if (cacheUnusable) {
     const live = await fetchLiveEngineAsCacheRow(staffId, orgId, date);
-    if (live.row && blockArrayLength(live.row.report_candidate_blocks_json) > 0) {
+    if (live.row && effectiveCacheBlockCount(live.row) > 0) {
       effectiveCache = live.row;
       debugSource = "live_engine";
     } else if (!cache) {

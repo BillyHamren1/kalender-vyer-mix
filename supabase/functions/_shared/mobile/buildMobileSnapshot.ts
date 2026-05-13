@@ -9,7 +9,7 @@ import type {
   MobileSummary,
   MobileWorkdayStatus,
 } from "./types.ts";
-import { mapReportBlocksToSegments } from "./mapReportBlocksToSegments.ts";
+import { mapReportBlocksToSegments, pickCacheBlocks } from "./mapReportBlocksToSegments.ts";
 
 export interface CacheRow {
   engine_version: string | null;
@@ -174,7 +174,9 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
     } else {
       cacheStatus = "ready";
     }
-    segments = mapReportBlocksToSegments(cache.report_candidate_blocks_json);
+    // Source priority owned by pickCacheBlocks: display_blocks_json first,
+    // report_candidate_blocks_json as fallback. Mobile must mirror admin web.
+    segments = mapReportBlocksToSegments(pickCacheBlocks(cache));
     summary = summaryFrom(cache.summary_json, segments);
   }
 
