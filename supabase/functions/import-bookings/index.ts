@@ -2291,34 +2291,39 @@ serve(async (req) => {
       if (localErr) {
         console.error(`[Local Fallback] Error fetching local booking:`, localErr.message);
       } else if (localBooking && localBooking.status === 'CONFIRMED') {
-        console.log(`[Local Fallback] Found local CONFIRMED booking ${normalizedSingleBookingId}, running calendar reconciliation from local data`);
+        // Externa API:t returnerar 0 träffar för en bokning som vi lokalt har som CONFIRMED.
+        // Detta betyder att bokningen inte längre är bekräftad externt (t.ex. flippad till
+        // DRAFT/UTKAST i bokningssystemet). Spegla detta lokalt: flippa status till 'draft'
+        // och städa kalendrar/projekt/jobb/packing/produkter — samma cleanup som i
+        // wasConfirmed && !isNowConfirmed-grenen längre ner.
+        console.log(`[Status Demote] External API returned 0 for locally CONFIRMED booking ${normalizedSingleBookingId} — treating as no longer confirmed, flipping to DRAFT`);
 
-        // Build a minimal results object for reconciliation
-        const fallbackResults = {
-          calendar_events_created: 0,
-          team_distribution: { 'team-1': 0, 'team-2': 0, 'team-3': 0, 'team-4': 0, 'team-5': 0, 'team-11': 0 },
-        };
+        const nowIso = new Date().toISOString();
 
-        const localBookingData: BookingData = {
-          id: localBooking.id,
-          client: localBooking.client,
-          rigdaydate: localBooking.rigdaydate,
-          eventdate: localBooking.eventdate,
-          rigdowndate: localBooking.rigdowndate,
-          rig_start_time: localBooking.rig_start_time,
-          rig_end_time: localBooking.rig_end_time,
-          event_start_time: localBooking.event_start_time,
-          event_end_time: localBooking.event_end_time,
-          rigdown_start_time: localBooking.rigdown_start_time,
-          rigdown_end_time: localBooking.rigdown_end_time,
-          deliveryaddress: localBooking.deliveryaddress,
-          status: localBooking.status,
-          booking_number: localBooking.booking_number,
-          organization_id: localBooking.organization_id,
-        };
+        const { error: statusUpdateErr } = await supabase
+          .from('bookings')
+          .update({
+            status: 'DRAFT',
+            confirmed_at: null,
+            updated_at: nowIso,
+          })
+          .eq('id', localBooking.id)
+          .eq('organization_id', organizationId);
+        if (statusUpdateErr) {
+          console.error(`[Status Demote] Failed to flip status to DRAFT:`, statusUpdateErr);
+        }
 
-        await reconcileCalendarEvents(supabase, localBookingData, organizationId, fallbackResults, localBooking);
-        console.log(`[Local Fallback] Reconciliation complete. Events created/updated: ${fallbackResults.calendar_events_created}`);
+        const cleanupOps = await Promise.allSettled([
+          supabase.from('calendar_events').delete().eq('booking_id', localBooking.id),
+          supabase.from('warehouse_calendar_events').delete().eq('booking_id', localBooking.id),
+          supabase.from('projects').update({ status: 'cancelled', updated_at: nowIso }).eq('booking_id', localBooking.id),
+          supabase.from('jobs').update({ status: 'cancelled', updated_at: nowIso }).eq('booking_id', localBooking.id),
+          supabase.from('packing_projects').delete().eq('booking_id', localBooking.id),
+          supabase.from('booking_products').delete().eq('booking_id', localBooking.id),
+        ]);
+        cleanupOps.forEach((r, i) => {
+          if (r.status === 'rejected') console.error(`[Status Demote] cleanup op ${i} failed:`, r.reason);
+        });
 
         return new Response(
           JSON.stringify({
@@ -2327,14 +2332,15 @@ serve(async (req) => {
               total: 1,
               imported: 0,
               failed: 0,
-              calendar_events_created: fallbackResults.calendar_events_created,
+              calendar_events_created: 0,
               warehouse_events_created: 0,
               new_bookings: [],
               updated_bookings: [],
+              status_changed_bookings: [normalizedSingleBookingId],
               unchanged_bookings_skipped: [],
               errors: [],
-              sync_mode: 'local_fallback',
-              fallback_reason: 'external_api_returned_0',
+              sync_mode: 'status_demote',
+              fallback_reason: 'external_api_returned_0_local_was_confirmed',
             }
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
