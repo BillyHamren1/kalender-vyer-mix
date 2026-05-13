@@ -56,6 +56,7 @@ import {
 import { enforceSingleVisibleTimeline } from '../_shared/time-engine/enforceSingleVisibleTimeline.ts';
 import { cleanupNeedsReviewFromLocationTruth } from '../_shared/time-engine/cleanupNeedsReviewFromLocationTruth.ts';
 import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFromLocationTruth.ts';
+import { buildUnknownLocationDiagnostics } from '../_shared/diagnostics/buildUnknownLocationDiagnostics.ts';
 import {
   computePlannedDaySignals,
   type BookingTimes,
@@ -1118,6 +1119,28 @@ Deno.serve(async (req) => {
   }
   if (signal === 'no_signal') currentLabel = 'Signal saknas';
 
+  // ── READ-ONLY: Why is this block "Arbete – okänd plats"? ──
+  // Pure aggregator over already-loaded data. Never mutates state.
+  // Only active_time_registrations may represent an active workday.
+  // Display timeline comes from staff_day_report_cache (admin) /
+  // get-mobile-staff-day-report (mobile).
+  let unknownLocationDiagnostics: any = null;
+  try {
+    unknownLocationDiagnostics = buildUnknownLocationDiagnostics({
+      staffId,
+      staffName: staff?.name ?? null,
+      date,
+      reportCandidateBlocks: (reportCandidateResult?.blocks ?? []) as any,
+      locationTruthBlocks: (locationTruthResult?.reportBlocks ?? []) as any,
+      gpsSegments: (gpsTimelineResult?.segments ?? []) as any,
+      resolvedTargets: (resolvedTargetsAll ?? []) as any,
+      pings: pings as any,
+      homeAnchors: [], // homeAnchors lives inside the try-block above; safe to omit if scope-hidden
+    });
+  } catch (e) {
+    console.warn('[presence-day] unknownLocationDiagnostics failed', e);
+  }
+
   return json(200, {
     ok: true,
     staff: { id: staff.id, name: staff.name },
@@ -1233,6 +1256,7 @@ Deno.serve(async (req) => {
       suppressedNoise: smoothing.stats.suppressedNoise,
     },
     targetMatchSummary,
+    unknownLocationDiagnostics,
     targets: resolvedTargetsAll.map((r: any) => ({
       id: r.id,
       name: r.name,

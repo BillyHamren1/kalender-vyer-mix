@@ -108,7 +108,10 @@ async function fetchLiveEngineAsCacheRow(
       summary_json: summary ?? {},
       report_candidate_blocks_json: blocks,
       display_blocks_json: blocks,
-      diagnostics_json: json.reportCandidateDiagnostics ?? null,
+      diagnostics_json: {
+        ...(json.reportCandidateDiagnostics ?? {}),
+        unknownLocationDiagnostics: json.unknownLocationDiagnostics ?? null,
+      },
       built_at: new Date().toISOString(),
       stale: false,
       error: null,
