@@ -1191,7 +1191,8 @@ async function reconcileCalendarEvents(
         bookingData.organization_id || organizationId,
         desired.start_time,
         desired.end_time,
-        desired.isExplicitStart
+        desired.isExplicitStart,
+        largeProjectIdForGuard,
       );
 
       if (results.team_distribution[placement.team] !== undefined) {
@@ -1446,7 +1447,8 @@ const assignTeamAndTime = async (
   organizationId: string,
   startTime: string,
   endTime: string,
-  isExplicitStart: boolean
+  isExplicitStart: boolean,
+  largeProjectId: string | null = null,
 ): Promise<{ team: string; start_time: string; end_time: string }> => {
   if (eventType === 'event') {
     console.warn(`[Team Assignment] Unexpected EVENT-type calendar request for booking ${bookingId}; Live column is removed. Falling back to round-robin.`);
@@ -1454,6 +1456,36 @@ const assignTeamAndTime = async (
 
   const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
   const fallback = { team: 'team-1', start_time: startTime, end_time: endTime };
+
+  // ── PROJECT TEAM STICKINESS ─────────────────────────────────────────────
+  // Om bokningen (eller dess large project) redan har minst en rad på något
+  // team-1..5 ska den nya dagen ÄRVA samma team. Overlap tillåts hellre än
+  // att splittra projektet över flera team. Round-robin/earliest-slot körs
+  // bara när bokningen är helt ny i kalendern.
+  try {
+    const { getStickyTeamForBooking, getStickyTeamForLargeProject } =
+      await import('../_shared/team-assignment/projectTeamStickiness.ts');
+
+    let stickyTeam: string | null = null;
+    if (largeProjectId) {
+      stickyTeam = await getStickyTeamForLargeProject(
+        supabase, largeProjectId, organizationId, eventType, eventDate,
+      );
+    }
+    if (!stickyTeam) {
+      stickyTeam = await getStickyTeamForBooking(supabase, bookingId, organizationId);
+    }
+    if (stickyTeam) {
+      console.log(
+        `[Team Assignment] Sticky: booking ${bookingId} (lp=${largeProjectId ?? 'none'}) ` +
+        `already on ${stickyTeam} → reusing for ${eventType} on ${eventDate}`,
+      );
+      return { team: stickyTeam, start_time: startTime, end_time: endTime };
+    }
+  } catch (stickyErr) {
+    console.warn('[Team Assignment] stickiness lookup failed, falling back to round-robin', stickyErr);
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   try {
     const { data: existingEvents } = await supabase
