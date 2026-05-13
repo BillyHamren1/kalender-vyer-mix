@@ -288,7 +288,7 @@ const DEFAULT_POLICY: Required<BuildLocationTruthPolicy> = {
   maxPingIntervalSeconds: 600,
   stayClusterRadiusM: 75,
   minStayPings: 2,
-  stickyToleranceM: 150,
+  stickyToleranceM: WORK_AREA_TOLERANCE_METERS,
   movementMinDisplacementM: 100,
   movementSpeedKmh: 4,
 };
