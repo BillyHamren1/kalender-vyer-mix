@@ -212,6 +212,7 @@ export function evaluateAutoStopForActiveDay(
     lastWorkAnchor: null,
     homeDetected: false,
     privateResidenceDetected: false,
+    autoStopBecauseHome: false,
     idleAfterWorkMinutes: null,
     rejectedReason: null,
     configUsed: cfg,
