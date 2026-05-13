@@ -181,13 +181,23 @@ export const addStaffMember = async (staffData: Omit<StaffMember, 'id'>): Promis
   }
 };
 
-// Fetch all staff members
-export const fetchStaffMembers = async (): Promise<StaffMember[]> => {
+// Fetch staff members. Default = ENDAST aktiva (kalender, planering, tilldelning).
+// Sätt includeInactive=true endast i admin-vyer (StaffManagement, konto-admin) som måste
+// kunna se/ändra inaktiv personal.
+export const fetchStaffMembers = async (
+  options: { includeInactive?: boolean } = {}
+): Promise<StaffMember[]> => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('staff_members')
       .select('*')
       .order('name');
+
+    if (!options.includeInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching staff members:', error);
