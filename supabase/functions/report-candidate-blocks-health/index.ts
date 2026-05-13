@@ -526,15 +526,18 @@ Deno.serve(async (req) => {
       (day as any).stationaryGeofenceOverride = stationaryOverrideAgg;
 
       for (const s of staffList) {
-        const { data: pingRows } = await admin
-          .from('staff_location_history')
-          .select('lat, lng, accuracy, speed, recorded_at')
-          .eq('organization_id', orgId)
-          .eq('staff_id', s.id)
-          .gte('recorded_at', dayStart)
-          .lte('recorded_at', dayEnd)
-          .order('recorded_at', { ascending: true })
-          .limit(5000);
+        const pingFetch = await fetchAllStaffLocationPings({
+          supabaseAdmin: admin,
+          organizationId: orgId,
+          staffId: s.id,
+          startUtc: dayStart,
+          endUtc: dayEnd,
+        });
+        const pingRows = pingFetch.rows;
+        if (pingFetch.diagnostics.capHit) {
+          (day as any).warnings = ((day as any).warnings ?? []);
+          (day as any).warnings.push(`ping_day_cap_reached:${s.id}`);
+        }
 
         const pings: GpsPing[] = (pingRows ?? []).map((p: any) => ({
           ts: p.recorded_at,

@@ -27,6 +27,7 @@ import {
   derivePresenceEvents,
   type DerivedPresenceEvent,
 } from '../_shared/time-engine/derivePresenceEvents.ts';
+import { fetchAllStaffLocationPings } from '../_shared/timeEngine/fetchAllStaffLocationPings.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -81,17 +82,18 @@ Deno.serve(async (req) => {
     const dayStart = `${date}T00:00:00Z`;
     const dayEnd = `${date}T23:59:59.999Z`;
 
-    const { data: pingRows, error: pingErr } = await supabaseAdmin
-      .from('staff_location_history')
-      .select('lat, lng, accuracy, speed, recorded_at')
-      .eq('organization_id', organizationId)
-      .eq('staff_id', staffId)
-      .gte('recorded_at', dayStart)
-      .lte('recorded_at', dayEnd)
-      .order('recorded_at', { ascending: true })
-      .limit(5000);
-
-    if (pingErr) return json({ error: pingErr.message }, 500);
+    const ownPingFetch = await fetchAllStaffLocationPings({
+      supabaseAdmin,
+      organizationId,
+      staffId,
+      startUtc: dayStart,
+      endUtc: dayEnd,
+    });
+    const pingRows = ownPingFetch.rows;
+    const pingFetchDiagnostics = ownPingFetch.diagnostics;
+    if (pingFetchDiagnostics.errorMessage) {
+      return json({ error: pingFetchDiagnostics.errorMessage }, 500);
+    }
 
     const pings: GpsPing[] = (pingRows ?? []).map((p: any) => ({
       ts: p.recorded_at,
