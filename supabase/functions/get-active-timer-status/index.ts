@@ -157,5 +157,6 @@ Deno.serve(async (req) => {
     confidence,
     needsUserChoice,
     canGpsStartTimer: false,
+    diagnostics,
   });
 });
