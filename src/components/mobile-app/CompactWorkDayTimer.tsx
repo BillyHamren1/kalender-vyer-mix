@@ -102,8 +102,6 @@ const CompactWorkDayTimer: React.FC = () => {
           open={dialogOpen}
           onClose={() => setDialogOpen(false)}
           onConfirm={handleDialogConfirm}
-          bookings={bookings}
-          locations={startDayLocations}
           starting={starting}
         />
       </>
