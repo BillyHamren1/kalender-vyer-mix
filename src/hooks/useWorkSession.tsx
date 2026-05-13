@@ -240,58 +240,35 @@ export function useWorkSession(
   } = geo;
 
   /**
-   * START — same for all three target types.
-   * Maps target → key + start args, then defers to the server-anchored
-   * sync queue inside useGeofencing.
+   * START — disabled by single-timer-policy-v1.
+   *
+   * Mobile app owns only day start/stop.
+   * Timeline allocation is owned by Time Engine.
+   * GPS/geofence is evidence only, not a project timer.
+   *
+   * Tidigare skapade denna funktion en optimistisk lokal timer + skickade
+   * start_location_timer till servern (via useGeofencing.startTimer →
+   * timerSyncQueue). I single-timer-modellen får ingen aktivitets-,
+   * projekt-, plats- eller bokningstimer startas från klienten. Endast
+   * arbetsdagstimern (`active_time_registrations`) får startas, och bara
+   * via `WorkDayPanel` → `mobileApi.startTimeRegistration`.
+   *
+   * Vi behåller signaturen så att äldre call-sites kompilerar, men gör
+   * funktionen till en hård no-op som loggar en varning. Detta gör det
+   * tekniskt omöjligt att mobilen skapar parallella timers.
    */
   const startSession = useCallback(
-    (target: WorkTarget, opts: StartSessionOptions = {}): boolean => {
-      const key = resolveTargetKey(target);
-
-      // SOFT LOCK: only block re-starting the same key. Parallel timers
-      // across different target types are valid signals.
-      if (activeTimers.has(key)) return false;
-
-      if (target.kind === 'booking') {
-        return startTimer(
-          target.bookingId,
-          target.client,
-          false,
-          opts.taskId,
-          opts.taskTitle,
-          undefined,
-          undefined,
-          undefined,
-          opts.startedAtIso,
+    (_target: WorkTarget, _opts: StartSessionOptions = {}): boolean => {
+      if (typeof console !== 'undefined') {
+        console.warn(
+          '[useWorkSession] startSession is disabled by single-timer-policy-v1. ' +
+          'The mobile app may only start/stop the workday via WorkDayPanel ' +
+          '(mobileApi.startTimeRegistration).',
         );
       }
-      if (target.kind === 'project') {
-        return startTimer(
-          key,
-          target.name,
-          false,
-          opts.taskId,
-          opts.taskTitle,
-          undefined,
-          undefined,
-          target.largeProjectId,
-          opts.startedAtIso,
-        );
-      }
-      // location
-      return startTimer(
-        key,
-        target.name,
-        false,
-        opts.taskId,
-        opts.taskTitle,
-        target.locationId,
-        target.name,
-        undefined,
-        opts.startedAtIso,
-      );
+      return false;
     },
-    [activeTimers, startTimer],
+    [],
   );
 
   /**
