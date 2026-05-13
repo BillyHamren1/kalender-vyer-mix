@@ -682,9 +682,27 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     return { work, travel };
   };
 
-  // Planned-only group (compact)
-  const plannedOnly = sortedStaff.filter((s) => s.planningStatus === 'planned_not_started');
-  const ganttStaff = sortedStaff.filter((s) => s.planningStatus !== 'planned_not_started');
+  // Planned-only group (compact). Time Engine 3.8: belt-and-suspenders —
+  // även om planningStatus = 'planned_not_started' ska personen INTE visas
+  // som "har inte rapporterat" om engine/GPS-evidens redan finns. Den
+  // snälla källan är planningStatus, men vi ger oss inte på att tro den
+  // blint utan kollar också att blocksByStaff är tomt och att inga pings
+  // finns. Då hamnar personen rätt i Gantt-listan istället.
+  const hasEngineOrGpsEvidenceForStaff = (s: typeof sortedStaff[number]): boolean => {
+    if ((blocksByStaff[s.id]?.length ?? 0) > 0) return true;
+    if (s.latestPing) return true;
+    if (s.presence?.hasGpsPings) return true;
+    if (s.presence?.hasTimeReports) return true;
+    if (s.presence?.hasLocationTimeEntries) return true;
+    if (s.presence?.hasWorkday) return true;
+    if ((s.actualModel?.actualVisits?.length ?? 0) > 0) return true;
+    if ((s.actualModel?.actualEvents?.length ?? 0) > 0) return true;
+    return false;
+  };
+  const plannedOnly = sortedStaff.filter(
+    (s) => s.planningStatus === 'planned_not_started' && !hasEngineOrGpsEvidenceForStaff(s),
+  );
+  const ganttStaff = sortedStaff.filter((s) => !plannedOnly.includes(s));
 
   return (
     <div className="space-y-3">
