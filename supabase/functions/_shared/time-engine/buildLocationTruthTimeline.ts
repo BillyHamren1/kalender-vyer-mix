@@ -692,6 +692,7 @@ interface PingRow {
   lng: number;
   speedMps: number | null;
   match: PingMatch;
+  audit: PingMatchAudit;
 }
 
 function uid(prefix: string, i: number): string {
@@ -720,7 +721,13 @@ export function buildLocationTruthTimeline(
     .map((p, idx) => {
       const id = p.id ?? `p${idx}`;
       const tsMs = Date.parse(p.ts);
-      return { id, ts: p.ts, tsMs, lat: Number(p.lat), lng: Number(p.lng), speedMps: p.speedMps ?? null, match: null as unknown as PingMatch };
+      return {
+        id, ts: p.ts, tsMs,
+        lat: Number(p.lat), lng: Number(p.lng),
+        speedMps: p.speedMps ?? null,
+        match: null as unknown as PingMatch,
+        audit: null as unknown as PingMatchAudit,
+      };
     })
     .filter((p) => Number.isFinite(p.tsMs) && p.tsMs >= dayStartMs && p.tsMs <= dayEndMs)
     .sort((a, b) => a.tsMs - b.tsMs);
@@ -728,11 +735,14 @@ export function buildLocationTruthTimeline(
   // Sticky-aware matching: walk pings forward, carrying the previous "place key".
   let stickyKey: string | null = null;
   for (const p of pings) {
-    p.match = matchPing(p.id, p.ts, p.lat, p.lng, {
+    const r = matchPing(p.id, p.ts, p.lat, p.lng, {
       candidates,
       stickyKey,
       stickyToleranceM: policy.stickyToleranceM,
+      dayEndMs,
     });
+    p.match = r.match;
+    p.audit = r.audit;
     const k = pingMatchKey(p.match);
     if (k) stickyKey = k;
     // Note: unknown/nearest_debug doesn't reset sticky — caller may have lost
@@ -751,8 +761,24 @@ export function buildLocationTruthTimeline(
     unknownPingCount: 0,
     examples: [],
   };
+  const prDiag: PrivateResidenceMatchDiagnostics = {
+    pingsInsideResidence: 0,
+    residenceOverrodeWarehouseCount: 0,
+    residenceOverrodeProjectCount: 0,
+    residenceBlockedToleranceCount: 0,
+    examples: [],
+  };
+  const taDiag: WorkAreaToleranceDiagnostics = {
+    toleranceMeters: policy.stickyToleranceM,
+    continuedSessionByToleranceCount: 0,
+    blockedByPrivateResidenceCount: 0,
+    blockedBecauseNoActiveSessionCount: 0,
+    blockedAfterDayEndCount: 0,
+    examples: [],
+  };
   for (const p of pings) {
     const m = p.match;
+    const a = p.audit;
     if (m.matchedByTolerance) pingDiag.matchedByToleranceCount += 1;
     switch (m.matchedPlaceKind) {
       case 'private_residence': pingDiag.matchedPrivateResidenceCount += 1; break;
@@ -773,6 +799,57 @@ export function buildLocationTruthTimeline(
         distanceToTargetMeters: m.distanceToTargetMeters,
       });
     }
+
+    // private_residence diagnostics
+    if (a.insidePrivateResidence) {
+      prDiag.pingsInsideResidence += 1;
+      const overrode: Array<'warehouse' | 'project' | 'booking' | 'location' | 'tolerance'> = [];
+      for (const k of a.shadowedInsideKinds) {
+        if (k === 'warehouse') prDiag.residenceOverrodeWarehouseCount += 1;
+        if (k === 'project') prDiag.residenceOverrodeProjectCount += 1;
+        overrode.push(k);
+      }
+      if (a.toleranceSuppressed === 'private_residence') {
+        prDiag.residenceBlockedToleranceCount += 1;
+        overrode.push('tolerance');
+      }
+      if (prDiag.examples.length < 20 && overrode.length > 0) {
+        prDiag.examples.push({
+          ts: m.ts,
+          residenceLabel: a.privateResidenceLabel ?? 'Boende',
+          overrode,
+        });
+      }
+    }
+
+    // tolerance diagnostics
+    if (a.toleranceFired) {
+      taDiag.continuedSessionByToleranceCount += 1;
+      if (taDiag.examples.length < 20) {
+        taDiag.examples.push({
+          ts: m.ts,
+          outcome: 'continued',
+          candidateLabel: a.toleranceCandidate?.label ?? null,
+          candidateTargetType: a.toleranceCandidate?.targetType ?? null,
+          distanceToEdgeM: a.toleranceCandidate?.outsideM ?? null,
+        });
+      }
+    } else if (a.toleranceSuppressed) {
+      if (a.toleranceSuppressed === 'private_residence') taDiag.blockedByPrivateResidenceCount += 1;
+      if (a.toleranceSuppressed === 'no_active_session') taDiag.blockedBecauseNoActiveSessionCount += 1;
+      if (a.toleranceSuppressed === 'after_day_end') taDiag.blockedAfterDayEndCount += 1;
+      if (taDiag.examples.length < 20) {
+        taDiag.examples.push({
+          ts: m.ts,
+          outcome: a.toleranceSuppressed === 'private_residence' ? 'blocked_private_residence'
+            : a.toleranceSuppressed === 'no_active_session' ? 'blocked_no_active_session'
+            : 'blocked_after_day_end',
+          candidateLabel: a.toleranceCandidate?.label ?? null,
+          candidateTargetType: a.toleranceCandidate?.targetType ?? null,
+          distanceToEdgeM: a.toleranceCandidate?.outsideM ?? null,
+        });
+      }
+    }
   }
 
   // Build segments.
@@ -782,7 +859,7 @@ export function buildLocationTruthTimeline(
   if (pings.length === 0) {
     return {
       locationTruthSegments: [],
-      diagnostics: makeDiag(input, policy, segments, pingDiag),
+      diagnostics: makeDiag(input, policy, segments, pingDiag, prDiag, taDiag),
     };
   }
 
