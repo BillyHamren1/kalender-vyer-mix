@@ -1,66 +1,25 @@
-# Plan: stoppa gamla workday-timers som inte går att avsluta
-
 ## Mål
-Fixa att gamla arbetspass/timers kan ligga öppna i evigheter och fortsätta påverka `/staff-management/time-reports`, även när de inte går att stoppa från appen.
+Återställ produktraderna på bokning **2604-119** (Creative Meetings Unlimited, eventdate 2026-05-18, large project Handelsbanken `fcb35596-…`) som är tom (`booking_products = 0`) medan systerbokningen 2604-90 har 11 produkter.
 
-## Vad jag har verifierat
-- Det finns verkliga öppna poster i databasen, inte bara ett UI-fel.
-- Både `workdays` och `active_time_registrations` ligger öppna för länge.
-- `close-stale-workday-entries` stänger idag gamla `location_time_entries`, `travel_time_logs` och `time_reports`, men **stänger inte gamla `workdays`** längre — den flaggar bara dem.
-- `mobile-app-api` kan fortfarande auto-skapa `workdays` via `ensureOpenWorkdayForTimer(...)` när aktiviteter/tidrapporter startas.
-- `/staff-management/time-reports` läser fortfarande `workdays` i `get-staff-day-status`, så öppna spökposter fortsätter synas där.
+## Steg
 
-## Implementering
+1. **Anropa `import-bookings` riktat mot 2604-119**
+   - Kör edge-funktionen med `bookingNumber: "2604-119"` och `mode: "force"` så att huvud-merge + produktloopen körs igen mot Bokning-API:t.
+   - Funktionen är single-writer för bokningar/produkter och respekterar core-regeln "Booking system = single source of truth".
 
-### 1. Inför server-side cleanup för fastnade aktiva timerregistreringar
-Uppdatera backend så att gamla `active_time_registrations` inte kan ligga kvar öppna obegränsat.
-- Utöka `close-stale-workday-entries` med en separat sektion för `active_time_registrations`
-- Stäng endast tydligt övergivna poster
-- Sätt tydlig `stop_source`/metadata så det går att se att de tvångsstängts
-- Respektera befintliga natt-/säkerhetsregler så vi inte kapar legitima nattpass
+2. **Verifiera resultatet i DB**
+   - `SELECT count(*) FROM booking_products WHERE booking_id = 'a9f8b78b-…'` → ska bli > 0.
+   - Lista produkter (namn, qty, tags) och jämför att de matchar källan.
 
-### 2. Inför säker cleanup för gamla öppna `workdays`
-Stoppa att workdays bara flaggas men fortsätter leva för alltid.
-- Lägg in regel för att stänga **uppenbart övergivna** öppna `workdays`
-- Om aktiv registrering fortfarande finns: stäng den först eller synka sluttiden konsekvent
-- Om ingen aktiv registrering finns: stäng workday direkt med säker clamp
-- Behåll review/flag-diagnostik så admin kan se vad som gjordes
+3. **Diagnos om tomt även efter re-sync**
+   - Då är källan själv tom för 2604-119 → felet ligger i Bokning-systemet, inte hos oss. Rapportera tillbaka med exakt API-svar (status, products[]-längd) så användaren kan åtgärda i källan.
+   - Granska samtidigt `import-bookings` produktloop (recovery ~rad 2951 + huvud-merge ~rad 3495) för att utesluta att vi tappat raderna lokalt vid en tidigare körning.
 
-### 3. Förhindra återkomst från auto-repair/autostart-vägar
-Täta de servervägar som kan skapa om problemet.
-- Granska och strama åt `ensureOpenWorkdayForTimer(...)` i `mobile-app-api`
-- Säkerställ att en ny workday inte auto-skapas när situationen egentligen är en gammal övergiven rad som borde städas bort först
-- Skydda `auto_repair_from_timer_or_gps` så den inte återintroducerar spök-workdays för gamla dagar
+4. **Ingen lokal "skapa produkter"-fix**
+   - Vi skapar inte produkter manuellt lokalt — det skulle bryta single-source-policyn och skrivas över vid nästa sync.
 
-### 4. Skydda `/staff-management/time-reports` mot gamla spökrader
-Gör admin-vyn robust även om dålig historisk data finns kvar.
-- Justera `get-staff-day-status` så urval/prioritering av workday inte låter en gammal öppen rad dominera dagens snapshot
-- Säkerställ att dagens vy i första hand speglar dagsrelevant data, inte en veckogammal öppen rad
+## Inga kodändringar planerade
+Det här är en data-/sync-operation. Endast kodändringar görs om steg 3 visar en bugg i `import-bookings`.
 
-### 5. Lägg till regressionstester
-Skapa testfall för exakt detta fel.
-- Gammal öppen `active_time_registration` ska stängas av cleanup
-- Gammal öppen `workday` utan aktiv timer ska stängas
-- Gammal öppen `workday` med gammal aktiv timer ska inte fortsätta oändligt
-- Ny legitim dagsstart ska fortfarande fungera
-- `/staff-management/time-reports` ska inte visa en gammal spökdag som aktiv dagsstatus
-
-### 6. Rensa redan fastnade poster
-Efter kodfixen, kör en kontrollerad datastädning för nuvarande öppna spökrader.
-- Stäng redan fastnade `active_time_registrations`
-- Stäng redan fastnade `workdays`
-- Märk raderna tydligt som system-cleanup så de går att följa upp
-
-## Tekniska detaljer
-Berörda områden:
-- `supabase/functions/close-stale-workday-entries/index.ts`
-- `supabase/functions/mobile-app-api/index.ts`
-- `supabase/functions/get-staff-day-status/index.ts`
-- nya/uppdaterade tester för edge/backend-flöden
-- sannolikt en migration för säker engångsstädning av redan öppna spökrader
-
-## Förväntat resultat
-- Gamla timers/workdays kan inte längre rulla vidare i dagar
-- Backend stoppar övergivna poster även om appen inte lyckades stoppa dem
-- `/staff-management/time-reports` slutar visa spökaktiva dagar från gammal data
-- Problemet kommer inte tillbaka via samma auto-start/auto-repair-vägar
+## Efter implementation
+Rapporterar antal produkter före/efter, samt om problemet låg lokalt (sync-bugg) eller i källan (Bokning-API).
