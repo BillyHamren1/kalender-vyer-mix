@@ -27,8 +27,8 @@ const MobileProfile = () => {
   const { status: monthStatus, isLoading: isLoadingMonth } = useStaffMonthStatus(startOfMonth(new Date()));
   const { t, locale, setLocale } = useLanguage();
   // Timer 1.8 — single source of truth: active_time_registrations via
-  // useActiveTimerStatus. Inga useWorkDay/useWorkSession-imports.
-  const { timerActive } = useActiveTimerStatus(!!staff);
+  // useActiveTimerStatus.
+  const { data: timerStatus } = useActiveTimerStatus(!!staff);
   const [endDayConfirm, setEndDayConfirm] = useState(false);
   const [endingDay, setEndingDay] = useState(false);
 
