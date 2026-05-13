@@ -213,6 +213,19 @@ export interface DecideAutoStartInput {
     night?: NightPolicy;
   };
   existingActiveRegistration?: ExistingActiveRegistration | null;
+  /**
+   * Set by the caller (processGpsTimelineForAutoStart) when the
+   * candidate segment center sits inside a staff private zone
+   * (staff_private_zones / staff_inferred_home_locations).
+   * "Home wins over work" — when true, decideAutoStart denies with
+   * `blocked_inside_private_residence` even if `target` is a valid
+   * project/booking/warehouse. GPS evidence may still be collected;
+   * only the auto-start side is suppressed.
+   */
+  insidePrivateResidence?: {
+    distanceMeters: number;
+    zoneKind: string | null;
+  } | null;
 }
 
 export type AutoStartSource = 'gps_geofence_auto_start';
