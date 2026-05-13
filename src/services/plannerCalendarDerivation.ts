@@ -443,6 +443,7 @@ export const buildPlannerCalendarEvents = ({
     console.log('large-project rows rendered via fallback', largeProjectFallbackRendered);
     console.log('large-project rows emitted (total)', largeProjectEmittedCount);
     console.log('non-project rows skipped (non-staffable event_type)', nonProjectSkippedNonStaffable);
+    console.log('todo events emitted', todoEventsEmitted);
     console.log('final calendar events emitted', sorted.length);
     console.groupEnd();
     /* eslint-enable no-console */
