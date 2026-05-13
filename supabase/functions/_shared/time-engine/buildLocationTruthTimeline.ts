@@ -41,6 +41,26 @@
 import { isInsideGeofence, distanceToGeofenceEdge, haversine, type GeofenceTarget } from '../geofenceEval.ts';
 import type { Confidence, ISODate, ISODateTime, UUID, WorkTarget } from './contracts.ts';
 
+/**
+ * Location Truth 1.3 — work-area tolerance constant.
+ * A person may drift up to this many meters outside an *already active*
+ * project/warehouse session and still count as inside the same work area.
+ *
+ * STRICT USAGE — tolerance MAY:
+ *   - continue an existing session (sticky)
+ *   - absorb GPS jitter
+ *   - cover small movement around the project/warehouse
+ *
+ * Tolerance MUST NOT:
+ *   - start a new workday
+ *   - originate a new place
+ *   - turn private_residence into work
+ *   - extend a session past dayEnd
+ *   - merge private_residence and warehouse
+ *   - replace the correct project/booking name
+ */
+export const WORK_AREA_TOLERANCE_METERS = 150;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs
 // ─────────────────────────────────────────────────────────────────────────────
