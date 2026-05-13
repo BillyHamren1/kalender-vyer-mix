@@ -6785,6 +6785,7 @@ export type Database = {
           booking_id: string | null
           break_time: number | null
           created_at: string
+          day_timeline_block_key: string | null
           description: string | null
           end_time: string | null
           establishment_task_id: string | null
@@ -6813,6 +6814,7 @@ export type Database = {
           booking_id?: string | null
           break_time?: number | null
           created_at?: string
+          day_timeline_block_key?: string | null
           description?: string | null
           end_time?: string | null
           establishment_task_id?: string | null
@@ -6841,6 +6843,7 @@ export type Database = {
           booking_id?: string | null
           break_time?: number | null
           created_at?: string
+          day_timeline_block_key?: string | null
           description?: string | null
           end_time?: string | null
           establishment_task_id?: string | null
