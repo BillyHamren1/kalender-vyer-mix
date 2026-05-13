@@ -45,6 +45,7 @@ import {
   type DecideAutoStartTarget,
 } from './decideAutoStart.ts';
 import { assertNoLegacySources } from './assertNoLegacySources.ts';
+import { getStockholmDayWindowUtc } from '../stockholmDayWindow.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs / outputs
@@ -106,6 +107,21 @@ export interface ProcessAutoStartResult {
     suppressedUntil: ISODateTime;
     reason: string;
     source: string;
+  } | null;
+  /**
+   * Diagnostics surfaced when the latest registration for this local day
+   * was already `status='stopped'` and we therefore prevented GPS-driven
+   * re-open. Mutually independent from `suppression` (which is the
+   * explicit `time_auto_start_suppressions` row).
+   */
+  dayStopLock?: {
+    dayWasAlreadyStopped: true;
+    preventedLegacyReopen: true;
+    activeRegistrationStatus: 'stopped';
+    stopSource: string | null;
+    stoppedBy: string | null;
+    finalDayEnd: ISODateTime;
+    registrationId: UUID;
   } | null;
   computedAt: ISODateTime;
 }
@@ -217,6 +233,61 @@ async function fetchActiveSuppression(
     : null;
 }
 
+/**
+ * Returns the latest STOPPED active_time_registration whose `stopped_at`
+ * fell inside this staff's local Stockholm-day window.
+ *
+ * Lock-policy from the user spec ("stoppad dagtimer = dagen är stoppad"):
+ *   • Once a day timer is stopped (auto OR user) the rest of the local
+ *     day is locked from GPS-driven re-open.
+ *   • Manual start via `start_time_registration` bypasses (it does not
+ *     go through this engine).
+ *   • A NEW active row started after the stop reopens normally — we only
+ *     suppress when the LATEST row for the day is already stopped.
+ *
+ * Diagnostics: surfaced as `dayWasAlreadyStopped` + `preventedLegacyReopen`
+ * in the synthesized suppression returned to the caller.
+ */
+async function fetchLatestStoppedRegistrationForLocalDate(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+  date: ISODate,
+): Promise<{
+  id: UUID;
+  status: string;
+  startedAt: ISODateTime;
+  stoppedAt: ISODateTime;
+  stopSource: string | null;
+  stoppedBy: string | null;
+} | null> {
+  const win = getStockholmDayWindowUtc(date);
+  const { data, error } = await supabaseAdmin
+    .from('active_time_registrations')
+    .select('id, status, started_at, stopped_at, stop_source, stopped_by')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .gte('started_at', win.startUtc)
+    .lte('started_at', win.endUtc)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn('[time-engine] fetchLatestStoppedRegistrationForLocalDate failed:', error.message);
+    return null;
+  }
+  if (!data) return null;
+  if (data.status !== 'stopped' || !data.stopped_at) return null;
+  return {
+    id: data.id as UUID,
+    status: data.status as string,
+    startedAt: data.started_at as ISODateTime,
+    stoppedAt: data.stopped_at as ISODateTime,
+    stopSource: (data.stop_source as string | null) ?? null,
+    stoppedBy: (data.stopped_by as string | null) ?? null,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
@@ -276,9 +347,42 @@ export async function processGpsTimelineForAutoStart(
   // day. Manual start via WorkDayPanel bypasses this (it goes through
   // start_time_registration directly, not through this engine).
   const nowIso = input.localTime ?? new Date().toISOString();
-  const suppression = await fetchActiveSuppression(
+  let suppression = await fetchActiveSuppression(
     supabaseAdmin, organizationId, staffId, date, nowIso,
   );
+
+  // 3c) Day-already-stopped lock — covers AUTO stops as well.
+  // If we have NO active row but the latest registration for this local day
+  // is `status='stopped'`, the day is over and GPS must NOT reopen it.
+  // Diagnostics keys: dayWasAlreadyStopped, preventedLegacyReopen,
+  // activeRegistrationStatus, stopSource, finalDayEnd.
+  let dayStoppedSynth: {
+    registrationId: UUID;
+    stoppedAt: ISODateTime;
+    stopSource: string | null;
+    stoppedBy: string | null;
+  } | null = null;
+  if (!active && !suppression) {
+    const lastStopped = await fetchLatestStoppedRegistrationForLocalDate(
+      supabaseAdmin, organizationId, staffId, date,
+    );
+    if (lastStopped) {
+      dayStoppedSynth = {
+        registrationId: lastStopped.id,
+        stoppedAt: lastStopped.stoppedAt,
+        stopSource: lastStopped.stopSource,
+        stoppedBy: lastStopped.stoppedBy,
+      };
+      // Synthesize a suppression so the existing block below short-circuits
+      // identically and emits per-candidate decisions for the debug surface.
+      suppression = {
+        id: lastStopped.id,
+        suppressedUntil: nowIso, // virtual — we recompute on each call
+        reason: 'day_already_stopped',
+        source: lastStopped.stopSource ?? 'system_day_stop',
+      };
+    }
+  }
 
   // 4) Decide on relevant stay segments
   const candidates = timeline.segments.filter(
@@ -288,8 +392,10 @@ export async function processGpsTimelineForAutoStart(
   let createdRegistrationId: UUID | null = null;
 
   // If suppression is active we still emit one decision per candidate so the
-  // health check / debug surface clearly shows `blocked_user_ended_workday`,
-  // but we never insert a registration row.
+  // health check / debug surface clearly shows the block reason, but we never
+  // insert a registration row.
+  const suppressionReasonForDecisions: 'blocked_user_ended_workday' | 'blocked_day_already_stopped' =
+    dayStoppedSynth ? 'blocked_day_already_stopped' : 'blocked_user_ended_workday';
   if (suppression) {
     for (const seg of candidates) {
       const target = findTargetForSegment(seg, resolvedTargets);
@@ -301,7 +407,7 @@ export async function processGpsTimelineForAutoStart(
         matchedTargetName: target?.name ?? seg.matchedTargetName,
         decision: {
           allowed: false,
-          reason: 'blocked_user_ended_workday',
+          reason: suppressionReasonForDecisions,
           confidence: seg.confidence,
           startAt: null,
           targetId: null,
@@ -333,6 +439,17 @@ export async function processGpsTimelineForAutoStart(
       decisions,
       targetDiagnostics,
       suppression,
+      dayStopLock: dayStoppedSynth
+        ? {
+            dayWasAlreadyStopped: true,
+            preventedLegacyReopen: true,
+            activeRegistrationStatus: 'stopped',
+            stopSource: dayStoppedSynth.stopSource,
+            stoppedBy: dayStoppedSynth.stoppedBy,
+            finalDayEnd: dayStoppedSynth.stoppedAt,
+            registrationId: dayStoppedSynth.registrationId,
+          }
+        : null,
       computedAt: new Date().toISOString(),
     };
   }
@@ -469,6 +586,7 @@ export async function processGpsTimelineForAutoStart(
     decisions,
     targetDiagnostics,
     suppression: null,
+    dayStopLock: null,
     computedAt: new Date().toISOString(),
   };
 }
