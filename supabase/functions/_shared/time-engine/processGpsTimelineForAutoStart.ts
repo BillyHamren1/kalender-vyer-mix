@@ -148,6 +148,19 @@ export interface ProcessAutoStartResult {
     finalDayEnd: ISODateTime;
     registrationId: UUID;
   } | null;
+  /**
+   * Aggregate home/private-residence diagnostics for this run. Set when
+   * at least one candidate stay segment was suppressed because the staff
+   * was inside a private zone. "Home wins over work."
+   */
+  privateResidenceLock?: {
+    matchedPrivateResidence: true;
+    suppressedAutoStartBecauseHome: true;
+    suppressedSegmentsCount: number;
+    homeWonOverWorkTargetCount: number;
+    nearestZoneKind: string | null;
+    nearestDistanceMeters: number | null;
+  } | null;
   computedAt: ISODateTime;
 }
 
