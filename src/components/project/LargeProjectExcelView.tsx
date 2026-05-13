@@ -87,9 +87,10 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
 
   // Build available columns
   const allColumns = useMemo(() => {
-    const cols: { id: ColId; label: string; kind: "client" | "address" | "tag" | "untagged" | "custom"; tagKey?: string }[] = [
+    const cols: { id: ColId; label: string; kind: "client" | "address" | "qty" | "tag" | "untagged" | "custom"; tagKey?: string }[] = [
       { id: "client", label: "Kund / Bokning", kind: "client" },
       { id: "address", label: "Plats / Adress", kind: "address" },
+      { id: "qty", label: "Antal", kind: "qty" },
     ];
     for (const [k, label] of Array.from(tagDisplay.entries()).sort((a, b) => a[1].localeCompare(b[1], "sv"))) {
       cols.push({ id: `tag:${k}`, label, kind: "tag", tagKey: k });
