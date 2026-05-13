@@ -1021,6 +1021,7 @@ export type Database = {
           start_time: string
           times_locked: boolean
           title: string
+          todo_id: string | null
           viewed: boolean | null
         }
         Insert: {
@@ -1037,6 +1038,7 @@ export type Database = {
           start_time: string
           times_locked?: boolean
           title: string
+          todo_id?: string | null
           viewed?: boolean | null
         }
         Update: {
@@ -1053,6 +1055,7 @@ export type Database = {
           start_time?: string
           times_locked?: boolean
           title?: string
+          todo_id?: string | null
           viewed?: boolean | null
         }
         Relationships: [
@@ -1061,6 +1064,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_todo_id_fkey"
+            columns: ["todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
             referencedColumns: ["id"]
           },
         ]
@@ -6949,6 +6959,146 @@ export type Database = {
           time_report_id?: string | null
         }
         Relationships: []
+      }
+      todo_types: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_builtin: boolean
+          key: string
+          label: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_builtin?: boolean
+          key: string
+          label: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_builtin?: boolean
+          key?: string
+          label?: string
+          organization_id?: string
+        }
+        Relationships: []
+      }
+      todos: {
+        Row: {
+          address: string | null
+          assigned_leader: string | null
+          booking_id: string | null
+          city: string | null
+          client: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          end_time: string | null
+          id: string
+          internal_notes: string | null
+          large_project_id: string | null
+          latitude: number | null
+          longitude: number | null
+          organization_id: string
+          planning_status: string
+          postal_code: string | null
+          scheduled_date: string | null
+          start_time: string | null
+          title: string
+          type_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          assigned_leader?: string | null
+          booking_id?: string | null
+          city?: string | null
+          client?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_time?: string | null
+          id?: string
+          internal_notes?: string | null
+          large_project_id?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          organization_id: string
+          planning_status?: string
+          postal_code?: string | null
+          scheduled_date?: string | null
+          start_time?: string | null
+          title: string
+          type_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          assigned_leader?: string | null
+          booking_id?: string | null
+          city?: string | null
+          client?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_time?: string | null
+          id?: string
+          internal_notes?: string | null
+          large_project_id?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          organization_id?: string
+          planning_status?: string
+          postal_code?: string | null
+          scheduled_date?: string | null
+          start_time?: string | null
+          title?: string
+          type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todos_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "todo_types"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tracking_boost_dismissals: {
         Row: {
