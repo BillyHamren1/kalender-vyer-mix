@@ -886,6 +886,15 @@ export async function processGpsTimelineForAutoStart(
         segmentId: seg.id,
         targetSource: target.targetSource,
         engine: 'time-engine.v1',
+        // Auto-start owns ONLY the workday. The matched target lives here as
+        // evidence so admin/Time Engine can later allocate the time to a
+        // project/booking/warehouse — but the active row itself stays a pure
+        // dagtimer (start_target_*/current_target_* are NULL).
+        evidenceTarget: {
+          id: target.id,
+          type: target.type,
+          name: target.name,
+        },
       };
 
       const { data: inserted, error: insertErr } = await supabaseAdmin
@@ -897,16 +906,19 @@ export async function processGpsTimelineForAutoStart(
           started_at: decision.startAt,
           start_source: 'gps_geofence_auto_start',
           auto_started: true,
-          start_target_type: target.type,
-          start_target_id: target.id,
-          start_target_label: target.name,
-          current_kind: target.type,
-          current_label: target.name,
-          current_target_type: target.type,
-          current_target_id: target.id,
+          // Auto-start may NEVER own a project/location/booking timer. The
+          // workday row is target-less; Time Engine allocates time to
+          // project/lager later via staff_day_report_cache.
+          start_target_type: null,
+          start_target_id: null,
+          start_target_label: null,
+          current_kind: 'day_active',
+          current_label: 'Arbetsdag aktiv',
+          current_target_type: null,
+          current_target_id: null,
           current_confidence: decision.confidence,
           needs_user_choice: false,
-          metadata: { evidence },
+          metadata: { timerModel: 'single_day_timer', evidence },
         })
         .select('id')
         .maybeSingle();
