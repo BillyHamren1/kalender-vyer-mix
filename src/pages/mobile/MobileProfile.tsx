@@ -13,7 +13,8 @@ import { format, parseISO, startOfMonth } from 'date-fns';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv, enUS } from 'date-fns/locale';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { useWorkDay } from '@/hooks/useWorkDay';
+import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
+import { mobileApiService } from '@/services/mobileApiService';
 import { useState } from 'react';
 
 
