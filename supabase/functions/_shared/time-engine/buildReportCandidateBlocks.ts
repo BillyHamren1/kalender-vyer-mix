@@ -441,7 +441,8 @@ export interface ReportCandidateSummary {
         | 'stale_evidence_open_timer_not_extended'
         | 'block_prevented_from_continuing_to_now'
         | 'historical_date_synthetic_block_skipped'
-        | 'stale_evidence_synthetic_block_skipped';
+        | 'stale_evidence_synthetic_block_skipped'
+        | 'active_day_timer_open_without_place_evidence';
       activeTimerStart: ISODateTime;
       activeTimerTarget: string | null;
       anchorEndBefore: ISODateTime | null;
