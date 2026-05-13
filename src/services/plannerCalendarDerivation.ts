@@ -153,7 +153,7 @@ const mapRealRowToCalendarEvent = (
     end: row.end_time,
     resourceId: row.resource_id || '',
     bookingId: row.booking_id || undefined,
-    eventType: normalizePhase(row.event_type) || undefined,
+    eventType: row.event_type === 'todo' ? 'todo' : (normalizePhase(row.event_type) || undefined),
     delivery_address: row.delivery_address || booking?.deliveryaddress || project?.address || undefined,
     booking_number: row.booking_number || booking?.booking_number || undefined,
     bookingNumber: row.booking_number || booking?.booking_number || undefined,
