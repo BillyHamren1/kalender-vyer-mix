@@ -347,6 +347,7 @@ export function evaluateAutoStopForActiveDay(
           stopSource: 'gps_home_auto_stop',
           proposedStopTime: new Date(firstHomeHitMs).toISOString(),
           actualStoppedAt: stopAtIso,
+          autoStopBecauseHome: true,
         },
       };
     }
