@@ -20,7 +20,7 @@ import DashboardUpdatedBookings from "@/components/dashboard/DashboardUpdatedBoo
 import DashboardCancelledBookings from "@/components/dashboard/DashboardCancelledBookings";
 import DashboardAllProjects from "@/components/dashboard/DashboardAllProjects";
 
-import CreateProjectWizard from "@/components/project/CreateProjectWizard";
+import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 
 const PlanningDashboard = () => {
@@ -201,7 +201,7 @@ const PlanningDashboard = () => {
       </div>
 
       {/* Dialogs */}
-      <CreateProjectWizard
+      <CreateTodoWizard
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         preselectedBookingId={selectedBookingId}
