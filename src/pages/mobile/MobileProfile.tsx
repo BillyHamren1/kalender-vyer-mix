@@ -13,7 +13,8 @@ import { format, parseISO, startOfMonth } from 'date-fns';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { sv, enUS } from 'date-fns/locale';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { useWorkDay } from '@/hooks/useWorkDay';
+import { useActiveTimerStatus } from '@/hooks/useActiveTimerStatus';
+import { mobileApi } from '@/services/mobileApiService';
 import { useState } from 'react';
 
 
@@ -25,21 +26,32 @@ const MobileProfile = () => {
   // Lokala reduce över time_reports/travel_time_logs är förbjudna här.
   const { status: monthStatus, isLoading: isLoadingMonth } = useStaffMonthStatus(startOfMonth(new Date()));
   const { t, locale, setLocale } = useLanguage();
-  const { current: currentWorkday } = useWorkDay();
+  // Timer 1.8 — single source of truth: active_time_registrations via
+  // useActiveTimerStatus.
+  const { data: timerStatus } = useActiveTimerStatus(!!staff);
   const [endDayConfirm, setEndDayConfirm] = useState(false);
+  const [endingDay, setEndingDay] = useState(false);
 
   const dateFnsLocale = locale === 'en' ? enUS : sv;
 
-  const workdayOpen = !!currentWorkday && !currentWorkday.ended_at;
+  const workdayOpen = timerStatus.timerActive;
 
-  const handleEndDay = () => {
+  const handleEndDay = async () => {
     if (!endDayConfirm) {
       setEndDayConfirm(true);
       window.setTimeout(() => setEndDayConfirm(false), 4000);
       return;
     }
     setEndDayConfirm(false);
-    window.dispatchEvent(new CustomEvent('request-end-day'));
+    setEndingDay(true);
+    try {
+      await mobileApi.stopTimeRegistration({ stop_source: 'user_manual' });
+      window.dispatchEvent(new CustomEvent('timer-state-changed'));
+    } catch (e) {
+      console.error('[MobileProfile] stopTimeRegistration failed', e);
+    } finally {
+      setEndingDay(false);
+    }
   };
 
   const handleLogout = () => {
@@ -202,9 +214,10 @@ const MobileProfile = () => {
               variant={endDayConfirm ? 'destructive' : 'outline'}
               className="w-full h-11 rounded-xl text-sm gap-2 font-semibold border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all active:scale-[0.98]"
               onClick={handleEndDay}
+              disabled={endingDay}
             >
               <LogOut className="w-4.5 h-4.5" />
-              {endDayConfirm ? 'Tryck igen för att bekräfta' : 'Avsluta dagen'}
+              {endingDay ? 'Stoppar…' : endDayConfirm ? 'Tryck igen för att bekräfta' : 'Avsluta dagen'}
             </Button>
           </div>
         )}
