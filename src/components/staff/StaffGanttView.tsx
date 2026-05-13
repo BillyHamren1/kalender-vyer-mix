@@ -224,71 +224,95 @@ const blocksFromStaff = (
     const labelDiagnostics = {
       missingTitleBlocksCount: 0,
       genericTitleBlocksCount: 0,
-      resolvedFromDisplayTitleCount: 0,
-      resolvedFromTargetLabelCount: 0,
-      resolvedFromAssignmentCount: 0,
-      fallbackTitleCount: 0,
+      resolvedFromEngineCount: 0,
+      resolvedFromLargeProjectCount: 0,
+      planningAsBadgeOnlyCount: 0,
+      planningAsFallbackCount: 0,
+      ignoredPlanningBecauseGeoDisagreedCount: 0,
+      unknownKeptCount: 0,
       examples: [] as Array<Record<string, unknown>>,
     };
-    // Time Engine 2.14 — använd dagens planerade jobb som fallback-namn så
-    // block aldrig fastnar på "Signal saknas" / "Arbete – okänd plats" när
-    // personalen har ett enda planerat projekt för dagen.
-    const plannedFallback =
-      staff.plannedLabels && staff.plannedLabels.length === 1
-        ? staff.plannedLabels[0]
-        : null;
-    for (const b of candidate) {
-      const enriched = plannedFallback
-        ? { ...b, plannedAssignmentLabel: (b as any).plannedAssignmentLabel ?? plannedFallback }
-        : b;
-      const resolved = resolveGanttBlockTitle(enriched);
-      const reason = classifyGanttTitleResolution(enriched, resolved);
+
+    // Time Engine 3.8 — Geo-first label authority.
+    // Vi skickar EJ längre in plannedFallback som plannedAssignmentLabel
+    // direkt på blocket — det skrev över faktisk engine/geo-evidens.
+    // I stället kallar vi resolveActualLocationTargetForBlock som vet att
+    // engine vinner när target finns, planning bara är badge när engine är
+    // okänt men dagen har evidens, och planning bara är fallback-titel när
+    // dagen helt saknar evidens.
+    //
+    // hasDayEvidence är true så fort engine producerat något block för
+    // dagen ELLER personalen har GPS-pings/place_visits/workday — alltså
+    // när vi sitter med candidate.length > 0 är vi per definition i
+    // "evidens finns för dagen"-läget.
+    const hasDayEvidence =
+      candidate.length > 0
+      || (staff.actualModel?.actualVisits?.length ?? 0) > 0
+      || (staff.actualModel?.actualEvents?.length ?? 0) > 0
+      || !!staff.latestPing
+      || staff.presence?.hasGpsPings === true
+      || staff.presence?.hasTimeReports === true
+      || staff.presence?.hasLocationTimeEntries === true
+      || staff.presence?.hasWorkday === true;
+
+    const processBlock = (b: ReportCandidateBlockUI, isPreWork: boolean) => {
+      const resolution = resolveActualLocationTargetForBlock({
+        block: b as any,
+        plannedLabels: staff.plannedLabels ?? [],
+        hasDayEvidence,
+      });
+      const resolved = resolution.finalTitle;
+
       if (!b.title || !b.title.trim()) labelDiagnostics.missingTitleBlocksCount += 1;
-      if (reason === 'displayTitle') labelDiagnostics.resolvedFromDisplayTitleCount += 1;
-      else if (reason === 'targetLabel') labelDiagnostics.resolvedFromTargetLabelCount += 1;
-      else if (reason === 'plannedAssignmentLabel') labelDiagnostics.resolvedFromAssignmentCount += 1;
-      else if (reason === 'fallback') {
-        labelDiagnostics.fallbackTitleCount += 1;
-        if (labelDiagnostics.examples.length < 5) {
-          labelDiagnostics.examples.push({
-            staffName: staff.name,
-            blockId: b.id,
-            kind: b.kind,
-            originalTitle: b.title,
-            targetLabel: b.targetLabel ?? null,
-            plannedFallback,
-            finalTitle: resolved,
-            reason,
-          });
-        }
+      switch (resolution.source) {
+        case 'engine_target': labelDiagnostics.resolvedFromEngineCount += 1; break;
+        case 'large_project_promoted': labelDiagnostics.resolvedFromLargeProjectCount += 1; break;
+        case 'planning_fallback': labelDiagnostics.planningAsFallbackCount += 1; break;
+        case 'unknown': labelDiagnostics.unknownKeptCount += 1; break;
       }
+      if (resolution.diagnostics.usedPlanningAsBadgeOnly) {
+        labelDiagnostics.planningAsBadgeOnlyCount += 1;
+      }
+      if (resolution.diagnostics.ignoredPlanningBecauseGeoDisagreed) {
+        labelDiagnostics.ignoredPlanningBecauseGeoDisagreedCount += 1;
+      }
+      if (resolution.source === 'unknown' && labelDiagnostics.examples.length < 5) {
+        labelDiagnostics.examples.push({
+          staffName: staff.name,
+          blockId: b.id,
+          kind: b.kind,
+          originalTitle: b.title,
+          targetLabel: b.targetLabel ?? null,
+          plannedLabels: staff.plannedLabels ?? [],
+          finalTitle: resolved,
+          source: resolution.source,
+          reason: resolution.diagnostics.reason,
+        });
+      }
+
       out.push({
-        id: b.id,
-        kind: mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate),
+        id: isPreWork ? `pre-${b.id}` : b.id,
+        kind: isPreWork
+          ? 'pre_work'
+          : mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate),
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
         title: resolved,
-        subtitle: b.subtitle ?? null,
+        subtitle: isPreWork ? 'Före arbetsdag' : (b.subtitle ?? null),
+        plannedBadgeLabel: resolution.plannedBadgeLabel,
       });
-    }
-    if (labelDiagnostics.fallbackTitleCount > 0 && typeof console !== 'undefined') {
-      console.warn('[Gantt 2.13] ganttLabelDiagnostics', labelDiagnostics);
-    }
-    if (excludedPreWork) {
-      for (const b of excludedPreWork) {
-        out.push({
-          id: `pre-${b.id}`,
-          kind: 'pre_work',
-          startAt: b.startAt,
-          endAt: b.endAt,
-          durationMinutes: b.durationMinutes,
-          title: resolveGanttBlockTitle(
-            plannedFallback ? { ...b, plannedAssignmentLabel: (b as any).plannedAssignmentLabel ?? plannedFallback } : b,
-          ),
-          subtitle: 'Före arbetsdag',
-        });
-      }
+    };
+
+    for (const b of candidate) processBlock(b, false);
+    if (excludedPreWork) for (const b of excludedPreWork) processBlock(b, true);
+
+    if (labelDiagnostics.unknownKeptCount > 0 && typeof console !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.warn('[Gantt 3.8] actualVsPlanned', {
+        staff: staff.name,
+        ...labelDiagnostics,
+      });
     }
     return out;
   }
