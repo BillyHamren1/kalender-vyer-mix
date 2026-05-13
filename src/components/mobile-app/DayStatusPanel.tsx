@@ -1,3 +1,8 @@
+// LEGACY_DO_NOT_IMPORT_TIME_ENGINE_V3
+// Timer 1.8 — kvar i kodbasen för testkontrakt och historisk referens.
+// FÅR INTE importeras från aktiv personalapp (mobile/scanner) eller från
+// admin/Time Engine. Single source of truth = active_time_registrations +
+// WorkDayPanel + staff_day_report_cache.
 import React, { useMemo, useState } from 'react';
 import {
   Sun, Clock, MapPin, Square, ArrowRightLeft, Pencil, X,
