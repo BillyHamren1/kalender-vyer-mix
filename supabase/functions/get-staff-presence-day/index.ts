@@ -40,6 +40,21 @@ import {
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
 import { computeDayEndDecision } from '../_shared/time-engine/computeDayEndDecision.ts';
 import { clampBlocksToDayEndDecision } from '../_shared/time-engine/clampBlocksToDayEndDecision.ts';
+// Location Truth pipeline (1.2 → 1.7) — pure transforms, never writes.
+import {
+  buildLocationTruthTimeline,
+  type LocationTruthGpsPing,
+  type LocationTruthExtraLocation,
+  type LocationTruthPrivateResidence,
+} from '../_shared/time-engine/buildLocationTruthTimeline.ts';
+import { buildTransportFromLocationTruth } from '../_shared/time-engine/buildTransportFromLocationTruth.ts';
+import {
+  buildReportBlocksFromLocationTruth,
+  type NameLookup,
+} from '../_shared/time-engine/buildReportBlocksFromLocationTruth.ts';
+import { enforceSingleVisibleTimeline } from '../_shared/time-engine/enforceSingleVisibleTimeline.ts';
+import { cleanupNeedsReviewFromLocationTruth } from '../_shared/time-engine/cleanupNeedsReviewFromLocationTruth.ts';
+import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFromLocationTruth.ts';
 import {
   computePlannedDaySignals,
   type BookingTimes,
