@@ -136,6 +136,8 @@ export interface AutoStopDiagnostics {
   } | null;
   homeDetected: boolean;
   privateResidenceDetected: boolean;
+  /** True iff the auto-stop decision was driven by home/private dwell. */
+  autoStopBecauseHome: boolean;
   idleAfterWorkMinutes: number | null;
   rejectedReason: AutoStopRejectedReason | null;
   configUsed: AutoStopConfig;
