@@ -175,6 +175,14 @@ export interface LocationTruthSegment {
   withinTolerance: boolean;
   signalGapMinutes: number;
   signalGapCount: number;
+  /** 'good' | 'gappy' (one or more bridged gaps) | 'bridged' | 'gap' (the segment IS a signal_gap). */
+  signalQuality: 'good' | 'gappy' | 'gap';
+  /**
+   * Soft warnings attached during merge / bridge. Examples:
+   *   - 'signal_gap_inside_same_location' (gap absorbed because same place on both sides)
+   *   - 'possible_transition_gap' (gap segment between two different places)
+   */
+  warningReasons: string[];
   rawEvidence: {
     pingCount: number;
     matchReason: PingMatchReason | null;
