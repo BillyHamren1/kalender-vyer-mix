@@ -8,6 +8,10 @@ import { toast } from 'sonner';
 import { format, parse } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import {
+  findExistingDayRow,
+  getStickyTeamForBooking,
+} from '@/lib/calendar/projectTeamStickiness';
 
 // Generate time options in 30-minute intervals
 const generateTimeOptions = (): string[] => {
