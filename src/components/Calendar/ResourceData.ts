@@ -66,6 +66,8 @@ export const getEventColor = (eventType: string | undefined): string => {
     case 'activity':
     case 'transport':
       return '#BFDBFE'; // Light blue (matches delivery)
+    case 'todo':
+      return '#FED7AA'; // Orange-200 (to-do tasks)
     default:
       return '#DBEAFE'; // Light blue (blue-100)
   }
@@ -86,6 +88,7 @@ export const getEventDotClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-500';
     case 'task_logistics': return 'bg-blue-400';
     case 'task_admin': return 'bg-slate-400';
+    case 'todo': return 'bg-orange-500';
     default: return 'bg-gray-500';
   }
 };
@@ -105,6 +108,7 @@ export const getEventBgClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-50';
     case 'task_logistics': return 'bg-blue-50';
     case 'task_admin': return 'bg-slate-50';
+    case 'todo': return 'bg-orange-100';
     default: return 'bg-gray-100';
   }
 };
@@ -125,6 +129,7 @@ export const getEventCardClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-500/20 border-purple-500';
     case 'task_logistics': return 'bg-blue-400/20 border-blue-400';
     case 'task_admin': return 'bg-slate-400/20 border-slate-400';
+    case 'todo': return 'bg-orange-500/20 border-orange-500';
     default: return 'bg-primary/20 border-primary';
   }
 };
