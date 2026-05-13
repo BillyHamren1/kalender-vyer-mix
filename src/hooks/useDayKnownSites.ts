@@ -27,7 +27,7 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
       const [reportsRes, ltesRes] = await Promise.all([
         supabase
           .from('time_reports')
-          .select('booking_id, large_project_id, project_id:booking_id')
+          .select('booking_id, large_project_id')
           .eq('staff_id', staffId)
           .eq('report_date', date),
         supabase
@@ -37,29 +37,18 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           .eq('entry_date', date),
       ]);
 
-      // Re-fetch time_reports including project_id (couldn't alias above safely).
-      const trProjectsRes = await supabase
-        .from('time_reports')
-        .select('project_id')
-        .eq('staff_id', staffId)
-        .eq('report_date', date);
-
       const bookingIds = new Set<string>();
       const largeIds = new Set<string>();
-      const projectIds = new Set<string>();
       for (const r of (reportsRes.data || []) as any[]) {
         if (r.booking_id) bookingIds.add(String(r.booking_id));
         if (r.large_project_id) largeIds.add(String(r.large_project_id));
-      }
-      for (const r of (trProjectsRes.data || []) as any[]) {
-        if (r.project_id) projectIds.add(String(r.project_id));
       }
       for (const r of (ltesRes.data || []) as any[]) {
         if (r.booking_id) bookingIds.add(String(r.booking_id));
         if (r.large_project_id) largeIds.add(String(r.large_project_id));
       }
 
-      const [bookingsRes, largeRes, projectsTodayRes, projectsRefRes] = await Promise.all([
+      const [bookingsRes, largeRes, projectsTodayRes, projectsByBookingRes] = await Promise.all([
         bookingIds.size
           ? supabase
               .from('bookings')
@@ -72,18 +61,18 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
               .select('id, name, address_latitude, address_longitude, address_radius_meters')
               .in('id', [...largeIds])
           : Promise.resolve({ data: [] as any[] }),
-        // Projekt planerade idag (event/rig/down = date)
+        // Lokala projekt planerade idag (event/rig/down = date)
         supabase
           .from('projects')
           .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, eventdate, rigdaydate, rigdowndate')
           .is('deleted_at', null)
           .or(`eventdate.eq.${date},rigdaydate.eq.${date},rigdowndate.eq.${date}`),
-        // Projekt refererade i dagens TR
-        projectIds.size
+        // Lokala projekt kopplade till dagens TR/LTE-bokningar
+        bookingIds.size
           ? supabase
               .from('projects')
-              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at')
-              .in('id', [...projectIds])
+              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, booking_id')
+              .in('booking_id', [...bookingIds])
               .is('deleted_at', null)
           : Promise.resolve({ data: [] as any[] }),
       ]);
@@ -115,7 +104,7 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
       const seenProjects = new Set<string>();
       const projectRows = [
         ...(((projectsTodayRes as any).data || []) as any[]),
-        ...(((projectsRefRes as any).data || []) as any[]),
+        ...(((projectsByBookingRes as any).data || []) as any[]),
       ];
       for (const p of projectRows) {
         if (seenProjects.has(p.id)) continue;
