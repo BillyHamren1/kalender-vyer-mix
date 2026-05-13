@@ -916,6 +916,15 @@ export async function processGpsTimelineForAutoStart(
             : null,
         }
       : null,
+    declineLock: declineSuppressedCount > 0
+      ? {
+          userDeclineFound: true,
+          suppressedAutoStartBecauseDeclined: true,
+          suppressedSegmentsCount: declineSuppressedCount,
+          matchedByTargetCount: declineMatchedByTarget,
+          matchedByRadiusCount: declineMatchedByRadius,
+        }
+      : null,
     computedAt: new Date().toISOString(),
   };
 }
