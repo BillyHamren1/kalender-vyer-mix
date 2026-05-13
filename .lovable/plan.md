@@ -1,100 +1,73 @@
-## Mål
+## Två separata buggar
 
-Ersätt `Skapa nytt projekt`-dialogen med en `Skapa to do`-dialog som skapar fristående uppgifter (upphämtning / leverans / annat / valfri sparad typ), valfritt kopplade till en bokning, som hamnar i en egen ORANGE sektion under "Att planera" och kan dras/placeras i personalkalendern.
+### 1. "Arbete – okänd plats" trots GPS inne i projekt
 
-To-dos är en helt egen entitet — inte projekt, inte tasks. De använder `calendar_events` för planeringen (orange färg), precis som projekt gör.
+Pings från Eduards och Elvijs ligger på 59.64724, 17.71753 — det är projektet **Wenngarns Slott** (delivery_latitude 59.648753, delivery_longitude 17.719797, ca 200 m bort, default-radie 150 m + tolerans 150 m → matchar).
 
-## Datamodell (migration)
+Men `useDayKnownSites` (källan till knownSites för "Faktiska besök & förflyttningar" / DayBlockTimeline) hämtar **bara**:
+- `organization_locations` (FA Warehouse mm.)
+- `bookings` som finns i dagens `time_reports` eller `location_time_entries`
+- `large_projects` som finns i dagens TR/LTE
 
-### Ny tabell `todo_types`
-- `id`, `organization_id`, `key` (slug), `label`, `is_builtin` (bool), `created_by`, `created_at`
-- Seed per org: `pickup` "Upphämtning", `delivery` "Leverans", `other` "Annat" (is_builtin=true, kan ej raderas).
-- Användare kan lägga till nya typer från dropdownen → sparas globalt per org.
-- RLS: läs/skriv för medlemmar i samma org.
+**Tabellen `projects` är aldrig med.** Står man på ett vanligt lokalt projekt utan att ha startat någon timer än → ingen matchning → segmentet blir `unknown_place` ("Arbete – okänd plats"), oavsett hur mycket pings som ligger inom radien.
 
-### Ny tabell `todos`
-- `id`, `organization_id`, `type_id` (FK → todo_types), `title`, `booking_id` (nullable FK), `large_project_id` (nullable, för framtid)
-- Adress: `address`, `city`, `postal_code`, `latitude`, `longitude`
-- Kontakt: `contact_name`, `contact_phone`, `contact_email`, `client`
-- Datum/tid: `scheduled_date`, `start_time`, `end_time` (nullable — sätts vid placering i kalender)
-- `planning_status` ('needs_planning' | 'planned' | 'completed' | 'cancelled') default 'needs_planning'
-- `internal_notes`, `created_by`, `created_at`, `updated_at`
-- RLS: org-isolerat (mönster från `projects`).
+### 2. Endast 3–4 ping-prickar syns på kartan trots 336 pings
 
-### `calendar_events` — utökning
-- Lägg till `todo_id uuid` (nullable, FK → todos, ON DELETE CASCADE) + index.
-- Befintliga `category`/typ-kolumner behålls; to-do-events får t.ex. `category='todo'` så kalendern kan färga ORANGE.
-- När `calendar_events.todo_id` finns → flippa `todos.planning_status` till 'planned' via trigger; när alla events tas bort → tillbaka till 'needs_planning'.
+`StaffMovementMap` ritar varje ping som ETT symbol-lager där pricken (●) och tiden ligger i samma `text-field` med `text-allow-overlap: false` + `text-optional: false`. När personen står stilla hamnar 300+ pings på samma koordinat → labels krockar → Mapbox släcker hela symbolen (prick + tid) på alla utom 3–4. Antalet i chippet ("336 positioner") stämmer; det är bara renderingen som är felaktig.
 
-## Backend
+---
 
-- **Inga edge functions** behövs (allt via supabase-klienten + RLS). Skapande, ändring och kalenderplacering går direkt mot tabellerna.
-- Reuse befintlig `calendar_events`-pipeline för dra-och-släpp i personalkalendern.
+## Plan
 
-## Frontend
+### Fix A — `src/hooks/useDayKnownSites.ts`
+Lägg till `projects` som källa, parallellt med bookings/large_projects:
 
-### Ny dialog `CreateTodoWizard.tsx`
-Ersätter `CreateProjectWizard` på alla call-sites (`ProjectManagement.tsx`, `PlanningDashboard.tsx`).
+- Hämta dagens projekt: alla `projects` där `eventdate=date OR rigdaydate=date OR rigdowndate=date`, plus projekt som personalen är assignad till idag (via `staff_assignments`/BSA – återanvänd samma logik som `mobile-job-visibility-sync` om den finns klientsidig, annars håll det enkelt: dagens projekt + alla `status` aktiva projekt med coords som dyker upp i dagens TR/LTE).
+- Filtrera ut `deleted_at not null` och cancelled.
+- Push `KnownSite` med `id: 'project:<id>'`, `radiusMeters: address_radius_meters ?? 150`.
+- Stöd även `address_geofence_polygon` om `KnownSite`-typen redan har polygonfält (annars: bara cirkel nu, polygon i senare iteration).
 
-Fält i dialogen (i denna ordning):
-1. **Typ** — Combobox med org:ens `todo_types`. "+ Skapa ny typ…" sista raden öppnar inline-input som sparar ny typ direkt och väljer den.
-2. **Koppla till bokning** (valfritt) — samma dropdown som idag.
-3. **Titel** — autogenereras från typ + kund/datum, redigerbart.
-4. **Ansvarig** (project_leader-motsvarighet, valfritt).
-5. **Kund & kontakt** (kund, kontaktperson, telefon, e-post).
-6. **Adress** med autocomplete (samma `AddressAutocomplete`).
-7. **Datum + tid** — ETT datum + start/sluttid (inte rig/event/rigdown). Tomt → läggs i "Att planera".
-8. **Interna anteckningar**.
+Ingen ändring i `pingPlaceSegments.ts` — den matchar redan korrekt så fort sajten kommer in i listan.
 
-Spar-flöde:
-- Insert i `todos` med insamlade fält.
-- Om datum + tider angivna → skapa `calendar_events`-rad direkt (placerad), annars stannar den i "Att planera".
-- Toast: "To do skapad".
+### Fix B — `src/components/staff/StaffMovementMap.tsx`
+Splitta dot och tid i två lager:
 
-### Egen sektion i "Att planera"
-- Ny komponent `UnplannedTodosBanner.tsx` under `UnplannedProjectsBanner`, identisk struktur men med orange tema (`bg-orange-50`, `text-orange-700`, `border-orange-300` via tokens om finns; annars Tailwind orange).
-- Klick → öppnar liten "Planera to do"-sheet (`TodoPlanningSheet.tsx`) med datum/tid + team/resurs → skapar `calendar_events`.
+- **`ping-dots` (circle-layer)**: liten cirkel per ping, `circle-allow-overlap: true`, `circle-radius` ~3–4 px, mörk färg + vit halo. Alla 336 pings syns alltid.
+- **`ping-times` (symbol-layer)**: bara tid-text, `text-allow-overlap: false`, `text-optional: true` (= dölj label, behåll prick) + `text-padding` så vi tunnar ut till läsbara intervall vid utzoomning.
+- Behåll click → popup på dots.
 
-### Hook `useUnplannedTodos.ts`
-Spegel av `useUnplannedProjects` mot `todos` + realtime.
+### Fix C — Tester (vitest)
+- `src/hooks/__tests__/useDayKnownSites.projects.test.ts`: matchar mock-projekt → KnownSite med rätt id/radius (default 150).
+- `src/lib/staff/__tests__/pingPlaceSegments.test.ts` (utöka): pings inom `radius+150` på projekt-KnownSite → visit får `knownPlace.id === 'project:<id>'`, inte unknown.
+- Visuell rök-test: efter ändring av kartan, kör en automatkörning på `/staff-management/time-reports` → öppna rörelsekartan för Eduards 2026-05-13 och verifiera att fler än 4 prickar ritas (via DOM/canvas, eller minst kontrollera att circle-source har 99 features).
 
-### Kalender-färg ORANGE
-- Plats: där `calendar_events` renderas i personalkalendern (CustomMonthGrid + relaterade event-pills).
-- Logik: om `event.category === 'todo'` (eller `event.todo_id` finns) → orange klass.
-- Lägg `--todo: 28 95% 53%` (HSL orange) i `index.css` och `todo` token i `tailwind.config.ts`. Använd semantiskt, inga råa färger.
+### Tekniska detaljer
 
-## Testning
+```text
+useDayKnownSites
+  ├── orgLocations  (befintligt)
+  ├── bookings dagens TR/LTE  (befintligt)
+  ├── large_projects dagens TR/LTE  (befintligt)
+  └── projects  (NYTT)
+        - dagens (eventdate/rigdaydate/rigdowndate = date)
+        - + projekt referenta i dagens TR/LTE
+        - filter: deleted_at IS NULL, planning_status != 'cancelled'
+        - radius: address_radius_meters ?? 150
+```
 
-- `src/test/createTodo.contract.test.ts` — insert i `todos`, default planning_status='needs_planning', RLS org-isolering, ny typ skapas och dyker upp.
-- `src/test/todoCalendarPlacement.contract.test.ts` — placering skapar calendar_events med todo_id + category='todo', flippar planning_status='planned'; borttagning återställer.
-- Snapshot/render-test för `UnplannedTodosBanner` (orange theme).
-- Kör hela testsviten med `bash scripts/test-time-reporting.sh` påverkas ej; nya tester via `bunx vitest run`.
+```text
+StaffMovementMap
+  ├── trail-line              (oförändrat)
+  ├── ping-dots   (NYTT)      circle, allow-overlap:true
+  ├── ping-times  (modifierat) symbol, text-optional:true
+  └── start/end markers       (oförändrat)
+```
 
-## Filer
+Inga DB-migrationer. Inga edge-function-ändringar. Endast frontend + en hook.
 
-**Nya**
-- `supabase/migrations/<ts>_create_todos.sql` (todo_types + todos + calendar_events.todo_id + RLS + trigger + seed)
-- `src/components/todo/CreateTodoWizard.tsx`
-- `src/components/todo/TodoPlanningSheet.tsx`
-- `src/components/Calendar/UnplannedTodosBanner.tsx`
-- `src/hooks/useUnplannedTodos.ts`
-- `src/hooks/useTodoTypes.ts`
-- `src/test/createTodo.contract.test.ts`
-- `src/test/todoCalendarPlacement.contract.test.ts`
+---
 
-**Ändrade**
-- `src/pages/ProjectManagement.tsx` — byt CreateProjectWizard → CreateTodoWizard, knapp-text "Skapa to do".
-- `src/pages/PlanningDashboard.tsx` — samma byte.
-- `src/components/Calendar/UnplannedProjectsBanner.tsx` — montera `UnplannedTodosBanner` under projekt-sektionen.
-- `src/components/Calendar/custom/CustomMonthGrid.tsx` (+ event-pill-komponenter) — orange för `category='todo'`.
-- `src/index.css` + `tailwind.config.ts` — `--todo` HSL token.
-
-**Borttaget**
-- `src/components/project/CreateProjectWizard.tsx` — raderas (inga andra call-sites efter bytet).
-
-## Tekniska anteckningar
-
-- `category='todo'` följer redan befintligt schema-fält i `calendar_events` (om det inte finns: lägg till). Verifieras innan migration skrivs.
-- Multi-tenant: `organization_id` sätts från `useCurrentOrg()` på alla inserts; RLS USING/WITH CHECK på `organization_id`.
-- Ingen koppling till External Booking system — to-dos är 100% lokala. Bokningskopplingen är bara en referens (FK) och stör inte import-bookings.
-- Memory-uppdatering efter implementation: lägg till `mem://features/planning/todos-v1` och `mem://constraints/todo-color-orange` i index.
+## Avgränsningar
+- Vi rör inte `resolveWorkTargets` eller backend-time-engine — den känner redan till projekt.
+- Vi inför inte polygon-stöd i `useDayKnownSites` i denna PR (om typen `KnownSite` inte redan har polygon — kollas i implement-steget).
+- Inget retroaktivt omräknande av historiska "okänd plats"-segment; nästa render plockar upp den nya matchningen automatiskt.
