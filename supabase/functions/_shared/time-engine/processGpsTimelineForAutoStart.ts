@@ -108,6 +108,21 @@ export interface ProcessAutoStartResult {
     reason: string;
     source: string;
   } | null;
+  /**
+   * Diagnostics surfaced when the latest registration for this local day
+   * was already `status='stopped'` and we therefore prevented GPS-driven
+   * re-open. Mutually independent from `suppression` (which is the
+   * explicit `time_auto_start_suppressions` row).
+   */
+  dayStopLock?: {
+    dayWasAlreadyStopped: true;
+    preventedLegacyReopen: true;
+    activeRegistrationStatus: 'stopped';
+    stopSource: string | null;
+    stoppedBy: string | null;
+    finalDayEnd: ISODateTime;
+    registrationId: UUID;
+  } | null;
   computedAt: ISODateTime;
 }
 
