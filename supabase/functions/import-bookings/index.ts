@@ -2299,24 +2299,23 @@ serve(async (req) => {
       } else if (localBooking && localBooking.status === 'CONFIRMED') {
         // Externa API:t returnerar 0 träffar för en bokning som vi lokalt har som CONFIRMED.
         // Detta betyder att bokningen inte längre är bekräftad externt (t.ex. flippad till
-        // DRAFT/UTKAST i bokningssystemet). Spegla detta lokalt: flippa status till 'draft'
+        // DRAFT/UTKAST i bokningssystemet). Spegla detta lokalt: flippa status till 'OFFER'
         // och städa kalendrar/projekt/jobb/packing/produkter — samma cleanup som i
         // wasConfirmed && !isNowConfirmed-grenen längre ner.
-        console.log(`[Status Demote] External API returned 0 for locally CONFIRMED booking ${normalizedSingleBookingId} — treating as no longer confirmed, flipping to DRAFT`);
+        console.log(`[Status Demote] External API returned 0 for locally CONFIRMED booking ${normalizedSingleBookingId} — treating as no longer confirmed, flipping to OFFER`);
 
         const nowIso = new Date().toISOString();
 
         const { error: statusUpdateErr } = await supabase
           .from('bookings')
           .update({
-            status: 'DRAFT',
-            confirmed_at: null,
+            status: 'OFFER',
             updated_at: nowIso,
           })
           .eq('id', localBooking.id)
           .eq('organization_id', organizationId);
         if (statusUpdateErr) {
-          console.error(`[Status Demote] Failed to flip status to DRAFT:`, statusUpdateErr);
+          console.error(`[Status Demote] Failed to flip status to OFFER:`, statusUpdateErr);
         }
 
         const cleanupOps = await Promise.allSettled([
