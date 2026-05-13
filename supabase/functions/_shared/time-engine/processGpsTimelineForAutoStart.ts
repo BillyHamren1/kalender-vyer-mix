@@ -104,6 +104,20 @@ export interface AutoStartDecisionLogEntry {
     homeWonOverWorkTarget: boolean;
     suppressedAutoStartBecauseHome: true;
   };
+  /**
+   * User-decline diagnostics for this segment. Populated when an active
+   * row in `auto_start_decline_log` matches this candidate (target_id or
+   * geographic radius). Auto-start is suppressed for the rest of the local
+   * day; manual start (start_time_registration) bypasses entirely.
+   */
+  declineDiagnostics?: {
+    userDeclineFound: true;
+    declineMatchedTarget: boolean;
+    declineMatchedRadius: number | null;
+    suppressedAutoStartBecauseDeclined: true;
+    declineId: string;
+    expiresAt: ISODateTime;
+  };
 }
 
 /** Loaded once per (org, staff) and reused across candidate segments. */
