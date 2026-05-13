@@ -1,40 +1,51 @@
-# Plan: Säkerställ att uppdateringar från Booking når Planning direkt
+# Tre tabbar i stora projekt
 
-## Vad jag hittade när jag undersökte 2603-103
+## Mål
+Återställ den klassiska bokningslistan inuti stora projekt och placera den vid sidan av Excel-vyn och Produktvyn — totalt **tre tabbar** i toggle-baren ovanför innehållet:
 
-- Bokningen i Planning (`e0f22435-…`) hade kvar gammalt kundnamn `"Vile AB / Jobbfestivalen"`. Källsystemet hade ändrat det till `"bosse with friends AB"`.
-- Jag triggade `import-bookings` manuellt i `single`-läge → kundnamnet uppdaterades direkt och produktlistan rättades. Update‑pathen i `import-bookings` (`hasBookingChanged` + UPDATE-blocket) fungerar alltså korrekt — `client`, `booking_number`, `status`, datum, tider, kontakt, m.m. uppdateras när data faktiskt processas.
-- I `booking_sync_jobs` finns INGA jobb för 2603-103 idag innan min manuella körning. Senaste jobb var igår 21:08. Dvs Booking-systemet skickade aldrig någon `booking.updated`-webhook för dagens namnändring.
-- Vi har bara en cron: `process-sync-jobs-every-minute` som dränerar kön. Det finns ingen periodisk `incremental` poll mot Booking-systemet som skulle fånga ändringar som missar webhooken.
+1. **Excelvy** — nuvarande `LargeProjectExcelView` (kalkyl-tabell över alla produkter från alla bokningar)
+2. **Bokningsvy** — den gamla bokningslistan (en rad per bokning, klick → expanderar `BookingInfoExpanded`), exakt som den såg ut före 1 maj 2026
+3. **Produktvy** — nuvarande `LargeProjectProductsOverview`
 
-**Slutsats:** Pipelinen (receive-booking → booking_sync_jobs → process-sync-jobs → import-bookings) är korrekt. Problemet är att vi är 100% beroende av att källsystemet skickar webhook för varje fältändring. När den uteblir (som idag för kundnamn på 2603-103) ser vi ingenting förrän någon manuellt re-syncar.
+Filen som rörs: `src/pages/project/LargeProjectLayout.tsx` (raderna ~554–588 där dagens 2-knapp-toggle och rendering ligger).
 
-## Förslag
+## Vad som ska göras
 
-### 1. Säkerhetsnät: incremental sync var 5:e minut (rekommenderat)
-Ny cron som anropar `import-bookings` med `syncMode: 'incremental'` per organisation. `import-bookings` använder redan `last_sync_timestamp` och `since`-parametern mot `export_bookings`, så detta plockar upp ALLT som ändrats sen sist (inkl. kundnamn, booking_number, datum osv.) — även när webhooken aldrig kom.
+### 1. Utöka toggle-baren till tre knappar
+- Bredda containern (`bg-muted rounded-md p-0.5`) så den rymmer tre `Button`-knappar utan att texten klipps.
+- Lägg till en tredje knapp **"Excelvy"** med `Table2`/`FileSpreadsheet`-ikon (lucide).
+- Byt etiketten på dagens första knapp från "Bokningar (n)" till **"Bokningar (n)"** men styr `linkedView='bookings'` mot LISTA i stället för Excel.
+- Behåll **"Produkter"**-knappen oförändrad.
 
-- Påverkar inte realtid när webhook fungerar (de är fortfarande primär väg, ankommer på sekunder).
-- Worst case-latens utan webhook: ~5 minuter istället för "aldrig".
-- Ingen risk för dubbel-import: `hasBookingChanged` skippar oförändrade rader.
+### 2. Utöka state
+```ts
+const [linkedView, setLinkedView] = useState<'excel' | 'bookings' | 'products'>('bookings');
+```
+Defaultvärde `'bookings'` så användaren landar i den välbekanta listan (kan justeras om önskat).
 
-### 2. Direktverifiering på 2603-103
-Redan gjort under undersökningen. `client = "bosse with friends AB"`, `updated_at = 2026-05-13 10:14`. Inget mer behövs på just denna bokning.
+### 3. Återinför bokningslistan
+Återanvänd den befintliga koden från commit `a308dc97e` (rad ~454–520). Den behöver:
+- `expandedBookingIds`, `toggleBookingExpanded` — finns redan i layouten.
+- `BookingInfoExpanded`, `getLargeProjectBookingLabel`, `cn`, `ChevronDown`, `ChevronRight`, `MapPin`, `AlertTriangle`, `Trash2`, `Badge`, `Card`, `CardContent` — alla existerar redan i projektet, importera de som saknas i nuvarande layout.
+- Tom-state: kort med "Inga bokningar kopplade ännu" + "Lägg till första bokningen"-knapp som öppnar `setIsAddBookingOpen(true)` (dialogen finns kvar).
+- Behåll "Lägg till bokning"-knappen i toolbar **endast** när `linkedView === 'bookings'` (precis som idag, inte vid `'excel'` eller `'products'`).
 
-### 3. (Valfritt, om webhooken ska bli pålitligare) Kontakta Booking-sidan
-Om Booking-systemet är vårt eget och vi vill att webhook ska skickas även vid kundnamnsändring — felet ligger där, inte i Planning. Men det ligger utanför vad jag kan fixa här.
+### 4. Rendering-switch
+Ersätt nuvarande `if products else excel`-block med:
+```tsx
+{linkedView === 'excel' && <LargeProjectExcelView bookings={bookings as any} />}
+{linkedView === 'bookings' && <BookingsList ... />}
+{linkedView === 'products' && <LargeProjectProductsOverview ... />}
+```
 
-## Tekniska detaljer
+### 5. Inga förändringar i
+- `LargeProjectViewPage.tsx` (dess interna Tabs är på sub-sidan, inte den här toggle-baren).
+- `LargeProjectExcelView`, `LargeProjectProductsOverview`, `BookingInfoExpanded` — oförändrade.
+- Datamodell, hooks, services, edge functions — inga ändringar.
 
-- Ny cron-jobb (skapas via migration på `cron.schedule`):
-  - Schedule: `*/5 * * * *`
-  - POST → `https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/import-bookings`
-  - Body: `{ "syncMode": "incremental" }` (utan `organization_id` → kör för alla aktiva orgs; behöver verifieras att `import-bookings` stöder det, annars en rad per org).
-- Jag kollar att `import-bookings` redan hanterar `incremental` utan `booking_id` och loopar per organisation. Om inte → enkel patch i `import-bookings` att iterera över aktiva orgs.
-- Inga schemaändringar.
+## Verifiering
+- Manuell test i preview på `/large-project/...`: byt mellan de tre vyerna, expandera bokningar i bokningsvyn, "Lägg till bokning"-knappen syns endast i bokningsvyn.
+- `bunx vitest run` på relevanta tester (inga av nuvarande tester rör denna toggle, men kör `largeProjectPlannerService.test.ts` som rökkontroll).
 
-## Frågor jag behöver svar på
-
-1. Vill du att jag lägger upp **incremental poll var 5:e minut** som säkerhetsnät? (Ja = jag implementerar direkt efter godkännande.)
-2. Är intervallet 5 min OK, eller vill du tätare (t.ex. var minut)?
-
+## Risker
+- Ren UI/presentations-ändring i en fil. Ingen påverkan på Single Timer Policy, time-engine, packing, eller multi-tenancy.

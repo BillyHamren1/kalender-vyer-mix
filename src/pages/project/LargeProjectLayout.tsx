@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { propagateProjectDatesToBookings, arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,7 +48,7 @@ const LargeProjectLayout = () => {
   const [editSubtitle, setEditSubtitle] = useState("");
   const subtitleInputRef = useRef<HTMLInputElement>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
-  const [linkedView, setLinkedView] = useState<'bookings' | 'products'>('bookings');
+  const [linkedView, setLinkedView] = useState<'excel' | 'bookings' | 'products'>('bookings');
   const toggleBookingExpanded = useCallback((bookingId: string) => {
     setExpandedBookingIds(prev => {
       const next = new Set(prev);
@@ -554,9 +554,18 @@ const LargeProjectLayout = () => {
             <div className="relative flex items-center justify-center">
               <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
                 <Button
+                  variant={linkedView === 'excel' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-9 w-36 px-4 text-sm gap-2"
+                  onClick={() => setLinkedView('excel')}
+                >
+                  <Table2 className="h-4 w-4" />
+                  Excelvy
+                </Button>
+                <Button
                   variant={linkedView === 'bookings' ? 'default' : 'ghost'}
                   size="sm"
-                  className="h-9 w-40 px-6 text-sm gap-2"
+                  className="h-9 w-36 px-4 text-sm gap-2"
                   onClick={() => setLinkedView('bookings')}
                 >
                   <ClipboardList className="h-4 w-4" />
@@ -565,7 +574,7 @@ const LargeProjectLayout = () => {
                 <Button
                   variant={linkedView === 'products' ? 'default' : 'ghost'}
                   size="sm"
-                  className="h-9 w-40 px-6 text-sm gap-2"
+                  className="h-9 w-36 px-4 text-sm gap-2"
                   onClick={() => setLinkedView('products')}
                 >
                   <Package className="h-4 w-4" />
@@ -581,10 +590,88 @@ const LargeProjectLayout = () => {
                 </div>
               )}
             </div>
-            {linkedView === 'products' ? (
-              <LargeProjectProductsOverview bookings={bookings} largeProjectId={id || ""} />
-            ) : (
+            {linkedView === 'excel' && (
               <LargeProjectExcelView bookings={bookings as any} />
+            )}
+            {linkedView === 'products' && (
+              <LargeProjectProductsOverview bookings={bookings} largeProjectId={id || ""} />
+            )}
+            {linkedView === 'bookings' && (
+              bookings.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <p className="text-sm text-muted-foreground mb-3">Inga bokningar kopplade ännu</p>
+                    <Button variant="outline" size="sm" onClick={() => setIsAddBookingOpen(true)}>
+                      <Plus className="w-4 h-4 mr-1" />
+                      Lägg till första bokningen
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="border-border/50 shadow-sm overflow-hidden">
+                  <div className="divide-y divide-border/40">
+                    {bookings.map((lpb: any) => {
+                      const b = lpb.booking;
+                      const isExpanded = expandedBookingIds.has(lpb.booking_id);
+                      const isCancelled = (b?.status || '').toUpperCase() === 'CANCELLED';
+                      return (
+                        <div key={lpb.id}>
+                          <div
+                            className={cn(
+                              "flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors cursor-pointer",
+                              isCancelled && "bg-destructive/5"
+                            )}
+                            onClick={() => toggleBookingExpanded(lpb.booking_id)}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                              {isCancelled && (
+                                <Badge className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive ring-1 ring-destructive/30 flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  AVBOKAD
+                                </Badge>
+                              )}
+                              <span className={cn("text-sm font-medium truncate", isCancelled && "line-through text-muted-foreground")}>
+                                {getLargeProjectBookingLabel(lpb)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              {b?.deliveryaddress && (
+                                <span className={cn("text-xs text-muted-foreground flex items-center gap-1", isCancelled && "line-through text-muted-foreground/70")}>
+                                  <MapPin className="h-3 w-3" />
+                                  {b.deliveryaddress}
+                                </span>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm("Ta bort bokningen från projektet?")) {
+                                    detail.removeBooking(lpb.booking_id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          {isExpanded && b && (
+                            <div className="px-3 pb-3">
+                              <BookingInfoExpanded
+                                booking={b}
+                                projectLeader={projectLeaderDisplay}
+                                onBookingUpdated={() => queryClient.invalidateQueries({ queryKey: ['large-project', id] })}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              )
             )}
           </div>
         )}
