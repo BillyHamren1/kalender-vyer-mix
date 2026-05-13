@@ -48,7 +48,7 @@ const StaffAccountsPanel: React.FC = () => {
   // Fetch staff members (delas med StaffManagement-sidans query – samma key återanvänder cache)
   const { data: staffMembers = [] } = useQuery({
     queryKey: ['staffMembers'],
-    queryFn: fetchStaffMembers,
+    queryFn: () => fetchStaffMembers({ includeInactive: true }),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
