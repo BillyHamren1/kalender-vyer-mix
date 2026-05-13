@@ -579,6 +579,17 @@ export async function processGpsTimelineForAutoStart(
   }
 
 
+  // 3d) Staff private zones — load ONCE before the candidate loop. These
+  // power the "home wins over work" rule: even if a candidate stay matches
+  // a valid project/booking/warehouse, GPS may NOT auto-start a timer if
+  // the staff is sitting inside their own home / private_residence zone.
+  // GPS evidence is still collected; only auto-start is suppressed.
+  const privateZones = await loadStaffPrivateZones(supabaseAdmin, organizationId, staffId);
+  let privateResidenceSuppressedSegments = 0;
+  let privateResidenceHomeWonOverWorkCount = 0;
+  let nearestPrivateZoneKind: string | null = null;
+  let nearestPrivateZoneDistance: number | null = null;
+
   for (const seg of candidates) {
     const target = findTargetForSegment(seg, resolvedTargets);
     if (!target) {
@@ -616,23 +627,62 @@ export async function processGpsTimelineForAutoStart(
       continue;
     }
 
+    // HOME WINS OVER WORK — if the candidate stay center sits inside a staff
+    // private zone, suppress auto-start for THIS segment regardless of the
+    // matched work target. Mobile app owns only day start/stop; GPS/geofence
+    // is evidence only, not a project timer.
+    const segPoint =
+      typeof (seg as any).centerLat === 'number' && typeof (seg as any).centerLng === 'number'
+        ? { lat: (seg as any).centerLat as number, lng: (seg as any).centerLng as number }
+        : null;
+    const enclosing = findEnclosingPrivateZone(segPoint, privateZones);
+
     const decideTarget = toDecideTarget(target);
     const decision = decideAutoStart({
       currentSegment: toDecideSegment(seg),
       target: decideTarget,
       localTime: input.localTime ?? seg.endTs,
       existingActiveRegistration: active ? { id: active.id, startedAt: active.startedAt } : null,
+      insidePrivateResidence: enclosing
+        ? { distanceMeters: enclosing.distanceMeters, zoneKind: enclosing.zone.zoneKind }
+        : null,
     });
 
-    decisions.push({
+    const entry: AutoStartDecisionLogEntry = {
       segmentId: seg.id,
       segmentKind: seg.kind,
       segmentType: seg.type,
       matchedTargetId: target.id,
       matchedTargetName: target.name,
       decision,
-      skippedReason: active ? 'already_active_registration' : undefined,
-    });
+      skippedReason: enclosing
+        ? 'inside_private_residence'
+        : (active ? 'already_active_registration' : undefined),
+    };
+
+    if (enclosing) {
+      privateResidenceSuppressedSegments += 1;
+      if (target) privateResidenceHomeWonOverWorkCount += 1;
+      if (
+        nearestPrivateZoneDistance === null ||
+        enclosing.distanceMeters < nearestPrivateZoneDistance
+      ) {
+        nearestPrivateZoneDistance = enclosing.distanceMeters;
+        nearestPrivateZoneKind = enclosing.zone.zoneKind;
+      }
+      entry.homeWinsDiagnostics = {
+        matchedPrivateResidence: true,
+        privateResidenceZoneKind: enclosing.zone.zoneKind,
+        privateResidenceDistanceMeters: Math.round(enclosing.distanceMeters),
+        competingWorkTarget: target
+          ? { id: target.id, name: target.name, type: target.type as string | null }
+          : null,
+        homeWonOverWorkTarget: !!target,
+        suppressedAutoStartBecauseHome: true,
+      };
+    }
+
+    decisions.push(entry);
 
     // 5) Create registration if allowed and no active row, and not yet created in this run.
     if (
@@ -711,6 +761,18 @@ export async function processGpsTimelineForAutoStart(
     targetDiagnostics,
     suppression: null,
     dayStopLock: null,
+    privateResidenceLock: privateResidenceSuppressedSegments > 0
+      ? {
+          matchedPrivateResidence: true,
+          suppressedAutoStartBecauseHome: true,
+          suppressedSegmentsCount: privateResidenceSuppressedSegments,
+          homeWonOverWorkTargetCount: privateResidenceHomeWonOverWorkCount,
+          nearestZoneKind: nearestPrivateZoneKind,
+          nearestDistanceMeters: nearestPrivateZoneDistance !== null
+            ? Math.round(nearestPrivateZoneDistance)
+            : null,
+        }
+      : null,
     computedAt: new Date().toISOString(),
   };
 }
