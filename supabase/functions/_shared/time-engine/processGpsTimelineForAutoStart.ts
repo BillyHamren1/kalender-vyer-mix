@@ -424,6 +424,17 @@ export async function processGpsTimelineForAutoStart(
       decisions,
       targetDiagnostics,
       suppression,
+      dayStopLock: dayStoppedSynth
+        ? {
+            dayWasAlreadyStopped: true,
+            preventedLegacyReopen: true,
+            activeRegistrationStatus: 'stopped',
+            stopSource: dayStoppedSynth.stopSource,
+            stoppedBy: dayStoppedSynth.stoppedBy,
+            finalDayEnd: dayStoppedSynth.stoppedAt,
+            registrationId: dayStoppedSynth.registrationId,
+          }
+        : null,
       computedAt: new Date().toISOString(),
     };
   }
