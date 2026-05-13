@@ -595,7 +595,7 @@ export async function resolveWorkTargets(
       const { data, error } = await supabaseAdmin
         .from('bookings')
         .select(
-          'id, title, status, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate',
+          'id, title, client, booking_number, status, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate',
         )
         .eq('organization_id', organizationId)
         .in('id', Array.from(bookingSourceMap.keys()));
