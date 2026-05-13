@@ -218,6 +218,61 @@ async function fetchActiveSuppression(
     : null;
 }
 
+/**
+ * Returns the latest STOPPED active_time_registration whose `stopped_at`
+ * fell inside this staff's local Stockholm-day window.
+ *
+ * Lock-policy from the user spec ("stoppad dagtimer = dagen är stoppad"):
+ *   • Once a day timer is stopped (auto OR user) the rest of the local
+ *     day is locked from GPS-driven re-open.
+ *   • Manual start via `start_time_registration` bypasses (it does not
+ *     go through this engine).
+ *   • A NEW active row started after the stop reopens normally — we only
+ *     suppress when the LATEST row for the day is already stopped.
+ *
+ * Diagnostics: surfaced as `dayWasAlreadyStopped` + `preventedLegacyReopen`
+ * in the synthesized suppression returned to the caller.
+ */
+async function fetchLatestStoppedRegistrationForLocalDate(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+  date: ISODate,
+): Promise<{
+  id: UUID;
+  status: string;
+  startedAt: ISODateTime;
+  stoppedAt: ISODateTime;
+  stopSource: string | null;
+  stoppedBy: string | null;
+} | null> {
+  const win = getStockholmDayWindowUtc(date);
+  const { data, error } = await supabaseAdmin
+    .from('active_time_registrations')
+    .select('id, status, started_at, stopped_at, stop_source, stopped_by')
+    .eq('organization_id', organizationId)
+    .eq('staff_id', staffId)
+    .gte('started_at', win.startUtc)
+    .lte('started_at', win.endUtc)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn('[time-engine] fetchLatestStoppedRegistrationForLocalDate failed:', error.message);
+    return null;
+  }
+  if (!data) return null;
+  if (data.status !== 'stopped' || !data.stopped_at) return null;
+  return {
+    id: data.id as UUID,
+    status: data.status as string,
+    startedAt: data.started_at as ISODateTime,
+    stoppedAt: data.stopped_at as ISODateTime,
+    stopSource: (data.stop_source as string | null) ?? null,
+    stoppedBy: (data.stopped_by as string | null) ?? null,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
