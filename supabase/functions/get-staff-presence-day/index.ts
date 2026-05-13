@@ -40,6 +40,7 @@ import {
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
 import { resolveActualWorkStartIso } from '../_shared/time-engine/resolveActualWorkStart.ts';
 import { computeDayEndDecision } from '../_shared/time-engine/computeDayEndDecision.ts';
+import { fetchAllStaffLocationPings } from '../_shared/timeEngine/fetchAllStaffLocationPings.ts';
 import { clampBlocksToDayEndDecision } from '../_shared/time-engine/clampBlocksToDayEndDecision.ts';
 // Location Truth pipeline (1.2 → 1.7) — pure transforms, never writes.
 import {
@@ -387,32 +388,16 @@ Deno.serve(async (req) => {
   }
 
   // ── GPS day timeline (transport / unknown_place / gps_gap) ──
-  // Paginate in 1000-row batches; PostgREST enforces a 1000-row default cap,
-  // so a plain .limit(5000) silently truncates and the timeline cuts off
-  // mid-day.
-  const PING_PAGE_SIZE = 1000;
-  const PING_DAY_CAP = 20_000;
-  const pingRows: any[] = [];
-  {
-    let from = 0;
-    while (pingRows.length < PING_DAY_CAP) {
-      const to = from + PING_PAGE_SIZE - 1;
-      const { data: batch, error: pingErr } = await admin
-        .from('staff_location_history')
-        .select('lat, lng, accuracy, speed, recorded_at')
-        .eq('organization_id', orgId)
-        .eq('staff_id', staffId)
-        .gte('recorded_at', dayStart)
-        .lte('recorded_at', dayEnd)
-        .order('recorded_at', { ascending: true })
-        .range(from, to);
-      if (pingErr) break;
-      const rows = batch ?? [];
-      pingRows.push(...rows);
-      if (rows.length < PING_PAGE_SIZE) break;
-      from += PING_PAGE_SIZE;
-    }
-  }
+  // Canonical paginated reader. Never use `.limit(N)` for day-wide GPS.
+  const ownPingFetch = await fetchAllStaffLocationPings({
+    supabaseAdmin: admin,
+    organizationId: orgId,
+    staffId,
+    startUtc: dayStart,
+    endUtc: dayEnd,
+  });
+  const pingRows = ownPingFetch.rows;
+  const pingFetchDiagnostics = ownPingFetch.diagnostics;
 
   const pings: GpsPing[] = (pingRows ?? []).map((p: any) => ({
     ts: p.recorded_at,
@@ -726,28 +711,20 @@ Deno.serve(async (req) => {
   // bridge short transport gaps. Peer pings are NEVER copied into this
   // staff's data and never trigger writes.
   let peerGpsTimelines: any[] = [];
+  let peerPingFetchDiagnostics: any = null;
   try {
-    const PEER_PAGE = 1000;
-    const PEER_CAP = 40_000;
-    const peerRows: any[] = [];
-    let pfrom = 0;
-    while (peerRows.length < PEER_CAP) {
-      const pto = pfrom + PEER_PAGE - 1;
-      const { data: batch, error } = await admin
-        .from('staff_location_history')
-        .select('staff_id, lat, lng, recorded_at')
-        .eq('organization_id', orgId)
-        .neq('staff_id', staffId)
-        .gte('recorded_at', dayStart)
-        .lte('recorded_at', dayEnd)
-        .order('recorded_at', { ascending: true })
-        .range(pfrom, pto);
-      if (error) break;
-      const rows = batch ?? [];
-      peerRows.push(...rows);
-      if (rows.length < PEER_PAGE) break;
-      pfrom += PEER_PAGE;
-    }
+    const peerFetch = await fetchAllStaffLocationPings({
+      supabaseAdmin: admin,
+      organizationId: orgId,
+      staffId: null,
+      excludeStaffId: staffId,
+      startUtc: dayStart,
+      endUtc: dayEnd,
+      select: 'staff_id, lat, lng, recorded_at',
+      cap: 40_000,
+    });
+    const peerRows = peerFetch.rows;
+    peerPingFetchDiagnostics = peerFetch.diagnostics;
     const grouped = new Map<string, any[]>();
     for (const r of peerRows) {
       const arr = grouped.get(r.staff_id) ?? [];
