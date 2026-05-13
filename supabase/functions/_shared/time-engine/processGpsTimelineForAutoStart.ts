@@ -187,6 +187,36 @@ export interface ProcessAutoStartResult {
     matchedByTargetCount: number;
     matchedByRadiusCount: number;
   } | null;
+  /**
+   * Flat operator-friendly diagnostics for the auto-start decision. Mirrors
+   * the user spec for "Etapp 2" (auto-start may only start the workday):
+   *   - autoStartEvaluated: this engine ran for this staff/date
+   *   - autoStartCreated:   a NEW active_time_registrations row was inserted
+   *   - autoStartReason:    decideAutoStart.reason of the winning candidate
+   *   - rejectedReason:     reason the run did NOT create a row
+   *   - evidenceTarget:     {id,type,name} matched as evidence (NEVER timer owner)
+   *   - existingActiveRegistrationFound: a manual or earlier auto row exists
+   *   - deniedByUserToday:  any candidate matched a user_declined_today row
+   */
+  autoStartEvaluated: true;
+  autoStartCreated: boolean;
+  autoStartReason: string | null;
+  rejectedReason:
+    | 'already_active_registration'
+    | 'day_already_stopped'
+    | 'user_ended_workday'
+    | 'inside_private_residence'
+    | 'user_declined_today'
+    | 'no_qualified_segment'
+    | 'policy_blocked'
+    | null;
+  evidenceTarget: {
+    id: UUID;
+    type: string;
+    name: string | null;
+  } | null;
+  existingActiveRegistrationFound: boolean;
+  deniedByUserToday: boolean;
   computedAt: ISODateTime;
 }
 
@@ -683,6 +713,13 @@ export async function processGpsTimelineForAutoStart(
           }
         : null,
       declineLock: null,
+      autoStartEvaluated: true,
+      autoStartCreated: false,
+      autoStartReason: null,
+      rejectedReason: dayStoppedSynth ? 'day_already_stopped' : 'user_ended_workday',
+      evidenceTarget: null,
+      existingActiveRegistrationFound: !!active,
+      deniedByUserToday: false,
       computedAt: new Date().toISOString(),
     };
   }
@@ -856,6 +893,15 @@ export async function processGpsTimelineForAutoStart(
         segmentId: seg.id,
         targetSource: target.targetSource,
         engine: 'time-engine.v1',
+        // Auto-start owns ONLY the workday. The matched target lives here as
+        // evidence so admin/Time Engine can later allocate the time to a
+        // project/booking/warehouse — but the active row itself stays a pure
+        // dagtimer (start_target_*/current_target_* are NULL).
+        evidenceTarget: {
+          id: target.id,
+          type: target.type,
+          name: target.name,
+        },
       };
 
       const { data: inserted, error: insertErr } = await supabaseAdmin
@@ -867,16 +913,19 @@ export async function processGpsTimelineForAutoStart(
           started_at: decision.startAt,
           start_source: 'gps_geofence_auto_start',
           auto_started: true,
-          start_target_type: target.type,
-          start_target_id: target.id,
-          start_target_label: target.name,
-          current_kind: target.type,
-          current_label: target.name,
-          current_target_type: target.type,
-          current_target_id: target.id,
+          // Auto-start may NEVER own a project/location/booking timer. The
+          // workday row is target-less; Time Engine allocates time to
+          // project/lager later via staff_day_report_cache.
+          start_target_type: null,
+          start_target_id: null,
+          start_target_label: null,
+          current_kind: 'day_active',
+          current_label: 'Arbetsdag aktiv',
+          current_target_type: null,
+          current_target_id: null,
           current_confidence: decision.confidence,
           needs_user_choice: false,
-          metadata: { evidence },
+          metadata: { timerModel: 'single_day_timer', evidence },
         })
         .select('id')
         .maybeSingle();
@@ -926,6 +975,38 @@ export async function processGpsTimelineForAutoStart(
           matchedByRadiusCount: declineMatchedByRadius,
         }
       : null,
+    autoStartEvaluated: true,
+    autoStartCreated: !!createdRegistrationId,
+    autoStartReason: (() => {
+      const allowed = decisions.find((d) => d.decision.allowed);
+      return allowed ? allowed.decision.reason : null;
+    })(),
+    rejectedReason: (() => {
+      if (createdRegistrationId) return null;
+      if (active) return 'already_active_registration';
+      if (declineSuppressedCount > 0) return 'user_declined_today';
+      if (privateResidenceSuppressedSegments > 0) return 'inside_private_residence';
+      if (decisions.length === 0) return 'no_qualified_segment';
+      const anyAllowed = decisions.some((d) => d.decision.allowed);
+      return anyAllowed ? null : 'policy_blocked';
+    })(),
+    evidenceTarget: (() => {
+      const winning = decisions.find((d) => d.decision.allowed && d.matchedTargetId);
+      if (winning && winning.matchedTargetId) {
+        const rt = resolvedTargets!.find((t) => t.id === winning.matchedTargetId);
+        return rt ? { id: rt.id, type: rt.type as string, name: rt.name } : null;
+      }
+      // Fall back to any matched candidate (even if blocked) so admin sees
+      // which target the GPS evidence pointed at.
+      const anyMatched = decisions.find((d) => d.matchedTargetId);
+      if (anyMatched && anyMatched.matchedTargetId) {
+        const rt = resolvedTargets!.find((t) => t.id === anyMatched.matchedTargetId);
+        return rt ? { id: rt.id, type: rt.type as string, name: rt.name } : null;
+      }
+      return null;
+    })(),
+    existingActiveRegistrationFound: !!active,
+    deniedByUserToday: declineSuppressedCount > 0,
     computedAt: new Date().toISOString(),
   };
 }
