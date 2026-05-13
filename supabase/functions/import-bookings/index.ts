@@ -2,6 +2,7 @@
 // Import bookings from external API - filters out bookings before 2026-01-01
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { normalizeBookingStatus } from '../_shared/booking-status.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -2471,14 +2472,7 @@ serve(async (req) => {
         results.total++
 
 // Normalize status for consistent comparison
-        const normalizeStatus = (status: string | null | undefined): string => {
-          const s = (status || 'PENDING').toString().trim().toUpperCase();
-          if (s === 'BEKRÄFTAD' || s === 'CONFIRMED') return 'CONFIRMED';
-          if (s === 'AVBOKAD' || s === 'CANCELLED') return 'CANCELLED';
-          return s;
-        };
-
-        const bookingStatus = normalizeStatus(externalBooking.status);
+        const bookingStatus = normalizeBookingStatus(externalBooking.status);
 
         // Check for existing booking FIRST (before deciding to skip CANCELLED)
         const existingById = existingBookingMap.get(externalBooking.id)
