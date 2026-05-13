@@ -187,6 +187,36 @@ export interface ProcessAutoStartResult {
     matchedByTargetCount: number;
     matchedByRadiusCount: number;
   } | null;
+  /**
+   * Flat operator-friendly diagnostics for the auto-start decision. Mirrors
+   * the user spec for "Etapp 2" (auto-start may only start the workday):
+   *   - autoStartEvaluated: this engine ran for this staff/date
+   *   - autoStartCreated:   a NEW active_time_registrations row was inserted
+   *   - autoStartReason:    decideAutoStart.reason of the winning candidate
+   *   - rejectedReason:     reason the run did NOT create a row
+   *   - evidenceTarget:     {id,type,name} matched as evidence (NEVER timer owner)
+   *   - existingActiveRegistrationFound: a manual or earlier auto row exists
+   *   - deniedByUserToday:  any candidate matched a user_declined_today row
+   */
+  autoStartEvaluated: true;
+  autoStartCreated: boolean;
+  autoStartReason: string | null;
+  rejectedReason:
+    | 'already_active_registration'
+    | 'day_already_stopped'
+    | 'user_ended_workday'
+    | 'inside_private_residence'
+    | 'user_declined_today'
+    | 'no_qualified_segment'
+    | 'policy_blocked'
+    | null;
+  evidenceTarget: {
+    id: UUID;
+    type: string;
+    name: string | null;
+  } | null;
+  existingActiveRegistrationFound: boolean;
+  deniedByUserToday: boolean;
   computedAt: ISODateTime;
 }
 
