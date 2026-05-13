@@ -85,7 +85,32 @@ export interface AutoStartDecisionLogEntry {
     | 'no_target_for_segment'
     | 'target_not_valid_for_autostart'
     | 'already_active_registration'
-    | 'duplicate_segment';
+    | 'duplicate_segment'
+    | 'inside_private_residence';
+  /**
+   * Home-wins-over-work diagnostics for this segment. Populated when the
+   * candidate sits inside a staff private zone (home / private_residence /
+   * manual_ignore / recurring_night). Even if `matchedTargetId` points at
+   * a real project/booking/warehouse, GPS does NOT auto-start a timer.
+   */
+  homeWinsDiagnostics?: {
+    matchedPrivateResidence: true;
+    privateResidenceZoneKind: string | null;
+    privateResidenceDistanceMeters: number;
+    competingWorkTarget:
+      | { id: UUID; name: string | null; type: string | null }
+      | null;
+    homeWonOverWorkTarget: boolean;
+    suppressedAutoStartBecauseHome: true;
+  };
+}
+
+/** Loaded once per (org, staff) and reused across candidate segments. */
+interface StaffPrivateZone {
+  lat: number;
+  lng: number;
+  radiusM: number;
+  zoneKind: string | null;
 }
 
 export interface ProcessAutoStartResult {
