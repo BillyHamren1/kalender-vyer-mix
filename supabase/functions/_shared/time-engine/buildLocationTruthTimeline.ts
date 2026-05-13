@@ -435,6 +435,27 @@ interface MatchOptions {
   candidates: PlaceCandidate[];
   stickyKey: string | null;
   stickyToleranceM: number;
+  /** Day window end — used to suppress tolerance after dayEnd. */
+  dayEndMs: number;
+}
+
+/**
+ * Per-ping audit trace, surfaced via PingMatch.audit, used for the
+ * privateResidenceMatch + workAreaTolerance diagnostics. Internal — not
+ * intended for callers other than the diagnostics aggregation in this file.
+ */
+export interface PingMatchAudit {
+  /** True when ping landed inside a private_residence polygon/radius. */
+  insidePrivateResidence: boolean;
+  privateResidenceLabel: string | null;
+  /** Work-target kinds that would have matched (inside) had private_residence not won. */
+  shadowedInsideKinds: Array<'warehouse' | 'project' | 'booking' | 'location'>;
+  /** A work-target the 150 m tolerance would have continued, had private_residence not won OR a session been active. */
+  toleranceCandidate: { label: string; targetType: string; outsideM: number } | null;
+  /** Whether tolerance actually fired for this ping. */
+  toleranceFired: boolean;
+  /** Why tolerance was suppressed (mutually exclusive with toleranceFired=true). */
+  toleranceSuppressed: 'private_residence' | 'no_active_session' | 'after_day_end' | null;
 }
 
 /**
@@ -447,8 +468,18 @@ function matchPing(
   lat: number,
   lng: number,
   opts: MatchOptions,
-): PingMatch {
+): { match: PingMatch; audit: PingMatchAudit } {
   const at = Date.parse(ts);
+  const afterDayEnd = Number.isFinite(opts.dayEndMs) && at > opts.dayEndMs;
+
+  const audit: PingMatchAudit = {
+    insidePrivateResidence: false,
+    privateResidenceLabel: null,
+    shadowedInsideKinds: [],
+    toleranceCandidate: null,
+    toleranceFired: false,
+    toleranceSuppressed: null,
+  };
 
   // Filter candidates to those valid at `at`.
   const valid = opts.candidates.filter((c) => {
@@ -458,23 +489,15 @@ function matchPing(
   });
 
   // 1) private_residence — inside ONLY (never tolerance).
+  let residenceWinner: PlaceCandidate | null = null;
   for (const c of valid) {
     if (!c.isPrivateResidence) continue;
     const inside = isInsideGeofence(lat, lng, asGeofenceTarget(c));
     if (inside) {
-      return {
-        pingId,
-        ts,
-        matchedPlaceKind: 'private_residence',
-        matchedPlaceLabel: c.label,
-        matchedTargetId: c.refId,
-        matchedTargetType: 'private_residence',
-        matchConfidence: 1,
-        matchReason: 'private_residence_inside',
-        matchedByTolerance: false,
-        insidePolygon: true,
-        distanceToTargetMeters: 0,
-      };
+      residenceWinner = c;
+      audit.insidePrivateResidence = true;
+      audit.privateResidenceLabel = c.label;
+      break;
     }
   }
 
@@ -484,6 +507,10 @@ function matchPing(
   let bestInsideAssigned: { c: PlaceCandidate; d: number } | null = null;
   // 4) sticky tolerance candidate (only the prior session's target).
   let stickyCandidate: { c: PlaceCandidate; outsideM: number; insideEdge: boolean } | null = null;
+  // 4b) tolerance candidate WITHOUT stickyKey gate — used to detect
+  //     "would have applied if we had an active session". Picks closest
+  //     edge among work targets within tolerance.
+  let bestToleranceAny: { c: PlaceCandidate; outsideM: number } | null = null;
   // 5) nearest work-related target (debug fallback).
   let nearestWork: { c: PlaceCandidate; d: number } | null = null;
 
@@ -506,18 +533,60 @@ function matchPing(
       if (bestInside == null || centerD < bestInside.d) {
         bestInside = { c, d: centerD };
       }
+      // Audit: track shadowed kinds when a residence won.
+      if (residenceWinner) {
+        const k = (c.targetType === 'warehouse' ? 'warehouse'
+          : c.targetType === 'project' ? 'project'
+          : c.targetType === 'booking' ? 'booking'
+          : 'location') as 'warehouse' | 'project' | 'booking' | 'location';
+        if (!audit.shadowedInsideKinds.includes(k)) audit.shadowedInsideKinds.push(k);
+      }
       continue;
     }
 
-    // Sticky tolerance — only when this candidate IS the previous segment's place.
-    // stickyKey uses the same shape as pingMatchKey: `${targetType}:${refId}`.
-    if (opts.stickyKey && `${c.targetType}:${c.refId}` === opts.stickyKey) {
-      const signed = distanceToGeofenceEdge(lat, lng, gf);
-      const outsideM = -signed;
-      if (outsideM <= opts.stickyToleranceM) {
+    // Outside — evaluate tolerance.
+    const signed = distanceToGeofenceEdge(lat, lng, gf);
+    const outsideM = -signed;
+    if (outsideM <= opts.stickyToleranceM) {
+      if (bestToleranceAny == null || outsideM < bestToleranceAny.outsideM) {
+        bestToleranceAny = { c, outsideM };
+      }
+      // Sticky tolerance — only when this candidate IS the previous segment's place.
+      if (opts.stickyKey && `${c.targetType}:${c.refId}` === opts.stickyKey) {
         stickyCandidate = { c, outsideM, insideEdge: false };
       }
     }
+  }
+
+  if (bestToleranceAny) {
+    audit.toleranceCandidate = {
+      label: bestToleranceAny.c.label,
+      targetType: bestToleranceAny.c.targetType,
+      outsideM: Math.round(bestToleranceAny.outsideM),
+    };
+  }
+
+  // ── private_residence wins absolutely over warehouse / project / tolerance.
+  if (residenceWinner) {
+    if (bestToleranceAny) {
+      audit.toleranceSuppressed = 'private_residence';
+    }
+    return {
+      match: {
+        pingId,
+        ts,
+        matchedPlaceKind: 'private_residence',
+        matchedPlaceLabel: residenceWinner.label,
+        matchedTargetId: residenceWinner.refId,
+        matchedTargetType: 'private_residence',
+        matchConfidence: 1,
+        matchReason: 'private_residence_inside',
+        matchedByTolerance: false,
+        insidePolygon: true,
+        distanceToTargetMeters: 0,
+      },
+      audit,
+    };
   }
 
   // Priority resolution.
@@ -525,35 +594,50 @@ function matchPing(
   if (winnerInside) {
     const c = winnerInside.c;
     return {
-      pingId,
-      ts,
-      matchedPlaceKind: c.segmentKind,
-      matchedPlaceLabel: c.label,
-      matchedTargetId: c.refId,
-      matchedTargetType: c.targetType,
-      matchConfidence: c.isAssigned ? 1 : 0.9,
-      matchReason: c.isAssigned ? 'assigned_target_inside' : 'work_target_inside',
-      matchedByTolerance: false,
-      insidePolygon: true,
-      distanceToTargetMeters: Math.round(winnerInside.d),
+      match: {
+        pingId,
+        ts,
+        matchedPlaceKind: c.segmentKind,
+        matchedPlaceLabel: c.label,
+        matchedTargetId: c.refId,
+        matchedTargetType: c.targetType,
+        matchConfidence: c.isAssigned ? 1 : 0.9,
+        matchReason: c.isAssigned ? 'assigned_target_inside' : 'work_target_inside',
+        matchedByTolerance: false,
+        insidePolygon: true,
+        distanceToTargetMeters: Math.round(winnerInside.d),
+      },
+      audit,
     };
   }
 
+  // Tolerance: requires an active session AND must not extend past dayEnd.
   if (stickyCandidate) {
-    const c = stickyCandidate.c;
-    return {
-      pingId,
-      ts,
-      matchedPlaceKind: c.segmentKind,
-      matchedPlaceLabel: c.label,
-      matchedTargetId: c.refId,
-      matchedTargetType: c.targetType,
-      matchConfidence: 0.6,
-      matchReason: 'sticky_tolerance',
-      matchedByTolerance: true,
-      insidePolygon: false,
-      distanceToTargetMeters: Math.round(haversine(lat, lng, c.center.lat, c.center.lng)),
-    };
+    if (afterDayEnd) {
+      audit.toleranceSuppressed = 'after_day_end';
+    } else {
+      const c = stickyCandidate.c;
+      audit.toleranceFired = true;
+      return {
+        match: {
+          pingId,
+          ts,
+          matchedPlaceKind: c.segmentKind,
+          matchedPlaceLabel: c.label,
+          matchedTargetId: c.refId,
+          matchedTargetType: c.targetType,
+          matchConfidence: 0.6,
+          matchReason: 'sticky_tolerance',
+          matchedByTolerance: true,
+          insidePolygon: false,
+          distanceToTargetMeters: Math.round(haversine(lat, lng, c.center.lat, c.center.lng)),
+        },
+        audit,
+      };
+    }
+  } else if (bestToleranceAny) {
+    // Within 150 m of a work target but no active session — suppressed.
+    audit.toleranceSuppressed = 'no_active_session';
   }
 
   // 5) nearest_debug — kept ONLY as diagnostic on the ping match. Does NOT
@@ -561,32 +645,38 @@ function matchPing(
   //    classified as 'unknown' below. Callers can inspect rawEvidence.
   if (nearestWork) {
     return {
+      match: {
+        pingId,
+        ts,
+        matchedPlaceKind: 'unknown_place',
+        matchedPlaceLabel: 'Okänd plats',
+        matchedTargetId: null,
+        matchedTargetType: null,
+        matchConfidence: 0.2,
+        matchReason: 'nearest_debug',
+        matchedByTolerance: false,
+        insidePolygon: false,
+        distanceToTargetMeters: Math.round(nearestWork.d),
+      },
+      audit,
+    };
+  }
+
+  return {
+    match: {
       pingId,
       ts,
       matchedPlaceKind: 'unknown_place',
       matchedPlaceLabel: 'Okänd plats',
       matchedTargetId: null,
       matchedTargetType: null,
-      matchConfidence: 0.2,
-      matchReason: 'nearest_debug',
+      matchConfidence: 0.1,
+      matchReason: 'unknown',
       matchedByTolerance: false,
       insidePolygon: false,
-      distanceToTargetMeters: Math.round(nearestWork.d),
-    };
-  }
-
-  return {
-    pingId,
-    ts,
-    matchedPlaceKind: 'unknown_place',
-    matchedPlaceLabel: 'Okänd plats',
-    matchedTargetId: null,
-    matchedTargetType: null,
-    matchConfidence: 0.1,
-    matchReason: 'unknown',
-    matchedByTolerance: false,
-    insidePolygon: false,
-    distanceToTargetMeters: null,
+      distanceToTargetMeters: null,
+    },
+    audit,
   };
 }
 
