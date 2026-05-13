@@ -172,6 +172,8 @@ interface GanttBlock {
   title: string;
   subtitle?: string | null;
   isOpen?: boolean;
+  /** Liten "Planerat: X"-badge när engine resolved en annan/okänd plats. */
+  plannedBadgeLabel?: string | null;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
