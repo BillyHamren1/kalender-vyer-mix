@@ -162,3 +162,6 @@ verify_jwt = false
 
 [functions.group-products-ai]
 verify_jwt = false
+
+[functions.process-day-timer-auto-stop]
+verify_jwt = false
