@@ -17,6 +17,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
+import { buildTimerOwnershipDiagnostics } from "../_shared/diagnostics/buildTimerOwnershipDiagnostics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
