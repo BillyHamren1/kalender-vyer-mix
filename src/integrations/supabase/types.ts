@@ -391,6 +391,66 @@ export type Database = {
           },
         ]
       }
+      auto_start_decline_log: {
+        Row: {
+          created_at: string
+          day_scope: boolean
+          declined_at: string
+          expires_at: string
+          id: string
+          lat: number | null
+          lng: number | null
+          local_date: string
+          metadata: Json
+          organization_id: string
+          radius_m: number | null
+          response: string
+          source: string
+          staff_id: string
+          target_id: string | null
+          target_label: string | null
+          target_type: string | null
+        }
+        Insert: {
+          created_at?: string
+          day_scope?: boolean
+          declined_at?: string
+          expires_at: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          local_date: string
+          metadata?: Json
+          organization_id: string
+          radius_m?: number | null
+          response?: string
+          source?: string
+          staff_id: string
+          target_id?: string | null
+          target_label?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          created_at?: string
+          day_scope?: boolean
+          declined_at?: string
+          expires_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          local_date?: string
+          metadata?: Json
+          organization_id?: string
+          radius_m?: number | null
+          response?: string
+          source?: string
+          staff_id?: string
+          target_id?: string | null
+          target_label?: string | null
+          target_type?: string | null
+        }
+        Relationships: []
+      }
       booking_attachments: {
         Row: {
           booking_id: string
