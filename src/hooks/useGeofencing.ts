@@ -1517,57 +1517,29 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
     }
   }, [userPosition, bookings, orgLocations]);
 
-  const startTimer = useCallback((bookingId: string, client: string, isAuto = false, taskId?: string, taskTitle?: string, locationId?: string, locationName?: string, largeProjectId?: string, customStartTime?: string): boolean => {
-    // Resolve a single canonical key per (target).
-    const key = locationId
-      ? `location-${locationId}`
-      : largeProjectId
-        ? `project-${largeProjectId}`
-        : bookingId;
-
-    // SOFT LOCK: parallel timers (location, booking, project) are valid signals.
-    // Only block re-starting the SAME key.
-    const current = activeTimersRef.current;
-    if (current.has(key)) {
-      return false;
+  // SINGLE-TIMER POLICY (single-timer-policy-v1):
+  //
+  // Mobile app owns only day start/stop.
+  // Timeline allocation is owned by Time Engine.
+  // GPS/geofence is evidence only, not a project timer.
+  //
+  // Den här metoden var tidigare entry-point för att skapa
+  // boknings-/projekt-/plats-timers från mobilen. I single-timer-modellen
+  // får ingen sådan timer skapas från klienten — endast `WorkDayPanel`
+  // får starta/stoppa arbetsdagen via mobileApi.startTimeRegistration /
+  // stopTimeRegistration. Tidsfördelning sker i admin-tidslinjen.
+  //
+  // Vi behåller signaturen så att gamla call-sites inte kraschar, men
+  // gör det till en hård no-op. Inga setActiveTimers, ingen sync-queue,
+  // inga writes till location_time_entries.
+  const startTimer = useCallback((_bookingId: string, _client: string, _isAuto = false, _taskId?: string, _taskTitle?: string, _locationId?: string, _locationName?: string, _largeProjectId?: string, _customStartTime?: string): boolean => {
+    if (typeof console !== 'undefined') {
+      console.warn(
+        '[useGeofencing] startTimer is disabled by single-timer-policy-v1. ' +
+        'The mobile app may only start/stop the workday via WorkDayPanel.',
+      );
     }
-
-    const startedAtIso = customStartTime || new Date().toISOString();
-
-    // 1. Optimistic UI: mark timer as pendingSync until the server confirms.
-    setActiveTimers(prev => {
-      const next = new Map(prev);
-      next.set(key, {
-        bookingId: key,
-        client,
-        startTime: startedAtIso,
-        isAutoStarted: isAuto,
-        establishmentTaskId: taskId,
-        establishmentTaskTitle: taskTitle,
-        locationId,
-        locationName,
-        largeProjectId,
-        pendingSync: true,
-      });
-      return next;
-    });
-    triggeredEnterRef.current.add(key);
-
-    // 2. Push to the persistent sync queue. The queue retries on its own.
-    //    For project timers we also need a representative booking_id so the
-    //    server entry is linkable back to the project; we let booking_id stay
-    //    undefined for pure-project timers and rely on large_project_id alone.
-    const isPureBookingTimer = !locationId && !largeProjectId;
-    enqueueTimerStart({
-      timerKey: key,
-      locationId,
-      bookingId: isPureBookingTimer ? bookingId : undefined,
-      largeProjectId,
-      taskId,
-      startedAt: startedAtIso,
-    });
-
-    return true;
+    return false;
   }, []);
 
   // 3. Reconcile when the queue confirms a start with the server.
