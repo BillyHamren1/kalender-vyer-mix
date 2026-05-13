@@ -238,3 +238,66 @@ Deno.test("buildLocationTruthTimeline: diagnostics expose expected counters", ()
   assert("matchedByToleranceCount" in d.pingMatch);
   assert("examples" in d.pingMatch);
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 11. Location Truth 1.3 — WORK_AREA_TOLERANCE_METERS exported and equal to 150.
+// ──────────────────────────────────────────────────────────────────────────────
+import { WORK_AREA_TOLERANCE_METERS } from "../buildLocationTruthTimeline.ts";
+
+Deno.test("buildLocationTruthTimeline: exports WORK_AREA_TOLERANCE_METERS = 150", () => {
+  assertEquals(WORK_AREA_TOLERANCE_METERS, 150);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 12. private_residence overrides warehouse AND tolerance, and is reported.
+// ──────────────────────────────────────────────────────────────────────────────
+Deno.test("buildLocationTruthTimeline: residence diagnostics report shadowed warehouse + suppressed tolerance", () => {
+  const warehouse = circleTarget({ refId: "w1", kind: "warehouse", label: "FA Warehouse", lat: 59.33, lng: 18.06, radiusM: 200 });
+  const r = buildLocationTruthTimeline(baseInput({
+    resolvedTargets: [warehouse],
+    privateResidenceLocations: [{ id: "h1", label: "Hemma", center: { lat: 59.33, lng: 18.06 }, radiusM: 50 }],
+    gpsPings: [
+      ping("2026-05-13T20:30:00Z", 59.33, 18.06),
+      ping("2026-05-13T20:31:00Z", 59.33, 18.06),
+    ],
+  }));
+  const pr = r.diagnostics.privateResidenceMatch;
+  assertEquals(pr.pingsInsideResidence, 2);
+  assert(pr.residenceOverrodeWarehouseCount >= 2, "should report shadowed warehouse pings");
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 13. Tolerance suppressed when no active session — diagnostic counter increments.
+// ──────────────────────────────────────────────────────────────────────────────
+Deno.test("buildLocationTruthTimeline: tolerance blocked because no active session is reported", () => {
+  const project = circleTarget({ refId: "p1", kind: "project", label: "Bygge", lat: 59.33, lng: 18.06, radiusM: 50 });
+  // First ping outside (~89 m N) — within 150 m tolerance but no prior session.
+  const r = buildLocationTruthTimeline(baseInput({
+    resolvedTargets: [project],
+    gpsPings: [
+      ping("2026-05-13T08:00:00Z", 59.3308, 18.060),
+      ping("2026-05-13T08:05:00Z", 59.3308, 18.060),
+    ],
+  }));
+  const t = r.diagnostics.workAreaTolerance;
+  assertEquals(t.toleranceMeters, 150);
+  assert(t.blockedBecauseNoActiveSessionCount >= 2, "expected no_active_session suppression");
+  assertEquals(t.continuedSessionByToleranceCount, 0);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 14. Tolerance fired diagnostic counts continued pings.
+// ──────────────────────────────────────────────────────────────────────────────
+Deno.test("buildLocationTruthTimeline: tolerance continuation increments continuedSessionByToleranceCount", () => {
+  const project = circleTarget({ refId: "p1", kind: "project", label: "Bygge", lat: 59.33, lng: 18.06, radiusM: 50 });
+  const r = buildLocationTruthTimeline(baseInput({
+    resolvedTargets: [project],
+    gpsPings: [
+      ping("2026-05-13T08:00:00Z", 59.330, 18.060),  // INSIDE (originates)
+      ping("2026-05-13T08:05:00Z", 59.3308, 18.060), // OUTSIDE within 150 m → tolerance
+      ping("2026-05-13T08:10:00Z", 59.3309, 18.060), // OUTSIDE within 150 m → tolerance
+    ],
+  }));
+  const t = r.diagnostics.workAreaTolerance;
+  assert(t.continuedSessionByToleranceCount >= 2, "expected at least 2 continuation pings");
+});
