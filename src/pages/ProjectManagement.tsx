@@ -9,6 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
+import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { UpdatedBookingsList } from "@/components/project/UpdatedBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
