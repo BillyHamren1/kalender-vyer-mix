@@ -169,7 +169,18 @@ export type AutoStartDecisionReason =
    *   "stoppad dagtimer = dagen är stoppad"
    *   "stopped day cannot be reopened by GPS batch"
    */
-  | 'blocked_day_already_stopped';
+  | 'blocked_day_already_stopped'
+  /**
+   * The candidate stay segment falls geographically INSIDE a known
+   * private_residence / inferred_home / manual_ignore zone for THIS staff
+   * (from staff_private_zones / staff_inferred_home_locations). Even if a
+   * nearby work target also matches, "home wins over work" — GPS must NOT
+   * auto-start a project/booking/warehouse timer here. Diagnostics:
+   *   matchedPrivateResidence, privateResidenceDistanceMeters,
+   *   competingWorkTarget, homeWonOverWorkTarget,
+   *   suppressedAutoStartBecauseHome.
+   */
+  | 'blocked_inside_private_residence';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
@@ -202,6 +213,19 @@ export interface DecideAutoStartInput {
     night?: NightPolicy;
   };
   existingActiveRegistration?: ExistingActiveRegistration | null;
+  /**
+   * Set by the caller (processGpsTimelineForAutoStart) when the
+   * candidate segment center sits inside a staff private zone
+   * (staff_private_zones / staff_inferred_home_locations).
+   * "Home wins over work" — when true, decideAutoStart denies with
+   * `blocked_inside_private_residence` even if `target` is a valid
+   * project/booking/warehouse. GPS evidence may still be collected;
+   * only the auto-start side is suppressed.
+   */
+  insidePrivateResidence?: {
+    distanceMeters: number;
+    zoneKind: string | null;
+  } | null;
 }
 
 export type AutoStartSource = 'gps_geofence_auto_start';
@@ -319,6 +343,16 @@ export function decideAutoStart(input: DecideAutoStartInput): AutoStartDecisionR
   // Already active timer → never auto-start.
   if (input.existingActiveRegistration) {
     return deny('blocked_already_active', evidence, seg.confidence);
+  }
+
+  // HOME WINS OVER WORK — if the candidate stay center sits inside a
+  // staff private zone (home/private_residence/manual_ignore/recurring_night),
+  // GPS may NEVER auto-start a project/booking/warehouse timer here. Even if
+  // a nearby work target also matches, the user is at HOME. The
+  // processGpsTimelineForAutoStart caller surfaces the diagnostics
+  // (matchedPrivateResidence, homeWonOverWorkTarget, …).
+  if (input.insidePrivateResidence) {
+    return deny('blocked_inside_private_residence', evidence, seg.confidence);
   }
 
   // Movement / transport never auto-starts.

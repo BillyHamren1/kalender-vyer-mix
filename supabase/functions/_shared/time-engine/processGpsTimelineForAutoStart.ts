@@ -85,7 +85,32 @@ export interface AutoStartDecisionLogEntry {
     | 'no_target_for_segment'
     | 'target_not_valid_for_autostart'
     | 'already_active_registration'
-    | 'duplicate_segment';
+    | 'duplicate_segment'
+    | 'inside_private_residence';
+  /**
+   * Home-wins-over-work diagnostics for this segment. Populated when the
+   * candidate sits inside a staff private zone (home / private_residence /
+   * manual_ignore / recurring_night). Even if `matchedTargetId` points at
+   * a real project/booking/warehouse, GPS does NOT auto-start a timer.
+   */
+  homeWinsDiagnostics?: {
+    matchedPrivateResidence: true;
+    privateResidenceZoneKind: string | null;
+    privateResidenceDistanceMeters: number;
+    competingWorkTarget:
+      | { id: UUID; name: string | null; type: string | null }
+      | null;
+    homeWonOverWorkTarget: boolean;
+    suppressedAutoStartBecauseHome: true;
+  };
+}
+
+/** Loaded once per (org, staff) and reused across candidate segments. */
+interface StaffPrivateZone {
+  lat: number;
+  lng: number;
+  radiusM: number;
+  zoneKind: string | null;
 }
 
 export interface ProcessAutoStartResult {
@@ -123,6 +148,19 @@ export interface ProcessAutoStartResult {
     finalDayEnd: ISODateTime;
     registrationId: UUID;
   } | null;
+  /**
+   * Aggregate home/private-residence diagnostics for this run. Set when
+   * at least one candidate stay segment was suppressed because the staff
+   * was inside a private zone. "Home wins over work."
+   */
+  privateResidenceLock?: {
+    matchedPrivateResidence: true;
+    suppressedAutoStartBecauseHome: true;
+    suppressedSegmentsCount: number;
+    homeWonOverWorkTargetCount: number;
+    nearestZoneKind: string | null;
+    nearestDistanceMeters: number | null;
+  } | null;
   computedAt: ISODateTime;
 }
 
@@ -152,7 +190,7 @@ function toDecideTarget(rt: ResolvedWorkTarget): DecideAutoStartTarget {
     key: wt?.key,
     center: wt?.center,
     radiusM: wt?.radiusM,
-    targetValidity: rt.targetValidity,
+    targetValidity: rt.targetValidity as any,
     timeTrackingAllowed: rt.timeTrackingAllowed,
     assignedToUserToday: rt.targetSource === 'planned_today' || undefined,
     explicitlyAllowed: rt.targetSource === 'explicit_time_tracking_location' || undefined,
@@ -286,6 +324,95 @@ async function fetchLatestStoppedRegistrationForLocalDate(
     stopSource: (data.stop_source as string | null) ?? null,
     stoppedBy: (data.stopped_by as string | null) ?? null,
   };
+}
+
+/**
+ * Loads the staff's private zones (home/private_residence/manual_ignore/
+ * recurring_night). Used to enforce HOME-WINS-OVER-WORK at auto-start time.
+ *
+ * Sources (best-effort; missing tables are tolerated):
+ *   • staff_inferred_home_locations  → kind='inferred_home', radius=150 m
+ *   • staff_private_zones            → user-/admin-curated zones
+ *
+ * "Hemma är evidence/status, inte arbetstid" — these zones never create a
+ * timer; they only suppress GPS-driven auto-start.
+ */
+async function loadStaffPrivateZones(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+): Promise<StaffPrivateZone[]> {
+  const out: StaffPrivateZone[] = [];
+
+  try {
+    const { data: homes } = await supabaseAdmin
+      .from('staff_inferred_home_locations')
+      .select('lat, lng')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .is('valid_until', null)
+      .limit(3);
+    for (const h of homes || []) {
+      const lat = Number((h as any).lat);
+      const lng = Number((h as any).lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        out.push({ lat, lng, radiusM: 150, zoneKind: 'inferred_home' });
+      }
+    }
+  } catch (_) { /* table optional */ }
+
+  try {
+    const { data: priv } = await supabaseAdmin
+      .from('staff_private_zones')
+      .select('lat, lng, radius_m, zone_kind')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId);
+    for (const p of priv || []) {
+      const lat = Number((p as any).lat);
+      const lng = Number((p as any).lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      out.push({
+        lat,
+        lng,
+        radiusM: Number.isFinite((p as any).radius_m) ? Number((p as any).radius_m) : 150,
+        zoneKind: ((p as any).zone_kind as string | null) ?? 'private_residence',
+      });
+    }
+  } catch (_) { /* table optional */ }
+
+  return out;
+}
+
+function haversineMeters(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Returns the nearest private zone if the point sits inside any zone radius. */
+function findEnclosingPrivateZone(
+  point: { lat: number; lng: number } | null,
+  zones: StaffPrivateZone[],
+): { zone: StaffPrivateZone; distanceMeters: number } | null {
+  if (!point || zones.length === 0) return null;
+  let best: { zone: StaffPrivateZone; distanceMeters: number } | null = null;
+  for (const z of zones) {
+    const d = haversineMeters(point, { lat: z.lat, lng: z.lng });
+    if (d <= z.radiusM && (best === null || d < best.distanceMeters)) {
+      best = { zone: z, distanceMeters: d };
+    }
+  }
+  return best;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -455,6 +582,17 @@ export async function processGpsTimelineForAutoStart(
   }
 
 
+  // 3d) Staff private zones — load ONCE before the candidate loop. These
+  // power the "home wins over work" rule: even if a candidate stay matches
+  // a valid project/booking/warehouse, GPS may NOT auto-start a timer if
+  // the staff is sitting inside their own home / private_residence zone.
+  // GPS evidence is still collected; only auto-start is suppressed.
+  const privateZones = await loadStaffPrivateZones(supabaseAdmin, organizationId, staffId);
+  let privateResidenceSuppressedSegments = 0;
+  let privateResidenceHomeWonOverWorkCount = 0;
+  let nearestPrivateZoneKind: string | null = null;
+  let nearestPrivateZoneDistance: number | null = null;
+
   for (const seg of candidates) {
     const target = findTargetForSegment(seg, resolvedTargets);
     if (!target) {
@@ -492,23 +630,62 @@ export async function processGpsTimelineForAutoStart(
       continue;
     }
 
+    // HOME WINS OVER WORK — if the candidate stay center sits inside a staff
+    // private zone, suppress auto-start for THIS segment regardless of the
+    // matched work target. Mobile app owns only day start/stop; GPS/geofence
+    // is evidence only, not a project timer.
+    const segPoint =
+      typeof (seg as any).centerLat === 'number' && typeof (seg as any).centerLng === 'number'
+        ? { lat: (seg as any).centerLat as number, lng: (seg as any).centerLng as number }
+        : null;
+    const enclosing = findEnclosingPrivateZone(segPoint, privateZones);
+
     const decideTarget = toDecideTarget(target);
     const decision = decideAutoStart({
       currentSegment: toDecideSegment(seg),
       target: decideTarget,
       localTime: input.localTime ?? seg.endTs,
       existingActiveRegistration: active ? { id: active.id, startedAt: active.startedAt } : null,
+      insidePrivateResidence: enclosing
+        ? { distanceMeters: enclosing.distanceMeters, zoneKind: enclosing.zone.zoneKind }
+        : null,
     });
 
-    decisions.push({
+    const entry: AutoStartDecisionLogEntry = {
       segmentId: seg.id,
       segmentKind: seg.kind,
       segmentType: seg.type,
       matchedTargetId: target.id,
       matchedTargetName: target.name,
       decision,
-      skippedReason: active ? 'already_active_registration' : undefined,
-    });
+      skippedReason: enclosing
+        ? 'inside_private_residence'
+        : (active ? 'already_active_registration' : undefined),
+    };
+
+    if (enclosing) {
+      privateResidenceSuppressedSegments += 1;
+      if (target) privateResidenceHomeWonOverWorkCount += 1;
+      if (
+        nearestPrivateZoneDistance === null ||
+        enclosing.distanceMeters < nearestPrivateZoneDistance
+      ) {
+        nearestPrivateZoneDistance = enclosing.distanceMeters;
+        nearestPrivateZoneKind = enclosing.zone.zoneKind;
+      }
+      entry.homeWinsDiagnostics = {
+        matchedPrivateResidence: true,
+        privateResidenceZoneKind: enclosing.zone.zoneKind,
+        privateResidenceDistanceMeters: Math.round(enclosing.distanceMeters),
+        competingWorkTarget: target
+          ? { id: target.id, name: target.name, type: target.type as string | null }
+          : null,
+        homeWonOverWorkTarget: !!target,
+        suppressedAutoStartBecauseHome: true,
+      };
+    }
+
+    decisions.push(entry);
 
     // 5) Create registration if allowed and no active row, and not yet created in this run.
     if (
@@ -587,6 +764,18 @@ export async function processGpsTimelineForAutoStart(
     targetDiagnostics,
     suppression: null,
     dayStopLock: null,
+    privateResidenceLock: privateResidenceSuppressedSegments > 0
+      ? {
+          matchedPrivateResidence: true,
+          suppressedAutoStartBecauseHome: true,
+          suppressedSegmentsCount: privateResidenceSuppressedSegments,
+          homeWonOverWorkTargetCount: privateResidenceHomeWonOverWorkCount,
+          nearestZoneKind: nearestPrivateZoneKind,
+          nearestDistanceMeters: nearestPrivateZoneDistance !== null
+            ? Math.round(nearestPrivateZoneDistance)
+            : null,
+        }
+      : null,
     computedAt: new Date().toISOString(),
   };
 }
