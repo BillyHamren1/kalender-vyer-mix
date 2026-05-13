@@ -978,6 +978,7 @@ Deno.serve(async (req) => {
         smoothedRowCount: smoothing.stats.smoothedRows,
       },
     },
+    activeTimerLocationIsolationDiagnostics,
     timeline: smoothedTimeline,
     rawTimeline: dedupedTimeline,
     smoothedBlocks: smoothing.blocks,
