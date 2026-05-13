@@ -2261,7 +2261,7 @@ serve(async (req) => {
             products_updated_bookings: [],
             product_changes: [],
             errors: [],
-            sync_mode: 'incremental',
+            sync_mode: queueEventType,
             queued_jobs: queueSummary.queued,
             already_queued_jobs: queueSummary.alreadyQueued,
             team_distribution: {
