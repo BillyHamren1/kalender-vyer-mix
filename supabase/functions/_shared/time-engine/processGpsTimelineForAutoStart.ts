@@ -326,9 +326,95 @@ async function fetchLatestStoppedRegistrationForLocalDate(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Loads the staff's private zones (home/private_residence/manual_ignore/
+ * recurring_night). Used to enforce HOME-WINS-OVER-WORK at auto-start time.
+ *
+ * Sources (best-effort; missing tables are tolerated):
+ *   • staff_inferred_home_locations  → kind='inferred_home', radius=150 m
+ *   • staff_private_zones            → user-/admin-curated zones
+ *
+ * "Hemma är evidence/status, inte arbetstid" — these zones never create a
+ * timer; they only suppress GPS-driven auto-start.
+ */
+async function loadStaffPrivateZones(
+  supabaseAdmin: SupabaseClient,
+  organizationId: UUID,
+  staffId: UUID,
+): Promise<StaffPrivateZone[]> {
+  const out: StaffPrivateZone[] = [];
+
+  try {
+    const { data: homes } = await supabaseAdmin
+      .from('staff_inferred_home_locations')
+      .select('lat, lng')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .is('valid_until', null)
+      .limit(3);
+    for (const h of homes || []) {
+      const lat = Number((h as any).lat);
+      const lng = Number((h as any).lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        out.push({ lat, lng, radiusM: 150, zoneKind: 'inferred_home' });
+      }
+    }
+  } catch (_) { /* table optional */ }
+
+  try {
+    const { data: priv } = await supabaseAdmin
+      .from('staff_private_zones')
+      .select('lat, lng, radius_m, zone_kind')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId);
+    for (const p of priv || []) {
+      const lat = Number((p as any).lat);
+      const lng = Number((p as any).lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      out.push({
+        lat,
+        lng,
+        radiusM: Number.isFinite((p as any).radius_m) ? Number((p as any).radius_m) : 150,
+        zoneKind: ((p as any).zone_kind as string | null) ?? 'private_residence',
+      });
+    }
+  } catch (_) { /* table optional */ }
+
+  return out;
+}
+
+function haversineMeters(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Returns the nearest private zone if the point sits inside any zone radius. */
+function findEnclosingPrivateZone(
+  point: { lat: number; lng: number } | null,
+  zones: StaffPrivateZone[],
+): { zone: StaffPrivateZone; distanceMeters: number } | null {
+  if (!point || zones.length === 0) return null;
+  let best: { zone: StaffPrivateZone; distanceMeters: number } | null = null;
+  for (const z of zones) {
+    const d = haversineMeters(point, { lat: z.lat, lng: z.lng });
+    if (d <= z.radiusM && (best === null || d < best.distanceMeters)) {
+      best = { zone: z, distanceMeters: d };
+    }
+  }
+  return best;
+}
+
 
 export async function processGpsTimelineForAutoStart(
   input: ProcessAutoStartInput,
