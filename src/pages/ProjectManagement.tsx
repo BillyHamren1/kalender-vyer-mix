@@ -9,6 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
+import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { UpdatedBookingsList } from "@/components/project/UpdatedBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
@@ -37,6 +38,8 @@ const ProjectManagement = () => {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+  const [createProjectBookingId, setCreateProjectBookingId] = useState<string | null>(null);
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
@@ -134,8 +137,8 @@ const ProjectManagement = () => {
   });
 
   const handleCreateProject = (bookingId: string) => {
-    setSelectedBookingId(bookingId);
-    setIsCreateOpen(true);
+    setCreateProjectBookingId(bookingId);
+    setIsCreateProjectOpen(true);
   };
 
   const handleCreateLargeProject = (bookingId: string) => {
@@ -246,6 +249,18 @@ const ProjectManagement = () => {
           onSuccess={() => {
             setIsCreateOpen(false);
             setSelectedBookingId(null);
+            queryClient.invalidateQueries({ queryKey: ['projects'] });
+            queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+          }}
+        />
+
+        <CreateProjectWizard
+          open={isCreateProjectOpen}
+          onOpenChange={setIsCreateProjectOpen}
+          preselectedBookingId={createProjectBookingId}
+          onSuccess={() => {
+            setIsCreateProjectOpen(false);
+            setCreateProjectBookingId(null);
             queryClient.invalidateQueries({ queryKey: ['projects'] });
             queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
           }}
