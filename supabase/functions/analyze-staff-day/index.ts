@@ -229,15 +229,8 @@ Deno.serve(async (req) => {
         .eq("staff_id", staffId)
         .eq("organization_id", orgId)
         .eq("report_date", dateStr),
-      admin
-        .from("staff_location_history")
-        .select("recorded_at, lat, lng, accuracy, speed")
-        .eq("staff_id", staffId)
-        .eq("organization_id", orgId)
-        .gte("recorded_at", dayStartIso)
-        .lt("recorded_at", dayEndIso)
-        .order("recorded_at", { ascending: true })
-        .limit(2000),
+      // Replaced inline .limit(2000) — see fetchAllStaffLocationPings call below.
+      Promise.resolve({ data: [] as any[], error: null }),
       admin
         .from("workdays")
         .select(

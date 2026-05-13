@@ -39,6 +39,7 @@ import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { buildPresenceDayBlocks } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
 import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
+import { fetchAllStaffLocationPings } from '../_shared/timeEngine/fetchAllStaffLocationPings.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
