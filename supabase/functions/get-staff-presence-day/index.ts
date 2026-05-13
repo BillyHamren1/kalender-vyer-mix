@@ -1256,6 +1256,7 @@ Deno.serve(async (req) => {
       suppressedNoise: smoothing.stats.suppressedNoise,
     },
     targetMatchSummary,
+    unknownLocationDiagnostics,
     targets: resolvedTargetsAll.map((r: any) => ({
       id: r.id,
       name: r.name,
