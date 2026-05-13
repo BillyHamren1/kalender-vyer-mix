@@ -165,6 +165,19 @@ Deno.serve(async (req) => {
         if (hour < NIGHT_START_HOUR || hour >= NIGHT_END_HOUR) continue;
         const dateStr = dateFmt.format(ts);
 
+        // EXCLUSION: pings inside an active workplace radius are never
+        // home — drop them so the cluster can't form in the first place.
+        const hitWork = isInsideWorkExclusion(
+          r.organization_id as string,
+          r.lat as number,
+          r.lng as number,
+          workExclusions,
+        );
+        if (hitWork) {
+          pingsExcludedAtWork++;
+          continue;
+        }
+
         const snap = snapKey(r.lat as number, r.lng as number);
         const bucketKey = `${r.staff_id}|${dateStr}|${snap.key}`;
         const entry = buckets.get(bucketKey);
