@@ -793,6 +793,8 @@ Deno.serve(async (req) => {
   // Never writes anything. Never reads legacy LTE/travel/time_reports.
   let reportCandidateResult: any = null;
   let reportCandidateError: string | null = null;
+  let locationTruthResult: any = null;
+  let locationTruthError: string | null = null;
   if (presenceDayBlocksResult) {
     try {
       const nowIso = new Date().toISOString();
