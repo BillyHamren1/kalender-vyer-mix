@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
 import { ProjectPlanningSheet } from '@/components/project/ProjectPlanningSheet';
+import { UnplannedTodosBanner } from '@/components/Calendar/UnplannedTodosBanner';
 
 /**
  * Container ovanför kalendern som listar alla projekt som väntar på
