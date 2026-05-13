@@ -4,6 +4,7 @@ import { MobileAuthProvider } from '@/contexts/MobileAuthContext';
 import ScannerRouteGuard from '@/components/scanner/ScannerProtectedRoute';
 import { ShellProvider } from './ShellContext';
 import ScannerAppLayout from './scanner/ScannerAppLayout';
+import { LanguageProvider } from '@/i18n/LanguageContext';
 
 // Scanner app pages
 import ScannerLogin from '@/pages/scanner/ScannerLogin';
@@ -12,8 +13,9 @@ import MobileScannerApp from '@/pages/MobileScannerApp';
 const ScannerAppShell: React.FC = () => {
   return (
     <ShellProvider mode="scanner" appName="EventFlow Scanner" appTagline="Scanning & packing">
-      <MobileAuthProvider>
-        <Routes>
+      <LanguageProvider>
+        <MobileAuthProvider>
+          <Routes>
           <Route path="/scanner/login" element={<ScannerLogin />} />
           <Route path="/scanner" element={
             <ScannerRouteGuard>
