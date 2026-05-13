@@ -153,7 +153,7 @@ Deno.test("buildLocationTruthTimeline: tolerance does NOT originate a session wh
 // ──────────────────────────────────────────────────────────────────────────────
 // 6. Signal gap > maxPingIntervalSeconds emits a signal_gap segment.
 // ──────────────────────────────────────────────────────────────────────────────
-Deno.test("buildLocationTruthTimeline: gap > policy emits signal_gap", () => {
+Deno.test("buildLocationTruthTimeline: same-place gap is bridged into the project segment (no separate signal_gap)", () => {
   const project = circleTarget({ refId: "p1", kind: "project", label: "Bygge", lat: 59.33, lng: 18.06 });
   const pings = [
     ping("2026-05-13T08:00:00Z", 59.33, 18.06),
@@ -164,8 +164,14 @@ Deno.test("buildLocationTruthTimeline: gap > policy emits signal_gap", () => {
   ];
   const r = buildLocationTruthTimeline(baseInput({ resolvedTargets: [project], gpsPings: pings }));
   const gaps = r.locationTruthSegments.filter((s) => s.kind === "signal_gap");
-  assertEquals(gaps.length, 1);
-  assert(gaps[0].signalGapMinutes >= 25);
+  assertEquals(gaps.length, 0, "same-place gap should NOT emit a standalone signal_gap segment");
+  const proj = r.locationTruthSegments.filter((s) => s.kind === "project");
+  assertEquals(proj.length, 1);
+  assert(proj[0].signalGapMinutes >= 25);
+  assertEquals(proj[0].signalGapCount, 1);
+  assertEquals(proj[0].signalQuality, "gappy");
+  assert(proj[0].warningReasons.includes("signal_gap_inside_same_location"));
+  assertEquals(r.diagnostics.locationGapBridge.samePlaceGapsBridgedCount, 1);
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -300,4 +306,50 @@ Deno.test("buildLocationTruthTimeline: tolerance continuation increments continu
   }));
   const t = r.diagnostics.workAreaTolerance;
   assert(t.continuedSessionByToleranceCount >= 2, "expected at least 2 continuation pings");
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 15. Different places either side of a gap → standalone signal_gap with
+//     possible_transition_gap warning.
+// ──────────────────────────────────────────────────────────────────────────────
+Deno.test("buildLocationTruthTimeline: gap between different places becomes possible_transition_gap", () => {
+  const projectA = circleTarget({ refId: "pA", kind: "project", label: "Bygge A", lat: 59.33, lng: 18.06, radiusM: 50 });
+  const projectB = circleTarget({ refId: "pB", kind: "project", label: "Bygge B", lat: 59.40, lng: 18.30, radiusM: 50 });
+  const r = buildLocationTruthTimeline(baseInput({
+    resolvedTargets: [projectA, projectB],
+    gpsPings: [
+      ping("2026-05-13T08:00:00Z", 59.33, 18.06),
+      ping("2026-05-13T08:01:00Z", 59.33, 18.06),
+      // 40-min gap, then we're at project B
+      ping("2026-05-13T08:41:00Z", 59.40, 18.30),
+      ping("2026-05-13T08:42:00Z", 59.40, 18.30),
+    ],
+  }));
+  const gaps = r.locationTruthSegments.filter((s) => s.kind === "signal_gap");
+  assertEquals(gaps.length, 1, "transition gap should remain a standalone segment");
+  assert(gaps[0].warningReasons.includes("possible_transition_gap"));
+  assertEquals(gaps[0].signalQuality, "gap");
+  assertEquals(r.diagnostics.locationGapBridge.transitionGapsCount, 1);
+  assertEquals(r.diagnostics.locationGapBridge.samePlaceGapsBridgedCount, 0);
+  // Final order: project A → signal_gap → project B
+  const order = r.locationTruthSegments.map((s) => s.kind);
+  assertEquals(order, ["project", "signal_gap", "project"]);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 16. locationSegment diagnostics report counts.
+// ──────────────────────────────────────────────────────────────────────────────
+Deno.test("buildLocationTruthTimeline: locationSegment diagnostics surface counts", () => {
+  const project = circleTarget({ refId: "p1", kind: "project", label: "Bygge", lat: 59.33, lng: 18.06 });
+  const r = buildLocationTruthTimeline(baseInput({
+    resolvedTargets: [project],
+    gpsPings: [
+      ping("2026-05-13T08:00:00Z", 59.33, 18.06),
+      ping("2026-05-13T08:01:00Z", 59.33, 18.06),
+    ],
+  }));
+  const d = r.diagnostics.locationSegment;
+  assertEquals(d.workLocationSegmentsCount, 1);
+  assertEquals(d.segmentsCreatedCount, r.locationTruthSegments.length);
+  assert(d.examples.length >= 1);
 });

@@ -175,6 +175,14 @@ export interface LocationTruthSegment {
   withinTolerance: boolean;
   signalGapMinutes: number;
   signalGapCount: number;
+  /** 'good' | 'gappy' (one or more bridged gaps) | 'bridged' | 'gap' (the segment IS a signal_gap). */
+  signalQuality: 'good' | 'gappy' | 'gap';
+  /**
+   * Soft warnings attached during merge / bridge. Examples:
+   *   - 'signal_gap_inside_same_location' (gap absorbed because same place on both sides)
+   *   - 'possible_transition_gap' (gap segment between two different places)
+   */
+  warningReasons: string[];
   rawEvidence: {
     pingCount: number;
     matchReason: PingMatchReason | null;
@@ -259,6 +267,43 @@ export interface WorkAreaToleranceDiagnostics {
   }>;
 }
 
+/**
+ * Location Truth 1.4 — segment-build diagnostics.
+ * Shows how many merged ping-runs vs. raw segments, and the kind breakdown.
+ */
+export interface LocationSegmentDiagnostics {
+  segmentsCreatedCount: number;
+  mergedPingRunsCount: number;
+  unknownSegmentsCount: number;
+  privateResidenceSegmentsCount: number;
+  workLocationSegmentsCount: number;
+  examples: Array<{
+    ts: ISODateTime;
+    kind: LocationTruthSegmentKind;
+    label: string;
+    pingCount: number;
+    durationMin: number;
+  }>;
+}
+
+/**
+ * Location Truth 1.4 — gap bridging diagnostics.
+ * Tracks how many signal_gaps were bridged into the same place vs. left as
+ * standalone transition gaps for downstream layers.
+ */
+export interface LocationGapBridgeDiagnostics {
+  samePlaceGapsBridgedCount: number;
+  samePlaceGapMinutes: number;
+  transitionGapsCount: number;
+  unresolvedGapsCount: number;
+  examples: Array<{
+    ts: ISODateTime;
+    durationMin: number;
+    outcome: 'bridged_same_place' | 'transition_gap' | 'unresolved_gap';
+    bridgedSegmentLabel: string | null;
+  }>;
+}
+
 export interface LocationTruthDiagnostics {
   staffId: UUID;
   date: ISODate;
@@ -273,6 +318,8 @@ export interface LocationTruthDiagnostics {
   pingMatch: LocationPingMatchDiagnostics;
   privateResidenceMatch: PrivateResidenceMatchDiagnostics;
   workAreaTolerance: WorkAreaToleranceDiagnostics;
+  locationSegment: LocationSegmentDiagnostics;
+  locationGapBridge: LocationGapBridgeDiagnostics;
 }
 
 export interface BuildLocationTruthTimelineResult {
@@ -856,35 +903,40 @@ export function buildLocationTruthTimeline(
   const segments: LocationTruthSegment[] = [];
   let segIdx = 0;
 
+  // Diagnostics for segment build & gap bridge (Location Truth 1.4).
+  const segDiag: LocationSegmentDiagnostics = {
+    segmentsCreatedCount: 0,
+    mergedPingRunsCount: 0,
+    unknownSegmentsCount: 0,
+    privateResidenceSegmentsCount: 0,
+    workLocationSegmentsCount: 0,
+    examples: [],
+  };
+  const gapDiag: LocationGapBridgeDiagnostics = {
+    samePlaceGapsBridgedCount: 0,
+    samePlaceGapMinutes: 0,
+    transitionGapsCount: 0,
+    unresolvedGapsCount: 0,
+    examples: [],
+  };
+
   if (pings.length === 0) {
     return {
       locationTruthSegments: [],
-      diagnostics: makeDiag(input, policy, segments, pingDiag, prDiag, taDiag),
+      diagnostics: makeDiag(input, policy, segments, pingDiag, prDiag, taDiag, segDiag, gapDiag),
     };
   }
 
-  // Helper: emit signal_gap between two timestamps when delta exceeds policy.
-  const tryEmitGap = (fromMs: number, toMs: number) => {
-    const dt = (toMs - fromMs) / 1000;
-    if (dt <= policy.maxPingIntervalSeconds) return;
-    segments.push({
-      id: uid('gap', segIdx++),
-      startAt: new Date(fromMs).toISOString(),
-      endAt: new Date(toMs).toISOString(),
-      kind: 'signal_gap',
-      label: 'GPS-signal saknas',
-      targetId: null, targetType: null, locationId: null, projectId: null, bookingId: null,
-      largeProjectId: null, assignmentId: null,
-      confidence: 0.2,
-      confidenceReasons: ['gps_gap_exceeded_policy'],
-      sourcePingIds: [],
-      centerLat: null, centerLng: null, distanceToTargetMeters: null,
-      insidePolygon: null, withinTolerance: false,
-      signalGapMinutes: Math.round((toMs - fromMs) / 60000),
-      signalGapCount: 1,
-      rawEvidence: { pingCount: 0, matchReason: null, matchedByTolerance: false },
-    });
-  };
+  // ── Collect candidate gap events (from ping intervals exceeding policy).
+  interface GapEvent {
+    fromMs: number;
+    toMs: number;
+    /** True once consumed by a run-internal or run-merge bridge. */
+    consumed: boolean;
+    /** When emitted as standalone segment, classification of neighbours. */
+    transition: boolean;
+  }
+  const gapEvents: GapEvent[] = [];
 
   // Group consecutive pings into runs by `pingMatchKey` (or 'unknown' / 'movement').
   type RunKind = 'place' | 'unknown' | 'movement';
@@ -893,6 +945,10 @@ export function buildLocationTruthTimeline(
     placeKey: string | null;
     placeCandidate: PlaceCandidate | null;
     pings: PingRow[];
+    /** Bridged gaps absorbed into this run (either intra-run or run-merge). */
+    bridgedGaps: GapEvent[];
+    /** Original run count (pre-merge). For diagnostics. */
+    mergedRunCount: number;
   }
   const runs: Run[] = [];
 
@@ -902,7 +958,6 @@ export function buildLocationTruthTimeline(
       const cand = candidates.find((c) => `${c.targetType}:${c.refId}` === k) ?? null;
       return { kind: 'place', placeKey: k, placeCandidate: cand };
     }
-    // Unknown — decide if it's movement or stationary unknown.
     const speedKmh = p.speedMps != null ? p.speedMps * 3.6 : null;
     if (speedKmh != null && speedKmh >= policy.movementSpeedKmh) {
       return { kind: 'movement', placeKey: null, placeCandidate: null };
@@ -920,29 +975,86 @@ export function buildLocationTruthTimeline(
 
   let prevPing: PingRow | null = null;
   for (const p of pings) {
-    if (prevPing) tryEmitGap(prevPing.tsMs, p.tsMs);
+    let gapEvt: GapEvent | null = null;
+    if (prevPing) {
+      const dt = (p.tsMs - prevPing.tsMs) / 1000;
+      if (dt > policy.maxPingIntervalSeconds) {
+        gapEvt = { fromMs: prevPing.tsMs, toMs: p.tsMs, consumed: false, transition: false };
+        gapEvents.push(gapEvt);
+      }
+    }
     const { kind, placeKey, placeCandidate } = classifyRun(p, prevPing);
     const lastRun = runs[runs.length - 1];
     if (lastRun && lastRun.kind === kind && lastRun.placeKey === placeKey) {
       lastRun.pings.push(p);
+      // Same-run gap = intra-run bridge → consume immediately.
+      if (gapEvt) {
+        gapEvt.consumed = true;
+        lastRun.bridgedGaps.push(gapEvt);
+      }
     } else {
-      runs.push({ kind, placeKey, placeCandidate, pings: [p] });
+      runs.push({ kind, placeKey, placeCandidate, pings: [p], bridgedGaps: [], mergedRunCount: 1 });
     }
     prevPing = p;
   }
 
-  // Convert runs → segments.
+  // ── Same-place merge pass: merge adjacent place runs that bracket a gap and
+  //    refer to the same place by id, label, or coordinates within 100 m.
+  const COORDINATE_BRIDGE_M = 100;
+  function samePlaceForBridge(a: Run, b: Run): boolean {
+    if (a.kind !== 'place' || b.kind !== 'place') return false;
+    if (a.placeKey && b.placeKey && a.placeKey === b.placeKey) return true;
+    if (a.placeCandidate && b.placeCandidate) {
+      if (a.placeCandidate.refId === b.placeCandidate.refId
+        && a.placeCandidate.targetType === b.placeCandidate.targetType) return true;
+      if (a.placeCandidate.label
+        && b.placeCandidate.label
+        && a.placeCandidate.label.trim().toLowerCase() === b.placeCandidate.label.trim().toLowerCase()) return true;
+      const d = haversine(
+        a.placeCandidate.center.lat, a.placeCandidate.center.lng,
+        b.placeCandidate.center.lat, b.placeCandidate.center.lng,
+      );
+      if (d <= COORDINATE_BRIDGE_M) return true;
+    }
+    return false;
+  }
+
+  const mergedRuns: Run[] = [];
   for (const r of runs) {
+    const last = mergedRuns[mergedRuns.length - 1];
+    if (last && samePlaceForBridge(last, r)) {
+      // Find gapEvent that sits between last.pings[last.length-1] and r.pings[0].
+      const lastPingMs = last.pings[last.pings.length - 1].tsMs;
+      const firstPingMs = r.pings[0].tsMs;
+      const between = gapEvents.find((g) => !g.consumed && g.fromMs === lastPingMs && g.toMs === firstPingMs);
+      if (between) between.consumed = true;
+      // Merge.
+      last.pings.push(...r.pings);
+      last.mergedRunCount += r.mergedRunCount;
+      if (between) last.bridgedGaps.push(between);
+      // Bridged gaps from r also carry over.
+      last.bridgedGaps.push(...r.bridgedGaps);
+      continue;
+    }
+    mergedRuns.push(r);
+  }
+
+  segDiag.mergedPingRunsCount = runs.length - mergedRuns.length;
+
+  // ── Emit place/unknown/movement segments from mergedRuns.
+  for (const r of mergedRuns) {
     if (r.pings.length === 0) continue;
     const first = r.pings[0];
     const last = r.pings[r.pings.length - 1];
-    // Endpoint when a single-ping run: use its own timestamp.
     const startAt = first.ts;
     const endAt = last.ts === first.ts ? new Date(first.tsMs + 1000).toISOString() : last.ts;
 
     const sourcePingIds = r.pings.map((p) => p.id);
     const centerLat = r.pings.reduce((s, p) => s + p.lat, 0) / r.pings.length;
     const centerLng = r.pings.reduce((s, p) => s + p.lng, 0) / r.pings.length;
+
+    const totalGapMin = r.bridgedGaps.reduce((s, g) => s + Math.round((g.toMs - g.fromMs) / 60000), 0);
+    const gapCount = r.bridgedGaps.length;
 
     if (r.kind === 'movement') {
       segments.push({
@@ -959,7 +1071,10 @@ export function buildLocationTruthTimeline(
         distanceToTargetMeters: null,
         insidePolygon: null,
         withinTolerance: false,
-        signalGapMinutes: 0, signalGapCount: 0,
+        signalGapMinutes: totalGapMin,
+        signalGapCount: gapCount,
+        signalQuality: gapCount > 0 ? 'gappy' : 'good',
+        warningReasons: gapCount > 0 ? ['signal_gap_inside_movement'] : [],
         rawEvidence: {
           pingCount: r.pings.length,
           matchReason: r.pings[0].match.matchReason,
@@ -970,9 +1085,6 @@ export function buildLocationTruthTimeline(
     }
 
     if (r.kind === 'unknown') {
-      // Require min stay pings for unknown_place; below that it's still
-      // emitted but with low confidence (we never drop pings — Location Truth
-      // is a sequence over the entire day window for the supplied pings).
       const tooShort = r.pings.length < policy.minStayPings;
       segments.push({
         id: uid('unk', segIdx++),
@@ -988,7 +1100,10 @@ export function buildLocationTruthTimeline(
         distanceToTargetMeters: r.pings[0].match.distanceToTargetMeters,
         insidePolygon: false,
         withinTolerance: false,
-        signalGapMinutes: 0, signalGapCount: 0,
+        signalGapMinutes: totalGapMin,
+        signalGapCount: gapCount,
+        signalQuality: gapCount > 0 ? 'gappy' : 'good',
+        warningReasons: gapCount > 0 ? ['signal_gap_inside_unknown_place'] : [],
         rawEvidence: {
           pingCount: r.pings.length,
           matchReason: r.pings[0].match.matchReason,
@@ -1000,7 +1115,7 @@ export function buildLocationTruthTimeline(
 
     // r.kind === 'place'
     const cand = r.placeCandidate;
-    if (!cand) continue; // defensive
+    if (!cand) continue;
     const matchedByTolerance = r.pings.every((p) => p.match.matchedByTolerance);
     const anyTolerance = r.pings.some((p) => p.match.matchedByTolerance);
     const distance = Math.round(haversine(centerLat, centerLng, cand.center.lat, cand.center.lng));
@@ -1016,6 +1131,9 @@ export function buildLocationTruthTimeline(
       : insidePolygon
         ? cand.isAssigned ? 1 : 0.9
         : 0.6;
+
+    const warnings: string[] = [];
+    if (gapCount > 0) warnings.push('signal_gap_inside_same_location');
 
     segments.push({
       id: uid('plc', segIdx++),
@@ -1036,19 +1154,95 @@ export function buildLocationTruthTimeline(
       distanceToTargetMeters: distance,
       insidePolygon,
       withinTolerance: anyTolerance,
-      signalGapMinutes: 0,
-      signalGapCount: 0,
+      signalGapMinutes: totalGapMin,
+      signalGapCount: gapCount,
+      signalQuality: gapCount > 0 ? 'gappy' : 'good',
+      warningReasons: warnings,
       rawEvidence: {
         pingCount: r.pings.length,
         matchReason: r.pings[0].match.matchReason,
         matchedByTolerance: anyTolerance,
       },
     });
+
+    // Bridge diagnostics: count each bridged gap.
+    for (const g of r.bridgedGaps) {
+      const dur = Math.round((g.toMs - g.fromMs) / 60000);
+      gapDiag.samePlaceGapsBridgedCount += 1;
+      gapDiag.samePlaceGapMinutes += dur;
+      if (gapDiag.examples.length < 20) {
+        gapDiag.examples.push({
+          ts: new Date(g.fromMs).toISOString(),
+          durationMin: dur,
+          outcome: 'bridged_same_place',
+          bridgedSegmentLabel: cand.label,
+        });
+      }
+    }
+  }
+
+  // ── Emit standalone signal_gap segments for any unconsumed gap events.
+  //    These are 'possible_transition_gap' candidates (different places either side).
+  for (const g of gapEvents) {
+    if (g.consumed) continue;
+    const dur = Math.round((g.toMs - g.fromMs) / 60000);
+    g.transition = true;
+    gapDiag.transitionGapsCount += 1;
+    segments.push({
+      id: uid('gap', segIdx++),
+      startAt: new Date(g.fromMs).toISOString(),
+      endAt: new Date(g.toMs).toISOString(),
+      kind: 'signal_gap',
+      label: 'GPS-signal saknas',
+      targetId: null, targetType: null, locationId: null, projectId: null, bookingId: null,
+      largeProjectId: null, assignmentId: null,
+      confidence: 0.2,
+      confidenceReasons: ['gps_gap_exceeded_policy'],
+      sourcePingIds: [],
+      centerLat: null, centerLng: null, distanceToTargetMeters: null,
+      insidePolygon: null, withinTolerance: false,
+      signalGapMinutes: dur,
+      signalGapCount: 1,
+      signalQuality: 'gap',
+      warningReasons: ['possible_transition_gap'],
+      rawEvidence: { pingCount: 0, matchReason: null, matchedByTolerance: false },
+    });
+    if (gapDiag.examples.length < 20) {
+      gapDiag.examples.push({
+        ts: new Date(g.fromMs).toISOString(),
+        durationMin: dur,
+        outcome: 'transition_gap',
+        bridgedSegmentLabel: null,
+      });
+    }
+  }
+
+  // Sort all segments chronologically.
+  segments.sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+
+  // Aggregate segment diagnostics.
+  for (const s of segments) {
+    segDiag.segmentsCreatedCount += 1;
+    if (s.kind === 'unknown_place') segDiag.unknownSegmentsCount += 1;
+    if (s.kind === 'private_residence') segDiag.privateResidenceSegmentsCount += 1;
+    if (s.kind === 'project' || s.kind === 'booking' || s.kind === 'warehouse' || s.kind === 'known_location') {
+      segDiag.workLocationSegmentsCount += 1;
+    }
+    if (segDiag.examples.length < 20) {
+      const dur = Math.round((Date.parse(s.endAt) - Date.parse(s.startAt)) / 60000);
+      segDiag.examples.push({
+        ts: s.startAt,
+        kind: s.kind,
+        label: s.label,
+        pingCount: s.sourcePingIds.length,
+        durationMin: dur,
+      });
+    }
   }
 
   return {
     locationTruthSegments: segments,
-    diagnostics: makeDiag(input, policy, segments, pingDiag, prDiag, taDiag),
+    diagnostics: makeDiag(input, policy, segments, pingDiag, prDiag, taDiag, segDiag, gapDiag),
   };
 }
 
@@ -1059,6 +1253,8 @@ function makeDiag(
   pingMatch: LocationPingMatchDiagnostics,
   privateResidenceMatch: PrivateResidenceMatchDiagnostics,
   workAreaTolerance: WorkAreaToleranceDiagnostics,
+  locationSegment: LocationSegmentDiagnostics,
+  locationGapBridge: LocationGapBridgeDiagnostics,
 ): LocationTruthDiagnostics {
   let signalGapSegmentCount = 0;
   let movementSegmentCount = 0;
@@ -1092,5 +1288,7 @@ function makeDiag(
     pingMatch,
     privateResidenceMatch,
     workAreaTolerance,
+    locationSegment,
+    locationGapBridge,
   };
 }
