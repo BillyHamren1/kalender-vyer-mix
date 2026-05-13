@@ -42,6 +42,44 @@ function snapKey(lat: number, lng: number): { key: string; lat: number; lng: num
   return { key: `${sLat.toFixed(4)}:${sLng.toFixed(4)}`, lat: sLat, lng: sLng };
 }
 
+// Haversine in meters.
+function distanceM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+interface WorkExclusion {
+  org: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+  name: string;
+}
+
+/**
+ * People do not live at the warehouse / office. Any cluster that lands
+ * inside an active org-location radius (excluding `private_residence`
+ * which IS a home) must be excluded from home inference.
+ */
+function isInsideWorkExclusion(
+  org: string,
+  lat: number,
+  lng: number,
+  exclusions: WorkExclusion[],
+): WorkExclusion | null {
+  for (const ex of exclusions) {
+    if (ex.org !== org) continue;
+    if (distanceM(lat, lng, ex.lat, ex.lng) < ex.radiusM + 50) return ex;
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
