@@ -345,6 +345,16 @@ export function decideAutoStart(input: DecideAutoStartInput): AutoStartDecisionR
     return deny('blocked_already_active', evidence, seg.confidence);
   }
 
+  // HOME WINS OVER WORK — if the candidate stay center sits inside a
+  // staff private zone (home/private_residence/manual_ignore/recurring_night),
+  // GPS may NEVER auto-start a project/booking/warehouse timer here. Even if
+  // a nearby work target also matches, the user is at HOME. The
+  // processGpsTimelineForAutoStart caller surfaces the diagnostics
+  // (matchedPrivateResidence, homeWonOverWorkTarget, …).
+  if (input.insidePrivateResidence) {
+    return deny('blocked_inside_private_residence', evidence, seg.confidence);
+  }
+
   // Movement / transport never auto-starts.
   if (seg.kind === 'travel' || seg.type === 'transport') {
     return deny('blocked_movement_only', evidence, seg.confidence);
