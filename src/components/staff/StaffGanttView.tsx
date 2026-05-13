@@ -839,9 +839,10 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
           </div>
         ) : (
           (() => {
-            const HOUR_PX = 56;
-            const COL_MIN = 150;
-            const RAIL_PX = 56;
+            const SLOT_PX = 25;
+            const HOUR_PX = SLOT_PX * 2;
+            const COL_MIN = 95;
+            const RAIL_PX = 28;
             const bodyHeight = totalHours * HOUR_PX;
             return (
               <div className="overflow-auto overscroll-contain max-h-[calc(100vh-180px)]">
@@ -853,7 +854,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                   }}
                 >
                   {/* Top-left corner */}
-                  <div className="sticky top-0 z-30 border-b border-r bg-card px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="sticky top-0 z-30 border-b border-r bg-card px-1.5 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                     Tid
                   </div>
 
@@ -874,12 +875,12 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                         key={`h-${staff.id}`}
                         type="button"
                         onClick={() => setOpenStaffId(staff.id)}
-                        className="sticky top-0 z-20 flex flex-col items-start gap-0.5 border-b border-r bg-card/95 px-3 py-2 text-left backdrop-blur hover:bg-muted/40"
+                        className="sticky top-0 z-20 flex flex-col items-start gap-0.5 border-b border-r bg-card/95 px-2 py-2 text-left backdrop-blur hover:bg-muted/40"
                         title={staff.plannedLabels.join(' · ') || staff.role || ''}
                       >
                         <div className="flex w-full items-center gap-2">
                           <span className={cn('h-2 w-2 shrink-0 rounded-full', dotCls)} />
-                          <span className="truncate text-sm font-semibold">{staff.name}</span>
+                          <span className="truncate text-[13px] font-semibold">{staff.name}</span>
                         </div>
                         <div className="flex w-full items-center gap-2 text-[10.5px] tabular-nums text-muted-foreground">
                           <span>
@@ -906,10 +907,10 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                     {hours.slice(0, -1).map((h, i) => (
                       <div
                         key={h}
-                        className="relative text-[11px] tabular-nums text-muted-foreground border-b border-border/30"
+                        className="relative text-[10px] tabular-nums text-muted-foreground border-b border-border/30"
                         style={{ height: HOUR_PX }}
                       >
-                        <span className="absolute top-1 right-2 font-medium">
+                        <span className="absolute top-1 right-1.5 font-medium">
                           {String(h).padStart(2, '0')}
                         </span>
                       </div>
@@ -1063,7 +1064,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   setSelectedBlock({ staffId: staff.id, blockId: b.id });
                                 }}
                                 className={cn(
-                                  'absolute cursor-pointer overflow-hidden rounded-[4px] border px-1.5 pt-2 pb-2 text-[12px] leading-tight transition-transform hover:scale-[1.02] hover:z-20',
+                                  'absolute cursor-pointer overflow-hidden rounded-[4px] border px-1.5 pt-1.5 pb-1.5 text-[11px] leading-tight transition-transform hover:scale-[1.02] hover:z-20',
                                   style.bg,
                                   style.border,
                                   overlapping && 'ring-1 ring-amber-400/70',
@@ -1080,7 +1081,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${overlapping ? '\n⚠ Överlappar annat block' : ''}`}
                               >
                                 <div
-                                  className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-0.5 w-fit"
+                                  className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-1 w-fit"
                                   style={{
                                     backgroundColor: 'hsl(var(--primary) / 0.15)',
                                     color: 'hsl(var(--primary))',
@@ -1088,11 +1089,11 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 >
                                   {style.label}
                                 </div>
-                                <div className="font-bold leading-tight truncate" style={{ color: '#000000' }}>
+                                <div className="font-bold leading-tight break-words" style={{ color: '#000000' }}>
                                   {b.title}
                                 </div>
                                 {showSub && (
-                                  <div className="text-[10px] tabular-nums mt-0.5 truncate" style={{ color: '#000000' }}>
+                                  <div className="text-[10px] tabular-nums mt-0.5 break-words" style={{ color: '#000000' }}>
                                     {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} · {fmtMin(b.durationMinutes)}
                                   </div>
                                 )}
