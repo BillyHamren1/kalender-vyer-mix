@@ -26,6 +26,7 @@
 // These remain legacy/debug. Liveness is derived from the cache/engine result only.
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
+import { buildTimerOwnershipDiagnostics } from "../_shared/diagnostics/buildTimerOwnershipDiagnostics.ts";
 import {
   buildMobileSnapshot,
   type CacheRow,
