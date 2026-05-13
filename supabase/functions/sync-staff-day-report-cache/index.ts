@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 
   const engineVersion = body?.engineVersion;
   if (!engineVersion) return json(400, { error: 'missing engineVersion' });
-  const batchSize = Math.max(1, Math.min(200, Number(body?.batchSize ?? 50)));
+  const batchSize = Math.max(1, Math.min(200, Number(body?.batchSize ?? 200)));
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
