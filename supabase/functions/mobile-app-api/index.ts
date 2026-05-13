@@ -2,6 +2,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 
 import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts'
+import { evaluateAutoStopForActiveDay } from '../_shared/time-engine/evaluateAutoStopForActiveDay.ts'
 import { isWarehouseTeam } from '../_shared/warehouseTeam.ts'
 
 const corsHeaders = {
@@ -5961,6 +5962,147 @@ async function handleUploadLocationBatch(
         engineErr,
       )
     }
+  }
+
+  // ── 4. GPS-driven AUTO-STOP for the day timer ──
+  // Policy contract (GPS_SIGNAL_ONLY + DAY_TIMER_ONLY):
+  //   • GPS may auto-START the day timer (above).
+  //   • GPS may auto-STOP the day timer (here).
+  //   • GPS MUST NOT create or mutate time_reports / location_time_entries /
+  //     workdays / travel_time_logs. The Time Engine + admin own the timeline.
+  // Therefore the only mutation this block is allowed to perform is on
+  // `active_time_registrations` via the pure evaluator.
+  try {
+    const nowIsoForStop = new Date().toISOString()
+    const { data: activeRegs } = await supabase
+      .from('active_time_registrations')
+      .select('id, staff_id, started_at, status, stopped_at, start_source, metadata')
+      .eq('organization_id', organizationId)
+      .eq('staff_id', staffId)
+      .eq('status', 'active')
+      .is('stopped_at', null)
+      .order('started_at', { ascending: false })
+      .limit(1)
+
+    const reg = activeRegs?.[0]
+    if (reg) {
+      // Load anchors (LTE for day) — read-only EVIDENCE, never mutated here.
+      const sinceIso = reg.started_at
+      const [{ data: lteRows }, { data: homes }] = await Promise.all([
+        supabase
+          .from('location_time_entries')
+          .select(`entered_at, exited_at, location_id, booking_id, project_id, large_project_id,
+                   organization_locations(name, latitude, longitude)`)
+          .eq('organization_id', organizationId)
+          .eq('staff_id', reg.staff_id)
+          .gte('entered_at', sinceIso)
+          .order('entered_at', { ascending: true })
+          .limit(50),
+        supabase
+          .from('staff_inferred_home_locations')
+          .select('lat, lng')
+          .eq('organization_id', organizationId)
+          .eq('staff_id', reg.staff_id)
+          .is('valid_until', null)
+          .limit(3),
+      ])
+
+      const workAnchors = (lteRows || []).map((r: any) => {
+        const loc = r.organization_locations || null
+        let kind: 'project' | 'large_project' | 'location' | 'booking' | 'warehouse' = 'location'
+        let targetId: string | null = r.location_id ?? null
+        if (r.large_project_id) { kind = 'large_project'; targetId = r.large_project_id }
+        else if (r.project_id) { kind = 'project'; targetId = r.project_id }
+        else if (r.booking_id) { kind = 'booking'; targetId = r.booking_id }
+        return {
+          enteredAtIso: r.entered_at,
+          exitedAtIso: r.exited_at ?? null,
+          kind,
+          targetId,
+          label: loc?.name ?? null,
+          lat: loc?.latitude != null ? Number(loc.latitude) : null,
+          lng: loc?.longitude != null ? Number(loc.longitude) : null,
+        }
+      })
+
+      const homeZones = (homes || []).map((h: any) => ({
+        lat: Number(h.lat), lng: Number(h.lng), radiusM: 150, kind: 'inferred_home' as const,
+      })).filter((z: any) => Number.isFinite(z.lat) && Number.isFinite(z.lng))
+
+      const lastExits = workAnchors
+        .map((a: any) => a.exitedAtIso)
+        .filter((x: any): x is string => !!x)
+        .sort()
+      const pingSince = lastExits.length > 0 ? lastExits[lastExits.length - 1] : sinceIso
+
+      const { data: pingRows } = await supabase
+        .from('staff_location_history')
+        .select('lat, lng, recorded_at')
+        .eq('organization_id', organizationId)
+        .eq('staff_id', reg.staff_id)
+        .gte('recorded_at', pingSince)
+        .lte('recorded_at', nowIsoForStop)
+        .order('recorded_at', { ascending: true })
+        .limit(500)
+
+      const pingsAfterLastAnchor = (pingRows || [])
+        .map((p: any) => ({
+          recordedAtIso: p.recorded_at,
+          lat: Number(p.lat),
+          lng: Number(p.lng),
+        }))
+        .filter((p: any) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+
+      const decision = evaluateAutoStopForActiveDay({
+        registration: {
+          id: reg.id,
+          staffId: reg.staff_id,
+          organizationId,
+          startedAtIso: reg.started_at,
+          status: reg.status,
+          stoppedAtIso: reg.stopped_at,
+          startSource: reg.start_source ?? null,
+        },
+        workAnchors,
+        pingsAfterLastAnchor,
+        homeZones,
+        nowIso: nowIsoForStop,
+      })
+
+      if (decision.stop) {
+        const { error: stopErr } = await supabase
+          .from('active_time_registrations')
+          .update({
+            status: 'stopped',
+            stopped_at: decision.stopAtIso,
+            stop_source: decision.stopSource,
+            stopped_by: 'system_day_auto_stop',
+            metadata: {
+              ...(reg.metadata || {}),
+              autoStop: { ...decision.diagnostics, decidedAt: nowIsoForStop, source: 'upload_location_batch' },
+            },
+            updated_at: nowIsoForStop,
+          })
+          .eq('id', reg.id)
+          .eq('status', 'active')
+          .is('stopped_at', null)
+        if (stopErr) {
+          console.warn('[time-engine] upload_location_batch auto-stop update failed (non-fatal):', stopErr)
+        } else {
+          console.log(JSON.stringify({
+            evt: 'day_timer_auto_stopped',
+            via: 'upload_location_batch',
+            registration_id: reg.id,
+            staff_id: reg.staff_id,
+            organization_id: organizationId,
+            stop_source: decision.stopSource,
+            stop_at: decision.stopAtIso,
+          }))
+        }
+      }
+    }
+  } catch (autoStopErr) {
+    console.warn('[time-engine] upload_location_batch evaluateAutoStopForActiveDay failed (non-fatal):', autoStopErr)
   }
 
   return new Response(
