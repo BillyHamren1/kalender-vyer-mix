@@ -185,7 +185,8 @@ Deno.serve(async (req: Request) => {
 
   // 3) Decide whether to use cache or fall back to live engine.
   // The mobile mirror MUST NOT show 0h if admin web's live engine has data.
-  const cacheBlockCount = cache ? blockArrayLength(cache.report_candidate_blocks_json) : 0;
+  // Priority: display_blocks_json → report_candidate_blocks_json → live engine.
+  const cacheBlockCount = effectiveCacheBlockCount(cache);
   const cacheUnusable =
     !cache ||
     !!cache.error ||
@@ -199,7 +200,7 @@ Deno.serve(async (req: Request) => {
 
   if (cacheUnusable) {
     const live = await fetchLiveEngineAsCacheRow(staffId, orgId, date);
-    if (live.row && blockArrayLength(live.row.report_candidate_blocks_json) > 0) {
+    if (live.row && effectiveCacheBlockCount(live.row) > 0) {
       effectiveCache = live.row;
       debugSource = "live_engine";
     } else if (!cache) {
