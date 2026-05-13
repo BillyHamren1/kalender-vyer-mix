@@ -698,6 +698,16 @@ export async function processGpsTimelineForAutoStart(
   let nearestPrivateZoneKind: string | null = null;
   let nearestPrivateZoneDistance: number | null = null;
 
+  // 3e) User decline log — load active "no" rows for this staff/local-day.
+  // Auto-start MUST respect a prior decline; manual start bypasses (does
+  // not run through this engine).
+  const declines = await loadAutoStartDeclines(
+    supabaseAdmin, organizationId, staffId, date, nowIso,
+  );
+  let declineSuppressedCount = 0;
+  let declineMatchedByTarget = 0;
+  let declineMatchedByRadius = 0;
+
   for (const seg of candidates) {
     const target = findTargetForSegment(seg, resolvedTargets);
     if (!target) {
