@@ -586,6 +586,7 @@ export async function processGpsTimelineForAutoStart(
     decisions,
     targetDiagnostics,
     suppression: null,
+    dayStopLock: null,
     computedAt: new Date().toISOString(),
   };
 }
