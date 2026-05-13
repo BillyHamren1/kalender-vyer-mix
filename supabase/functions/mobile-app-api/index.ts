@@ -5980,7 +5980,7 @@ async function handleUploadLocationBatch(
 async function handleGetOrganizationLocations(supabase: any, organizationId: string) {
   const { data, error } = await supabase
     .from('organization_locations')
-    .select('id, name, address, latitude, longitude, radius_meters, show_as_project, geofence_mode, geofence_polygon')
+    .select('id, name, address, latitude, longitude, radius_meters, show_as_project, geofence_mode, geofence_polygon, location_type, is_private_residence, privacy_level')
     .eq('organization_id', organizationId)
     .eq('is_active', true)
     .order('name')
