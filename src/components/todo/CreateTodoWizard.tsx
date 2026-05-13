@@ -230,17 +230,81 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
               </div>
               <div>
                 <Label>Koppla till bokning</Label>
-                <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
-                  <SelectTrigger><SelectValue placeholder="Ingen bokning" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Ingen</SelectItem>
-                    {bookings.map(b => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.client}{b.booking_number ? ` (#${b.booking_number})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  const selected = bookings.find(b => b.id === selectedBookingId);
+                  const selectedLabel = selected
+                    ? `${selected.client}${selected.booking_number ? ` (#${selected.booking_number})` : ''}`
+                    : 'Ingen bokning';
+                  return (
+                    <Popover open={bookingPickerOpen} onOpenChange={setBookingPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={bookingPickerOpen}
+                          className={cn(
+                            'w-full justify-between font-normal',
+                            !selected && 'text-muted-foreground',
+                          )}
+                        >
+                          <span className="truncate">{selectedLabel}</span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="p-0"
+                        align="start"
+                        style={{ width: 'var(--radix-popover-trigger-width)' }}
+                      >
+                        <Command
+                          filter={(value, search) => {
+                            if (!search) return 1;
+                            return value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+                          }}
+                        >
+                          <CommandInput placeholder="Sök kund eller boknings­nummer…" />
+                          <CommandList className="max-h-72">
+                            <CommandEmpty>Inga bokningar matchar.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="ingen bokning"
+                                onSelect={() => {
+                                  setSelectedBookingId('');
+                                  setBookingPickerOpen(false);
+                                }}
+                              >
+                                <Check className={cn('mr-2 h-4 w-4', !selected ? 'opacity-100' : 'opacity-0')} />
+                                Ingen bokning
+                              </CommandItem>
+                              {bookings.map((b) => {
+                                const label = `${b.client}${b.booking_number ? ` (#${b.booking_number})` : ''}`;
+                                return (
+                                  <CommandItem
+                                    key={b.id}
+                                    value={`${b.client} ${b.booking_number ?? ''}`}
+                                    onSelect={() => {
+                                      setSelectedBookingId(b.id);
+                                      setBookingPickerOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        'mr-2 h-4 w-4',
+                                        selectedBookingId === b.id ? 'opacity-100' : 'opacity-0',
+                                      )}
+                                    />
+                                    <span className="truncate">{label}</span>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })()}
               </div>
             </div>
             <div>
