@@ -420,6 +420,7 @@ function findEnclosingPrivateZone(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function processGpsTimelineForAutoStart(
+  input: ProcessAutoStartInput,
 ): Promise<ProcessAutoStartResult> {
   const { organizationId, staffId, date, supabaseAdmin } = input;
 
