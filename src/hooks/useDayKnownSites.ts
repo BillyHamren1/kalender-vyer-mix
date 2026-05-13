@@ -48,7 +48,7 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
         if (r.large_project_id) largeIds.add(String(r.large_project_id));
       }
 
-      const [bookingsRes, largeRes] = await Promise.all([
+      const [bookingsRes, largeRes, projectsTodayRes, projectsByBookingRes] = await Promise.all([
         bookingIds.size
           ? supabase
               .from('bookings')
@@ -60,6 +60,20 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
               .from('large_projects')
               .select('id, name, address_latitude, address_longitude, address_radius_meters')
               .in('id', [...largeIds])
+          : Promise.resolve({ data: [] as any[] }),
+        // Lokala projekt planerade idag (event/rig/down = date)
+        supabase
+          .from('projects')
+          .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, eventdate, rigdaydate, rigdowndate')
+          .is('deleted_at', null)
+          .or(`eventdate.eq.${date},rigdaydate.eq.${date},rigdowndate.eq.${date}`),
+        // Lokala projekt kopplade till dagens TR/LTE-bokningar
+        bookingIds.size
+          ? supabase
+              .from('projects')
+              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, booking_id')
+              .in('booking_id', [...bookingIds])
+              .is('deleted_at', null)
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
@@ -85,6 +99,25 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           lat: Number(lp.address_latitude),
           lng: Number(lp.address_longitude),
           radiusMeters: Number(lp.address_radius_meters ?? 200) || 200,
+        });
+      }
+      const seenProjects = new Set<string>();
+      const projectRows = [
+        ...(((projectsTodayRes as any).data || []) as any[]),
+        ...(((projectsByBookingRes as any).data || []) as any[]),
+      ];
+      for (const p of projectRows) {
+        if (seenProjects.has(p.id)) continue;
+        seenProjects.add(p.id);
+        if (p.delivery_latitude == null || p.delivery_longitude == null) continue;
+        const status = (p.planning_status ?? p.status ?? '').toString().toLowerCase();
+        if (status === 'cancelled' || status === 'avbokat') continue;
+        sites.push({
+          id: `project:${p.id}`,
+          name: p.name || 'Projekt',
+          lat: Number(p.delivery_latitude),
+          lng: Number(p.delivery_longitude),
+          radiusMeters: Number(p.address_radius_meters ?? 150) || 150,
         });
       }
       return sites;
