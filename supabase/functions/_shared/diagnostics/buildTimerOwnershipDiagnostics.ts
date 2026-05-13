@@ -111,22 +111,23 @@ export async function buildTimerOwnershipDiagnostics(args: {
       .limit(1)
       .maybeSingle();
     if (reg) {
-      out.activeRegistrationId = reg.id as string;
-      out.activeRegistrationStatus = (reg.status as 'active' | 'stopped') ?? 'none';
-      out.startSource = (reg.start_source as string | null) ?? null;
-      out.stopSource = (reg.stop_source as string | null) ?? null;
-      out.autoStarted = (reg.auto_started as boolean | null) ?? null;
+      const r: any = reg;
+      out.activeRegistrationId = r.id as string;
+      out.activeRegistrationStatus = (r.status as 'active' | 'stopped') ?? 'none';
+      out.startSource = (r.start_source as string | null) ?? null;
+      out.stopSource = (r.stop_source as string | null) ?? null;
+      out.autoStarted = (r.auto_started as boolean | null) ?? null;
       out.autoStopped =
         out.activeRegistrationStatus === 'stopped' &&
-        typeof reg.stop_source === 'string' &&
-        reg.stop_source.startsWith('auto_');
-      out.startedAt = (reg.started_at as string | null) ?? null;
-      out.stoppedAt = (reg.stopped_at as string | null) ?? null;
-      if (reg.current_target_id || reg.current_label) {
+        typeof r.stop_source === 'string' &&
+        r.stop_source.startsWith('auto_');
+      out.startedAt = (r.started_at as string | null) ?? null;
+      out.stoppedAt = (r.stopped_at as string | null) ?? null;
+      if (r.current_target_id || r.current_label) {
         out.lastWorkAnchor = {
-          targetType: (reg.current_target_type as string | null) ?? null,
-          targetId: (reg.current_target_id as string | null) ?? null,
-          targetLabel: (reg.current_label as string | null) ?? null,
+          targetType: (r.current_target_type as string | null) ?? null,
+          targetId: (r.current_target_id as string | null) ?? null,
+          targetLabel: (r.current_label as string | null) ?? null,
           at: out.startedAt,
         };
       }
