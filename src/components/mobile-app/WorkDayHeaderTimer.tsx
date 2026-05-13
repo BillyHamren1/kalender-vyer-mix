@@ -157,20 +157,20 @@ export const WorkDayHeaderTimer: React.FC = () => {
         Startad {startTimeLabel} · Tid idag
       </div>
 
-      {/* Bottom row: where time is being registered right now */}
+      {/* Bottom row: GPS-baserad nuvarande plats (informativt, ingen aktivitetstimer) */}
       <div className="flex items-center gap-1 pt-1 mt-1 border-t border-current/20">
         {activeTimer ? (
           <>
             <Activity className="w-3 h-3 shrink-0 text-primary-foreground/90" />
             <span className="text-[11px] font-medium truncate">
-              Tid registreras: {getActivityLabel(activeTimer)}
+              På plats: {getActivityLabel(activeTimer)}
             </span>
           </>
         ) : (
           <>
             <Pause className="w-3 h-3 shrink-0 opacity-70" />
             <span className="text-[11px] font-medium opacity-80 truncate">
-              Ej fördelat — välj projekt eller plats
+              Tidslinjen byggs i bakgrunden
             </span>
           </>
         )}
