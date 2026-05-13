@@ -1,6 +1,14 @@
-// Pure mapper: report_candidate_blocks_json (Time Engine cache) → MobileSegment[].
-// No DB access. Frontend and the edge function MUST go through this mapper —
-// the mobile UI never re-interprets blocks.
+// Pure mapper: Time Engine cache blocks → MobileSegment[].
+//
+// Mobile is a MIRROR — the mobile UI never re-interprets, splits or re-derives
+// blocks. Source priority is owned by `pickCacheBlocks` (display first, then
+// candidate). Both the edge function and frontend MUST go through this mapper.
+//
+// We deliberately DROP raw engine-debug block kinds that admin web also hides:
+//   - signal_gap, uncertain_transition, missing_transition_evidence
+//   - micro_movement, internal_transport (already absorbed in normal flow)
+// These would only ever appear if a future engine version emits them through
+// display_blocks_json by accident — guarding here keeps mobile in sync.
 import type {
   MobileSegment,
   MobileSegmentConfidence,
@@ -14,6 +22,7 @@ interface RawBlock {
   endAt?: string;
   durationMinutes?: number;
   title?: string;
+  displayLabel?: string | null;
   subtitle?: string | null;
   targetType?: string | null;
   targetId?: string | null;
@@ -24,8 +33,40 @@ interface RawBlock {
   reviewState?: string;
   reviewReasons?: string[];
   warningLabel?: string | null;
+  warningReasons?: string[];
   signalGapMinutes?: number;
 }
+
+/**
+ * Source-of-truth selector for which cache JSON column the mobile mirror
+ * should render. Priority matches the request:
+ *   1. display_blocks_json    (Time Engine consumer-facing)
+ *   2. report_candidate_blocks_json (engine raw, same shape today)
+ *
+ * Returns [] when both are missing/empty so callers can decide on a
+ * presence-day fallback.
+ */
+export function pickCacheBlocks(cache: {
+  display_blocks_json?: unknown;
+  report_candidate_blocks_json?: unknown;
+} | null): unknown[] {
+  if (!cache) return [];
+  if (Array.isArray(cache.display_blocks_json) && cache.display_blocks_json.length > 0) {
+    return cache.display_blocks_json as unknown[];
+  }
+  if (Array.isArray(cache.report_candidate_blocks_json) && cache.report_candidate_blocks_json.length > 0) {
+    return cache.report_candidate_blocks_json as unknown[];
+  }
+  return [];
+}
+
+const HIDDEN_RAW_KINDS = new Set<string>([
+  "signal_gap",
+  "uncertain_transition",
+  "missing_transition_evidence",
+  "micro_movement",
+  "internal_transport",
+]);
 
 function asConfidence(v: unknown): MobileSegmentConfidence {
   if (v === "high" || v === "medium" || v === "low") return v;
