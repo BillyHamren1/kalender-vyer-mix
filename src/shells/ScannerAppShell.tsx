@@ -33,8 +33,9 @@ const ScannerAppShell: React.FC = () => {
           {/* Default route */}
           <Route path="/" element={<Navigate to="/scanner" replace />} />
           <Route path="*" element={<Navigate to="/scanner" replace />} />
-        </Routes>
-      </MobileAuthProvider>
+          </Routes>
+        </MobileAuthProvider>
+      </LanguageProvider>
     </ShellProvider>
   );
 };
