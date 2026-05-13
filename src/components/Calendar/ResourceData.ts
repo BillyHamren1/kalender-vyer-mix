@@ -17,7 +17,7 @@ export interface CalendarEvent extends EventInput {
   bookingNumber?: string;
   booking_number?: string;
   bookingStatus?: string;
-  eventType?: 'rig' | 'event' | 'rigDown' | 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'task_crew' | 'task_pm' | 'task_logistics' | 'task_admin' | 'internal_task';
+  eventType?: 'rig' | 'event' | 'rigDown' | 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'task_crew' | 'task_pm' | 'task_logistics' | 'task_admin' | 'internal_task' | 'todo';
   deliveryAddress?: string;
   viewed?: boolean;
   extendedProps?: {
