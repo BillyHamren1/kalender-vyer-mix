@@ -190,7 +190,7 @@ function toDecideTarget(rt: ResolvedWorkTarget): DecideAutoStartTarget {
     key: wt?.key,
     center: wt?.center,
     radiusM: wt?.radiusM,
-    targetValidity: rt.targetValidity,
+    targetValidity: rt.targetValidity as any,
     timeTrackingAllowed: rt.timeTrackingAllowed,
     assignedToUserToday: rt.targetSource === 'planned_today' || undefined,
     explicitlyAllowed: rt.targetSource === 'explicit_time_tracking_location' || undefined,
