@@ -173,20 +173,50 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
           } else {
             const sourceDate = startDateTime.split('T')[0];
 
-            // Only insert into calendar_events if we have a resource (team) to
-            // attach the row to — calendar_events.resource_id is NOT NULL.
-            if (event.resourceId) {
-              // Upsert mot uq_calendar_event_identity (booking_id, event_type, source_date, organization_id)
-              // så att redan existerande dagar (t.ex. soft-deleted eller manuellt skapade) flyttas
-              // istället för att krascha med "duplicate key value violates unique constraint".
-              const { error: insertError } = await supabase
+            // PROJECT TEAM STICKINESS:
+            // 1) Om en aktiv rad redan finns för (booking, event_type, date)
+            //    → uppdatera bara metadata/tider, ALDRIG resource_id. Befintlig
+            //    teamplacering är inviolat.
+            // 2) Annars → använd bokningens etablerade team (sticky); fall
+            //    tillbaka på event.resourceId bara om bokningen är ny.
+            const existingRow = await findExistingDayRow(
+              event.bookingId,
+              booking.organization_id,
+              eventType,
+              sourceDate,
+            );
+
+            if (existingRow) {
+              const { error: updateErr } = await supabase
                 .from('calendar_events')
-                .upsert(
-                  {
+                .update({
+                  title: event.title,
+                  start_time: startDateTime,
+                  end_time: endDateTime,
+                  booking_number: booking.booking_number,
+                  delivery_address:
+                    [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
+                })
+                .eq('id', existingRow.id);
+              if (updateErr) throw updateErr;
+              console.log(
+                `[AddRiggDayDialog] Day exists on ${existingRow.resource_id} — updated metadata only, resource_id preserved`,
+              );
+            } else {
+              const stickyTeam = await getStickyTeamForBooking(
+                event.bookingId,
+                booking.organization_id,
+              );
+              const targetResourceId = stickyTeam ?? event.resourceId;
+
+              if (targetResourceId) {
+                const { error: insertError } = await supabase
+                  .from('calendar_events')
+                  .insert({
                     title: event.title,
                     start_time: startDateTime,
                     end_time: endDateTime,
-                    resource_id: event.resourceId,
+                    resource_id: targetResourceId,
                     booking_id: event.bookingId,
                     event_type: eventType,
                     organization_id: booking.organization_id,
@@ -194,12 +224,16 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
                     delivery_address:
                       [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || null,
                     source_date: sourceDate,
-                  },
-                  { onConflict: 'booking_id,event_type,source_date,organization_id' }
-                );
-              if (insertError) throw insertError;
-            } else {
-              console.log('[AddRiggDayDialog] no resourceId — skipping calendar_events insert, booking update will trigger reconciler');
+                  });
+                if (insertError) throw insertError;
+                if (stickyTeam && stickyTeam !== event.resourceId) {
+                  console.log(
+                    `[AddRiggDayDialog] New day inserted on sticky team ${stickyTeam} (dialog opened from ${event.resourceId})`,
+                  );
+                }
+              } else {
+                console.log('[AddRiggDayDialog] no resourceId — skipping calendar_events insert, booking update will trigger reconciler');
+              }
             }
 
             // Spegla endast FÖRSTA datumet på bokningens primära fält
