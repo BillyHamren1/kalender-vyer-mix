@@ -682,6 +682,7 @@ export async function processGpsTimelineForAutoStart(
             registrationId: dayStoppedSynth.registrationId,
           }
         : null,
+      declineLock: null,
       computedAt: new Date().toISOString(),
     };
   }
