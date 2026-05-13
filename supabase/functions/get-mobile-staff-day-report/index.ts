@@ -223,6 +223,21 @@ Deno.serve(async (req: Request) => {
     submission,
   });
 
+  // READ-ONLY ownership diagnostics (Single Timer Policy verifier).
+  // Gated on body.debug — opt-in only, never affects snapshot.
+  // Display timeline comes from staff_day_report_cache (above).
+  // Do not reintroduce project timers in mobile app.
+  let timerOwnership = null;
+  if (body?.debug === true) {
+    try {
+      timerOwnership = await buildTimerOwnershipDiagnostics({
+        admin, organizationId: orgId, staffId, date,
+      });
+    } catch (e) {
+      console.warn("[get-mobile-staff-day-report] diagnostics failed", e);
+    }
+  }
+
   const debug = {
     debugSource,
     blockCount: snapshot.segments.length,
@@ -236,6 +251,7 @@ Deno.serve(async (req: Request) => {
     cacheFetchError,
     cacheBlockCount,
     liveEngineError,
+    timerOwnership,
   };
 
   console.info("[get-mobile-staff-day-report] mirror", {
