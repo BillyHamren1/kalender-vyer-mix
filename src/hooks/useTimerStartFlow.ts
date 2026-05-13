@@ -290,66 +290,13 @@ export function useTimerStartFlow(
           },
         })
         .catch(() => {});
-      const ok = true;
-      if (!ok) {
-        // startSession returns false on duplicate (already in activeTimers).
-        if (!opts.suppressToast) {
-          toast.message('Timer redan aktiv för platsen');
-        }
-        return 'already_running';
-      }
-
-      if (!opts.suppressToast) {
-        toast.success(`Timer startad: ${opts.label}`);
-      }
-
-      // Off-site flag (best-effort, non-blocking)
-      if (opts.offSiteReason) {
-        const targetId =
-          target.kind === 'booking'
-            ? target.bookingId
-            : target.kind === 'project'
-              ? target.largeProjectId
-              : target.locationId;
-        void mobileApi.createWorkdayFlag({
-          flag_type: 'geofence_presence_mismatch',
-          flag_date: new Date().toISOString().slice(0, 10),
-          title: `Startade off-site: ${opts.label}`,
-          description: opts.offSiteReason,
-          severity: 'warning',
-          needs_user_input: false,
-          related_booking_id: target.kind === 'booking' ? target.bookingId : undefined,
-          related_large_project_id: target.kind === 'project' ? target.largeProjectId : undefined,
-          related_location_id: target.kind === 'location' ? target.locationId : undefined,
-          context: {
-            source: 'distance_warning_override',
-            distance_meters: opts.offSiteDistance ?? null,
-            target_kind: target.kind,
-            target_id: targetId,
-            user_position: userPosition ?? null,
-            reason: opts.offSiteReason,
-          },
-        }).catch((err) => {
-          console.warn('[StartFlow] createWorkdayFlag (off-site) failed (non-fatal):', err);
-        });
-      }
-
-      // Gap-derived travel (best-effort, fire-and-forget)
-      const startIso = opts.startedAtIso ?? new Date().toISOString();
-      const nextTargetId =
-        target.kind === 'booking'
-          ? target.bookingId
-          : target.kind === 'project'
-            ? target.largeProjectId
-            : target.locationId;
-      void maybeCreateGapTravel(startIso, {
-        targetType: target.kind,
-        targetId: nextTargetId,
-        label: opts.label,
-      });
-      return 'started';
+      // SINGLE-TIMER POLICY: returnera 'already_running' tyst.
+      // Inget toast, inga off-site-flaggor (admin avgör från tidslinjen),
+      // ingen gap-travel (admin markerar resor från GPS-segment).
+      void ok; // keep for future toggling
+      return 'already_running';
     },
-    [startSession, userPosition, ensureWorkDayActive],
+    [userPosition, ensureWorkDayActive],
   );
 
   /**
