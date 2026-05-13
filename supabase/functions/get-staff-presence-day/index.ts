@@ -38,6 +38,8 @@ import {
   type TimerMarkerInput,
 } from '../_shared/time-engine/buildPresenceDayBlocks.ts';
 import { buildReportCandidateBlocks } from '../_shared/time-engine/buildReportCandidateBlocks.ts';
+import { computeDayEndDecision } from '../_shared/time-engine/computeDayEndDecision.ts';
+import { clampBlocksToDayEndDecision } from '../_shared/time-engine/clampBlocksToDayEndDecision.ts';
 import {
   computePlannedDaySignals,
   type BookingTimes,
@@ -827,7 +829,62 @@ Deno.serve(async (req) => {
         homeAnchors,
         openActiveRegistration,
         plannedEndOfDayIso,
+        lastFreshEvidenceAtIso: pings[pings.length - 1]?.ts ?? null,
       });
+
+      // Time Engine 4.5 + 3.11 — slutgiltig dag-slut-klamp i live-vägen.
+      // Samma steg som backfill-staff-day-report-cache kör innan cache skrivs.
+      // Utan detta kan adminvyns live-anrop visa block som rullar förbi
+      // dayEndDecision.endedAt (eller efter Stockholm-midnatt på historiska dagar).
+      try {
+        const dayEndDecision = computeDayEndDecision({
+          date,
+          dayStartUtcIso: dayStart,
+          dayEndUtcIso: dayEnd,
+          blocks: reportCandidateResult.blocks ?? [],
+          activeRegistrations: activeRegs as any,
+          openActiveRegistration,
+          lastGpsPingAtIso: pings[pings.length - 1]?.ts ?? null,
+          homeAnchors,
+          nowIso,
+          plannedEndOfDayIso,
+        });
+        const clamp = clampBlocksToDayEndDecision({
+          date,
+          blocks: reportCandidateResult.blocks ?? [],
+          dayEndDecision,
+          nowIso,
+          openActiveStartedAtIso: openActiveRegistration?.startedAtIso ?? null,
+        });
+        (reportCandidateResult as any).blocks = clamp.blocks;
+        (reportCandidateResult as any).droppedAfterDayEnd = clamp.dropped;
+        (reportCandidateResult as any).dayEndDecision = dayEndDecision;
+        (reportCandidateResult as any).dayEndClampDiagnostics = clamp.dayEndClampDiagnostics;
+        (reportCandidateResult as any).clampDiagnostics = clamp.diagnostics;
+
+        // Räkna om summary-minuter på de KLAMPADE blocken så UI-värden
+        // i adminvyn matchar det som faktiskt visas.
+        const sum = reportCandidateResult.summary ?? {};
+        let work = 0, transport = 0, unknown = 0, needsReview = 0;
+        for (const b of clamp.blocks) {
+          const dur = Number(b.durationMinutes ?? 0);
+          if (b.kind === 'work') work += dur;
+          else if (b.kind === 'transport') transport += dur;
+          else if (b.kind === 'unknown_place' || b.kind === 'unknown') unknown += dur;
+          if (b.reviewState === 'needs_review') needsReview += dur;
+        }
+        reportCandidateResult.summary = {
+          ...sum,
+          workMinutes: work,
+          transportMinutes: transport,
+          unknownMinutes: unknown,
+          needsReviewMinutes: needsReview,
+          dayEndDecision,
+          dayEndClampDiagnostics: clamp.dayEndClampDiagnostics,
+        };
+      } catch (e) {
+        console.error('[presence-day] dayEnd clamp failed', e);
+      }
     } catch (e: any) {
       reportCandidateError = e?.message ?? String(e);
       console.error('[presence-day] buildReportCandidateBlocks failed', e);
@@ -901,6 +958,31 @@ Deno.serve(async (req) => {
           targetResolution,
           legacyLocationTimeEntriesUsedAsInput: false,
           preWorkExclusion: reportCandidateResult.preWorkExclusionDiagnostics ?? null,
+          dayEndDecision: (reportCandidateResult as any).dayEndDecision ?? null,
+          dayEndClampDiagnostics:
+            (reportCandidateResult as any).dayEndClampDiagnostics ?? null,
+          droppedAfterDayEnd:
+            ((reportCandidateResult as any).droppedAfterDayEnd ?? []).map((b: any) => ({
+              id: b.id, kind: b.kind, startAt: b.startAt, endAt: b.endAt,
+              targetLabel: b.targetLabel ?? b.title ?? null,
+            })),
+          timeEngineClarityDiagnostics: {
+            dayEndDecision: (reportCandidateResult as any).dayEndDecision ?? null,
+            sessionConsolidationDiagnostics:
+              reportCandidateResult.summary?.sessionConsolidationDiagnostics ?? null,
+            singleTimelineDiagnostics:
+              (reportCandidateResult.summary as any)?.singleTimelineDiagnostics ?? null,
+            labelResolutionDiagnostics:
+              (reportCandidateResult.summary as any)?.labelResolutionDiagnostics ?? null,
+            commutePolicyDiagnostics:
+              (reportCandidateResult.summary as any)?.commutePolicyDiagnostics ?? null,
+            workAreaToleranceDiagnostics:
+              (reportCandidateResult.summary as any)?.workAreaToleranceDiagnostics ?? null,
+            openTimerClampDiagnostics:
+              (reportCandidateResult.summary as any)?.openTimerClampDiagnostics ?? null,
+            dayEndClampDiagnostics:
+              (reportCandidateResult as any).dayEndClampDiagnostics ?? null,
+          },
           error: null,
         }
       : { error: reportCandidateError, available: false, targetResolution, legacyLocationTimeEntriesUsedAsInput: false },

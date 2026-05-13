@@ -1,75 +1,36 @@
-# Plan
-
 ## Mål
-Fixa varför block i `/staff-management/time-reports` ser ut att fortsätta framåt i tiden eller ligga ovanpå varandra, utan att gissa eller maskera problemet i UI.
+Se till att dagar i `/staff-management/time-reports` faktiskt slutar i adminvyn och inte kan rulla vidare till `now` när dagsslutsreglerna redan borde kapa dem.
 
-## Bekräftat från underlaget
-Session replayn visar att sidan faktiskt renderade två separata Gantt-block i ett av fallen:
-- `FA Warehouse · 07:56– pågår · 7 h 14 min`
-- `FA Warehouse · 06:55–14:45 · 7 h 50 min`
+## Vad jag kommer att ändra
+1. Uppdatera live-endpointen `supabase/functions/get-staff-presence-day/index.ts` så att den kör samma sista steg som cache/backfill redan gör:
+   - `computeDayEndDecision(...)`
+   - `clampBlocksToDayEndDecision(...)`
+2. Se till att det klampade resultatet returneras till admin-sidan i `reportCandidateBlocks`, så att UI:t inte längre får okapade block från live-vägen.
+3. Synka diagnostics i live-svaret så att `dayEndDecision`, clamp-diagnostics och relaterade clarity-fält finns med även där, inte bara i `staff_day_report_cache`.
+4. Säkerställa att summary-värdena som adminvyn visar bygger på de klampade blocken, så att minuter och status inte längre speglar pre-clamp-läget.
+5. Lägga till/uppdatera tester för live-flödet runt dagsslut och öppna timers, så att historiska dagar och dagar som slutat inte kan fortsätta till nu.
+6. Validera i preview direkt efter ändringarna och köra relevanta automatiska tester.
 
-Det betyder att problemet inte bara är text eller CSS. Det finns ett riktigt dubbelt/överlappande underlag i blockdatan, och den visuella Gantt-layouten gör det ännu svårare att förstå.
+## Varför detta är rätt fix
+Jag har verifierat att:
+- `backfill-staff-day-report-cache` redan beräknar `dayEndDecision` och klampar blocken.
+- adminsidan `src/pages/StaffTimeReports.tsx` anropar live-funktionen `get-staff-presence-day` direkt.
+- `get-staff-presence-day` bygger report blocks men verkar inte köra samma slutliga dagssluts-klamp innan svaret returneras.
 
-## Lösningen
+Det betyder att samma Time Engine används delvis, men adminvyn missar sista skyddslagret som stoppar dagar från att fortsätta.
 
-### 1. Isolera exakt vilken datakälla som dubblar blocket
-Jag går hela vägen från:
-- `get-staff-presence-day`
-- `reportCandidateByStaff`
-- `blocksFromStaff(...)`
-- renderingen i `StaffGanttView`
+## Tekniska detaljer
+- Berörd backendkod:
+  - `supabase/functions/get-staff-presence-day/index.ts`
+  - ev. delad pure-helper-användning i `_shared/time-engine/*`
+- Berörda tester:
+  - Deno-tester för edge/shared Time Engine
+  - ev. riktade frontend-/kontraktstester om summary/diagnostics-konsumtion påverkas
+- Ingen ny appvy, ingen mobiländring, inga writes till legacy-tabeller.
+- Ingen ändring av Time App, submission, attest, projektvy eller export.
 
-Målet är att fastställa om dubletten uppstår i:
-- backendens `reportCandidateBlocks`,
-- kombinationen av `reportCandidateBlocks` + fallback/journal,
-- eller i frontendens egen blockmappning.
-
-### 2. Dela upp felet i två separata buggar
-Jag kommer behandla detta som två problem som måste lösas var för sig:
-
-**A. Databugg / dubbla block**
-- samma mål/dag verkar kunna ge både ett avslutat block och ett "pågår"-block samtidigt
-- jag verifierar om detta är legitimt eller om det är en felaktig dubbelrepresentation av samma aktivitet
-- om det är samma aktivitet ska de slås ihop eller så ska den felaktiga ena representationen filtreras bort vid rätt nivå
-
-**B. Visuell positionsbugg**
-- även när blocken överlappar ska inget block få fel `top` eller `height`
-- ett block med t.ex. `08:17–15:04` ska alltid sluta vid `15:04` visuellt
-- underliggande transportblock får aldrig dra ut det gröna blocket nedåt
-
-### 3. Fixa källan före presentationen
-Om backend skickar två versioner av samma aktivitet kommer jag inte “dölja” det med CSS. Då blir lösningen:
-- att normalisera blocken där de skapas, eller
-- att lägga en explicit deterministic dedupe/merge-regel i frontendens blockbyggare om UI-lagret är rätt nivå för det.
-
-### 4. Göra Gantt-positioneringen testbar
-Jag flyttar positionslogiken till en liten pure helper så att vi kan testa:
-- `top`
-- `height`
-- lane-fördelning vid äkta överlapp
-- att ongoing-block inte renderas längre än sitt faktiska `endAt`
-
-### 5. Lägga riktade regressionstester
-Jag lägger testfall för exakt det här scenariot:
-- ett avslutat block + ett öppet block på samma target
-- ett block som inte får fortsätta visuellt efter sitt `endAt`
-- transportblock under som inte får påverka föregående blocks höjd
-- dubbla samma-target-block som antingen ska finnas som två separata rader eller slås ihop enligt regel
-
-### 6. Verifiera i preview med samma typ av bildbevis
-Efter fixen verifierar jag med:
-- riktade Vitest-tester
-- preview-screenshot
-- zoom på samma område där du visade att blocket gick för långt ned
-
-## Berörda filer
-- `src/components/staff/StaffGanttView.tsx`
-- `src/pages/StaffTimeReports.tsx`
-- eventuellt `src/lib/staff/` för ny helper/dedupe-logik
-- testfiler i `src/test/` eller `src/lib/staff/__tests__/`
-
-## Förväntat resultat
-- samma aktivitet visas inte felaktigt två gånger
-- om två block verkligen finns ska det vara för att de faktiskt är två olika underlag
-- ett grönt block slutar exakt där dess klockslag säger, inte längre ned i framtiden
-- transportblock under påverkar inte höjden på blocket ovanför
+## Validering efter implementation
+- Kontrollera att historiska dagar inte längre har synliga block som slutar vid `now`.
+- Kontrollera att öppna timers efter `endedAt` ignoreras/kapas.
+- Kontrollera att diagnostics i live-svaret visar `dayEndDecision` och clamp-resultat.
+- Köra relevanta tester och sedan verifiera beteendet i preview på `/staff-management/time-reports`.
