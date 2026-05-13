@@ -203,6 +203,10 @@ Deno.serve(async (req) => {
   // 1) prioritera workday vars started_at ligger inom [dayStart, dayEnd]
   // 2) annars den som överlappar mest med dagsfönstret
   // 3) annars första
+  // VIKTIGT: en workday som startade FÖRE dayStart och som fortfarande är
+  // öppen (ended_at IS NULL) är inte en "pågående dag" — det är en
+  // glömd/övergiven rad. Vi använder bara sådana om de faktiskt har
+  // OVERLAP-tid (>0 min) inne i dagens fönster, och vi loggar det.
   const workdayRows = (workdayRes.data ?? []) as Array<{ started_at: string; ended_at: string | null }>;
   const startedToday = workdayRows.find((w) => {
     const s = new Date(w.started_at).getTime();
@@ -210,11 +214,25 @@ Deno.serve(async (req) => {
   });
   let workday: typeof workdayRows[number] | null = startedToday ?? null;
   if (!workday && workdayRows.length) {
-    let best = workdayRows[0];
-    let bestOverlap = overlapMinutes(best.started_at, best.ended_at, dayStart, dayEnd);
-    for (let i = 1; i < workdayRows.length; i++) {
-      const ov = overlapMinutes(workdayRows[i].started_at, workdayRows[i].ended_at, dayStart, dayEnd);
-      if (ov > bestOverlap) { best = workdayRows[i]; bestOverlap = ov; }
+    let best: typeof workdayRows[number] | null = null;
+    let bestOverlap = 0;
+    for (const row of workdayRows) {
+      const ov = overlapMinutes(row.started_at, row.ended_at, dayStart, dayEnd);
+      // Skip stale "open forever" rows that started days before this date —
+      // they would otherwise dominate the snapshot. Only consider open rows
+      // that actually overlap meaningfully with the requested day window.
+      if (!row.ended_at) {
+        const startedMs = new Date(row.started_at).getTime();
+        const dayStartMs = new Date(dayStart).getTime();
+        if (startedMs < dayStartMs - 24 * 3600 * 1000) {
+          // Started more than 24h before the requested day → ghost row.
+          continue;
+        }
+      }
+      if (ov > bestOverlap) {
+        best = row;
+        bestOverlap = ov;
+      }
     }
     workday = best;
   }
