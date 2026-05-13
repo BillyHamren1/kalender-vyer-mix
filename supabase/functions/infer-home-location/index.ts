@@ -281,6 +281,21 @@ Deno.serve(async (req) => {
       }
       if (!primary || primary.data.count < 2) continue;
 
+      // Defense in depth: even if a cluster slipped through (e.g. an org
+      // location was added AFTER pings were ingested), never persist a
+      // home that lands inside a workplace radius.
+      if (
+        isInsideWorkExclusion(
+          primary.data.org as string,
+          primary.data.lat,
+          primary.data.lng,
+          workExclusions,
+        )
+      ) {
+        homesSkippedAtWork++;
+        continue;
+      }
+
       const { error: pErr } = await supabase
         .from('staff_inferred_home_locations')
         .upsert(
