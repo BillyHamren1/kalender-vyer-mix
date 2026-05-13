@@ -52,6 +52,19 @@ function blockArrayLength(v: unknown): number {
 }
 
 /**
+ * Mirror of `pickCacheBlocks` in _shared/mobile/mapReportBlocksToSegments.ts.
+ * Centralises priority: display_blocks_json → report_candidate_blocks_json.
+ * Used here only for the `cacheUnusable` decision; the actual mapping in
+ * `buildMobileSnapshot` calls `pickCacheBlocks` directly.
+ */
+function effectiveCacheBlockCount(cache: CacheRow | null): number {
+  if (!cache) return 0;
+  const display = blockArrayLength(cache.display_blocks_json);
+  if (display > 0) return display;
+  return blockArrayLength(cache.report_candidate_blocks_json);
+}
+
+/**
  * Invoke the same live Time Engine read that admin web uses
  * (`/staff-management/time-reports` → `get-staff-presence-day`).
  * Returns a CacheRow-shaped object so it can be passed straight through
