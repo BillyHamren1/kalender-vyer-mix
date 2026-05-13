@@ -36,7 +36,7 @@ describe('evaluateAutoStopForActiveDay', () => {
       nowIso: NOW,
     });
     expect(r.stop).toBe(false);
-    if (!r.stop) expect(r.rejectedReason).toBe('already_stopped');
+    if (r.stop === false) expect(r.rejectedReason).toBe('already_stopped');
   });
 
   it('rejects when staff is still inside a work anchor', () => {
@@ -55,7 +55,7 @@ describe('evaluateAutoStopForActiveDay', () => {
       nowIso: NOW,
     });
     expect(r.stop).toBe(false);
-    if (!r.stop) expect(r.rejectedReason).toBe('still_inside_work_anchor');
+    if (r.stop === false) expect(r.rejectedReason).toBe('still_inside_work_anchor');
   });
 
   it('stops with gps_home_auto_stop after home dwell ≥ threshold', () => {
@@ -136,7 +136,7 @@ describe('evaluateAutoStopForActiveDay', () => {
       nowIso: NOW, // 18:00 → idle 30 min
     });
     expect(r.stop).toBe(false);
-    if (!r.stop) expect(r.rejectedReason).toBe('idle_below_threshold');
+    if (r.stop === false) expect(r.rejectedReason).toBe('idle_below_threshold');
   });
 
   it('rejects when last ping is too old (stale signal)', () => {
@@ -156,7 +156,7 @@ describe('evaluateAutoStopForActiveDay', () => {
       nowIso: '2026-05-13T19:00:00Z', // last ping 3h gammal > 60 min
     });
     expect(r.stop).toBe(false);
-    if (!r.stop) expect(r.rejectedReason).toBe('last_ping_too_old');
+    if (r.stop === false) expect(r.rejectedReason).toBe('last_ping_too_old');
   });
 
   it('rejects when last ping still inside work anchor radius', () => {
@@ -174,7 +174,7 @@ describe('evaluateAutoStopForActiveDay', () => {
       nowIso: '2026-05-13T17:55:00Z',
     });
     expect(r.stop).toBe(false);
-    if (!r.stop) expect(r.rejectedReason).toBe('still_inside_work_anchor');
+    if (r.stop === false) expect(r.rejectedReason).toBe('still_inside_work_anchor');
   });
 
   it('hard caps when no work anchor exists for >18h', () => {
@@ -198,7 +198,7 @@ describe('evaluateAutoStopForActiveDay', () => {
       nowIso: NOW, // 3h
     });
     expect(r.stop).toBe(false);
-    if (!r.stop) expect(r.rejectedReason).toBe('no_work_anchors_yet');
+    if (r.stop === false) expect(r.rejectedReason).toBe('no_work_anchors_yet');
   });
 
   it('respects warehouse-as-last-anchor (lager efter projekt)', () => {
