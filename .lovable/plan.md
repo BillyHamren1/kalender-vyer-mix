@@ -1,35 +1,44 @@
 ## Problem
 
-To-don sparas korrekt i `calendar_events` (event_type='todo' + resource_id = team), men personalkalendern visar den inte. Konsolloggen säger `non-project rows skipped (non-staffable event_type) 31` — det är `buildPlannerCalendarEvents` som filtrerar bort allt vars `event_type` inte är `rig`/`event`/`rigDown`.
+Din to-do "Upphämtning" 2026-05-14 finns i `calendar_events` (`event_type='todo'`) men syns inte i personalkalendern.
 
-## Lösning
+**Rotorsak:** ID-format-mismatch på team-resursen.
 
-I `src/services/plannerCalendarDerivation.ts`, i loopen runt rad 272–360:
+- `TodoPlanningSheet.tsx` sparar `resource_id` som `team1`, `team2`, … `team5` (utan bindestreck).
+- Personalkalendern (`useTeamResources`) renderar kolumnerna `team-1`, `team-2`, … `team-10` (med bindestreck).
+- Passthrough-logiken i `plannerCalendarDerivation.ts` släpper igenom event:et, men eftersom `resourceId` inte matchar någon kolumn hamnar det "i tomma luften" och visas aldrig.
 
-- Innan `phase`-allowlisten, lägg till en passthrough för `row.event_type === 'todo'`:
-  - kräv `resource_id` (annars hoppa)
-  - hoppa om raden är knuten till booking som tillhör large project (samma guard som befintliga raden)
-  - pusha via `mapRealRowToCalendarEvent(row, booking, undefined)`
-  - ny räknare `todoEventsEmitted` i debug-loggen
+DB-rad som ligger där nu:
+```
+id=df56ba7a… title=Upphämtning event_type=todo resource_id=team1
+start=2026-05-14 10:01  end=2026-05-14 14:00
+```
 
-- I `mapRealRowToCalendarEvent`:
-  - Behåll `eventType: 'todo'` när `event_type === 'todo'` (idag returneras `undefined` eftersom `normalizePhase` ger null). Enklast: efter `normalizePhase`-fallback, sätt `eventType: row.event_type === 'todo' ? 'todo' : (normalizePhase(...) || undefined)` på både `eventType` och `extendedProps.eventType`.
-  - Title: `row.title` används redan som sista fallback när booking saknas → OK.
+## Fix
 
-## Test
+### 1. `src/components/todo/TodoPlanningSheet.tsx`
+- Ändra `teams`-arrayen från `team1…team5` till `team-1…team-10` (matcha `useTeamResources.defaultTeams`).
+- Default `setResourceId('team-1')`.
+- Behåll labels "Team 1"–"Team 10".
+- (Ta bort kommentaren om `'project'` om den inte används — håll det enkelt: bara teamen.)
 
-- Lägg till `src/services/__tests__/plannerCalendarDerivation.todo.test.ts`:
-  - Given en rad med `event_type='todo'`, `resource_id='team-1'`, `booking_id=null`, `title='Upphämtning – Kund X'`, `source_date='2026-05-14'`.
-  - Förvänta att outputen innehåller exakt 1 event med `eventType:'todo'`, `resourceId:'team-1'`, korrekt title.
-  - Andra fallet: `resource_id=null` → ska hoppas.
-- Kör `bunx vitest run src/services/__tests__/plannerCalendarDerivation.todo.test.ts` efter ändringen.
+### 2. Migration: backfill existerande todo-rader
+- En idempotent migration som mappar `resource_id` `'teamN'` → `'team-N'` på `calendar_events` där `event_type='todo'`.
+- Detta gör att din nuvarande "Upphämtning" dyker upp på Team 1.
 
-## Verifiering i UI
+### 3. Verifiering
+- Kör `bunx vitest run src/services/__tests__/plannerCalendarDerivation.todo.test.ts` (säkerställa att passthrough fortsatt funkar).
+- Lägg ett kort enhetstest för `TodoPlanningSheet` som verifierar att teams-listan använder `team-` prefix.
+- Hård-reload av `/calendar` → bekräfta att den orange to-don visas på Team 1 den 14 maj.
 
-- ResourceData/CustomEvent har redan styling för `'todo'` (orange) → kortet renderas.
-- Realtime: kalendern lyssnar redan på `calendar_events` (befintlig "Real-time calendar subscription established") så INSERT triggar refetch — ingen ändring behövs där.
+## Det som INTE ändras
+- `plannerCalendarDerivation.ts` (passthrough redan korrekt).
+- `ResourceData.ts` orange-färg redan på plats.
+- Realtime-prenumerationen — redan på `calendar_events`.
+- `CreateTodoWizard.tsx` använder inget team-id (planering sker i `TodoPlanningSheet`).
 
-## Filer som ändras
+## Filer
 
-- `src/services/plannerCalendarDerivation.ts` (passthrough + eventType-mappning)
-- `src/services/__tests__/plannerCalendarDerivation.todo.test.ts` (nytt)
+- **Edit:** `src/components/todo/TodoPlanningSheet.tsx`
+- **New:** `supabase/migrations/<timestamp>_fix_todo_resource_id_format.sql`
+- **New (valfritt):** `src/components/todo/__tests__/TodoPlanningSheet.teamIds.test.tsx`
