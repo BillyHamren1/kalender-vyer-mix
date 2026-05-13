@@ -847,7 +847,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
             return (
               <div className="overflow-auto overscroll-contain max-h-[calc(100vh-180px)]">
                 <div
-                  className="relative grid"
+                  className="relative grid bg-background"
                   style={{
                     gridTemplateColumns: `${RAIL_PX}px repeat(${ganttStaff.length}, minmax(${COL_MIN}px, 1fr))`,
                     minWidth: RAIL_PX + ganttStaff.length * COL_MIN,
@@ -875,7 +875,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                         key={`h-${staff.id}`}
                         type="button"
                         onClick={() => setOpenStaffId(staff.id)}
-                        className="sticky top-0 z-20 flex flex-col items-start gap-0.5 border-b border-r bg-card/95 px-2 py-2 text-left backdrop-blur hover:bg-muted/40"
+                        className="sticky top-0 z-20 flex flex-col items-start gap-0.5 border-b border-r bg-card px-2 py-2 text-left hover:bg-muted/40"
                         title={staff.plannedLabels.join(' · ') || staff.role || ''}
                       >
                         <div className="flex w-full items-center gap-2">
@@ -900,8 +900,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                   })}
 
                   {/* Hour rail (lives in grid column 1, not sticky horizontally so it doesn't overlay blocks) */}
-                  <div
-                    className="relative border-r bg-muted/20"
+                    <div
+                      className="relative border-r bg-muted/15"
                     style={{ height: bodyHeight }}
                   >
                     {hours.slice(0, -1).map((h, i) => (
@@ -923,7 +923,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                     return (
                       <div
                         key={`b-${staff.id}`}
-                        className="relative border-r"
+                        className="relative border-r bg-background"
                         style={{ height: bodyHeight }}
                         onClick={() => setOpenStaffId(staff.id)}
                       >
