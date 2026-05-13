@@ -18,15 +18,17 @@ export const UnplannedProjectsBanner: React.FC = () => {
   const [openId, setOpenId] = useState<string | null>(null);
   const [openKind, setOpenKind] = useState<'medium' | 'large' | null>(null);
 
-  if (isLoading || projects.length === 0) return null;
-
   const formatDate = (s: string | null) => {
     if (!s) return '–';
     try { return format(new Date(s), 'd MMM yyyy', { locale: sv }); } catch { return s; }
   };
 
+  const showProjects = !isLoading && projects.length > 0;
+
   return (
     <>
+      <UnplannedTodosBanner />
+      {showProjects && (
       <div className="rounded-xl border border-primary/30 bg-card overflow-hidden shadow-sm mx-2 mb-2">
         <div className="px-4 py-2 border-b border-primary/20 bg-primary/10 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
