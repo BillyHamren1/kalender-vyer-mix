@@ -378,6 +378,13 @@ export function decideAutoStart(input: DecideAutoStartInput): AutoStartDecisionR
     return deny('blocked_inside_private_residence', evidence, seg.confidence);
   }
 
+  // USER DECLINED TODAY — hard respect of an explicit "no" from the user
+  // (arrival prompt / "Detta var inte arbete"). Auto-start MUST NOT loop
+  // here. Manual start bypasses (it never runs through this engine).
+  if (input.userDeclinedToday) {
+    return deny('blocked_user_declined_today', evidence, seg.confidence);
+  }
+
   // Movement / transport never auto-starts.
   if (seg.kind === 'travel' || seg.type === 'transport') {
     return deny('blocked_movement_only', evidence, seg.confidence);
