@@ -256,75 +256,44 @@ export function useTimerStartFlow(
       }
       if (!workday) {
         toast.error(
-          'Kunde inte starta arbetspasset. Försök igen — aktiviteten startades inte.',
+          'Kunde inte starta arbetspasset. Försök igen.',
         );
         return 'workday_failed';
       }
 
-      const ok = startSession(target, {
-        startedAtIso: opts.startedAtIso,
-        taskId: opts.taskId,
-        taskTitle: opts.taskTitle,
-      });
-      if (!ok) {
-        // startSession returns false on duplicate (already in activeTimers).
-        if (!opts.suppressToast) {
-          toast.message('Timer redan aktiv för platsen');
-        }
-        return 'already_running';
-      }
-
-      if (!opts.suppressToast) {
-        toast.success(`Timer startad: ${opts.label}`);
-      }
-
-      // Off-site flag (best-effort, non-blocking)
-      if (opts.offSiteReason) {
-        const targetId =
-          target.kind === 'booking'
-            ? target.bookingId
-            : target.kind === 'project'
-              ? target.largeProjectId
-              : target.locationId;
-        void mobileApi.createWorkdayFlag({
-          flag_type: 'geofence_presence_mismatch',
-          flag_date: new Date().toISOString().slice(0, 10),
-          title: `Startade off-site: ${opts.label}`,
-          description: opts.offSiteReason,
-          severity: 'warning',
-          needs_user_input: false,
-          related_booking_id: target.kind === 'booking' ? target.bookingId : undefined,
-          related_large_project_id: target.kind === 'project' ? target.largeProjectId : undefined,
-          related_location_id: target.kind === 'location' ? target.locationId : undefined,
-          context: {
-            source: 'distance_warning_override',
-            distance_meters: opts.offSiteDistance ?? null,
-            target_kind: target.kind,
-            target_id: targetId,
-            user_position: userPosition ?? null,
-            reason: opts.offSiteReason,
+      // SINGLE-TIMER POLICY (single-timer-policy-v1):
+      // Mobilappen har bara EN timer — workday. Aktivitets-/projekt-/plats-
+      // /bokningstimers får inte längre startas från klienten. GPS/geofence
+      // matar admin via pings/place_visits/assistant_events; admin fördelar
+      // tid till projekt från tidslinjen i webben.
+      //
+      // Vi behåller ensureWorkDayActive ovan (workday är den enda timern),
+      // men hoppar startSession helt. Audit: skicka assistant-event så admin
+      // ser att en arbetsplats-arrival skedde.
+      void mobileApi.assistantEvents
+        .create({
+          event_type: 'arrival',
+          target_type: target.kind,
+          target_id:
+            target.kind === 'booking'
+              ? target.bookingId
+              : target.kind === 'project'
+                ? target.largeProjectId
+                : target.locationId,
+          target_label: opts.label,
+          happened_at: opts.startedAtIso ?? new Date().toISOString(),
+          source: 'single_timer_policy',
+          suggested_action: 'admin_allocate_from_timeline',
+          metadata: {
+            policy: 'single-timer-policy-v1',
+            note: 'Activity-timer start suppressed; workday ensured.',
           },
-        }).catch((err) => {
-          console.warn('[StartFlow] createWorkdayFlag (off-site) failed (non-fatal):', err);
-        });
-      }
-
-      // Gap-derived travel (best-effort, fire-and-forget)
-      const startIso = opts.startedAtIso ?? new Date().toISOString();
-      const nextTargetId =
-        target.kind === 'booking'
-          ? target.bookingId
-          : target.kind === 'project'
-            ? target.largeProjectId
-            : target.locationId;
-      void maybeCreateGapTravel(startIso, {
-        targetType: target.kind,
-        targetId: nextTargetId,
-        label: opts.label,
-      });
-      return 'started';
+        })
+        .catch(() => {});
+      // SINGLE-TIMER POLICY: returnera 'already_running' tyst.
+      return 'already_running';
     },
-    [startSession, userPosition, ensureWorkDayActive],
+    [userPosition, ensureWorkDayActive],
   );
 
   /**
