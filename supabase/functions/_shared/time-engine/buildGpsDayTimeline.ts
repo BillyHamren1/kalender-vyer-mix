@@ -2188,5 +2188,6 @@ export function buildGpsDayTimeline(
     remainingTransportInsidePrimaryGeofenceCount: remainingTransportInsidePrimaryCount,
     remainingTransportInsidePrimaryGeofenceMinutes:
       Math.round(remainingTransportInsidePrimaryMinutes * 100) / 100,
+    unknownAbsorptionDiagnostics: absorbDiagnostics,
   } as GpsDayTimelineResult;
 }
