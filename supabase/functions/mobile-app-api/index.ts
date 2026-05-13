@@ -6047,7 +6047,7 @@ async function handleLegacyStopLocationTimerForward(
   console.warn('[mobile-app-api] LEGACY stop_location_timer forwarded → stop_time_registration', { entry_id: d.entry_id })
   return await handleStopTimeRegistration(
     supabase, staffId,
-    { registration_id: d.registration_id ?? null, stop_source: 'legacy_stop_location_timer', stopped_at: d.stopped_at },
+    { registration_id: d.registration_id ?? null, stop_source: 'legacy_stop_forwarded_to_day_timer', stopped_at: d.stopped_at },
     organizationId,
   )
 }
