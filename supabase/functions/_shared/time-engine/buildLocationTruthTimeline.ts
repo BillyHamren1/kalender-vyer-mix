@@ -1048,7 +1048,7 @@ export function buildLocationTruthTimeline(
 
   return {
     locationTruthSegments: segments,
-    diagnostics: makeDiag(input, policy, segments, pingDiag),
+    diagnostics: makeDiag(input, policy, segments, pingDiag, prDiag, taDiag),
   };
 }
 
@@ -1057,6 +1057,8 @@ function makeDiag(
   policy: Required<BuildLocationTruthPolicy>,
   segments: LocationTruthSegment[],
   pingMatch: LocationPingMatchDiagnostics,
+  privateResidenceMatch: PrivateResidenceMatchDiagnostics,
+  workAreaTolerance: WorkAreaToleranceDiagnostics,
 ): LocationTruthDiagnostics {
   let signalGapSegmentCount = 0;
   let movementSegmentCount = 0;
@@ -1088,5 +1090,7 @@ function makeDiag(
     privateResidenceSegmentCount,
     policy,
     pingMatch,
+    privateResidenceMatch,
+    workAreaTolerance,
   };
 }
