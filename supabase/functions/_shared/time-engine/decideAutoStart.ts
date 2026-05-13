@@ -169,7 +169,18 @@ export type AutoStartDecisionReason =
    *   "stoppad dagtimer = dagen är stoppad"
    *   "stopped day cannot be reopened by GPS batch"
    */
-  | 'blocked_day_already_stopped';
+  | 'blocked_day_already_stopped'
+  /**
+   * The candidate stay segment falls geographically INSIDE a known
+   * private_residence / inferred_home / manual_ignore zone for THIS staff
+   * (from staff_private_zones / staff_inferred_home_locations). Even if a
+   * nearby work target also matches, "home wins over work" — GPS must NOT
+   * auto-start a project/booking/warehouse timer here. Diagnostics:
+   *   matchedPrivateResidence, privateResidenceDistanceMeters,
+   *   competingWorkTarget, homeWonOverWorkTarget,
+   *   suppressedAutoStartBecauseHome.
+   */
+  | 'blocked_inside_private_residence';
 
 export interface AutoStartEvidence {
   isNightLocal: boolean;
