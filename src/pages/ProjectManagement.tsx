@@ -38,6 +38,8 @@ const ProjectManagement = () => {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+  const [createProjectBookingId, setCreateProjectBookingId] = useState<string | null>(null);
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
