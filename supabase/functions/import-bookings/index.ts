@@ -2233,7 +2233,7 @@ serve(async (req) => {
           updated_at: importCompletedAt,
         }, { onConflict: 'sync_type' });
 
-      console.log('[import-bookings] Incremental batch queued for worker', JSON.stringify({
+      console.log(`[import-bookings] ${queueEventType} batch queued for worker`, JSON.stringify({
         organization_id: organizationId,
         queue_summary: queueSummary,
         cursor_advanced_to: nextSyncCursor,
