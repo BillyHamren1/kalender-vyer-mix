@@ -82,39 +82,16 @@ export const WorkDayPanel: React.FC = () => {
   const handleDialogConfirm = async (selection: StartDaySelection) => {
     setStarting(true);
     try {
-      if (selection.kind === 'target') {
-        const t = selection.target as any;
-        let target_type: 'booking' | 'large_project' | 'location' | null = null;
-        let target_id: string | null = null;
-        if (t.kind === 'project' && t.largeProjectId) {
-          target_type = 'large_project';
-          target_id = t.largeProjectId;
-        } else if (t.kind === 'booking' && t.bookingId) {
-          target_type = 'booking';
-          target_id = t.bookingId;
-        } else if (t.kind === 'location' && t.locationId) {
-          target_type = 'location';
-          target_id = t.locationId;
-        }
-        if (!target_type || !target_id) {
-          toast.error('Ogiltigt mål.');
-          return;
-        }
-        const res = await mobileApi.startTimeRegistration({
-          started_at: selection.startedAtIso,
-          target_type,
-          target_id,
-        });
-        if (res?.success === false) {
-          toast.error('Kunde inte starta arbetsdagen.');
-          return;
-        }
-        toast.success(`Arbetsdag startad på ${selection.label}`);
-        notifyChanged();
-        setDialogOpen(false);
+      const res = await mobileApi.startTimeRegistration({
+        started_at: selection.startedAtIso,
+      });
+      if (res?.success === false) {
+        toast.error('Kunde inte starta arbetsdagen.');
         return;
       }
-      toast.error('Välj projekt eller plats för att starta arbetsdagen.');
+      toast.success('Arbetsdag startad.');
+      notifyChanged();
+      setDialogOpen(false);
     } finally {
       setStarting(false);
     }
