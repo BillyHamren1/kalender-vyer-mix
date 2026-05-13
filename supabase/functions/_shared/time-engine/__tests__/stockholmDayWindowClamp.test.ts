@@ -27,9 +27,12 @@ function presence(over: Partial<any> = {}): any {
 }
 
 Deno.test('open active timer kan INTE förlänga blocket förbi 21:59:59.999Z UTC (= 23:59:59 lokal)', () => {
-  // Open registration utan stop, started_at i morse svensk tid.
-  // Tidigare bug: motorn förlängde anchor.endAt till `${date}T23:59:59Z`
-  // (= 2026-05-12T23:59:59Z, dvs 01:59 NÄSTA dag svensk tid).
+  // Timer 1.7 — active_time_registration är BARA dagfönster.
+  // Target-fält strippas av caller (get-staff-presence-day) och builder
+  // skapar ALDRIG synth-block / förlänger work-block via active timer.
+  // Vi verifierar att INGA block som genereras (från presence/GPS) får
+  // sträcka sig förbi Stockholm dayEnd, oavsett om en open registration
+  // finns.
   const result = buildReportCandidateBlocks({
     staffId: 'staff-1',
     organizationId: 'org-1',
@@ -40,20 +43,21 @@ Deno.test('open active timer kan INTE förlänga blocket förbi 21:59:59.999Z UT
       startedAt: '2026-05-12T05:00:00.000Z', // 07:00 lokal
       stoppedAt: null,
       status: 'active',
-      targetType: 'project',
-      targetId: 'proj-a',
-      targetLabel: 'Projekt A',
+      // Timer 1.7 — target strippad: registreringen är dagfönster, inte work target.
+      targetType: null,
+      targetId: null,
+      targetLabel: null,
     }],
     openActiveRegistration: {
       registrationId: 'r1',
       startedAtIso: '2026-05-12T05:00:00.000Z',
-      targetType: 'project',
-      targetId: 'proj-a',
-      targetLabel: 'Projekt A',
+      targetType: null,
+      targetId: null,
+      targetLabel: null,
     },
   });
 
-  assert(result.blocks.length > 0, 'minst ett block ska finnas');
+  // Inga block får sträcka sig förbi Stockholm dayEnd / börja före dayStart.
   for (const b of result.blocks) {
     const eMs = Date.parse(b.endAt);
     assert(
@@ -64,6 +68,12 @@ Deno.test('open active timer kan INTE förlänga blocket förbi 21:59:59.999Z UT
     assert(
       sMs >= win.startUtcMs,
       `Block ${b.id} (${b.kind}) börjar ${b.startAt} < Stockholm dayStart ${win.startUtc}`,
+    );
+    // Inga synth-block med open_active_timer_anchor får finnas.
+    const reasons = (b.reviewReasons ?? []) as string[];
+    assert(
+      !reasons.includes('open_active_timer_anchor'),
+      `Block ${b.id} har open_active_timer_anchor — Timer 1.7 förbjuder synth från active timer`,
     );
   }
 });
