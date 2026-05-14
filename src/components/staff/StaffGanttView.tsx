@@ -43,6 +43,10 @@ import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import type { ReportCandidateBlockUI, ReportCandidateSummaryUI } from './ReportCandidateTimeline';
 import { resolveActualLocationTargetForBlock } from '@/lib/staff/resolveActualLocationTarget';
+import {
+  classifyNightGpsOnly,
+  type NightGuardEvidence,
+} from '@/lib/staff/nightGpsOnlyGuard';
 import { EvidencePanel } from './ReportCandidateTimeline';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -173,6 +177,9 @@ interface GanttBlock {
   isOpen?: boolean;
   /** Liten "Planerat: X"-badge när engine resolved en annan/okänd plats. */
   plannedBadgeLabel?: string | null;
+  /** True om blocket bara är nattliga GPS-pings utan TR/LTE/manuell workday
+   *  bakom sig. Renderas dämpat och räknas inte som arbete. */
+  isNightGpsOnly?: boolean;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
@@ -254,6 +261,33 @@ const blocksFromStaff = (
       || staff.presence?.hasLocationTimeEntries === true
       || staff.presence?.hasWorkday === true;
 
+    // Hård evidens för natt-guard: TR / LTE / manuell workday / travel.
+    // En workday räknas som "manuell" om den inte är auto-startad
+    // (metadata.auto_started !== true) ELLER har started_by satt.
+    const rs = staff.actualModel?.reportState;
+    const wd = rs?.workday ?? null;
+    const wdMeta = wd?.metadata && typeof wd.metadata === 'object' ? (wd.metadata as any) : null;
+    const wdIsManual = !!wd && (wd.started_by != null || wdMeta?.auto_started !== true);
+    const nightEvidence: NightGuardEvidence = {
+      timeReportWindows: (rs?.timeReports ?? []).map((r) => ({
+        startIso: r.start_iso,
+        endIso: r.end_iso,
+      })),
+      locationEntryWindows: (rs?.locationEntries ?? []).map((e: any) => ({
+        startIso: e.entered_at,
+        endIso: e.exited_at,
+      })),
+      manualWorkdayWindow: wdIsManual && wd
+        ? { startIso: wd.started_at, endIso: wd.ended_at }
+        : null,
+      travelLogWindows: (rs?.travelLogs ?? []).map((t: any) => ({
+        startIso: t.started_at ?? t.start_iso ?? t.entered_at,
+        endIso: t.ended_at ?? t.end_iso ?? t.exited_at ?? null,
+      })),
+    };
+
+    let nightGpsOnlySuppressedCount = 0;
+
     const processBlock = (b: ReportCandidateBlockUI, isPreWork: boolean) => {
       const resolution = resolveActualLocationTargetForBlock({
         block: b as any,
@@ -261,6 +295,13 @@ const blocksFromStaff = (
         hasDayEvidence,
       });
       const resolved = resolution.finalTitle;
+
+      const nightClass = classifyNightGpsOnly(
+        { startAt: b.startAt, endAt: b.endAt, kind: b.kind },
+        nightEvidence,
+      );
+      const isNightGpsOnly = nightClass.decision === 'raw_only_night_gps';
+      if (isNightGpsOnly) nightGpsOnlySuppressedCount += 1;
 
       if (!b.title || !b.title.trim()) labelDiagnostics.missingTitleBlocksCount += 1;
       switch (resolution.source) {
@@ -297,20 +338,23 @@ const blocksFromStaff = (
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
-        title: resolved,
+        title: isNightGpsOnly ? 'GPS – natt, ej rapporterat' : resolved,
         subtitle: isPreWork ? 'Före arbetsdag' : (b.subtitle ?? null),
-        plannedBadgeLabel: resolution.plannedBadgeLabel,
+        plannedBadgeLabel: isNightGpsOnly ? null : resolution.plannedBadgeLabel,
+        isNightGpsOnly,
       });
     };
 
     for (const b of candidate) processBlock(b, false);
     if (excludedPreWork) for (const b of excludedPreWork) processBlock(b, true);
 
-    if (labelDiagnostics.unknownKeptCount > 0 && typeof console !== 'undefined') {
+    if ((labelDiagnostics.unknownKeptCount > 0 || nightGpsOnlySuppressedCount > 0)
+        && typeof console !== 'undefined') {
       // eslint-disable-next-line no-console
-      console.warn('[Gantt 3.8] actualVsPlanned', {
+      console.warn('[Gantt 3.9] actualVsPlanned + nightGuard', {
         staff: staff.name,
         ...labelDiagnostics,
+        nightGpsOnlySuppressedCount,
       });
     }
     return out;
@@ -1109,8 +1153,10 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 }}
                                 className={cn(
                                   'absolute cursor-pointer overflow-hidden rounded-[4px] border px-1.5 pt-1.5 pb-1.5 text-[11px] leading-tight transition-transform hover:scale-[1.02] hover:z-20',
-                                  style.bg,
-                                  style.border,
+                                  b.isNightGpsOnly
+                                    ? 'bg-muted/30 border-dashed border-border/60 opacity-60'
+                                    : style.bg,
+                                  !b.isNightGpsOnly && style.border,
                                   overlapping && 'ring-1 ring-amber-400/70',
                                 )}
                                 style={{
@@ -1122,18 +1168,31 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   color: '#000000',
                                   boxShadow: '0 1px 2px hsl(var(--foreground) / 0.08)',
                                 }}
-                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`}
+                                title={
+                                  b.isNightGpsOnly
+                                    ? `GPS-spår 00:00–05:00 utan tidrapport eller manuell timer.\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}\nVisas i råvy / GPS-detalj — räknas inte som arbete.`
+                                    : `${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`
+                                }
                               >
                                 <div
                                   className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-1 w-fit"
                                   style={{
-                                    backgroundColor: 'hsl(var(--primary) / 0.15)',
-                                    color: 'hsl(var(--primary))',
+                                    backgroundColor: b.isNightGpsOnly
+                                      ? 'hsl(var(--muted) / 0.7)'
+                                      : 'hsl(var(--primary) / 0.15)',
+                                    color: b.isNightGpsOnly
+                                      ? 'hsl(var(--muted-foreground))'
+                                      : 'hsl(var(--primary))',
                                   }}
                                 >
-                                  {style.label}
+                                  {b.isNightGpsOnly ? 'GPS-natt' : style.label}
                                 </div>
-                                <div className="font-bold leading-tight break-words" style={{ color: '#000000' }}>
+                                <div
+                                  className="font-bold leading-tight break-words"
+                                  style={{
+                                    color: b.isNightGpsOnly ? 'hsl(var(--muted-foreground))' : '#000000',
+                                  }}
+                                >
                                   {b.title}
                                 </div>
                                 {b.plannedBadgeLabel && height >= 40 && (
