@@ -19,6 +19,7 @@ import {
   MapPin,
   Activity,
   Wallet,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,6 +73,7 @@ const baseNavigationItems: NavItem[] = [
     children: [
       { title: "Personalöversikt", url: "/staff-management", icon: Users },
       { title: "Personalplanering", url: "/calendar", icon: Calendar },
+      { title: "Personalkalendern (publik)", url: "/personalkalendern", icon: ExternalLink },
       { title: "Tidrapporter", url: "/staff-management/time-reports", icon: Clock },
     ],
   },
