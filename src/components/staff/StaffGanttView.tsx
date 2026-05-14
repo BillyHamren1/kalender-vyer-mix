@@ -138,6 +138,29 @@ const formatRelativeDate = (date: Date): string => {
   return format(date, 'EEEE d MMMM', { locale: sv });
 };
 
+const getInitials = (name: string): string => {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+// Stabil pastell-färg per person (för avatar-cirkel)
+const colorFromString = (s: string): { bg: string; fg: string } => {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return { bg: `hsl(${h} 70% 88%)`, fg: `hsl(${h} 55% 28%)` };
+};
+
+// Fallback för tomma titlar — använd subtitle eller targetLabel om title är tom
+const blockDisplayTitle = (b: GanttBlock, defaultLabel: string): string => {
+  const t = (b.title ?? '').trim();
+  if (t) return t;
+  const sub = (b.subtitle ?? '').trim();
+  if (sub) return sub;
+  return defaultLabel;
+};
+
 // ── Block kind → visual style ──────────────────────────────────────────────
 type GanttKind = 'work' | 'warehouse' | 'rig' | 'rigdown' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
 const KIND_STYLE: Record<
