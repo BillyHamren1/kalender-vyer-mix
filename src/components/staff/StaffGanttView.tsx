@@ -1177,13 +1177,22 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 <div
                                   className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-1 w-fit"
                                   style={{
-                                    backgroundColor: 'hsl(var(--primary) / 0.15)',
-                                    color: 'hsl(var(--primary))',
+                                    backgroundColor: b.isNightGpsOnly
+                                      ? 'hsl(var(--muted) / 0.7)'
+                                      : 'hsl(var(--primary) / 0.15)',
+                                    color: b.isNightGpsOnly
+                                      ? 'hsl(var(--muted-foreground))'
+                                      : 'hsl(var(--primary))',
                                   }}
                                 >
-                                  {style.label}
+                                  {b.isNightGpsOnly ? 'GPS-natt' : style.label}
                                 </div>
-                                <div className="font-bold leading-tight break-words" style={{ color: '#000000' }}>
+                                <div
+                                  className="font-bold leading-tight break-words"
+                                  style={{
+                                    color: b.isNightGpsOnly ? 'hsl(var(--muted-foreground))' : '#000000',
+                                  }}
+                                >
                                   {b.title}
                                 </div>
                                 {b.plannedBadgeLabel && height >= 40 && (
