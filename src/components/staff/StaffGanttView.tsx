@@ -261,6 +261,33 @@ const blocksFromStaff = (
       || staff.presence?.hasLocationTimeEntries === true
       || staff.presence?.hasWorkday === true;
 
+    // Hård evidens för natt-guard: TR / LTE / manuell workday / travel.
+    // En workday räknas som "manuell" om den inte är auto-startad
+    // (metadata.auto_started !== true) ELLER har started_by satt.
+    const rs = staff.actualModel?.reportState;
+    const wd = rs?.workday ?? null;
+    const wdMeta = wd?.metadata && typeof wd.metadata === 'object' ? (wd.metadata as any) : null;
+    const wdIsManual = !!wd && (wd.started_by != null || wdMeta?.auto_started !== true);
+    const nightEvidence: NightGuardEvidence = {
+      timeReportWindows: (rs?.timeReports ?? []).map((r) => ({
+        startIso: r.start_iso,
+        endIso: r.end_iso,
+      })),
+      locationEntryWindows: (rs?.locationEntries ?? []).map((e: any) => ({
+        startIso: e.entered_at,
+        endIso: e.exited_at,
+      })),
+      manualWorkdayWindow: wdIsManual && wd
+        ? { startIso: wd.started_at, endIso: wd.ended_at }
+        : null,
+      travelLogWindows: (rs?.travelLogs ?? []).map((t: any) => ({
+        startIso: t.started_at ?? t.start_iso ?? t.entered_at,
+        endIso: t.ended_at ?? t.end_iso ?? t.exited_at ?? null,
+      })),
+    };
+
+    let nightGpsOnlySuppressedCount = 0;
+
     const processBlock = (b: ReportCandidateBlockUI, isPreWork: boolean) => {
       const resolution = resolveActualLocationTargetForBlock({
         block: b as any,
@@ -268,6 +295,13 @@ const blocksFromStaff = (
         hasDayEvidence,
       });
       const resolved = resolution.finalTitle;
+
+      const nightClass = classifyNightGpsOnly(
+        { startAt: b.startAt, endAt: b.endAt, kind: b.kind },
+        nightEvidence,
+      );
+      const isNightGpsOnly = nightClass.decision === 'raw_only_night_gps';
+      if (isNightGpsOnly) nightGpsOnlySuppressedCount += 1;
 
       if (!b.title || !b.title.trim()) labelDiagnostics.missingTitleBlocksCount += 1;
       switch (resolution.source) {
@@ -304,20 +338,23 @@ const blocksFromStaff = (
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
-        title: resolved,
+        title: isNightGpsOnly ? 'GPS – natt, ej rapporterat' : resolved,
         subtitle: isPreWork ? 'Före arbetsdag' : (b.subtitle ?? null),
-        plannedBadgeLabel: resolution.plannedBadgeLabel,
+        plannedBadgeLabel: isNightGpsOnly ? null : resolution.plannedBadgeLabel,
+        isNightGpsOnly,
       });
     };
 
     for (const b of candidate) processBlock(b, false);
     if (excludedPreWork) for (const b of excludedPreWork) processBlock(b, true);
 
-    if (labelDiagnostics.unknownKeptCount > 0 && typeof console !== 'undefined') {
+    if ((labelDiagnostics.unknownKeptCount > 0 || nightGpsOnlySuppressedCount > 0)
+        && typeof console !== 'undefined') {
       // eslint-disable-next-line no-console
-      console.warn('[Gantt 3.8] actualVsPlanned', {
+      console.warn('[Gantt 3.9] actualVsPlanned + nightGuard', {
         staff: staff.name,
         ...labelDiagnostics,
+        nightGpsOnlySuppressedCount,
       });
     }
     return out;
