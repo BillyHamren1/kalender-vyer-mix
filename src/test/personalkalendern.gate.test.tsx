@@ -3,6 +3,9 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import React from 'react';
 
+vi.mock('pdfjs-dist', () => ({ getDocument: () => ({}), GlobalWorkerOptions: {} }));
+vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '' }));
+
 // Mocka tunga sub-träd så vi bara verifierar att gate redirectar till login
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
