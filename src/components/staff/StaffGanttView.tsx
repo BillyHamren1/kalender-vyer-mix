@@ -1153,8 +1153,10 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 }}
                                 className={cn(
                                   'absolute cursor-pointer overflow-hidden rounded-[4px] border px-1.5 pt-1.5 pb-1.5 text-[11px] leading-tight transition-transform hover:scale-[1.02] hover:z-20',
-                                  style.bg,
-                                  style.border,
+                                  b.isNightGpsOnly
+                                    ? 'bg-muted/30 border-dashed border-border/60 opacity-60'
+                                    : style.bg,
+                                  !b.isNightGpsOnly && style.border,
                                   overlapping && 'ring-1 ring-amber-400/70',
                                 )}
                                 style={{
@@ -1166,7 +1168,11 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   color: '#000000',
                                   boxShadow: '0 1px 2px hsl(var(--foreground) / 0.08)',
                                 }}
-                                title={`${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`}
+                                title={
+                                  b.isNightGpsOnly
+                                    ? `GPS-spår 00:00–05:00 utan tidrapport eller manuell timer.\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}\nVisas i råvy / GPS-detalj — räknas inte som arbete.`
+                                    : `${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`
+                                }
                               >
                                 <div
                                   className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-1 w-fit"
