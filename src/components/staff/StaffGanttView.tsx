@@ -1289,6 +1289,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   );
 };
 
+const LegendDot: React.FC<{ className: string; label: string }> = ({ className, label }) => (
+  <span className="inline-flex items-center gap-1.5">
+    <span className={cn('h-2.5 w-2.5 rounded-full border', className)} />
+    <span>{label}</span>
+  </span>
+);
+
 const KPI: React.FC<{ icon?: React.ReactNode; label: string; value: string; accent?: 'emerald' | 'amber' }> = ({ icon, label, value, accent }) => (
   <span className="inline-flex items-center gap-1.5 tabular-nums">
     {icon}
