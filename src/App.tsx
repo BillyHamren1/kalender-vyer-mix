@@ -108,6 +108,8 @@ const MobileCompleteJob = lazyWithRecovery(() => import("./pages/mobile/MobileCo
 const MobileOverview = lazyWithRecovery(() => import("./pages/mobile/MobileOverview"));
 const MobileScannerApp = lazyWithRecovery(() => import("./pages/MobileScannerApp"));
 const ScannerLogin = lazyWithRecovery(() => import("./pages/scanner/ScannerLogin"));
+const PersonalkalendernPage = lazyWithRecovery(() => import("./pages/PersonalkalendernPage"));
+const PersonalkalendernLogin = lazyWithRecovery(() => import("./pages/PersonalkalendernLogin"));
 import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
 
 // EconomyTimeReports (used inside MainSystemLayout pages)
@@ -267,6 +269,10 @@ const WebRoutes: React.FC = () => {
 
       {/* Public transport partner response page - no auth */}
       <Route path="/transport-svar" element={<TransportResponse />} />
+
+      {/* Personalkalendern — publik, read-only spegling med dual auth */}
+      <Route path="/personalkalendern" element={<PersonalkalendernPage />} />
+      <Route path="/personalkalendern/login" element={<PersonalkalendernLogin />} />
 
       {/* Mobile Staff App (accessible via web too) */}
       <Route path="/m/login" element={<LanguageProvider><MobileAuthProvider><MobileLogin /></MobileAuthProvider></LanguageProvider>} />
