@@ -138,6 +138,29 @@ const formatRelativeDate = (date: Date): string => {
   return format(date, 'EEEE d MMMM', { locale: sv });
 };
 
+const getInitials = (name: string): string => {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+// Stabil pastell-färg per person (för avatar-cirkel)
+const colorFromString = (s: string): { bg: string; fg: string } => {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return { bg: `hsl(${h} 70% 88%)`, fg: `hsl(${h} 55% 28%)` };
+};
+
+// Fallback för tomma titlar — använd subtitle eller targetLabel om title är tom
+const blockDisplayTitle = (b: GanttBlock, defaultLabel: string): string => {
+  const t = (b.title ?? '').trim();
+  if (t) return t;
+  const sub = (b.subtitle ?? '').trim();
+  if (sub) return sub;
+  return defaultLabel;
+};
+
 // ── Block kind → visual style ──────────────────────────────────────────────
 type GanttKind = 'work' | 'warehouse' | 'rig' | 'rigdown' | 'transport' | 'review' | 'unknown' | 'break' | 'pre_work';
 const KIND_STYLE: Record<
@@ -930,26 +953,25 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         </div>
       )}
 
-      {/* Calendar main surface — HORISONTAL tidsaxel, personal som rader (matchar Personalkalendern) */}
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      {/* Calendar main surface — modern timeline 2030 */}
+      <div className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-card to-muted/10 shadow-[0_2px_24px_-8px_hsl(var(--foreground)/0.08)]">
         {isLoading ? (
           <div className="space-y-2 p-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full rounded-md" />
+              <Skeleton key={i} className="h-14 w-full rounded-xl" />
             ))}
           </div>
         ) : ganttStaff.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">
+          <div className="py-16 text-center text-sm text-muted-foreground">
             Ingen aktivitet att visa för {dateLabel.toLowerCase()}.
           </div>
         ) : (
           (() => {
-            const NAME_COL_PX = 200;
-            const HOUR_PX = 80;        // bredd per timme i px
-            const ROW_PX = 64;         // radhöjd
+            const NAME_COL_PX = 240;
+            const HOUR_PX = 88;
+            const ROW_PX = 72;
             const timelineWidth = totalHours * HOUR_PX;
 
-            // Hjälpfunktion: räkna ut left/width för ett block
             const blockGeometry = (b: GanttBlock) => {
               const sH = hourOfDay(b.startAt, dateStr);
               const eH = hourOfDay(b.endAt, dateStr);
@@ -957,7 +979,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
               const clampedE = Math.max(startHour, Math.min(endHour, eH));
               if (clampedE <= clampedS) return null;
               const left = (clampedS - startHour) * HOUR_PX;
-              const width = Math.max(48, (clampedE - clampedS) * HOUR_PX);
+              const width = Math.max(56, (clampedE - clampedS) * HOUR_PX);
               return { left, width };
             };
 
@@ -966,115 +988,165 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                 <div style={{ minWidth: NAME_COL_PX + timelineWidth }}>
                   {/* Header-rad: "Personal" + timmar */}
                   <div
-                    className="sticky top-0 z-30 flex border-b bg-card"
-                    style={{ height: 44 }}
+                    className="sticky top-0 z-30 flex border-b border-border/60 bg-card/95 backdrop-blur-md"
+                    style={{ height: 52 }}
                   >
                     <div
-                      className="sticky left-0 z-40 flex flex-col justify-center border-r bg-card px-3"
+                      className="sticky left-0 z-40 flex flex-col justify-center border-r border-border/60 bg-card/95 px-4 backdrop-blur-md"
                       style={{ width: NAME_COL_PX, minWidth: NAME_COL_PX }}
                     >
-                      <div className="text-[12px] font-semibold leading-none">Personal</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                      <div className="text-[13px] font-semibold tracking-tight">Personal</div>
+                      <div className="text-[10.5px] text-muted-foreground/80 mt-0.5">
                         {ganttStaff.length} personer
                       </div>
                     </div>
-                    <div className="relative" style={{ width: timelineWidth, height: 44 }}>
-                      {hours.slice(0, -1).map((h, i) => (
-                        <div
-                          key={h}
-                          className="absolute top-0 bottom-0 flex items-center text-[11px] tabular-nums text-muted-foreground border-l border-border/40"
-                          style={{ left: i * HOUR_PX, width: HOUR_PX, paddingLeft: 6 }}
-                        >
-                          {String(h).padStart(2, '0')}:00
-                        </div>
-                      ))}
-                      {/* now-line marker i header */}
+                    <div className="relative" style={{ width: timelineWidth, height: 52 }}>
+                      {hours.slice(0, -1).map((h, i) => {
+                        const isLunch = h === 12;
+                        return (
+                          <div
+                            key={h}
+                            className={cn(
+                              'absolute top-0 bottom-0 flex flex-col justify-center text-[11px] tabular-nums',
+                              isLunch ? 'text-foreground/80' : 'text-muted-foreground/70',
+                            )}
+                            style={{ left: i * HOUR_PX, width: HOUR_PX, paddingLeft: 8 }}
+                          >
+                            <span className="text-[9px] uppercase tracking-wider opacity-60">
+                              {String(h).padStart(2, '0')}
+                            </span>
+                            <span className="text-[10px] opacity-50">:00</span>
+                          </div>
+                        );
+                      })}
                       {nowFrac != null && (
                         <div
-                          className="absolute top-0 bottom-0 w-px bg-emerald-500/80 z-20"
+                          className="absolute top-0 bottom-0 z-20 w-px bg-emerald-500/90"
                           style={{ left: (nowFrac / 100) * timelineWidth }}
                         >
-                          <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-emerald-500" />
+                          <div className="absolute -left-[3px] top-1 h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_hsl(var(--background))]" />
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Staff-rader */}
-                  {ganttStaff.map((staff) => {
+                  {ganttStaff.map((staff, rowIdx) => {
                     const blocks = blocksByStaff[staff.id] ?? [];
                     const live = resolveLiveStatus(staff.has_open_report, staff.latestPing);
                     const dotCls =
                       staff.planningStatus === 'workday_active' || live === 'live'
-                        ? 'bg-emerald-500 animate-pulse'
+                        ? 'bg-emerald-500'
                         : live === 'stale'
                           ? 'bg-destructive'
                           : blocks.length
                             ? 'bg-muted-foreground/40'
                             : 'bg-muted-foreground/20';
+                    const dotPulse =
+                      staff.planningStatus === 'workday_active' || live === 'live';
+                    const initials = getInitials(staff.name);
+                    const ac = colorFromString(staff.id || staff.name);
+                    const zebra = rowIdx % 2 === 1;
 
                     return (
                       <div
                         key={staff.id}
-                        className="flex border-b hover:bg-muted/20"
+                        className={cn(
+                          'group flex border-b border-border/40 transition-colors',
+                          zebra ? 'bg-muted/[0.04]' : 'bg-transparent',
+                          'hover:bg-primary/[0.03]',
+                        )}
                         style={{ height: ROW_PX }}
                       >
                         {/* Namn-kolumn (sticky left) */}
                         <button
                           type="button"
                           onClick={() => setOpenStaffId(staff.id)}
-                          className="sticky left-0 z-20 flex flex-col justify-center border-r bg-card px-3 text-left hover:bg-muted/40"
+                          className={cn(
+                            'sticky left-0 z-20 flex items-center gap-3 border-r border-border/40 px-3 text-left transition-colors',
+                            zebra ? 'bg-card/95' : 'bg-card/90',
+                            'backdrop-blur group-hover:bg-card',
+                          )}
                           style={{ width: NAME_COL_PX, minWidth: NAME_COL_PX }}
                           title={staff.plannedLabels.join(' · ') || staff.role || ''}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className={cn('h-2 w-2 shrink-0 rounded-full', dotCls)} />
-                            <span className="truncate text-[13px] font-semibold">{staff.name}</span>
+                          {/* Avatar */}
+                          <div className="relative shrink-0">
+                            <div
+                              className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold tracking-wide ring-1 ring-inset ring-foreground/5"
+                              style={{ backgroundColor: ac.bg, color: ac.fg }}
+                            >
+                              {initials}
+                            </div>
+                            <span
+                              className={cn(
+                                'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-card',
+                                dotCls,
+                                dotPulse && 'animate-pulse',
+                              )}
+                            />
                           </div>
-                          <div className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
-                            {staff.plannedLabels[0] ?? staff.role ?? '—'}
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
-                            <span>
-                              <span className="font-semibold text-foreground">
-                                {fmtMin(staff.metrics.activityMinutes)}
-                              </span>{' '}
-                              arbete
-                            </span>
-                            {staff.metrics.travelMinutes > 0 && (
-                              <span className="text-blue-600 dark:text-blue-400">
-                                {fmtMin(staff.metrics.travelMinutes)} resa
+                          {/* Namn + meta */}
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[13px] font-semibold leading-tight">
+                              {staff.name}
+                            </div>
+                            <div className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
+                              {staff.plannedLabels[0] ?? staff.role ?? '—'}
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
+                              <span>
+                                <span className="font-semibold text-foreground">
+                                  {fmtMin(staff.metrics.activityMinutes)}
+                                </span>{' '}
+                                arbete
                               </span>
-                            )}
+                              {staff.metrics.travelMinutes > 0 && (
+                                <span className="text-sky-600 dark:text-sky-400">
+                                  {fmtMin(staff.metrics.travelMinutes)} resa
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </button>
 
                         {/* Timeline-cell */}
                         <div
-                          className="relative bg-background"
+                          className="relative"
                           style={{ width: timelineWidth, height: ROW_PX }}
                           onClick={() => setOpenStaffId(staff.id)}
                         >
-                          {/* timrutnät */}
+                          {/* timrutnät — luftigare */}
                           {Array.from({ length: totalHours }).map((_, i) => (
                             <div
                               key={i}
                               className={cn(
                                 'absolute top-0 bottom-0 border-l',
-                                i === 0 ? 'border-transparent' : 'border-border/30',
+                                i === 0 ? 'border-transparent' : 'border-border/25',
                               )}
                               style={{ left: i * HOUR_PX }}
                             />
                           ))}
+                          {/* lunch-shade */}
+                          {(() => {
+                            const lunchIdx = 12 - startHour;
+                            if (lunchIdx < 0 || lunchIdx >= totalHours) return null;
+                            return (
+                              <div
+                                className="absolute top-0 bottom-0 bg-foreground/[0.015]"
+                                style={{ left: lunchIdx * HOUR_PX, width: HOUR_PX }}
+                              />
+                            );
+                          })()}
                           {/* now-line */}
                           {nowFrac != null && (
                             <div
-                              className="absolute top-0 bottom-0 w-px bg-emerald-500/80 z-10"
+                              className="absolute top-0 bottom-0 z-10 w-px bg-emerald-500/80"
                               style={{ left: (nowFrac / 100) * timelineWidth }}
                             />
                           )}
 
-                          {/* Block — lane-packing (vertikalt staplade när de överlappar) */}
+                          {/* Block — lane-packing */}
                           {(() => {
                             const rects: Array<{
                               b: GanttBlock;
@@ -1147,9 +1219,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             return rects.map(({ b, left, width, lane, laneCount }) => {
                               const style = KIND_STYLE[b.kind];
                               const overlapping = overlapsPrev.has(b.id);
-                              const laneHeight = (ROW_PX - 8) / laneCount;
-                              const top = 4 + lane * laneHeight;
-                              const showTime = width >= 110;
+                              const laneHeight = (ROW_PX - 10) / laneCount;
+                              const top = 5 + lane * laneHeight;
+                              const showTime = width >= 130 && laneHeight >= 30;
+                              const displayTitle = blockDisplayTitle(
+                                b,
+                                b.isNightGpsOnly ? 'GPS-natt' : style.label,
+                              );
                               return (
                                 <div
                                   key={b.id}
@@ -1160,50 +1236,45 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     setSelectedBlock({ staffId: staff.id, blockId: b.id });
                                   }}
                                   className={cn(
-                                    'absolute cursor-pointer overflow-hidden rounded-md border px-2 py-1 text-[11px] leading-tight transition-transform hover:scale-[1.01] hover:z-20',
+                                    'absolute cursor-pointer overflow-hidden rounded-xl border px-2.5 py-1.5 text-[11px] leading-tight backdrop-blur-[2px] transition-all hover:-translate-y-px hover:shadow-md hover:z-20',
                                     b.isNightGpsOnly
-                                      ? 'bg-muted/30 border-dashed border-border/60 opacity-60'
+                                      ? 'bg-muted/40 border-dashed border-border/60 opacity-60'
                                       : style.bg,
                                     !b.isNightGpsOnly && style.border,
                                     overlapping && 'ring-1 ring-amber-400/70',
                                   )}
                                   style={{
-                                    left: left + 1,
-                                    width: Math.max(40, width - 2),
+                                    left: left + 2,
+                                    width: Math.max(40, width - 4),
                                     top,
-                                    height: laneHeight - 2,
-                                    color: '#000000',
-                                    boxShadow: '0 1px 2px hsl(var(--foreground) / 0.08)',
+                                    height: laneHeight - 3,
+                                    color: '#0a0a0a',
+                                    boxShadow: '0 1px 3px hsl(var(--foreground) / 0.06), inset 0 1px 0 hsl(0 0% 100% / 0.5)',
                                   }}
                                   title={
                                     b.isNightGpsOnly
                                       ? `GPS-spår 00:00–05:00 utan tidrapport eller manuell timer.\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`
-                                      : `${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`
+                                      : `${displayTitle}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`
                                   }
                                 >
                                   <div className="flex items-center gap-1.5">
                                     <span
-                                      className="text-[8px] font-bold uppercase tracking-wider rounded px-1 py-px shrink-0"
+                                      className="shrink-0 rounded-[5px] px-1.5 py-px text-[8.5px] font-bold uppercase tracking-[0.06em]"
                                       style={{
                                         backgroundColor: b.isNightGpsOnly
                                           ? 'hsl(var(--muted) / 0.7)'
-                                          : 'hsl(var(--primary) / 0.18)',
+                                          : 'hsl(0 0% 0% / 0.08)',
                                         color: b.isNightGpsOnly
                                           ? 'hsl(var(--muted-foreground))'
-                                          : 'hsl(var(--primary))',
+                                          : 'hsl(0 0% 12%)',
                                       }}
                                     >
                                       {b.isNightGpsOnly ? 'GPS-natt' : style.label}
                                     </span>
-                                    <span className="font-semibold truncate" style={{ color: '#000' }}>
-                                      {b.title}
-                                    </span>
+                                    <span className="truncate font-semibold">{displayTitle}</span>
                                   </div>
-                                  {showTime && laneHeight >= 36 && (
-                                    <div
-                                      className="text-[10px] tabular-nums mt-0.5 truncate"
-                                      style={{ color: '#000' }}
-                                    >
+                                  {showTime && (
+                                    <div className="mt-0.5 truncate text-[10px] tabular-nums opacity-80">
                                       {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} ·{' '}
                                       {fmtMin(b.durationMinutes)}
                                     </div>
@@ -1213,10 +1284,15 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             });
                           })()}
 
+                          {/* Tom rad — diskret stippel istället för "Ingen aktivitet" */}
                           {blocks.length === 0 && (
-                            <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground/50">
-                              Ingen aktivitet
-                            </div>
+                            <div
+                              className="pointer-events-none absolute left-0 right-0 top-1/2 h-px -translate-y-1/2"
+                              style={{
+                                backgroundImage:
+                                  'repeating-linear-gradient(to right, hsl(var(--muted-foreground) / 0.18) 0 4px, transparent 4px 10px)',
+                              }}
+                            />
                           )}
                         </div>
                       </div>
@@ -1230,8 +1306,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       </div>
 
       {/* Fas-legend (matchar personalkalendern) */}
-      <div className="rounded-xl border bg-card px-3 py-2 text-[11px] flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-        <span className="font-semibold text-foreground mr-1">FAS</span>
+      <div className="rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-[11px] flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground backdrop-blur">
+        <span className="font-semibold tracking-wider text-foreground/80 mr-1">FAS</span>
         <LegendDot className="bg-[#F2FCE2] border-[#C9E8A8]" label="Rigg" />
         <LegendDot className="bg-slate-300/70 border-slate-400" label="Arbete" />
         <LegendDot className="bg-[#FFDEE2] border-[#F4B4BC]" label="Rigga ner" />
