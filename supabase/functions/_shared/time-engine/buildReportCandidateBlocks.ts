@@ -2988,60 +2988,19 @@ export function buildReportCandidateBlocks(
         out.length = 0;
         out.push(...filtered);
 
-        // Lägg in / behåll exakt ETT "Jag är hemma"-block.
-        const homeStartIso = new Date(stay.startMs).toISOString();
-        const homeEndIso = new Date(stay.endMs).toISOString();
-        const homeDur = Math.max(1, Math.round((stay.endMs - stay.startMs) / 60_000));
-        // Ta bort ev. äldre private-residence-noteringar i out.
+        // Produktregel: privata/home-zoner är diagnostik/råevidens, aldrig
+        // synliga kandidatblock i admin-kalendern. Vi suppressar därför all
+        // tidigare private_residence_status-rad om någon äldre cache skulle ha
+        // råkat lägga in den, men skapar ingen ny synlig "Jag är hemma"-rad.
         for (let k = out.length - 1; k >= 0; k--) {
           const r = out[k];
-          if ((r.reviewReasons ?? []).includes('private_residence_status')) {
+          if (
+            r.targetType === 'private_residence' ||
+            (r.reviewReasons ?? []).includes('private_residence_status')
+          ) {
             out.splice(k, 1);
           }
         }
-        out.push({
-          id: '',
-          kind: 'needs_review', // bibehåller typkontrakt; reviewState='ok' + title styr UI
-          startAt: homeStartIso,
-          endAt: homeEndIso,
-          durationMinutes: homeDur,
-          durationLabel: fmtDuration(homeDur),
-          title: 'Jag är hemma',
-          subtitle: stay.isOngoing
-            ? `${fmtClock(homeStartIso)}– pågår · ${fmtDuration(homeDur)}`
-            : `${fmtClock(homeStartIso)}–${fmtClock(homeEndIso)} · ${fmtDuration(homeDur)}`,
-          targetType: 'private_residence',
-          targetId: stay.targetId,
-          targetLabel: stay.label || 'Hemma',
-          fromLabel: null,
-          toLabel: null,
-          confidence: 'high',
-          reviewState: 'ok',
-          // 'private_residence' finns i HARD_SESSION_BREAK_REASONS i
-          // consolidateReportBlocksIntoSessions → blocket kan aldrig
-          // absorberas in i FA Warehouse / work-session.
-          reviewReasons: ['private_residence_status', 'private_residence'],
-          warningLabel: stay.isOngoing ? 'Pågår – hemma' : null,
-          evidenceSummary: {
-            confirmedMinutes: 0,
-            probableMinutes: 0,
-            signalGapMinutes: 0,
-            transportMinutes: 0,
-            unknownMinutes: 0,
-            presenceBlockCount: stay.sourcePresenceBlockIds.length,
-            suppressedSignalGapBlockCount: 0,
-            suppressedUnknownBlockCount: 0,
-            suppressedZeroLengthBlockCount: 0,
-          },
-          sourcePresenceBlockIds: stay.sourcePresenceBlockIds,
-          hiddenSignalGapIds: [],
-          hiddenPresenceBlockIds: stay.sourcePresenceBlockIds,
-          signalGapMinutes: 0,
-          firstConfirmedAt: null,
-          lastConfirmedAt: null,
-          isOngoing: stay.isOngoing,
-        });
-        out.sort((a, b) => a.startAt.localeCompare(b.startAt));
       }
 
       privateResidenceStatusDiag = {

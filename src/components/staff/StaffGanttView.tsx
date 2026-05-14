@@ -287,8 +287,24 @@ const blocksFromStaff = (
     };
 
     let nightGpsOnlySuppressedCount = 0;
+    let privateHomeBlocksSuppressedCount = 0;
+
+    const isPrivateHomeBlock = (b: ReportCandidateBlockUI & { reviewReasons?: string[]; warningLabel?: string | null; title?: string | null; targetLabel?: string | null }) => {
+      const reasons = Array.isArray((b as any).reviewReasons) ? (b as any).reviewReasons : [];
+      const hay = `${b.title ?? ''} ${b.targetLabel ?? ''} ${(b as any).warningLabel ?? ''}`.toLowerCase();
+      return b.targetType === 'private_residence'
+        || reasons.includes('private_residence')
+        || reasons.includes('private_residence_status')
+        || reasons.includes('home_private_conflict')
+        || /\bjag är hemma\b|\bhemma\b|\bprivat zon\b|\bprivate residence\b/.test(hay);
+    };
 
     const processBlock = (b: ReportCandidateBlockUI, isPreWork: boolean) => {
+      if (isPrivateHomeBlock(b as any)) {
+        privateHomeBlocksSuppressedCount += 1;
+        return;
+      }
+
       const resolution = resolveActualLocationTargetForBlock({
         block: b as any,
         plannedLabels: staff.plannedLabels ?? [],
@@ -348,13 +364,14 @@ const blocksFromStaff = (
     for (const b of candidate) processBlock(b, false);
     if (excludedPreWork) for (const b of excludedPreWork) processBlock(b, true);
 
-    if ((labelDiagnostics.unknownKeptCount > 0 || nightGpsOnlySuppressedCount > 0)
+    if ((labelDiagnostics.unknownKeptCount > 0 || nightGpsOnlySuppressedCount > 0 || privateHomeBlocksSuppressedCount > 0)
         && typeof console !== 'undefined') {
       // eslint-disable-next-line no-console
       console.warn('[Gantt 3.9] actualVsPlanned + nightGuard', {
         staff: staff.name,
         ...labelDiagnostics,
         nightGpsOnlySuppressedCount,
+        privateHomeBlocksSuppressedCount,
       });
     }
     return out;
