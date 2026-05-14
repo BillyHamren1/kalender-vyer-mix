@@ -43,6 +43,10 @@ import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
 import type { ActualStaffDayModel } from '@/lib/staff/actualStaffDayModel';
 import type { ReportCandidateBlockUI, ReportCandidateSummaryUI } from './ReportCandidateTimeline';
 import { resolveActualLocationTargetForBlock } from '@/lib/staff/resolveActualLocationTarget';
+import {
+  classifyNightGpsOnly,
+  type NightGuardEvidence,
+} from '@/lib/staff/nightGpsOnlyGuard';
 import { EvidencePanel } from './ReportCandidateTimeline';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -173,6 +177,9 @@ interface GanttBlock {
   isOpen?: boolean;
   /** Liten "Planerat: X"-badge när engine resolved en annan/okänd plats. */
   plannedBadgeLabel?: string | null;
+  /** True om blocket bara är nattliga GPS-pings utan TR/LTE/manuell workday
+   *  bakom sig. Renderas dämpat och räknas inte som arbete. */
+  isNightGpsOnly?: boolean;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
