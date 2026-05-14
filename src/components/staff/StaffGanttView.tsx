@@ -930,12 +930,12 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         </div>
       )}
 
-      {/* Calendar main surface — vertical time axis, staff as columns */}
+      {/* Calendar main surface — HORISONTAL tidsaxel, personal som rader (matchar Personalkalendern) */}
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 w-full rounded-md" />
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-md" />
             ))}
           </div>
         ) : ganttStaff.length === 0 ? (
@@ -944,26 +944,63 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
           </div>
         ) : (
           (() => {
-            const SLOT_PX = 25;
-            const HOUR_PX = SLOT_PX * 2;
-            const COL_MIN = 95;
-            const RAIL_PX = 28;
-            const bodyHeight = totalHours * HOUR_PX;
+            const NAME_COL_PX = 200;
+            const HOUR_PX = 80;        // bredd per timme i px
+            const ROW_PX = 64;         // radhöjd
+            const timelineWidth = totalHours * HOUR_PX;
+
+            // Hjälpfunktion: räkna ut left/width för ett block
+            const blockGeometry = (b: GanttBlock) => {
+              const sH = hourOfDay(b.startAt, dateStr);
+              const eH = hourOfDay(b.endAt, dateStr);
+              const clampedS = Math.max(startHour, Math.min(endHour, sH));
+              const clampedE = Math.max(startHour, Math.min(endHour, eH));
+              if (clampedE <= clampedS) return null;
+              const left = (clampedS - startHour) * HOUR_PX;
+              const width = Math.max(48, (clampedE - clampedS) * HOUR_PX);
+              return { left, width };
+            };
+
             return (
               <div className="overflow-auto overscroll-contain max-h-[calc(100vh-180px)]">
-                <div
-                  className="relative grid bg-background"
-                  style={{
-                    gridTemplateColumns: `${RAIL_PX}px repeat(${ganttStaff.length}, minmax(${COL_MIN}px, 1fr))`,
-                    minWidth: RAIL_PX + ganttStaff.length * COL_MIN,
-                  }}
-                >
-                  {/* Top-left corner */}
-                  <div className="sticky top-0 z-30 border-b border-r bg-card px-1.5 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Tid
+                <div style={{ minWidth: NAME_COL_PX + timelineWidth }}>
+                  {/* Header-rad: "Personal" + timmar */}
+                  <div
+                    className="sticky top-0 z-30 flex border-b bg-card"
+                    style={{ height: 44 }}
+                  >
+                    <div
+                      className="sticky left-0 z-40 flex flex-col justify-center border-r bg-card px-3"
+                      style={{ width: NAME_COL_PX, minWidth: NAME_COL_PX }}
+                    >
+                      <div className="text-[12px] font-semibold leading-none">Personal</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {ganttStaff.length} personer
+                      </div>
+                    </div>
+                    <div className="relative" style={{ width: timelineWidth, height: 44 }}>
+                      {hours.slice(0, -1).map((h, i) => (
+                        <div
+                          key={h}
+                          className="absolute top-0 bottom-0 flex items-center text-[11px] tabular-nums text-muted-foreground border-l border-border/40"
+                          style={{ left: i * HOUR_PX, width: HOUR_PX, paddingLeft: 6 }}
+                        >
+                          {String(h).padStart(2, '0')}:00
+                        </div>
+                      ))}
+                      {/* now-line marker i header */}
+                      {nowFrac != null && (
+                        <div
+                          className="absolute top-0 bottom-0 w-px bg-emerald-500/80 z-20"
+                          style={{ left: (nowFrac / 100) * timelineWidth }}
+                        >
+                          <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-emerald-500" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Staff column headers */}
+                  {/* Staff-rader */}
                   {ganttStaff.map((staff) => {
                     const blocks = blocksByStaff[staff.id] ?? [];
                     const live = resolveLiveStatus(staff.has_open_report, staff.latestPing);
@@ -975,276 +1012,213 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                           : blocks.length
                             ? 'bg-muted-foreground/40'
                             : 'bg-muted-foreground/20';
+
                     return (
-                      <button
-                        key={`h-${staff.id}`}
-                        type="button"
-                        onClick={() => setOpenStaffId(staff.id)}
-                        className="sticky top-0 z-20 flex flex-col items-start gap-0.5 border-b border-r bg-card px-2 py-2 text-left hover:bg-muted/40"
-                        title={staff.plannedLabels.join(' · ') || staff.role || ''}
+                      <div
+                        key={staff.id}
+                        className="flex border-b hover:bg-muted/20"
+                        style={{ height: ROW_PX }}
                       >
-                        <div className="flex w-full items-center gap-2">
-                          <span className={cn('h-2 w-2 shrink-0 rounded-full', dotCls)} />
-                          <span className="truncate text-[13px] font-semibold">{staff.name}</span>
-                        </div>
-                        <div className="flex w-full items-center gap-2 text-[10.5px] tabular-nums text-muted-foreground">
-                          <span>
-                            <span className="font-semibold text-foreground">{fmtMin(staff.metrics.activityMinutes)}</span> arbete
-                          </span>
-                          {staff.metrics.travelMinutes > 0 && (
-                            <span className="text-blue-600 dark:text-blue-400">
-                              {fmtMin(staff.metrics.travelMinutes)} resa
+                        {/* Namn-kolumn (sticky left) */}
+                        <button
+                          type="button"
+                          onClick={() => setOpenStaffId(staff.id)}
+                          className="sticky left-0 z-20 flex flex-col justify-center border-r bg-card px-3 text-left hover:bg-muted/40"
+                          style={{ width: NAME_COL_PX, minWidth: NAME_COL_PX }}
+                          title={staff.plannedLabels.join(' · ') || staff.role || ''}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={cn('h-2 w-2 shrink-0 rounded-full', dotCls)} />
+                            <span className="truncate text-[13px] font-semibold">{staff.name}</span>
+                          </div>
+                          <div className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
+                            {staff.plannedLabels[0] ?? staff.role ?? '—'}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
+                            <span>
+                              <span className="font-semibold text-foreground">
+                                {fmtMin(staff.metrics.activityMinutes)}
+                              </span>{' '}
+                              arbete
                             </span>
+                            {staff.metrics.travelMinutes > 0 && (
+                              <span className="text-blue-600 dark:text-blue-400">
+                                {fmtMin(staff.metrics.travelMinutes)} resa
+                              </span>
+                            )}
+                          </div>
+                        </button>
+
+                        {/* Timeline-cell */}
+                        <div
+                          className="relative bg-background"
+                          style={{ width: timelineWidth, height: ROW_PX }}
+                          onClick={() => setOpenStaffId(staff.id)}
+                        >
+                          {/* timrutnät */}
+                          {Array.from({ length: totalHours }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                'absolute top-0 bottom-0 border-l',
+                                i === 0 ? 'border-transparent' : 'border-border/30',
+                              )}
+                              style={{ left: i * HOUR_PX }}
+                            />
+                          ))}
+                          {/* now-line */}
+                          {nowFrac != null && (
+                            <div
+                              className="absolute top-0 bottom-0 w-px bg-emerald-500/80 z-10"
+                              style={{ left: (nowFrac / 100) * timelineWidth }}
+                            />
+                          )}
+
+                          {/* Block — lane-packing (vertikalt staplade när de överlappar) */}
+                          {(() => {
+                            const rects: Array<{
+                              b: GanttBlock;
+                              left: number;
+                              width: number;
+                              startMs: number;
+                              endMs: number;
+                              lane: number;
+                              laneCount: number;
+                            }> = [];
+                            for (const b of blocks) {
+                              const g = blockGeometry(b);
+                              if (!g) continue;
+                              rects.push({
+                                b,
+                                left: g.left,
+                                width: g.width,
+                                startMs: Date.parse(b.startAt),
+                                endMs: Date.parse(b.endAt),
+                                lane: 0,
+                                laneCount: 1,
+                              });
+                            }
+                            rects.sort((a, b) =>
+                              a.startMs !== b.startMs
+                                ? a.startMs - b.startMs
+                                : (a.endMs - a.startMs) - (b.endMs - b.startMs),
+                            );
+
+                            const overlapsPrev = new Set<string>();
+                            let group: typeof rects = [];
+                            let groupEnd = -Infinity;
+                            const flushGroup = () => {
+                              if (group.length === 0) return;
+                              const laneEnds: number[] = [];
+                              for (const r of group) {
+                                let placed = false;
+                                for (let li = 0; li < laneEnds.length; li++) {
+                                  if (r.startMs >= laneEnds[li]) {
+                                    r.lane = li;
+                                    laneEnds[li] = r.endMs;
+                                    placed = true;
+                                    break;
+                                  }
+                                }
+                                if (!placed) {
+                                  r.lane = laneEnds.length;
+                                  laneEnds.push(r.endMs);
+                                }
+                              }
+                              const laneCount = laneEnds.length;
+                              for (const r of group) r.laneCount = laneCount;
+                              group = [];
+                            };
+                            for (const r of rects) {
+                              if (r.startMs >= groupEnd) {
+                                flushGroup();
+                                groupEnd = r.endMs;
+                              } else {
+                                groupEnd = Math.max(groupEnd, r.endMs);
+                                for (const g of group) {
+                                  overlapsPrev.add(g.b.id);
+                                  overlapsPrev.add(r.b.id);
+                                }
+                              }
+                              group.push(r);
+                            }
+                            flushGroup();
+
+                            return rects.map(({ b, left, width, lane, laneCount }) => {
+                              const style = KIND_STYLE[b.kind];
+                              const overlapping = overlapsPrev.has(b.id);
+                              const laneHeight = (ROW_PX - 8) / laneCount;
+                              const top = 4 + lane * laneHeight;
+                              const showTime = width >= 110;
+                              return (
+                                <div
+                                  key={b.id}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedBlock({ staffId: staff.id, blockId: b.id });
+                                  }}
+                                  className={cn(
+                                    'absolute cursor-pointer overflow-hidden rounded-md border px-2 py-1 text-[11px] leading-tight transition-transform hover:scale-[1.01] hover:z-20',
+                                    b.isNightGpsOnly
+                                      ? 'bg-muted/30 border-dashed border-border/60 opacity-60'
+                                      : style.bg,
+                                    !b.isNightGpsOnly && style.border,
+                                    overlapping && 'ring-1 ring-amber-400/70',
+                                  )}
+                                  style={{
+                                    left: left + 1,
+                                    width: Math.max(40, width - 2),
+                                    top,
+                                    height: laneHeight - 2,
+                                    color: '#000000',
+                                    boxShadow: '0 1px 2px hsl(var(--foreground) / 0.08)',
+                                  }}
+                                  title={
+                                    b.isNightGpsOnly
+                                      ? `GPS-spår 00:00–05:00 utan tidrapport eller manuell timer.\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`
+                                      : `${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`
+                                  }
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <span
+                                      className="text-[8px] font-bold uppercase tracking-wider rounded px-1 py-px shrink-0"
+                                      style={{
+                                        backgroundColor: b.isNightGpsOnly
+                                          ? 'hsl(var(--muted) / 0.7)'
+                                          : 'hsl(var(--primary) / 0.18)',
+                                        color: b.isNightGpsOnly
+                                          ? 'hsl(var(--muted-foreground))'
+                                          : 'hsl(var(--primary))',
+                                      }}
+                                    >
+                                      {b.isNightGpsOnly ? 'GPS-natt' : style.label}
+                                    </span>
+                                    <span className="font-semibold truncate" style={{ color: '#000' }}>
+                                      {b.title}
+                                    </span>
+                                  </div>
+                                  {showTime && laneHeight >= 36 && (
+                                    <div
+                                      className="text-[10px] tabular-nums mt-0.5 truncate"
+                                      style={{ color: '#000' }}
+                                    >
+                                      {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} ·{' '}
+                                      {fmtMin(b.durationMinutes)}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            });
+                          })()}
+
+                          {blocks.length === 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground/50">
+                              Ingen aktivitet
+                            </div>
                           )}
                         </div>
-                        <div className="w-full truncate text-[10px] text-muted-foreground/80">
-                          {staff.plannedLabels[0] ?? staff.role ?? '—'}
-                        </div>
-                      </button>
-                    );
-                  })}
-
-                  {/* Hour rail (lives in grid column 1, not sticky horizontally so it doesn't overlay blocks) */}
-                    <div
-                      className="relative border-r bg-muted/15"
-                    style={{ height: bodyHeight }}
-                  >
-                    {hours.slice(0, -1).map((h, i) => (
-                      <div
-                        key={h}
-                        className="relative text-[10px] tabular-nums text-muted-foreground border-b border-border/30"
-                        style={{ height: HOUR_PX }}
-                      >
-                        <span className="absolute top-1 right-1.5 font-medium">
-                          {String(h).padStart(2, '0')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Staff columns body */}
-                  {ganttStaff.map((staff) => {
-                    const blocks = blocksByStaff[staff.id] ?? [];
-                    return (
-                      <div
-                        key={`b-${staff.id}`}
-                        className="relative border-r bg-background"
-                        style={{ height: bodyHeight }}
-                        onClick={() => setOpenStaffId(staff.id)}
-                      >
-                        {/* hour grid lines */}
-                        {Array.from({ length: totalHours }).map((_, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              'absolute left-0 right-0 border-t',
-                              i === 0 ? 'border-transparent' : 'border-border/40',
-                            )}
-                            style={{ top: i * HOUR_PX }}
-                          />
-                        ))}
-                        {/* half-hour subtle lines */}
-                        {Array.from({ length: totalHours }).map((_, i) => (
-                          <div
-                            key={`half-${i}`}
-                            className="absolute left-0 right-0 border-t border-dashed border-border/20"
-                            style={{ top: i * HOUR_PX + HOUR_PX / 2 }}
-                          />
-                        ))}
-
-                        {/* now line */}
-                        {nowFrac != null && (
-                          <div
-                            className="absolute left-0 right-0 z-10 h-px bg-emerald-500/80"
-                            style={{ top: (nowFrac / 100) * bodyHeight }}
-                          >
-                            <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-emerald-500" />
-                          </div>
-                        )}
-
-                        {/* blocks — en person kan ALDRIG vara på två ställen samtidigt.
-                            Time Engine 2.12: enforceSingleVisibleTimeline garanterar att
-                            blocken aldrig överlappar. Vi renderar ALLTID full bredd —
-                            inga sub-lanes. Om överlapp ändå smyger sig in markeras blocket
-                            med en diskret amber ring som diagnostic warning. */}
-                        {(() => {
-                          // 1) Räkna fram screen-rects och hoppa över block utanför fönstret.
-                          const rects: Array<{
-                            b: typeof blocks[number];
-                            top: number;
-                            height: number;
-                            startMs: number;
-                            endMs: number;
-                            lane: number;
-                            laneCount: number;
-                          }> = [];
-                          for (const b of blocks) {
-                            const sH = hourOfDay(b.startAt, dateStr);
-                            const eH = hourOfDay(b.endAt, dateStr);
-                            const clampedS = Math.max(startHour, Math.min(endHour, sH));
-                            const clampedE = Math.max(startHour, Math.min(endHour, eH));
-                            if (clampedE <= clampedS) continue;
-                            const top = (clampedS - startHour) * HOUR_PX;
-                            const height = Math.max(20, (clampedE - clampedS) * HOUR_PX);
-                            rects.push({
-                              b,
-                              top,
-                              height,
-                              startMs: Date.parse(b.startAt),
-                              endMs: Date.parse(b.endAt),
-                              lane: 0,
-                              laneCount: 1,
-                            });
-                          }
-                          rects.sort((a, b) =>
-                            a.startMs !== b.startMs
-                              ? a.startMs - b.startMs
-                              : (a.endMs - a.startMs) - (b.endMs - b.startMs),
-                          );
-
-                          // 2) Lane-assignment (FullCalendar-stil): grupp av överlappande
-                          // block delar bredden i parallella kolumner. Diagnostic warning
-                          // loggas fortfarande, men visuellt mangelar inget ihop sig.
-                          const overlapsPrev = new Set<string>();
-                          let group: typeof rects = [];
-                          let groupEnd = -Infinity;
-                          const flushGroup = () => {
-                            if (group.length === 0) return;
-                            // Greedy lane packing inom gruppen
-                            const laneEnds: number[] = [];
-                            for (const r of group) {
-                              let placed = false;
-                              for (let li = 0; li < laneEnds.length; li++) {
-                                if (r.startMs >= laneEnds[li]) {
-                                  r.lane = li;
-                                  laneEnds[li] = r.endMs;
-                                  placed = true;
-                                  break;
-                                }
-                              }
-                              if (!placed) {
-                                r.lane = laneEnds.length;
-                                laneEnds.push(r.endMs);
-                              }
-                            }
-                            const laneCount = laneEnds.length;
-                            for (const r of group) r.laneCount = laneCount;
-                            group = [];
-                          };
-                          for (const r of rects) {
-                            if (r.startMs >= groupEnd) {
-                              flushGroup();
-                              groupEnd = r.endMs;
-                            } else {
-                              groupEnd = Math.max(groupEnd, r.endMs);
-                              // markera diagnostic — gruppen har ≥2 block
-                              for (const g of group) {
-                                overlapsPrev.add(g.b.id);
-                                overlapsPrev.add(r.b.id);
-                              }
-                            }
-                            group.push(r);
-                          }
-                          flushGroup();
-
-                          return rects.map(({ b, top, height, lane, laneCount }) => {
-                            const style = KIND_STYLE[b.kind];
-                            const displaySubtitle = getGanttDisplaySubtitle(b);
-                            const showSub = height >= 56;
-                            const showMeta = height >= 80 && laneCount === 1;
-                            const overlapping = overlapsPrev.has(b.id);
-                            // Smalare kolumner när block överlappar — kantöverlapp på
-                            // 4px så blocken visuellt "stackar" lite (likt personalkalendern)
-                            const GAP = 2;
-                            const OVERLAP_PX = laneCount > 1 ? 4 : 0;
-                            const colWidthPct = 100 / laneCount;
-                            const leftPct = lane * colWidthPct;
-                            return (
-                              <div
-                                key={b.id}
-                                role="button"
-                                tabIndex={0}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedBlock({ staffId: staff.id, blockId: b.id });
-                                }}
-                                className={cn(
-                                  'absolute cursor-pointer overflow-hidden rounded-[4px] border px-1.5 pt-1.5 pb-1.5 text-[11px] leading-tight transition-transform hover:scale-[1.02] hover:z-20',
-                                  b.isNightGpsOnly
-                                    ? 'bg-muted/30 border-dashed border-border/60 opacity-60'
-                                    : style.bg,
-                                  !b.isNightGpsOnly && style.border,
-                                  overlapping && 'ring-1 ring-amber-400/70',
-                                )}
-                                style={{
-                                  top,
-                                  height,
-                                  left: `calc(${leftPct}% + ${GAP}px)`,
-                                  width: `calc(${colWidthPct}% - ${GAP * 2}px + ${OVERLAP_PX}px)`,
-                                  zIndex: 5 + lane,
-                                  color: '#000000',
-                                  boxShadow: '0 1px 2px hsl(var(--foreground) / 0.08)',
-                                }}
-                                title={
-                                  b.isNightGpsOnly
-                                    ? `GPS-spår 00:00–05:00 utan tidrapport eller manuell timer.\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}\nVisas i råvy / GPS-detalj — räknas inte som arbete.`
-                                    : `${b.title}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`
-                                }
-                              >
-                                <div
-                                  className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-1 w-fit"
-                                  style={{
-                                    backgroundColor: b.isNightGpsOnly
-                                      ? 'hsl(var(--muted) / 0.7)'
-                                      : 'hsl(var(--primary) / 0.15)',
-                                    color: b.isNightGpsOnly
-                                      ? 'hsl(var(--muted-foreground))'
-                                      : 'hsl(var(--primary))',
-                                  }}
-                                >
-                                  {b.isNightGpsOnly ? 'GPS-natt' : style.label}
-                                </div>
-                                <div
-                                  className="font-bold leading-tight break-words"
-                                  style={{
-                                    color: b.isNightGpsOnly ? 'hsl(var(--muted-foreground))' : '#000000',
-                                  }}
-                                >
-                                  {b.title}
-                                </div>
-                                {b.plannedBadgeLabel && height >= 40 && (
-                                  <div
-                                    className="mt-0.5 inline-block max-w-full truncate rounded px-1 py-px text-[9px] font-medium"
-                                    style={{
-                                      backgroundColor: 'hsl(var(--muted) / 0.6)',
-                                      color: 'hsl(var(--muted-foreground))',
-                                      border: '1px dashed hsl(var(--border))',
-                                    }}
-                                    title={`Planerat enligt schemaläggning: ${b.plannedBadgeLabel}`}
-                                  >
-                                    Planerat: {b.plannedBadgeLabel}
-                                  </div>
-                                )}
-                                {showSub && (
-                                  <div className="text-[10px] tabular-nums mt-0.5 break-words" style={{ color: '#000000' }}>
-                                    {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} · {fmtMin(b.durationMinutes)}
-                                  </div>
-                                )}
-                                {showMeta && displaySubtitle && (
-                                  <div className="text-[10px] mt-0.5 truncate" style={{ color: '#000000', opacity: 0.8 }}>
-                                    {displaySubtitle}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          });
-                        })()}
-
-                        {blocks.length === 0 && (
-                          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] text-muted-foreground/60">
-                            Ingen aktivitet
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -1253,6 +1227,17 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
             );
           })()
         )}
+      </div>
+
+      {/* Fas-legend (matchar personalkalendern) */}
+      <div className="rounded-xl border bg-card px-3 py-2 text-[11px] flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+        <span className="font-semibold text-foreground mr-1">FAS</span>
+        <LegendDot className="bg-[#F2FCE2] border-[#C9E8A8]" label="Rigg" />
+        <LegendDot className="bg-slate-300/70 border-slate-400" label="Arbete" />
+        <LegendDot className="bg-[#FFDEE2] border-[#F4B4BC]" label="Rigga ner" />
+        <LegendDot className="bg-sky-200/80 border-sky-400" label="Transport" />
+        <LegendDot className="bg-[#E5DEFF] border-[#BFB1F5]" label="Lager" />
+        <LegendDot className="bg-amber-200/80 border-amber-500" label="Granska" />
       </div>
 
       {/* Detail drawer */}
@@ -1303,6 +1288,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     </div>
   );
 };
+
+const LegendDot: React.FC<{ className: string; label: string }> = ({ className, label }) => (
+  <span className="inline-flex items-center gap-1.5">
+    <span className={cn('h-2.5 w-2.5 rounded-full border', className)} />
+    <span>{label}</span>
+  </span>
+);
 
 const KPI: React.FC<{ icon?: React.ReactNode; label: string; value: string; accent?: 'emerald' | 'amber' }> = ({ icon, label, value, accent }) => (
   <span className="inline-flex items-center gap-1.5 tabular-nums">
