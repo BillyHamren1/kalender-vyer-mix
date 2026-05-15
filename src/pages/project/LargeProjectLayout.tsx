@@ -62,9 +62,19 @@ const LargeProjectLayout = () => {
   const { project, isLoading } = detail;
   const bookings = project?.bookings || [];
 
-  // Derive dates AND times directly from linked bookings (single source of
-  // truth — same data the planner calendar reads). Per-booking date arrays
-  // are unioned, deduped and sorted so what users see matches the calendar.
+  // Sibling booking ids — used to read the canonical phase days from
+  // calendar_events (same source the personalkalender renders from).
+  const siblingBookingIds = useMemo(
+    () => bookings.map(b => b.booking?.id).filter(Boolean) as string[],
+    [bookings],
+  );
+  const { days: phaseDays } = useBookingPhaseDays(siblingBookingIds);
+
+  // Times still come from booking columns (rig_start_time etc) — those are
+  // the booking-level "Fast tid" defaults. Date arrays come from
+  // calendar_events so the project header matches the personnel calendar
+  // 1:1 and ignores stale single-field values like a March eventdate on a
+  // May booking.
   const derivedTimes = useMemo(() => {
     const bs = bookings.map(b => b.booking).filter(Boolean) as any[];
     const earliest = (vals: (string | null | undefined)[]) => {
@@ -75,16 +85,8 @@ const LargeProjectLayout = () => {
       const valid = vals.filter(Boolean).map(v => v!.includes('T') ? v!.substring(11, 16) : v!.substring(0, 5)).sort();
       return valid[valid.length - 1] || null;
     };
-    const collectDates = (singleField: string, arrayField: string) => {
-      const set = new Set<string>();
-      for (const b of bs) {
-        const arr = (b?.[arrayField] as string[] | null) || [];
-        for (const d of arr) if (d) set.add(String(d).slice(0, 10));
-        const single = b?.[singleField];
-        if (single) set.add(String(single).slice(0, 10));
-      }
-      return Array.from(set).sort();
-    };
+    const uniqueSortedDates = (rows: { date: string }[]) =>
+      Array.from(new Set(rows.map(r => r.date).filter(Boolean))).sort();
     return {
       startStart: earliest(bs.map(b => b!.rig_start_time)),
       startEnd: latest(bs.map(b => b!.rig_end_time)),
@@ -92,11 +94,11 @@ const LargeProjectLayout = () => {
       eventEnd: latest(bs.map(b => b!.event_end_time)),
       endStart: earliest(bs.map(b => b!.rigdown_start_time)),
       endEnd: latest(bs.map(b => b!.rigdown_end_time)),
-      rigDates: collectDates('rigdaydate', 'rig_dates'),
-      eventDates: collectDates('eventdate', 'event_dates'),
-      rigDownDates: collectDates('rigdowndate', 'rigdown_dates'),
+      rigDates: uniqueSortedDates(phaseDays.rig),
+      eventDates: uniqueSortedDates(phaseDays.event),
+      rigDownDates: uniqueSortedDates(phaseDays.rigDown),
     };
-  }, [bookings]);
+  }, [bookings, phaseDays]);
 
 
   // Resolve project_leader UUID to name
