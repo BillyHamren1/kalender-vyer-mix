@@ -601,6 +601,7 @@ function buildGapBlock(
     confidence: 'low',
     severity: 'needs_user_review',
     warnings: ['workday_time_without_location_truth_segment'],
+    humanWarnings: buildHumanWarnings(['workday_time_without_location_truth_segment']),
     sourceAllocationSegmentIds: [],
     sourceLocationTruthSegmentIds: [],
     metadata: {
