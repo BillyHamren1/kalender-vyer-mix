@@ -482,6 +482,9 @@ function buildGapBlock(
       containsOutsideWorkday: false,
       rawAllocationWarnings: ['workday_time_without_location_truth_segment'],
       relatedProposalSegmentIds: relatedProposal ? [relatedProposal.segmentId] : [],
+      absorbedGapMinutes: 0,
+      absorbedSupplierVisits: [],
+      absorbedTravelSegments: [],
     },
   };
   const subtitle = deriveSubtitle('break_or_gap', { address: null, durationMinutes: dur });
