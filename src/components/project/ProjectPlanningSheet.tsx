@@ -428,6 +428,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                               value={day.startTime}
                               onChange={(e) => updateDay(idx, { startTime: e.target.value })}
                               className="h-8 text-sm"
+                              disabled={phaseLocked}
                             />
                           </div>
                           <div>
@@ -437,6 +438,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                               value={day.endTime}
                               onChange={(e) => updateDay(idx, { endTime: e.target.value })}
                               className="h-8 text-sm"
+                              disabled={phaseLocked}
                             />
                           </div>
                           <div>
@@ -460,7 +462,8 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
