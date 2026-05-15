@@ -15,7 +15,7 @@ import LargeProjectScheduleEditable from "@/components/project/LargeProjectSched
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { cancelProject } from "@/services/projectService";
 import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
-import { propagateProjectDatesToBookings } from "@/services/largeProjectScheduleSync";
+import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
