@@ -22,6 +22,8 @@ interface CreateTodoWizardProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   preselectedBookingId?: string | null;
+  /** When provided, dialog acts as edit form instead of create. */
+  todoId?: string | null;
 }
 
 interface BookingOption {
