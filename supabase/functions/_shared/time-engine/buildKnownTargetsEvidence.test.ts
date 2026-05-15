@@ -9,6 +9,7 @@ const DATE = "2026-05-15";
 interface Tables {
   organization_locations?: any[];
   large_projects?: any[];
+  large_project_bookings?: any[];
   projects?: any[];
   bookings?: any[];
   staff_private_zones?: any[];
