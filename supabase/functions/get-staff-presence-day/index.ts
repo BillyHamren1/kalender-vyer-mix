@@ -260,6 +260,10 @@ Deno.serve(async (req) => {
   let locationTruthSegments: any[] = [];
   let workdayAllocationDiagnostics: any = null;
   let workdayAllocationSegments: any[] = [];
+  let workdayAllocationProposals: any[] = [];
+  // Lager 3.7 — AI reviewer output (no-op default; ingen extern AI kopplad här).
+  let aiWorkdayReviewSummary: any = null;
+  let aiWorkdayReviewProposals: any[] = [];
   if (ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS) {
     try {
       const dayEvidence = await buildDayEvidence({
