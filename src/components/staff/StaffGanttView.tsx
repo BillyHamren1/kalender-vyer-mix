@@ -29,7 +29,12 @@ import { DecisionMapTab } from './DecisionMapTab';
 import { useDayPings } from '@/hooks/admin/useDayPings';
 import { useDayTimeline } from '@/hooks/admin/useDayTimeline';
 import { RawGpsDrawer } from './RawGpsDrawer';
-import { resolveGanttPhaseKind } from '@/lib/staff/ganttPhaseColor';
+import {
+  resolveGanttPhaseKind,
+  buildSessionPhaseMap,
+  sessionKeyForBlock,
+  type SessionPhaseKind,
+} from '@/lib/staff/ganttPhaseColor';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
