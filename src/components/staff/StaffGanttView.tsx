@@ -217,26 +217,47 @@ const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
   return /\b(lager|warehouse)\b/.test(hay);
 };
 
+/**
+ * Resolve fas (rig/rigdown/work|null) för EXAKT detta block — utan
+ * sessions-arv. Används både för session-map-bygget och för slutgiltig
+ * mappning. Returnerar null om ingen fas hittas.
+ */
+const resolveBlockPhaseDirect = (
+  b: ReportCandidateBlockUI,
+  bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+  largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+): SessionPhaseKind | null => {
+  const phaseKind = resolveGanttPhaseKind({
+    targetType: b.targetType,
+    targetId: b.targetId,
+    bookingPhaseByDate,
+    largeProjectPhaseByDate,
+  });
+  if (phaseKind === 'rig' || phaseKind === 'rigdown') return phaseKind;
+  if (phaseKind === 'work') return 'work';
+  const phase = detectPhase(b.title, b.subtitle);
+  if (phase) return phase;
+  return null;
+};
+
 const mapReportCandidateKind = (
   b: ReportCandidateBlockUI,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+  sessionPhaseMap?: Record<string, SessionPhaseKind>,
 ): GanttKind => {
   if (b.kind === 'work') {
     if (b.reviewState === 'needs_review') return 'review';
-    // Warehouse vinner över annan klassning — ska alltid vara lila
+    // Warehouse vinner — ska aldrig ärva projektets rig/rigdown-fas
     if (isWarehouseTarget(b)) return 'warehouse';
-    // Phase från personalkalendern (calendar_events.event_type) — sanning för fas-färg
-    const phaseKind = resolveGanttPhaseKind({
-      targetType: b.targetType,
-      targetId: b.targetId,
-      bookingPhaseByDate,
-      largeProjectPhaseByDate,
-    });
-    if (phaseKind) return phaseKind;
-    // Fallback: heuristic on title/subtitle text
-    const phase = detectPhase(b.title, b.subtitle);
-    if (phase) return phase;
+    const direct = resolveBlockPhaseDirect(b, bookingPhaseByDate, largeProjectPhaseByDate);
+    if (direct === 'rig' || direct === 'rigdown') return direct;
+    // Sessionsarv: om något syskonblock i samma session har rig/rigdown,
+    // ärver detta block samma fas i stället för att bli generic 'work'.
+    if (sessionPhaseMap) {
+      const sessionPhase = sessionPhaseMap[sessionKeyForBlock(b)];
+      if (sessionPhase === 'rig' || sessionPhase === 'rigdown') return sessionPhase;
+    }
     return 'work';
   }
   if (b.kind === 'transport') return 'transport';
