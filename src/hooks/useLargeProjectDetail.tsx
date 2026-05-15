@@ -263,11 +263,13 @@ export const useLargeProjectDetail = (projectId: string) => {
         projectUpdates[map.proj] = dates;
         if (bookingIds.length > 0) {
           propagations.push(
-            propagateProjectDatesToBookings({
-              bookingIds,
-              dateType: map.type,
-              dates,
-            })
+            writeProjectDates({
+              projectId,
+              projectType: 'large',
+              dates: { [map.type]: dates },
+            }).then((res) => {
+              if (!res.ok) throw new Error(res.error || 'apply-project-dates failed');
+            }),
           );
         }
       }
