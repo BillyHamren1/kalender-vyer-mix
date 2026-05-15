@@ -172,10 +172,20 @@ export interface KnownTargetsDiagnostics {
   supplierRowsSkippedNoSupplierMarker: number;
   /** Lager 2.12A — warnings om breda tabeller som krävde filter. */
   supplierTableRequiresFilterWarnings: string[];
+  /** Lager 2.13 — alla tabeller som faktiskt bidrog med supplier-rader. */
+  supplierTablesUsed: string[];
+  /** Lager 2.13 — tabeller som hoppades över för att de saknade säker org-koppling. */
+  supplierTablesSkippedMissingOrgScope: string[];
+  /** Lager 2.13 — antal rader som hoppades över för att de saknade org-scope. */
+  supplierRowsSkippedMissingOrgScope: number;
   supplierExamples: Array<{
+    table: string;
     targetId: string;
     label: string;
     address: string | null;
+    hasGeo: boolean;
+    hasOrgScope: boolean;
+    supplierMarkerFound: boolean;
     hasCoordinates: boolean;
     hasRadius: boolean;
     suppressedReason: KnownTargetSuppressedReason;
