@@ -15,6 +15,7 @@ interface RealCalendarEventRow {
   booking_number: string | null;
   source_date: string | null;
   times_locked?: boolean | null;
+  todo_id?: string | null;
 }
 
 interface BookingRow {
@@ -146,6 +147,7 @@ const mapRealRowToCalendarEvent = (
   const displayTitle = !project?.name && bookingTitle
     ? `${baseLabel} – ${bookingTitle}`
     : baseLabel;
+  const isTodo = row.event_type === 'todo';
   return {
     id: row.id,
     title: displayTitle,
@@ -153,18 +155,18 @@ const mapRealRowToCalendarEvent = (
     end: row.end_time,
     resourceId: row.resource_id || '',
     bookingId: row.booking_id || undefined,
-    eventType: row.event_type === 'todo' ? 'todo' : (normalizePhase(row.event_type) || undefined),
+    eventType: isTodo ? 'todo' : (normalizePhase(row.event_type) || undefined),
     delivery_address: row.delivery_address || booking?.deliveryaddress || project?.address || undefined,
-    booking_number: row.booking_number || booking?.booking_number || undefined,
-    bookingNumber: row.booking_number || booking?.booking_number || undefined,
+    booking_number: isTodo ? undefined : (row.booking_number || booking?.booking_number || undefined),
+    bookingNumber: isTodo ? undefined : (row.booking_number || booking?.booking_number || undefined),
     extendedProps: {
       bookingId: row.booking_id || undefined,
       booking_id: row.booking_id || undefined,
       resourceId: row.resource_id || undefined,
       deliveryAddress: row.delivery_address || booking?.deliveryaddress || project?.address || undefined,
-      bookingNumber: row.booking_number || booking?.booking_number || undefined,
+      bookingNumber: isTodo ? undefined : (row.booking_number || booking?.booking_number || undefined),
       bookingTitle: bookingTitle || undefined,
-      eventType: normalizePhase(row.event_type) || row.event_type,
+      eventType: isTodo ? 'todo' : (normalizePhase(row.event_type) || row.event_type),
       sourceDate: row.source_date || extractDate(row.start_time),
       largeProjectId: booking?.large_project_id || undefined,
       largeProjectName: project?.name || undefined,
@@ -172,6 +174,8 @@ const mapRealRowToCalendarEvent = (
       manuallyAssigned: false,
       timeLocked: row.times_locked === true || getBookingPhaseLock(booking, normalizePhase(row.event_type) as PlannerPhase | null),
       timesLocked: row.times_locked === true,
+      isTodo,
+      todoId: row.todo_id || undefined,
     },
   };
 };

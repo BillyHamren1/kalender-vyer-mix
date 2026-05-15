@@ -11,6 +11,7 @@ import EventHoverCard from './EventHoverCard';
 import EventActionPopover from './EventActionPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { DeleteDayButton } from './DeleteDayButton';
+import { TodoEventCard } from './TodoEventCard';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import {
   ContextMenu,
@@ -98,6 +99,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Check if booking is cancelled
   const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
   const isLocked = event.extendedProps?.timeLocked === true;
+  const isTodo = event.eventType === 'todo' || (event.extendedProps as any)?.isTodo === true;
 
   // Context menu handlers
   const handleViewDetails = useCallback(() => {
@@ -296,6 +298,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // ProjectCalendarView). Eget kort med tydlig "Endast projekt"-/publicerad-
   // markering. Klick öppnar ingen booking-detaljvy — vi hoverar/dblclick:ar
   // bara info via EventHoverCard.
+  // To-do: dedikerat kort + popover med detaljer (ingen booking-koppling)
+  if (isTodo) {
+    return <TodoEventCard event={event} />;
+  }
+
   const ext = event.extendedProps as any;
   if (ext?.isProjectActivity) {
     const published = !!ext.published;
