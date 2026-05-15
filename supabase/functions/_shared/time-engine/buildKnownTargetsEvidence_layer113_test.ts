@@ -82,7 +82,7 @@ Deno.test('Lager 1.13 B: supplier utan geo → suppressed=missing_coordinates + 
   assertEquals(r.dataQuality.suppliersMissingCoordinates[0].targetId, 'sup-2');
 });
 
-Deno.test('Lager 1.13 C: supplier med koordinater men utan radius → suppressed=missing_radius_and_polygon + dq.suppliersMissingRadius', async () => {
+Deno.test('Lager 2.11A C: supplier med koordinater men utan radius → default radius applicerad, hasRadius=false, canBeGeoTarget=true', async () => {
   const admin = makeAdmin({
     suppliers: [{
       id: 'sup-3', name: 'XYZ', is_active: true,
@@ -95,9 +95,12 @@ Deno.test('Lager 1.13 C: supplier med koordinater men utan radius → suppressed
   const sup = r.items.find((i) => i.targetType === 'supplier')!;
   assertEquals(sup.hasCoordinates, true);
   assertEquals(sup.hasRadius, false);
-  assertEquals(sup.suppressedReason, 'missing_radius_and_polygon');
-  assertEquals(sup.canBeGeoTarget, false);
+  assertEquals(sup.radiusMeters, 150);
+  assertEquals(sup.radiusSource, 'default_supplier_radius');
+  assertEquals(sup.suppressedReason, null);
+  assertEquals(sup.canBeGeoTarget, true);
   assertEquals(r.diagnostics.suppliersMissingRadiusCount, 1);
+  assertEquals(r.diagnostics.defaultSupplierRadiusAppliedCount, 1);
   assertEquals(r.dataQuality.suppliersMissingRadius.length, 1);
 });
 
