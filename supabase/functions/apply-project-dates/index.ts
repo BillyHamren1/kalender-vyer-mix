@@ -38,6 +38,8 @@ type RequestBody = {
   organization_id: string;
   // Per fas: full lista av datum (YYYY-MM-DD) som projektet vill att alla sub-bookings ska ha.
   dates: Partial<Record<Phase, string[]>>;
+  // Dry-run: ingen lokal UPDATE, ingen extern push, ingen calendar-rebuild. Endast payload-preview.
+  dry_run?: boolean;
 };
 
 type PerBookingResult = {
