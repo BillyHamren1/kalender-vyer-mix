@@ -101,6 +101,7 @@ export type LocationTruthSegmentType =
 export type LocationTruthTargetType =
   | 'warehouse'
   | 'organization_location'
+  | 'supplier'
   | 'large_project'
   | 'project'
   | 'booking'
