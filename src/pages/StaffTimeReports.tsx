@@ -1813,16 +1813,10 @@ const StaffTimeReports: React.FC = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden theme-purple">
-      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2 border-b">
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-primary" />
-          <h1 className="text-sm font-semibold">Tidrapporter</h1>
-          <span className="text-xs text-muted-foreground">· Översikt av rapporterad tid per personal</span>
-        </div>
-      </div>
-      <div className="flex-1 min-h-0 px-2 pt-2 pb-2 overflow-hidden">
-        <StaffGanttView
+    <div className="h-screen flex flex-col overflow-hidden theme-purple bg-[hsl(220_20%_97%)] dark:bg-background">
+      <div className="flex-1 min-h-0 p-3 sm:p-4 lg:p-5 overflow-hidden">
+        <div className="h-full overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.04),0_8px_24px_-12px_hsl(var(--foreground)/0.08)]">
+          <StaffGanttView
           staffList={staffList}
           isLoading={isLoading}
           onSelectStaff={(id, name) => {
