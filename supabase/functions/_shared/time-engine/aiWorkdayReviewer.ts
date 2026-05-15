@@ -179,12 +179,12 @@ export function shouldTriggerAiReview(
   if (seg.warnings.includes('movement_missing_anchor')) {
     triggers.push('movement_missing_anchor');
   }
-  // large_project saknar geo → matchad target finns men addressen är null
-  // OCH targetType är large_project. Vi använder address-null som proxy.
+  // Lager 3.10 — fix 2: trigga även när businessContextStatus signalerar
+  // large_project_missing_geo, inte bara på address-null-proxy.
   if (
     seg.targetType === 'large_project' &&
-    !seg.address &&
-    !seg.outsideWorkday
+    !seg.outsideWorkday &&
+    (!seg.address || seg.businessContextStatus === 'large_project_missing_geo')
   ) {
     triggers.push('large_project_missing_geo');
   }
