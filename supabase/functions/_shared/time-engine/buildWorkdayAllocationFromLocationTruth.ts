@@ -656,6 +656,10 @@ export function buildWorkdayAllocationFromLocationTruth(
     homeOver90MinutesCount: 0,
     suggestedWorkdayEndCount: 0,
     temporaryHomePresenceCount: 0,
+    uncoveredGapCount: 0,
+    uncoveredGapMinutesTotal: 0,
+    shortUncoveredGapsIgnoredCount: 0,
+    uncoveredGapsProposedCount: 0,
     examples: [],
   };
 
