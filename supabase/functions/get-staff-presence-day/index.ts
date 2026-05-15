@@ -1354,10 +1354,15 @@ Deno.serve(async (req) => {
     locationTruthDiagnostics,
     /** @deprecated Använd locationTruthV2Segments. Tas bort när konsumenter bytt. */
     locationTruthSegments,
-    // Lager 3.1 — Workday Allocation (read-only, debug only). Får INTE
+    // Lager 3.1–3.6 — Workday Allocation (read-only, debug only). Får INTE
     // konsumeras av UI/payroll/time_reports ännu.
+    // WorkdayAllocation is read-only until Lager 4/display integration.
     workdayAllocationDiagnostics,
     workdayAllocationSegments,
+    workdayAllocationProposals,
+    // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
+    aiWorkdayReviewSummary,
+    aiWorkdayReviewProposals,
 
     targets: resolvedTargetsAll.map((r: any) => ({
       id: r.id,
