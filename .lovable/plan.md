@@ -1,56 +1,26 @@
-# Personalkalendern — read-only webbvy
+## Problem
 
-## Mål
-Ny publik webbvy `/personalkalendern` som speglar exakt samma data som admin-kalendern (alla team, alla personer), helt read-only. Inloggning med samma email+lösen som mobilappen — och Supabase auth-användare (admin) går också in. Startvy = veckovy med dagens dag i fokus.
+`ProjectPlanningSheet` öppnas alltid med hårdkodade defaulttider (rig 08–16, event 17–23, rigDown 08–16) — även när bokningen redan har skarpa tider satta. Tiderna finns på `bookings` (`rig_start_time/end_time`, `event_start_time/end_time`, `rigdown_start_time/end_time`, hålls i synk via Phase Time Sync), men dialogen selectar dem inte och läser dem inte.
 
-## Arkitektur
+## Fix
 
-### 1. Route + auth-wrapper
-- Ny route `/personalkalendern` (publikt path, utanför `/m/*` och utanför admin-sidebar-shellet).
-- Ny `DualAuthProvider` som accepterar **antingen** Supabase JWT (admin) **eller** mobile auth-token (personal). Skickar vidare en `viewerOrgId` till sidan.
-- `DualAuthLoginPage` på `/personalkalendern/login` med samma e-post+lösen-flöde som `MobileLogin` (återanvänder `mobile-app-api` `auth.login`-action). Om Supabase-session redan finns → hoppa över login.
+I `src/components/project/ProjectPlanningSheet.tsx`:
 
-### 2. Sidan `PersonalkalendernPage`
-- Återanvänder befintlig `CustomCalendar` med `viewMode="weekly"`.
-- `currentDate` = `startOfWeek(today, { weekStartsOn: 1 })` (måndagsvecka, idag synlig).
-- Sätter följande props för att tvinga read-only:
-  - `setEvents` utelämnas
-  - `onStaffDrop`, `onOpenStaffSelection`, `onToggleTeamForDay` utelämnas
-  - `isEventReadOnly={() => true}` (befintligt prop som redan finns i CustomCalendar)
-  - `onEventClick` utelämnas (eller pekar på enkel detalj-popover utan edit)
-- Hämtar samma data som `CustomCalendarPage` via `useRealTimeCalendarEvents` + `useTeamResources`.
-- Header med veckonavigation (← idag →) men inga edit-knappar.
+1. **Utöka bokningsquery** (raderna 86 och 100) — lägg till de sex tidsfälten i `select(...)`:
+   `rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time`.
 
-### 3. Sidebar-länk
-- Lägg till "Personalkalendern (publik)" under befintlig "Personalplanering" i `Sidebar3D.tsx` med ikon `ExternalLink` så admin enkelt kan öppna och dela URL.
+2. **Använd dem i seedningen** (raderna 108–117). Ersätt `DEFAULTS.<phase>.start/end` med en helper som:
+   - tar bokningens värde om det finns (trimma sekunder, `08:00:00` → `08:00`),
+   - faller tillbaka till `DEFAULTS[kind]` annars.
 
-### 4. Edge function
-- Ingen ny edge function behövs. Inloggning för personal går via befintliga `mobile-app-api` med `action: 'auth.login'`. Token sparas i localStorage under nytt nyckelnamn `staff_calendar_session_v1` för att inte kollidera med `/m/*`.
+3. **Samma helper i `addDayForPhase`** (rad 141–156) — när användaren klickar "Lägg till dag" ska första dagen i en fas också ärva bokningens tid om en sådan finns, inte hårdkodade defaults. Andra dagen i samma fas behåller den redan inmatade tiden från befintlig dag (kopiera från sista raden i fasen istället för DEFAULTS).
 
-### 5. Tester
-- `personalkalendern.dual-auth.test.ts` — verifierar att både mobile-token och Supabase-session släpps in.
-- `personalkalendern.read-only.test.tsx` — renderar sidan, klickar på event → ingen edit-dialog öppnas.
-- Snapshot på defaultvy = vecka med dagens datum centrerat.
+4. **Stora projekt**: behåll nuvarande logik som tar `ctx.bookings[0]` som källa för seed (representant). Phase Time Sync garanterar att alla syskon har samma tider per fas+datum, så det är säkert.
 
-## Tekniska detaljer
+5. **Test**: lägg till `src/components/project/__tests__/projectPlanningSheetSeed.test.ts` som verifierar helpern (`pickBookingTime(booking, 'rig', 'start')` etc.) — booking-värde vinner, fallback till DEFAULTS när null/tom.
 
-```text
-/personalkalendern              → dual-auth gate → CustomCalendar (read-only)
-/personalkalendern/login        → email+lösen → mobile-app-api auth.login
-                                  ELLER redirect till Supabase /auth om admin-session finns
-```
+## Inte i scope
 
-Filer:
-- `src/pages/PersonalkalendernPage.tsx` (ny, ~120 rader)
-- `src/pages/PersonalkalendernLogin.tsx` (ny, ~80 rader)
-- `src/auth/DualAuthProvider.tsx` (ny, ~90 rader) — kombinerar `useAuth` + `useMobileAuth`
-- `src/App.tsx` — lägg till routes ovanför `/m/*`
-- `src/components/Sidebar3D.tsx` — lägg till länk
-- `src/__tests__/personalkalendern.*.test.tsx` (ny)
-
-Ingen DB-migration. Ingen ny RLS-policy (samma data som admin redan ser; läsande mobile-token är redan godkänt via befintliga calendar-event-readers).
-
-## Vad som INTE ingår
-- Mobiloptimerad layout (samma `useIsMobile`-fork som befintlig sida — ärvs gratis).
-- Filter, sökning, eller team-toggles (ren spegling).
-- Push-notiser eller realtid utöver det `useRealTimeCalendarEvents` redan ger.
+- Ingen ändring i save-pathen — den skriver redan tillbaka rätt tider.
+- Ingen ändring av booking-importen eller Phase Time Sync.
+- Ingen ändring av team-defaults (separat fråga).

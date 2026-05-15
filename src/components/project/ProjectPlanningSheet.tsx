@@ -42,6 +42,27 @@ const DEFAULTS: Record<DayKind, { start: string; end: string }> = {
 const PHASE_ORDER: DayKind[] = ['rig', 'event', 'rigDown'];
 const phaseLabel = (k: DayKind) => k === 'rig' ? 'Riggning' : k === 'rigDown' ? 'Demontering' : 'Event';
 
+const trimSec = (t: string | null | undefined): string | null => {
+  if (!t || typeof t !== 'string') return null;
+  const m = t.match(/^(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : null;
+};
+
+const FIELD_MAP: Record<DayKind, { start: string; end: string }> = {
+  rig: { start: 'rig_start_time', end: 'rig_end_time' },
+  event: { start: 'event_start_time', end: 'event_end_time' },
+  rigDown: { start: 'rigdown_start_time', end: 'rigdown_end_time' },
+};
+
+export const pickBookingTime = (
+  booking: any,
+  kind: DayKind,
+  edge: 'start' | 'end',
+): string => {
+  const field = FIELD_MAP[kind][edge];
+  return trimSec(booking?.[field]) ?? DEFAULTS[kind][edge];
+};
+
 const todayIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -83,7 +104,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
         if (project?.booking_id) {
           const { data: b } = await supabase
             .from('bookings')
-            .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate')
+            .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
             .eq('id', project.booking_id)
             .single();
           if (b) bookings = [b];
@@ -97,7 +118,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
         projectName = lp?.name ?? '';
         const { data: bs } = await supabase
           .from('bookings')
-          .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate')
+          .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
           .eq('large_project_id', projectId);
         bookings = bs || [];
       }
@@ -109,9 +130,9 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
     if (!ctx || ctx.bookings.length === 0) return;
     const b = ctx.bookings[0];
     const list: PlanningDay[] = [];
-    if (b.rigdaydate) list.push({ date: b.rigdaydate, kind: 'rig', ...DEFAULTS.rig, teamId: 'team-1', startTime: DEFAULTS.rig.start, endTime: DEFAULTS.rig.end });
-    if (b.eventdate) list.push({ date: b.eventdate, kind: 'event', startTime: DEFAULTS.event.start, endTime: DEFAULTS.event.end, teamId: 'team-1' });
-    if (b.rigdowndate) list.push({ date: b.rigdowndate, kind: 'rigDown', startTime: DEFAULTS.rigDown.start, endTime: DEFAULTS.rigDown.end, teamId: 'team-1' });
+    if (b.rigdaydate) list.push({ date: b.rigdaydate, kind: 'rig', startTime: pickBookingTime(b, 'rig', 'start'), endTime: pickBookingTime(b, 'rig', 'end'), teamId: 'team-1' });
+    if (b.eventdate) list.push({ date: b.eventdate, kind: 'event', startTime: pickBookingTime(b, 'event', 'start'), endTime: pickBookingTime(b, 'event', 'end'), teamId: 'team-1' });
+    if (b.rigdowndate) list.push({ date: b.rigdowndate, kind: 'rigDown', startTime: pickBookingTime(b, 'rigDown', 'start'), endTime: pickBookingTime(b, 'rigDown', 'end'), teamId: 'team-1' });
     list.sort((a, z) => a.date.localeCompare(z.date));
     setDays(list);
   }, [ctx]);
@@ -141,16 +162,21 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
   const addDayForPhase = (kind: DayKind) => {
     setDays(prev => {
       const inPhase = prev.filter(d => d.kind === kind).sort((a, z) => a.date.localeCompare(z.date));
-      const lastDate = inPhase.length > 0 ? inPhase[inPhase.length - 1].date : (ctx?.bookings?.[0]?.[kind === 'rig' ? 'rigdaydate' : kind === 'event' ? 'eventdate' : 'rigdowndate'] ?? todayIso());
+      const booking = ctx?.bookings?.[0];
+      const lastDate = inPhase.length > 0
+        ? inPhase[inPhase.length - 1].date
+        : (booking?.[kind === 'rig' ? 'rigdaydate' : kind === 'event' ? 'eventdate' : 'rigdowndate'] ?? todayIso());
       const newDate = inPhase.length > 0 ? nextDayIso(lastDate) : lastDate;
       const team = useSameTeamForAll ? masterTeam : 'team-1';
-      const next: PlanningDay = {
-        date: newDate,
-        kind,
-        startTime: DEFAULTS[kind].start,
-        endTime: DEFAULTS[kind].end,
-        teamId: team,
-      };
+      // Första dagen i fasen ärver bokningens tid; ytterligare dagar kopierar
+      // den senast inmatade dagen (mer rimligt än att hoppa till hårda defaults).
+      const startTime = inPhase.length > 0
+        ? inPhase[inPhase.length - 1].startTime
+        : pickBookingTime(booking, kind, 'start');
+      const endTime = inPhase.length > 0
+        ? inPhase[inPhase.length - 1].endTime
+        : pickBookingTime(booking, kind, 'end');
+      const next: PlanningDay = { date: newDate, kind, startTime, endTime, teamId: team };
       return [...prev, next];
     });
   };
