@@ -164,6 +164,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           .eq('todo_id', todoId)
           .maybeSingle();
         if (ev?.resource_id) setResourceId(ev.resource_id);
+      }
       return data;
     },
     staleTime: 0,
