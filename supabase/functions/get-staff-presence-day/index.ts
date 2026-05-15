@@ -288,12 +288,19 @@ Deno.serve(async (req) => {
             .order('started_at', { ascending: true })
             .limit(1)
             .maybeSingle();
+          const activeWorkday = wdRow
+            ? { startedAt: wdRow.started_at, stoppedAt: wdRow.stopped_at, staffId, date }
+            : { startedAt: null, stoppedAt: null, staffId, date };
+          // Lager 3.2 — bygg envelope explicit (read-only) och skicka in.
+          const envelope = resolveWorkdayEnvelope({
+            activeWorkday,
+            analysisWindowEndIso: dayEnd,
+          });
           const wda = buildWorkdayAllocationFromLocationTruth({
             dayEvidence,
             locationTruthV2: lt,
-            activeWorkday: wdRow
-              ? { startedAt: wdRow.started_at, stoppedAt: wdRow.stopped_at, staffId, date }
-              : { startedAt: null, stoppedAt: null, staffId, date },
+            activeWorkday,
+            workdayEnvelope: envelope,
           });
           workdayAllocationDiagnostics = wda.diagnostics;
           workdayAllocationSegments = wda.segments;
