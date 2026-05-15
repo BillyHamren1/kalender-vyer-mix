@@ -57,6 +57,8 @@ import {
 import { enforceSingleVisibleTimeline } from '../_shared/time-engine/enforceSingleVisibleTimeline.ts';
 import { cleanupNeedsReviewFromLocationTruth } from '../_shared/time-engine/cleanupNeedsReviewFromLocationTruth.ts';
 import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFromLocationTruth.ts';
+import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
+
 import { buildUnknownLocationDiagnostics } from '../_shared/diagnostics/buildUnknownLocationDiagnostics.ts';
 import {
   computePlannedDaySignals,
@@ -236,6 +238,23 @@ Deno.serve(async (req) => {
 
   // Stockholm-lokal kalenderdag översatt till UTC-fönster (DST-säker)
   const { startUtc: dayStart, endUtc: dayEnd } = getStockholmDayWindowUtc(date);
+
+  // ── Day Evidence Layer (Time Engine 1.1) ──────────────────────────────
+  // READ-ONLY scaffold. Collects raw signals + diagnostics. NEVER feeds
+  // downstream block builders. Exposed via `dayEvidenceDiagnostics` only.
+  let dayEvidenceDiagnostics: any = null;
+  try {
+    const dayEvidence = await buildDayEvidence({
+      supabaseAdmin: admin,
+      organizationId: orgId,
+      staffId,
+      date,
+    });
+    dayEvidenceDiagnostics = dayEvidence.diagnostics;
+  } catch (e: any) {
+    console.warn('[presence-day] buildDayEvidence failed', e);
+    dayEvidenceDiagnostics = { error: e?.message ?? String(e) };
+  }
 
   // ── Presence events (arrival/departure/signal_lost/signal_resumed) ──
   const { data: presenceRows } = await admin
@@ -1234,6 +1253,8 @@ Deno.serve(async (req) => {
     },
     targetMatchSummary,
     unknownLocationDiagnostics,
+    dayEvidenceDiagnostics,
+
     targets: resolvedTargetsAll.map((r: any) => ({
       id: r.id,
       name: r.name,
