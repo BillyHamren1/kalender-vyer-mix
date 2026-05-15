@@ -469,7 +469,7 @@ export async function buildKnownTargetsEvidence(
       const { data, error } = await supabaseAdmin
         .from('bookings')
         .select(
-          'id, booking_number, assigned_project_name, status, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_polygon, deliveryaddress, eventdate, rigdaydate, rigdowndate, large_project_id',
+          'id, booking_number, assigned_project_name, status, delivery_latitude, delivery_longitude, deliveryaddress, eventdate, rigdaydate, rigdowndate, large_project_id',
         )
         .eq('organization_id', organizationId)
         .or(`eventdate.eq.${date},rigdaydate.eq.${date},rigdowndate.eq.${date}`);
@@ -486,7 +486,7 @@ export async function buildKnownTargetsEvidence(
         const { data, error } = await supabaseAdmin
           .from('bookings')
           .select(
-            'id, booking_number, assigned_project_name, status, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_polygon, deliveryaddress, eventdate, rigdaydate, rigdowndate, large_project_id',
+            'id, booking_number, assigned_project_name, status, delivery_latitude, delivery_longitude, deliveryaddress, eventdate, rigdaydate, rigdowndate, large_project_id',
           )
           .eq('organization_id', organizationId)
           .in('id', missing);
