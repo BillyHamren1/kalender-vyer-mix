@@ -311,6 +311,30 @@ Deno.serve(async (req) => {
           });
           workdayAllocationDiagnostics = wda.diagnostics;
           workdayAllocationSegments = wda.segments;
+          workdayAllocationProposals = wda.proposals;
+
+          // Lager 3.7 — AI reviewer (read-only, no-op default).
+          // WorkdayAllocation is read-only until Lager 4/display integration.
+          try {
+            const aiInput = buildAiWorkdayReviewInput({
+              dayEvidence,
+              locationTruthV2: lt,
+              workdayAllocation: wda,
+            });
+            const aiOut = reviewWorkdayWithAi(aiInput);
+            aiWorkdayReviewSummary = {
+              summary: aiOut.summary,
+              risks: aiOut.risks,
+              reviewer: aiOut.reviewer,
+              triggeredSegmentCount: aiInput.diagnostics.triggeredSegmentCount,
+              triggeredProposalCount: aiInput.diagnostics.triggeredProposalCount,
+              triggerCounts: aiInput.diagnostics.triggerCounts,
+            };
+            aiWorkdayReviewProposals = aiOut.proposals;
+          } catch (e: any) {
+            console.warn('[presence-day] aiWorkdayReviewer failed', e);
+            aiWorkdayReviewSummary = { error: e?.message ?? String(e) };
+          }
         } catch (e: any) {
           console.warn('[presence-day] buildWorkdayAllocationFromLocationTruth failed', e);
           workdayAllocationDiagnostics = { error: e?.message ?? String(e) };
