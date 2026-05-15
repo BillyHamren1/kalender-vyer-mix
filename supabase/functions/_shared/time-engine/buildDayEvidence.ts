@@ -807,7 +807,7 @@ export async function buildDayEvidence(
   g.longGapCount = Number.isFinite(g.longGapCount) ? g.longGapCount : 0;
   g.coverageRatio = Number.isFinite(g.coverageRatio) ? g.coverageRatio : 0;
   // dataQuality-arrays: säkerställ att inga är undefined.
-  const dq = evidence.knownTargets.dataQuality as Record<string, unknown>;
+  const dq = evidence.knownTargets.dataQuality as unknown as Record<string, unknown>;
   for (const k of [
     'targetsMissingCoordinates','targetsMissingRadius','largeProjectsMissingGeo',
     'bookingsInsideLargeProjects','projectsInsideLargeProjects',
