@@ -104,7 +104,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
         if (project?.booking_id) {
           const { data: b } = await supabase
             .from('bookings')
-            .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate')
+            .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
             .eq('id', project.booking_id)
             .single();
           if (b) bookings = [b];
