@@ -1,31 +1,21 @@
 /**
- * Location Truth Layer (Time Engine — Lager 2.1, scaffold)
+ * Location Truth Layer (Time Engine — Lager 2.3b)
  *
- * Konsumerar DayEvidence (Lager 1) och bygger en ren plats-tidslinje.
- * Detta lager svarar ENDAST på frågan: "Var var personen?".
+ * Konsumerar DayEvidence (Lager 1) och bygger en ren plats-tidslinje där
+ * FYSISK PLATS och EVENTFLOW BUSINESS TARGET hålls åtskilda.
  *
- * Lager 2 ska INTE:
- *   - bestämma RIGG / ARBETE / EVENT / RIGDOWN som fas
- *   - skapa time_reports
- *   - skapa location_time_entries
- *   - ändra active_time_registrations
- *   - ändra GPS-pings
- *   - ändra payroll / approval
- *   - skriva display_blocks_json
- *   - bygga Gantt UI-block
- *   - använda planering som proof of location
+ * Produktregel (Lager 2.3b):
+ *   En plats är inte "okänd" bara för att den inte matchar en
+ *   booking/projekt/lager. Stabil GPS-centroid = känd fysisk plats.
+ *   Saknas EventFlow-target ⇒ businessContext = unresolved_business_context,
+ *   inte segment-type = unknown_area.
  *
- * Lager 2 MÅSTE:
- *   - läsa DayEvidence.internal.locationLogicPings (sanningskälla)
- *   - använda evidence.knownTargets / privateResidence / largeProjects som CONTEXT
- *   - aldrig falla tillbaka på child booking-geo för large project
- *   - aldrig konsumera assignments som proof of location
+ * Lager 2 ska INTE: skapa time_reports / location_time_entries / payroll /
+ * display_blocks / Gantt-block / använda planering som proof of location.
  *
- * v1 (denna fil): scaffold + interfaces + tom segments-array.
- *   - Returnerar diagnostics med counts.
- *   - Kopplas read-only i get-staff-presence-day.
- *   - Påverkar INTE buildLocationTruthTimeline / buildGpsDayTimeline /
- *     interpretDayTimeline / Time Engine block-bygge.
+ * Lager 2 MÅSTE: läsa DayEvidence.internal.locationLogicPings, behandla
+ * private/warehouse/large_project/project/booking-targets korrekt och
+ * aldrig falla tillbaka på child booking-geo för large project.
  */
 
 import type { DayEvidence } from './buildDayEvidence.ts';
@@ -39,6 +29,10 @@ import {
   type MatchClusterResult,
   type MatchedTargetType,
 } from './matchClusterToKnownTarget.ts';
+import {
+  resolvePhysicalLocationForCluster,
+  type PhysicalLocation,
+} from './resolvePhysicalLocationForCluster.ts';
 
 // ── Lager 2.3 — Target match diagnostics ───────────────────────────────────
 
@@ -73,13 +67,35 @@ export interface ClusterMatchEntry {
   match: MatchClusterResult;
 }
 
+// ── Lager 2.3b — Physical location vs business context ────────────────────
+
+export interface PhysicalLocationDiagnostics {
+  clustersWithKnownTargetCount: number;
+  clustersWithKnownAddressNoTargetCount: number;
+  unresolvedLocationCount: number;
+  reverseGeocodeUsedCount: number;
+  centroidOnlyAddressCount: number;
+  noEventFlowTargetMatchCount: number;
+  planningGeoMismatchCount: number;
+  examples: Array<{
+    clusterId: string;
+    segmentType: LocationTruthSegmentType;
+    physicalLocationSource: PhysicalLocation['source'];
+    businessContextStatus: BusinessContextStatus;
+    matchedTargetType?: LocationTruthTargetType;
+    label?: string;
+    warnings: string[];
+  }>;
+}
+
 // ── Output shape ──────────────────────────────────────────────────────────
 
 export type LocationTruthSegmentType =
-  | 'known_site'
-  | 'movement'
+  | 'known_target'
+  | 'known_address'
   | 'private_residence'
-  | 'unknown_area'
+  | 'movement'
+  | 'unresolved_location'
   | 'needs_location_review';
 
 export type LocationTruthTargetType =
@@ -90,10 +106,24 @@ export type LocationTruthTargetType =
   | 'booking'
   | 'private_zone';
 
+export type BusinessContextStatus =
+  | 'matched_eventflow_target'
+  | 'unresolved_business_context'
+  | 'planning_geo_mismatch'
+  | 'no_target_match'
+  | 'needs_review';
+
 export interface LocationTruthMatchedTarget {
   targetType: LocationTruthTargetType;
   targetId: string;
   label: string;
+  address?: string;
+}
+
+export interface LocationTruthBusinessContext {
+  status: BusinessContextStatus;
+  matchedTarget?: LocationTruthMatchedTarget;
+  warnings?: string[];
 }
 
 export interface LocationTruthSegmentEvidence {
@@ -122,7 +152,12 @@ export interface LocationTruthSegment {
   startAt: string;
   endAt: string;
   type: LocationTruthSegmentType;
+  /** Bakåtkompatibel snabbreferens. Spegel av businessContext.matchedTarget. */
   matchedTarget?: LocationTruthMatchedTarget;
+  /** Lager 2.3b — fysisk plats (oberoende av EventFlow business target). */
+  physicalLocation?: PhysicalLocation;
+  /** Lager 2.3b — business-context-tolkning ovanpå fysisk plats. */
+  businessContext?: LocationTruthBusinessContext;
   confidence: 'high' | 'medium' | 'low';
   evidence: LocationTruthSegmentEvidence;
   warnings: string[];
@@ -134,9 +169,7 @@ export interface LocationTruthDiagnostics {
   date: string;
   builtAtIso: string;
   buildDurationMs: number;
-  /** True när vi hade tillräckligt med locationLogicPings för att bygga segments. */
   hasUsableEvidence: boolean;
-  /** Snabb counts-snapshot för log scanning. */
   counts: {
     locationLogicPings: number;
     knownTargets: number;
@@ -148,23 +181,17 @@ export interface LocationTruthDiagnostics {
     segmentsByType: Record<LocationTruthSegmentType, number>;
   };
   warnings: string[];
-  /** Anledningar till att lagret inte kunde bygga segments (om någon). */
   skippedReason: 'no_pings' | 'no_evidence' | 'not_implemented_yet' | null;
-  /** Lager 2.2: stabila platskluster (diagnostics-only än så länge). */
   stableClusterDiagnostics: StableClusterDiagnostics | null;
-  /** Lager 2.3: target-match per kluster. */
   targetMatchDiagnostics: TargetMatchDiagnostics | null;
+  /** Lager 2.3b — diagnostics för fysisk-plats vs business-context-uppdelning. */
+  physicalLocationDiagnostics: PhysicalLocationDiagnostics | null;
 }
 
 export interface LocationTruthResult {
   segments: LocationTruthSegment[];
   diagnostics: LocationTruthDiagnostics;
-  /**
-   * Lager 2.2: rå klusterlista exponeras för debug/Lager 2.3-konsumtion.
-   * Skrivs INTE till någon downstream-tabell ännu.
-   */
   stableClusters: StableLocationCluster[];
-  /** Lager 2.3: matchningsresultat per kluster (debug/diagnostics-only). */
   clusterMatches: ClusterMatchEntry[];
 }
 
@@ -182,36 +209,60 @@ function emptyCounts(
     assignments: dayEvidence.assignments?.assignmentCount ?? 0,
     segments: 0,
     segmentsByType: {
-      known_site: 0,
-      movement: 0,
+      known_target: 0,
+      known_address: 0,
       private_residence: 0,
-      unknown_area: 0,
+      movement: 0,
+      unresolved_location: 0,
       needs_location_review: 0,
     },
   };
 }
 
+function mapMatchTypeToTargetType(
+  m: MatchedTargetType,
+): LocationTruthTargetType | null {
+  switch (m) {
+    case 'warehouse':
+    case 'organization_location':
+    case 'large_project':
+    case 'project':
+    case 'booking':
+      return m;
+    case 'private_residence':
+      return 'private_zone';
+    default:
+      return null;
+  }
+}
+
+function isMatchedToTarget(m: MatchedTargetType): boolean {
+  return (
+    m === 'warehouse' ||
+    m === 'organization_location' ||
+    m === 'large_project' ||
+    m === 'project' ||
+    m === 'booking' ||
+    m === 'private_residence'
+  );
+}
+
 // ── Builder ───────────────────────────────────────────────────────────────
 
-/**
- * v1: scaffold. Bygger inga segments än.
- *
- * Returnerar tom segments-array + diagnostics. Konsumenter ska behandla
- * outputen som diagnostics-only tills senare faser kopplar in segment-bygget.
- */
 export function buildLocationTruthFromDayEvidence(
   dayEvidence: DayEvidence,
 ): LocationTruthResult {
   const startedAt = Date.now();
   const warnings: string[] = [];
   const counts = emptyCounts(dayEvidence);
+  const segments: LocationTruthSegment[] = [];
 
   let skippedReason: LocationTruthDiagnostics['skippedReason'] = 'not_implemented_yet';
   let hasUsableEvidence = false;
 
   const logicPings = dayEvidence.internal?.locationLogicPings ?? [];
 
-  // Lager 2.2: bygg stabila platskluster (diagnostics-only).
+  // Lager 2.2: bygg stabila platskluster.
   let stableClusters: StableLocationCluster[] = [];
   let stableClusterDiagnostics: StableClusterDiagnostics | null = null;
   try {
@@ -227,42 +278,48 @@ export function buildLocationTruthFromDayEvidence(
   if (!Array.isArray(logicPings) || logicPings.length === 0) {
     skippedReason = 'no_pings';
     warnings.push('location_truth_no_location_logic_pings');
-  } else if (counts.knownTargetsWithCoordinates === 0 && counts.privateZones === 0) {
-    hasUsableEvidence = true;
-    skippedReason = 'no_evidence';
-    warnings.push('location_truth_no_target_geometry_to_match');
   } else {
     hasUsableEvidence = true;
-    skippedReason = 'not_implemented_yet';
-    warnings.push('location_truth_builder_scaffold_no_segments_emitted');
+    skippedReason = null;
   }
 
-  // Lager 2.3: matcha varje stabilt kluster mot known targets.
+  const knownTargets = dayEvidence.knownTargets?.items ?? [];
+  const assignments = dayEvidence.assignments?.items ?? [];
+  const privateResidence = {
+    hasUsableZone: dayEvidence.privateResidence?.hasUsableZone ?? false,
+  };
+
+  // Lager 2.3: matcha kluster mot known targets.
   const clusterMatches: ClusterMatchEntry[] = [];
-  let targetMatchDiagnostics: TargetMatchDiagnostics | null = null;
+  const targetDiag: TargetMatchDiagnostics = {
+    clustersEvaluated: 0,
+    matchedKnownSiteCount: 0,
+    matchedPrivateCount: 0,
+    matchedWarehouseCount: 0,
+    matchedLargeProjectCount: 0,
+    matchedProjectCount: 0,
+    matchedBookingCount: 0,
+    matchedOrganizationLocationCount: 0,
+    unknownClusterCount: 0,
+    needsLocationReviewCount: 0,
+    planningUsedAsTieBreakerCount: 0,
+    planningIgnoredBecauseGeoDisagreedCount: 0,
+    examples: [],
+  };
+
+  // Lager 2.3b — fysisk-plats-diagnostics.
+  const physDiag: PhysicalLocationDiagnostics = {
+    clustersWithKnownTargetCount: 0,
+    clustersWithKnownAddressNoTargetCount: 0,
+    unresolvedLocationCount: 0,
+    reverseGeocodeUsedCount: 0,
+    centroidOnlyAddressCount: 0,
+    noEventFlowTargetMatchCount: 0,
+    planningGeoMismatchCount: 0,
+    examples: [],
+  };
+
   try {
-    const knownTargets = dayEvidence.knownTargets?.items ?? [];
-    const assignments = dayEvidence.assignments?.items ?? [];
-    const privateResidence = {
-      hasUsableZone: dayEvidence.privateResidence?.hasUsableZone ?? false,
-    };
-
-    const diag: TargetMatchDiagnostics = {
-      clustersEvaluated: 0,
-      matchedKnownSiteCount: 0,
-      matchedPrivateCount: 0,
-      matchedWarehouseCount: 0,
-      matchedLargeProjectCount: 0,
-      matchedProjectCount: 0,
-      matchedBookingCount: 0,
-      matchedOrganizationLocationCount: 0,
-      unknownClusterCount: 0,
-      needsLocationReviewCount: 0,
-      planningUsedAsTieBreakerCount: 0,
-      planningIgnoredBecauseGeoDisagreedCount: 0,
-      examples: [],
-    };
-
     for (const cluster of stableClusters) {
       const match = matchClusterToKnownTarget({
         cluster,
@@ -273,45 +330,47 @@ export function buildLocationTruthFromDayEvidence(
       });
       clusterMatches.push({ clusterId: cluster.id, match });
 
-      diag.clustersEvaluated++;
+      // Räkna match-utfall.
+      targetDiag.clustersEvaluated++;
       switch (match.matchedTarget.type) {
         case 'private_residence':
-          diag.matchedPrivateCount++;
-          diag.matchedKnownSiteCount++;
+          targetDiag.matchedPrivateCount++;
+          targetDiag.matchedKnownSiteCount++;
           break;
         case 'warehouse':
-          diag.matchedWarehouseCount++;
-          diag.matchedKnownSiteCount++;
+          targetDiag.matchedWarehouseCount++;
+          targetDiag.matchedKnownSiteCount++;
           break;
         case 'organization_location':
-          diag.matchedOrganizationLocationCount++;
-          diag.matchedKnownSiteCount++;
+          targetDiag.matchedOrganizationLocationCount++;
+          targetDiag.matchedKnownSiteCount++;
           break;
         case 'large_project':
-          diag.matchedLargeProjectCount++;
-          diag.matchedKnownSiteCount++;
+          targetDiag.matchedLargeProjectCount++;
+          targetDiag.matchedKnownSiteCount++;
           break;
         case 'project':
-          diag.matchedProjectCount++;
-          diag.matchedKnownSiteCount++;
+          targetDiag.matchedProjectCount++;
+          targetDiag.matchedKnownSiteCount++;
           break;
         case 'booking':
-          diag.matchedBookingCount++;
-          diag.matchedKnownSiteCount++;
+          targetDiag.matchedBookingCount++;
+          targetDiag.matchedKnownSiteCount++;
           break;
         case 'unknown_area':
-          diag.unknownClusterCount++;
+          targetDiag.unknownClusterCount++;
           break;
         case 'needs_location_review':
-          diag.needsLocationReviewCount++;
+          targetDiag.needsLocationReviewCount++;
           break;
       }
-      if (match.planningUsedAsTieBreaker) diag.planningUsedAsTieBreakerCount++;
+      if (match.planningUsedAsTieBreaker) targetDiag.planningUsedAsTieBreakerCount++;
       if (match.planningIgnoredBecauseGeoDisagreed) {
-        diag.planningIgnoredBecauseGeoDisagreedCount++;
+        targetDiag.planningIgnoredBecauseGeoDisagreedCount++;
+        physDiag.planningGeoMismatchCount++;
       }
-      if (diag.examples.length < 5) {
-        diag.examples.push({
+      if (targetDiag.examples.length < 5) {
+        targetDiag.examples.push({
           clusterId: cluster.id,
           matchedType: match.matchedTarget.type,
           targetId: match.matchedTarget.targetId,
@@ -323,11 +382,131 @@ export function buildLocationTruthFromDayEvidence(
           warnings: match.warnings,
         });
       }
+
+      // ── Lager 2.3b — bygg fysisk plats + business context per kluster ──
+      const phys = resolvePhysicalLocationForCluster({
+        cluster,
+        match,
+        knownTargets,
+      });
+      if (phys.reverseGeocodeUsed) physDiag.reverseGeocodeUsedCount++;
+
+      const segWarnings: string[] = [...phys.warnings];
+      const businessWarnings: string[] = [];
+
+      // Bestäm segmenttyp (Lager 2.3b-regler).
+      let segmentType: LocationTruthSegmentType;
+      let businessStatus: BusinessContextStatus;
+      let matchedTarget: LocationTruthMatchedTarget | undefined;
+
+      if (match.matchedTarget.type === 'private_residence') {
+        segmentType = 'private_residence';
+        businessStatus = 'matched_eventflow_target';
+        matchedTarget = {
+          targetType: 'private_zone',
+          targetId: match.matchedTarget.targetId ?? 'private',
+          label: match.matchedTarget.label,
+        };
+        physDiag.clustersWithKnownTargetCount++;
+      } else if (isMatchedToTarget(match.matchedTarget.type)) {
+        segmentType = 'known_target';
+        businessStatus = 'matched_eventflow_target';
+        const tt = mapMatchTypeToTargetType(match.matchedTarget.type);
+        if (tt && match.matchedTarget.targetId) {
+          matchedTarget = {
+            targetType: tt,
+            targetId: match.matchedTarget.targetId,
+            label: match.matchedTarget.label,
+          };
+        }
+        physDiag.clustersWithKnownTargetCount++;
+      } else if (match.matchedTarget.type === 'needs_location_review') {
+        // Reserveras för konflikt som kräver mänsklig bedömning,
+        // t.ex. LP saknar geo men assignment pekar dit.
+        segmentType = 'needs_location_review';
+        businessStatus = 'needs_review';
+        physDiag.unresolvedLocationCount++;
+        businessWarnings.push('large_project_missing_geo_or_planning_conflict');
+      } else {
+        // match.matchedTarget.type === 'unknown_area' — ingen EventFlow-target.
+        // Avgör nu fysisk-plats-styrkan: stabilt kluster ⇒ known_address,
+        // svagt kluster ⇒ unresolved_location.
+        const clusterStrongEnough =
+          cluster.isStable && cluster.confidence !== 'low' && cluster.pingCount >= 3;
+        if (clusterStrongEnough) {
+          segmentType = 'known_address';
+          businessStatus = match.planningIgnoredBecauseGeoDisagreed
+            ? 'planning_geo_mismatch'
+            : 'unresolved_business_context';
+          businessWarnings.push('no_eventflow_target_match');
+          if (match.planningIgnoredBecauseGeoDisagreed) {
+            businessWarnings.push('planned_target_does_not_match_physical_location');
+          }
+          physDiag.clustersWithKnownAddressNoTargetCount++;
+          physDiag.noEventFlowTargetMatchCount++;
+          if (phys.centroidOnly) physDiag.centroidOnlyAddressCount++;
+        } else {
+          segmentType = 'unresolved_location';
+          businessStatus = 'no_target_match';
+          physDiag.unresolvedLocationCount++;
+        }
+      }
+
+      const businessContext: LocationTruthBusinessContext = {
+        status: businessStatus,
+        matchedTarget,
+        warnings: businessWarnings.length ? businessWarnings : undefined,
+      };
+
+      const segment: LocationTruthSegment = {
+        id: `seg_${cluster.id}`,
+        staffId: dayEvidence.staffId,
+        startAt: cluster.startAt,
+        endAt: cluster.endAt,
+        type: segmentType,
+        matchedTarget,
+        physicalLocation: phys.physicalLocation,
+        businessContext,
+        confidence: match.confidence,
+        evidence: {
+          pingCount: cluster.pingCount,
+          centroidLat: cluster.centroidLat,
+          centroidLng: cluster.centroidLng,
+          medianAccuracyMeters: cluster.medianAccuracyMeters ?? undefined,
+          assignmentSupportsTarget:
+            match.candidates.find(
+              (c) => c.targetId === match.matchedTarget.targetId,
+            )?.assignmentSupports ?? false,
+        },
+        warnings: segWarnings.concat(match.warnings),
+        diagnostics: {
+          sourcePingIds: cluster.sourcePingIds,
+          decisionReason: match.decisionReason,
+          rejectedReasons: match.rejectedCandidates
+            .map((r) => r.rejectReason)
+            .filter((x): x is string => !!x),
+        },
+      };
+
+      segments.push(segment);
+      counts.segments++;
+      counts.segmentsByType[segmentType]++;
+
+      if (physDiag.examples.length < 5) {
+        physDiag.examples.push({
+          clusterId: cluster.id,
+          segmentType,
+          physicalLocationSource: phys.physicalLocation.source,
+          businessContextStatus: businessStatus,
+          matchedTargetType: matchedTarget?.targetType,
+          label: phys.physicalLocation.label,
+          warnings: segWarnings,
+        });
+      }
     }
-    targetMatchDiagnostics = diag;
   } catch (err) {
     warnings.push(
-      `location_truth_target_match_failed:${(err as Error).message}`,
+      `location_truth_segment_build_failed:${(err as Error).message}`,
     );
   }
 
@@ -341,8 +520,9 @@ export function buildLocationTruthFromDayEvidence(
     warnings,
     skippedReason,
     stableClusterDiagnostics,
-    targetMatchDiagnostics,
+    targetMatchDiagnostics: targetDiag,
+    physicalLocationDiagnostics: physDiag,
   };
 
-  return { segments: [], diagnostics, stableClusters, clusterMatches };
+  return { segments, diagnostics, stableClusters, clusterMatches };
 }
