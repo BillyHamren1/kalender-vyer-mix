@@ -123,9 +123,9 @@ Deno.test('Lager 3.1: large_project, booking, warehouse, supplier mappas korrekt
   });
   const types = r.segments.map((s) => s.allocationType);
   assertEquals(types, ['large_project_work', 'booking_work', 'warehouse_work', 'supplier_visit']);
-  // Supplier + warehouse utan assignment → warnings
-  assert(r.segments[2].warnings.includes('warehouse_presence_no_assignment'));
-  assert(r.segments[3].warnings.includes('supplier_visit_no_assignment'));
+  // Lager 3.10A: warehouse + supplier kräver INGEN assignment.
+  assertEquals(r.segments[2].assignmentStatus, 'no_assignment_required');
+  assertEquals(r.segments[3].assignmentStatus, 'no_assignment_required');
 });
 
 Deno.test('Lager 3.1: known_address → unlinked_work_address', () => {
