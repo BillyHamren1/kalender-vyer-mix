@@ -920,3 +920,97 @@ export function buildWorkdayAllocationFromLocationTruth(
   diag.buildDurationMs = Date.now() - startedAt;
   return { segments, proposals, diagnostics: diag };
 }
+
+// ── Lager 3.5 — Supplier project candidate helpers ──────────────────────
+
+const PROJECT_LIKE_TYPES = new Set<WorkdayAllocationType>([
+  'project_work', 'large_project_work', 'booking_work',
+]);
+const WAREHOUSE_LIKE_TYPES = new Set<WorkdayAllocationType>([
+  'warehouse_work',
+]);
+
+function isProjectLike(s: WorkdayAllocationSegment): boolean {
+  return PROJECT_LIKE_TYPES.has(s.allocationType);
+}
+function isWarehouseLike(s: WorkdayAllocationSegment): boolean {
+  return WAREHOUSE_LIKE_TYPES.has(s.allocationType);
+}
+function sameTarget(a: WorkdayAllocationSegment, b: WorkdayAllocationSegment): boolean {
+  return !!a.targetId && !!b.targetId &&
+    a.targetType === b.targetType && a.targetId === b.targetId;
+}
+
+function findNeighborWork(
+  list: WorkdayAllocationSegment[],
+  fromIdx: number,
+  step: -1 | 1,
+): WorkdayAllocationSegment | null {
+  for (let k = fromIdx + step; k >= 0 && k < list.length; k += step) {
+    const s = list[k];
+    if (s.allocationType === 'supplier_visit') continue;
+    if (s.allocationType === 'private_time') return null; // hem stoppar sökningen
+    if (isProjectLike(s) || isWarehouseLike(s)) return s;
+    // movement/unlinked/review hoppas över utan att stoppa
+    continue;
+  }
+  return null;
+}
+
+function toCandidate(
+  s: WorkdayAllocationSegment,
+  source: SupplierProjectCandidateSource,
+  confidence: WorkdayAllocationConfidence,
+): SupplierProjectCandidate | null {
+  if (!s.targetType || !s.targetId) return null;
+  return {
+    targetType: s.targetType,
+    targetId: s.targetId,
+    label: s.label,
+    source,
+    confidence,
+  };
+}
+
+interface AssignmentItemLike {
+  projectId: string | null;
+  largeProjectId: string | null;
+  bookingId: string | null;
+  title: string | null;
+  startAt: string | null;
+  endAt: string | null;
+}
+
+function pickAssignmentCandidate(
+  items: AssignmentItemLike[],
+  supStartMs: number,
+  supEndMs: number,
+): SupplierProjectCandidate | null {
+  for (const it of items) {
+    const sMs = toMs(it.startAt);
+    const eMs = toMs(it.endAt);
+    // Kräv tidsöverlapp om assignmenten har tid; annars hoppa.
+    if (sMs === null || eMs === null) continue;
+    const overlaps = sMs < supEndMs && eMs > supStartMs;
+    if (!overlaps) continue;
+    if (it.largeProjectId) {
+      return {
+        targetType: 'large_project', targetId: it.largeProjectId,
+        label: it.title ?? null, source: 'overlapping_assignment', confidence: 'high',
+      };
+    }
+    if (it.projectId) {
+      return {
+        targetType: 'project', targetId: it.projectId,
+        label: it.title ?? null, source: 'overlapping_assignment', confidence: 'high',
+      };
+    }
+    if (it.bookingId) {
+      return {
+        targetType: 'booking', targetId: it.bookingId,
+        label: it.title ?? null, source: 'overlapping_assignment', confidence: 'high',
+      };
+    }
+  }
+  return null;
+}
