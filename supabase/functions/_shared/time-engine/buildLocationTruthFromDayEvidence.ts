@@ -908,6 +908,9 @@ export function buildLocationTruthFromDayEvidence(
     }
   }
 
+  // Lager 2.11F — alias-spegling.
+  physDiag.knownAddressNoTargetCount = physDiag.clustersWithKnownAddressNoTargetCount;
+
   const diagnostics: LocationTruthDiagnostics = {
     staffId: dayEvidence.staffId,
     date: dayEvidence.date,
