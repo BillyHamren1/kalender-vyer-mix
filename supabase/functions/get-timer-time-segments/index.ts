@@ -25,6 +25,7 @@ import {
   toWorkTarget,
 } from "../_shared/time-engine/resolveWorkTargets.ts";
 import type { WorkTarget } from "../_shared/time-engine/contracts.ts";
+import { fetchAllStaffLocationPings } from "../_shared/timeEngine/fetchAllStaffLocationPings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
