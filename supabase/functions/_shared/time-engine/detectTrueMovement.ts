@@ -109,6 +109,7 @@ function makeMovementSegment(
     startAt: from.endAt,
     endAt: to.startAt,
     type: 'movement',
+    finalType: 'movement',
     matchedTarget: undefined,
     physicalLocation: undefined,
     businessContext: {
