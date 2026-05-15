@@ -92,9 +92,13 @@ Deno.test('Lager 2.11D — B: stabilt kluster utan target → known_address + ce
   assertEquals(seg.finalType, 'known_address');
 });
 
-Deno.test('Lager 2.11D — C: svagt kluster (för få pings) → unresolved_location', () => {
-  // 3 pings → ej stabilt.
-  const pings = makePings(59.6000, 18.6000, 3);
+Deno.test('Lager 2.11D — C: svagt kluster (spridda pings) → ingen known_address', () => {
+  // Två pings flera km isär — kan aldrig bilda stabilt kluster.
+  const base = new Date('2026-05-15T08:00:00Z').getTime();
+  const pings = [
+    { id: 'p1', ts: new Date(base).toISOString(), lat: 59.6000, lng: 18.6000, accuracy: 8 },
+    { id: 'p2', ts: new Date(base + 5 * 60_000).toISOString(), lat: 59.6500, lng: 18.6500, accuracy: 8 },
+  ];
   const ev = dayEvidence({
     gps: { locationLogicPingCount: pings.length },
     internal: {
@@ -105,9 +109,9 @@ Deno.test('Lager 2.11D — C: svagt kluster (för få pings) → unresolved_loca
     },
   });
   const r = buildLocationTruthFromDayEvidence(ev);
-  // Förväntat: inga known_address-segment skapas; eventuella segment är
-  // unresolved_location eller saknas helt (om klustret inte ens räckte).
   const types = new Set(r.segments.map((s: any) => s.type));
+  // Får ej skapa known_address från svagt/instabilt kluster och får aldrig
+  // använda den borttagna typen unknown_area.
   assert(!types.has('known_address'), `should not create known_address from weak cluster: ${[...types]}`);
   assert(!types.has('unknown_area' as any), 'unknown_area type should not exist');
 });
