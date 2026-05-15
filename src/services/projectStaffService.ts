@@ -83,10 +83,13 @@ export const fetchPlannedStaff = async (bookingId: string): Promise<PlannedStaff
   return Array.from(staffMap.values());
 };
 
-export const fetchTimeReports = async (bookingId: string): Promise<StaffTimeReport[]> => {
-  if (!bookingId) return [];
+export const fetchTimeReports = async (target: {
+  booking_id?: string | null;
+  large_project_id?: string | null;
+}): Promise<StaffTimeReport[]> => {
+  if (!target.booking_id && !target.large_project_id) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('time_reports')
     .select(`
       id,
@@ -101,9 +104,14 @@ export const fetchTimeReports = async (bookingId: string): Promise<StaffTimeRepo
       approved_at,
       approved_by
     `)
-    .eq('booking_id', bookingId)
     .eq('is_subdivision', false)
     .order('report_date', { ascending: true });
+
+  query = target.large_project_id
+    ? query.eq('large_project_id', target.large_project_id)
+    : query.eq('booking_id', target.booking_id!);
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching time reports:', error);
@@ -196,7 +204,8 @@ export const deleteLaborCost = async (id: string): Promise<void> => {
 // authoritative write path. DB triggers are the ultimate backstop.
 
 export const createTimeReport = async (report: {
-  booking_id: string;
+  booking_id?: string;
+  large_project_id?: string;
   staff_id: string;
   report_date: string;
   start_time: string | null;
@@ -212,6 +221,7 @@ export const createTimeReport = async (report: {
   const result = await mobileApi.adminCreateTimeReport({
     target_staff_id: report.staff_id,
     booking_id: report.booking_id,
+    large_project_id: report.large_project_id,
     report_date: report.report_date,
     start_time: report.start_time,
     end_time: report.end_time,
