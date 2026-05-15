@@ -41,6 +41,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 import EndDayButton from './EndDayButton';
 import SegmentDetailSheet from './SegmentDetailSheet';
+import DisplayTimelineV2Card from './DisplayTimelineV2Card';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
