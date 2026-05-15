@@ -22,6 +22,8 @@ interface CreateTodoWizardProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   preselectedBookingId?: string | null;
+  /** When provided, dialog acts as edit form instead of create. */
+  todoId?: string | null;
 }
 
 interface BookingOption {
@@ -31,7 +33,8 @@ interface BookingOption {
   booking_number: string | null;
 }
 
-export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId }: CreateTodoWizardProps) {
+export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId }: CreateTodoWizardProps) {
+  const isEdit = !!todoId;
   const { organizationId } = useCurrentOrg();
   const { data: todoTypes = [], createType } = useTodoTypes();
 
@@ -69,7 +72,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
 
   // Reset on open
   useEffect(() => {
-    if (open) {
+    if (open && !todoId) {
       setShowNewType(false);
       setNewTypeLabel('');
       setAssignedLeader('');
@@ -91,7 +94,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         setTitle('');
       }
     }
-  }, [open, preselectedBookingId]);
+  }, [open, preselectedBookingId, todoId]);
 
   // Bookings dropdown
   const { data: bookings = [] } = useQuery({
@@ -108,6 +111,40 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
     },
   });
 
+  // Load existing todo for edit mode
+  useQuery({
+    queryKey: ['todo-edit-load', todoId],
+    enabled: open && !!todoId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('todos')
+        .select('*')
+        .eq('id', todoId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) {
+        setTypeId(data.type_id || '');
+        setTitle(data.title || '');
+        setSelectedBookingId(data.booking_id || '');
+        setAssignedLeader(data.assigned_leader || '');
+        setClient(data.client || '');
+        setContactName(data.contact_name || '');
+        setContactPhone(data.contact_phone || '');
+        setContactEmail(data.contact_email || '');
+        setAddress(data.address || '');
+        setCity(data.city || '');
+        setPostalCode(data.postal_code || '');
+        setLatitude(data.latitude ?? undefined);
+        setLongitude(data.longitude ?? undefined);
+        setScheduledDate(data.scheduled_date || '');
+        setStartTime(data.start_time ? String(data.start_time).slice(0, 5) : '');
+        setEndTime(data.end_time ? String(data.end_time).slice(0, 5) : '');
+        setInternalNotes(data.internal_notes || '');
+      }
+      return data;
+    },
+    staleTime: 0,
+  });
   // Profiles for leader
   const { data: leaders = [] } = useQuery({
     queryKey: ['todo-wizard-leaders'],
@@ -156,38 +193,51 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       if (!title.trim()) throw new Error('Ange en titel');
       const bookingId = selectedBookingId && selectedBookingId !== 'none' ? selectedBookingId : null;
 
+      const payload = {
+        type_id: typeId,
+        title: title.trim(),
+        booking_id: bookingId,
+        client: client.trim() || null,
+        contact_name: contactName.trim() || null,
+        contact_phone: contactPhone.trim() || null,
+        contact_email: contactEmail.trim() || null,
+        address: address.trim() || null,
+        city: city.trim() || null,
+        postal_code: postalCode.trim() || null,
+        latitude,
+        longitude,
+        scheduled_date: scheduledDate || null,
+        start_time: startTime || null,
+        end_time: endTime || null,
+        assigned_leader: assignedLeader && assignedLeader !== 'none' ? assignedLeader : null,
+        internal_notes: internalNotes.trim() || null,
+      };
+
+      if (isEdit && todoId) {
+        const { data: todo, error } = await (supabase as any)
+          .from('todos')
+          .update(payload)
+          .eq('id', todoId)
+          .select()
+          .single();
+        if (error) throw error;
+        return todo;
+      }
+
       const { data: todo, error } = await supabase
         .from('todos')
-        .insert({
-          type_id: typeId,
-          title: title.trim(),
-          booking_id: bookingId,
-          client: client.trim() || null,
-          contact_name: contactName.trim() || null,
-          contact_phone: contactPhone.trim() || null,
-          contact_email: contactEmail.trim() || null,
-          address: address.trim() || null,
-          city: city.trim() || null,
-          postal_code: postalCode.trim() || null,
-          latitude,
-          longitude,
-          scheduled_date: scheduledDate || null,
-          start_time: startTime || null,
-          end_time: endTime || null,
-          assigned_leader: assignedLeader && assignedLeader !== 'none' ? assignedLeader : null,
-          internal_notes: internalNotes.trim() || null,
-        } as any)
+        .insert(payload as any)
         .select()
         .single();
       if (error) throw error;
       return todo;
     },
     onSuccess: () => {
-      toast.success('To do skapad');
+      toast.success(isEdit ? 'To do uppdaterad' : 'To do skapad');
       onSuccess();
     },
     onError: (e: any) => {
-      toast.error(`Kunde inte skapa to do: ${e?.message || 'Okänt fel'}`);
+      toast.error(`${isEdit ? 'Kunde inte uppdatera' : 'Kunde inte skapa'} to do: ${e?.message || 'Okänt fel'}`);
     },
   });
 
@@ -195,7 +245,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Skapa to do</DialogTitle>
+          <DialogTitle>{isEdit ? 'Redigera to do' : 'Skapa to do'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} className="space-y-5">
@@ -399,7 +449,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Avbryt</Button>
             <Button type="submit" disabled={create.isPending} className="bg-orange-500 hover:bg-orange-600 text-white">
-              {create.isPending ? 'Skapar…' : 'Skapa to do'}
+              {create.isPending ? (isEdit ? 'Sparar…' : 'Skapar…') : (isEdit ? 'Spara ändringar' : 'Skapa to do')}
             </Button>
           </DialogFooter>
         </form>
