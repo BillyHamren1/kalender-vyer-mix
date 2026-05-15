@@ -33,7 +33,8 @@ interface BookingOption {
   booking_number: string | null;
 }
 
-export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId }: CreateTodoWizardProps) {
+export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId }: CreateTodoWizardProps) {
+  const isEdit = !!todoId;
   const { organizationId } = useCurrentOrg();
   const { data: todoTypes = [], createType } = useTodoTypes();
 
