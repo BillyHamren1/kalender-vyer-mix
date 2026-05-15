@@ -444,17 +444,45 @@ export async function buildKnownTargetsEvidence(
   // krascha pga supplier-läsning.
   // Suppliers blandas ALDRIG ihop med projects/bookings (egen targetType).
   const SUPPLIER_DEFAULT_RADIUS_M = 150;
-  const SUPPLIER_TABLE_CANDIDATES: string[] = [
+  // Lager 2.12A — narrow: tabeller med tydlig supplier-identitet (alla rader = supplier).
+  const NARROW_SUPPLIER_TABLES: string[] = [
     'external_suppliers',
     'suppliers',
-    'partners',
     'vendors',
     'subcontractors',
     'business_partners',
     'supplier_addresses',
+  ];
+  // Breda tabeller — får användas ENDAST om raden tydligt är supplier/vendor/partner.
+  const BROAD_SUPPLIER_TABLES: string[] = [
     'contacts',
     'companies',
+    'partners',
   ];
+  const SUPPLIER_MARKER_FIELDS = [
+    'type', 'company_type', 'contact_type', 'category', 'role',
+    'partner_type', 'relation_type',
+  ];
+  const SUPPLIER_BOOL_FIELDS = ['is_supplier', 'is_vendor', 'supplier', 'vendor'];
+  const SUPPLIER_MARKER_VALUES = new Set([
+    'supplier', 'vendor', 'subcontractor', 'partner_supplier',
+    'business_partner', 'rental_supplier', 'logistics_supplier',
+  ]);
+  const isSupplierRow = (r: any): boolean => {
+    const raw = (r?.raw && typeof r.raw === 'object') ? r.raw : {};
+    const meta = (r?.metadata && typeof r.metadata === 'object') ? r.metadata : {};
+    for (const f of SUPPLIER_BOOL_FIELDS) {
+      if (r?.[f] === true || raw?.[f] === true || meta?.[f] === true) return true;
+    }
+    for (const f of SUPPLIER_MARKER_FIELDS) {
+      const vals = [r?.[f], raw?.[f], meta?.[f]];
+      for (const v of vals) {
+        if (typeof v === 'string' && SUPPLIER_MARKER_VALUES.has(v.toLowerCase().trim())) return true;
+      }
+    }
+    return false;
+  };
+  const SUPPLIER_TABLE_CANDIDATES: string[] = [...NARROW_SUPPLIER_TABLES, ...BROAD_SUPPLIER_TABLES];
 
   const pickFiniteNum = (v: unknown): number | null => {
     if (isFiniteNumber(v)) return v as number;
