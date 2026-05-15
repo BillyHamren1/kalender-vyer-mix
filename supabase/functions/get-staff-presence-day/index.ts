@@ -263,6 +263,7 @@ Deno.serve(async (req) => {
   let workdayAllocationSegments: any[] = [];
   let workdayAllocationProposals: any[] = [];
   let displayTimelineBlocksV2: any[] = [];
+  let displayTimelineDayActionsV2: any[] = [];
   let displayTimelineDiagnosticsV2: any = null;
   // Lager 3.7 — AI reviewer output (no-op default; ingen extern AI kopplad här).
   let aiWorkdayReviewSummary: any = null;
@@ -327,6 +328,7 @@ Deno.serve(async (req) => {
               workdayAllocation: wda,
             });
             displayTimelineBlocksV2 = dt.blocks;
+            displayTimelineDayActionsV2 = dt.dayActions;
             displayTimelineDiagnosticsV2 = dt.diagnostics;
           } catch (e: any) {
             console.warn('[presence-day] buildDisplayTimelineFromWorkdayAllocation failed', e);
@@ -1383,6 +1385,7 @@ Deno.serve(async (req) => {
     // Lager 4.1 — Display Timeline (read-only). Säker att konsumeras av UI som
     // ren visning. Får inte triggera skrivningar.
     displayTimelineBlocksV2,
+    displayTimelineDayActionsV2,
     displayTimelineDiagnosticsV2,
     // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
     aiWorkdayReviewSummary,

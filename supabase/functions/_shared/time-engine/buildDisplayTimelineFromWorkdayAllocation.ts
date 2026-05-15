@@ -75,8 +75,38 @@ export type DisplayTimelineWarning =
   | 'segment_partially_outside_workday'
   | 'needs_review_business_context';
 
-/** Action användaren förväntas kunna ta från ett block. */
+/**
+ * Action användaren förväntas kunna ta från ett block (eller hela dagen).
+ *
+ * Lager 4.4 — Actions är endast _beskrivningar_ av möjliga åtgärder.
+ * De skriver ingenting i Lager 4 och får inte mutera GPS, time_reports,
+ * active_time_registrations eller payroll. UI ansvarar för att utföra dem.
+ */
 export type DisplayTimelineActionType =
+  // Dag-nivå (Lager 4.4)
+  | 'approve_day'
+  | 'edit_day'
+  | 'add_note'
+  // Projekt/booking/large_project utan assignment
+  | 'confirm_worked_here'
+  | 'request_assignment_link'
+  | 'suggest_assignment_link'
+  // Unlinked address
+  | 'link_to_project'
+  | 'mark_as_other_work'
+  // Supplier
+  | 'link_supplier_visit_to_project'
+  | 'mark_as_pickup'
+  | 'mark_as_dropoff'
+  // Private + workday-end-förslag
+  | 'accept_suggested_workday_end'
+  | 'edit_workday_end'
+  | 'ignore_private_time'
+  // Planning ↔ GPS-mismatch
+  | 'confirm_actual_location'
+  | 'edit_time_block'
+  | 'add_explanation'
+  // Legacy / övriga (bakåtkompatibla)
   | 'confirm_allocation'
   | 'pick_project_for_supplier'
   | 'classify_unknown_address'
@@ -85,9 +115,21 @@ export type DisplayTimelineActionType =
   | 'mark_as_private'
   | 'open_correction_dialog';
 
+export type DisplayTimelineActionSeverity =
+  | 'info'
+  | 'primary'
+  | 'warning'
+  | 'critical';
+
 export interface DisplayTimelineAction {
+  /** Lager 4.4 — kanoniskt namn enligt spec. */
+  actionType: DisplayTimelineActionType;
+  /** Bakåtkompatibelt alias för actionType (samma värde). */
   type: DisplayTimelineActionType;
   label: string;
+  requiresAiValidation: boolean;
+  requiresUserNote: boolean;
+  severity: DisplayTimelineActionSeverity;
   /** Optional payload för UI (target-kandidat, segment-id m.m.). */
   payload?: Record<string, unknown>;
 }
@@ -180,6 +222,8 @@ export interface DisplayTimelineDiagnostics {
 
 export interface DisplayTimelineResult {
   blocks: DisplayTimelineBlock[];
+  /** Lager 4.4 — actions som gäller hela dagen, inte ett enskilt block. */
+  dayActions: DisplayTimelineAction[];
   diagnostics: DisplayTimelineDiagnostics;
 }
 
@@ -420,66 +464,247 @@ function deriveSubtitle(
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
+// ── Lager 4.4 — Action-fabrik ────────────────────────────────────────────
+
+interface ActionSpec {
+  actionType: DisplayTimelineActionType;
+  label: string;
+  requiresAiValidation?: boolean;
+  requiresUserNote?: boolean;
+  severity?: DisplayTimelineActionSeverity;
+  payload?: Record<string, unknown>;
+}
+
+function mkAction(spec: ActionSpec): DisplayTimelineAction {
+  return {
+    actionType: spec.actionType,
+    type: spec.actionType,
+    label: spec.label,
+    requiresAiValidation: spec.requiresAiValidation ?? false,
+    requiresUserNote: spec.requiresUserNote ?? false,
+    severity: spec.severity ?? 'info',
+    payload: spec.payload,
+  };
+}
+
+const PROJECT_LIKE_TYPES: ReadonlySet<DisplayTimelineBlockType> = new Set([
+  'project', 'large_project', 'booking', 'warehouse',
+]);
+
 function deriveActions(
   block: Omit<DisplayTimelineBlock, 'actions' | 'subtitle'>,
   proposalsForSegment: WorkdayAllocationProposal[],
 ): DisplayTimelineAction[] {
   const actions: DisplayTimelineAction[] = [];
+  const seen = new Set<DisplayTimelineActionType>();
+  const push = (a: DisplayTimelineAction) => {
+    if (seen.has(a.actionType)) return;
+    seen.add(a.actionType);
+    actions.push(a);
+  };
+
+  const hasUnassignedWarning =
+    block.warnings.includes('staff_not_assigned_to_matched_target') ||
+    block.warnings.includes('unassigned_known_target_presence');
+  const hasGeoMismatch = block.warnings.includes('planning_geo_mismatch');
+  const aiReviewProposal = proposalsForSegment.find((p) => p.proposalType === 'ai_review_candidate');
+  const supplierLinkProposal = proposalsForSegment.find(
+    (p) => p.proposalType === 'link_supplier_to_project_candidate',
+  );
+  const workdayEndProposal = proposalsForSegment.find(
+    (p) => p.proposalType === 'suggest_workday_end' ||
+           p.proposalType === 'consider_workday_end_from_private',
+  );
+
+  // ── Project / booking / large_project / warehouse utan assignment ────
+  if (PROJECT_LIKE_TYPES.has(block.displayType) && hasUnassignedWarning) {
+    push(mkAction({
+      actionType: 'confirm_worked_here',
+      label: 'Bekräfta att du jobbade här',
+      severity: 'primary',
+    }));
+    if (aiReviewProposal) {
+      push(mkAction({
+        actionType: 'request_assignment_link',
+        label: 'Begär assignment-koppling',
+        requiresAiValidation: true,
+        severity: 'warning',
+      }));
+    } else {
+      push(mkAction({
+        actionType: 'suggest_assignment_link',
+        label: 'Föreslå assignment-koppling',
+        requiresAiValidation: true,
+        severity: 'warning',
+      }));
+    }
+    push(mkAction({
+      actionType: 'add_note',
+      label: 'Lägg till anteckning',
+      requiresUserNote: true,
+    }));
+    // Bakåtkompatibel legacy-action.
+    push(mkAction({
+      actionType: 'confirm_allocation',
+      label: 'Bekräfta tid',
+      severity: 'primary',
+    }));
+  }
+
+  // ── Unlinked work address ────────────────────────────────────────────
+  if (block.displayType === 'unlinked_address') {
+    push(mkAction({
+      actionType: 'link_to_project',
+      label: 'Koppla till projekt',
+      requiresAiValidation: true,
+      severity: 'warning',
+      payload: { address: block.address ?? null },
+    }));
+    push(mkAction({
+      actionType: 'mark_as_other_work',
+      label: 'Markera som annat arbete',
+      requiresUserNote: true,
+    }));
+    push(mkAction({
+      actionType: 'add_note',
+      label: 'Lägg till anteckning',
+      requiresUserNote: true,
+    }));
+    // Legacy.
+    push(mkAction({
+      actionType: 'classify_unknown_address',
+      label: 'Klassificera plats',
+      severity: 'warning',
+      payload: { address: block.address ?? null },
+    }));
+  }
+
+  // ── Supplier visit ───────────────────────────────────────────────────
   if (block.displayType === 'supplier') {
-    const link = proposalsForSegment.find(
-      (p) => p.proposalType === 'link_supplier_to_project_candidate',
-    );
-    if (link) {
-      actions.push({
-        type: 'pick_project_for_supplier',
-        label: 'Koppla leverantörsbesök till projekt',
+    push(mkAction({
+      actionType: 'link_supplier_visit_to_project',
+      label: 'Koppla leverantörsbesök till projekt',
+      requiresAiValidation: true,
+      severity: 'warning',
+      payload: supplierLinkProposal ? {
+        candidateTargetType: supplierLinkProposal.candidateTargetType ?? null,
+        candidateTargetId: supplierLinkProposal.candidateTargetId ?? null,
+        candidateLabel: supplierLinkProposal.candidateLabel ?? null,
+      } : undefined,
+    }));
+    push(mkAction({
+      actionType: 'mark_as_pickup',
+      label: 'Markera som upphämtning',
+    }));
+    push(mkAction({
+      actionType: 'mark_as_dropoff',
+      label: 'Markera som avlämning',
+    }));
+    push(mkAction({
+      actionType: 'add_note',
+      label: 'Lägg till anteckning',
+      requiresUserNote: true,
+    }));
+    // Legacy (endast om förslag finns).
+    if (supplierLinkProposal) {
+      push(mkAction({
+        actionType: 'pick_project_for_supplier',
+        label: 'Välj projekt för leverantörsbesök',
+        severity: 'warning',
         payload: {
-          candidateTargetType: link.candidateTargetType ?? null,
-          candidateTargetId: link.candidateTargetId ?? null,
-          candidateLabel: link.candidateLabel ?? null,
+          candidateTargetType: supplierLinkProposal.candidateTargetType ?? null,
+          candidateTargetId: supplierLinkProposal.candidateTargetId ?? null,
+          candidateLabel: supplierLinkProposal.candidateLabel ?? null,
         },
-      });
+      }));
     }
   }
-  if (block.displayType === 'unlinked_address') {
-    actions.push({
-      type: 'classify_unknown_address',
-      label: 'Klassificera plats',
-      payload: { address: block.address ?? null },
-    });
+
+  // ── Private + workday-end-förslag ────────────────────────────────────
+  if (block.displayType === 'private' && workdayEndProposal) {
+    push(mkAction({
+      actionType: 'accept_suggested_workday_end',
+      label: 'Acceptera föreslaget dagsslut',
+      severity: 'primary',
+      payload: { suggestedEndAt: workdayEndProposal.startAt ?? block.startAt },
+    }));
+    push(mkAction({
+      actionType: 'edit_workday_end',
+      label: 'Justera dagsslut',
+    }));
+    push(mkAction({
+      actionType: 'ignore_private_time',
+      label: 'Ignorera privat tid',
+      requiresUserNote: true,
+    }));
   }
-  if (block.displayType === 'break_or_gap') {
-    actions.push({
-      type: 'classify_uncovered_gap',
-      label: 'Förklara glapp',
-      payload: { startAt: block.startAt, endAt: block.endAt },
-    });
-  }
-  if (block.displayType === 'review') {
-    actions.push({
-      type: 'open_correction_dialog',
-      label: 'Granska och åtgärda',
-    });
-  }
-  if (block.displayType === 'travel' || block.displayType === 'commute') {
-    actions.push({
-      type: 'review_travel',
-      label: 'Granska resa',
-    });
-  }
-  if (
-    block.warnings.includes('staff_not_assigned_to_matched_target') ||
-    block.warnings.includes('unassigned_known_target_presence')
-  ) {
-    actions.push({ type: 'confirm_allocation', label: 'Bekräfta tid' });
-  }
+  // Legacy mark_as_private — för warnings vi flaggar som hem/temporär.
   if (
     block.warnings.includes('home_after_last_work_location') ||
     block.warnings.includes('temporary_home_presence')
   ) {
-    actions.push({ type: 'mark_as_private', label: 'Markera som privat' });
+    push(mkAction({ actionType: 'mark_as_private', label: 'Markera som privat' }));
   }
+
+  // ── Planning ↔ GPS-mismatch ──────────────────────────────────────────
+  if (hasGeoMismatch) {
+    push(mkAction({
+      actionType: 'confirm_actual_location',
+      label: 'Bekräfta faktisk plats',
+      requiresAiValidation: true,
+      requiresUserNote: true,
+      severity: 'warning',
+    }));
+    push(mkAction({
+      actionType: 'edit_time_block',
+      label: 'Justera tidsblock',
+    }));
+    push(mkAction({
+      actionType: 'add_explanation',
+      label: 'Lägg till förklaring',
+      requiresUserNote: true,
+    }));
+  }
+
+  // ── Break / gap ──────────────────────────────────────────────────────
+  if (block.displayType === 'break_or_gap') {
+    push(mkAction({
+      actionType: 'classify_uncovered_gap',
+      label: 'Förklara glapp',
+      severity: 'warning',
+      payload: { startAt: block.startAt, endAt: block.endAt },
+    }));
+    push(mkAction({
+      actionType: 'add_note',
+      label: 'Lägg till anteckning',
+      requiresUserNote: true,
+    }));
+  }
+
+  // ── Review-block ─────────────────────────────────────────────────────
+  if (block.displayType === 'review') {
+    push(mkAction({
+      actionType: 'open_correction_dialog',
+      label: 'Granska och åtgärda',
+      severity: 'warning',
+    }));
+  }
+
+  // ── Travel / commute ─────────────────────────────────────────────────
+  if (block.displayType === 'travel' || block.displayType === 'commute') {
+    push(mkAction({ actionType: 'review_travel', label: 'Granska resa' }));
+  }
+
   return actions;
+}
+
+/** Lager 4.4 — Actions för hela dagen. */
+function buildDayActions(): DisplayTimelineAction[] {
+  return [
+    mkAction({ actionType: 'approve_day', label: 'Godkänn dagen', severity: 'primary' }),
+    mkAction({ actionType: 'edit_day', label: 'Redigera dagen' }),
+    mkAction({ actionType: 'add_note', label: 'Lägg till dagsanteckning', requiresUserNote: true }),
+  ];
 }
 
 // ── Merge ────────────────────────────────────────────────────────────────
@@ -809,11 +1034,12 @@ export function buildDisplayTimelineFromWorkdayAllocation(
       first.endAt = trailingPrivates[trailingPrivates.length - 1].endAt;
       first.durationMinutes = total;
       first.severity = 'info';
-      if (!first.actions.find((a) => a.type === 'open_correction_dialog')) {
-        first.actions.push({
-          type: 'open_correction_dialog',
+      if (!first.actions.find((a) => a.actionType === 'open_correction_dialog')) {
+        first.actions.push(mkAction({
+          actionType: 'open_correction_dialog',
           label: 'Arbetsdagen kan avslutas här',
-        });
+          severity: 'warning',
+        }));
       }
       // Ta bort de andra trailing-privates.
       const removeIds = new Set(trailingPrivates.slice(1).map((b) => b.id));
@@ -899,5 +1125,5 @@ export function buildDisplayTimelineFromWorkdayAllocation(
     diagnostics.warnings.push('empty_workday_allocation');
   }
 
-  return { blocks, diagnostics };
+  return { blocks, dayActions: buildDayActions(), diagnostics };
 }
