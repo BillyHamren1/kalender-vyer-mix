@@ -130,9 +130,9 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
     if (!ctx || ctx.bookings.length === 0) return;
     const b = ctx.bookings[0];
     const list: PlanningDay[] = [];
-    if (b.rigdaydate) list.push({ date: b.rigdaydate, kind: 'rig', ...DEFAULTS.rig, teamId: 'team-1', startTime: DEFAULTS.rig.start, endTime: DEFAULTS.rig.end });
-    if (b.eventdate) list.push({ date: b.eventdate, kind: 'event', startTime: DEFAULTS.event.start, endTime: DEFAULTS.event.end, teamId: 'team-1' });
-    if (b.rigdowndate) list.push({ date: b.rigdowndate, kind: 'rigDown', startTime: DEFAULTS.rigDown.start, endTime: DEFAULTS.rigDown.end, teamId: 'team-1' });
+    if (b.rigdaydate) list.push({ date: b.rigdaydate, kind: 'rig', startTime: pickBookingTime(b, 'rig', 'start'), endTime: pickBookingTime(b, 'rig', 'end'), teamId: 'team-1' });
+    if (b.eventdate) list.push({ date: b.eventdate, kind: 'event', startTime: pickBookingTime(b, 'event', 'start'), endTime: pickBookingTime(b, 'event', 'end'), teamId: 'team-1' });
+    if (b.rigdowndate) list.push({ date: b.rigdowndate, kind: 'rigDown', startTime: pickBookingTime(b, 'rigDown', 'start'), endTime: pickBookingTime(b, 'rigDown', 'end'), teamId: 'team-1' });
     list.sort((a, z) => a.date.localeCompare(z.date));
     setDays(list);
   }, [ctx]);
