@@ -1520,14 +1520,16 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       </div>
 
       {/* Fas-legend (matchar personalkalendern) */}
-      <div className="rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-[11px] flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground backdrop-blur">
+      <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-[11px] flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
         <span className="font-semibold tracking-wider text-foreground/80 mr-1">FAS</span>
         <LegendDot className="bg-[#F2FCE2] border-[#C9E8A8]" label="Rigg" />
         <LegendDot className="bg-slate-300/70 border-slate-400" label="Arbete" />
         <LegendDot className="bg-[#FFDEE2] border-[#F4B4BC]" label="Rigga ner" />
         <LegendDot className="bg-sky-200/80 border-sky-400" label="Transport" />
         <LegendDot className="bg-[#E5DEFF] border-[#BFB1F5]" label="Lager" />
-        <LegendDot className="bg-amber-200/80 border-amber-500" label="Granska" />
+        <LegendDot className="bg-amber-50 border-amber-300" label="Granska" />
+      </div>
+        </div>
       </div>
 
       {/* Detail drawer */}
