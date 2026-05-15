@@ -357,6 +357,7 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'normally_not_paid_commute', 'normally_not_paid_homebound',
   'long_travel_over_150km', 'movement_missing_anchor',
   'supplier_visit_without_project_context',
+  'home_after_last_work_location', 'temporary_home_presence',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
