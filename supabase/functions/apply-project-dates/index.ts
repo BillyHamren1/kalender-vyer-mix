@@ -217,7 +217,9 @@ Deno.serve(async (req) => {
   );
 
   // Auth: dry_run kringgår user-JWT (säkert: ingen skrivning, ingen extern push).
-  // Skarp körning kräver inloggad användare i samma org som projektet.
+  // Skarp körning kräver inloggad användare. organization_id kan utelämnas
+  // i body — den härleds då från caller's profile (single source of truth).
+  let resolvedOrgId: string | undefined = parsed.data.organization_id;
   if (!parsed.data.dry_run) {
     const auth = req.headers.get('Authorization');
     if (!auth?.startsWith('Bearer ')) return bad(401, 'unauthorized');
@@ -233,14 +235,25 @@ Deno.serve(async (req) => {
       .select('organization_id')
       .eq('user_id', userData.user.id)
       .maybeSingle();
-    if (!profile || profile.organization_id !== parsed.data.organization_id) {
+    if (!profile?.organization_id) return bad(403, 'no organization');
+    if (resolvedOrgId && resolvedOrgId !== profile.organization_id) {
       return bad(403, 'organization mismatch');
     }
+    resolvedOrgId = profile.organization_id as string;
   }
+  if (!resolvedOrgId) return bad(400, 'organization_id required for dry_run when no auth');
 
-  const bookingIds = await resolveBookingIds(supabase, parsed.data);
+  const effective: ResolvedRequest = {
+    project_id: parsed.data.project_id,
+    project_type: parsed.data.project_type,
+    organization_id: resolvedOrgId,
+    dates: parsed.data.dates,
+    dry_run: parsed.data.dry_run === true,
+  };
+
+  const bookingIds = await resolveBookingIds(supabase, effective);
   if (bookingIds.length === 0) {
-    return bad(404, 'no bookings found for project', { project_id: parsed.data.project_id });
+    return bad(404, 'no bookings found for project', { project_id: effective.project_id });
   }
 
   if (parsed.data.dry_run) {
