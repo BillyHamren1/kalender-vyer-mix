@@ -626,13 +626,55 @@ export const deleteCalendarEvent = async (eventId: string): Promise<void> => {
 };
 
 /**
- * Toggle per-day time lock on a calendar_events row.
- * Locked rows are protected from drag/resize and bulk time updates.
+ * Toggle "Fast tid" for a calendar event.
+ *
+ * Unified lock model: for phase events (rig/event/rigDown) tied to a booking,
+ * we delegate to `setPhaseLock` which writes the canonical
+ * `bookings.<phase>_time_locked` flag (and propagates to siblings in large
+ * projects). This is the SAME flag that import-bookings sets when an external
+ * booking arrives with fixed times — so toggling it here flips the same
+ * source of truth as the booking-import lock and the QuickTimeEditPopover
+ * "Fast tid" checkbox.
+ *
+ * For non-phase events (e.g. todo) without a phase mapping, we fall back to
+ * the per-row `calendar_events.times_locked` column.
  */
 export const setCalendarEventTimesLocked = async (
   eventId: string,
   locked: boolean
 ): Promise<void> => {
+  const { setPhaseLock } = await import('./timeSync');
+
+  const { data: row, error: selErr } = await supabase
+    .from('calendar_events')
+    .select('id, booking_id, event_type')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (selErr) {
+    console.error('❌ [setCalendarEventTimesLocked] lookup', selErr);
+    throw selErr;
+  }
+
+  const phase = row?.event_type as 'rig' | 'event' | 'rigDown' | undefined;
+  const isPhaseEvent = phase === 'rig' || phase === 'event' || phase === 'rigDown';
+
+  if (row?.booking_id && isPhaseEvent) {
+    // Canonical path — single source of truth on bookings.<phase>_time_locked.
+    await setPhaseLock(row.booking_id, phase, locked);
+    // Mirror to calendar_events.times_locked too so any legacy reader stays
+    // in sync (derivation already ORs both, but this keeps the row clean).
+    await supabase
+      .from('calendar_events')
+      .update({ times_locked: locked })
+      .eq('id', eventId);
+    console.log(`🔒 [Planner UI] phase-lock ${phase}=${locked} via setPhaseLock`, {
+      eventId,
+      bookingId: row.booking_id,
+    });
+    return;
+  }
+
+  // Fallback for non-phase / non-booking events.
   const { error } = await supabase
     .from('calendar_events')
     .update({ times_locked: locked })
