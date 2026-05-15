@@ -59,7 +59,7 @@ import { cleanupNeedsReviewFromLocationTruth } from '../_shared/time-engine/clea
 import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFromLocationTruth.ts';
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
-import { buildWorkdayAllocationFromLocationTruth } from '../_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts';
+import { buildWorkdayAllocationFromLocationTruth, resolveWorkdayEnvelope } from '../_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts';
 
 // ── Lager 2.7 feature flag ────────────────────────────────────────────────
 // Read-only: returnerar locationTruthSegments + locationTruthDiagnostics.
