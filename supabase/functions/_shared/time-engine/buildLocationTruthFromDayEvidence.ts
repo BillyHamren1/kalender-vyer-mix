@@ -99,17 +99,32 @@ export interface ClusterMatchEntry {
 export interface PhysicalLocationDiagnostics {
   clustersWithKnownTargetCount: number;
   clustersWithKnownAddressNoTargetCount: number;
+  /** Lager 2.11F — alias för clustersWithKnownAddressNoTargetCount. */
+  knownAddressNoTargetCount: number;
   unresolvedLocationCount: number;
   reverseGeocodeUsedCount: number;
   centroidOnlyAddressCount: number;
   noEventFlowTargetMatchCount: number;
   planningGeoMismatchCount: number;
+  /** Lager 2.11F — businessContext-utfall per typ. */
+  supplierVisitCount: number;
+  warehousePresenceCount: number;
+  unassignedProjectPresenceCount: number;
+  largeProjectMissingGeoBusinessWarningCount: number;
+  /** Lager 2.11F — physicalLocation.address fyllnadsgrad. */
+  physicalLocationAddressFilledCount: number;
+  physicalLocationAddressMissingCount: number;
   examples: Array<{
     clusterId: string;
     segmentType: LocationTruthSegmentType;
     physicalLocationSource: PhysicalLocation['source'];
+    physicalLocationLabel?: string;
+    physicalLocationAddress?: string | null;
     businessContextStatus: BusinessContextStatus;
+    matchedTarget?: LocationTruthMatchedTarget;
+    /** @deprecated använd matchedTarget.targetType. */
     matchedTargetType?: LocationTruthTargetType;
+    /** @deprecated använd physicalLocationLabel. */
     label?: string;
     warnings: string[];
   }>;
@@ -453,11 +468,18 @@ export function buildLocationTruthFromDayEvidence(
   const physDiag: PhysicalLocationDiagnostics = {
     clustersWithKnownTargetCount: 0,
     clustersWithKnownAddressNoTargetCount: 0,
+    knownAddressNoTargetCount: 0,
     unresolvedLocationCount: 0,
     reverseGeocodeUsedCount: 0,
     centroidOnlyAddressCount: 0,
     noEventFlowTargetMatchCount: 0,
     planningGeoMismatchCount: 0,
+    supplierVisitCount: 0,
+    warehousePresenceCount: 0,
+    unassignedProjectPresenceCount: 0,
+    largeProjectMissingGeoBusinessWarningCount: 0,
+    physicalLocationAddressFilledCount: 0,
+    physicalLocationAddressMissingCount: 0,
     examples: [],
   };
 
@@ -734,15 +756,36 @@ export function buildLocationTruthFromDayEvidence(
       counts.segments++;
       counts.segmentsByType[segmentType]++;
 
+      // Lager 2.11F — räkna business-status och physicalLocation.address.
+      if (businessStatus === 'supplier_visit') physDiag.supplierVisitCount++;
+      if (businessStatus === 'warehouse_presence') physDiag.warehousePresenceCount++;
+      if (businessStatus === 'unassigned_known_target_presence') physDiag.unassignedProjectPresenceCount++;
+      if (
+        businessWarnings.includes('large_project_missing_geo') ||
+        businessWarnings.includes('assigned_large_project_missing_geo') ||
+        businessWarnings.includes('planned_target_missing_geo')
+      ) {
+        physDiag.largeProjectMissingGeoBusinessWarningCount++;
+      }
+      const addr = phys.physicalLocation.address;
+      if (typeof addr === 'string' && addr.trim().length > 0) {
+        physDiag.physicalLocationAddressFilledCount++;
+      } else {
+        physDiag.physicalLocationAddressMissingCount++;
+      }
+
       if (physDiag.examples.length < 5) {
         physDiag.examples.push({
           clusterId: cluster.id,
           segmentType,
           physicalLocationSource: phys.physicalLocation.source,
+          physicalLocationLabel: phys.physicalLocation.label,
+          physicalLocationAddress: phys.physicalLocation.address ?? null,
           businessContextStatus: businessStatus,
+          matchedTarget,
           matchedTargetType: matchedTarget?.targetType,
           label: phys.physicalLocation.label,
-          warnings: segWarnings,
+          warnings: [...segWarnings, ...businessWarnings],
         });
       }
     }
@@ -864,6 +907,9 @@ export function buildLocationTruthFromDayEvidence(
       });
     }
   }
+
+  // Lager 2.11F — alias-spegling.
+  physDiag.knownAddressNoTargetCount = physDiag.clustersWithKnownAddressNoTargetCount;
 
   const diagnostics: LocationTruthDiagnostics = {
     staffId: dayEvidence.staffId,
