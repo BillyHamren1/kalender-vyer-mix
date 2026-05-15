@@ -55,6 +55,13 @@ import {
   type BookingTimes,
 } from '../_shared/workday/plannedDay.ts';
 import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
+import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
+import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
+
+// ── Lager 2.7 feature flag ────────────────────────────────────────────────
+// Read-only: lägger locationTruthV2-diagnostik i staff_day_report_cache.diagnostics_json.
+// Påverkar INTE display_blocks_json eller report_candidate_blocks_json.
+const ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS = true;
 
 async function resolvePlannedEndOfDayIso(
   admin: any,
@@ -503,6 +510,43 @@ async function processOne(
     out.companionRoute = (presence as any).companionRouteDiagnostics ?? null;
     out.ok = true;
 
+    // ── Lager 2.7 — Location Truth V2 (read-only diagnostics) ──────────
+    // Kör buildDayEvidence + buildLocationTruthFromDayEvidence parallellt
+    // med befintlig pipeline. Påverkar INTE blocks/display/report_candidate.
+    let locationTruthV2: any = null;
+    if (ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS) {
+      try {
+        const dayEvidence = await buildDayEvidence({
+          supabaseAdmin: admin,
+          organizationId: orgId,
+          staffId,
+          date,
+          dayStartUtc: dayStart,
+          dayEndUtc: dayEnd,
+        });
+        try {
+          const lt = buildLocationTruthFromDayEvidence(dayEvidence);
+          locationTruthV2 = {
+            available: true,
+            segmentCount: lt.segments?.length ?? 0,
+            segments: lt.segments,
+            diagnostics: lt.diagnostics,
+            error: null,
+          };
+        } catch (e: any) {
+          locationTruthV2 = {
+            available: false,
+            error: `location_truth_failed:${e?.message ?? String(e)}`,
+          };
+        }
+      } catch (e: any) {
+        locationTruthV2 = {
+          available: false,
+          error: `day_evidence_failed:${e?.message ?? String(e)}`,
+        };
+      }
+    }
+
     if (!dryRun) {
       const summary = {
         pingCount: pings.length,
@@ -566,6 +610,8 @@ async function processOne(
                 id: b.id, kind: b.kind, startAt: b.startAt, endAt: b.endAt,
                 targetLabel: b.targetLabel ?? b.title ?? null,
               })),
+              // Lager 2.7 — Location Truth V2 (read-only).
+              locationTruthV2,
             },
             source_watermark: {
               maxPingTs: pings[pings.length - 1]?.ts ?? null,
