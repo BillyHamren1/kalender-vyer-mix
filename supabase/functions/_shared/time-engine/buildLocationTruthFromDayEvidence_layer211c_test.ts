@@ -157,7 +157,7 @@ Deno.test('Lager 2.11C — G: planning på A men GPS på B → planning_geo_mism
   const wh = tgt('warehouse', 'wh1', 59.3293, 18.0686, 'Lager', 'organization_locations');
   const projA = tgt('project', 'pA', 59.5000, 18.5000, 'Project A långt bort', 'projects');
   const r = buildAt(wh, {
-    assignments: [{ bookingId: null, projectId: 'pA', largeProjectId: null, belongsToLargeProject: false }],
+    assignments: [{ bookingId: null, projectId: 'pA', largeProjectId: null, belongsToLargeProject: false, startAt: '2026-05-15T07:30:00Z', endAt: '2026-05-15T09:00:00Z' }],
     extraTargets: [projA],
   });
   const seg = findKnownTargetSeg(r);
