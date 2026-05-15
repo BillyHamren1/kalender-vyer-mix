@@ -83,6 +83,9 @@ const LargeProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="pickup" className={tabTriggerClass}>
+              Materialhämtning
+            </TabsTrigger>
           </TabsList>
         </div>
 
