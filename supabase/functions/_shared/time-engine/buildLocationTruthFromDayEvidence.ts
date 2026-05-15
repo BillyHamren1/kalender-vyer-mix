@@ -622,6 +622,31 @@ export function buildLocationTruthFromDayEvidence(
     warnings.push(`location_truth_gap_bridge_failed:${(err as Error).message}`);
   }
 
+
+  // Lager 2.5 — verklig förflyttning: skapa movement-segment ENDAST när
+  // pings emellan styrker faktisk route mellan två olika stabila platser.
+  let finalSegments = bridgedSegments;
+  let movementDiagnostics: MovementDiagnostics | null = null;
+  try {
+    const mv = detectTrueMovement(bridgedSegments, logicPings);
+    finalSegments = mv.segments;
+    movementDiagnostics = mv.diagnostics;
+    // Räkna om segmenttyper efter movement-injektion.
+    counts.segments = finalSegments.length;
+    const byType: Record<LocationTruthSegmentType, number> = {
+      known_target: 0,
+      known_address: 0,
+      private_residence: 0,
+      movement: 0,
+      unresolved_location: 0,
+      needs_location_review: 0,
+    };
+    for (const s of finalSegments) byType[s.type]++;
+    counts.segmentsByType = byType;
+  } catch (err) {
+    warnings.push(`location_truth_movement_failed:${(err as Error).message}`);
+  }
+
   const diagnostics: LocationTruthDiagnostics = {
     staffId: dayEvidence.staffId,
     date: dayEvidence.date,
@@ -636,7 +661,8 @@ export function buildLocationTruthFromDayEvidence(
     physicalLocationDiagnostics: physDiag,
     supplierMatchDiagnostics: supplierDiag,
     gapBridgeDiagnostics,
+    movementDiagnostics,
   };
 
-  return { segments: bridgedSegments, diagnostics, stableClusters, clusterMatches };
+  return { segments: finalSegments, diagnostics, stableClusters, clusterMatches };
 }
