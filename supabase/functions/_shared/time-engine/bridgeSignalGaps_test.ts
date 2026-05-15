@@ -37,7 +37,7 @@ function seg(opts: {
     },
     confidence: 'medium',
     evidence: { pingCount: 5 },
-    warnings: [], finalType: 'unknown_area' as any,
+    warnings: [], finalType: 'unresolved_location' as any,
     diagnostics: {},
   };
 }
