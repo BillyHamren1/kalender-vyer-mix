@@ -77,7 +77,7 @@ Deno.test('Lager 2.6 A: warehouse-pings → final known_site + summary räknar 1
 
   assert(r.segments.length >= 1);
   for (const s of r.segments) {
-    assert(['known_site', 'movement', 'private_residence', 'unknown_area', 'needs_location_review'].includes(s.finalType));
+    assert(['known_site', 'movement', 'private_residence', 'unresolved_location', 'known_address', 'needs_location_review'].includes(s.finalType));
   }
   const sum = r.diagnostics.locationTruthSummary!;
   assertEquals(sum.knownSiteSegmentCount, sum.finalSegmentsByType.known_site);
@@ -85,7 +85,7 @@ Deno.test('Lager 2.6 A: warehouse-pings → final known_site + summary räknar 1
   assertEquals(sum.movementSegmentCount, 0);
 });
 
-Deno.test('Lager 2.6 B: stabil okänd adress → final unknown_area', () => {
+Deno.test('Lager 2.6 B: stabil okänd adress → final known_address eller unresolved_location', () => {
   const pings = makePings(59.5000, 18.1234, 10, 0);
   const r = buildLocationTruthFromDayEvidence(dayEvidence({
     gps: { locationLogicPingCount: pings.length },
@@ -97,7 +97,7 @@ Deno.test('Lager 2.6 B: stabil okänd adress → final unknown_area', () => {
     },
   }));
   const sum = r.diagnostics.locationTruthSummary!;
-  assert(sum.unknownAreaSegmentCount >= 1);
+  assert(sum.knownAddressSegmentCount >= 1);
   for (const s of r.segments) {
     assert(s.finalType !== 'known_site');
   }
@@ -156,6 +156,6 @@ Deno.test('Lager 2.6: alla segment har giltig finalType', () => {
   }));
   for (const s of r.segments) {
     assert(typeof s.finalType === 'string');
-    assert(['known_site', 'movement', 'private_residence', 'unknown_area', 'needs_location_review'].includes(s.finalType));
+    assert(['known_site', 'movement', 'private_residence', 'unresolved_location', 'known_address', 'needs_location_review'].includes(s.finalType));
   }
 });
