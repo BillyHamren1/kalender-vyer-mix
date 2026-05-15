@@ -124,7 +124,16 @@ export type WorkdayAllocationProposalType =
   | 'allocation_candidate'
   | 'suggest_workday_end'
   | 'consider_workday_end_from_private'
-  | 'gap_in_workday';
+  | 'gap_in_workday'
+  // ── Lager 3.10B — supplier→projektkandidat ──────────────────────────────
+  | 'link_supplier_to_project_candidate';
+
+/** Lager 3.10B — explicit reason-vokab för link_supplier_to_project_candidate. */
+export type SupplierLinkProposalReason =
+  | 'supplier_visit_linked_to_project_candidate'
+  | 'supplier_between_warehouse_and_project'
+  | 'supplier_between_project_and_project'
+  | 'supplier_near_overlapping_assignment';
 
 export interface WorkdayAllocationDiagnostics {
   staffId: string | null;
