@@ -72,7 +72,7 @@ export function usePickupStops(parent: PickupParent | null) {
         sort_order: (list.data?.length ?? 0),
       };
       row[parentColumn(parent.type)] = parent.id;
-      const { error } = await supabase.from("pickup_stops").insert(row);
+      const { error } = await supabase.from("pickup_stops").insert(row as any);
       if (error) throw error;
     },
     onSuccess: () => {
