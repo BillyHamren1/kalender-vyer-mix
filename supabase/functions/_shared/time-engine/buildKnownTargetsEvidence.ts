@@ -457,13 +457,13 @@ export async function buildKnownTargetsEvidence(
   // krascha pga supplier-läsning.
   // Suppliers blandas ALDRIG ihop med projects/bookings (egen targetType).
   const SUPPLIER_DEFAULT_RADIUS_M = 150;
-  // Lager 2.12A — narrow: tabeller med tydlig supplier-identitet (alla rader = supplier).
+  // Lager 2.12A + 2.13 — narrow: tabeller med tydlig supplier-identitet (alla rader = supplier).
+  // OBS: business_partners flyttat till BROAD i 2.13 — den kan innehålla annat än suppliers.
   const NARROW_SUPPLIER_TABLES: string[] = [
     'external_suppliers',
     'suppliers',
     'vendors',
     'subcontractors',
-    'business_partners',
     'supplier_addresses',
   ];
   // Breda tabeller — får användas ENDAST om raden tydligt är supplier/vendor/partner.
@@ -471,6 +471,11 @@ export async function buildKnownTargetsEvidence(
     'contacts',
     'companies',
     'partners',
+    'business_partners',
+  ];
+  // Lager 2.13 — godkända org-scope-kolumner i prioritetsordning.
+  const ORG_SCOPE_COLUMNS: string[] = [
+    'organization_id', 'org_id', 'organisation_id', 'tenant_id', 'company_id',
   ];
   const SUPPLIER_MARKER_FIELDS = [
     'type', 'company_type', 'contact_type', 'category', 'role',
