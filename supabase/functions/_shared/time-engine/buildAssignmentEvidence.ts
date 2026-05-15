@@ -396,5 +396,5 @@ export async function buildAssignmentEvidence(
     pushExample(item);
   }
 
-  return { items, diagnostics: diag };
+  return { items, calendarEvents, diagnostics: diag };
 }
