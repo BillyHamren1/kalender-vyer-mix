@@ -304,6 +304,7 @@ export function matchClusterToKnownTarget(
     if (isPrivateType(winner.targetType)) mtype = 'private_residence';
     else if (winner.targetType === 'warehouse') mtype = 'warehouse';
     else if (winner.targetType === 'organization_location') mtype = 'organization_location';
+    else if (winner.targetType === 'supplier') mtype = 'supplier';
     else if (winner.targetType === 'large_project') mtype = 'large_project';
     else if (winner.targetType === 'project') mtype = 'project';
     else mtype = 'booking';
