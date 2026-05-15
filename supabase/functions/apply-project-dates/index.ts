@@ -35,11 +35,16 @@ const PHASE_TO_EXTERNAL_FIELD: Record<Phase, keyof ExternalWriteFields> = {
 type RequestBody = {
   project_id: string;
   project_type: 'medium' | 'large';
-  organization_id: string;
+  // organization_id valfri — om saknad härleds den från caller's profile.
+  organization_id?: string;
   // Per fas: full lista av datum (YYYY-MM-DD) som projektet vill att alla sub-bookings ska ha.
   dates: Partial<Record<Phase, string[]>>;
   // Dry-run: ingen lokal UPDATE, ingen extern push, ingen calendar-rebuild. Endast payload-preview.
   dry_run?: boolean;
+};
+
+type ResolvedRequest = Required<Pick<RequestBody, 'project_id' | 'project_type' | 'organization_id' | 'dates'>> & {
+  dry_run: boolean;
 };
 
 type PerBookingResult = {
