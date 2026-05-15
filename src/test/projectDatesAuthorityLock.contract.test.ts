@@ -31,7 +31,7 @@ describe('Project Dates Authority — lockning', () => {
     const offenders: string[] = [];
     const re = /\.update\s*\(\s*\{[^}]*\b(rigdaydate|eventdate|rigdowndate)\b/;
     for (const f of files) {
-      const rel = f.slice(ROOT.length + 1).replaceAll('\\', '/');
+      const rel = f.slice(ROOT.length + 1).split('\\').join('/');
       if (ALLOW.has(rel)) continue;
       const src = readFileSync(f, 'utf8');
       if (re.test(src)) offenders.push(rel);
@@ -42,7 +42,7 @@ describe('Project Dates Authority — lockning', () => {
   it('ingen kod importerar deprekerad propagateProjectDatesToBookings', () => {
     const offenders: string[] = [];
     for (const f of files) {
-      const rel = f.slice(ROOT.length + 1).replaceAll('\\', '/');
+      const rel = f.slice(ROOT.length + 1).split('\\').join('/');
       if (ALLOW.has(rel)) continue;
       const src = readFileSync(f, 'utf8');
       if (/propagateProjectDatesToBookings/.test(src)) offenders.push(rel);
