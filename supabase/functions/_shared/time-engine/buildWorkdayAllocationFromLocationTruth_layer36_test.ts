@@ -84,7 +84,7 @@ Deno.test('Lager 3.6 — > 90 min hemma efter sista jobb → suggest_workday_end
 
   const stop = res.proposals.find((p) => p.proposalType === 'suggest_workday_end')!;
   assertEquals(stop.reason, 'home_private_over_90_minutes_after_last_work_location');
-  assertEquals(stop.suggestedEndAt, '2026-05-15T16:30:00Z');
+  assertEquals(stop.suggestedEndAt, '2026-05-15T16:30:00.000Z');
 
   assertEquals(res.diagnostics.homeSegmentsAfterWork, 1);
   assertEquals(res.diagnostics.homeOver90MinutesCount, 1);
