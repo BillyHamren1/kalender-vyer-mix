@@ -540,6 +540,9 @@ function buildBlockFromSegments(
     .filter((id) => proposalsBySegmentId.has(id));
   const relatedProposals = proposalSegmentIds.flatMap((id) => proposalsBySegmentId.get(id) ?? []);
 
+  // Lager 4.3 — supplier-länk för subtitle.
+  const supplierLink = group.find((s) => s.linkedProjectCandidate)?.linkedProjectCandidate ?? null;
+
   const baseBlock: Omit<DisplayTimelineBlock, 'actions' | 'subtitle'> = {
     id: `dtl_${index.toString().padStart(4, '0')}_${first.id}`,
     startAt,
@@ -554,6 +557,7 @@ function buildBlockFromSegments(
     confidence,
     severity: deriveSeverity(displayType, confidence, allWarnings),
     warnings: userWarnings,
+    humanWarnings: buildHumanWarnings(userWarnings),
     sourceAllocationSegmentIds: group.map((s) => s.id),
     sourceLocationTruthSegmentIds: Array.from(new Set(allLtIds)),
     metadata: {
@@ -567,7 +571,11 @@ function buildBlockFromSegments(
       absorbedTravelSegments: [],
     },
   };
-  const subtitle = deriveSubtitle(displayType, { address, durationMinutes: dur });
+  const subtitle = deriveSubtitle(displayType, {
+    address,
+    durationMinutes: dur,
+    supplierLinkLabel: supplierLink?.label ?? null,
+  });
   const actions = deriveActions(baseBlock, relatedProposals);
   return { ...baseBlock, subtitle, actions };
 }
