@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
         if (!gpsOk) reasons.push('gps_evidence_weak_or_missing');
         if (!assignmentOk) reasons.push('assignment_context_missing');
         if (!targetsOk) reasons.push('no_usable_targets');
-        if ((kt.largeProjectRules?.lpWithoutGeoCount ?? 0) > 0) reasons.push('large_project_geo_missing');
+        if ((kt.largeProjectRules?.largeProjectsMissingGeoCount ?? 0) > 0) reasons.push('large_project_geo_missing');
         if ((kt.childBookingsSuppressedCount ?? 0) > 0 || (kt.childProjectsSuppressedCount ?? 0) > 0)
           reasons.push('child_object_suppression_active');
         if ((gps.ignoredOutlierPingCount ?? 0) > 0 || (gps.longGapCount ?? 0) > 0)
