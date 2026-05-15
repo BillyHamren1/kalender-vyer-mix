@@ -149,7 +149,21 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         setStartTime(data.start_time ? String(data.start_time).slice(0, 5) : '');
         setEndTime(data.end_time ? String(data.end_time).slice(0, 5) : '');
         setInternalNotes(data.internal_notes || '');
+        // Default planning-tider om to:n inte hade några ifyllda än.
+        if (planningMode) {
+          if (!data.scheduled_date) setScheduledDate(new Date().toISOString().slice(0, 10));
+          if (!data.start_time) setStartTime('08:00');
+          if (!data.end_time) setEndTime('16:00');
+        }
       }
+      // Hämta befintligt calendar_event för att förvälja team i planning mode.
+      if (planningMode && todoId) {
+        const { data: ev } = await (supabase as any)
+          .from('calendar_events')
+          .select('resource_id')
+          .eq('todo_id', todoId)
+          .maybeSingle();
+        if (ev?.resource_id) setResourceId(ev.resource_id);
       return data;
     },
     staleTime: 0,
