@@ -146,10 +146,125 @@ export interface ActiveWorkdayInput {
   date?: string | null;
 }
 
+// ── Lager 3.2 — Workday Envelope ─────────────────────────────────────────
+// Arbetsdagens RAM. Lager 3 fördelar tid INOM detta fönster.
+// Skrivs ALDRIG någonstans — endast read-only debug + intern allokering.
+
+export type WorkdayEnvelopeStartSource =
+  | 'active_time_registration'
+  | 'manual_input'
+  | 'unknown';
+
+export type WorkdayEnvelopeEndSource =
+  | 'active_time_registration_stop'
+  | 'analysis_window_end'
+  | 'now'
+  | 'manual_input'
+  | 'unknown';
+
+export type WorkdayEnvelopeWarning =
+  | 'workday_timer_open'
+  | 'workday_start_missing'
+  | 'workday_end_before_start'
+  | 'envelope_clipped_to_analysis_window';
+
+export interface WorkdayEnvelope {
+  /** Arbetsdagens startsanning. null = ingen aktiv dagtimer. */
+  startAt: string | null;
+  /** Arbetsdagens slutsanning. Om isOpen=true är detta analysfönster/now. */
+  endAt: string | null;
+  /** True om dagtimern fortfarande är öppen (ingen stopp registrerad). */
+  isOpen: boolean;
+  startSource: WorkdayEnvelopeStartSource;
+  endSource: WorkdayEnvelopeEndSource;
+  warnings: WorkdayEnvelopeWarning[];
+}
+
+export interface ResolveWorkdayEnvelopeInput {
+  activeWorkday: ActiveWorkdayInput | null;
+  /** Yttre slut för analysfönstret (t.ex. dayEnd UTC eller now-iso). Optional. */
+  analysisWindowEndIso?: string | null;
+  /** Optional "now"-injection för testbarhet. */
+  nowIso?: string | null;
+}
+
+/**
+ * Bygger workdayEnvelope från aktiv dagtimer.
+ * Skriver ALDRIG. Returnerar en ren beskrivning av arbetsdagens ram.
+ */
+export function resolveWorkdayEnvelope(
+  input: ResolveWorkdayEnvelopeInput,
+): WorkdayEnvelope {
+  const wd = input.activeWorkday;
+  const startMs = toMs(wd?.startedAt ?? null);
+  const stopMs = toMs(wd?.stoppedAt ?? null);
+  const nowMs = toMs(input.nowIso ?? null) ?? Date.now();
+  const analysisEndMs = toMs(input.analysisWindowEndIso ?? null);
+  const warnings: WorkdayEnvelopeWarning[] = [];
+
+  if (startMs === null) {
+    return {
+      startAt: null,
+      endAt: null,
+      isOpen: false,
+      startSource: 'unknown',
+      endSource: 'unknown',
+      warnings: ['workday_start_missing'],
+    };
+  }
+
+  const startSource: WorkdayEnvelopeStartSource = 'active_time_registration';
+
+  // Sluten dagtimer.
+  if (stopMs !== null) {
+    if (stopMs <= startMs) warnings.push('workday_end_before_start');
+    return {
+      startAt: new Date(startMs).toISOString(),
+      endAt: new Date(stopMs).toISOString(),
+      isOpen: false,
+      startSource,
+      endSource: 'active_time_registration_stop',
+      warnings,
+    };
+  }
+
+  // Öppen dagtimer → analysfönstrets slut, annars now. Aldrig framåt i tiden.
+  warnings.push('workday_timer_open');
+  let endMs: number;
+  let endSource: WorkdayEnvelopeEndSource;
+  if (analysisEndMs !== null) {
+    endMs = Math.min(analysisEndMs, nowMs);
+    endSource = endMs < analysisEndMs ? 'now' : 'analysis_window_end';
+    if (endMs < analysisEndMs) warnings.push('envelope_clipped_to_analysis_window');
+  } else {
+    endMs = nowMs;
+    endSource = 'now';
+  }
+  if (endMs < startMs) endMs = startMs;
+  return {
+    startAt: new Date(startMs).toISOString(),
+    endAt: new Date(endMs).toISOString(),
+    isOpen: true,
+    startSource,
+    endSource,
+    warnings,
+  };
+}
+
 export interface BuildWorkdayAllocationInput {
   dayEvidence: DayEvidence | null;
   locationTruthV2: LocationTruthResult | null;
-  activeWorkday: ActiveWorkdayInput | null;
+  /**
+   * Bakåtkompatibel: rå aktiv dagtimer. Om workdayEnvelope INTE skickas
+   * resolvar vi internt via resolveWorkdayEnvelope().
+   */
+  activeWorkday?: ActiveWorkdayInput | null;
+  /** Lager 3.2 — färdigberäknad envelope. Om satt vinner den över activeWorkday. */
+  workdayEnvelope?: WorkdayEnvelope | null;
+  /** Optional analysfönsterslut för envelope-resolving (om vi resolvar internt). */
+  analysisWindowEndIso?: string | null;
+  /** Optional now-injection för testbarhet. */
+  nowIso?: string | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
