@@ -35,6 +35,11 @@ import {
   detectGpsOutliers,
   type GpsOutlierDiagnostics,
 } from './detectGpsOutliers.ts';
+import {
+  buildAssignmentEvidence,
+  type AssignmentEvidenceItem,
+  type AssignmentEvidenceDiagnostics,
+} from './buildAssignmentEvidence.ts';
 
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
@@ -69,7 +74,7 @@ export interface DayGpsEvidence {
 }
 
 export interface DayAssignmentEvidence {
-  /** Raw count of staff_assignments rows for this staff+date. */
+  /** Total normaliserade assignment-rader (alla källor). */
   assignmentCount: number;
   /** Distinct booking ids referenced by assignments. */
   bookingIds: string[];
@@ -77,6 +82,12 @@ export interface DayAssignmentEvidence {
   largeProjectIds: string[];
   /** True if planning marks this as a planned working day. */
   hasPlannedDay: boolean;
+  /**
+   * Detaljerad lista av planeringsrader (Lager 1.5).
+   * PLANNING IS CONTEXT, NOT PROOF OF LOCATION.
+   * Får INTE användas som location truth eller display-block.
+   */
+  items: AssignmentEvidenceItem[];
 }
 
 export interface DayKnownTargetsEvidence {
