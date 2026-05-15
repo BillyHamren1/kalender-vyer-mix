@@ -222,6 +222,8 @@ export interface DisplayTimelineDiagnostics {
 
 export interface DisplayTimelineResult {
   blocks: DisplayTimelineBlock[];
+  /** Lager 4.4 — actions som gäller hela dagen, inte ett enskilt block. */
+  dayActions: DisplayTimelineAction[];
   diagnostics: DisplayTimelineDiagnostics;
 }
 
