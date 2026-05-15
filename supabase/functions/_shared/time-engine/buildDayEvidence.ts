@@ -417,16 +417,18 @@ const emptyLargeProjects = (): DayLargeProjectEvidence => ({
 // ── Builder ────────────────────────────────────────────────────────────────
 
 /**
- * v1: scaffold only. Returns safe empty defaults plus diagnostics.
+ * Build read-only Day Evidence for one staff/day.
  *
- * Future phases will populate sub-evidence by reading:
- *   - gps_pings (read-only)
- *   - staff_assignments (read-only)
- *   - resolveWorkTargets() pure helper output
- *   - staff_private_zones (read-only)
- *   - large_projects (read-only)
+ * Output shape is stable: even when sub-builders fail, every field on
+ * `evidence.gps`, `evidence.knownTargets.dataQuality`, `evidence.internal`
+ * and `evidence.diagnostics` is guaranteed to be present (see emptyGps /
+ * emptyKnownTargets / emptyAssignments). Lager 2 may rely on this.
  *
- * Until then, downstream MUST treat this as opaque diagnostics-only.
+ * Side-effect free. Reads from:
+ *   - staff_location_history (paginated reader)
+ *   - staff_assignments / booking_staff_assignments / calendar_events / large_project_team_assignments
+ *   - organization_locations / projects / bookings / large_projects
+ *   - staff_private_zones / home anchors
  */
 export async function buildDayEvidence(
   input: BuildDayEvidenceInput,
