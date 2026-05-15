@@ -576,6 +576,34 @@ export function buildLocationTruthFromDayEvidence(
         }
         physDiag.clustersWithKnownTargetCount++;
 
+        // Lager 2.10 — assignment krävs INTE för att förstå plats. Om personen
+        // står på en känd target (warehouse/location/supplier/LP/project/
+        // booking) men ingen assignment stödjer den targeten ska vi BEHÅLLA
+        // known_target och bara flagga businessContext + warning.
+        const winner = match.candidates.find(
+          (c) => c.targetId === match.matchedTarget.targetId,
+        );
+        const assignmentSupports = winner?.assignmentSupports ?? false;
+        if (
+          !assignmentSupports &&
+          match.matchedTarget.type !== 'private_residence'
+        ) {
+          businessStatus = 'unassigned_known_target_presence';
+          if (!businessWarnings.includes('staff_not_assigned_to_matched_target')) {
+            businessWarnings.push('staff_not_assigned_to_matched_target');
+          }
+        }
+        // Planning pekar på annan fysisk plats men GPS vinner: behåll target,
+        // markera planning_geo_mismatch (om inte unassigned redan satt).
+        if (match.planningIgnoredBecauseGeoDisagreed) {
+          if (businessStatus === 'matched_eventflow_target') {
+            businessStatus = 'planning_geo_mismatch';
+          }
+          if (!businessWarnings.includes('planned_target_does_not_match_physical_location')) {
+            businessWarnings.push('planned_target_does_not_match_physical_location');
+          }
+        }
+
         // Lager 2.3c — supplier-special: tagga besök + flagga om personen
         // var planerad på projekt/booking/LP samtidigt (Lager 3 avgör om det
         // är hämtning/lämning kopplad till projekt).
@@ -608,20 +636,28 @@ export function buildLocationTruthFromDayEvidence(
           }
         }
       } else if (match.matchedTarget.type === 'needs_location_review') {
-        // Reserveras för konflikt som kräver mänsklig bedömning,
-        // t.ex. LP saknar geo men assignment pekar dit.
-        segmentType = 'needs_location_review';
-        businessStatus = 'needs_review';
-        physDiag.unresolvedLocationCount++;
-        businessWarnings.push('large_project_missing_geo_or_planning_conflict');
+        // Lager 2.10 — mjukare hantering. needs_location_review ska bara
+        // användas om fysisk plats faktiskt är okänd eller om det finns
+        // verklig konflikt. Om klustret är stabilt har vi en känd fysisk
+        // plats även om LP saknar egen geo → known_address + needs_review.
+        if (cluster.isStable) {
+          segmentType = 'known_address';
+          businessStatus = 'needs_review';
+          businessWarnings.push('large_project_missing_geo');
+          businessWarnings.push('business_target_missing_geo');
+          businessWarnings.push('planning_target_missing_geo');
+          physDiag.clustersWithKnownAddressNoTargetCount++;
+          if (phys.centroidOnly) physDiag.centroidOnlyAddressCount++;
+        } else {
+          segmentType = 'needs_location_review';
+          businessStatus = 'needs_review';
+          physDiag.unresolvedLocationCount++;
+          businessWarnings.push('large_project_missing_geo_or_planning_conflict');
+        }
       } else {
         // match.matchedTarget.type === 'unknown_area' — ingen EventFlow-target.
         // Avgör nu fysisk-plats-styrkan: stabilt kluster ⇒ known_address,
         // svagt kluster ⇒ unresolved_location.
-        // Lager 2.3b: stabilt kluster (≥minStablePings + sammanhängande område)
-        // räcker för known_address även om GPS-confidence är låg — vi sänker
-        // bara segmentets confidence i så fall. unresolved_location reserveras
-        // för icke-stabila/för-få-pings-fall (cluster.isStable=false).
         const clusterStrongEnough = cluster.isStable;
         if (clusterStrongEnough) {
           segmentType = 'known_address';
