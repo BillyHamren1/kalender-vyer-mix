@@ -832,6 +832,20 @@ export function buildDisplayTimelineFromWorkdayAllocation(
   // Slutsortera kronologiskt.
   blocks.sort((a, b) => toMs(a.startAt) - toMs(b.startAt));
 
+  // Lager 4.3 — Riktning för pendling baserat på grannar.
+  for (let i = 0; i < blocks.length; i++) {
+    const cur = blocks[i];
+    if (cur.displayType !== 'commute') continue;
+    const prev = blocks[i - 1];
+    const next = blocks[i + 1];
+    const prevIsWork = prev && PROJECT_LIKE.has(prev.displayType);
+    const nextIsWork = next && PROJECT_LIKE.has(next.displayType);
+    if (nextIsWork && !prevIsWork) cur.title = 'Resa till arbete';
+    else if (prevIsWork && !nextIsWork) cur.title = 'Hemresa';
+    else if (nextIsWork) cur.title = 'Resa till arbete';
+    else cur.title = 'Hemresa';
+  }
+
   // Diagnostics.
   const blocksByDisplayType = Object.fromEntries(
     Object.keys(DISPLAY_TYPE_DEFAULT_TITLE).map((k) => [k, 0]),
