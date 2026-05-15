@@ -114,6 +114,11 @@ export interface PhysicalLocationDiagnostics {
   /** Lager 2.11F — physicalLocation.address fyllnadsgrad. */
   physicalLocationAddressFilledCount: number;
   physicalLocationAddressMissingCount: number;
+  /** Lager 2.12B — tidsbaserad assignment-overlap. */
+  overlappingAssignmentCount: number;
+  nonOverlappingAssignmentIgnoredCount: number;
+  assignmentMissingTimeWindowCount: number;
+  planningWarningsSuppressedNoOverlapCount: number;
   examples: Array<{
     clusterId: string;
     segmentType: LocationTruthSegmentType;
