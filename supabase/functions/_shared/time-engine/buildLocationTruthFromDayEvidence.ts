@@ -461,6 +461,38 @@ export function buildLocationTruthFromDayEvidence(
           };
         }
         physDiag.clustersWithKnownTargetCount++;
+
+        // Lager 2.3c — supplier-special: tagga besök + flagga om personen
+        // var planerad på projekt/booking/LP samtidigt (Lager 3 avgör om det
+        // är hämtning/lämning kopplad till projekt).
+        if (match.matchedTarget.type === 'supplier') {
+          supplierDiag.supplierMatchedClusterCount++;
+          businessWarnings.push('supplier_visit');
+          const competing = match.candidates.filter(
+            (c) => c.targetId !== match.matchedTarget.targetId,
+          ).length;
+          if (competing > 0) supplierDiag.competingSupplierTargetCount++;
+          const plannedProjectOrBooking = assignments.some(
+            (a) => a.bookingId || a.projectId || a.largeProjectId,
+          );
+          if (plannedProjectOrBooking) {
+            businessWarnings.push('supplier_visit_during_planned_project');
+            supplierDiag.supplierPlanningMismatchCount++;
+          }
+          if (supplierDiag.examples.length < 5) {
+            supplierDiag.examples.push({
+              clusterId: cluster.id,
+              supplierTargetId: match.matchedTarget.targetId,
+              supplierLabel: match.matchedTarget.label,
+              confidence: match.confidence,
+              distanceMeters: match.candidates.find(
+                (c) => c.targetId === match.matchedTarget.targetId,
+              )?.distanceMeters,
+              competingCandidateCount: competing,
+              warnings: [...businessWarnings],
+            });
+          }
+        }
       } else if (match.matchedTarget.type === 'needs_location_review') {
         // Reserveras för konflikt som kräver mänsklig bedömning,
         // t.ex. LP saknar geo men assignment pekar dit.
