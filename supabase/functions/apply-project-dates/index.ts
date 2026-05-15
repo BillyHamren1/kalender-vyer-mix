@@ -38,6 +38,8 @@ type RequestBody = {
   organization_id: string;
   // Per fas: full lista av datum (YYYY-MM-DD) som projektet vill att alla sub-bookings ska ha.
   dates: Partial<Record<Phase, string[]>>;
+  // Dry-run: ingen lokal UPDATE, ingen extern push, ingen calendar-rebuild. Endast payload-preview.
+  dry_run?: boolean;
 };
 
 type PerBookingResult = {
@@ -88,6 +90,7 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
       project_type: b.project_type,
       organization_id: b.organization_id,
       dates: cleaned,
+      dry_run: b.dry_run === true,
     },
   };
 }
@@ -197,9 +200,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return bad(405, 'POST only');
 
-  const auth = req.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return bad(401, 'unauthorized');
-
   let raw: unknown;
   try { raw = await req.json(); } catch { return bad(400, 'invalid json'); }
   const parsed = validate(raw);
@@ -210,27 +210,64 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  // Verifiera att caller tillhör organisationen.
-  const userClient = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: auth } } },
-  );
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData?.user) return bad(401, 'invalid token');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('user_id', userData.user.id)
-    .maybeSingle();
-  if (!profile || profile.organization_id !== parsed.data.organization_id) {
-    return bad(403, 'organization mismatch');
+  // Auth: dry_run kringgår user-JWT (säkert: ingen skrivning, ingen extern push).
+  // Skarp körning kräver inloggad användare i samma org som projektet.
+  if (!parsed.data.dry_run) {
+    const auth = req.headers.get('Authorization');
+    if (!auth?.startsWith('Bearer ')) return bad(401, 'unauthorized');
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: auth } } },
+    );
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) return bad(401, 'invalid token');
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', userData.user.id)
+      .maybeSingle();
+    if (!profile || profile.organization_id !== parsed.data.organization_id) {
+      return bad(403, 'organization mismatch');
+    }
   }
 
   const bookingIds = await resolveBookingIds(supabase, parsed.data);
   if (bookingIds.length === 0) {
     return bad(404, 'no bookings found for project', { project_id: parsed.data.project_id });
+  }
+
+  if (parsed.data.dry_run) {
+    // Bygg preview: nuvarande lokal-värden + tilltänkta lokal-värden + extern-payload per bokning.
+    const { data: rows } = await supabase
+      .from('bookings')
+      .select('id, booking_number, title, rigdaydate, eventdate, rigdowndate')
+      .in('id', bookingIds)
+      .eq('organization_id', parsed.data.organization_id);
+    const localUpdates: Record<string, string | null> = {};
+    for (const phase of ['rig', 'event', 'rigDown'] as Phase[]) {
+      const arr = parsed.data.dates[phase];
+      if (arr === undefined) continue;
+      localUpdates[PHASE_TO_LOCAL_COL[phase]] = arr.length > 0 ? arr[0] : null;
+    }
+    const externalFields: ExternalWriteFields = {};
+    for (const phase of ['rig', 'event', 'rigDown'] as Phase[]) {
+      const arr = parsed.data.dates[phase];
+      if (arr === undefined) continue;
+      externalFields[PHASE_TO_EXTERNAL_FIELD[phase]] = arr;
+    }
+    const preview = (rows ?? []).map((r: Record<string, unknown>) => ({
+      booking_id: r.id,
+      booking_number: r.booking_number,
+      title: r.title,
+      current_local: { rigdaydate: r.rigdaydate, eventdate: r.eventdate, rigdowndate: r.rigdowndate },
+      would_update_local: localUpdates,
+      would_push_external: externalFields,
+    }));
+    return new Response(
+      JSON.stringify({ ok: true, dry_run: true, project_id: parsed.data.project_id, bookings_resolved: bookingIds.length, preview }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
   }
 
   const results: PerBookingResult[] = [];
