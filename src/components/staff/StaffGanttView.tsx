@@ -33,6 +33,7 @@ import {
   resolveGanttPhaseKind,
   buildSessionPhaseMap,
   sessionKeyForBlock,
+  resolveBookingPhaseFromTitle,
   type SessionPhaseKind,
 } from '@/lib/staff/ganttPhaseColor';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
