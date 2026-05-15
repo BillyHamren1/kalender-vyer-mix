@@ -263,6 +263,7 @@ function isMatchedToTarget(m: MatchedTargetType): boolean {
   return (
     m === 'warehouse' ||
     m === 'organization_location' ||
+    m === 'supplier' ||
     m === 'large_project' ||
     m === 'project' ||
     m === 'booking' ||
