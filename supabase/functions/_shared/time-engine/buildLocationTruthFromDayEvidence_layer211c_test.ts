@@ -125,7 +125,7 @@ Deno.test('Lager 2.11C — C: warehouse utan assignment, ingen planering', () =>
 Deno.test('Lager 2.11C — D: warehouse utan assignment, planerad på projekt', () => {
   const wh = tgt('warehouse', 'wh1', 59.3293, 18.0686, 'Lager', 'organization_locations');
   const r = buildAt(wh, {
-    assignments: [{ bookingId: null, projectId: 'pX', largeProjectId: null, belongsToLargeProject: false }],
+    assignments: [{ bookingId: null, projectId: 'pX', largeProjectId: null, belongsToLargeProject: false, startAt: '2026-05-15T07:30:00Z', endAt: '2026-05-15T09:00:00Z' }],
   });
   const seg = findKnownTargetSeg(r);
   assertEquals(seg.businessContext?.status, 'warehouse_presence');
