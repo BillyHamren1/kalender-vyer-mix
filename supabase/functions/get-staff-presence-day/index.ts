@@ -328,6 +328,7 @@ Deno.serve(async (req) => {
               workdayAllocation: wda,
             });
             displayTimelineBlocksV2 = dt.blocks;
+            displayTimelineDayActionsV2 = dt.dayActions;
             displayTimelineDiagnosticsV2 = dt.diagnostics;
           } catch (e: any) {
             console.warn('[presence-day] buildDisplayTimelineFromWorkdayAllocation failed', e);
