@@ -193,6 +193,8 @@ export interface WorkdayAllocationDiagnostics {
   workdayStartSource: WorkdayEnvelopeStartSource;
   workdayEndSource: WorkdayEnvelopeEndSource;
   envelopeWarnings: WorkdayEnvelopeWarning[];
+  /** Lager 3.11D — strukturerad envelope-snapshot (timer vs effektiv vs analys). */
+  workdayEnvelope: WorkdayEnvelopeDiagnostics;
   /** Alias för segmentsInsideWorkday — uttryckt mot envelope-vokabulären. */
   segmentsInsideEnvelope: number;
   /** Alias för segmentsOutsideWorkday. */
@@ -334,6 +336,32 @@ export interface WorkdayEnvelope {
   analysisDayStartAt?: string | null;
   /** Analysfönsterslut som användes för klippning. */
   analysisDayEndAt?: string | null;
+  // ── Lager 3.11D — explicita klipp-flaggor ──────────────────────────
+  /** True om timer-start föll före analysdagens start och klipptes upp. */
+  startWasClippedToDay?: boolean;
+  /** True om timer-stop (eller now) föll efter analysdagens slut och klipptes ner. */
+  endWasClippedToDay?: boolean;
+  /** True om endAt sattes till "now" pga öppen timer (utan att nå analysDayEnd). */
+  endWasClippedToNow?: boolean;
+}
+
+/**
+ * Lager 3.11D — strukturerad envelope-snapshot för diagnostics/endpoint.
+ * Speglar WorkdayEnvelope-fälten men är garanterat ifyllda (icke-optional)
+ * och avsedda för UI/debug-visning.
+ */
+export interface WorkdayEnvelopeDiagnostics {
+  timerStartedAt: string | null;
+  timerStoppedAt: string | null;
+  timerIsOpen: boolean;
+  effectiveWorkdayStartAt: string | null;
+  effectiveWorkdayEndAt: string | null;
+  analysisDayStartAt: string | null;
+  analysisDayEndAt: string | null;
+  startWasClippedToDay: boolean;
+  endWasClippedToDay: boolean;
+  endWasClippedToNow: boolean;
+  warnings: WorkdayEnvelopeWarning[];
 }
 
 export interface ResolveWorkdayEnvelopeInput {
@@ -381,13 +409,18 @@ export function resolveWorkdayEnvelope(
       effectiveWorkdayEndAt: null,
       analysisDayStartAt,
       analysisDayEndAt,
+      startWasClippedToDay: false,
+      endWasClippedToDay: false,
+      endWasClippedToNow: false,
     };
   }
 
   // ── Lager 3.11A — klipp start mot analysdag ──
   let effectiveStartMs = rawStartMs;
+  let startWasClippedToDay = false;
   if (analysisStartMs !== null && rawStartMs < analysisStartMs) {
     effectiveStartMs = analysisStartMs;
+    startWasClippedToDay = true;
     warnings.push('workday_started_before_analysis_day');
   }
 
@@ -409,14 +442,21 @@ export function resolveWorkdayEnvelope(
 
   // ── Lager 3.11A — klipp slut mot analysdag ──
   let effectiveEndMs = rawEndCandidateMs;
+  let endWasClippedToDay = false;
+  let endWasClippedToNow = false;
   if (analysisEndMs !== null && rawEndCandidateMs > analysisEndMs) {
     effectiveEndMs = analysisEndMs;
     endSource = 'analysis_window_end';
+    endWasClippedToDay = true;
     warnings.push('workday_continues_after_analysis_day');
     if (isOpen) warnings.push('envelope_clipped_to_analysis_window');
   } else if (isOpen && analysisEndMs !== null && rawEndCandidateMs < analysisEndMs) {
     // Öppen timer mitt i dagen → endAt = now < analysisEnd.
+    endWasClippedToNow = true;
     warnings.push('envelope_clipped_to_analysis_window');
+  } else if (isOpen && analysisEndMs === null) {
+    // Öppen utan analysfönster → endAt=now.
+    endWasClippedToNow = true;
   }
 
   if (effectiveEndMs < effectiveStartMs) effectiveEndMs = effectiveStartMs;
@@ -436,6 +476,9 @@ export function resolveWorkdayEnvelope(
     effectiveWorkdayEndAt: endAt,
     analysisDayStartAt,
     analysisDayEndAt,
+    startWasClippedToDay,
+    endWasClippedToDay,
+    endWasClippedToNow,
   };
 }
 
@@ -719,6 +762,19 @@ export function buildWorkdayAllocationFromLocationTruth(
     workdayStartSource: envelope.startSource,
     workdayEndSource: envelope.endSource,
     envelopeWarnings: [...envelope.warnings],
+    workdayEnvelope: {
+      timerStartedAt: envelope.timerStartedAt ?? null,
+      timerStoppedAt: envelope.timerStoppedAt ?? null,
+      timerIsOpen: envelope.isOpen,
+      effectiveWorkdayStartAt: envelope.effectiveWorkdayStartAt ?? envelope.startAt ?? null,
+      effectiveWorkdayEndAt: envelope.effectiveWorkdayEndAt ?? envelope.endAt ?? null,
+      analysisDayStartAt: envelope.analysisDayStartAt ?? null,
+      analysisDayEndAt: envelope.analysisDayEndAt ?? null,
+      startWasClippedToDay: envelope.startWasClippedToDay ?? false,
+      endWasClippedToDay: envelope.endWasClippedToDay ?? false,
+      endWasClippedToNow: envelope.endWasClippedToNow ?? false,
+      warnings: [...envelope.warnings],
+    },
     segmentsInsideEnvelope: 0,
     segmentsOutsideEnvelope: 0,
     projectWorkCount: 0,
