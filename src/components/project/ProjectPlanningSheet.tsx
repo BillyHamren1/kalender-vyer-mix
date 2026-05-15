@@ -42,6 +42,27 @@ const DEFAULTS: Record<DayKind, { start: string; end: string }> = {
 const PHASE_ORDER: DayKind[] = ['rig', 'event', 'rigDown'];
 const phaseLabel = (k: DayKind) => k === 'rig' ? 'Riggning' : k === 'rigDown' ? 'Demontering' : 'Event';
 
+const trimSec = (t: string | null | undefined): string | null => {
+  if (!t || typeof t !== 'string') return null;
+  const m = t.match(/^(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : null;
+};
+
+const FIELD_MAP: Record<DayKind, { start: string; end: string }> = {
+  rig: { start: 'rig_start_time', end: 'rig_end_time' },
+  event: { start: 'event_start_time', end: 'event_end_time' },
+  rigDown: { start: 'rigdown_start_time', end: 'rigdown_end_time' },
+};
+
+export const pickBookingTime = (
+  booking: any,
+  kind: DayKind,
+  edge: 'start' | 'end',
+): string => {
+  const field = FIELD_MAP[kind][edge];
+  return trimSec(booking?.[field]) ?? DEFAULTS[kind][edge];
+};
+
 const todayIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
