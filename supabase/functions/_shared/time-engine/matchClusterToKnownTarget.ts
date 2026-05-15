@@ -30,6 +30,7 @@ import type { StableLocationCluster } from './buildStableLocationClusters.ts';
 export type MatchedTargetType =
   | 'warehouse'
   | 'organization_location'
+  | 'supplier'
   | 'large_project'
   | 'project'
   | 'booking'
