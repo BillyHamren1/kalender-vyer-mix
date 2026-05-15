@@ -209,6 +209,24 @@ interface GanttBlock {
   /** True om blocket bara är nattliga GPS-pings utan TR/LTE/manuell workday
    *  bakom sig. Renderas dämpat och räknas inte som arbete. */
   isNightGpsOnly?: boolean;
+  // ── Visual-merge metadata (Gantt 4.0) ─────────────────────────────────
+  /** Stabil session-nyckel (booking#:NNNN > target:id > title-fallback). */
+  sessionKey?: string;
+  /** Raw engine kind (innan phase inheritance) — för diagnostics/tooltip. */
+  rawKind?: string;
+  /** Underblock om detta är ett mergat block (annars undefined). */
+  subBlocks?: Array<{
+    id: string;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    rawKind?: string;
+    resolvedKind: GanttKind;
+  }>;
+  /** Total summerad arbetstid för mergat block (= durationMinutes). */
+  countedDurationMinutes?: number;
+  /** Summa av glapp mellan underblock i ett mergat block. */
+  visualGapMinutes?: number;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
