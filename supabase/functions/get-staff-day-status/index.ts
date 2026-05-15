@@ -6,6 +6,7 @@
 import { buildStaffDaySnapshot } from "../_shared/staff-day-status.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
 import { getStockholmDayWindowUtc, clipIntervalToDayWindow } from "../_shared/stockholmDayWindow.ts";
+import { fetchAllStaffLocationPings } from "../_shared/timeEngine/fetchAllStaffLocationPings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,41 +82,22 @@ Deno.serve(async (req) => {
   const padStart = new Date(new Date(dayStart).getTime() - 24 * 3600 * 1000).toISOString();
   const padEnd = new Date(new Date(dayEnd).getTime() + 24 * 3600 * 1000).toISOString();
 
-  // Paginated ping fetch — no global limit. Same principle as
-  // StaffTimeReports.fetchAllPingsForStaff: page in 1000-row batches up to
-  // a per-staff cap, never let .limit() silently truncate the day.
-  const PING_PAGE_SIZE = 1000;
-  const PER_STAFF_PING_CAP = 20_000;
-  async function fetchAllPings(): Promise<{
-    rows: Array<{ recorded_at: string; lat: number; lng: number; accuracy: number | null }>;
-    truncated: boolean;
-    pageCount: number;
-    error: string | null;
-  }> {
-    const out: any[] = [];
-    let from = 0;
-    let pageCount = 0;
-    while (out.length < PER_STAFF_PING_CAP) {
-      const to = from + PING_PAGE_SIZE - 1;
-      const { data, error } = await admin
-        .from("staff_location_history")
-        .select("recorded_at, lat, lng, accuracy")
-        .eq("organization_id", orgId)
-        .eq("staff_id", staffId)
-        .gte("recorded_at", padStart)
-        .lte("recorded_at", padEnd)
-        .order("recorded_at", { ascending: true })
-        .range(from, to);
-      pageCount += 1;
-      if (error) return { rows: out, truncated: false, pageCount, error: error.message };
-      const batch = data ?? [];
-      out.push(...batch);
-      if (batch.length < PING_PAGE_SIZE) {
-        return { rows: out, truncated: false, pageCount, error: null };
-      }
-      from += PING_PAGE_SIZE;
-    }
-    return { rows: out.slice(0, PER_STAFF_PING_CAP), truncated: true, pageCount, error: null };
+  // Day-wide GPS via canonical paginated reader.
+  async function fetchAllPings() {
+    const r = await fetchAllStaffLocationPings({
+      supabaseAdmin: admin,
+      organizationId: orgId,
+      staffId,
+      startUtc: padStart,
+      endUtc: padEnd,
+      select: "recorded_at, lat, lng, accuracy",
+    });
+    return {
+      rows: r.rows,
+      truncated: r.diagnostics.capHit,
+      pageCount: r.diagnostics.pageCount,
+      error: r.diagnostics.errorMessage,
+    };
   }
 
   const [
