@@ -2034,6 +2034,179 @@ export type Database = {
           },
         ]
       }
+      external_supplier_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          external_id: string
+          id: string
+          is_primary: boolean
+          last_synced_at: string
+          mobile: string | null
+          name: string | null
+          notes: string | null
+          organization_id: string
+          phone: string | null
+          raw: Json | null
+          supplier_external_id: string
+          supplier_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          external_id: string
+          id?: string
+          is_primary?: boolean
+          last_synced_at?: string
+          mobile?: string | null
+          name?: string | null
+          notes?: string | null
+          organization_id: string
+          phone?: string | null
+          raw?: Json | null
+          supplier_external_id: string
+          supplier_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          external_id?: string
+          id?: string
+          is_primary?: boolean
+          last_synced_at?: string
+          mobile?: string | null
+          name?: string | null
+          notes?: string | null
+          organization_id?: string
+          phone?: string | null
+          raw?: Json | null
+          supplier_external_id?: string
+          supplier_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_supplier_contacts_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "external_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_supplier_sync_state: {
+        Row: {
+          created_at: string
+          last_error: string | null
+          last_run_stats: Json | null
+          last_status: string | null
+          last_sync_at: string | null
+          last_updated_at_seen: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          last_error?: string | null
+          last_run_stats?: Json | null
+          last_status?: string | null
+          last_sync_at?: string | null
+          last_updated_at_seen?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          last_error?: string | null
+          last_run_stats?: Json | null
+          last_status?: string | null
+          last_sync_at?: string | null
+          last_updated_at_seen?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      external_suppliers: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          email: string | null
+          external_created_at: string | null
+          external_id: string
+          external_updated_at: string | null
+          id: string
+          is_active: boolean
+          last_synced_at: string
+          name: string
+          notes: string | null
+          organization_id: string
+          organization_number: string | null
+          phone: string | null
+          postal_code: string | null
+          raw: Json | null
+          updated_at: string
+          vat_number: string | null
+          website: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          external_created_at?: string | null
+          external_id: string
+          external_updated_at?: string | null
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string
+          name: string
+          notes?: string | null
+          organization_id: string
+          organization_number?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          raw?: Json | null
+          updated_at?: string
+          vat_number?: string | null
+          website?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          external_created_at?: string | null
+          external_id?: string
+          external_updated_at?: string | null
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          organization_number?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          raw?: Json | null
+          updated_at?: string
+          vat_number?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
       job_completion_analytics: {
         Row: {
           booking_id: string
