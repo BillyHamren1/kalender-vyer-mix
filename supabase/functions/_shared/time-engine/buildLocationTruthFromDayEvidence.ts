@@ -504,6 +504,37 @@ export function buildLocationTruthFromDayEvidence(
     examples: [],
   };
 
+  // Lager 2.12B — tidsbaserad assignment-overlap.
+  // Returnerar assignments där [startAt,endAt) överlappar segmentets
+  // [segStart,segEnd). Assignments utan tidsfönster räknas som "weak context"
+  // och returneras INTE här (de räknas separat i diagnostics).
+  function getOverlappingAssignments(
+    segStart: string,
+    segEnd: string,
+  ): typeof assignments {
+    const segS = Date.parse(segStart);
+    const segE = Date.parse(segEnd);
+    const out: typeof assignments = [];
+    for (const a of assignments) {
+      if (!a.startAt || !a.endAt) {
+        physDiag.assignmentMissingTimeWindowCount++;
+        continue;
+      }
+      const aS = Date.parse(a.startAt);
+      const aE = Date.parse(a.endAt);
+      if (!Number.isFinite(aS) || !Number.isFinite(aE)) {
+        physDiag.assignmentMissingTimeWindowCount++;
+        continue;
+      }
+      if (aS < segE && aE > segS) {
+        out.push(a);
+      } else {
+        physDiag.nonOverlappingAssignmentIgnoredCount++;
+      }
+    }
+    return out;
+  }
+
   try {
     for (const cluster of stableClusters) {
       const match = matchClusterToKnownTarget({
