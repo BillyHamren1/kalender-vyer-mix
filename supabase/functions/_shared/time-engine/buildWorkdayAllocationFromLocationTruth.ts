@@ -121,7 +121,9 @@ export type WorkdayAllocationWarning =
 
 export type WorkdayAllocationProposalType =
   | 'allocation_candidate'
-  | 'suggest_workday_end';
+  | 'suggest_workday_end'
+  | 'consider_workday_end_from_private'
+  | 'gap_in_workday';
 
 export interface WorkdayAllocationDiagnostics {
   staffId: string | null;
