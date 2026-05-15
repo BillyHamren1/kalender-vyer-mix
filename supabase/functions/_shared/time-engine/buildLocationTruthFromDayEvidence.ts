@@ -584,10 +584,9 @@ export function buildLocationTruthFromDayEvidence(
           (c) => c.targetId === match.matchedTarget.targetId,
         );
         const assignmentSupports = winner?.assignmentSupports ?? false;
-        if (
-          !assignmentSupports &&
-          match.matchedTarget.type !== 'private_residence'
-        ) {
+        // (private_residence hanteras i tidigare gren — här kan typen aldrig
+        // vara private_residence.)
+        if (!assignmentSupports) {
           businessStatus = 'unassigned_known_target_presence';
           if (!businessWarnings.includes('staff_not_assigned_to_matched_target')) {
             businessWarnings.push('staff_not_assigned_to_matched_target');
