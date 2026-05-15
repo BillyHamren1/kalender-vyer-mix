@@ -791,6 +791,35 @@ export async function buildDayEvidence(
     warnings.push(`known_targets_exception: ${msg}`);
   }
 
+  // ── Lager 1.12 — final shape safety pass ──────────────────────────────
+  // Garantera att Lager 2 alltid får arrays + numeriska räknare oavsett
+  // om någon sub-builder kastat exception eller returnerat tomt.
+  if (!Array.isArray(evidence.internal.normalizedPings)) evidence.internal.normalizedPings = [];
+  if (!Array.isArray(evidence.internal.locationLogicPings)) evidence.internal.locationLogicPings = [];
+  if (!Array.isArray(evidence.internal.hardRejectedPings)) evidence.internal.hardRejectedPings = [];
+  const g = evidence.gps;
+  g.rawPingCount = Number.isFinite(g.rawPingCount) ? g.rawPingCount : 0;
+  g.fetchedPingCount = Number.isFinite(g.fetchedPingCount) ? g.fetchedPingCount : 0;
+  g.normalizedPingCount = Number.isFinite(g.normalizedPingCount) ? g.normalizedPingCount : 0;
+  g.locationLogicPingCount = Number.isFinite(g.locationLogicPingCount) ? g.locationLogicPingCount : 0;
+  g.hardRejectedPingCount = Number.isFinite(g.hardRejectedPingCount) ? g.hardRejectedPingCount : 0;
+  g.ignoredOutlierPingCount = Number.isFinite(g.ignoredOutlierPingCount) ? g.ignoredOutlierPingCount : 0;
+  g.longGapCount = Number.isFinite(g.longGapCount) ? g.longGapCount : 0;
+  g.coverageRatio = Number.isFinite(g.coverageRatio) ? g.coverageRatio : 0;
+  // dataQuality-arrays: säkerställ att inga är undefined.
+  const dq = evidence.knownTargets.dataQuality as Record<string, unknown>;
+  for (const k of [
+    'targetsMissingCoordinates','targetsMissingRadius','largeProjectsMissingGeo',
+    'bookingsInsideLargeProjects','projectsInsideLargeProjects',
+    'childBookingsSuppressedAsTargets','childProjectsSuppressedAsTargets',
+    'ambiguousLargeProjectChildProjects','assignmentsWithoutMatchingTarget',
+    'calendarEventsWithoutTarget','calendarEventsWithLargeProjectContext',
+    'calendarEventsPointingToChildBooking','calendarEventsPointingToMissingGeoLargeProject',
+    'targetsWithNullRadius',
+  ]) {
+    if (!Array.isArray(dq[k])) dq[k] = [];
+  }
+
   evidence.diagnostics.buildDurationMs = Date.now() - startedAt;
   return evidence;
 }
