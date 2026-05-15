@@ -130,10 +130,15 @@ export function detectGpsOutliers(
       : null;
     const windowS = next ? timeS(prev.ts, next.ts) : null;
     const dtPrevS = timeS(prev.ts, curr.ts);
+    const dtNextS = next ? timeS(pings[endIdx].ts, next.ts) : null;
     const speedPrevMps = dtPrevS > 0 ? distPrev / dtPrevS : Infinity;
+    const speedNextMps = next && dtNextS && dtNextS > 0 && distNext != null
+      ? distNext / dtNextS
+      : 0;
+    const peakSpeedMps = Math.max(speedPrevMps, speedNextMps);
 
     diagnostics.outlierCandidateCount++;
-    if (speedPrevMps > IMPOSSIBLE_SPEED_MPS) diagnostics.impossibleJumpCount++;
+    if (peakSpeedMps > IMPOSSIBLE_SPEED_MPS) diagnostics.impossibleJumpCount++;
 
     // Långt-bort-kluster av betydande längd → BEHÅLL för senare lager.
     if (durationS >= FAR_CLUSTER_MIN_DURATION_S) {
@@ -165,7 +170,7 @@ export function detectGpsOutliers(
     const farFromNext = distNext > SPIKE_FAR_MIN_M;
     const stableNeighbors = prevNext <= STABLE_NEIGHBOR_MAX_M;
     const tightWindow = windowS <= SPIKE_TIME_WINDOW_S;
-    const impossible = speedPrevMps > IMPOSSIBLE_SPEED_MPS;
+    const impossible = peakSpeedMps > IMPOSSIBLE_SPEED_MPS;
 
     if (farFromNext && stableNeighbors && (tightWindow || impossible)) {
       // Markera HELA klustret som ignored — de är alla del av samma spike.
