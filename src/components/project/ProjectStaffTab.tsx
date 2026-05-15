@@ -92,7 +92,11 @@ const ProjectStaffTabInner = ({ projectId, bookingId, largeProjectId }: { projec
         <AddTimeReportDialog
           open={showTimeReportDialog}
           onOpenChange={setShowTimeReportDialog}
-          target={{ booking_id: bookingId ?? undefined, large_project_id: largeProjectId ?? undefined }}
+          target={
+            largeProjectId
+              ? { large_project_id: largeProjectId }
+              : { booking_id: bookingId ?? undefined }
+          }
           plannedStaff={plannedStaff}
           onSubmit={addTimeReport}
         />
