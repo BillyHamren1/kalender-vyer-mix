@@ -125,6 +125,22 @@ export type LocationTruthSegmentType =
   | 'unresolved_location'
   | 'needs_location_review';
 
+/**
+ * Lager 2.6 — kanonisk Final Location Truth-typ.
+ * Detta är det rena platsalfabetet som senare lager (interpretering,
+ * tidrapportering, payroll) får läsa. Vi mappar de interna typerna
+ * (known_target, known_address, unresolved_location) till denna lista.
+ *
+ * Final-listan innehåller medvetet INTE: rig/work/event/rigdown/payroll/
+ * display_blocks. Det är en plats-tidslinje, inte en arbetspass-tolkning.
+ */
+export type FinalLocationTruthSegmentType =
+  | 'known_site'
+  | 'movement'
+  | 'private_residence'
+  | 'unknown_area'
+  | 'needs_location_review';
+
 export type LocationTruthTargetType =
   | 'warehouse'
   | 'organization_location'
@@ -179,7 +195,10 @@ export interface LocationTruthSegment {
   staffId: string;
   startAt: string;
   endAt: string;
+  /** Internal pipeline-typ (Lager 2.3b–2.5). */
   type: LocationTruthSegmentType;
+  /** Lager 2.6 — kanonisk plats-typ för konsumenter (Lager 3+). */
+  finalType: FinalLocationTruthSegmentType;
   /** Bakåtkompatibel snabbreferens. Spegel av businessContext.matchedTarget. */
   matchedTarget?: LocationTruthMatchedTarget;
   /** Lager 2.3b — fysisk plats (oberoende av EventFlow business target). */
@@ -220,6 +239,32 @@ export interface LocationTruthDiagnostics {
   gapBridgeDiagnostics: GapBridgeDiagnostics | null;
   /** Lager 2.5 — verklig förflyttning (movement). */
   movementDiagnostics: MovementDiagnostics | null;
+  /** Lager 2.6 — sammanfattning över final platstidslinje. */
+  locationTruthSummary: LocationTruthSummary | null;
+}
+
+export interface LocationTruthSummary {
+  inputPingCount: number;
+  clusterCount: number;
+  finalSegmentCount: number;
+  knownSiteSegmentCount: number;
+  movementSegmentCount: number;
+  privateResidenceSegmentCount: number;
+  unknownAreaSegmentCount: number;
+  reviewSegmentCount: number;
+  bridgedGapMinutesTotal: number;
+  ignoredOutlierPingCount: number;
+  finalSegmentsByType: Record<FinalLocationTruthSegmentType, number>;
+  examples: Array<{
+    segmentId: string;
+    finalType: FinalLocationTruthSegmentType;
+    confidence: 'high' | 'medium' | 'low';
+    label?: string;
+    targetType?: LocationTruthTargetType;
+    startAt: string;
+    endAt: string;
+    warnings: string[];
+  }>;
 }
 
 export interface LocationTruthResult {
@@ -281,6 +326,45 @@ function isMatchedToTarget(m: MatchedTargetType): boolean {
     m === 'booking' ||
     m === 'private_residence'
   );
+}
+
+// ── Lager 2.6 — mappa intern typ till kanonisk Final-typ ──────────────────
+
+const STRONG_REVIEW_WARNINGS = new Set([
+  'large_project_missing_geo_or_planning_conflict',
+  'impossible_route',
+  'home_project_conflict',
+  'competing_targets_no_winner',
+]);
+
+function mapToFinalType(
+  seg: LocationTruthSegment,
+): FinalLocationTruthSegmentType {
+  switch (seg.type) {
+    case 'known_target':
+      return 'known_site';
+    case 'private_residence':
+      return 'private_residence';
+    case 'movement':
+      return 'movement';
+    case 'needs_location_review':
+      return 'needs_location_review';
+    case 'known_address':
+    case 'unresolved_location': {
+      const hasStrongReview = (seg.warnings ?? []).some((w) =>
+        STRONG_REVIEW_WARNINGS.has(w),
+      );
+      if (hasStrongReview) return 'needs_location_review';
+      return 'unknown_area';
+    }
+    default:
+      return 'unknown_area';
+  }
+}
+
+function targetLabelOf(seg: LocationTruthSegment): string | undefined {
+  if (seg.matchedTarget?.label) return seg.matchedTarget.label;
+  return seg.physicalLocation?.label;
 }
 
 // ── Builder ───────────────────────────────────────────────────────────────
@@ -552,6 +636,7 @@ export function buildLocationTruthFromDayEvidence(
         startAt: cluster.startAt,
         endAt: cluster.endAt,
         type: segmentType,
+        finalType: 'unknown_area', // sätts korrekt i Lager 2.6-mappning nedan
         matchedTarget,
         physicalLocation: phys.physicalLocation,
         businessContext,
@@ -647,6 +732,65 @@ export function buildLocationTruthFromDayEvidence(
     warnings.push(`location_truth_movement_failed:${(err as Error).message}`);
   }
 
+  // Lager 2.6 — sätt kanonisk finalType per segment och bygg summary.
+  const finalSummary: LocationTruthSummary = {
+    inputPingCount: logicPings?.length ?? 0,
+    clusterCount: stableClusters.length,
+    finalSegmentCount: 0,
+    knownSiteSegmentCount: 0,
+    movementSegmentCount: 0,
+    privateResidenceSegmentCount: 0,
+    unknownAreaSegmentCount: 0,
+    reviewSegmentCount: 0,
+    bridgedGapMinutesTotal: 0,
+    ignoredOutlierPingCount: stableClusterDiagnostics?.ignoredOutlierPingCount ?? 0,
+    finalSegmentsByType: {
+      known_site: 0,
+      movement: 0,
+      private_residence: 0,
+      unknown_area: 0,
+      needs_location_review: 0,
+    },
+    examples: [],
+  };
+
+  for (const s of finalSegments) {
+    s.finalType = mapToFinalType(s);
+    finalSummary.finalSegmentCount++;
+    finalSummary.finalSegmentsByType[s.finalType]++;
+    finalSummary.bridgedGapMinutesTotal +=
+      s.diagnostics.bridgedSignalGapMinutes ?? 0;
+    switch (s.finalType) {
+      case 'known_site':
+        finalSummary.knownSiteSegmentCount++;
+        break;
+      case 'movement':
+        finalSummary.movementSegmentCount++;
+        break;
+      case 'private_residence':
+        finalSummary.privateResidenceSegmentCount++;
+        break;
+      case 'unknown_area':
+        finalSummary.unknownAreaSegmentCount++;
+        break;
+      case 'needs_location_review':
+        finalSummary.reviewSegmentCount++;
+        break;
+    }
+    if (finalSummary.examples.length < 8) {
+      finalSummary.examples.push({
+        segmentId: s.id,
+        finalType: s.finalType,
+        confidence: s.confidence,
+        label: targetLabelOf(s),
+        targetType: s.matchedTarget?.targetType,
+        startAt: s.startAt,
+        endAt: s.endAt,
+        warnings: s.warnings ?? [],
+      });
+    }
+  }
+
   const diagnostics: LocationTruthDiagnostics = {
     staffId: dayEvidence.staffId,
     date: dayEvidence.date,
@@ -662,6 +806,7 @@ export function buildLocationTruthFromDayEvidence(
     supplierMatchDiagnostics: supplierDiag,
     gapBridgeDiagnostics,
     movementDiagnostics,
+    locationTruthSummary: finalSummary,
   };
 
   return { segments: finalSegments, diagnostics, stableClusters, clusterMatches };
