@@ -262,6 +262,8 @@ Deno.serve(async (req) => {
   let workdayAllocationDiagnostics: any = null;
   let workdayAllocationSegments: any[] = [];
   let workdayAllocationProposals: any[] = [];
+  let displayTimelineBlocksV2: any[] = [];
+  let displayTimelineDiagnosticsV2: any = null;
   // Lager 3.7 — AI reviewer output (no-op default; ingen extern AI kopplad här).
   let aiWorkdayReviewSummary: any = null;
   let aiWorkdayReviewProposals: any[] = [];
