@@ -21,6 +21,11 @@
  * its output as work-block input until later phases wire it in explicitly.
  */
 
+import {
+  fetchAllStaffLocationPings,
+  type FetchAllStaffLocationPingsDiagnostics,
+} from '../timeEngine/fetchAllStaffLocationPings.ts';
+
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
 export interface BuildDayEvidenceInput {
@@ -32,6 +37,9 @@ export interface BuildDayEvidenceInput {
   date: string;
   /** IANA tz, defaults to Europe/Stockholm. */
   timezone?: string;
+  /** Optional precomputed UTC day window. If omitted, derived from `date` as 00:00:00Z..23:59:59.999Z. */
+  dayStartUtc?: string;
+  dayEndUtc?: string;
 }
 
 // ── Sub-evidence shapes ────────────────────────────────────────────────────
@@ -118,6 +126,8 @@ export interface DayEvidenceDiagnostics {
     privateZones: number;
     largeProjects: number;
   };
+  /** Diagnostics from the canonical paginated GPS reader (Lager 1.2). */
+  gpsFetchDiagnostics: FetchAllStaffLocationPingsDiagnostics | null;
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────
@@ -227,10 +237,41 @@ export async function buildDayEvidence(
         privateZones: 0,
         largeProjects: 0,
       },
+      gpsFetchDiagnostics: null,
     },
   };
 
-  warnings.push('day_evidence_scaffold_v1: no signals collected yet');
+  // ── Lager 1.2: GPS via canonical paginated reader ────────────────────────
+  const dayStartUtc = input.dayStartUtc ?? `${input.date}T00:00:00.000Z`;
+  const dayEndUtc = input.dayEndUtc ?? `${input.date}T23:59:59.999Z`;
+  try {
+    const fetchResult = await fetchAllStaffLocationPings({
+      supabaseAdmin: input.supabaseAdmin,
+      organizationId: input.organizationId,
+      staffId: input.staffId,
+      startUtc: dayStartUtc,
+      endUtc: dayEndUtc,
+    });
+    evidence.diagnostics.gpsFetchDiagnostics = fetchResult.diagnostics;
+    evidence.gps.pingCount = fetchResult.diagnostics.totalFetched;
+    evidence.gps.firstPingAt = fetchResult.diagnostics.firstRecordedAt;
+    evidence.gps.lastPingAt = fetchResult.diagnostics.lastRecordedAt;
+    evidence.dataQuality.gpsAvailable = fetchResult.diagnostics.totalFetched > 0;
+    evidence.diagnostics.counts.pings = fetchResult.diagnostics.totalFetched;
+    if (fetchResult.diagnostics.errorMessage) {
+      evidence.diagnostics.errors.gps = fetchResult.diagnostics.errorMessage;
+      warnings.push(`gps_fetch_error: ${fetchResult.diagnostics.errorMessage}`);
+    }
+    if (fetchResult.diagnostics.warning) {
+      warnings.push(fetchResult.diagnostics.warning);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    evidence.diagnostics.errors.gps = msg;
+    warnings.push(`gps_fetch_exception: ${msg}`);
+  }
+
+  warnings.push('day_evidence_scaffold_v1: signals beyond gps not collected yet');
   evidence.diagnostics.buildDurationMs = Date.now() - startedAt;
   return evidence;
 }

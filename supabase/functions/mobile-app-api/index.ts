@@ -9515,21 +9515,19 @@ async function handleGetMovementForDay(supabase: any, callerStaffId: string, dat
   const fromIso = `${date}T00:00:00.000Z`
   const toIso = `${date}T23:59:59.999Z`
 
-  const { data: rows, error } = await supabase
-    .from('staff_location_history')
-    .select('lat, lng, accuracy, speed, recorded_at')
-    .eq('staff_id', staff_id)
-    .eq('organization_id', organizationId)
-    .gte('recorded_at', fromIso)
-    .lte('recorded_at', toIso)
-    .order('recorded_at', { ascending: true })
-    .limit(5000)
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }),
+  // Day-wide GPS via canonical paginated reader (replaces .limit(5000)).
+  const movementFetch = await fetchAllStaffLocationPings({
+    supabaseAdmin: supabase,
+    organizationId,
+    staffId: staff_id,
+    startUtc: fromIso,
+    endUtc: toIso,
+  })
+  if (movementFetch.diagnostics.errorMessage) {
+    return new Response(JSON.stringify({ error: movementFetch.diagnostics.errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
-  return new Response(JSON.stringify({ points: rows || [] }),
+  return new Response(JSON.stringify({ points: movementFetch.rows, fetchDiagnostics: movementFetch.diagnostics }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 

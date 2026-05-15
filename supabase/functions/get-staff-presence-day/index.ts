@@ -249,6 +249,8 @@ Deno.serve(async (req) => {
       organizationId: orgId,
       staffId,
       date,
+      dayStartUtc: dayStart,
+      dayEndUtc: dayEnd,
     });
     dayEvidenceDiagnostics = dayEvidence.diagnostics;
   } catch (e: any) {

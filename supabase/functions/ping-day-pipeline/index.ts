@@ -20,6 +20,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { fetchAllStaffLocationPings } from "../_shared/timeEngine/fetchAllStaffLocationPings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -165,36 +166,41 @@ Deno.serve(async (req) => {
   const sevenDaysAgo = new Date(new Date(date).getTime() - 7 * 86400000).toISOString().slice(0, 10);
   const sevenDaysAhead = new Date(new Date(date).getTime() + 7 * 86400000).toISOString().slice(0, 10);
 
-  // Paginated ping fetch — same principle as fetchAllPingsForStaff in
-  // StaffTimeReports.tsx. Never use a single .limit() that can silently
-  // truncate days with thousands of pings.
-  const PING_PAGE_SIZE = 1000;
-  const PER_STAFF_PING_CAP = 20_000;
+  // Day-wide GPS via canonical paginated reader. Falls back to a single
+  // page when organizationId is unknown (helper requires it for multi-tenant
+  // safety).
   async function fetchAllPings(): Promise<{
     rows: RawPing[]; truncated: boolean; pageCount: number; error: string | null;
   }> {
-    const out: RawPing[] = [];
-    let from = 0;
-    let pageCount = 0;
-    while (out.length < PER_STAFF_PING_CAP) {
-      const to = from + PING_PAGE_SIZE - 1;
+    if (!organizationId) {
       const { data, error } = await supabase
         .from("staff_location_history")
         .select("recorded_at, lat, lng, accuracy, speed")
         .eq("staff_id", staffId)
         .gte("recorded_at", dayStart).lte("recorded_at", dayEnd)
         .order("recorded_at", { ascending: true })
-        .range(from, to);
-      pageCount += 1;
-      if (error) return { rows: out, truncated: false, pageCount, error: error.message };
-      const batch = (data ?? []) as RawPing[];
-      out.push(...batch);
-      if (batch.length < PING_PAGE_SIZE) {
-        return { rows: out, truncated: false, pageCount, error: null };
-      }
-      from += PING_PAGE_SIZE;
+        .range(0, 999);
+      return {
+        rows: ((data ?? []) as RawPing[]),
+        truncated: (data?.length ?? 0) >= 1000,
+        pageCount: 1,
+        error: error?.message ?? null,
+      };
     }
-    return { rows: out.slice(0, PER_STAFF_PING_CAP), truncated: true, pageCount, error: null };
+    const r = await fetchAllStaffLocationPings<RawPing>({
+      supabaseAdmin: supabase,
+      organizationId,
+      staffId,
+      startUtc: dayStart,
+      endUtc: dayEnd,
+      select: "recorded_at, lat, lng, accuracy, speed",
+    });
+    return {
+      rows: r.rows,
+      truncated: r.diagnostics.capHit,
+      pageCount: r.diagnostics.pageCount,
+      error: r.diagnostics.errorMessage,
+    };
   }
 
   const [pingsAll, workdayRes, lteRes, trRes, travelRes, locRes, bookingsRes, largeRes] =

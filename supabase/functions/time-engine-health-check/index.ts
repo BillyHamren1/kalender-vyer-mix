@@ -22,6 +22,7 @@ import {
 import type { WorkTarget } from '../_shared/time-engine/contracts.ts';
 import { derivePresenceEvents } from '../_shared/time-engine/derivePresenceEvents.ts';
 import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts';
+import { fetchAllStaffLocationPings } from '../_shared/timeEngine/fetchAllStaffLocationPings.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -60,17 +61,16 @@ async function runDateCheck(
   const dayStart = `${date}T00:00:00Z`;
   const dayEnd = `${date}T23:59:59.999Z`;
 
-  // ---- A) GPS input ----
-  const { data: pingRows, error: pErr } = await supabase
-    .from('staff_location_history')
-    .select('lat, lng, accuracy, speed, recorded_at')
-    .eq('organization_id', organizationId)
-    .eq('staff_id', staffId)
-    .gte('recorded_at', dayStart)
-    .lte('recorded_at', dayEnd)
-    .order('recorded_at', { ascending: true })
-    .limit(5000);
-  if (pErr) return { date, error: pErr.message };
+  // ---- A) GPS input (canonical paginated reader) ----
+  const pingFetch = await fetchAllStaffLocationPings({
+    supabaseAdmin: supabase,
+    organizationId,
+    staffId,
+    startUtc: dayStart,
+    endUtc: dayEnd,
+  });
+  if (pingFetch.diagnostics.errorMessage) return { date, error: pingFetch.diagnostics.errorMessage };
+  const pingRows = pingFetch.rows;
 
   const pings: GpsPing[] = (pingRows ?? []).map((p: any) => ({
     ts: p.recorded_at,
