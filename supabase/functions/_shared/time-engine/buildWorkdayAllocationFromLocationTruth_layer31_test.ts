@@ -100,7 +100,7 @@ Deno.test('Lager 3.1: project known_site inom workday → project_work', () => {
   assertEquals(r.segments.length, 1);
   assertEquals(r.segments[0].allocationType, 'project_work');
   assertEquals(r.segments[0].targetId, 'p1');
-  assertEquals(r.segments[0].assignmentStatus, 'assigned_overlap');
+  assertEquals(r.segments[0].assignmentStatus, 'assigned');
   assertEquals(r.diagnostics.allocationCounts.project_work, 1);
 });
 

@@ -36,7 +36,7 @@ function wdaSeg(partial: Partial<WorkdayAllocationSegment>): WorkdayAllocationSe
     address: 'A 1',
     confidence: 'high',
     warnings: [],
-    assignmentStatus: 'assigned_overlap',
+    assignmentStatus: 'assigned',
     businessContextStatus: 'matched_eventflow_target',
     outsideWorkday: false,
     ...partial,
@@ -78,7 +78,7 @@ Deno.test('Lager 3.7 — unlinked_work_address + planning_geo_mismatch triggar b
     targetType: null,
     targetId: null,
     warnings: ['no_project_link', 'planning_geo_mismatch'],
-    assignmentStatus: 'no_assignment',
+    assignmentStatus: 'unknown',
   });
   const t = shouldTriggerAiReview(seg);
   assert(t.includes('unlinked_work_address'));

@@ -94,7 +94,7 @@ Deno.test('Layer 3.3 — large_project → large_project_work', () => {
     dayEvidence: null, locationTruthV2: lt, workdayEnvelope: ENVELOPE,
   });
   assertEquals(r.segments[0].allocationType, 'large_project_work');
-  assertEquals(r.segments[0].assignmentStatus, 'assigned_overlap');
+  assertEquals(r.segments[0].assignmentStatus, 'assigned');
   assertEquals(r.diagnostics.largeProjectWorkCount, 1);
 });
 
