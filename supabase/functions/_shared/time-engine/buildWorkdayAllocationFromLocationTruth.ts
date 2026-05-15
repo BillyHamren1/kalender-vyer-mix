@@ -147,7 +147,7 @@ export interface ActiveWorkdayInput {
 }
 
 export interface BuildWorkdayAllocationInput {
-  dayEvidence: DayEvidenceResult | null;
+  dayEvidence: DayEvidence | null;
   locationTruthV2: LocationTruthResult | null;
   activeWorkday: ActiveWorkdayInput | null;
 }
