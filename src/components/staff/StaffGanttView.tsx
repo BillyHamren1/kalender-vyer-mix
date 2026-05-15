@@ -430,6 +430,14 @@ const blocksFromStaff = (
         subtitle: isPreWork ? 'Före arbetsdag' : (b.subtitle ?? null),
         plannedBadgeLabel: isNightGpsOnly ? null : resolution.plannedBadgeLabel,
         isNightGpsOnly,
+        sessionKey: sessionKeyForBlock({
+          id: b.id,
+          targetType: b.targetType,
+          targetId: b.targetId,
+          title: b.title,
+          subtitle: b.subtitle,
+        }),
+        rawKind: b.kind,
       });
     };
 
