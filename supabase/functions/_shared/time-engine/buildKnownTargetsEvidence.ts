@@ -166,6 +166,12 @@ export interface KnownTargetsDiagnostics {
   supplierTableNotFoundWarning: boolean;
   /** Lager 2.10 — antal suppliers där default-radius applicerades (coords men ingen radius). */
   defaultSupplierRadiusAppliedCount: number;
+  /** Lager 2.12A — breda tabeller som hoppades över helt (saknade säkert supplier-filter). */
+  supplierTablesSkippedBecauseTooBroad: string[];
+  /** Lager 2.12A — antal rader i breda tabeller som filtrerades bort (saknade supplier-marker). */
+  supplierRowsSkippedNoSupplierMarker: number;
+  /** Lager 2.12A — warnings om breda tabeller som krävde filter. */
+  supplierTableRequiresFilterWarnings: string[];
   supplierExamples: Array<{
     targetId: string;
     label: string;
@@ -327,6 +333,9 @@ export async function buildKnownTargetsEvidence(
     supplierRowsFetchedTotal: 0,
     supplierTableNotFoundWarning: false,
     defaultSupplierRadiusAppliedCount: 0,
+    supplierTablesSkippedBecauseTooBroad: [],
+    supplierRowsSkippedNoSupplierMarker: 0,
+    supplierTableRequiresFilterWarnings: [],
     supplierExamples: [],
     childBookingsSuppressedCount: 0,
     childProjectsSuppressedCount: 0,
@@ -435,17 +444,45 @@ export async function buildKnownTargetsEvidence(
   // krascha pga supplier-läsning.
   // Suppliers blandas ALDRIG ihop med projects/bookings (egen targetType).
   const SUPPLIER_DEFAULT_RADIUS_M = 150;
-  const SUPPLIER_TABLE_CANDIDATES: string[] = [
+  // Lager 2.12A — narrow: tabeller med tydlig supplier-identitet (alla rader = supplier).
+  const NARROW_SUPPLIER_TABLES: string[] = [
     'external_suppliers',
     'suppliers',
-    'partners',
     'vendors',
     'subcontractors',
     'business_partners',
     'supplier_addresses',
+  ];
+  // Breda tabeller — får användas ENDAST om raden tydligt är supplier/vendor/partner.
+  const BROAD_SUPPLIER_TABLES: string[] = [
     'contacts',
     'companies',
+    'partners',
   ];
+  const SUPPLIER_MARKER_FIELDS = [
+    'type', 'company_type', 'contact_type', 'category', 'role',
+    'partner_type', 'relation_type',
+  ];
+  const SUPPLIER_BOOL_FIELDS = ['is_supplier', 'is_vendor', 'supplier', 'vendor'];
+  const SUPPLIER_MARKER_VALUES = new Set([
+    'supplier', 'vendor', 'subcontractor', 'partner_supplier',
+    'business_partner', 'rental_supplier', 'logistics_supplier',
+  ]);
+  const isSupplierRow = (r: any): boolean => {
+    const raw = (r?.raw && typeof r.raw === 'object') ? r.raw : {};
+    const meta = (r?.metadata && typeof r.metadata === 'object') ? r.metadata : {};
+    for (const f of SUPPLIER_BOOL_FIELDS) {
+      if (r?.[f] === true || raw?.[f] === true || meta?.[f] === true) return true;
+    }
+    for (const f of SUPPLIER_MARKER_FIELDS) {
+      const vals = [r?.[f], raw?.[f], meta?.[f]];
+      for (const v of vals) {
+        if (typeof v === 'string' && SUPPLIER_MARKER_VALUES.has(v.toLowerCase().trim())) return true;
+      }
+    }
+    return false;
+  };
+  const SUPPLIER_TABLE_CANDIDATES: string[] = [...NARROW_SUPPLIER_TABLES, ...BROAD_SUPPLIER_TABLES];
 
   const pickFiniteNum = (v: unknown): number | null => {
     if (isFiniteNumber(v)) return v as number;
@@ -508,6 +545,26 @@ export async function buildKnownTargetsEvidence(
     if (!data || data.length === 0) {
       // Tabell finns men är tom → fortsätt testa nästa kandidat.
       continue;
+    }
+
+    // Lager 2.12A — för breda tabeller, kräver att raden tydligt är supplier.
+    const isBroad = BROAD_SUPPLIER_TABLES.includes(table);
+    if (isBroad) {
+      const filtered = data.filter(isSupplierRow);
+      const skipped = data.length - filtered.length;
+      if (filtered.length === 0) {
+        // Inga rader hade supplier-marker → behandla som tom och varna.
+        diag.supplierTablesSkippedBecauseTooBroad.push(table);
+        diag.supplierRowsSkippedNoSupplierMarker += skipped;
+        const w = `supplier_table_requires_filter:${table}`;
+        if (!diag.supplierTableRequiresFilterWarnings.includes(w)) {
+          diag.supplierTableRequiresFilterWarnings.push(w);
+        }
+        if (!diag.warnings.includes(w)) diag.warnings.push(w);
+        continue;
+      }
+      diag.supplierRowsSkippedNoSupplierMarker += skipped;
+      data = filtered;
     }
 
     diag.supplierTableUsed = table;
@@ -624,6 +681,9 @@ export async function buildKnownTargetsEvidence(
   if (!supplierFetched) {
     diag.supplierTableNotFoundWarning = true;
     diag.warnings.push('supplier_table_not_found_or_not_configured');
+    if (!diag.warnings.includes('no_safe_supplier_source_found')) {
+      diag.warnings.push('no_safe_supplier_source_found');
+    }
   }
 
 
