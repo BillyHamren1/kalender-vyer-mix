@@ -192,6 +192,15 @@ export interface WorkdayAllocationDiagnostics {
   homeOver90MinutesCount: number;
   suggestedWorkdayEndCount: number;
   temporaryHomePresenceCount: number;
+  // ── Lager 3.10C — uncovered workday gaps ──────────────────────────────
+  /** Antal gaps inom workday utan LocationTruth-täckning (alla längder). */
+  uncoveredGapCount: number;
+  /** Total minuttid uncovered inom workday (alias mot uncoveredWorkdayMinutes). */
+  uncoveredGapMinutesTotal: number;
+  /** Korta gaps (< proposalThreshold) som BARA räknas, inte föreslås. */
+  shortUncoveredGapsIgnoredCount: number;
+  /** Gaps som faktiskt blev proposals (≥ tröskel). */
+  uncoveredGapsProposedCount: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
