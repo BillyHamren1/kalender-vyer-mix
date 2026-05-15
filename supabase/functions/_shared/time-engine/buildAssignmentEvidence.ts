@@ -112,6 +112,8 @@ export interface BuildAssignmentEvidenceInput {
 
 export interface BuildAssignmentEvidenceResult {
   items: AssignmentEvidenceItem[];
+  /** Lager 1.9 — alla calendar_events för dagen (rik form, för knownTargets). */
+  calendarEvents: AssignmentCalendarEvent[];
   diagnostics: AssignmentEvidenceDiagnostics;
 }
 
