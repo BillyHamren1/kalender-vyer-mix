@@ -895,25 +895,32 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
 
     const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
-    // Lager 3.3 + 3.10A — assignmentStatus:
-    //   assigned_overlap         = planerad på rätt target i intervallet
-    //   no_assignment_required   = matched target av typ supplier / warehouse /
-    //                              organization_location → assignment krävs INTE.
-    //                              Dessa är normal arbetskontext inom aktiv dagtimer.
-    //   unassigned_but_present   = matchat project / booking / large_project
-    //                              men ingen assignment (GPS/plats vinner —
-    //                              kopplingen behålls, men varning emitteras).
-    //   no_assignment            = ingen target alls.
+    // Lager 3.11B — kanoniska assignmentStatus-värden:
+    //   assigned                 = matchad project/booking/large_project + overlap
+    //   unassigned_but_present   = matchad project/booking/large_project utan overlap
+    //   no_assignment_required   = matchad supplier/warehouse/organization_location
+    //   unknown                  = ingen target / kan ej avgöras
+    // assignmentMatch ger detaljnivån (overlap/no_overlap/not_required/missing/unknown).
     const matchedNoAssignmentRequired = !!matched && (
       matched.targetType === 'supplier' ||
       matched.targetType === 'warehouse' ||
       matched.targetType === 'organization_location'
     );
     let assignmentStatus: WorkdayAllocationAssignmentStatus;
-    if (matched && hasOverlap) assignmentStatus = 'assigned_overlap';
-    else if (matchedNoAssignmentRequired) assignmentStatus = 'no_assignment_required';
-    else if (matched && !hasOverlap) assignmentStatus = 'unassigned_but_present';
-    else assignmentStatus = 'no_assignment';
+    let assignmentMatch: WorkdayAllocationAssignmentMatch;
+    if (matchedNoAssignmentRequired) {
+      assignmentStatus = 'no_assignment_required';
+      assignmentMatch = 'not_required';
+    } else if (matched && hasOverlap) {
+      assignmentStatus = 'assigned';
+      assignmentMatch = 'overlap';
+    } else if (matched && !hasOverlap) {
+      assignmentStatus = 'unassigned_but_present';
+      assignmentMatch = 'no_overlap';
+    } else {
+      assignmentStatus = 'unknown';
+      assignmentMatch = 'missing';
+    }
 
     const item: WorkdayAllocationSegment = {
       id: `wda_${seg.id}`,
