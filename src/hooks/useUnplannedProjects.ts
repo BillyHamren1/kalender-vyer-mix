@@ -33,12 +33,14 @@ export function useUnplannedProjects() {
           .select('id, name, booking_id, created_at')
           .eq('organization_id', orgId)
           .eq('planning_status', 'needs_planning')
+          .is('deleted_at', null)
           .order('created_at', { ascending: false }),
         supabase
           .from('large_projects')
           .select('id, name, created_at')
           .eq('organization_id', orgId)
           .eq('planning_status', 'needs_planning')
+          .is('deleted_at', null)
           .order('created_at', { ascending: false }),
       ]);
 
