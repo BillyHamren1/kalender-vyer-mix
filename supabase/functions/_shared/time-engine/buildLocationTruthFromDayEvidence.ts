@@ -732,6 +732,65 @@ export function buildLocationTruthFromDayEvidence(
     warnings.push(`location_truth_movement_failed:${(err as Error).message}`);
   }
 
+  // Lager 2.6 — sätt kanonisk finalType per segment och bygg summary.
+  const finalSummary: LocationTruthSummary = {
+    inputPingCount: logicPings?.length ?? 0,
+    clusterCount: stableClusters.length,
+    finalSegmentCount: 0,
+    knownSiteSegmentCount: 0,
+    movementSegmentCount: 0,
+    privateResidenceSegmentCount: 0,
+    unknownAreaSegmentCount: 0,
+    reviewSegmentCount: 0,
+    bridgedGapMinutesTotal: 0,
+    ignoredOutlierPingCount: stableClusterDiagnostics?.ignoredOutlierPingCount ?? 0,
+    finalSegmentsByType: {
+      known_site: 0,
+      movement: 0,
+      private_residence: 0,
+      unknown_area: 0,
+      needs_location_review: 0,
+    },
+    examples: [],
+  };
+
+  for (const s of finalSegments) {
+    s.finalType = mapToFinalType(s);
+    finalSummary.finalSegmentCount++;
+    finalSummary.finalSegmentsByType[s.finalType]++;
+    finalSummary.bridgedGapMinutesTotal +=
+      s.diagnostics.bridgedSignalGapMinutes ?? 0;
+    switch (s.finalType) {
+      case 'known_site':
+        finalSummary.knownSiteSegmentCount++;
+        break;
+      case 'movement':
+        finalSummary.movementSegmentCount++;
+        break;
+      case 'private_residence':
+        finalSummary.privateResidenceSegmentCount++;
+        break;
+      case 'unknown_area':
+        finalSummary.unknownAreaSegmentCount++;
+        break;
+      case 'needs_location_review':
+        finalSummary.reviewSegmentCount++;
+        break;
+    }
+    if (finalSummary.examples.length < 8) {
+      finalSummary.examples.push({
+        segmentId: s.id,
+        finalType: s.finalType,
+        confidence: s.confidence,
+        label: targetLabelOf(s),
+        targetType: s.matchedTarget?.targetType,
+        startAt: s.startAt,
+        endAt: s.endAt,
+        warnings: s.warnings ?? [],
+      });
+    }
+  }
+
   const diagnostics: LocationTruthDiagnostics = {
     staffId: dayEvidence.staffId,
     date: dayEvidence.date,
@@ -747,6 +806,7 @@ export function buildLocationTruthFromDayEvidence(
     supplierMatchDiagnostics: supplierDiag,
     gapBridgeDiagnostics,
     movementDiagnostics,
+    locationTruthSummary: finalSummary,
   };
 
   return { segments: finalSegments, diagnostics, stableClusters, clusterMatches };
