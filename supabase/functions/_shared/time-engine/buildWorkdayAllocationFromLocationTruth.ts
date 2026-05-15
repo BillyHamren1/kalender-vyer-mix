@@ -112,7 +112,9 @@ export type WorkdayAllocationWarning =
   | 'normally_not_paid_commute'
   | 'normally_not_paid_homebound'
   | 'long_travel_over_150km'
-  | 'movement_missing_anchor';
+  | 'movement_missing_anchor'
+  // ── Lager 3.5 — supplier-warning ──────────────────────────────────────
+  | 'supplier_visit_without_project_context';
 
 export interface WorkdayAllocationDiagnostics {
   staffId: string | null;
