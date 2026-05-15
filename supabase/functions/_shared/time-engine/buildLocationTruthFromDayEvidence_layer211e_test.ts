@@ -128,7 +128,7 @@ Deno.test('Lager 2.11E — B: LP utan geo + GPS matchar warehouse → warehouse 
   const wh = warehouseTgt();
   const r = build(
     [lpNoGeo(), wh],
-    [{ bookingId: null, projectId: null, largeProjectId: 'lp1', belongsToLargeProject: false }],
+    [{ bookingId: null, projectId: null, largeProjectId: 'lp1', belongsToLargeProject: false, startAt: '2026-05-15T07:30:00Z', endAt: '2026-05-15T09:00:00Z' }],
     wh.lat, wh.lng,
   );
   const seg = r.segments[0];

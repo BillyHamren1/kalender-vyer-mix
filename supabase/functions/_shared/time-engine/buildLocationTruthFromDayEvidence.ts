@@ -114,6 +114,11 @@ export interface PhysicalLocationDiagnostics {
   /** Lager 2.11F — physicalLocation.address fyllnadsgrad. */
   physicalLocationAddressFilledCount: number;
   physicalLocationAddressMissingCount: number;
+  /** Lager 2.12B — tidsbaserad assignment-overlap. */
+  overlappingAssignmentCount: number;
+  nonOverlappingAssignmentIgnoredCount: number;
+  assignmentMissingTimeWindowCount: number;
+  planningWarningsSuppressedNoOverlapCount: number;
   examples: Array<{
     clusterId: string;
     segmentType: LocationTruthSegmentType;
@@ -480,6 +485,10 @@ export function buildLocationTruthFromDayEvidence(
     largeProjectMissingGeoBusinessWarningCount: 0,
     physicalLocationAddressFilledCount: 0,
     physicalLocationAddressMissingCount: 0,
+    overlappingAssignmentCount: 0,
+    nonOverlappingAssignmentIgnoredCount: 0,
+    assignmentMissingTimeWindowCount: 0,
+    planningWarningsSuppressedNoOverlapCount: 0,
     examples: [],
   };
 
@@ -494,6 +503,37 @@ export function buildLocationTruthFromDayEvidence(
     competingSupplierTargetCount: 0,
     examples: [],
   };
+
+  // Lager 2.12B — tidsbaserad assignment-overlap.
+  // Returnerar assignments där [startAt,endAt) överlappar segmentets
+  // [segStart,segEnd). Assignments utan tidsfönster räknas som "weak context"
+  // och returneras INTE här (de räknas separat i diagnostics).
+  function getOverlappingAssignments(
+    segStart: string,
+    segEnd: string,
+  ): typeof assignments {
+    const segS = Date.parse(segStart);
+    const segE = Date.parse(segEnd);
+    const out: typeof assignments = [];
+    for (const a of assignments) {
+      if (!a.startAt || !a.endAt) {
+        physDiag.assignmentMissingTimeWindowCount++;
+        continue;
+      }
+      const aS = Date.parse(a.startAt);
+      const aE = Date.parse(a.endAt);
+      if (!Number.isFinite(aS) || !Number.isFinite(aE)) {
+        physDiag.assignmentMissingTimeWindowCount++;
+        continue;
+      }
+      if (aS < segE && aE > segS) {
+        out.push(a);
+      } else {
+        physDiag.nonOverlappingAssignmentIgnoredCount++;
+      }
+    }
+    return out;
+  }
 
   try {
     for (const cluster of stableClusters) {
@@ -606,18 +646,27 @@ export function buildLocationTruthFromDayEvidence(
         const assignmentSupports = winner?.assignmentSupports ?? false;
         const matchedKind = match.matchedTarget.type;
 
-        // Personen är planerad på något annat (projekt/booking/LP) samtidigt?
-        const plannedElsewhere = assignments.some(
-          (a) => a.bookingId || a.projectId || a.largeProjectId,
+        // Lager 2.12B — tidsbaserad: planning räknas bara om assignment
+        // tidsmässigt överlappar segmentet. Day-level "har en assignment
+        // någonstans idag" räcker inte.
+        const overlappingAssignments = getOverlappingAssignments(
+          cluster.startAt,
+          cluster.endAt,
         );
+        const hasOverlappingAssignment = overlappingAssignments.length > 0;
+        if (hasOverlappingAssignment) physDiag.overlappingAssignmentCount++;
 
         // Lager 2.11C — businessContext beror på targetType.
         if (matchedKind === 'supplier') {
           // Supplier-besök: assignment krävs aldrig.
           businessStatus = 'supplier_visit';
           supplierDiag.supplierMatchedClusterCount++;
-          if (!plannedElsewhere) {
+          if (!hasOverlappingAssignment) {
             businessWarnings.push('supplier_visit_without_project_context');
+            // Om det fanns dag-assignments men ingen överlapp → suppress.
+            if (assignments.length > 0) {
+              physDiag.planningWarningsSuppressedNoOverlapCount++;
+            }
           } else {
             businessWarnings.push('supplier_visit_during_planned_project');
             supplierDiag.supplierPlanningMismatchCount++;
@@ -640,8 +689,10 @@ export function buildLocationTruthFromDayEvidence(
         } else if (matchedKind === 'warehouse') {
           // Lager-närvaro: assignment krävs aldrig.
           businessStatus = 'warehouse_presence';
-          if (plannedElsewhere) {
+          if (hasOverlappingAssignment) {
             businessWarnings.push('warehouse_presence_during_planned_project');
+          } else if (assignments.length > 0) {
+            physDiag.planningWarningsSuppressedNoOverlapCount++;
           }
         } else if (matchedKind === 'organization_location') {
           // Org-location: assignment krävs aldrig.
@@ -657,18 +708,47 @@ export function buildLocationTruthFromDayEvidence(
         }
 
         // Planning pekar på annan fysisk plats men GPS vinner.
+        // Lager 2.12B — gate på faktisk tids-overlap. Om den planerade
+        // assignmenten inte överlappar segmentet är detta inte en mismatch.
         if (match.planningIgnoredBecauseGeoDisagreed) {
-          businessStatus = 'planning_geo_mismatch';
-          if (!businessWarnings.includes('planned_target_does_not_match_physical_location')) {
-            businessWarnings.push('planned_target_does_not_match_physical_location');
-          }
-          // Lager 2.11E — om den planerade targeten faktiskt SAKNAR egen geo
-          // (typiskt assigned LP utan koordinater) ska vi även markera det.
-          const plannedMissingGeo = match.rejectedCandidates.some(
-            (r) => r.assignmentSupports && r.rejectReason === 'large_project_missing_geo',
+          // Hitta planerade rejected candidates och se om någon av dem har
+          // en assignment som tidsmässigt överlappar.
+          const plannedRejected = match.rejectedCandidates.filter(
+            (r) => r.assignmentSupports,
           );
-          if (plannedMissingGeo && !businessWarnings.includes('planned_target_missing_geo')) {
-            businessWarnings.push('planned_target_missing_geo');
+          const overlappingTargetIds = new Set<string>();
+          for (const a of overlappingAssignments) {
+            if (a.bookingId) overlappingTargetIds.add(`b:${a.bookingId}`);
+            if (a.projectId) overlappingTargetIds.add(`p:${a.projectId}`);
+            if (a.largeProjectId) overlappingTargetIds.add(`lp:${a.largeProjectId}`);
+          }
+          const plannedOverlapsSegment = plannedRejected.some((r: any) => {
+            const tid = r.targetId ?? r.target_id;
+            const tt = r.targetType ?? r.target_type;
+            if (!tid) return false;
+            const key =
+              tt === 'booking' ? `b:${tid}` :
+              tt === 'project' ? `p:${tid}` :
+              tt === 'large_project' ? `lp:${tid}` : null;
+            return key ? overlappingTargetIds.has(key) : false;
+          });
+
+          if (plannedOverlapsSegment) {
+            businessStatus = 'planning_geo_mismatch';
+            if (!businessWarnings.includes('planned_target_does_not_match_physical_location')) {
+              businessWarnings.push('planned_target_does_not_match_physical_location');
+            }
+            // Lager 2.11E — om den planerade targeten faktiskt SAKNAR egen geo
+            // (typiskt assigned LP utan koordinater) ska vi även markera det.
+            const plannedMissingGeo = plannedRejected.some(
+              (r) => r.rejectReason === 'large_project_missing_geo',
+            );
+            if (plannedMissingGeo && !businessWarnings.includes('planned_target_missing_geo')) {
+              businessWarnings.push('planned_target_missing_geo');
+            }
+          } else {
+            // Planering finns men överlappar inte segmentet → suppress.
+            physDiag.planningWarningsSuppressedNoOverlapCount++;
           }
         }
       } else if (match.matchedTarget.type === 'needs_location_review') {

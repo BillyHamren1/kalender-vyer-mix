@@ -103,7 +103,7 @@ Deno.test('Lager 2.11C — A: supplier utan assignment + ingen planering', () =>
 Deno.test('Lager 2.11C — B: supplier utan assignment, planerad på projekt', () => {
   const sup = tgt('supplier', 'sup1', 59.3400, 18.0600, 'Acme', 'external_suppliers');
   const r = buildAt(sup, {
-    assignments: [{ bookingId: 'b1', projectId: null, largeProjectId: null, belongsToLargeProject: false }],
+    assignments: [{ bookingId: 'b1', projectId: null, largeProjectId: null, belongsToLargeProject: false, startAt: '2026-05-15T07:30:00Z', endAt: '2026-05-15T09:00:00Z' }],
   });
   const seg = findKnownTargetSeg(r);
   assertEquals(seg.businessContext?.status, 'supplier_visit');
@@ -125,7 +125,7 @@ Deno.test('Lager 2.11C — C: warehouse utan assignment, ingen planering', () =>
 Deno.test('Lager 2.11C — D: warehouse utan assignment, planerad på projekt', () => {
   const wh = tgt('warehouse', 'wh1', 59.3293, 18.0686, 'Lager', 'organization_locations');
   const r = buildAt(wh, {
-    assignments: [{ bookingId: null, projectId: 'pX', largeProjectId: null, belongsToLargeProject: false }],
+    assignments: [{ bookingId: null, projectId: 'pX', largeProjectId: null, belongsToLargeProject: false, startAt: '2026-05-15T07:30:00Z', endAt: '2026-05-15T09:00:00Z' }],
   });
   const seg = findKnownTargetSeg(r);
   assertEquals(seg.businessContext?.status, 'warehouse_presence');
@@ -157,7 +157,7 @@ Deno.test('Lager 2.11C — G: planning på A men GPS på B → planning_geo_mism
   const wh = tgt('warehouse', 'wh1', 59.3293, 18.0686, 'Lager', 'organization_locations');
   const projA = tgt('project', 'pA', 59.5000, 18.5000, 'Project A långt bort', 'projects');
   const r = buildAt(wh, {
-    assignments: [{ bookingId: null, projectId: 'pA', largeProjectId: null, belongsToLargeProject: false }],
+    assignments: [{ bookingId: null, projectId: 'pA', largeProjectId: null, belongsToLargeProject: false, startAt: '2026-05-15T07:30:00Z', endAt: '2026-05-15T09:00:00Z' }],
     extraTargets: [projA],
   });
   const seg = findKnownTargetSeg(r);
