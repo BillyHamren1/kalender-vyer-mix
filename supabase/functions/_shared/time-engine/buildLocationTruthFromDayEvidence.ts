@@ -33,6 +33,10 @@ import {
   resolvePhysicalLocationForCluster,
   type PhysicalLocation,
 } from './resolvePhysicalLocationForCluster.ts';
+import {
+  bridgeSignalGaps,
+  type GapBridgeDiagnostics,
+} from './bridgeSignalGaps.ts';
 
 // ── Lager 2.3 — Target match diagnostics ───────────────────────────────────
 
