@@ -297,6 +297,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // ProjectCalendarView). Eget kort med tydlig "Endast projekt"-/publicerad-
   // markering. Klick öppnar ingen booking-detaljvy — vi hoverar/dblclick:ar
   // bara info via EventHoverCard.
+  // To-do: dedikerat kort + popover med detaljer (ingen booking-koppling)
+  if (isTodo) {
+    return <TodoEventCard event={event} />;
+  }
+
   const ext = event.extendedProps as any;
   if (ext?.isProjectActivity) {
     const published = !!ext.published;
