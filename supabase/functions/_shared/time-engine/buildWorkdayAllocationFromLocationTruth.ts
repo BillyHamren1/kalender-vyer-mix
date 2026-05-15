@@ -360,7 +360,9 @@ function deriveAllocation(
   }
 
   if (seg.finalType === 'known_address') {
-    // Fysisk plats stabil men ingen EventFlow-target.
+    // Fysisk plats stabil men ingen EventFlow-target → unlinked_work_address.
+    // Lager 3.3: signalera tydligt att projektkoppling saknas.
+    warnings.push('no_project_link');
     if (status === 'planning_geo_mismatch') warnings.push('planning_geo_mismatch');
     if (status === 'needs_review') warnings.push('needs_review_business_context');
     return {
@@ -371,13 +373,22 @@ function deriveAllocation(
   }
 
   // known_site → mappa per matchedTarget.targetType
+  // Lager 3.3: GPS/plats vinner. Saknad assignment SLOPAR INTE kopplingen
+  // — den ger bara en warning + unassigned_but_present-status.
   if (matched) {
+    // planning_geo_mismatch betyder GPS säger en sak, planering en annan.
+    // GPS/plats vinner → vi behåller mappingen men varnar.
+    if (status === 'planning_geo_mismatch') warnings.push('planning_geo_mismatch');
+
     switch (matched.targetType) {
       case 'large_project':
+        if (!hasOverlapWithAssignment) warnings.push('staff_not_assigned_to_matched_target');
         return { type: 'large_project_work', warnings, confidence: seg.confidence };
       case 'project':
+        if (!hasOverlapWithAssignment) warnings.push('staff_not_assigned_to_matched_target');
         return { type: 'project_work', warnings, confidence: seg.confidence };
       case 'booking':
+        if (!hasOverlapWithAssignment) warnings.push('staff_not_assigned_to_matched_target');
         return { type: 'booking_work', warnings, confidence: seg.confidence };
       case 'warehouse':
       case 'organization_location':
@@ -393,10 +404,11 @@ function deriveAllocation(
     }
   }
 
-  // known_site utan matched target → unassigned presence.
+  // known_site utan matched target → unassigned presence (saknar projektkoppling).
   if (status === 'unassigned_known_target_presence') {
     warnings.push('unassigned_known_target_presence');
   }
+  warnings.push('no_project_link');
   return { type: 'unlinked_work_address', warnings, confidence: 'low' };
 }
 
