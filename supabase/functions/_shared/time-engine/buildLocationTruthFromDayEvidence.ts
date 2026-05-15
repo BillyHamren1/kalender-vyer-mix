@@ -367,6 +367,8 @@ function targetLabelOf(seg: LocationTruthSegment): string | undefined {
   return seg.physicalLocation?.label;
 }
 
+// ── Builder ───────────────────────────────────────────────────────────────
+
 export function buildLocationTruthFromDayEvidence(
   dayEvidence: DayEvidence,
 ): LocationTruthResult {
