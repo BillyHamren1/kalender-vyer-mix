@@ -1124,5 +1124,5 @@ export function buildDisplayTimelineFromWorkdayAllocation(
     diagnostics.warnings.push('empty_workday_allocation');
   }
 
-  return { blocks, diagnostics };
+  return { blocks, dayActions: buildDayActions(), diagnostics };
 }
