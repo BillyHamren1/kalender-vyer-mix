@@ -174,7 +174,7 @@ Deno.test('4.2 F — trailing private kollapsas till "Hemma" med action', () => 
     seg({
       id: 'h1',
       allocationType: 'private_time',
-      targetType: 'staff_residence',
+      targetType: 'private_zone',
       targetId: 'home',
       label: 'Hem',
       address: 'Hem 1',
@@ -184,7 +184,7 @@ Deno.test('4.2 F — trailing private kollapsas till "Hemma" med action', () => 
     seg({
       id: 'h2',
       allocationType: 'private_time',
-      targetType: 'staff_residence',
+      targetType: 'private_zone',
       targetId: 'home',
       label: 'Hem',
       address: 'Hem 1',
