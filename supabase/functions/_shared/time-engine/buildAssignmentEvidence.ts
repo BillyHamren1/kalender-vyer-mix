@@ -54,6 +54,30 @@ export interface AssignmentEvidenceItem {
   childBookingId: string | null;
 }
 
+/**
+ * Lager 1.9 — Tydlig calendar_event-rad som downstream (knownTargets) kan
+ * konsumera utan att gissa. Planning is context, not proof of location.
+ */
+export interface AssignmentCalendarEvent {
+  /** calendar_event id (alias för eventId nedan). */
+  assignmentId: string | null;
+  eventId: string | null;
+  source: 'calendar_event' | 'team_calendar_event';
+  teamId: string | null;
+  teamName: string | null;
+  /** Direkt staff-koppling — null när eventet kommer via team. */
+  staffId: string | null;
+  bookingId: string | null;
+  projectId: string | null;
+  largeProjectId: string | null;
+  title: string | null;
+  plannedPhase: AssignmentPhase;
+  eventType: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  overlapsDate: boolean;
+}
+
 export interface AssignmentEvidenceDiagnostics {
   directBookingAssignmentCount: number;
   staffAssignmentCount: number;
