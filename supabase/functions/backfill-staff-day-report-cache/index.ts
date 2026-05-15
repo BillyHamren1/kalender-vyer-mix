@@ -610,6 +610,8 @@ async function processOne(
                 id: b.id, kind: b.kind, startAt: b.startAt, endAt: b.endAt,
                 targetLabel: b.targetLabel ?? b.title ?? null,
               })),
+              // Lager 2.7 — Location Truth V2 (read-only).
+              locationTruthV2,
             },
             source_watermark: {
               maxPingTs: pings[pings.length - 1]?.ts ?? null,
