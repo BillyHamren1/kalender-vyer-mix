@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      _backup_projects_phase_dates_20260515: {
+        Row: {
+          booking_id: string | null
+          eventdate: string | null
+          organization_id: string | null
+          project_id: string | null
+          rigdaydate: string | null
+          rigdowndate: string | null
+          snapshot_taken_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          eventdate?: string | null
+          organization_id?: string | null
+          project_id?: string | null
+          rigdaydate?: string | null
+          rigdowndate?: string | null
+          snapshot_taken_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          eventdate?: string | null
+          organization_id?: string | null
+          project_id?: string | null
+          rigdaydate?: string | null
+          rigdowndate?: string | null
+          snapshot_taken_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       active_time_registrations: {
         Row: {
           auto_started: boolean
