@@ -228,3 +228,163 @@ Deno.test('Lager 2.3b E: large project saknar geo, planering pekar dit → needs
     assertEquals(s.businessContext?.status, 'needs_review');
   }
 });
+
+// ── Lager 2.3c — Supplier matching ───────────────────────────────────────
+
+function supplierTarget(id: string, name: string, lat: number, lng: number, radius = 80): any {
+  return {
+    targetType: 'supplier', targetId: id, label: name,
+    lat, lng, radiusMeters: radius, polygon: null,
+    hasCoordinates: true, hasRadius: true, sourceTable: 'external_suppliers',
+    status: 'active', dateWindow: null, parentLargeProjectId: null,
+    belongsToLargeProject: false, canBePrimaryWorkTarget: true,
+    canBeGeoTarget: true, suppressedReason: null,
+  };
+}
+
+Deno.test('Lager 2.3c A: GPS på supplier utan booking/project → known_target supplier', () => {
+  const r = buildLocationTruthFromDayEvidence(makeDayEvidence({
+    gps: { locationLogicPingCount: 8 },
+    knownTargets: {
+      totalCount: 1, withCoordinatesCount: 1, invalidCount: 0,
+      items: [supplierTarget('sup1', 'Leverantör X', 59.3293, 18.0686)],
+      dataQuality: {},
+    },
+    internal: {
+      normalizedPings: [], hardRejectedPings: [],
+      locationLogicPings: makePings(59.3293, 18.0686, 8, 0),
+      dayWindowStartUtc: '2026-05-13T00:00:00.000Z',
+      dayWindowEndUtc: '2026-05-13T23:59:59.999Z',
+    },
+  }));
+  const s = r.segments[0];
+  assertEquals(s.type, 'known_target');
+  assertEquals(s.businessContext?.status, 'matched_eventflow_target');
+  assertEquals(s.matchedTarget?.targetType, 'supplier');
+  assertEquals(s.matchedTarget?.label, 'Leverantör X');
+  assertEquals(s.physicalLocation?.source, 'eventflow_target');
+  assert(s.businessContext?.warnings?.includes('supplier_visit'));
+  assertEquals(r.diagnostics.supplierMatchDiagnostics!.supplierMatchedClusterCount, 1);
+  assertEquals(r.diagnostics.supplierMatchDiagnostics!.supplierTargetsEvaluated, 1);
+});
+
+Deno.test('Lager 2.3c B: GPS på supplier medan planerad på projekt → supplier vinner + warning', () => {
+  const r = buildLocationTruthFromDayEvidence(makeDayEvidence({
+    gps: { locationLogicPingCount: 8 },
+    knownTargets: {
+      totalCount: 2, withCoordinatesCount: 2, invalidCount: 0,
+      items: [
+        supplierTarget('sup1', 'Leverantör X', 59.3293, 18.0686),
+        // Projekt geografiskt långt bort
+        {
+          targetType: 'project', targetId: 'p1', label: 'Planerat projekt',
+          lat: 59.50, lng: 18.50, radiusMeters: 80, polygon: null,
+          hasCoordinates: true, hasRadius: true, sourceTable: 'projects',
+          status: 'active', dateWindow: null, parentLargeProjectId: null,
+          belongsToLargeProject: false, canBePrimaryWorkTarget: true,
+          canBeGeoTarget: true, suppressedReason: null,
+        },
+      ],
+      dataQuality: {},
+    },
+    assignments: {
+      assignmentCount: 1, bookingIds: [], largeProjectIds: [],
+      hasPlannedDay: true,
+      items: [{ bookingId: null, largeProjectId: null, projectId: 'p1', belongsToLargeProject: false }],
+    },
+    internal: {
+      normalizedPings: [], hardRejectedPings: [],
+      locationLogicPings: makePings(59.3293, 18.0686, 8, 0),
+      dayWindowStartUtc: '2026-05-13T00:00:00.000Z',
+      dayWindowEndUtc: '2026-05-13T23:59:59.999Z',
+    },
+  }));
+  const s = r.segments[0];
+  assertEquals(s.type, 'known_target');
+  assertEquals(s.matchedTarget?.targetType, 'supplier');
+  assert(s.businessContext?.warnings?.includes('supplier_visit_during_planned_project'));
+  assertEquals(r.diagnostics.supplierMatchDiagnostics!.supplierPlanningMismatchCount, 1);
+});
+
+Deno.test('Lager 2.3c C: GPS nära både supplier och warehouse → warehouse vinner (lägre prio)', () => {
+  // Supplier prio = 3, warehouse prio = 2. Båda inom samma område.
+  const r = buildLocationTruthFromDayEvidence(makeDayEvidence({
+    gps: { locationLogicPingCount: 8 },
+    knownTargets: {
+      totalCount: 2, withCoordinatesCount: 2, invalidCount: 0,
+      items: [
+        supplierTarget('sup1', 'Leverantör Y', 59.3294, 18.0687),
+        {
+          targetType: 'warehouse', targetId: 'wh1', label: 'FA Warehouse',
+          lat: 59.3293, lng: 18.0686, radiusMeters: 100, polygon: null,
+          hasCoordinates: true, hasRadius: true, sourceTable: 'organization_locations',
+          status: 'active', dateWindow: null, parentLargeProjectId: null,
+          belongsToLargeProject: false, canBePrimaryWorkTarget: true,
+          canBeGeoTarget: true, suppressedReason: null,
+        },
+      ],
+      dataQuality: {},
+    },
+    internal: {
+      normalizedPings: [], hardRejectedPings: [],
+      locationLogicPings: makePings(59.3293, 18.0686, 8, 0),
+      dayWindowStartUtc: '2026-05-13T00:00:00.000Z',
+      dayWindowEndUtc: '2026-05-13T23:59:59.999Z',
+    },
+  }));
+  const s = r.segments[0];
+  assertEquals(s.matchedTarget?.targetType, 'warehouse');
+  // supplier ska finnas som rejected/competing-kandidat
+  const competing = r.clusterMatches[0].match.candidates.length +
+    r.clusterMatches[0].match.rejectedCandidates.length;
+  assert(competing >= 2);
+});
+
+Deno.test('Lager 2.3c D: supplier saknar geo → ingen match, oresolverat business context', () => {
+  const r = buildLocationTruthFromDayEvidence(makeDayEvidence({
+    gps: { locationLogicPingCount: 8 },
+    knownTargets: {
+      totalCount: 1, withCoordinatesCount: 0, invalidCount: 1,
+      items: [{
+        targetType: 'supplier', targetId: 'sup-nogeo', label: 'Leverantör utan geo',
+        lat: null, lng: null, radiusMeters: null, polygon: null,
+        hasCoordinates: false, hasRadius: false, sourceTable: 'external_suppliers',
+        status: 'active', dateWindow: null, parentLargeProjectId: null,
+        belongsToLargeProject: false, canBePrimaryWorkTarget: true,
+        canBeGeoTarget: false, suppressedReason: 'missing_coordinates',
+      }],
+      dataQuality: { suppliersMissingGeo: ['sup-nogeo'] },
+    },
+    internal: {
+      normalizedPings: [], hardRejectedPings: [],
+      locationLogicPings: makePings(59.3293, 18.0686, 8, 0),
+      dayWindowStartUtc: '2026-05-13T00:00:00.000Z',
+      dayWindowEndUtc: '2026-05-13T23:59:59.999Z',
+    },
+  }));
+  const s = r.segments[0];
+  // Ingen geo → blir known_address (stabil GPS), inte unresolved.
+  assertEquals(s.type, 'known_address');
+  assertEquals(s.matchedTarget, undefined);
+  assertEquals(r.diagnostics.supplierMatchDiagnostics!.supplierMatchedClusterCount, 0);
+});
+
+Deno.test('Lager 2.3c E: stabil adress utan supplier/warehouse/projekt → known_address (ej unresolved)', () => {
+  const r = buildLocationTruthFromDayEvidence(makeDayEvidence({
+    gps: { locationLogicPingCount: 8 },
+    knownTargets: {
+      totalCount: 1, withCoordinatesCount: 1, invalidCount: 0,
+      items: [supplierTarget('sup-far', 'Långt borta supplier', 50, 10)],
+      dataQuality: {},
+    },
+    internal: {
+      normalizedPings: [], hardRejectedPings: [],
+      locationLogicPings: makePings(59.3340, 18.0700, 10, 0),
+      dayWindowStartUtc: '2026-05-13T00:00:00.000Z',
+      dayWindowEndUtc: '2026-05-13T23:59:59.999Z',
+    },
+  }));
+  const s = r.segments[0];
+  assertEquals(s.type, 'known_address');
+  assertEquals(s.businessContext?.status, 'unresolved_business_context');
+});
