@@ -59,7 +59,7 @@ import { cleanupNeedsReviewFromLocationTruth } from '../_shared/time-engine/clea
 import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFromLocationTruth.ts';
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
-import { buildWorkdayAllocationFromLocationTruth } from '../_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts';
+import { buildWorkdayAllocationFromLocationTruth, resolveWorkdayEnvelope } from '../_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts';
 
 // ── Lager 2.7 feature flag ────────────────────────────────────────────────
 // Read-only: returnerar locationTruthSegments + locationTruthDiagnostics.
@@ -288,12 +288,19 @@ Deno.serve(async (req) => {
             .order('started_at', { ascending: true })
             .limit(1)
             .maybeSingle();
+          const activeWorkday = wdRow
+            ? { startedAt: wdRow.started_at, stoppedAt: wdRow.stopped_at, staffId, date }
+            : { startedAt: null, stoppedAt: null, staffId, date };
+          // Lager 3.2 — bygg envelope explicit (read-only) och skicka in.
+          const envelope = resolveWorkdayEnvelope({
+            activeWorkday,
+            analysisWindowEndIso: dayEnd,
+          });
           const wda = buildWorkdayAllocationFromLocationTruth({
             dayEvidence,
             locationTruthV2: lt,
-            activeWorkday: wdRow
-              ? { startedAt: wdRow.started_at, stoppedAt: wdRow.stopped_at, staffId, date }
-              : { startedAt: null, stoppedAt: null, staffId, date },
+            activeWorkday,
+            workdayEnvelope: envelope,
           });
           workdayAllocationDiagnostics = wda.diagnostics;
           workdayAllocationSegments = wda.segments;

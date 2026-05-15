@@ -106,6 +106,16 @@ export interface WorkdayAllocationDiagnostics {
   warnings: string[];
   /** Mins inom workdayen som inte täcks av något segment (gaps). */
   uncoveredWorkdayMinutes: number;
+  // ── Lager 3.2 — Workday Envelope diagnostics ──────────────────────────
+  workdayEnvelopeFound: boolean;
+  openWorkday: boolean;
+  workdayStartSource: WorkdayEnvelopeStartSource;
+  workdayEndSource: WorkdayEnvelopeEndSource;
+  envelopeWarnings: WorkdayEnvelopeWarning[];
+  /** Alias för segmentsInsideWorkday — uttryckt mot envelope-vokabulären. */
+  segmentsInsideEnvelope: number;
+  /** Alias för segmentsOutsideWorkday. */
+  segmentsOutsideEnvelope: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
@@ -146,10 +156,125 @@ export interface ActiveWorkdayInput {
   date?: string | null;
 }
 
+// ── Lager 3.2 — Workday Envelope ─────────────────────────────────────────
+// Arbetsdagens RAM. Lager 3 fördelar tid INOM detta fönster.
+// Skrivs ALDRIG någonstans — endast read-only debug + intern allokering.
+
+export type WorkdayEnvelopeStartSource =
+  | 'active_time_registration'
+  | 'manual_input'
+  | 'unknown';
+
+export type WorkdayEnvelopeEndSource =
+  | 'active_time_registration_stop'
+  | 'analysis_window_end'
+  | 'now'
+  | 'manual_input'
+  | 'unknown';
+
+export type WorkdayEnvelopeWarning =
+  | 'workday_timer_open'
+  | 'workday_start_missing'
+  | 'workday_end_before_start'
+  | 'envelope_clipped_to_analysis_window';
+
+export interface WorkdayEnvelope {
+  /** Arbetsdagens startsanning. null = ingen aktiv dagtimer. */
+  startAt: string | null;
+  /** Arbetsdagens slutsanning. Om isOpen=true är detta analysfönster/now. */
+  endAt: string | null;
+  /** True om dagtimern fortfarande är öppen (ingen stopp registrerad). */
+  isOpen: boolean;
+  startSource: WorkdayEnvelopeStartSource;
+  endSource: WorkdayEnvelopeEndSource;
+  warnings: WorkdayEnvelopeWarning[];
+}
+
+export interface ResolveWorkdayEnvelopeInput {
+  activeWorkday: ActiveWorkdayInput | null;
+  /** Yttre slut för analysfönstret (t.ex. dayEnd UTC eller now-iso). Optional. */
+  analysisWindowEndIso?: string | null;
+  /** Optional "now"-injection för testbarhet. */
+  nowIso?: string | null;
+}
+
+/**
+ * Bygger workdayEnvelope från aktiv dagtimer.
+ * Skriver ALDRIG. Returnerar en ren beskrivning av arbetsdagens ram.
+ */
+export function resolveWorkdayEnvelope(
+  input: ResolveWorkdayEnvelopeInput,
+): WorkdayEnvelope {
+  const wd = input.activeWorkday;
+  const startMs = toMs(wd?.startedAt ?? null);
+  const stopMs = toMs(wd?.stoppedAt ?? null);
+  const nowMs = toMs(input.nowIso ?? null) ?? Date.now();
+  const analysisEndMs = toMs(input.analysisWindowEndIso ?? null);
+  const warnings: WorkdayEnvelopeWarning[] = [];
+
+  if (startMs === null) {
+    return {
+      startAt: null,
+      endAt: null,
+      isOpen: false,
+      startSource: 'unknown',
+      endSource: 'unknown',
+      warnings: ['workday_start_missing'],
+    };
+  }
+
+  const startSource: WorkdayEnvelopeStartSource = 'active_time_registration';
+
+  // Sluten dagtimer.
+  if (stopMs !== null) {
+    if (stopMs <= startMs) warnings.push('workday_end_before_start');
+    return {
+      startAt: new Date(startMs).toISOString(),
+      endAt: new Date(stopMs).toISOString(),
+      isOpen: false,
+      startSource,
+      endSource: 'active_time_registration_stop',
+      warnings,
+    };
+  }
+
+  // Öppen dagtimer → analysfönstrets slut, annars now. Aldrig framåt i tiden.
+  warnings.push('workday_timer_open');
+  let endMs: number;
+  let endSource: WorkdayEnvelopeEndSource;
+  if (analysisEndMs !== null) {
+    endMs = Math.min(analysisEndMs, nowMs);
+    endSource = endMs < analysisEndMs ? 'now' : 'analysis_window_end';
+    if (endMs < analysisEndMs) warnings.push('envelope_clipped_to_analysis_window');
+  } else {
+    endMs = nowMs;
+    endSource = 'now';
+  }
+  if (endMs < startMs) endMs = startMs;
+  return {
+    startAt: new Date(startMs).toISOString(),
+    endAt: new Date(endMs).toISOString(),
+    isOpen: true,
+    startSource,
+    endSource,
+    warnings,
+  };
+}
+
 export interface BuildWorkdayAllocationInput {
   dayEvidence: DayEvidence | null;
   locationTruthV2: LocationTruthResult | null;
-  activeWorkday: ActiveWorkdayInput | null;
+  /**
+   * Bakåtkompatibel: rå aktiv dagtimer. Om workdayEnvelope INTE skickas
+   * resolvar vi internt via resolveWorkdayEnvelope().
+   */
+  activeWorkday?: ActiveWorkdayInput | null;
+  /** Lager 3.2 — färdigberäknad envelope. Om satt vinner den över activeWorkday. */
+  workdayEnvelope?: WorkdayEnvelope | null;
+  /** Optional analysfönsterslut för envelope-resolving (om vi resolvar internt). */
+  analysisWindowEndIso?: string | null;
+  /** Optional now-injection för testbarhet. */
+  nowIso?: string | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -269,9 +394,21 @@ export function buildWorkdayAllocationFromLocationTruth(
 ): WorkdayAllocationResult {
   const startedAt = Date.now();
   const ltSegments = input.locationTruthV2?.segments ?? [];
-  const wd = input.activeWorkday;
-  const wdStartMs = toMs(wd?.startedAt ?? null);
-  const wdStopMs = toMs(wd?.stoppedAt ?? null);
+
+  // ── Lager 3.2 — resolva workday envelope ────────────────────────────
+  // Om callern skickade en färdig envelope använder vi den. Annars resolvar
+  // vi från activeWorkday (bakåtkompatibelt). Skriver INGENTING.
+  const envelope: WorkdayEnvelope = input.workdayEnvelope ?? resolveWorkdayEnvelope({
+    activeWorkday: input.activeWorkday ?? null,
+    analysisWindowEndIso: input.analysisWindowEndIso
+      ?? (input.locationTruthV2?.diagnostics.date
+        ? `${input.locationTruthV2.diagnostics.date}T23:59:59.999Z`
+        : null),
+    nowIso: input.nowIso ?? null,
+  });
+
+  const wd = input.activeWorkday ?? null;
+  const wdStartMs = toMs(envelope.startAt);
 
   const segments: WorkdayAllocationSegment[] = [];
   const proposals: WorkdayAllocationProposal[] = [];
@@ -281,8 +418,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     builtAtIso: new Date().toISOString(),
     buildDurationMs: 0,
     hasActiveWorkday: !!wdStartMs,
-    workdayStartAt: wd?.startedAt ?? null,
-    workdayEndAt: wd?.stoppedAt ?? null,
+    workdayStartAt: envelope.startAt,
+    workdayEndAt: envelope.isOpen ? null : envelope.endAt,
     workdayDurationMinutes: 0,
     inputSegmentCount: ltSegments.length,
     segmentsInsideWorkday: 0,
@@ -290,8 +427,15 @@ export function buildWorkdayAllocationFromLocationTruth(
     segmentsPartiallyClipped: 0,
     allocationCounts: emptyAllocCounts(),
     warningsByType: emptyWarningCounts(),
-    warnings: [],
+    warnings: [...envelope.warnings],
     uncoveredWorkdayMinutes: 0,
+    workdayEnvelopeFound: !!wdStartMs,
+    openWorkday: envelope.isOpen,
+    workdayStartSource: envelope.startSource,
+    workdayEndSource: envelope.endSource,
+    envelopeWarnings: [...envelope.warnings],
+    segmentsInsideEnvelope: 0,
+    segmentsOutsideEnvelope: 0,
     examples: [],
   };
 
@@ -301,11 +445,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     diag.buildDurationMs = Date.now() - startedAt;
     return { segments, proposals, diagnostics: diag };
   }
-  // Pågående workday: använd dagslut eller "nu" som fönsterslut.
-  const fallbackEnd = toMs(input.locationTruthV2?.diagnostics.date
-    ? `${input.locationTruthV2!.diagnostics.date}T23:59:59.999Z`
-    : null) ?? Date.now();
-  const wdEnd = wdStopMs ?? fallbackEnd;
+  // Använd envelope-end (täcker både stängd och öppen dagtimer).
+  const wdEnd = toMs(envelope.endAt) ?? Date.now();
   diag.workdayDurationMinutes = Math.max(0, Math.round((wdEnd - wdStartMs) / 60_000));
 
   // Track coverage för uncoveredWorkdayMinutes.
@@ -319,6 +460,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     const overlapsWorkday = sMs < wdEnd && eMs > wdStartMs;
     if (!overlapsWorkday) {
       diag.segmentsOutsideWorkday += 1;
+      diag.segmentsOutsideEnvelope += 1;
       // Vi tar fortfarande med segmentet i debug-output men markerar det.
       const allocOutside = deriveAllocation(seg, !!seg.evidence.assignmentSupportsTarget);
       const item: WorkdayAllocationSegment = {
@@ -350,6 +492,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     const clipped = clippedStartMs !== sMs || clippedEndMs !== eMs;
     if (clipped) diag.segmentsPartiallyClipped += 1;
     diag.segmentsInsideWorkday += 1;
+    diag.segmentsInsideEnvelope += 1;
 
     const hasOverlap = !!seg.evidence.assignmentSupportsTarget;
     const alloc = deriveAllocation(seg, hasOverlap);
