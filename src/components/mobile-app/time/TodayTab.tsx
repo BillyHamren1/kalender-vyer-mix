@@ -42,6 +42,7 @@ import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVi
 import EndDayButton from './EndDayButton';
 import SegmentDetailSheet from './SegmentDetailSheet';
 import DisplayTimelineV2Card from './DisplayTimelineV2Card';
+import StaffDayRemindersBanner from './StaffDayRemindersBanner';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
