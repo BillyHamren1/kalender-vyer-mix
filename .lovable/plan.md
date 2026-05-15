@@ -1,62 +1,33 @@
-## Mål
+# Konvertera "Pick up"-projekt → To do's
 
-När en bokning kommer in i `IncomingBookingsList` ska användaren klicka **Placera** och få EN dialog som både visar all bokningsinfo, låter användaren välja typ (medel / stort) och planera in rig + rigDown direkt mot personalkalenderns dagvy — i ett svep. Eventet placeras inte i personalkalendern.
+De tre raderna på skärmdumpen är registrerade som **medium-projekt** (`projects`) men borde vara **to do's**. De saknar i stort sett all bokningsdata och är dessutom inte redigerbara på projektsidan. Jag flyttar dem till `todos` med typen **Upphämtning** och soft-deletar projekten.
 
-## UX-flöde
+## Berörda poster (org `f5e5cade…`)
 
-1. **Inkommande bokning → Placera-knapp** öppnar `BookingPlacementDialog` (ny komponent).
-2. Dialogen körs som en wizard, **en dag i taget** (rig-dagar + rigDown-dagar, kronologiskt; eventdagen hoppas över).
-3. Per steg/dag visas:
-   - **Övre sektion (bokningsinfo)** för hela bokningen, alltid synlig:
-     - Kund, bokningsnummer, leveransadress
-     - Kontaktperson + telefon + e-post
-     - Bokningens fasta tider (rig/event/rigDown med "Fast tid"-badge när låst)
-     - Produktlista (kollapsbar)
-     - Bilagor (kollapsbar, länkar)
-     - Internalnotes
-     - **Checkbox "Detta är ett stort projekt"** (synlig på första steget; låser typ för hela flödet).
-   - **Nedre sektion (dagens planering)** sida vid sida:
-     - **Vänster:** läsbar dagvy från personalkalendern för aktuellt datum (samma `TimeGrid` som personalkalendern, men read-only) — så användaren ser vem som är upptagen i vilket team.
-     - **Höger:** formulär för dagen — Datum (låst om bokningens tid är låst), Start, Slut, Team-dropdown.
-4. **Navigering:** `Tillbaka` / `Nästa` mellan dagar. Sista steget visar `Slutför planering`.
-5. **Commit på sista steget:** alla rig/rigDown-dagar skrivs i ett svep:
-   - Medel: skapa `projects`-rad + `calendar_events` per planerad dag.
-   - Stort: lägg till bokning i (ev. nytt) large project + `large_project_team_assignments` per dag.
-6. Toast + invalidate, dialog stänger.
+| Projekt-id | Titel | Datum | Övrig data |
+|---|---|---|---|
+| `42a4fe78…` | Pick up tross workman | 2026-05-18 | – |
+| `198f1d0e…` | Pick up carpet nessim | 2026-05-18 | – |
+| `01fd4bb7…` | Pick up key at Kungsträdgården | 2026-05-15 | koord 59.3315, 18.0714 |
 
-## Borttaget
+Inga `calendar_events`, inga teamtilldelningar, ingen kund/kontakt/anteckning finns kopplade — så ingenting går förlorat.
 
-- Den fristående **`ProjectPlanningSheet`** behövs inte längre som separat dag-för-dag-flöde efter att projektet skapats — innehållet flyttar in i den nya wizarden. Tas bort från `ProjectLayout` / `JobDetail` / `UnifiedProjectList` / `PlanningDashboard` / `UnplannedProjectsBanner`.
-- `IncomingBookingsList` kollapsar sina två knappar ("Skapa projekt" + "Stort projekt") till en enda **Placera**-knapp som öppnar nya dialogen.
+## Åtgärd
 
-## Tekniska komponenter
+En migration som:
 
-```
-src/components/project/BookingPlacementDialog.tsx         (ny — wizard-skal + commit)
-  ├─ BookingInfoHeader.tsx                                (ny — översta info-block)
-  ├─ BookingPlacementDayStep.tsx                          (ny — dag + sida-vid-sida)
-  └─ ReadOnlyStaffDayView.tsx                             (ny — wrappar TimeGrid read-only)
-```
+1. **Skapar tre rader i `todos`** med:
+   - `type_id` = `aeaa26ea-…` (Upphämtning)
+   - `organization_id` = `f5e5cade-…`
+   - `title` = projektets namn
+   - `scheduled_date` = `rigdaydate` från projektet
+   - `latitude`/`longitude` när det finns (Kungsträdgården)
+   - `planning_status` = `'needs_planning'`
+2. **Soft-deletar de tre projekten** (`projects.deleted_at = now()`) så de försvinner från projektlistor men finns kvar i ev. audit.
 
-- Återanvänd `TimeGrid` från `src/components/Calendar/` med en `readOnly`-prop (eller wrapper som inaktiverar drag/klick).
-- Återanvänd seed-logik (`trimSec`, `FIELD_MAP`, `isPhaseLocked`) från nuvarande `ProjectPlanningSheet` — lyft ut i `src/components/project/bookingPlacementSeed.ts` och dela mellan ny dialog och tester.
-- Commit-logik:
-  - Medel: `createProjectFromBooking` (befintlig `createJobFromBooking`-stil) + `syncStandaloneProjectToCalendar` per dag.
-  - Stort: `addBookingToLargeProject` + `large_project_team_assignments` upsert.
-- Datakällor i dialogen (en `useQuery` per bokning):
-  - `bookings` (kund/adress/tider/notes/kontakt/låsflaggor)
-  - `booking_products` (produktlista)
-  - `attachments` filtrerade på `booking_id`
-  - `calendar_events` för dagens datum (för dagvyn)
-  - `staff_assignments` + `staff_directory` (för dagvyns kolumner)
+Inga kodändringar behövs — `CreateTodoWizard` / kalendervy hanterar todo's redan.
 
-## Tester (vitest)
+## Efter körning
 
-- `bookingPlacementWizard.test.tsx` — wizard navigerar rig → rigDown → slutför, hoppar event, respekterar låsta tider, commitar både medel- och stort-läge i ett svep.
-- Behåll `projectPlanningSheetSeed.test.ts` men byt namn/import till nya `bookingPlacementSeed.ts`.
-
-## Riskpunkter
-
-- `TimeGrid` används idag i interaktivt läge — read-only-wrapper får inte trigga drop-handlers.
-- Stort-projekt-flödet måste kunna både skapa nytt large project och bifoga till befintligt (samma val som dagens `AddToLargeProjectDialog`); behåll det valet i wizard-headern.
-- Commit-on-finish måste vara transaktionellt nog: om calendar_events-skrivning faller, rulla tillbaka projektet eller markera som ofullständigt och visa felet utan att stänga dialogen.
+- De tre raderna försvinner från `IncomingBookingsList` / projektlistan.
+- Tre nya to do's dyker upp (typ Upphämtning) på 15 resp. 18 maj 2026 och kan redigeras via dubbelklick i kalendern (`CreateTodoWizard` i edit-läge).
