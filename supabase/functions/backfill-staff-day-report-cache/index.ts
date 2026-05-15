@@ -55,6 +55,13 @@ import {
   type BookingTimes,
 } from '../_shared/workday/plannedDay.ts';
 import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
+import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
+import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
+
+// ── Lager 2.7 feature flag ────────────────────────────────────────────────
+// Read-only: lägger locationTruthV2-diagnostik i staff_day_report_cache.diagnostics_json.
+// Påverkar INTE display_blocks_json eller report_candidate_blocks_json.
+const ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS = true;
 
 async function resolvePlannedEndOfDayIso(
   admin: any,
