@@ -320,6 +320,7 @@ export function buildLocationTruthFromDayEvidence(
     matchedKnownSiteCount: 0,
     matchedPrivateCount: 0,
     matchedWarehouseCount: 0,
+    matchedSupplierCount: 0,
     matchedLargeProjectCount: 0,
     matchedProjectCount: 0,
     matchedBookingCount: 0,
@@ -340,6 +341,18 @@ export function buildLocationTruthFromDayEvidence(
     centroidOnlyAddressCount: 0,
     noEventFlowTargetMatchCount: 0,
     planningGeoMismatchCount: 0,
+    examples: [],
+  };
+
+  // Lager 2.3c — supplier-diagnostics.
+  const supplierTargetsEvaluated = knownTargets.filter(
+    (t) => t.targetType === 'supplier',
+  ).length;
+  const supplierDiag: SupplierMatchDiagnostics = {
+    supplierTargetsEvaluated,
+    supplierMatchedClusterCount: 0,
+    supplierPlanningMismatchCount: 0,
+    competingSupplierTargetCount: 0,
     examples: [],
   };
 
