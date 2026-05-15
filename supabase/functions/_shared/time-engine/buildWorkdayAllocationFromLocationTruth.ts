@@ -922,6 +922,96 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
   }
 
+  // ── Lager 3.6 — Hem/private som stop-förslag (read-only) ────────────
+  // Identifiera private_time-segment som ligger efter sista arbetsrelaterade
+  // platsen. Om personen är hemma > 90 min utan att återgå → proposal
+  // suggest_workday_end. Om personen återgår inom 90 min → temporary
+  // home presence (ingen stop-proposal).
+  // Skriver INGENTING — varken active_time_registrations, timer eller
+  // workday-stopp ändras. Bara proposals + warnings + diagnostik.
+  const HOME_THRESHOLD_MS = 90 * 60_000;
+  const sortedInner = [...innerSegments].sort(
+    (a, b) => Date.parse(a.startAt) - Date.parse(b.startAt),
+  );
+  const isWorkLocation = (s: WorkdayAllocationSegment): boolean =>
+    s.allocationType === 'project_work' ||
+    s.allocationType === 'large_project_work' ||
+    s.allocationType === 'booking_work' ||
+    s.allocationType === 'warehouse_work' ||
+    s.allocationType === 'supplier_visit' ||
+    s.allocationType === 'unlinked_work_address';
+
+  // Hitta sista arbetsplatsen i kronologisk ordning.
+  let lastWorkIdx = -1;
+  let lastWorkEndAt: string | null = null;
+  for (let i = sortedInner.length - 1; i >= 0; i--) {
+    if (isWorkLocation(sortedInner[i])) {
+      lastWorkIdx = i;
+      lastWorkEndAt = sortedInner[i].endAt;
+      break;
+    }
+  }
+
+  if (lastWorkIdx >= 0) {
+    for (let i = lastWorkIdx + 1; i < sortedInner.length; i++) {
+      const seg = sortedInner[i];
+      if (seg.allocationType !== 'private_time') continue;
+
+      // Markera home_after_last_work_location.
+      if (!seg.warnings.includes('home_after_last_work_location')) {
+        seg.warnings.push('home_after_last_work_location');
+        diag.warningsByType.home_after_last_work_location += 1;
+      }
+      diag.homeSegmentsAfterWork += 1;
+
+      const arrivalMs = Date.parse(seg.startAt);
+      const segEndMs = Date.parse(seg.endAt);
+
+      // Återvänder personen till en arbetsplats inom 90 min från ankomst hem?
+      let returnedToWorkWithin90 = false;
+      for (let k = i + 1; k < sortedInner.length; k++) {
+        const later = sortedInner[k];
+        if (!isWorkLocation(later)) continue;
+        const laterStartMs = Date.parse(later.startAt);
+        if (laterStartMs - arrivalMs <= HOME_THRESHOLD_MS) {
+          returnedToWorkWithin90 = true;
+        }
+        break;
+      }
+
+      if (returnedToWorkWithin90) {
+        if (!seg.warnings.includes('temporary_home_presence')) {
+          seg.warnings.push('temporary_home_presence');
+          diag.warningsByType.temporary_home_presence += 1;
+        }
+        diag.temporaryHomePresenceCount += 1;
+        continue; // inget stop-förslag
+      }
+
+      const homeDurationMs = Math.max(0, segEndMs - arrivalMs);
+      if (homeDurationMs > HOME_THRESHOLD_MS) {
+        diag.homeOver90MinutesCount += 1;
+        // suggestedEndAt = arrivalAtHome (befintlig policy: tiden hemma räknas inte).
+        // Fallback till lastWorkLocationEndAt om arrivalMs ligger orimligt sent.
+        const suggestedEnd = seg.startAt ?? lastWorkEndAt ?? seg.startAt;
+        proposals.push({
+          segmentId: seg.sourceLocationTruthSegmentIds[0] ?? seg.id,
+          proposalType: 'suggest_workday_end',
+          proposedAllocationType: 'private_time',
+          targetType: seg.targetType,
+          targetId: seg.targetId,
+          label: seg.label,
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+          suggestedEndAt: suggestedEnd,
+          confidence: 'medium',
+          reason: 'home_private_over_90_minutes_after_last_work_location',
+        });
+        diag.suggestedWorkdayEndCount += 1;
+      }
+    }
+  }
+
   // Beräkna uncovered minutes inom workday.
   coveredIntervals.sort((a, b) => a[0] - b[0]);
   let cursor = wdStartMs;
