@@ -460,6 +460,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     const overlapsWorkday = sMs < wdEnd && eMs > wdStartMs;
     if (!overlapsWorkday) {
       diag.segmentsOutsideWorkday += 1;
+      diag.segmentsOutsideEnvelope += 1;
       // Vi tar fortfarande med segmentet i debug-output men markerar det.
       const allocOutside = deriveAllocation(seg, !!seg.evidence.assignmentSupportsTarget);
       const item: WorkdayAllocationSegment = {
