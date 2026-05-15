@@ -107,6 +107,8 @@ export interface DisplayTimelineBlock {
   confidence: WorkdayAllocationConfidence;
   severity: DisplayTimelineSeverity;
   warnings: DisplayTimelineWarning[];
+  /** Lager 4.3 — människovänliga svenska warning-texter, parallella med `warnings`. */
+  humanWarnings: string[];
   actions: DisplayTimelineAction[];
   sourceAllocationSegmentIds: string[];
   sourceLocationTruthSegmentIds: string[];
