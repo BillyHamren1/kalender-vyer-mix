@@ -592,6 +592,30 @@ export function buildLocationTruthFromDayEvidence(
     );
   }
 
+  // Lager 2.4 — försiktig gap-policy: bridgea signalglapp där samma target
+  // ligger före/efter, markera transition_candidate vid olika targets.
+  let bridgedSegments = segments;
+  let gapBridgeDiagnostics: GapBridgeDiagnostics | null = null;
+  try {
+    const bridge = bridgeSignalGaps(segments);
+    bridgedSegments = bridge.segments;
+    gapBridgeDiagnostics = bridge.diagnostics;
+    // Uppdatera segment-räknare efter bridging.
+    counts.segments = bridgedSegments.length;
+    const byType: Record<LocationTruthSegmentType, number> = {
+      known_target: 0,
+      known_address: 0,
+      private_residence: 0,
+      movement: 0,
+      unresolved_location: 0,
+      needs_location_review: 0,
+    };
+    for (const s of bridgedSegments) byType[s.type]++;
+    counts.segmentsByType = byType;
+  } catch (err) {
+    warnings.push(`location_truth_gap_bridge_failed:${(err as Error).message}`);
+  }
+
   const diagnostics: LocationTruthDiagnostics = {
     staffId: dayEvidence.staffId,
     date: dayEvidence.date,
@@ -605,7 +629,8 @@ export function buildLocationTruthFromDayEvidence(
     targetMatchDiagnostics: targetDiag,
     physicalLocationDiagnostics: physDiag,
     supplierMatchDiagnostics: supplierDiag,
+    gapBridgeDiagnostics,
   };
 
-  return { segments, diagnostics, stableClusters, clusterMatches };
+  return { segments: bridgedSegments, diagnostics, stableClusters, clusterMatches };
 }
