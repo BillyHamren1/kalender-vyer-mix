@@ -195,7 +195,10 @@ export interface LocationTruthSegment {
   staffId: string;
   startAt: string;
   endAt: string;
+  /** Internal pipeline-typ (Lager 2.3b–2.5). */
   type: LocationTruthSegmentType;
+  /** Lager 2.6 — kanonisk plats-typ för konsumenter (Lager 3+). */
+  finalType: FinalLocationTruthSegmentType;
   /** Bakåtkompatibel snabbreferens. Spegel av businessContext.matchedTarget. */
   matchedTarget?: LocationTruthMatchedTarget;
   /** Lager 2.3b — fysisk plats (oberoende av EventFlow business target). */
