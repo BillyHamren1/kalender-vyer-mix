@@ -74,7 +74,9 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
   if (b.project_type !== 'medium' && b.project_type !== 'large') {
     return { ok: false, error: 'project_type must be medium|large' };
   }
-  if (typeof b.organization_id !== 'string') return { ok: false, error: 'organization_id required' };
+  if (b.organization_id !== undefined && typeof b.organization_id !== 'string') {
+    return { ok: false, error: 'organization_id must be string when provided' };
+  }
   if (!b.dates || typeof b.dates !== 'object') return { ok: false, error: 'dates required' };
 
   const datesObj = b.dates as Record<string, unknown>;
@@ -84,7 +86,6 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
     const arr = datesObj[phase];
     if (!Array.isArray(arr)) return { ok: false, error: `dates.${phase} must be array` };
     if (!arr.every(isIsoDate)) return { ok: false, error: `dates.${phase} must be YYYY-MM-DD strings` };
-    // Sortera + de-dup för deterministisk output
     cleaned[phase] = Array.from(new Set(arr as string[])).sort();
   }
 
@@ -93,7 +94,7 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
     data: {
       project_id: b.project_id,
       project_type: b.project_type,
-      organization_id: b.organization_id,
+      organization_id: b.organization_id as string | undefined,
       dates: cleaned,
       dry_run: b.dry_run === true,
     },
