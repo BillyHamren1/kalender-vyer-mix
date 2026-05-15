@@ -60,6 +60,11 @@ import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFrom
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
 
+// ── Lager 2.7 feature flag ────────────────────────────────────────────────
+// Read-only: returnerar locationTruthSegments + locationTruthDiagnostics.
+// Påverkar INTE display_blocks_json, report_candidate_blocks_json eller Gantt.
+const ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS = true;
+
 import { buildUnknownLocationDiagnostics } from '../_shared/diagnostics/buildUnknownLocationDiagnostics.ts';
 import {
   computePlannedDaySignals,
