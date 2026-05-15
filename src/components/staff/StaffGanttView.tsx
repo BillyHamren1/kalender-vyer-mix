@@ -211,7 +211,7 @@ const KIND_STYLE: Record<
   rig:       { bg: 'bg-[#F2FCE2] dark:bg-[#F2FCE2]/30',                                     border: 'border-[#C9E8A8]',                text: 'text-[#1f3b14] dark:text-[#F2FCE2]',    label: 'Rigg' },
   rigdown:   { bg: 'bg-[#FFDEE2] dark:bg-[#FFDEE2]/30',                                     border: 'border-[#F4B4BC]',                text: 'text-[#4a1a20] dark:text-[#FFDEE2]',    label: 'Rigga ner' },
   transport: { bg: 'bg-sky-200/80 dark:bg-sky-400/40',                                      border: 'border-sky-400',                  text: 'text-sky-950 dark:text-sky-50',         label: 'Transport' },
-  review:    { bg: 'bg-amber-200/80 dark:bg-amber-400/50',                                  border: 'border-amber-500',                text: 'text-amber-950 dark:text-amber-50',     label: 'Granska' },
+  review:    { bg: 'bg-amber-50 dark:bg-amber-400/15',                                      border: 'border-amber-300/70 dark:border-amber-400/40',  text: 'text-amber-900 dark:text-amber-100',  label: 'Granska' },
   unknown:   { bg: 'bg-muted/60',                                                           border: 'border-border',                   text: 'text-muted-foreground',                 label: 'Okänd plats' },
   break:     { bg: 'bg-muted/40',                                                           border: 'border-border',                   text: 'text-muted-foreground',                 label: 'Rast' },
   pre_work:  { bg: 'bg-muted/25',                                                           border: 'border-border/50',                text: 'text-muted-foreground/70',              label: 'Före arbetsdag' },
