@@ -661,6 +661,10 @@ export function buildWorkdayAllocationFromLocationTruth(
       ?? (input.locationTruthV2?.diagnostics.date
         ? `${input.locationTruthV2.diagnostics.date}T23:59:59.999Z`
         : null),
+    analysisWindowStartIso: input.analysisWindowStartIso
+      ?? (input.locationTruthV2?.diagnostics.date
+        ? `${input.locationTruthV2.diagnostics.date}T00:00:00.000Z`
+        : null),
     nowIso: input.nowIso ?? null,
   });
 
