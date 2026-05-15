@@ -319,6 +319,20 @@ Deno.serve(async (req) => {
           workdayAllocationSegments = wda.segments;
           workdayAllocationProposals = wda.proposals;
 
+          // Lager 4.1 — Display Timeline (read-only).
+          try {
+            const dt = buildDisplayTimelineFromWorkdayAllocation({
+              dayEvidence,
+              locationTruthV2: lt,
+              workdayAllocation: wda,
+            });
+            displayTimelineBlocksV2 = dt.blocks;
+            displayTimelineDiagnosticsV2 = dt.diagnostics;
+          } catch (e: any) {
+            console.warn('[presence-day] buildDisplayTimelineFromWorkdayAllocation failed', e);
+            displayTimelineDiagnosticsV2 = { error: e?.message ?? String(e) };
+          }
+
           // Lager 3.7 — AI reviewer (read-only, no-op default).
           // WorkdayAllocation is read-only until Lager 4/display integration.
           try {
