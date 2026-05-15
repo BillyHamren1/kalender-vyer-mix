@@ -89,55 +89,54 @@ export function detectGpsOutliers(
     return { pings, diagnostics };
   }
 
-  // ── Steg 1: identifiera "far"-segment relativt sin föregående granne ─────
-  // En ping markeras isFar om dist(prev, curr) > SPIKE_FAR_MIN_M.
-  const isFar: boolean[] = new Array(pings.length).fill(false);
-  for (let i = 1; i < pings.length; i++) {
-    const d = distanceMeters(
-      pings[i - 1].lat, pings[i - 1].lng,
+  // ── Single-pass spike-detektering med löpande "stable anchor" ──────────
+  // För varje ping jämförs avståndet mot senast kända stabila ping. Om vi
+  // hittar en sekvens som är far och sedan återvänder nära ankaret klassas
+  // sekvensen som spike. Annars expanderas anchor.
+  let anchor = 0; // index till senaste stabila ping
+  let i = 1;
+  while (i < pings.length) {
+    const distFromAnchor = distanceMeters(
+      pings[anchor].lat, pings[anchor].lng,
       pings[i].lat, pings[i].lng,
     );
-    if (d > SPIKE_FAR_MIN_M) isFar[i] = true;
-  }
+    if (distFromAnchor <= SPIKE_FAR_MIN_M) {
+      anchor = i;
+      i++;
+      continue;
+    }
 
-  // ── Steg 2: gruppera kontigua far-pings till "far-kluster" ──────────────
-  // Viktigt: vi får INTE expandera klustret bara för att två efterföljande
-  // pings råkar ligga långt från varandra. Klustret växer bara om nästa
-  // ping ligger nära klustrets startposition (samma far-område).
-  const farClusters: FarCluster[] = [];
-  let i = 0;
-  while (i < pings.length) {
-    if (!isFar[i]) { i++; continue; }
-    const start = i;
-    let end = i;
+    // Ping i ligger långt från senaste stabila. Samla kontigua spike-pings
+    // som ligger NÄRA varandra (samma far-område).
+    const spikeStart = i;
+    let spikeEnd = i;
     while (
-      end + 1 < pings.length &&
-      isFar[end + 1] &&
-      distanceMeters(pings[start].lat, pings[start].lng, pings[end + 1].lat, pings[end + 1].lng) <= STABLE_NEIGHBOR_MAX_M
-    ) end++;
-    const durationS = timeS(pings[start].ts, pings[end].ts);
-    farClusters.push({ startIdx: start, endIdx: end, durationS });
-    i = end + 1;
-  }
+      spikeEnd + 1 < pings.length &&
+      distanceMeters(
+        pings[spikeStart].lat, pings[spikeStart].lng,
+        pings[spikeEnd + 1].lat, pings[spikeEnd + 1].lng,
+      ) <= STABLE_NEIGHBOR_MAX_M
+    ) {
+      spikeEnd++;
+    }
 
-  for (const cluster of farClusters) {
-    const { startIdx, endIdx, durationS } = cluster;
-    const prevIdx = startIdx - 1;            // alltid >= 0 (isFar[0]=false)
-    const nextIdx = endIdx + 1;              // kan saknas
-    const curr = pings[startIdx];
-    const prev = pings[prevIdx];
+    const prev = pings[anchor];
+    const curr = pings[spikeStart];
+    const last = pings[spikeEnd];
+    const nextIdx = spikeEnd + 1;
     const next = nextIdx < pings.length ? pings[nextIdx] : null;
+    const durationS = timeS(curr.ts, last.ts);
 
     const distPrev = distanceMeters(prev.lat, prev.lng, curr.lat, curr.lng);
     const distNext = next
-      ? distanceMeters(pings[endIdx].lat, pings[endIdx].lng, next.lat, next.lng)
+      ? distanceMeters(last.lat, last.lng, next.lat, next.lng)
       : null;
     const prevNext = next
       ? distanceMeters(prev.lat, prev.lng, next.lat, next.lng)
       : null;
     const windowS = next ? timeS(prev.ts, next.ts) : null;
     const dtPrevS = timeS(prev.ts, curr.ts);
-    const dtNextS = next ? timeS(pings[endIdx].ts, next.ts) : null;
+    const dtNextS = next ? timeS(last.ts, next.ts) : null;
     const speedPrevMps = dtPrevS > 0 ? distPrev / dtPrevS : Infinity;
     const speedNextMps = next && dtNextS && dtNextS > 0 && distNext != null
       ? distNext / dtNextS
@@ -150,11 +149,13 @@ export function detectGpsOutliers(
     // Långt-bort-kluster av betydande längd → BEHÅLL för senare lager.
     if (durationS >= FAR_CLUSTER_MIN_DURATION_S) {
       diagnostics.retainedFarClusterCount++;
+      // Anchor flyttar till sista pingen i klustret (verklig position).
+      anchor = spikeEnd;
+      i = spikeEnd + 1;
       continue;
     }
 
-    // Ingen "next" → ensam far-ping i slutet av dagen. Inte ignore, bara
-    // diagnostik. Senare lager får avgöra.
+    // Ingen "next" → ensam far-ping i slutet av dagen. Diagnostik bara.
     if (!next || distNext == null || prevNext == null || windowS == null) {
       if (diagnostics.examples.length < 20) {
         diagnostics.examples.push({
@@ -167,21 +168,19 @@ export function detectGpsOutliers(
           reason: 'isolated_far_ping_no_next_evidence',
         });
       }
+      // Behåll anchor — hoppa förbi spike utan att flytta anchor.
+      i = spikeEnd + 1;
       continue;
     }
 
-    // Returned-to-same-stable-area-regeln:
-    //  - distNext stort
-    //  - prev↔next nära (samma stabila område)
-    //  - kort tidsfönster ELLER orimlig hastighet krävs
+    // Returned-to-same-stable-area-regeln.
     const farFromNext = distNext > SPIKE_FAR_MIN_M;
     const stableNeighbors = prevNext <= STABLE_NEIGHBOR_MAX_M;
     const tightWindow = windowS <= SPIKE_TIME_WINDOW_S;
     const impossible = peakSpeedMps > IMPOSSIBLE_SPEED_MPS;
 
     if (farFromNext && stableNeighbors && (tightWindow || impossible)) {
-      // Markera HELA klustret som ignored — de är alla del av samma spike.
-      for (let k = startIdx; k <= endIdx; k++) {
+      for (let k = spikeStart; k <= spikeEnd; k++) {
         if (!pings[k].ignoredForLocationLogic) {
           pings[k].ignoredForLocationLogic = true;
           diagnostics.outlierIgnoredCount++;
@@ -199,7 +198,14 @@ export function detectGpsOutliers(
           reason: 'returned_to_same_stable_area_after_impossible_jump',
         });
       }
+      // Anchor stannar (next är return till samma område). Hoppa till next.
+      i = nextIdx;
+      continue;
     }
+
+    // Inte spike enligt regler — flytta anchor till spikeEnd.
+    anchor = spikeEnd;
+    i = spikeEnd + 1;
   }
 
   return { pings, diagnostics };
