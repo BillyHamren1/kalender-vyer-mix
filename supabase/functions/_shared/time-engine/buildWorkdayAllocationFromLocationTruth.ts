@@ -334,6 +334,32 @@ export interface WorkdayEnvelope {
   analysisDayStartAt?: string | null;
   /** Analysfönsterslut som användes för klippning. */
   analysisDayEndAt?: string | null;
+  // ── Lager 3.11D — explicita klipp-flaggor ──────────────────────────
+  /** True om timer-start föll före analysdagens start och klipptes upp. */
+  startWasClippedToDay?: boolean;
+  /** True om timer-stop (eller now) föll efter analysdagens slut och klipptes ner. */
+  endWasClippedToDay?: boolean;
+  /** True om endAt sattes till "now" pga öppen timer (utan att nå analysDayEnd). */
+  endWasClippedToNow?: boolean;
+}
+
+/**
+ * Lager 3.11D — strukturerad envelope-snapshot för diagnostics/endpoint.
+ * Speglar WorkdayEnvelope-fälten men är garanterat ifyllda (icke-optional)
+ * och avsedda för UI/debug-visning.
+ */
+export interface WorkdayEnvelopeDiagnostics {
+  timerStartedAt: string | null;
+  timerStoppedAt: string | null;
+  timerIsOpen: boolean;
+  effectiveWorkdayStartAt: string | null;
+  effectiveWorkdayEndAt: string | null;
+  analysisDayStartAt: string | null;
+  analysisDayEndAt: string | null;
+  startWasClippedToDay: boolean;
+  endWasClippedToDay: boolean;
+  endWasClippedToNow: boolean;
+  warnings: WorkdayEnvelopeWarning[];
 }
 
 export interface ResolveWorkdayEnvelopeInput {
