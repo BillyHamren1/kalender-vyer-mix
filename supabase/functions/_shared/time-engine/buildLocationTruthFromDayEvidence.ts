@@ -598,6 +598,7 @@ export function buildLocationTruthFromDayEvidence(
     stableClusterDiagnostics,
     targetMatchDiagnostics: targetDiag,
     physicalLocationDiagnostics: physDiag,
+    supplierMatchDiagnostics: supplierDiag,
   };
 
   return { segments, diagnostics, stableClusters, clusterMatches };
