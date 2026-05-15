@@ -166,6 +166,12 @@ export interface KnownTargetsDiagnostics {
   supplierTableNotFoundWarning: boolean;
   /** Lager 2.10 — antal suppliers där default-radius applicerades (coords men ingen radius). */
   defaultSupplierRadiusAppliedCount: number;
+  /** Lager 2.12A — breda tabeller som hoppades över helt (saknade säkert supplier-filter). */
+  supplierTablesSkippedBecauseTooBroad: string[];
+  /** Lager 2.12A — antal rader i breda tabeller som filtrerades bort (saknade supplier-marker). */
+  supplierRowsSkippedNoSupplierMarker: number;
+  /** Lager 2.12A — warnings om breda tabeller som krävde filter. */
+  supplierTableRequiresFilterWarnings: string[];
   supplierExamples: Array<{
     targetId: string;
     label: string;
