@@ -547,6 +547,26 @@ export async function buildKnownTargetsEvidence(
       continue;
     }
 
+    // Lager 2.12A — för breda tabeller, kräver att raden tydligt är supplier.
+    const isBroad = BROAD_SUPPLIER_TABLES.includes(table);
+    if (isBroad) {
+      const filtered = data.filter(isSupplierRow);
+      const skipped = data.length - filtered.length;
+      if (filtered.length === 0) {
+        // Inga rader hade supplier-marker → behandla som tom och varna.
+        diag.supplierTablesSkippedBecauseTooBroad.push(table);
+        diag.supplierRowsSkippedNoSupplierMarker += skipped;
+        const w = `supplier_table_requires_filter:${table}`;
+        if (!diag.supplierTableRequiresFilterWarnings.includes(w)) {
+          diag.supplierTableRequiresFilterWarnings.push(w);
+        }
+        if (!diag.warnings.includes(w)) diag.warnings.push(w);
+        continue;
+      }
+      diag.supplierRowsSkippedNoSupplierMarker += skipped;
+      data = filtered;
+    }
+
     diag.supplierTableUsed = table;
     diag.supplierRowsFetchedTotal = data.length;
     supplierFetched = true;
