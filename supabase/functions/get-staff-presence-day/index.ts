@@ -60,6 +60,9 @@ import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFrom
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
 import { buildWorkdayAllocationFromLocationTruth, resolveWorkdayEnvelope } from '../_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts';
+// Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
+// WorkdayAllocation is read-only until Lager 4/display integration.
+import { buildAiWorkdayReviewInput, reviewWorkdayWithAi } from '../_shared/time-engine/aiWorkdayReviewer.ts';
 
 // ── Lager 2.7 feature flag ────────────────────────────────────────────────
 // Read-only: returnerar locationTruthSegments + locationTruthDiagnostics.
@@ -257,6 +260,10 @@ Deno.serve(async (req) => {
   let locationTruthSegments: any[] = [];
   let workdayAllocationDiagnostics: any = null;
   let workdayAllocationSegments: any[] = [];
+  let workdayAllocationProposals: any[] = [];
+  // Lager 3.7 — AI reviewer output (no-op default; ingen extern AI kopplad här).
+  let aiWorkdayReviewSummary: any = null;
+  let aiWorkdayReviewProposals: any[] = [];
   if (ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS) {
     try {
       const dayEvidence = await buildDayEvidence({
@@ -304,6 +311,30 @@ Deno.serve(async (req) => {
           });
           workdayAllocationDiagnostics = wda.diagnostics;
           workdayAllocationSegments = wda.segments;
+          workdayAllocationProposals = wda.proposals;
+
+          // Lager 3.7 — AI reviewer (read-only, no-op default).
+          // WorkdayAllocation is read-only until Lager 4/display integration.
+          try {
+            const aiInput = buildAiWorkdayReviewInput({
+              dayEvidence,
+              locationTruthV2: lt,
+              workdayAllocation: wda,
+            });
+            const aiOut = reviewWorkdayWithAi(aiInput);
+            aiWorkdayReviewSummary = {
+              summary: aiOut.summary,
+              risks: aiOut.risks,
+              reviewer: aiOut.reviewer,
+              triggeredSegmentCount: aiInput.diagnostics.triggeredSegmentCount,
+              triggeredProposalCount: aiInput.diagnostics.triggeredProposalCount,
+              triggerCounts: aiInput.diagnostics.triggerCounts,
+            };
+            aiWorkdayReviewProposals = aiOut.proposals;
+          } catch (e: any) {
+            console.warn('[presence-day] aiWorkdayReviewer failed', e);
+            aiWorkdayReviewSummary = { error: e?.message ?? String(e) };
+          }
         } catch (e: any) {
           console.warn('[presence-day] buildWorkdayAllocationFromLocationTruth failed', e);
           workdayAllocationDiagnostics = { error: e?.message ?? String(e) };
@@ -1323,10 +1354,15 @@ Deno.serve(async (req) => {
     locationTruthDiagnostics,
     /** @deprecated Använd locationTruthV2Segments. Tas bort när konsumenter bytt. */
     locationTruthSegments,
-    // Lager 3.1 — Workday Allocation (read-only, debug only). Får INTE
+    // Lager 3.1–3.6 — Workday Allocation (read-only, debug only). Får INTE
     // konsumeras av UI/payroll/time_reports ännu.
+    // WorkdayAllocation is read-only until Lager 4/display integration.
     workdayAllocationDiagnostics,
     workdayAllocationSegments,
+    workdayAllocationProposals,
+    // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
+    aiWorkdayReviewSummary,
+    aiWorkdayReviewProposals,
 
     targets: resolvedTargetsAll.map((r: any) => ({
       id: r.id,
