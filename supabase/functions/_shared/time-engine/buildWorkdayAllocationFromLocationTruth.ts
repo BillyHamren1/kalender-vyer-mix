@@ -847,6 +847,7 @@ export function buildWorkdayAllocationFromLocationTruth(
         confidence: allocOutside.confidence,
         warnings: ['segment_outside_workday'],
         assignmentStatus: 'unknown',
+        assignmentMatch: 'unknown',
         businessContextStatus: seg.businessContext?.status ?? null,
         rawSegmentStartAt: seg.startAt,
         rawSegmentEndAt: seg.endAt,
