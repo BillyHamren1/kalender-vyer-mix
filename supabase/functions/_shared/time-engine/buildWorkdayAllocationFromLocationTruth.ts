@@ -17,7 +17,7 @@
  *
  * Output används i Lager 3.x-tester och senare lager (allokeringsförslag).
  */
-import type { DayEvidenceResult } from './buildDayEvidence.ts';
+import type { DayEvidence } from './buildDayEvidence.ts';
 import type {
   LocationTruthResult,
   LocationTruthSegment,
