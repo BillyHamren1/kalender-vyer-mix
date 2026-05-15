@@ -36,6 +36,7 @@ import {
   resolveBookingPhaseFromTitle,
   type SessionPhaseKind,
 } from '@/lib/staff/ganttPhaseColor';
+import { mergeContiguousBlocks, type MergeBlockInput, type MergeableKind } from '@/lib/staff/ganttBlockMerge';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
@@ -209,6 +210,24 @@ interface GanttBlock {
   /** True om blocket bara är nattliga GPS-pings utan TR/LTE/manuell workday
    *  bakom sig. Renderas dämpat och räknas inte som arbete. */
   isNightGpsOnly?: boolean;
+  // ── Visual-merge metadata (Gantt 4.0) ─────────────────────────────────
+  /** Stabil session-nyckel (booking#:NNNN > target:id > title-fallback). */
+  sessionKey?: string;
+  /** Raw engine kind (innan phase inheritance) — för diagnostics/tooltip. */
+  rawKind?: string;
+  /** Underblock om detta är ett mergat block (annars undefined). */
+  subBlocks?: Array<{
+    id: string;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    rawKind?: string;
+    resolvedKind: GanttKind;
+  }>;
+  /** Total summerad arbetstid för mergat block (= durationMinutes). */
+  countedDurationMinutes?: number;
+  /** Summa av glapp mellan underblock i ett mergat block. */
+  visualGapMinutes?: number;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
@@ -269,6 +288,74 @@ const mapReportCandidateKind = (
   if (b.kind === 'unknown') return 'unknown';
   if (b.kind === 'break') return 'break';
   return 'unknown';
+};
+
+/**
+ * Visual merge — slår ihop adjacent block med samma resolved visualKind +
+ * sessionKey + glapp ≤15min till ETT block. Phase inheritance har redan
+ * körts före detta steg via mapReportCandidateKind.
+ */
+const MERGEABLE_KINDS: ReadonlySet<GanttKind> = new Set([
+  'work', 'warehouse', 'rig', 'rigdown',
+]);
+const applyVisualMerge = (blocks: GanttBlock[], staffName?: string): GanttBlock[] => {
+  // Splitta i mergeable vs ej-mergeable. Ej-mergeable (transport/review/
+  // unknown/break/pre_work) skickas igenom oförändrade.
+  const mergeable: MergeBlockInput[] = [];
+  const passthrough: GanttBlock[] = [];
+  const byId = new Map<string, GanttBlock>();
+  for (const b of blocks) {
+    byId.set(b.id, b);
+    if (MERGEABLE_KINDS.has(b.kind) && b.sessionKey) {
+      mergeable.push({
+        id: b.id,
+        kind: b.kind as MergeableKind,
+        sessionKey: b.sessionKey,
+        startAt: b.startAt,
+        endAt: b.endAt,
+        durationMinutes: b.durationMinutes,
+        rawKind: b.rawKind,
+        isOpen: b.isOpen,
+        isNightGpsOnly: b.isNightGpsOnly,
+      });
+    } else {
+      passthrough.push(b);
+    }
+  }
+  const { blocks: merged, diagnostics } = mergeContiguousBlocks(mergeable, { maxGapMinutes: 15 });
+
+  if (diagnostics.mergedBlockCount > 0 && typeof console !== 'undefined') {
+    // eslint-disable-next-line no-console
+    console.warn('[Gantt 4.0] visualMerge', {
+      staff: staffName,
+      ...diagnostics,
+    });
+  }
+
+  // Återhydrera: behåll title/subtitle/plannedBadgeLabel från första underblocket
+  const result: GanttBlock[] = merged.map((m) => {
+    const first = byId.get(m.mergedFromIds[0])!;
+    return {
+      ...first,
+      id: m.id,
+      kind: m.kind as GanttKind,
+      startAt: m.startAt,
+      endAt: m.endAt,
+      durationMinutes: m.durationMinutes,
+      sessionKey: m.sessionKey,
+      rawKind: m.rawKind,
+      subBlocks: m.subBlocks.map((s) => ({
+        ...s,
+        resolvedKind: s.resolvedKind as GanttKind,
+      })),
+      countedDurationMinutes: m.countedDurationMinutes,
+      visualGapMinutes: m.visualGapMinutes,
+    };
+  });
+  // Mergea passthrough tillbaka och sortera på startAt för stabil ordning
+  return [...result, ...passthrough].sort(
+    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+  );
 };
 
 const blocksFromStaff = (
@@ -411,6 +498,14 @@ const blocksFromStaff = (
         subtitle: isPreWork ? 'Före arbetsdag' : (b.subtitle ?? null),
         plannedBadgeLabel: isNightGpsOnly ? null : resolution.plannedBadgeLabel,
         isNightGpsOnly,
+        sessionKey: sessionKeyForBlock({
+          id: b.id,
+          targetType: b.targetType,
+          targetId: b.targetId,
+          title: b.title,
+          subtitle: b.subtitle,
+        }),
+        rawKind: b.kind,
       });
     };
 
@@ -447,7 +542,7 @@ const blocksFromStaff = (
         privateHomeBlocksSuppressedCount,
       });
     }
-    return out;
+    return applyVisualMerge(out, staff.name);
   }
   // Fallback: derive from journal sessions
   for (const s of staff.journal.sessions as ProjectSession[]) {
