@@ -211,6 +211,17 @@ export interface WorkdayAllocationProposal {
   suggestedEndAt?: string;
   confidence: WorkdayAllocationConfidence;
   reason: string;
+  // ── Lager 3.10B — supplier-link metadata (endast för
+  //    proposalType='link_supplier_to_project_candidate') ──────────────────
+  /** Alla LocationTruth-segment-id:n som proposalen härleds från. */
+  sourceSegmentIds?: string[];
+  supplierTargetId?: string | null;
+  supplierLabel?: string | null;
+  candidateTargetType?: LocationTruthTargetType | null;
+  candidateTargetId?: string | null;
+  candidateLabel?: string | null;
+  /** True = föreslås, men kräver mänsklig godkänning innan något skrivs. */
+  requiresHumanApproval?: boolean;
 }
 
 export interface WorkdayAllocationResult {
