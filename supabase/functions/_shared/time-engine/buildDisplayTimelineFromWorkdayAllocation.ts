@@ -124,20 +124,46 @@ export interface DisplayTimelineBlock {
   };
 }
 
+export interface DisplayTimelineConsolidationExample {
+  kind:
+    | 'merged_same_target'
+    | 'absorbed_small_gap'
+    | 'absorbed_supplier_into_project'
+    | 'absorbed_travel_into_project'
+    | 'hidden_short_uncovered_gap'
+    | 'collapsed_trailing_private';
+  startAt: string;
+  endAt: string;
+  note: string;
+}
+
 export interface DisplayTimelineDiagnostics {
   staffId: string | null;
   date: string | null;
   builtAtIso: string;
   buildDurationMs: number;
+  /** Antal Lager 3-segment som kom in. */
   inputAllocationSegmentCount: number;
   inputProposalCount: number;
+  /** Antal display-block efter konsolidering. */
+  outputDisplayBlockCount: number;
+  /** Bakåtkompatibelt alias för outputDisplayBlockCount. */
   outputBlockCount: number;
+  /** Antal segment som slogs ihop (input − output, exkl. absorberade). */
+  mergedSegmentCount: number;
+  /** Bakåtkompatibelt alias för mergedSegmentCount. */
   mergedSegmentsCollapsed: number;
+  /** Antal små gap som absorberades in i ett block i stället för att bli eget block. */
+  absorbedGapCount: number;
+  /** Antal warnings som klassats som tekniska och inte visas på blocken. */
+  hiddenTechnicalWarningCount: number;
   blocksByDisplayType: Record<DisplayTimelineBlockType, number>;
   blocksBySeverity: Record<DisplayTimelineSeverity, number>;
   totalDisplayMinutes: number;
   reviewBlockCount: number;
   warnings: string[];
+  /** Ett par konkreta exempel för debugging. */
+  examples: DisplayTimelineConsolidationExample[];
 }
 
 export interface DisplayTimelineResult {
