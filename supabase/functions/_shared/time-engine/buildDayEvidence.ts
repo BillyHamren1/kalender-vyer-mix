@@ -40,6 +40,12 @@ import {
   type AssignmentEvidenceItem,
   type AssignmentEvidenceDiagnostics,
 } from './buildAssignmentEvidence.ts';
+import {
+  buildKnownTargetsEvidence,
+  type KnownTargetEvidenceItem,
+  type KnownTargetsDataQuality,
+  type KnownTargetsDiagnostics,
+} from './buildKnownTargetsEvidence.ts';
 
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
@@ -91,11 +97,18 @@ export interface DayAssignmentEvidence {
 }
 
 export interface DayKnownTargetsEvidence {
-  /** organization_locations + project + booking targets resolved for the day. */
+  /** organization_locations + project + booking + large_project + private targets resolved for the day. */
   totalCount: number;
   withCoordinatesCount: number;
   /** Targets explicitly invalid (missing_coordinates, test_data, cancelled…). */
   invalidCount: number;
+  /**
+   * Detaljerad lista (Lager 1.6). KNOWN TARGETS ÄR INTE BEVIS PÅ NÄRVARO.
+   * Får INTE användas som location truth eller display-block.
+   */
+  items: KnownTargetEvidenceItem[];
+  /** Strukturerade data quality-problem (Lager 1.6). */
+  dataQuality: KnownTargetsDataQuality;
 }
 
 export interface DayPrivateResidenceEvidence {
@@ -155,6 +168,8 @@ export interface DayEvidenceDiagnostics {
   gpsOutlierDiagnostics: GpsOutlierDiagnostics | null;
   /** Assignment-evidence (Lager 1.5). PLANNING IS CONTEXT, NOT PROOF OF LOCATION. */
   assignmentEvidenceDiagnostics: AssignmentEvidenceDiagnostics | null;
+  /** Known targets + data quality (Lager 1.6). KNOWN TARGETS = INTE BEVIS. */
+  knownTargetsDiagnostics: KnownTargetsDiagnostics | null;
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────
@@ -195,6 +210,17 @@ const emptyKnownTargets = (): DayKnownTargetsEvidence => ({
   totalCount: 0,
   withCoordinatesCount: 0,
   invalidCount: 0,
+  items: [],
+  dataQuality: {
+    targetsMissingCoordinates: [],
+    targetsMissingRadius: [],
+    largeProjectsMissingGeo: [],
+    bookingsInsideLargeProjects: [],
+    childBookingsSuppressedAsTargets: [],
+    assignmentsWithoutMatchingTarget: [],
+    calendarEventsWithoutTarget: [],
+    targetsWithNullRadius: [],
+  },
 });
 
 const emptyPrivateResidence = (): DayPrivateResidenceEvidence => ({
@@ -269,6 +295,7 @@ export async function buildDayEvidence(
       gpsNormalizationDiagnostics: null,
       gpsOutlierDiagnostics: null,
       assignmentEvidenceDiagnostics: null,
+      knownTargetsDiagnostics: null,
     },
   };
 
@@ -389,7 +416,67 @@ export async function buildDayEvidence(
     warnings.push(`assignment_evidence_exception: ${msg}`);
   }
 
-  warnings.push('day_evidence_scaffold_v1: signals beyond gps+assignments not collected yet');
+  // ── Lager 1.6: Known Targets + Data Quality ─────────────────────────────
+  // Samlar warehouse, organization_locations, large_projects, projects,
+  // bookings, private/home zones för dagen. KNOWN TARGETS ÄR INTE BEVIS PÅ
+  // NÄRVARO. Får INTE användas som location truth, display-block eller
+  // payroll. Lager 2+ konsumerar detta som CONTEXT mot faktiska bevis.
+  // Stora projekt = primary work + geo target (om egen geo). Child bookings
+  // inom large project undertrycks som primary/geo target.
+  try {
+    const kt = await buildKnownTargetsEvidence({
+      supabaseAdmin: input.supabaseAdmin,
+      organizationId: input.organizationId,
+      staffId: input.staffId,
+      date: input.date,
+      assignmentBookingIds: evidence.assignments.bookingIds,
+      assignmentLargeProjectIds: evidence.assignments.largeProjectIds,
+      assignmentItems: (evidence.assignments.items ?? []).map((i) => ({
+        assignmentId: i.assignmentId,
+        bookingId: i.bookingId,
+        largeProjectId: i.largeProjectId,
+      })),
+    });
+    evidence.knownTargets.items = kt.items;
+    evidence.knownTargets.dataQuality = kt.dataQuality;
+    evidence.knownTargets.totalCount = kt.items.length;
+    evidence.knownTargets.withCoordinatesCount = kt.items.filter(
+      (i) => i.hasCoordinates || i.polygon !== null,
+    ).length;
+    evidence.knownTargets.invalidCount = kt.items.filter((i) => i.suppressedReason !== null).length;
+    evidence.diagnostics.counts.knownTargets = kt.items.length;
+    evidence.diagnostics.counts.privateZones = kt.diagnostics.privateZoneCount;
+    evidence.diagnostics.counts.largeProjects = kt.diagnostics.largeProjectCount;
+    evidence.diagnostics.knownTargetsDiagnostics = kt.diagnostics;
+    evidence.dataQuality.knownTargetsAvailable = kt.items.length > 0;
+    evidence.dataQuality.privateResidenceAvailable = kt.diagnostics.privateZoneCount > 0;
+    evidence.dataQuality.largeProjectAvailable = kt.diagnostics.largeProjectCount > 0;
+
+    // Spegla privateResidence + largeProjects-summary mot bakåtkompatibla fält.
+    evidence.privateResidence.zoneCount = kt.diagnostics.privateZoneCount;
+    evidence.privateResidence.hasUsableZone = kt.items.some(
+      (i) => i.targetType === 'private_zone' && i.canBeGeoTarget,
+    );
+    evidence.largeProjects.count = kt.diagnostics.largeProjectCount;
+    evidence.largeProjects.withOwnGeoCount = kt.items.filter(
+      (i) => i.targetType === 'large_project' && i.canBeGeoTarget,
+    ).length;
+
+    if (kt.diagnostics.warnings.length > 0) {
+      for (const w of kt.diagnostics.warnings) warnings.push(`known_targets:${w}`);
+    }
+    if (kt.diagnostics.largeProjectsMissingGeoCount > 0) {
+      warnings.push(`large_projects_missing_geo:${kt.diagnostics.largeProjectsMissingGeoCount}`);
+    }
+    if (kt.diagnostics.childBookingsSuppressedCount > 0) {
+      warnings.push(`child_bookings_suppressed:${kt.diagnostics.childBookingsSuppressedCount}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    evidence.diagnostics.errors.knownTargets = msg;
+    warnings.push(`known_targets_exception: ${msg}`);
+  }
+
   evidence.diagnostics.buildDurationMs = Date.now() - startedAt;
   return evidence;
 }
