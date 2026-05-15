@@ -37,6 +37,10 @@ import {
   bridgeSignalGaps,
   type GapBridgeDiagnostics,
 } from './bridgeSignalGaps.ts';
+import {
+  detectTrueMovement,
+  type MovementDiagnostics,
+} from './detectTrueMovement.ts';
 
 // ── Lager 2.3 — Target match diagnostics ───────────────────────────────────
 
