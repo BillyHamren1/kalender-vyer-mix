@@ -56,7 +56,7 @@ const ProjectStaffTabInner = ({ projectId, bookingId, largeProjectId }: { projec
         <ProjectAutoTimeSection
           target={
             largeProjectId
-              ? { kind: 'project', largeProjectId }
+              ? { kind: 'large_project', largeProjectId }
               : { kind: 'booking', bookingId: bookingId! }
           }
           plannedStaff={plannedStaff}
