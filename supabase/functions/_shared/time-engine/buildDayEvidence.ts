@@ -153,6 +153,8 @@ export interface DayEvidenceDiagnostics {
   gpsNormalizationDiagnostics: GpsNormalizationDiagnostics | null;
   /** Outlier-detektering för location logic (Lager 1.4). */
   gpsOutlierDiagnostics: GpsOutlierDiagnostics | null;
+  /** Assignment-evidence (Lager 1.5). PLANNING IS CONTEXT, NOT PROOF OF LOCATION. */
+  assignmentEvidenceDiagnostics: AssignmentEvidenceDiagnostics | null;
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────
@@ -186,6 +188,7 @@ const emptyAssignments = (): DayAssignmentEvidence => ({
   bookingIds: [],
   largeProjectIds: [],
   hasPlannedDay: false,
+  items: [],
 });
 
 const emptyKnownTargets = (): DayKnownTargetsEvidence => ({
