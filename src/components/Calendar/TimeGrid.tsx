@@ -312,7 +312,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   </div>
 
                   {(() => {
-                    const overlapMap = computeOverlapLayout(resourceEvents, getEventPosition);
+                    const overlapMap = overlapMaps[index];
                     return resourceEvents.map((event) => {
                       const position = getEventPosition(event);
                       const readOnly = isEventReadOnly ? isEventReadOnly(event) : false;
@@ -322,7 +322,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                           event={event}
                           position={position}
                           overlapLayout={overlapMap.get(event.id)}
-                          teamColumnWidth={TEAM_COLUMN_WIDTH}
+                          teamColumnWidth={colWidth}
                           onEventClick={handleBookingEventClick}
                           onEventResize={onEventResize}
                           readOnly={readOnly}
