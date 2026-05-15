@@ -237,6 +237,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         internal_notes: internalNotes.trim() || null,
       };
 
+      let savedTodo: any;
       if (isEdit && todoId) {
         const { data: todo, error } = await (supabase as any)
           .from('todos')
@@ -245,16 +246,58 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           .select()
           .single();
         if (error) throw error;
-        return todo;
+        savedTodo = todo;
+      } else {
+        const { data: todo, error } = await supabase
+          .from('todos')
+          .insert(payload as any)
+          .select()
+          .single();
+        if (error) throw error;
+        savedTodo = todo;
       }
 
-      const { data: todo, error } = await supabase
-        .from('todos')
-        .insert(payload as any)
-        .select()
-        .single();
-      if (error) throw error;
-      return todo;
+      // Planning mode — placera/uppdatera i personalkalendern.
+      if (planningMode && savedTodo?.id) {
+        if (!scheduledDate || !startTime || !endTime || !resourceId) {
+          throw new Error('Fyll i datum, tid och team för att placera i kalendern');
+        }
+        if (!organizationId) throw new Error('Saknar organisation');
+        const startISO = new Date(`${scheduledDate}T${startTime}:00`).toISOString();
+        const endISO = new Date(`${scheduledDate}T${endTime}:00`).toISOString();
+        const { data: existing } = await (supabase as any)
+          .from('calendar_events')
+          .select('id')
+          .eq('todo_id', savedTodo.id)
+          .maybeSingle();
+        if (existing?.id) {
+          const { error: upErr } = await (supabase as any)
+            .from('calendar_events')
+            .update({
+              resource_id: resourceId,
+              title: savedTodo.title,
+              start_time: startISO,
+              end_time: endISO,
+              source_date: scheduledDate,
+            })
+            .eq('id', existing.id);
+          if (upErr) throw upErr;
+        } else {
+          const { error: insErr } = await (supabase as any).from('calendar_events').insert({
+            resource_id: resourceId,
+            title: savedTodo.title,
+            start_time: startISO,
+            end_time: endISO,
+            event_type: 'todo',
+            source_date: scheduledDate,
+            organization_id: organizationId,
+            todo_id: savedTodo.id,
+          });
+          if (insErr) throw insErr;
+        }
+      }
+
+      return savedTodo;
     },
     onSuccess: () => {
       toast.success(isEdit ? 'To do uppdaterad' : 'To do skapad');
