@@ -212,6 +212,8 @@ export interface LocationTruthDiagnostics {
   physicalLocationDiagnostics: PhysicalLocationDiagnostics | null;
   /** Lager 2.3c — supplier-match diagnostics. */
   supplierMatchDiagnostics: SupplierMatchDiagnostics | null;
+  /** Lager 2.4 — gap-bridge diagnostics. */
+  gapBridgeDiagnostics: GapBridgeDiagnostics | null;
 }
 
 export interface LocationTruthResult {
