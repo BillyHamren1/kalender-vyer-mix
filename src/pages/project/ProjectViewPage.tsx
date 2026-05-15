@@ -13,6 +13,7 @@ import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import ProjectContactCard from "@/components/project/ProjectContactCard";
 import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
 import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
+import PickupStopsSection from "@/components/pickup/PickupStopsSection";
 
 import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
 import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
@@ -184,6 +185,10 @@ const ProjectViewPage = () => {
           />
         </div>
       </div>
+
+      {/* Materialhämtning från externa leverantörer */}
+      <PickupStopsSection parent={{ type: "project", id: project.id }} />
+
 
 
       {bookingId && (

@@ -4308,6 +4308,83 @@ export type Database = {
           },
         ]
       }
+      pickup_stops: {
+        Row: {
+          calendar_event_id: string | null
+          created_at: string
+          created_by: string | null
+          external_supplier_id: string
+          id: string
+          large_project_id: string | null
+          note: string | null
+          organization_id: string
+          project_id: string | null
+          scheduled_at: string | null
+          sort_order: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          calendar_event_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          external_supplier_id: string
+          id?: string
+          large_project_id?: string | null
+          note?: string | null
+          organization_id: string
+          project_id?: string | null
+          scheduled_at?: string | null
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          calendar_event_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          external_supplier_id?: string
+          id?: string
+          large_project_id?: string | null
+          note?: string | null
+          organization_id?: string
+          project_id?: string | null
+          scheduled_at?: string | null
+          sort_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pickup_stops_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pickup_stops_external_supplier_id_fkey"
+            columns: ["external_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "external_suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pickup_stops_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pickup_stops_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_cost_overrides: {
         Row: {
           assembly_cost: number | null

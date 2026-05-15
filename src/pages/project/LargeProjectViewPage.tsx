@@ -7,6 +7,7 @@ import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectContactCard from "@/components/project/ProjectContactCard";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
+import PickupStopsSection from "@/components/pickup/PickupStopsSection";
 
 
 
@@ -82,6 +83,9 @@ const LargeProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="pickup" className={tabTriggerClass}>
+              Materialhämtning
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -100,6 +104,10 @@ const LargeProjectViewPage = () => {
 
         <TabsContent value="transport">
           <ProjectTransportWidget bookingId={bookingId} />
+        </TabsContent>
+
+        <TabsContent value="pickup">
+          <PickupStopsSection parent={{ type: "large_project", id: project.id }} />
         </TabsContent>
       </Tabs>
     </div>
