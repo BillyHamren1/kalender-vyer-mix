@@ -54,6 +54,30 @@ export interface AssignmentEvidenceItem {
   childBookingId: string | null;
 }
 
+/**
+ * Lager 1.9 — Tydlig calendar_event-rad som downstream (knownTargets) kan
+ * konsumera utan att gissa. Planning is context, not proof of location.
+ */
+export interface AssignmentCalendarEvent {
+  /** calendar_event id (alias för eventId nedan). */
+  assignmentId: string | null;
+  eventId: string | null;
+  source: 'calendar_event' | 'team_calendar_event';
+  teamId: string | null;
+  teamName: string | null;
+  /** Direkt staff-koppling — null när eventet kommer via team. */
+  staffId: string | null;
+  bookingId: string | null;
+  projectId: string | null;
+  largeProjectId: string | null;
+  title: string | null;
+  plannedPhase: AssignmentPhase;
+  eventType: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  overlapsDate: boolean;
+}
+
 export interface AssignmentEvidenceDiagnostics {
   directBookingAssignmentCount: number;
   staffAssignmentCount: number;
@@ -88,6 +112,8 @@ export interface BuildAssignmentEvidenceInput {
 
 export interface BuildAssignmentEvidenceResult {
   items: AssignmentEvidenceItem[];
+  /** Lager 1.9 — alla calendar_events för dagen (rik form, för knownTargets). */
+  calendarEvents: AssignmentCalendarEvent[];
   diagnostics: AssignmentEvidenceDiagnostics;
 }
 
@@ -135,6 +161,7 @@ export async function buildAssignmentEvidence(
   const { supabaseAdmin, organizationId, staffId, date, dayStartUtc, dayEndUtc } = input;
   const warnings: string[] = [];
   const items: AssignmentEvidenceItem[] = [];
+  const calendarEvents: AssignmentCalendarEvent[] = [];
 
   const diag: AssignmentEvidenceDiagnostics = {
     directBookingAssignmentCount: 0,
@@ -321,9 +348,27 @@ export async function buildAssignmentEvidence(
     if (!item.bookingId && !item.largeProjectId) diag.assignmentsWithoutTargetCount++;
     items.push(item);
     pushExample(item);
+
+    // Lager 1.9 — exponera även som rik calendar_event-rad.
+    calendarEvents.push({
+      assignmentId: ce.id ?? null,
+      eventId: ce.id ?? null,
+      source: 'team_calendar_event',
+      teamId: ce.resource_id ?? null,
+      teamName: null,
+      staffId: null, // team-koppling, inte direkt staff
+      bookingId: ce.booking_id ?? null,
+      projectId: null,
+      largeProjectId: lpId,
+      title: ce.title ?? ce.booking_number ?? b?.project_name ?? null,
+      plannedPhase: phase,
+      eventType: ce.event_type ?? null,
+      startAt: start,
+      endAt: end,
+      overlapsDate: ce.source_date === date,
+    });
   }
 
-  // ── Bygg items: large_project_team_assignments ───────────────────────────
   for (const lp of lpRows) {
     const phase: AssignmentPhase =
       lp.phase === 'rig' || lp.phase === 'event' || lp.phase === 'rigdown' ? lp.phase : 'unknown';
@@ -351,5 +396,5 @@ export async function buildAssignmentEvidence(
     pushExample(item);
   }
 
-  return { items, diagnostics: diag };
+  return { items, calendarEvents, diagnostics: diag };
 }

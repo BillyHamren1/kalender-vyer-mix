@@ -94,7 +94,13 @@ export interface KnownTargetsDataQuality {
   childProjectsSuppressedAsTargets: Array<{ projectId: string; largeProjectId: string }>;
   ambiguousLargeProjectChildProjects: Array<{ projectId: string; largeProjectId: string; reason: string }>;
   assignmentsWithoutMatchingTarget: Array<{ assignmentId: string | null; bookingId: string | null; largeProjectId: string | null }>;
-  calendarEventsWithoutTarget: Array<{ calendarEventId: string | null; bookingId: string | null }>;
+  calendarEventsWithoutTarget: Array<{ calendarEventId: string | null; bookingId: string | null; reason: 'no_booking_ref' | 'booking_not_in_targets' | 'no_target_relation' }>;
+  /** Lager 1.9 — calendar_events vars booking tillhör ett large project. */
+  calendarEventsWithLargeProjectContext: Array<{ calendarEventId: string | null; bookingId: string | null; largeProjectId: string }>;
+  /** Lager 1.9 — calendar_events som pekar på child booking (suppressed). */
+  calendarEventsPointingToChildBooking: Array<{ calendarEventId: string | null; bookingId: string; largeProjectId: string }>;
+  /** Lager 1.9 — calendar_events vars LP-context saknar egen geo. */
+  calendarEventsPointingToMissingGeoLargeProject: Array<{ calendarEventId: string | null; bookingId: string | null; largeProjectId: string }>;
   targetsWithNullRadius: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
 }
 
@@ -105,6 +111,24 @@ export interface LargeProjectRulesDiagnostics {
   childBookingsSuppressedCount: number;
   childProjectsSuppressedCount: number;
   ambiguousLargeProjectChildProjectCount: number;
+}
+
+export interface CalendarEventTargetDiagnostics {
+  calendarEventCount: number;
+  calendarEventsWithTargetCount: number;
+  calendarEventsWithoutTargetCount: number;
+  calendarEventsWithLargeProjectContextCount: number;
+  calendarEventsPointingToChildBookingCount: number;
+  calendarEventsPointingToMissingGeoLargeProjectCount: number;
+  examples: Array<{
+    calendarEventId: string | null;
+    bookingId: string | null;
+    largeProjectId: string | null;
+    teamId: string | null;
+    title: string | null;
+    plannedPhase: string | null;
+    classification: 'with_target' | 'no_booking_ref' | 'booking_not_in_targets' | 'child_booking_inside_lp' | 'lp_missing_geo';
+  }>;
 }
 
 export interface KnownTargetsDiagnostics {
@@ -120,6 +144,8 @@ export interface KnownTargetsDiagnostics {
   targetsMissingRadiusCount: number;
   /** Lager 1.8 — konsoliderade large project-regler. */
   largeProjectRules: LargeProjectRulesDiagnostics;
+  /** Lager 1.9 — calendar_event ↔ target-matchning. */
+  calendarEventTargetDiagnostics: CalendarEventTargetDiagnostics;
   warnings: string[];
   examples: Array<{
     targetType: KnownTargetType;
@@ -141,9 +167,17 @@ export interface BuildKnownTargetsEvidenceInput {
   assignmentBookingIds?: string[];
   /** Optional list of large project ids referenced by assignment evidence (Lager 1.5). */
   assignmentLargeProjectIds?: string[];
-  /** Optional list of calendar events referenced by assignment evidence — used for
-   *  diagnostics only (calendarEventsWithoutTarget). */
-  assignmentCalendarEvents?: Array<{ id: string | null; bookingId: string | null }>;
+  /** Optional list of calendar events referenced by assignment evidence — rich
+   *  shape from Lager 1.9. Used for diagnostics only. */
+  assignmentCalendarEvents?: Array<{
+    id?: string | null;
+    eventId?: string | null;
+    bookingId: string | null;
+    largeProjectId?: string | null;
+    teamId?: string | null;
+    title?: string | null;
+    plannedPhase?: string | null;
+  }>;
   /** Optional raw assignment items for diagnostics (assignmentsWithoutMatchingTarget). */
   assignmentItems?: Array<{ assignmentId: string | null; bookingId: string | null; largeProjectId: string | null }>;
 }
@@ -233,6 +267,9 @@ export async function buildKnownTargetsEvidence(
     ambiguousLargeProjectChildProjects: [],
     assignmentsWithoutMatchingTarget: [],
     calendarEventsWithoutTarget: [],
+    calendarEventsWithLargeProjectContext: [],
+    calendarEventsPointingToChildBooking: [],
+    calendarEventsPointingToMissingGeoLargeProject: [],
     targetsWithNullRadius: [],
   };
   const diag: KnownTargetsDiagnostics = {
@@ -253,6 +290,15 @@ export async function buildKnownTargetsEvidence(
       childBookingsSuppressedCount: 0,
       childProjectsSuppressedCount: 0,
       ambiguousLargeProjectChildProjectCount: 0,
+    },
+    calendarEventTargetDiagnostics: {
+      calendarEventCount: 0,
+      calendarEventsWithTargetCount: 0,
+      calendarEventsWithoutTargetCount: 0,
+      calendarEventsWithLargeProjectContextCount: 0,
+      calendarEventsPointingToChildBookingCount: 0,
+      calendarEventsPointingToMissingGeoLargeProjectCount: 0,
+      examples: [],
     },
     warnings: [],
     examples: [],
@@ -741,9 +787,77 @@ export async function buildKnownTargetsEvidence(
       });
     }
   }
+  // ── Lager 1.9: calendar_event ↔ target-matchning ────────────────────────
+  // Bygg index för LP-context (booking → lp + lp_geo_status).
+  const bookingItemsById = new Map<string, KnownTargetEvidenceItem>();
+  for (const it of items) if (it.targetType === 'booking') bookingItemsById.set(it.targetId, it);
+  const lpItemsById = new Map<string, KnownTargetEvidenceItem>();
+  for (const it of items) if (it.targetType === 'large_project') lpItemsById.set(it.targetId, it);
+
+  const ceDiag = diag.calendarEventTargetDiagnostics;
   for (const ce of input.assignmentCalendarEvents ?? []) {
-    if (!ce.bookingId || !targetBookingIds.has(ce.bookingId)) {
-      dq.calendarEventsWithoutTarget.push({ calendarEventId: ce.id, bookingId: ce.bookingId });
+    ceDiag.calendarEventCount += 1;
+    const ceId = ce.eventId ?? ce.id ?? null;
+    const bookingItem = ce.bookingId ? bookingItemsById.get(ce.bookingId) : null;
+    const lpId =
+      bookingItem?.parentLargeProjectId ??
+      ce.largeProjectId ??
+      null;
+    const lpItem = lpId ? lpItemsById.get(lpId) : null;
+
+    let classification: 'with_target' | 'no_booking_ref' | 'booking_not_in_targets' | 'child_booking_inside_lp' | 'lp_missing_geo' = 'with_target';
+
+    if (!ce.bookingId) {
+      classification = 'no_booking_ref';
+      dq.calendarEventsWithoutTarget.push({ calendarEventId: ceId, bookingId: null, reason: 'no_booking_ref' });
+      ceDiag.calendarEventsWithoutTargetCount += 1;
+    } else if (!bookingItem) {
+      classification = 'booking_not_in_targets';
+      dq.calendarEventsWithoutTarget.push({ calendarEventId: ceId, bookingId: ce.bookingId, reason: 'booking_not_in_targets' });
+      ceDiag.calendarEventsWithoutTargetCount += 1;
+    } else {
+      ceDiag.calendarEventsWithTargetCount += 1;
+    }
+
+    if (lpId) {
+      ceDiag.calendarEventsWithLargeProjectContextCount += 1;
+      dq.calendarEventsWithLargeProjectContext.push({
+        calendarEventId: ceId,
+        bookingId: ce.bookingId,
+        largeProjectId: lpId,
+      });
+      // Child booking suppressed?
+      if (bookingItem && bookingItem.suppressedReason === 'child_booking_inside_large_project' && ce.bookingId) {
+        classification = 'child_booking_inside_lp';
+        ceDiag.calendarEventsPointingToChildBookingCount += 1;
+        dq.calendarEventsPointingToChildBooking.push({
+          calendarEventId: ceId,
+          bookingId: ce.bookingId,
+          largeProjectId: lpId,
+        });
+      }
+      // LP saknar egen geo?
+      if (lpItem && !lpItem.canBeGeoTarget) {
+        if (classification === 'with_target') classification = 'lp_missing_geo';
+        ceDiag.calendarEventsPointingToMissingGeoLargeProjectCount += 1;
+        dq.calendarEventsPointingToMissingGeoLargeProject.push({
+          calendarEventId: ceId,
+          bookingId: ce.bookingId,
+          largeProjectId: lpId,
+        });
+      }
+    }
+
+    if (ceDiag.examples.length < 8) {
+      ceDiag.examples.push({
+        calendarEventId: ceId,
+        bookingId: ce.bookingId ?? null,
+        largeProjectId: lpId,
+        teamId: ce.teamId ?? null,
+        title: ce.title ?? null,
+        plannedPhase: ce.plannedPhase ?? null,
+        classification,
+      });
     }
   }
 
