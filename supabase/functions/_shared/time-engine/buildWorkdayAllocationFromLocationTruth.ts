@@ -41,16 +41,27 @@ export type WorkdayAllocationType =
 
 export type WorkdayAllocationConfidence = 'high' | 'medium' | 'low';
 
+// ── Lager 3.11B — kanoniska assignmentStatus-värden ──────────────────
+//   assigned                 = matchad target av typ project/booking/large_project
+//                              OCH personen var planerad på den (overlap).
+//   unassigned_but_present   = matchad project/booking/large_project utan assignment
+//                              (GPS/plats är tydlig men personalen var inte planerad).
+//   no_assignment_required   = matchad supplier/warehouse/organization_location
+//                              (ingen assignment krävs i normal arbetskontext).
+//   unknown                  = status kan inte avgöras (t.ex. utanför workday).
 export type WorkdayAllocationAssignmentStatus =
-  // ── Lager 3.10D — kanoniska värden enligt spec ───────────────────────
   | 'assigned'
   | 'unassigned_but_present'
   | 'no_assignment_required'
-  | 'unknown'
-  // ── Legacy-värden (behålls för bakåtkompatibilitet med tester/UI) ────
-  | 'assigned_overlap'
-  | 'assigned_no_overlap'
-  | 'no_assignment';
+  | 'unknown';
+
+// Lager 3.11B — extra detaljnivå utan att förorena assignmentStatus.
+export type WorkdayAllocationAssignmentMatch =
+  | 'overlap'        // assignment finns och täcker intervallet
+  | 'no_overlap'     // matchad target men ingen assignment-overlap
+  | 'not_required'   // supplier/warehouse/organization_location
+  | 'missing'        // ingen target alls
+  | 'unknown';       // utanför workday / kan ej avgöras
 
 export interface WorkdayAllocationSegment {
   id: string;
@@ -68,6 +79,8 @@ export interface WorkdayAllocationSegment {
   warnings: WorkdayAllocationWarning[];
   /** Om personen var planerad på detta target i intervallet. */
   assignmentStatus: WorkdayAllocationAssignmentStatus;
+  /** Lager 3.11B — extra detalj om hur assignment matchades. */
+  assignmentMatch: WorkdayAllocationAssignmentMatch;
   /** Speglar Lager 2 businessContext.status — för transparens neråt. */
   businessContextStatus: BusinessContextStatus | null;
   /** Originalfönstret innan klippning till workday (debug). */
@@ -834,6 +847,7 @@ export function buildWorkdayAllocationFromLocationTruth(
         confidence: allocOutside.confidence,
         warnings: ['segment_outside_workday'],
         assignmentStatus: 'unknown',
+        assignmentMatch: 'unknown',
         businessContextStatus: seg.businessContext?.status ?? null,
         rawSegmentStartAt: seg.startAt,
         rawSegmentEndAt: seg.endAt,
@@ -881,25 +895,32 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
 
     const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
-    // Lager 3.3 + 3.10A — assignmentStatus:
-    //   assigned_overlap         = planerad på rätt target i intervallet
-    //   no_assignment_required   = matched target av typ supplier / warehouse /
-    //                              organization_location → assignment krävs INTE.
-    //                              Dessa är normal arbetskontext inom aktiv dagtimer.
-    //   unassigned_but_present   = matchat project / booking / large_project
-    //                              men ingen assignment (GPS/plats vinner —
-    //                              kopplingen behålls, men varning emitteras).
-    //   no_assignment            = ingen target alls.
+    // Lager 3.11B — kanoniska assignmentStatus-värden:
+    //   assigned                 = matchad project/booking/large_project + overlap
+    //   unassigned_but_present   = matchad project/booking/large_project utan overlap
+    //   no_assignment_required   = matchad supplier/warehouse/organization_location
+    //   unknown                  = ingen target / kan ej avgöras
+    // assignmentMatch ger detaljnivån (overlap/no_overlap/not_required/missing/unknown).
     const matchedNoAssignmentRequired = !!matched && (
       matched.targetType === 'supplier' ||
       matched.targetType === 'warehouse' ||
       matched.targetType === 'organization_location'
     );
     let assignmentStatus: WorkdayAllocationAssignmentStatus;
-    if (matched && hasOverlap) assignmentStatus = 'assigned_overlap';
-    else if (matchedNoAssignmentRequired) assignmentStatus = 'no_assignment_required';
-    else if (matched && !hasOverlap) assignmentStatus = 'unassigned_but_present';
-    else assignmentStatus = 'no_assignment';
+    let assignmentMatch: WorkdayAllocationAssignmentMatch;
+    if (matchedNoAssignmentRequired) {
+      assignmentStatus = 'no_assignment_required';
+      assignmentMatch = 'not_required';
+    } else if (matched && hasOverlap) {
+      assignmentStatus = 'assigned';
+      assignmentMatch = 'overlap';
+    } else if (matched && !hasOverlap) {
+      assignmentStatus = 'unassigned_but_present';
+      assignmentMatch = 'no_overlap';
+    } else {
+      assignmentStatus = 'unknown';
+      assignmentMatch = 'missing';
+    }
 
     const item: WorkdayAllocationSegment = {
       id: `wda_${seg.id}`,
@@ -914,6 +935,7 @@ export function buildWorkdayAllocationFromLocationTruth(
       confidence: alloc.confidence,
       warnings: alloc.warnings,
       assignmentStatus,
+      assignmentMatch,
       businessContextStatus: seg.businessContext?.status ?? null,
       rawSegmentStartAt: seg.startAt,
       rawSegmentEndAt: seg.endAt,
