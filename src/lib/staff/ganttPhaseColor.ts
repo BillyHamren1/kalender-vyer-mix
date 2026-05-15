@@ -59,3 +59,60 @@ export function buildLargeProjectPhaseMap(
   }
   return out;
 }
+
+// ── Session-level phase inheritance ────────────────────────────────────────
+// Mål: ett jobb (samma target/session) ska inte visa blandad ARBETE/RIGG.
+// Om något block i sessionen har en planerad fas (rig/rigdown), ärver alla
+// "work"-block samma fas. "ARBETE" används bara om INGET block i sessionen
+// kan resolveras till en fas.
+
+export type SessionPhaseKind = 'rig' | 'rigdown' | 'work';
+
+export interface SessionBlockInput {
+  id: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
+}
+
+/**
+ * Bygger en sessionsnyckel som grupperar block som hör till samma jobb.
+ * Prioritet: targetType:targetId → normaliserad titel → block-id (unik).
+ */
+export function sessionKeyForBlock(b: SessionBlockInput): string {
+  if (b.targetId && b.targetType) return `${b.targetType}:${b.targetId}`;
+  if (b.targetId) return `tid:${b.targetId}`;
+  const norm = (b.title ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (norm) return `title:${norm}`;
+  return `block:${b.id}`;
+}
+
+const PHASE_PRIORITY: Record<SessionPhaseKind, number> = { rig: 3, rigdown: 2, work: 0 };
+
+/**
+ * Bygger en map sessionKey → härdad fas (rig/rigdown) baserat på alla
+ * block i samma session. Block som redan resolveras till rig/rigdown
+ * "smittar" syskonblock som annars skulle bli work.
+ *
+ * `perBlockPhase` är fas per block (efter resolveGanttPhaseKind + ev. text-detektering),
+ * eller null om inget hittades.
+ */
+export function buildSessionPhaseMap(
+  blocks: SessionBlockInput[],
+  perBlockPhase: Record<string, SessionPhaseKind | null | undefined>,
+): Record<string, SessionPhaseKind> {
+  const out: Record<string, SessionPhaseKind> = {};
+  for (const b of blocks) {
+    const phase = perBlockPhase[b.id];
+    if (!phase || phase === 'work') continue;
+    const key = sessionKeyForBlock(b);
+    const existing = out[key];
+    if (!existing || PHASE_PRIORITY[phase] > PHASE_PRIORITY[existing]) {
+      out[key] = phase;
+    }
+  }
+  return out;
+}
