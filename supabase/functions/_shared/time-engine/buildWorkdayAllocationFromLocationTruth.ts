@@ -698,7 +698,10 @@ export function buildWorkdayAllocationFromLocationTruth(
     diag.segmentsInsideEnvelope += 1;
 
     const hasOverlap = !!seg.evidence.assignmentSupportsTarget;
-    const alloc = deriveAllocation(seg, hasOverlap);
+    const movementCtx = seg.finalType === 'movement'
+      ? movementCtxById.get(seg.id) ?? null
+      : null;
+    const alloc = deriveAllocation(seg, hasOverlap, movementCtx);
 
     // private_residence INNE i workday → fortfarande private_time, men kan
     // föreslås som workday-slut. Vi flaggar warning.
