@@ -24,6 +24,11 @@ interface CreateTodoWizardProps {
   preselectedBookingId?: string | null;
   /** When provided, dialog acts as edit form instead of create. */
   todoId?: string | null;
+  /**
+   * Planning mode — visar Team-väljare + placerar to:n i personalkalendern
+   * när man sparar. Kräver todoId. Titel: "Planera to do".
+   */
+  planningMode?: boolean;
 }
 
 interface BookingOption {
@@ -33,7 +38,7 @@ interface BookingOption {
   booking_number: string | null;
 }
 
-export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId }: CreateTodoWizardProps) {
+export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId, planningMode }: CreateTodoWizardProps) {
   const isEdit = !!todoId;
   const { organizationId } = useCurrentOrg();
   const { data: todoTypes = [], createType } = useTodoTypes();
@@ -42,6 +47,10 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
   const [showNewType, setShowNewType] = useState(false);
   const [newTypeLabel, setNewTypeLabel] = useState('');
   const [bookingPickerOpen, setBookingPickerOpen] = useState(false);
+
+  // Planning mode — Team-väljare för personalkalendern.
+  // Kolumnerna heter 'team-1'..'team-10' (se useTeamResources.defaultTeams).
+  const [resourceId, setResourceId] = useState<string>('team-1');
 
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
   const [title, setTitle] = useState('');
@@ -140,6 +149,21 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         setStartTime(data.start_time ? String(data.start_time).slice(0, 5) : '');
         setEndTime(data.end_time ? String(data.end_time).slice(0, 5) : '');
         setInternalNotes(data.internal_notes || '');
+        // Default planning-tider om to:n inte hade några ifyllda än.
+        if (planningMode) {
+          if (!data.scheduled_date) setScheduledDate(new Date().toISOString().slice(0, 10));
+          if (!data.start_time) setStartTime('08:00');
+          if (!data.end_time) setEndTime('16:00');
+        }
+      }
+      // Hämta befintligt calendar_event för att förvälja team i planning mode.
+      if (planningMode && todoId) {
+        const { data: ev } = await (supabase as any)
+          .from('calendar_events')
+          .select('resource_id')
+          .eq('todo_id', todoId)
+          .maybeSingle();
+        if (ev?.resource_id) setResourceId(ev.resource_id);
       }
       return data;
     },
@@ -213,6 +237,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         internal_notes: internalNotes.trim() || null,
       };
 
+      let savedTodo: any;
       if (isEdit && todoId) {
         const { data: todo, error } = await (supabase as any)
           .from('todos')
@@ -221,16 +246,58 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           .select()
           .single();
         if (error) throw error;
-        return todo;
+        savedTodo = todo;
+      } else {
+        const { data: todo, error } = await supabase
+          .from('todos')
+          .insert(payload as any)
+          .select()
+          .single();
+        if (error) throw error;
+        savedTodo = todo;
       }
 
-      const { data: todo, error } = await supabase
-        .from('todos')
-        .insert(payload as any)
-        .select()
-        .single();
-      if (error) throw error;
-      return todo;
+      // Planning mode — placera/uppdatera i personalkalendern.
+      if (planningMode && savedTodo?.id) {
+        if (!scheduledDate || !startTime || !endTime || !resourceId) {
+          throw new Error('Fyll i datum, tid och team för att placera i kalendern');
+        }
+        if (!organizationId) throw new Error('Saknar organisation');
+        const startISO = new Date(`${scheduledDate}T${startTime}:00`).toISOString();
+        const endISO = new Date(`${scheduledDate}T${endTime}:00`).toISOString();
+        const { data: existing } = await (supabase as any)
+          .from('calendar_events')
+          .select('id')
+          .eq('todo_id', savedTodo.id)
+          .maybeSingle();
+        if (existing?.id) {
+          const { error: upErr } = await (supabase as any)
+            .from('calendar_events')
+            .update({
+              resource_id: resourceId,
+              title: savedTodo.title,
+              start_time: startISO,
+              end_time: endISO,
+              source_date: scheduledDate,
+            })
+            .eq('id', existing.id);
+          if (upErr) throw upErr;
+        } else {
+          const { error: insErr } = await (supabase as any).from('calendar_events').insert({
+            resource_id: resourceId,
+            title: savedTodo.title,
+            start_time: startISO,
+            end_time: endISO,
+            event_type: 'todo',
+            source_date: scheduledDate,
+            organization_id: organizationId,
+            todo_id: savedTodo.id,
+          });
+          if (insErr) throw insErr;
+        }
+      }
+
+      return savedTodo;
     },
     onSuccess: () => {
       toast.success(isEdit ? 'To do uppdaterad' : 'To do skapad');
@@ -245,7 +312,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Redigera to do' : 'Skapa to do'}</DialogTitle>
+          <DialogTitle>{planningMode ? 'Planera to do' : (isEdit ? 'Redigera to do' : 'Skapa to do')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} className="space-y-5">
@@ -424,7 +491,24 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           {/* Datum & tid */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Datum & tid</h3>
-            <p className="text-xs text-muted-foreground">Lämna tomt om to:n ska placeras senare via "Att planera".</p>
+            <p className="text-xs text-muted-foreground">
+              {planningMode
+                ? 'Datum, tid och team krävs för att placera i kalendern.'
+                : 'Lämna tomt om to:n ska placeras senare via "Att planera".'}
+            </p>
+            {planningMode && (
+              <div>
+                <Label>Team</Label>
+                <Select value={resourceId} onValueChange={setResourceId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => `team-${i + 1}`).map((id, i) => (
+                      <SelectItem key={id} value={id}>{`Team ${i + 1}`}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Datum</Label>
@@ -449,7 +533,9 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Avbryt</Button>
             <Button type="submit" disabled={create.isPending} className="bg-orange-500 hover:bg-orange-600 text-white">
-              {create.isPending ? (isEdit ? 'Sparar…' : 'Skapar…') : (isEdit ? 'Spara ändringar' : 'Skapa to do')}
+              {create.isPending
+                ? (planningMode ? 'Placerar…' : (isEdit ? 'Sparar…' : 'Skapar…'))
+                : (planningMode ? 'Placera i kalendern' : (isEdit ? 'Spara ändringar' : 'Skapa to do'))}
             </Button>
           </DialogFooter>
         </form>
