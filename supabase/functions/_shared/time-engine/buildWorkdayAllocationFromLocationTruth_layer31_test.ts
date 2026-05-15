@@ -123,9 +123,9 @@ Deno.test('Lager 3.1: large_project, booking, warehouse, supplier mappas korrekt
   });
   const types = r.segments.map((s) => s.allocationType);
   assertEquals(types, ['large_project_work', 'booking_work', 'warehouse_work', 'supplier_visit']);
-  // Supplier + warehouse utan assignment → warnings
-  assert(r.segments[2].warnings.includes('warehouse_presence_no_assignment'));
-  assert(r.segments[3].warnings.includes('supplier_visit_no_assignment'));
+  // Lager 3.10A: warehouse + supplier kräver INGEN assignment.
+  assertEquals(r.segments[2].assignmentStatus, 'no_assignment_required');
+  assertEquals(r.segments[3].assignmentStatus, 'no_assignment_required');
 });
 
 Deno.test('Lager 3.1: known_address → unlinked_work_address', () => {
@@ -230,7 +230,9 @@ Deno.test('Lager 3.1: gap i workday räknas i uncoveredWorkdayMinutes', () => {
   });
   // workday 240 min, segment täcker 60 min → 180 min uncovered
   assertEquals(r.diagnostics.uncoveredWorkdayMinutes, 180);
-  assert(r.diagnostics.warnings.includes('gap_in_workday'));
+  // Lager 3.10C: gap_in_workday-warning ersatt av mjukare
+  // workday_time_without_location_truth_segment när proposals skapas.
+  assert(r.diagnostics.warnings.includes('workday_time_without_location_truth_segment'));
 });
 
 Deno.test('Lager 3.1: planning_geo_mismatch → warning bibehålls', () => {

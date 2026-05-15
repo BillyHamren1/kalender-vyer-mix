@@ -118,15 +118,20 @@ export type WorkdayAllocationWarning =
   | 'supplier_visit_without_project_context'
   // ── Lager 3.6 — hem/private efter sista arbetsplats ───────────────────
   | 'home_after_last_work_location'
-  | 'temporary_home_presence';
+  | 'temporary_home_presence'
+  // ── Lager 3.10C — uncovered workday time (mjuk varning) ────────────────
+  | 'workday_time_without_location_truth_segment';
 
 export type WorkdayAllocationProposalType =
   | 'allocation_candidate'
   | 'suggest_workday_end'
   | 'consider_workday_end_from_private'
-  | 'gap_in_workday'
+  // ── Lager 3.10C — gap som signalfrånvaro, inte review per default ──────
+  | 'uncovered_workday_time'
   // ── Lager 3.10B — supplier→projektkandidat ──────────────────────────────
   | 'link_supplier_to_project_candidate';
+
+export type WorkdayAllocationProposalSeverity = 'low' | 'medium' | 'high';
 
 /** Lager 3.10B — explicit reason-vokab för link_supplier_to_project_candidate. */
 export type SupplierLinkProposalReason =
@@ -187,6 +192,15 @@ export interface WorkdayAllocationDiagnostics {
   homeOver90MinutesCount: number;
   suggestedWorkdayEndCount: number;
   temporaryHomePresenceCount: number;
+  // ── Lager 3.10C — uncovered workday gaps ──────────────────────────────
+  /** Antal gaps inom workday utan LocationTruth-täckning (alla längder). */
+  uncoveredGapCount: number;
+  /** Total minuttid uncovered inom workday (alias mot uncoveredWorkdayMinutes). */
+  uncoveredGapMinutesTotal: number;
+  /** Korta gaps (< proposalThreshold) som BARA räknas, inte föreslås. */
+  shortUncoveredGapsIgnoredCount: number;
+  /** Gaps som faktiskt blev proposals (≥ tröskel). */
+  uncoveredGapsProposedCount: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
@@ -222,6 +236,8 @@ export interface WorkdayAllocationProposal {
   candidateLabel?: string | null;
   /** True = föreslås, men kräver mänsklig godkänning innan något skrivs. */
   requiresHumanApproval?: boolean;
+  /** Lager 3.10C — severity för uncovered_workday_time. */
+  severity?: WorkdayAllocationProposalSeverity;
 }
 
 export interface WorkdayAllocationResult {
@@ -381,6 +397,7 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'long_travel_over_150km', 'movement_missing_anchor',
   'supplier_visit_without_project_context',
   'home_after_last_work_location', 'temporary_home_presence',
+  'workday_time_without_location_truth_segment',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
@@ -640,6 +657,10 @@ export function buildWorkdayAllocationFromLocationTruth(
     homeOver90MinutesCount: 0,
     suggestedWorkdayEndCount: 0,
     temporaryHomePresenceCount: 0,
+    uncoveredGapCount: 0,
+    uncoveredGapMinutesTotal: 0,
+    shortUncoveredGapsIgnoredCount: 0,
+    uncoveredGapsProposedCount: 0,
     examples: [],
   };
 
@@ -1071,35 +1092,82 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
   }
 
-  // Beräkna uncovered minutes inom workday + emittera gap-proposals (Lager 3.10).
+  // ── Lager 3.10C — Uncovered workday time (mjuk policy) ──────────────────
+  // Gap = signalfrånvaro, INTE bevis på fel. Lager 2 ska bridgea riktiga
+  // signalgap. Vi markerar bara försiktigt:
+  //   < 30 min            → endast diagnostics (shortUncoveredGapsIgnoredCount)
+  //   30–120 min          → proposal severity 'low'
+  //   > 120 min           → proposal severity 'medium'
+  //   review-villkor      → severity 'high' + proposedAllocationType=
+  //                         'needs_work_allocation_review'
+  // Review kräver: långt gap (>120 min) OCH ingen LT-segment-täckning för dagen
+  // OCH inga bridge-relaterade LT-warnings.
   coveredIntervals.sort((a, b) => a[0] - b[0]);
   let cursor = wdStartMs;
   let uncoveredMs = 0;
-  const GAP_PROPOSAL_MIN_MS = 30 * 60_000; // ≥30 min synliggörs som proposal
+  const SHORT_GAP_MS = 30 * 60_000;
+  const MEDIUM_GAP_MS = 120 * 60_000;
+
+  // Review-förutsättningar (samma för alla gaps på samma dag).
+  const ltAll = input.locationTruthV2?.segments ?? [];
+  const hasAnyLtCoverageInWorkday = coveredIntervals.length > 0;
+  const hasBridgeWarnings = ltAll.some((s: any) =>
+    Array.isArray(s?.warnings) &&
+    s.warnings.some((w: string) =>
+      typeof w === 'string' && (w.includes('bridge') || w.includes('signal_gap')),
+    ),
+  );
+
   const emitGap = (s: number, e: number) => {
-    if (e - s < GAP_PROPOSAL_MIN_MS) return;
+    const dur = e - s;
+    if (dur <= 0) return;
+    diag.uncoveredGapCount += 1;
+    if (dur < SHORT_GAP_MS) {
+      diag.shortUncoveredGapsIgnoredCount += 1;
+      return; // endast diagnostics
+    }
+    const isLong = dur > MEDIUM_GAP_MS;
+    const reviewCase = isLong && !hasAnyLtCoverageInWorkday && !hasBridgeWarnings;
+    const severity: WorkdayAllocationProposalSeverity = reviewCase
+      ? 'high'
+      : isLong
+        ? 'medium'
+        : 'low';
     proposals.push({
       segmentId: `workday-gap-${new Date(s).toISOString()}`,
-      proposalType: 'gap_in_workday',
-      proposedAllocationType: 'needs_work_allocation_review',
+      proposalType: 'uncovered_workday_time',
+      // Standard: INGEN review — bara markera som unlinked tidsfönster.
+      // Endast review-fallet sätter needs_work_allocation_review.
+      proposedAllocationType: reviewCase
+        ? 'needs_work_allocation_review'
+        : 'unlinked_work_address',
       targetType: null,
       targetId: null,
       label: null,
       startAt: new Date(s).toISOString(),
       endAt: new Date(e).toISOString(),
-      confidence: 'medium',
-      reason: 'gap_in_workday_uncovered_by_segments',
+      confidence: reviewCase ? 'medium' : 'low',
+      reason: 'uncovered_workday_time',
+      severity,
+      requiresHumanApproval: reviewCase,
     });
+    diag.uncoveredGapsProposedCount += 1;
   };
+
   for (const [s, e] of coveredIntervals) {
     if (s > cursor) { uncoveredMs += s - cursor; emitGap(cursor, s); }
     if (e > cursor) cursor = e;
   }
   if (cursor < wdEnd) { uncoveredMs += wdEnd - cursor; emitGap(cursor, wdEnd); }
+
   diag.uncoveredWorkdayMinutes = Math.round(uncoveredMs / 60_000);
-  if (diag.uncoveredWorkdayMinutes > 0) {
-    diag.warnings.push('gap_in_workday');
-    diag.warningsByType.gap_in_workday += 1;
+  diag.uncoveredGapMinutesTotal = diag.uncoveredWorkdayMinutes;
+  // Mjuk varning — inte gap_in_workday review-warning. Bara om proposal skapats.
+  if (diag.uncoveredGapsProposedCount > 0) {
+    if (!diag.warnings.includes('workday_time_without_location_truth_segment')) {
+      diag.warnings.push('workday_time_without_location_truth_segment');
+    }
+    diag.warningsByType.workday_time_without_location_truth_segment += 1;
   }
 
   diag.buildDurationMs = Date.now() - startedAt;
