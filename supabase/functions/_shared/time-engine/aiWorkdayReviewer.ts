@@ -49,8 +49,12 @@ export type AiReviewTriggerReason =
   | 'unassigned_but_present'
   | 'planning_geo_mismatch'
   | 'large_project_missing_geo'
+  | 'business_target_missing_geo'
+  | 'assigned_large_project_missing_geo'
   | 'movement_missing_anchor'
   | 'competing_business_targets'
+  | 'business_context_needs_review'
+  | 'uncovered_workday_time'
   | 'uncertain_workday_end_proposal';
 
 export interface AiReviewSegmentCase {
@@ -164,7 +168,9 @@ export function shouldTriggerAiReview(
   const triggers: AiReviewTriggerReason[] = [];
   if (seg.outsideWorkday) return triggers; // utanför workday → inte AI:s sak
 
-  if (seg.warnings.includes('supplier_visit_without_project_context')) {
+  const w = seg.warnings as readonly string[];
+
+  if (w.includes('supplier_visit_without_project_context')) {
     triggers.push('supplier_visit_without_project_context');
   }
   if (seg.allocationType === 'unlinked_work_address') {
@@ -173,21 +179,41 @@ export function shouldTriggerAiReview(
   if (seg.assignmentStatus === 'unassigned_but_present') {
     triggers.push('unassigned_but_present');
   }
-  if (seg.warnings.includes('planning_geo_mismatch')) {
+  if (w.includes('planning_geo_mismatch')) {
     triggers.push('planning_geo_mismatch');
   }
-  if (seg.warnings.includes('movement_missing_anchor')) {
+  if (w.includes('movement_missing_anchor')) {
     triggers.push('movement_missing_anchor');
   }
-  // Lager 3.10 — fix 2: trigga även när businessContextStatus signalerar
-  // large_project_missing_geo, inte bara på address-null-proxy.
+
+  // Lager 3.10E — LP/business missing geo via warning ELLER businessContext,
+  // oavsett targetType (kan komma som known_address utan target).
+  const bcs = seg.businessContextStatus as string | null;
   if (
-    seg.targetType === 'large_project' &&
-    !seg.outsideWorkday &&
-    (!seg.address || (seg.businessContextStatus as string) === 'large_project_missing_geo')
+    w.includes('large_project_missing_geo') ||
+    bcs === 'large_project_missing_geo' ||
+    (seg.targetType === 'large_project' && !seg.address)
   ) {
     triggers.push('large_project_missing_geo');
   }
+  if (
+    w.includes('assigned_large_project_missing_geo') ||
+    bcs === 'assigned_large_project_missing_geo'
+  ) {
+    triggers.push('assigned_large_project_missing_geo');
+  }
+  if (
+    w.includes('business_target_missing_geo') ||
+    bcs === 'business_target_missing_geo'
+  ) {
+    triggers.push('business_target_missing_geo');
+  }
+
+  // Lager 3.10E — generell needs_review från Lager 2 businessContext.
+  if (bcs === 'needs_review') {
+    triggers.push('business_context_needs_review');
+  }
+
   return triggers;
 }
 
@@ -214,8 +240,12 @@ export function buildAiWorkdayReviewInput(
     unassigned_but_present: 0,
     planning_geo_mismatch: 0,
     large_project_missing_geo: 0,
+    business_target_missing_geo: 0,
+    assigned_large_project_missing_geo: 0,
     movement_missing_anchor: 0,
     competing_business_targets: 0,
+    business_context_needs_review: 0,
+    uncovered_workday_time: 0,
     uncertain_workday_end_proposal: 0,
   };
 
@@ -255,6 +285,23 @@ export function buildAiWorkdayReviewInput(
 
   const proposalCases: AiReviewProposalCase[] = [];
   for (const p of wda?.proposals ?? []) {
+    // Lager 3.10E — uncovered_workday_time → AI-kandidat när severity ≥ medium.
+    if (p.proposalType === 'uncovered_workday_time') {
+      const sev = (p as { severity?: 'low' | 'medium' | 'high' }).severity;
+      if (sev !== 'medium' && sev !== 'high') continue;
+      triggerCounts.uncovered_workday_time += 1;
+      proposalCases.push({
+        proposalSegmentId: p.segmentId,
+        proposalType: p.proposalType,
+        reason: p.reason,
+        startAt: p.startAt,
+        endAt: p.endAt,
+        suggestedEndAt: p.suggestedEndAt ?? null,
+        confidence: p.confidence,
+        triggers: ['uncovered_workday_time'],
+      });
+      continue;
+    }
     if (p.proposalType !== 'suggest_workday_end') continue;
     if (p.confidence === 'high') continue; // säkra förslag behöver inte AI
     triggerCounts.uncertain_workday_end_proposal += 1;
