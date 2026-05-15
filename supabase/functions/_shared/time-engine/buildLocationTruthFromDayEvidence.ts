@@ -247,6 +247,7 @@ function mapMatchTypeToTargetType(
   switch (m) {
     case 'warehouse':
     case 'organization_location':
+    case 'supplier':
     case 'large_project':
     case 'project':
     case 'booking':
