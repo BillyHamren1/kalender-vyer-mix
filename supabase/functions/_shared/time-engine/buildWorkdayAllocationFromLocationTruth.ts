@@ -193,6 +193,8 @@ export interface WorkdayAllocationDiagnostics {
   workdayStartSource: WorkdayEnvelopeStartSource;
   workdayEndSource: WorkdayEnvelopeEndSource;
   envelopeWarnings: WorkdayEnvelopeWarning[];
+  /** Lager 3.11D — strukturerad envelope-snapshot (timer vs effektiv vs analys). */
+  workdayEnvelope: WorkdayEnvelopeDiagnostics;
   /** Alias för segmentsInsideWorkday — uttryckt mot envelope-vokabulären. */
   segmentsInsideEnvelope: number;
   /** Alias för segmentsOutsideWorkday. */
