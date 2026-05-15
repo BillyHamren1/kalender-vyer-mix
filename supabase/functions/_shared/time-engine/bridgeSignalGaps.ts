@@ -294,11 +294,13 @@ export function bridgeSignalGaps(
       const candidate = sorted[j];
 
       // Möjlig outlier emellan: kort segment av annan/svag typ.
-      const isOutlier =
+      const outlierIdentity =
         durationMinutes(candidate) <= OUTLIER_MAX_MIN &&
         !KNOWN_TYPES.includes(candidate.type) &&
-        j + 1 < sorted.length &&
-        sameTargetIdentity(current, sorted[j + 1]);
+        j + 1 < sorted.length
+          ? sameTargetIdentity(current, sorted[j + 1])
+          : { same: false, via: null as const };
+      const isOutlier = outlierIdentity.same;
 
       if (isOutlier) {
         diagnostics.outliersAbsorbed++;
@@ -308,7 +310,7 @@ export function bridgeSignalGaps(
           gapMinutesBetween(current, next) + Math.round(durationMinutes(candidate));
         diagnostics.gapsEvaluated++;
         const tag = pickWarningTag(gapMin);
-        current = mergeTwo(current, next, gapMin, tag);
+        current = mergeTwo(current, next, gapMin, tag, outlierIdentity.via);
         diagnostics.gapsBridgedSameTarget++;
         if (gapMin > LONG_GAP_MIN) diagnostics.longGapsBridged++;
         recordExample(diagnostics, current.id, next.id, gapMin, tag, true, [
@@ -330,9 +332,10 @@ export function bridgeSignalGaps(
       const gapMin = gapMinutesBetween(current, candidate);
       diagnostics.gapsEvaluated++;
 
-      if (sameTargetIdentity(current, candidate)) {
+      const identity = sameTargetIdentity(current, candidate);
+      if (identity.same) {
         const tag = pickWarningTag(gapMin);
-        current = mergeTwo(current, candidate, gapMin, tag);
+        current = mergeTwo(current, candidate, gapMin, tag, identity.via);
         diagnostics.gapsBridgedSameTarget++;
         if (gapMin > LONG_GAP_MIN) diagnostics.longGapsBridged++;
         recordExample(diagnostics, current.id, candidate.id, gapMin, tag, true, []);
