@@ -106,6 +106,16 @@ export interface WorkdayAllocationDiagnostics {
   warnings: string[];
   /** Mins inom workdayen som inte täcks av något segment (gaps). */
   uncoveredWorkdayMinutes: number;
+  // ── Lager 3.2 — Workday Envelope diagnostics ──────────────────────────
+  workdayEnvelopeFound: boolean;
+  openWorkday: boolean;
+  workdayStartSource: WorkdayEnvelopeStartSource;
+  workdayEndSource: WorkdayEnvelopeEndSource;
+  envelopeWarnings: WorkdayEnvelopeWarning[];
+  /** Alias för segmentsInsideWorkday — uttryckt mot envelope-vokabulären. */
+  segmentsInsideEnvelope: number;
+  /** Alias för segmentsOutsideWorkday. */
+  segmentsOutsideEnvelope: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
