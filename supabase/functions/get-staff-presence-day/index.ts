@@ -60,6 +60,7 @@ import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFrom
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
 import { buildWorkdayAllocationFromLocationTruth, resolveWorkdayEnvelope } from '../_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts';
+import { buildDisplayTimelineFromWorkdayAllocation } from '../_shared/time-engine/buildDisplayTimelineFromWorkdayAllocation.ts';
 // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
 // WorkdayAllocation is read-only until Lager 4/display integration.
 import { buildAiWorkdayReviewInput, reviewWorkdayWithAi } from '../_shared/time-engine/aiWorkdayReviewer.ts';
@@ -261,6 +262,8 @@ Deno.serve(async (req) => {
   let workdayAllocationDiagnostics: any = null;
   let workdayAllocationSegments: any[] = [];
   let workdayAllocationProposals: any[] = [];
+  let displayTimelineBlocksV2: any[] = [];
+  let displayTimelineDiagnosticsV2: any = null;
   // Lager 3.7 — AI reviewer output (no-op default; ingen extern AI kopplad här).
   let aiWorkdayReviewSummary: any = null;
   let aiWorkdayReviewProposals: any[] = [];
@@ -315,6 +318,20 @@ Deno.serve(async (req) => {
           workdayAllocationDiagnostics = wda.diagnostics;
           workdayAllocationSegments = wda.segments;
           workdayAllocationProposals = wda.proposals;
+
+          // Lager 4.1 — Display Timeline (read-only).
+          try {
+            const dt = buildDisplayTimelineFromWorkdayAllocation({
+              dayEvidence,
+              locationTruthV2: lt,
+              workdayAllocation: wda,
+            });
+            displayTimelineBlocksV2 = dt.blocks;
+            displayTimelineDiagnosticsV2 = dt.diagnostics;
+          } catch (e: any) {
+            console.warn('[presence-day] buildDisplayTimelineFromWorkdayAllocation failed', e);
+            displayTimelineDiagnosticsV2 = { error: e?.message ?? String(e) };
+          }
 
           // Lager 3.7 — AI reviewer (read-only, no-op default).
           // WorkdayAllocation is read-only until Lager 4/display integration.
@@ -1363,6 +1380,10 @@ Deno.serve(async (req) => {
     workdayAllocationDiagnostics,
     workdayAllocationSegments,
     workdayAllocationProposals,
+    // Lager 4.1 — Display Timeline (read-only). Säker att konsumeras av UI som
+    // ren visning. Får inte triggera skrivningar.
+    displayTimelineBlocksV2,
+    displayTimelineDiagnosticsV2,
     // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
     aiWorkdayReviewSummary,
     aiWorkdayReviewProposals,
