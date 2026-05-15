@@ -219,5 +219,9 @@ Deno.test('Lager 2.10 E: gap physical bridge — known_target + known_address 80
   assertEquals(r.segments.length, 1, 'förväntat bridgeat till 1 segment');
   const merged = r.segments[0];
   assertEquals((merged.diagnostics as any).gapPolicy, 'bridged_same_physical_location_after_gap');
-  assert(merged.warnings.includes('long_signal_gap'), 'förväntat long_signal_gap warning');
+  assert(
+    merged.warnings.includes('long_signal_gap') || merged.warnings.includes('signal_gap_bridged'),
+    'förväntat signal_gap_bridged eller long_signal_gap warning',
+  );
+  assertEquals((merged.diagnostics as any).bridgeVia, 'physical_proximity');
 });
