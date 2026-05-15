@@ -71,6 +71,24 @@ export interface WorkdayAllocationSegment {
   rawSegmentEndAt?: string;
   /** True om segmentet ligger utanför aktiv workday och därför ej tilldelas arbete. */
   outsideWorkday?: boolean;
+  /** Lager 3.5 — deterministisk projektkandidat för supplier_visit. */
+  linkedProjectCandidate?: SupplierProjectCandidate | null;
+}
+
+export type SupplierProjectCandidateSource =
+  | 'overlapping_assignment'
+  | 'project_before'
+  | 'project_after'
+  | 'pattern_warehouse_supplier_project'
+  | 'pattern_project_supplier_project'
+  | 'pattern_project_supplier_warehouse';
+
+export interface SupplierProjectCandidate {
+  targetType: LocationTruthTargetType;
+  targetId: string;
+  label: string | null;
+  source: SupplierProjectCandidateSource;
+  confidence: WorkdayAllocationConfidence;
 }
 
 export type WorkdayAllocationWarning =
@@ -94,7 +112,9 @@ export type WorkdayAllocationWarning =
   | 'normally_not_paid_commute'
   | 'normally_not_paid_homebound'
   | 'long_travel_over_150km'
-  | 'movement_missing_anchor';
+  | 'movement_missing_anchor'
+  // ── Lager 3.5 — supplier-warning ──────────────────────────────────────
+  | 'supplier_visit_without_project_context';
 
 export interface WorkdayAllocationDiagnostics {
   staffId: string | null;
@@ -138,6 +158,11 @@ export interface WorkdayAllocationDiagnostics {
   commuteTravelCount: number;
   longTravelOver150kmCount: number;
   movementReviewCount: number;
+  // ── Lager 3.5 — supplier-räknare ───────────────────────────────────────
+  /** Alias för supplierVisitCount (Lager 3.5-vokab). */
+  supplierVisits: number;
+  supplierVisitsLinkedToProjectCandidate: number;
+  supplierVisitsWithoutProjectContext: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
@@ -316,6 +341,7 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'needs_review_business_context', 'gap_in_workday', 'allocation_low_confidence',
   'normally_not_paid_commute', 'normally_not_paid_homebound',
   'long_travel_over_150km', 'movement_missing_anchor',
+  'supplier_visit_without_project_context',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
@@ -566,6 +592,9 @@ export function buildWorkdayAllocationFromLocationTruth(
     commuteTravelCount: 0,
     longTravelOver150kmCount: 0,
     movementReviewCount: 0,
+    supplierVisits: 0,
+    supplierVisitsLinkedToProjectCandidate: 0,
+    supplierVisitsWithoutProjectContext: 0,
     examples: [],
   };
 
@@ -809,6 +838,70 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
   }
 
+  // ── Lager 3.5 — Supplier project candidate (deterministisk) ─────────
+  // För varje supplier_visit: försök hitta en rimlig projekt-/booking-
+  // /large_project-kandidat via (a) överlappande assignment, (b) projekt
+  // före, (c) projekt efter, plus mönster warehouse→supplier→project,
+  // project→supplier→project, project→supplier→warehouse.
+  // Skriver ALDRIG någonstans — bara segment.linkedProjectCandidate +
+  // proposal supplier_visit_linked_to_project_candidate.
+  const assignmentItems = input.dayEvidence?.assignments?.items ?? [];
+  const innerSegments = segments.filter((s) => !s.outsideWorkday);
+
+  for (let i = 0; i < innerSegments.length; i++) {
+    const sup = innerSegments[i];
+    if (sup.allocationType !== 'supplier_visit') continue;
+    diag.supplierVisits += 1;
+
+    const supStartMs = Date.parse(sup.startAt);
+    const supEndMs = Date.parse(sup.endAt);
+    const prevWork = findNeighborWork(innerSegments, i, -1);
+    const nextWork = findNeighborWork(innerSegments, i, +1);
+
+    let candidate: SupplierProjectCandidate | null =
+      pickAssignmentCandidate(assignmentItems, supStartMs, supEndMs);
+
+    if (!candidate && prevWork && nextWork) {
+      if (isProjectLike(prevWork) && isProjectLike(nextWork) && sameTarget(prevWork, nextWork)) {
+        candidate = toCandidate(prevWork, 'pattern_project_supplier_project', 'high');
+      } else if (isWarehouseLike(prevWork) && isProjectLike(nextWork)) {
+        candidate = toCandidate(nextWork, 'pattern_warehouse_supplier_project', 'high');
+      } else if (isProjectLike(prevWork) && isWarehouseLike(nextWork)) {
+        candidate = toCandidate(prevWork, 'pattern_project_supplier_warehouse', 'medium');
+      }
+    }
+    if (!candidate && prevWork && isProjectLike(prevWork)) {
+      candidate = toCandidate(prevWork, 'project_before', 'medium');
+    }
+    if (!candidate && nextWork && isProjectLike(nextWork)) {
+      candidate = toCandidate(nextWork, 'project_after', 'medium');
+    }
+
+    if (candidate) {
+      sup.linkedProjectCandidate = candidate;
+      if (sup.confidence === 'low') sup.confidence = 'medium';
+      diag.supplierVisitsLinkedToProjectCandidate += 1;
+      proposals.push({
+        segmentId: sup.sourceLocationTruthSegmentIds[0] ?? sup.id,
+        proposedAllocationType: 'supplier_visit',
+        targetType: candidate.targetType,
+        targetId: candidate.targetId,
+        label: candidate.label,
+        startAt: sup.startAt,
+        endAt: sup.endAt,
+        confidence: candidate.confidence,
+        reason: `supplier_visit_linked_to_project_candidate:${candidate.source}`,
+      });
+    } else {
+      sup.linkedProjectCandidate = null;
+      if (!sup.warnings.includes('supplier_visit_without_project_context')) {
+        sup.warnings.push('supplier_visit_without_project_context');
+        diag.warningsByType.supplier_visit_without_project_context += 1;
+      }
+      diag.supplierVisitsWithoutProjectContext += 1;
+    }
+  }
+
   // Beräkna uncovered minutes inom workday.
   coveredIntervals.sort((a, b) => a[0] - b[0]);
   let cursor = wdStartMs;
@@ -826,4 +919,98 @@ export function buildWorkdayAllocationFromLocationTruth(
 
   diag.buildDurationMs = Date.now() - startedAt;
   return { segments, proposals, diagnostics: diag };
+}
+
+// ── Lager 3.5 — Supplier project candidate helpers ──────────────────────
+
+const PROJECT_LIKE_TYPES = new Set<WorkdayAllocationType>([
+  'project_work', 'large_project_work', 'booking_work',
+]);
+const WAREHOUSE_LIKE_TYPES = new Set<WorkdayAllocationType>([
+  'warehouse_work',
+]);
+
+function isProjectLike(s: WorkdayAllocationSegment): boolean {
+  return PROJECT_LIKE_TYPES.has(s.allocationType);
+}
+function isWarehouseLike(s: WorkdayAllocationSegment): boolean {
+  return WAREHOUSE_LIKE_TYPES.has(s.allocationType);
+}
+function sameTarget(a: WorkdayAllocationSegment, b: WorkdayAllocationSegment): boolean {
+  return !!a.targetId && !!b.targetId &&
+    a.targetType === b.targetType && a.targetId === b.targetId;
+}
+
+function findNeighborWork(
+  list: WorkdayAllocationSegment[],
+  fromIdx: number,
+  step: -1 | 1,
+): WorkdayAllocationSegment | null {
+  for (let k = fromIdx + step; k >= 0 && k < list.length; k += step) {
+    const s = list[k];
+    if (s.allocationType === 'supplier_visit') continue;
+    if (s.allocationType === 'private_time') return null; // hem stoppar sökningen
+    if (isProjectLike(s) || isWarehouseLike(s)) return s;
+    // movement/unlinked/review hoppas över utan att stoppa
+    continue;
+  }
+  return null;
+}
+
+function toCandidate(
+  s: WorkdayAllocationSegment,
+  source: SupplierProjectCandidateSource,
+  confidence: WorkdayAllocationConfidence,
+): SupplierProjectCandidate | null {
+  if (!s.targetType || !s.targetId) return null;
+  return {
+    targetType: s.targetType,
+    targetId: s.targetId,
+    label: s.label,
+    source,
+    confidence,
+  };
+}
+
+interface AssignmentItemLike {
+  projectId: string | null;
+  largeProjectId: string | null;
+  bookingId: string | null;
+  title: string | null;
+  startAt: string | null;
+  endAt: string | null;
+}
+
+function pickAssignmentCandidate(
+  items: AssignmentItemLike[],
+  supStartMs: number,
+  supEndMs: number,
+): SupplierProjectCandidate | null {
+  for (const it of items) {
+    const sMs = toMs(it.startAt);
+    const eMs = toMs(it.endAt);
+    // Kräv tidsöverlapp om assignmenten har tid; annars hoppa.
+    if (sMs === null || eMs === null) continue;
+    const overlaps = sMs < supEndMs && eMs > supStartMs;
+    if (!overlaps) continue;
+    if (it.largeProjectId) {
+      return {
+        targetType: 'large_project', targetId: it.largeProjectId,
+        label: it.title ?? null, source: 'overlapping_assignment', confidence: 'high',
+      };
+    }
+    if (it.projectId) {
+      return {
+        targetType: 'project', targetId: it.projectId,
+        label: it.title ?? null, source: 'overlapping_assignment', confidence: 'high',
+      };
+    }
+    if (it.bookingId) {
+      return {
+        targetType: 'booking', targetId: it.bookingId,
+        label: it.title ?? null, source: 'overlapping_assignment', confidence: 'high',
+      };
+    }
+  }
+  return null;
 }
