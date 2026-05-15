@@ -55,13 +55,14 @@ const SHORT_GAP_MIN = 30;
 const LONG_GAP_MIN = 120;
 const OUTLIER_MAX_MIN = 5;
 const KNOWN_ADDRESS_BRIDGE_RADIUS_M = 100;
+/** Lager 2.10 — fysisk-närhet-bridge tillåter cross-type bridging. */
+const PHYSICAL_PROXIMITY_BRIDGE_RADIUS_M = 250;
 
 /** Tröskel för när två kluster räknas som "samma plats". */
 function sameTargetIdentity(
   a: LocationTruthSegment,
   b: LocationTruthSegment,
-): boolean {
-  if (a.type !== b.type) return false;
+): { same: boolean; via: 'target_id' | 'private_residence' | 'known_address_proximity' | 'physical_proximity' | null } {
   // Samma EventFlow-target via id räknas alltid som samma plats.
   if (
     a.matchedTarget &&
@@ -69,30 +70,56 @@ function sameTargetIdentity(
     a.matchedTarget.targetType === b.matchedTarget.targetType &&
     a.matchedTarget.targetId === b.matchedTarget.targetId
   ) {
-    return true;
+    return { same: true, via: 'target_id' };
   }
   // private_residence utan id → samma om båda är private_residence.
   if (a.type === 'private_residence' && b.type === 'private_residence') {
-    return true;
+    return { same: true, via: 'private_residence' };
   }
-  // known_address utan target ⇒ samma om centroider ligger nära.
+  // known_address ↔ known_address — strikt närhet (legacy).
   if (a.type === 'known_address' && b.type === 'known_address') {
-    if (
-      a.physicalLocation &&
-      b.physicalLocation &&
-      Number.isFinite(a.physicalLocation.lat) &&
-      Number.isFinite(b.physicalLocation.lat)
-    ) {
-      const d = haversineMeters(
-        a.physicalLocation.lat,
-        a.physicalLocation.lng,
-        b.physicalLocation.lat,
-        b.physicalLocation.lng,
-      );
-      return d <= KNOWN_ADDRESS_BRIDGE_RADIUS_M;
+    const d = physicalDistanceMeters(a, b);
+    if (d !== null && d <= KNOWN_ADDRESS_BRIDGE_RADIUS_M) {
+      return { same: true, via: 'known_address_proximity' };
     }
   }
-  return false;
+  // Lager 2.10 — fysisk-närhet bridge ÄVEN om typerna skiljer sig
+  // (known_target ↔ known_address etc). Kräver att båda har physicalLocation.
+  if (
+    isBridgeableType(a.type) &&
+    isBridgeableType(b.type) &&
+    !(a.type === 'private_residence' || b.type === 'private_residence')
+  ) {
+    const d = physicalDistanceMeters(a, b);
+    if (d !== null && d <= PHYSICAL_PROXIMITY_BRIDGE_RADIUS_M) {
+      return { same: true, via: 'physical_proximity' };
+    }
+  }
+  return { same: false, via: null };
+}
+
+function isBridgeableType(t: LocationTruthSegmentType): boolean {
+  return t === 'known_target' || t === 'known_address';
+}
+
+function physicalDistanceMeters(
+  a: LocationTruthSegment,
+  b: LocationTruthSegment,
+): number | null {
+  if (
+    !a.physicalLocation ||
+    !b.physicalLocation ||
+    !Number.isFinite(a.physicalLocation.lat) ||
+    !Number.isFinite(b.physicalLocation.lat)
+  ) {
+    return null;
+  }
+  return haversineMeters(
+    a.physicalLocation.lat,
+    a.physicalLocation.lng,
+    b.physicalLocation.lat,
+    b.physicalLocation.lng,
+  );
 }
 
 function haversineMeters(
@@ -154,6 +181,7 @@ function mergeTwo(
   b: LocationTruthSegment,
   gapMin: number,
   warningTag: 'silent' | 'signal_gap_bridged' | 'long_signal_gap',
+  via: 'target_id' | 'private_residence' | 'known_address_proximity' | 'physical_proximity' | null = 'target_id',
 ): LocationTruthSegment {
   const newWarnings = [...a.warnings];
   for (const w of b.warnings) if (!newWarnings.includes(w)) newWarnings.push(w);
@@ -174,6 +202,11 @@ function mergeTwo(
     ...(b.diagnostics.sourcePingIds ?? []),
   ];
 
+  const gapPolicy =
+    via === 'physical_proximity' || via === 'known_address_proximity'
+      ? 'bridged_same_physical_location_after_gap'
+      : 'bridged_same_target_after_gap';
+
   const merged: LocationTruthSegment = {
     ...a,
     endAt: b.endAt,
@@ -188,7 +221,9 @@ function mergeTwo(
       sourcePingIds,
       bridgedSignalGapMinutes: bridgedTotal,
       // @ts-ignore — utökar metadata
-      gapPolicy: 'bridged_same_target_after_gap',
+      gapPolicy,
+      // @ts-ignore — utökar metadata
+      bridgeVia: via,
       // @ts-ignore — utökar metadata
       noEvidenceOfDeparture: true,
     },
@@ -259,11 +294,13 @@ export function bridgeSignalGaps(
       const candidate = sorted[j];
 
       // Möjlig outlier emellan: kort segment av annan/svag typ.
-      const isOutlier =
+      const outlierIdentity: { same: boolean; via: 'target_id' | 'private_residence' | 'known_address_proximity' | 'physical_proximity' | null } =
         durationMinutes(candidate) <= OUTLIER_MAX_MIN &&
         !KNOWN_TYPES.includes(candidate.type) &&
-        j + 1 < sorted.length &&
-        sameTargetIdentity(current, sorted[j + 1]);
+        j + 1 < sorted.length
+          ? sameTargetIdentity(current, sorted[j + 1])
+          : { same: false, via: null };
+      const isOutlier = outlierIdentity.same;
 
       if (isOutlier) {
         diagnostics.outliersAbsorbed++;
@@ -273,7 +310,7 @@ export function bridgeSignalGaps(
           gapMinutesBetween(current, next) + Math.round(durationMinutes(candidate));
         diagnostics.gapsEvaluated++;
         const tag = pickWarningTag(gapMin);
-        current = mergeTwo(current, next, gapMin, tag);
+        current = mergeTwo(current, next, gapMin, tag, outlierIdentity.via);
         diagnostics.gapsBridgedSameTarget++;
         if (gapMin > LONG_GAP_MIN) diagnostics.longGapsBridged++;
         recordExample(diagnostics, current.id, next.id, gapMin, tag, true, [
@@ -295,9 +332,10 @@ export function bridgeSignalGaps(
       const gapMin = gapMinutesBetween(current, candidate);
       diagnostics.gapsEvaluated++;
 
-      if (sameTargetIdentity(current, candidate)) {
+      const identity = sameTargetIdentity(current, candidate);
+      if (identity.same) {
         const tag = pickWarningTag(gapMin);
-        current = mergeTwo(current, candidate, gapMin, tag);
+        current = mergeTwo(current, candidate, gapMin, tag, identity.via);
         diagnostics.gapsBridgedSameTarget++;
         if (gapMin > LONG_GAP_MIN) diagnostics.longGapsBridged++;
         recordExample(diagnostics, current.id, candidate.id, gapMin, tag, true, []);

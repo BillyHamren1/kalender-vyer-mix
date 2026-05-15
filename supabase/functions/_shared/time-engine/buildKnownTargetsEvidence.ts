@@ -150,6 +150,12 @@ export interface KnownTargetsDiagnostics {
   suppliersWithGeoCount: number;
   suppliersMissingGeoCount: number;
   suppliersMissingRadiusCount: number;
+  /** Lager 2.10 — vilken tabell som faktiskt användes för suppliers. */
+  supplierTableUsed: string | null;
+  /** Lager 2.10 — sant om ingen supplier-tabell hittades. */
+  supplierTableNotFoundWarning: boolean;
+  /** Lager 2.10 — antal suppliers där default-radius applicerades (coords men ingen radius). */
+  defaultSupplierRadiusAppliedCount: number;
   supplierExamples: Array<{
     targetId: string;
     label: string;
@@ -305,6 +311,9 @@ export async function buildKnownTargetsEvidence(
     suppliersWithGeoCount: 0,
     suppliersMissingGeoCount: 0,
     suppliersMissingRadiusCount: 0,
+    supplierTableUsed: null,
+    supplierTableNotFoundWarning: false,
+    defaultSupplierRadiusAppliedCount: 0,
     supplierExamples: [],
     childBookingsSuppressedCount: 0,
     childProjectsSuppressedCount: 0,
@@ -405,46 +414,73 @@ export async function buildKnownTargetsEvidence(
     diag.warnings.push(`organization_locations exception: ${(e as Error).message}`);
   }
 
-  // ── 1b. suppliers / samarbetspartners (Lager 1.13) ───────────────────────
-  // Suppliers ger fysisk plats där personal hämtar/lämnar material även när
-  // det inte finns ett projekt på adressen. Suppliers-tabellen i detta
-  // projekt saknar lat/lng/radius-kolumner — vi försöker plocka geo från
-  // `raw` jsonb om det finns där, annars markeras suppressedReason
-  // 'missing_coordinates' och saknad geo rapporteras i dataQuality.
+  // ── 1b. suppliers / samarbetspartners (Lager 1.13 + 2.10) ────────────────
+  // Vi probar candidate-tabeller i prioritetsordning. external_suppliers
+  // har is_active + raw jsonb där geo kan finnas. suppliers (lokal) saknar
+  // geo-kolumner i nuläget men används som fallback.
   // Suppliers blandas ALDRIG ihop med projects/bookings (egen targetType).
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('suppliers')
-      .select(
+  const SUPPLIER_DEFAULT_RADIUS_M = 120;
+  const SUPPLIER_TABLE_CANDIDATES: Array<{
+    table: string;
+    selectCols: string;
+    extractActive: (r: any) => boolean;
+    extractRaw: (r: any) => Record<string, unknown>;
+  }> = [
+    {
+      table: 'external_suppliers',
+      selectCols:
         'id, name, address_line1, address_line2, postal_code, city, country, is_active, raw',
-      )
-      .eq('organization_id', organizationId);
-    if (error) {
-      diag.warnings.push(
-        `supplier_table_not_found_or_not_configured: suppliers: ${error.message}`,
-      );
-    } else {
+      extractActive: (r) => r?.is_active !== false,
+      extractRaw: (r) => (r?.raw ?? {}) as Record<string, unknown>,
+    },
+    {
+      table: 'suppliers',
+      selectCols:
+        'id, name, address_line1, address_line2, postal_code, city, country',
+      extractActive: () => true,
+      extractRaw: () => ({}),
+    },
+  ];
+
+  let supplierFetched = false;
+  for (const cand of SUPPLIER_TABLE_CANDIDATES) {
+    if (supplierFetched) break;
+    try {
+      const { data, error } = await supabaseAdmin
+        .from(cand.table)
+        .select(cand.selectCols)
+        .eq('organization_id', organizationId);
+      if (error) {
+        diag.warnings.push(
+          `supplier_table_probe_failed:${cand.table}: ${error.message}`,
+        );
+        continue;
+      }
+      diag.supplierTableUsed = cand.table;
+      supplierFetched = true;
       for (const r of data ?? []) {
-        const raw = (r.raw ?? {}) as Record<string, unknown>;
+        const raw = cand.extractRaw(r);
         const pickNum = (v: unknown): number | null =>
           isFiniteNumber(v) ? (v as number) :
           (typeof v === 'string' && Number.isFinite(Number(v))) ? Number(v) : null;
         const lat = pickNum(raw.latitude ?? raw.lat ?? raw.address_latitude);
         const lng = pickNum(raw.longitude ?? raw.lng ?? raw.address_longitude);
-        const radius = pickNum(raw.radius_meters ?? raw.address_radius_meters);
+        const rawRadius = pickNum(raw.radius_meters ?? raw.address_radius_meters);
         const hasCoords = lat !== null && lng !== null;
+        let radius: number | null = rawRadius;
+        let defaultRadiusUsed = false;
+        if (hasCoords && (radius === null || radius <= 0)) {
+          radius = SUPPLIER_DEFAULT_RADIUS_M;
+          defaultRadiusUsed = true;
+        }
         const hasRadius = radius !== null && radius > 0;
         const address =
           [r.address_line1, r.address_line2, r.postal_code, r.city, r.country]
             .filter((s) => typeof s === 'string' && s.trim().length > 0)
             .join(', ') || null;
-        const status = r.is_active === false ? 'inactive' : 'active';
+        const status = cand.extractActive(r) ? 'active' : 'inactive';
         let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.name, status);
         if (!suppressed && !hasCoords) suppressed = 'missing_coordinates';
-        if (!suppressed && !hasRadius) suppressed = 'missing_radius_and_polygon';
-        // Försiktig radiusregel (Lager 1.13 §5): default-radius tillämpas
-        // INTE här — vi rapporterar bara saknad. Diagnostics kan visa det
-        // som default_supplier_radius om Lager 2 senare väljer att använda.
         const usableGeo = !suppressed && hasCoords && hasRadius;
         const label = (typeof r.name === 'string' && r.name.trim()) || '(unnamed supplier)';
         const item: KnownTargetEvidenceItem = {
@@ -458,7 +494,7 @@ export async function buildKnownTargetsEvidence(
           polygon: null,
           hasCoordinates: hasCoords,
           hasRadius,
-          sourceTable: 'suppliers',
+          sourceTable: cand.table,
           status,
           dateWindow: null,
           parentLargeProjectId: null,
@@ -475,9 +511,15 @@ export async function buildKnownTargetsEvidence(
           diag.suppliersMissingGeoCount += 1;
           dq.suppliersMissingCoordinates.push({ targetId: r.id, label, address });
         }
-        if (hasCoords && !hasRadius) {
+        if (hasCoords && rawRadius === null) {
           diag.suppliersMissingRadiusCount += 1;
           dq.suppliersMissingRadius.push({ targetId: r.id, label, address });
+        }
+        if (defaultRadiusUsed) {
+          diag.defaultSupplierRadiusAppliedCount += 1;
+          if (!diag.warnings.includes('default_supplier_radius_applied')) {
+            diag.warnings.push('default_supplier_radius_applied');
+          }
         }
         if (diag.supplierExamples.length < 5) {
           diag.supplierExamples.push({
@@ -490,12 +532,17 @@ export async function buildKnownTargetsEvidence(
           });
         }
       }
+    } catch (e) {
+      diag.warnings.push(
+        `supplier_table_probe_exception:${cand.table}: ${(e as Error).message}`,
+      );
     }
-  } catch (e) {
-    diag.warnings.push(
-      `supplier_table_not_found_or_not_configured: ${(e as Error).message}`,
-    );
   }
+  if (!supplierFetched) {
+    diag.supplierTableNotFoundWarning = true;
+    diag.warnings.push('supplier_table_not_found_or_not_configured');
+  }
+
 
   // ── 2. large_projects ────────────────────────────────────────────────────
   // Samlar bara LP-info här. dataQuality.largeProjectsMissingGeo populeras
