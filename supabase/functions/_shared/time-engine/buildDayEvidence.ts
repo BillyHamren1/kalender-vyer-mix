@@ -652,6 +652,7 @@ export async function buildDayEvidence(
   // large_project_team_assignments för staff/dag. Får INTE användas som
   // location truth, display-block eller för transport/okänd plats/granska.
   // Lager 2 konsumerar detta som CONTEXT mot faktiska bevis.
+  let assignmentCalendarEventsForKt: any[] = [];
   try {
     const ae = await buildAssignmentEvidence({
       supabaseAdmin: input.supabaseAdmin,
@@ -673,6 +674,16 @@ export async function buildDayEvidence(
     evidence.dataQuality.assignmentsAvailable = ae.items.length > 0;
     evidence.diagnostics.counts.assignments = ae.items.length;
     evidence.diagnostics.assignmentEvidenceDiagnostics = ae.diagnostics;
+    // Lager 1.9 — bevara rik calendar_event-form för knownTargets-anropet.
+    assignmentCalendarEventsForKt = (ae.calendarEvents ?? []).map((ce) => ({
+      id: ce.assignmentId,
+      eventId: ce.eventId,
+      bookingId: ce.bookingId,
+      largeProjectId: ce.largeProjectId,
+      teamId: ce.teamId,
+      title: ce.title,
+      plannedPhase: ce.plannedPhase,
+    }));
     if (ae.diagnostics.warnings.length > 0) {
       for (const w of ae.diagnostics.warnings) warnings.push(`assignment_evidence:${w}`);
     }
