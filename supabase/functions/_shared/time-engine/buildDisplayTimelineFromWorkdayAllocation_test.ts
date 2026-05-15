@@ -217,7 +217,8 @@ Deno.test('4.1: title=label, subtitle=address + duration', () => {
   const r = run(wda([
     seg({ id: 'a', label: 'Acme', address: 'Sveavägen 1', startAt: '2026-05-15T08:00:00Z', endAt: '2026-05-15T09:30:00Z' }),
   ]));
-  assertEquals(r.blocks[0].title, 'Acme');
+  // Lager 4.3: project_work får svensk prefix-rubrik.
+  assertEquals(r.blocks[0].title, 'Projektarbete — Acme');
   assertEquals(r.blocks[0].subtitle, 'Sveavägen 1 · 1 h 30 min');
 });
 
