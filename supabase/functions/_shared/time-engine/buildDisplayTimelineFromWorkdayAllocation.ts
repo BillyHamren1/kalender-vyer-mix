@@ -443,6 +443,9 @@ function buildBlockFromSegments(
       containsOutsideWorkday: containsOutside,
       rawAllocationWarnings: Array.from(new Set(allWarnings)),
       relatedProposalSegmentIds: Array.from(new Set(proposalSegmentIds)),
+      absorbedGapMinutes: 0,
+      absorbedSupplierVisits: [],
+      absorbedTravelSegments: [],
     },
   };
   const subtitle = deriveSubtitle(displayType, { address, durationMinutes: dur });
