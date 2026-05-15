@@ -111,6 +111,40 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
     },
   });
 
+  // Load existing todo for edit mode
+  useQuery({
+    queryKey: ['todo-edit-load', todoId],
+    enabled: open && !!todoId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('todos')
+        .select('*')
+        .eq('id', todoId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) {
+        setTypeId(data.type_id || '');
+        setTitle(data.title || '');
+        setSelectedBookingId(data.booking_id || '');
+        setAssignedLeader(data.assigned_leader || '');
+        setClient(data.client || '');
+        setContactName(data.contact_name || '');
+        setContactPhone(data.contact_phone || '');
+        setContactEmail(data.contact_email || '');
+        setAddress(data.address || '');
+        setCity(data.city || '');
+        setPostalCode(data.postal_code || '');
+        setLatitude(data.latitude ?? undefined);
+        setLongitude(data.longitude ?? undefined);
+        setScheduledDate(data.scheduled_date || '');
+        setStartTime(data.start_time ? String(data.start_time).slice(0, 5) : '');
+        setEndTime(data.end_time ? String(data.end_time).slice(0, 5) : '');
+        setInternalNotes(data.internal_notes || '');
+      }
+      return data;
+    },
+    staleTime: 0,
+  });
   // Profiles for leader
   const { data: leaders = [] } = useQuery({
     queryKey: ['todo-wizard-leaders'],
