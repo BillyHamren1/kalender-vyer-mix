@@ -592,6 +592,9 @@ export function buildWorkdayAllocationFromLocationTruth(
     commuteTravelCount: 0,
     longTravelOver150kmCount: 0,
     movementReviewCount: 0,
+    supplierVisits: 0,
+    supplierVisitsLinkedToProjectCandidate: 0,
+    supplierVisitsWithoutProjectContext: 0,
     examples: [],
   };
 
