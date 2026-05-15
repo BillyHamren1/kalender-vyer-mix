@@ -74,9 +74,26 @@ export function resolvePhysicalLocationForCluster(
         matchedKnownType === 'private_zone' ||
         matchedKnownType === 'home_observation' ||
         matchedKnownType === 'inferred_home';
+      // Lager 2.11B — fyll address från target. KnownTargetEvidenceItem har
+      // bara `address`, men vi läser även ev. extra-fält som finns på
+      // varianter av targetet (formattedAddress/fullAddress/locationAddress).
+      const anyT = t as unknown as Record<string, unknown>;
+      const addrCandidates = [
+        t.address,
+        anyT.formattedAddress,
+        anyT.fullAddress,
+        anyT.locationAddress,
+      ];
+      const address = addrCandidates.find(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0,
+      ) ?? undefined;
+      if (!address) {
+        warnings.push('target_address_missing');
+      }
       return {
         physicalLocation: {
           label: t.label,
+          ...(address ? { address } : {}),
           lat: t.lat,
           lng: t.lng,
           source: isPrivate ? 'private_zone' : 'eventflow_target',
