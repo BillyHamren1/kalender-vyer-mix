@@ -134,11 +134,25 @@ export type LocationTruthSegmentType =
  * Final-listan innehåller medvetet INTE: rig/work/event/rigdown/payroll/
  * display_blocks. Det är en plats-tidslinje, inte en arbetspass-tolkning.
  */
+/**
+ * Final platsalfabet (Lager 2.6 reviderat).
+ *
+ * Viktig distinktion:
+ * - `unresolved_location` betyder att vi INTE kan avgöra fysisk plats
+ *   (för få/spridda pings, ingen stabil centroid, ingen reverse-geocode).
+ * - `known_address` betyder att fysisk plats ÄR avgjord (stabil centroid /
+ *   adress) men ingen EventFlow-target (booking/projekt/lager) kan kopplas.
+ *   Det är `unresolved_business_context`, INTE okänd plats.
+ *
+ * `unknown_area` finns INTE längre — använd `unresolved_location`
+ * (fysisk plats okänd) eller `known_address` (plats känd, business okänd).
+ */
 export type FinalLocationTruthSegmentType =
   | 'known_site'
+  | 'known_address'
   | 'movement'
   | 'private_residence'
-  | 'unknown_area'
+  | 'unresolved_location'
   | 'needs_location_review';
 
 export type LocationTruthTargetType =
