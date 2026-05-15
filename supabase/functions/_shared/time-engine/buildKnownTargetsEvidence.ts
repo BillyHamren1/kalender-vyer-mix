@@ -514,6 +514,7 @@ export async function buildKnownTargetsEvidence(
     );
   }
 
+  // ── 2. large_projects ────────────────────────────────────────────────────
   // Samlar bara LP-info här. dataQuality.largeProjectsMissingGeo populeras
   // i post-pass när vi vet hur många child-objekt varje LP har.
   interface LpInfo { id: string; label: string; hasGeo: boolean; suppressed: KnownTargetSuppressedReason }
