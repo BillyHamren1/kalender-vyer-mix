@@ -89,7 +89,7 @@ Deno.test('Lager 3.5 — överlappande assignment ger high-confidence kandidat',
   assertEquals(sup.linkedProjectCandidate!.confidence, 'high');
   assertEquals(r.diagnostics.supplierVisitsLinkedToProjectCandidate, 1);
   assertEquals(r.diagnostics.supplierVisitsWithoutProjectContext, 0);
-  const prop = r.proposals.find((p) => p.reason.startsWith('supplier_visit_linked_to_project_candidate'));
+  const prop = r.proposals.find((p) => p.proposalType === 'link_supplier_to_project_candidate');
   assert(prop);
 });
 
