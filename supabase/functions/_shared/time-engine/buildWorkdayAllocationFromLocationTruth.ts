@@ -41,16 +41,27 @@ export type WorkdayAllocationType =
 
 export type WorkdayAllocationConfidence = 'high' | 'medium' | 'low';
 
+// ── Lager 3.11B — kanoniska assignmentStatus-värden ──────────────────
+//   assigned                 = matchad target av typ project/booking/large_project
+//                              OCH personen var planerad på den (overlap).
+//   unassigned_but_present   = matchad project/booking/large_project utan assignment
+//                              (GPS/plats är tydlig men personalen var inte planerad).
+//   no_assignment_required   = matchad supplier/warehouse/organization_location
+//                              (ingen assignment krävs i normal arbetskontext).
+//   unknown                  = status kan inte avgöras (t.ex. utanför workday).
 export type WorkdayAllocationAssignmentStatus =
-  // ── Lager 3.10D — kanoniska värden enligt spec ───────────────────────
   | 'assigned'
   | 'unassigned_but_present'
   | 'no_assignment_required'
-  | 'unknown'
-  // ── Legacy-värden (behålls för bakåtkompatibilitet med tester/UI) ────
-  | 'assigned_overlap'
-  | 'assigned_no_overlap'
-  | 'no_assignment';
+  | 'unknown';
+
+// Lager 3.11B — extra detaljnivå utan att förorena assignmentStatus.
+export type WorkdayAllocationAssignmentMatch =
+  | 'overlap'        // assignment finns och täcker intervallet
+  | 'no_overlap'     // matchad target men ingen assignment-overlap
+  | 'not_required'   // supplier/warehouse/organization_location
+  | 'missing'        // ingen target alls
+  | 'unknown';       // utanför workday / kan ej avgöras
 
 export interface WorkdayAllocationSegment {
   id: string;
