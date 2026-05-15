@@ -1385,6 +1385,7 @@ Deno.serve(async (req) => {
     // Lager 4.1 — Display Timeline (read-only). Säker att konsumeras av UI som
     // ren visning. Får inte triggera skrivningar.
     displayTimelineBlocksV2,
+    displayTimelineDayActionsV2,
     displayTimelineDiagnosticsV2,
     // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
     aiWorkdayReviewSummary,
