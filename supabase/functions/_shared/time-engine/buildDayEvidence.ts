@@ -1,5 +1,12 @@
 /**
- * Day Evidence Layer (Time Engine 1.1)
+ * Day Evidence Layer (Time Engine 1.x — Lager 1)
+ *
+ * Day Evidence is now a consumable read-only evidence layer.
+ * Lager 2 may consume DayEvidence.internal.locationLogicPings when
+ * explicitly wired. Downstream legacy engines must not assume raw GPS
+ * pings are already normalized.
+ *
+ * This layer does not build blocks, reports, payroll, or display timelines.
  *
  * Responsibilities:
  *   - collect raw signals (GPS pings, assignments, known targets, private
@@ -16,9 +23,6 @@
  *   - GPS / location evidence is handled later by Location Truth (1.2+).
  *   - Large project owns its own geo; child bookings are NOT geo fallback.
  *   - This layer must remain side-effect free and read-only.
- *
- * This file is intentionally a scaffold. Downstream callers must NOT consume
- * its output as work-block input until later phases wire it in explicitly.
  */
 
 import {
@@ -300,6 +304,22 @@ export interface DayEvidence {
    * Få aldrig serialiseras 1:1 utåt om mängden blir stor; expose via summary.
    * normalizedPings = alla normaliserade pings (inkl. outlier-ignored).
    * locationLogicPings = pings där hardRejected=false och ignoredForLocationLogic=false.
+   *
+   * ── Lager 2 input contract ────────────────────────────────────────────
+   * Lager 2 ska använda:
+   *   - evidence.internal.locationLogicPings   (sanningskälla för plats-pings)
+   *   - evidence.gps.locationLogicPingCount
+   *   - evidence.assignments                   (CONTEXT, inte proof of location)
+   *   - evidence.knownTargets                  (CONTEXT, inte bevis på närvaro)
+   *   - evidence.privateResidence
+   *   - evidence.largeProjects
+   *   - evidence.dataQuality
+   *
+   * Lager 2 ska INTE använda:
+   *   - raw staff_location_history direkt
+   *   - buildGpsDayTimeline:s gamla accuracy-filter
+   *   - child booking geo som fallback för large project
+   *   - planning som proof of location
    */
   internal: {
     normalizedPings: NormalizedGpsPing[];
@@ -397,16 +417,18 @@ const emptyLargeProjects = (): DayLargeProjectEvidence => ({
 // ── Builder ────────────────────────────────────────────────────────────────
 
 /**
- * v1: scaffold only. Returns safe empty defaults plus diagnostics.
+ * Build read-only Day Evidence for one staff/day.
  *
- * Future phases will populate sub-evidence by reading:
- *   - gps_pings (read-only)
- *   - staff_assignments (read-only)
- *   - resolveWorkTargets() pure helper output
- *   - staff_private_zones (read-only)
- *   - large_projects (read-only)
+ * Output shape is stable: even when sub-builders fail, every field on
+ * `evidence.gps`, `evidence.knownTargets.dataQuality`, `evidence.internal`
+ * and `evidence.diagnostics` is guaranteed to be present (see emptyGps /
+ * emptyKnownTargets / emptyAssignments). Lager 2 may rely on this.
  *
- * Until then, downstream MUST treat this as opaque diagnostics-only.
+ * Side-effect free. Reads from:
+ *   - staff_location_history (paginated reader)
+ *   - staff_assignments / booking_staff_assignments / calendar_events / large_project_team_assignments
+ *   - organization_locations / projects / bookings / large_projects
+ *   - staff_private_zones / home anchors
  */
 export async function buildDayEvidence(
   input: BuildDayEvidenceInput,
@@ -767,6 +789,35 @@ export async function buildDayEvidence(
     const msg = err instanceof Error ? err.message : String(err);
     evidence.diagnostics.errors.knownTargets = msg;
     warnings.push(`known_targets_exception: ${msg}`);
+  }
+
+  // ── Lager 1.12 — final shape safety pass ──────────────────────────────
+  // Garantera att Lager 2 alltid får arrays + numeriska räknare oavsett
+  // om någon sub-builder kastat exception eller returnerat tomt.
+  if (!Array.isArray(evidence.internal.normalizedPings)) evidence.internal.normalizedPings = [];
+  if (!Array.isArray(evidence.internal.locationLogicPings)) evidence.internal.locationLogicPings = [];
+  if (!Array.isArray(evidence.internal.hardRejectedPings)) evidence.internal.hardRejectedPings = [];
+  const g = evidence.gps;
+  g.rawPingCount = Number.isFinite(g.rawPingCount) ? g.rawPingCount : 0;
+  g.fetchedPingCount = Number.isFinite(g.fetchedPingCount) ? g.fetchedPingCount : 0;
+  g.normalizedPingCount = Number.isFinite(g.normalizedPingCount) ? g.normalizedPingCount : 0;
+  g.locationLogicPingCount = Number.isFinite(g.locationLogicPingCount) ? g.locationLogicPingCount : 0;
+  g.hardRejectedPingCount = Number.isFinite(g.hardRejectedPingCount) ? g.hardRejectedPingCount : 0;
+  g.ignoredOutlierPingCount = Number.isFinite(g.ignoredOutlierPingCount) ? g.ignoredOutlierPingCount : 0;
+  g.longGapCount = Number.isFinite(g.longGapCount) ? g.longGapCount : 0;
+  g.coverageRatio = Number.isFinite(g.coverageRatio) ? g.coverageRatio : 0;
+  // dataQuality-arrays: säkerställ att inga är undefined.
+  const dq = evidence.knownTargets.dataQuality as unknown as Record<string, unknown>;
+  for (const k of [
+    'targetsMissingCoordinates','targetsMissingRadius','largeProjectsMissingGeo',
+    'bookingsInsideLargeProjects','projectsInsideLargeProjects',
+    'childBookingsSuppressedAsTargets','childProjectsSuppressedAsTargets',
+    'ambiguousLargeProjectChildProjects','assignmentsWithoutMatchingTarget',
+    'calendarEventsWithoutTarget','calendarEventsWithLargeProjectContext',
+    'calendarEventsPointingToChildBooking','calendarEventsPointingToMissingGeoLargeProject',
+    'targetsWithNullRadius',
+  ]) {
+    if (!Array.isArray(dq[k])) dq[k] = [];
   }
 
   evidence.diagnostics.buildDurationMs = Date.now() - startedAt;
