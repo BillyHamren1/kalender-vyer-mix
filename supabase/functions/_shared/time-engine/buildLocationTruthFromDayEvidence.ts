@@ -134,11 +134,25 @@ export type LocationTruthSegmentType =
  * Final-listan innehåller medvetet INTE: rig/work/event/rigdown/payroll/
  * display_blocks. Det är en plats-tidslinje, inte en arbetspass-tolkning.
  */
+/**
+ * Final platsalfabet (Lager 2.6 reviderat).
+ *
+ * Viktig distinktion:
+ * - `unresolved_location` betyder att vi INTE kan avgöra fysisk plats
+ *   (för få/spridda pings, ingen stabil centroid, ingen reverse-geocode).
+ * - `known_address` betyder att fysisk plats ÄR avgjord (stabil centroid /
+ *   adress) men ingen EventFlow-target (booking/projekt/lager) kan kopplas.
+ *   Det är `unresolved_business_context`, INTE okänd plats.
+ *
+ * `unknown_area` finns INTE längre — använd `unresolved_location`
+ * (fysisk plats okänd) eller `known_address` (plats känd, business okänd).
+ */
 export type FinalLocationTruthSegmentType =
   | 'known_site'
+  | 'known_address'
   | 'movement'
   | 'private_residence'
-  | 'unknown_area'
+  | 'unresolved_location'
   | 'needs_location_review';
 
 export type LocationTruthTargetType =
@@ -250,7 +264,8 @@ export interface LocationTruthSummary {
   knownSiteSegmentCount: number;
   movementSegmentCount: number;
   privateResidenceSegmentCount: number;
-  unknownAreaSegmentCount: number;
+  knownAddressSegmentCount: number;
+  unresolvedLocationSegmentCount: number;
   reviewSegmentCount: number;
   bridgedGapMinutesTotal: number;
   ignoredOutlierPingCount: number;
@@ -340,9 +355,12 @@ const STRONG_REVIEW_WARNINGS = new Set([
 function mapToFinalType(
   seg: LocationTruthSegment,
 ): FinalLocationTruthSegmentType {
+  const hasStrongReview = (seg.warnings ?? []).some((w) =>
+    STRONG_REVIEW_WARNINGS.has(w),
+  );
   switch (seg.type) {
     case 'known_target':
-      return 'known_site';
+      return hasStrongReview ? 'needs_location_review' : 'known_site';
     case 'private_residence':
       return 'private_residence';
     case 'movement':
@@ -350,15 +368,14 @@ function mapToFinalType(
     case 'needs_location_review':
       return 'needs_location_review';
     case 'known_address':
-    case 'unresolved_location': {
-      const hasStrongReview = (seg.warnings ?? []).some((w) =>
-        STRONG_REVIEW_WARNINGS.has(w),
-      );
-      if (hasStrongReview) return 'needs_location_review';
-      return 'unknown_area';
-    }
+      // Fysisk plats är känd (stabil centroid/adress). Saknad
+      // booking/projekt/lager = unresolved_business_context, inte okänd plats.
+      return hasStrongReview ? 'needs_location_review' : 'known_address';
+    case 'unresolved_location':
+      // Fysisk plats kan inte avgöras (för få/spridda pings).
+      return hasStrongReview ? 'needs_location_review' : 'unresolved_location';
     default:
-      return 'unknown_area';
+      return 'unresolved_location';
   }
 }
 
@@ -636,7 +653,7 @@ export function buildLocationTruthFromDayEvidence(
         startAt: cluster.startAt,
         endAt: cluster.endAt,
         type: segmentType,
-        finalType: 'unknown_area', // sätts korrekt i Lager 2.6-mappning nedan
+        finalType: 'unresolved_location', // sätts korrekt i Lager 2.6-mappning nedan
         matchedTarget,
         physicalLocation: phys.physicalLocation,
         businessContext,
@@ -740,15 +757,17 @@ export function buildLocationTruthFromDayEvidence(
     knownSiteSegmentCount: 0,
     movementSegmentCount: 0,
     privateResidenceSegmentCount: 0,
-    unknownAreaSegmentCount: 0,
+    knownAddressSegmentCount: 0,
+    unresolvedLocationSegmentCount: 0,
     reviewSegmentCount: 0,
     bridgedGapMinutesTotal: 0,
     ignoredOutlierPingCount: stableClusterDiagnostics?.ignoredOutlierPingCount ?? 0,
     finalSegmentsByType: {
       known_site: 0,
+      known_address: 0,
       movement: 0,
       private_residence: 0,
-      unknown_area: 0,
+      unresolved_location: 0,
       needs_location_review: 0,
     },
     examples: [],
@@ -764,14 +783,17 @@ export function buildLocationTruthFromDayEvidence(
       case 'known_site':
         finalSummary.knownSiteSegmentCount++;
         break;
+      case 'known_address':
+        finalSummary.knownAddressSegmentCount++;
+        break;
       case 'movement':
         finalSummary.movementSegmentCount++;
         break;
       case 'private_residence':
         finalSummary.privateResidenceSegmentCount++;
         break;
-      case 'unknown_area':
-        finalSummary.unknownAreaSegmentCount++;
+      case 'unresolved_location':
+        finalSummary.unresolvedLocationSegmentCount++;
         break;
       case 'needs_location_review':
         finalSummary.reviewSegmentCount++;
