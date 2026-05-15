@@ -1605,6 +1605,34 @@ const KPI: React.FC<{ icon?: React.ReactNode; label: string; value: string; acce
   </span>
 );
 
+const SummaryCard: React.FC<{
+  icon: React.ReactNode;
+  iconClass?: string;
+  value: string;
+  label: string;
+  accent?: 'emerald' | 'amber';
+}> = ({ icon, iconClass, value, label, accent }) => (
+  <div className="flex min-w-[140px] items-center gap-3 rounded-xl border border-border/70 bg-background px-3.5 py-2.5 shadow-sm">
+    <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', iconClass ?? 'bg-muted text-muted-foreground')}>
+      {icon}
+    </div>
+    <div className="flex flex-col leading-tight">
+      <span
+        className={cn(
+          'text-lg font-semibold tabular-nums',
+          accent === 'emerald' && 'text-emerald-600 dark:text-emerald-400',
+          accent === 'amber' && 'text-amber-600 dark:text-amber-400',
+          !accent && 'text-foreground',
+        )}
+      >
+        {value}
+      </span>
+      <span className="text-[11.5px] text-muted-foreground">{label}</span>
+    </div>
+  </div>
+);
+
+
 interface DrawerBodyProps {
   staff: StaffWithDayReport;
   dateStr: string;
