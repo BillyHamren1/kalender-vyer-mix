@@ -470,13 +470,13 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'movement_classified_as_work_travel', 'movement_classified_as_commute',
   'unassigned_known_target_presence', 'staff_not_assigned_to_matched_target',
   'no_project_link', 'planning_geo_mismatch',
-  'supplier_visit_no_assignment', 'warehouse_presence_no_assignment',
-  'needs_review_business_context', 'gap_in_workday', 'allocation_low_confidence',
+  'needs_review_business_context', 'allocation_low_confidence',
   'normally_not_paid_commute', 'normally_not_paid_homebound',
   'long_travel_over_150km', 'movement_missing_anchor',
-  'supplier_visit_without_project_context',
+  'supplier_visit_without_project_context', 'supplier_visit_during_planned_project',
   'home_after_last_work_location', 'temporary_home_presence',
   'workday_time_without_location_truth_segment',
+  'warehouse_presence', 'warehouse_presence_during_planned_project',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
