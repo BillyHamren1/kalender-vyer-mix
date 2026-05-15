@@ -14,6 +14,7 @@ import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import LargeProjectScheduleEditable from "@/components/project/LargeProjectScheduleEditable";
 import { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
+import { useBookingPhaseDays } from "@/hooks/useBookingPhaseDays";
 import { fetchAvailableBookingsForLargeProject } from "@/services/largeProjectService";
 import { ProjectStatus } from "@/types/project";
 import { cn } from "@/lib/utils";
