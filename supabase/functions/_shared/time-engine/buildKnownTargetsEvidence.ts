@@ -787,9 +787,77 @@ export async function buildKnownTargetsEvidence(
       });
     }
   }
+  // ── Lager 1.9: calendar_event ↔ target-matchning ────────────────────────
+  // Bygg index för LP-context (booking → lp + lp_geo_status).
+  const bookingItemsById = new Map<string, KnownTargetEvidenceItem>();
+  for (const it of items) if (it.targetType === 'booking') bookingItemsById.set(it.targetId, it);
+  const lpItemsById = new Map<string, KnownTargetEvidenceItem>();
+  for (const it of items) if (it.targetType === 'large_project') lpItemsById.set(it.targetId, it);
+
+  const ceDiag = diag.calendarEventTargetDiagnostics;
   for (const ce of input.assignmentCalendarEvents ?? []) {
-    if (!ce.bookingId || !targetBookingIds.has(ce.bookingId)) {
-      dq.calendarEventsWithoutTarget.push({ calendarEventId: ce.id, bookingId: ce.bookingId });
+    ceDiag.calendarEventCount += 1;
+    const ceId = ce.eventId ?? ce.id ?? null;
+    const bookingItem = ce.bookingId ? bookingItemsById.get(ce.bookingId) : null;
+    const lpId =
+      bookingItem?.parentLargeProjectId ??
+      ce.largeProjectId ??
+      null;
+    const lpItem = lpId ? lpItemsById.get(lpId) : null;
+
+    let classification: 'with_target' | 'no_booking_ref' | 'booking_not_in_targets' | 'child_booking_inside_lp' | 'lp_missing_geo' = 'with_target';
+
+    if (!ce.bookingId) {
+      classification = 'no_booking_ref';
+      dq.calendarEventsWithoutTarget.push({ calendarEventId: ceId, bookingId: null, reason: 'no_booking_ref' });
+      ceDiag.calendarEventsWithoutTargetCount += 1;
+    } else if (!bookingItem) {
+      classification = 'booking_not_in_targets';
+      dq.calendarEventsWithoutTarget.push({ calendarEventId: ceId, bookingId: ce.bookingId, reason: 'booking_not_in_targets' });
+      ceDiag.calendarEventsWithoutTargetCount += 1;
+    } else {
+      ceDiag.calendarEventsWithTargetCount += 1;
+    }
+
+    if (lpId) {
+      ceDiag.calendarEventsWithLargeProjectContextCount += 1;
+      dq.calendarEventsWithLargeProjectContext.push({
+        calendarEventId: ceId,
+        bookingId: ce.bookingId,
+        largeProjectId: lpId,
+      });
+      // Child booking suppressed?
+      if (bookingItem && bookingItem.suppressedReason === 'child_booking_inside_large_project' && ce.bookingId) {
+        classification = 'child_booking_inside_lp';
+        ceDiag.calendarEventsPointingToChildBookingCount += 1;
+        dq.calendarEventsPointingToChildBooking.push({
+          calendarEventId: ceId,
+          bookingId: ce.bookingId,
+          largeProjectId: lpId,
+        });
+      }
+      // LP saknar egen geo?
+      if (lpItem && !lpItem.canBeGeoTarget) {
+        if (classification === 'with_target') classification = 'lp_missing_geo';
+        ceDiag.calendarEventsPointingToMissingGeoLargeProjectCount += 1;
+        dq.calendarEventsPointingToMissingGeoLargeProject.push({
+          calendarEventId: ceId,
+          bookingId: ce.bookingId,
+          largeProjectId: lpId,
+        });
+      }
+    }
+
+    if (ceDiag.examples.length < 8) {
+      ceDiag.examples.push({
+        calendarEventId: ceId,
+        bookingId: ce.bookingId ?? null,
+        largeProjectId: lpId,
+        teamId: ce.teamId ?? null,
+        title: ce.title ?? null,
+        plannedPhase: ce.plannedPhase ?? null,
+        classification,
+      });
     }
   }
 
