@@ -2,7 +2,8 @@ import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { propagateProjectDatesToBookings, arrayToPeriod } from "@/services/largeProjectScheduleSync";
+import { arrayToPeriod } from "@/services/largeProjectScheduleSync";
+import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -303,16 +304,21 @@ const LargeProjectLayout = () => {
       return;
     }
 
-    // 2. Trigga calendar_events-regenerering från de nya LP-datumen.
+    // 2. Pusha till externa systemet + rebuilda calendar_events via central authority.
     if (bookingIds.length > 0) {
       try {
-        await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
+        const res = await writeProjectDates({
+          projectId: id!,
+          projectType: 'large',
+          dates: { [dateType]: dates },
+        });
+        if (!res.ok) throw new Error(res.error || 'apply-project-dates failed');
       } catch (err: any) {
-        console.error('Error regenerating calendar for project dates:', err);
+        console.error('Error propagating project dates:', err);
         queryClient.invalidateQueries({ queryKey: ['large-project', id] });
         queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
         const msg = err?.message || 'Okänt fel';
-        toast.error(`Datumen sparades men kalendern kunde inte regenereras: ${msg}`);
+        toast.error(`Datumen sparades lokalt men kunde inte spridas: ${msg}`);
         return;
       }
     }

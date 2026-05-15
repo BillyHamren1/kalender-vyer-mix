@@ -33,16 +33,10 @@ export function arrayToPeriod(dates: string[] | null | undefined): { start: stri
 }
 
 /**
- * Propagate one phase's full date array to every linked sub-booking.
- *
- * IMPORTANT — LP datum-policy (mem://constraints/large-project-dates-local-authority-v1):
- * Stora projekts datum (rig/event/rigdown) ägs av `large_projects` LOKALT.
- * Externa Bokning-API:t accepterar inte LP-datum på sub-booking-nivå
- * (returnerar 400 "Unknown type: bookings"). Vi skriver därför ALDRIG dessa
- * via planning-api-proxy. `import-bookings`-reconcileraren läser redan från
- * `large_projects` (REP-path) när den materialiserar `calendar_events`.
- *
- * Vi triggar bara `import-bookings` för REP-bokningen så kalendern regenereras.
+ * @deprecated Använd `writeProjectDates` från `@/services/projectDateAuthority`.
+ * Den centrala edge-funktionen `apply-project-dates` är nu enda vägen för UI att
+ * skriva projekt-datum: den uppdaterar lokala bookings, pushar till externa systemet
+ * (arrayer per fas) OCH rebuildar calendar_events. Gå INTE runt den.
  */
 export async function propagateProjectDatesToBookings(params: {
   bookingIds: string[];
@@ -51,27 +45,7 @@ export async function propagateProjectDatesToBookings(params: {
   startTime?: string | null;
   endTime?: string | null;
 }): Promise<void> {
-  const { bookingIds } = params;
-  if (bookingIds.length === 0) return;
-
-  // Trigger calendar_events regeneration. Reconcileraren skippar non-REP-bokningar
-  // automatiskt och plockar LP-datumen från large_projects.
-  const { data: { user } } = await supabase.auth.getUser();
-  let orgId: string | undefined;
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .single();
-    orgId = profile?.organization_id ?? undefined;
-  }
-
-  await Promise.all(
-    bookingIds.map(bid =>
-      supabase.functions.invoke('import-bookings', {
-        body: { booking_id: bid, syncMode: 'single', organization_id: orgId, localOnly: true, skip_review: true },
-      })
-    )
+  throw new Error(
+    'propagateProjectDatesToBookings är borttagen. Använd writeProjectDates från @/services/projectDateAuthority.',
   );
 }

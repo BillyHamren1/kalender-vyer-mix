@@ -15,7 +15,7 @@ import LargeProjectScheduleEditable from "@/components/project/LargeProjectSched
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { cancelProject } from "@/services/projectService";
 import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
-import { propagateProjectDatesToBookings } from "@/services/largeProjectScheduleSync";
+import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -176,28 +176,21 @@ const ProjectLayout = () => {
     startTime: string,
     endTime: string,
   ) => {
-    const dateField = { rig: 'rigdaydate', event: 'eventdate', rigDown: 'rigdowndate' }[dateType];
     const startField = { rig: 'rig_start_time', event: 'event_start_time', rigDown: 'rigdown_start_time' }[dateType];
     const endField = { rig: 'rig_end_time', event: 'event_end_time', rigDown: 'rigdown_end_time' }[dateType];
     try {
+      // 1. Lokal projekt-rad: bara tider här (datum hanteras via central authority).
       await detail.updateProject({
-        [dateField]: dates[0] || null,
         [startField]: startTime || null,
         [endField]: endTime || null,
       } as any);
-      if (project.booking_id) {
-        try {
-          await propagateProjectDatesToBookings({
-            bookingIds: [project.booking_id],
-            dateType,
-            dates,
-            startTime,
-            endTime,
-          });
-        } catch (err) {
-          console.warn('Calendar regen failed:', err);
-        }
-      }
+      // 2. Sprid datum till sub-booking + externa systemet + rebuild calendar.
+      const res = await writeProjectDates({
+        projectId: projectId!,
+        projectType: 'medium',
+        dates: { [dateType]: dates },
+      });
+      if (!res.ok) throw new Error(res.error || 'apply-project-dates failed');
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
       toast.success('Schema uppdaterat');
     } catch (e: any) {

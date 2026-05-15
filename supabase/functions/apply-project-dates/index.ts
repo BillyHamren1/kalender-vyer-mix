@@ -35,11 +35,16 @@ const PHASE_TO_EXTERNAL_FIELD: Record<Phase, keyof ExternalWriteFields> = {
 type RequestBody = {
   project_id: string;
   project_type: 'medium' | 'large';
-  organization_id: string;
+  // organization_id valfri — om saknad härleds den från caller's profile.
+  organization_id?: string;
   // Per fas: full lista av datum (YYYY-MM-DD) som projektet vill att alla sub-bookings ska ha.
   dates: Partial<Record<Phase, string[]>>;
   // Dry-run: ingen lokal UPDATE, ingen extern push, ingen calendar-rebuild. Endast payload-preview.
   dry_run?: boolean;
+};
+
+type ResolvedRequest = Required<Pick<RequestBody, 'project_id' | 'project_type' | 'organization_id' | 'dates'>> & {
+  dry_run: boolean;
 };
 
 type PerBookingResult = {
@@ -69,7 +74,9 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
   if (b.project_type !== 'medium' && b.project_type !== 'large') {
     return { ok: false, error: 'project_type must be medium|large' };
   }
-  if (typeof b.organization_id !== 'string') return { ok: false, error: 'organization_id required' };
+  if (b.organization_id !== undefined && typeof b.organization_id !== 'string') {
+    return { ok: false, error: 'organization_id must be string when provided' };
+  }
   if (!b.dates || typeof b.dates !== 'object') return { ok: false, error: 'dates required' };
 
   const datesObj = b.dates as Record<string, unknown>;
@@ -79,7 +86,6 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
     const arr = datesObj[phase];
     if (!Array.isArray(arr)) return { ok: false, error: `dates.${phase} must be array` };
     if (!arr.every(isIsoDate)) return { ok: false, error: `dates.${phase} must be YYYY-MM-DD strings` };
-    // Sortera + de-dup för deterministisk output
     cleaned[phase] = Array.from(new Set(arr as string[])).sort();
   }
 
@@ -88,7 +94,7 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
     data: {
       project_id: b.project_id,
       project_type: b.project_type,
-      organization_id: b.organization_id,
+      organization_id: b.organization_id as string | undefined,
       dates: cleaned,
       dry_run: b.dry_run === true,
     },
@@ -97,7 +103,7 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
 
 async function resolveBookingIds(
   supabase: ReturnType<typeof createClient>,
-  body: RequestBody,
+  body: ResolvedRequest,
 ): Promise<string[]> {
   if (body.project_type === 'medium') {
     const { data } = await supabase
@@ -211,7 +217,9 @@ Deno.serve(async (req) => {
   );
 
   // Auth: dry_run kringgår user-JWT (säkert: ingen skrivning, ingen extern push).
-  // Skarp körning kräver inloggad användare i samma org som projektet.
+  // Skarp körning kräver inloggad användare. organization_id kan utelämnas
+  // i body — den härleds då från caller's profile (single source of truth).
+  let resolvedOrgId: string | undefined = parsed.data.organization_id;
   if (!parsed.data.dry_run) {
     const auth = req.headers.get('Authorization');
     if (!auth?.startsWith('Bearer ')) return bad(401, 'unauthorized');
@@ -227,32 +235,42 @@ Deno.serve(async (req) => {
       .select('organization_id')
       .eq('user_id', userData.user.id)
       .maybeSingle();
-    if (!profile || profile.organization_id !== parsed.data.organization_id) {
+    if (!profile?.organization_id) return bad(403, 'no organization');
+    if (resolvedOrgId && resolvedOrgId !== profile.organization_id) {
       return bad(403, 'organization mismatch');
     }
+    resolvedOrgId = profile.organization_id as string;
   }
+  if (!resolvedOrgId) return bad(400, 'organization_id required for dry_run when no auth');
 
-  const bookingIds = await resolveBookingIds(supabase, parsed.data);
+  const effective: ResolvedRequest = {
+    project_id: parsed.data.project_id,
+    project_type: parsed.data.project_type,
+    organization_id: resolvedOrgId,
+    dates: parsed.data.dates,
+    dry_run: parsed.data.dry_run === true,
+  };
+
+  const bookingIds = await resolveBookingIds(supabase, effective);
   if (bookingIds.length === 0) {
-    return bad(404, 'no bookings found for project', { project_id: parsed.data.project_id });
+    return bad(404, 'no bookings found for project', { project_id: effective.project_id });
   }
 
-  if (parsed.data.dry_run) {
-    // Bygg preview: nuvarande lokal-värden + tilltänkta lokal-värden + extern-payload per bokning.
+  if (effective.dry_run) {
     const { data: rows } = await supabase
       .from('bookings')
       .select('id, booking_number, title, rigdaydate, eventdate, rigdowndate')
       .in('id', bookingIds)
-      .eq('organization_id', parsed.data.organization_id);
+      .eq('organization_id', effective.organization_id);
     const localUpdates: Record<string, string | null> = {};
     for (const phase of ['rig', 'event', 'rigDown'] as Phase[]) {
-      const arr = parsed.data.dates[phase];
+      const arr = effective.dates[phase];
       if (arr === undefined) continue;
       localUpdates[PHASE_TO_LOCAL_COL[phase]] = arr.length > 0 ? arr[0] : null;
     }
     const externalFields: ExternalWriteFields = {};
     for (const phase of ['rig', 'event', 'rigDown'] as Phase[]) {
-      const arr = parsed.data.dates[phase];
+      const arr = effective.dates[phase];
       if (arr === undefined) continue;
       externalFields[PHASE_TO_EXTERNAL_FIELD[phase]] = arr;
     }
@@ -265,19 +283,19 @@ Deno.serve(async (req) => {
       would_push_external: externalFields,
     }));
     return new Response(
-      JSON.stringify({ ok: true, dry_run: true, project_id: parsed.data.project_id, bookings_resolved: bookingIds.length, preview }),
+      JSON.stringify({ ok: true, dry_run: true, project_id: effective.project_id, bookings_resolved: bookingIds.length, preview }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 
   const results: PerBookingResult[] = [];
   for (const bid of bookingIds) {
-    results.push(await processBooking(supabase, bid, parsed.data.organization_id, parsed.data.dates));
+    results.push(await processBooking(supabase, bid, effective.organization_id, effective.dates));
   }
 
   const allOk = results.every((r) => r.local_updated && r.external_pushed && r.calendar_rebuilt);
   return new Response(
-    JSON.stringify({ ok: allOk, project_id: parsed.data.project_id, results }),
+    JSON.stringify({ ok: allOk, project_id: effective.project_id, results }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   );
 });

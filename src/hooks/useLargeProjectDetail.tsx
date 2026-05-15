@@ -20,7 +20,8 @@ import { ProjectTask, ProjectFile } from "@/types/project";
 import { toast } from "sonner";
 import { GanttStep } from "@/components/project/LargeProjectGanttChart";
 import { bridgeProjectTaskToExecution, ensureBridgeAndSync } from "@/services/projectTaskBridgeService";
-import { expandPeriodToDates, propagateProjectDatesToBookings, DateType } from "@/services/largeProjectScheduleSync";
+import { expandPeriodToDates, DateType } from "@/services/largeProjectScheduleSync";
+import { writeProjectDates } from "@/services/projectDateAuthority";
 import { supabase } from "@/integrations/supabase/client";
 
 export const useLargeProjectDetail = (projectId: string) => {
@@ -262,11 +263,13 @@ export const useLargeProjectDetail = (projectId: string) => {
         projectUpdates[map.proj] = dates;
         if (bookingIds.length > 0) {
           propagations.push(
-            propagateProjectDatesToBookings({
-              bookingIds,
-              dateType: map.type,
-              dates,
-            })
+            writeProjectDates({
+              projectId,
+              projectType: 'large',
+              dates: { [map.type]: dates },
+            }).then((res) => {
+              if (!res.ok) throw new Error(res.error || 'apply-project-dates failed');
+            }),
           );
         }
       }
