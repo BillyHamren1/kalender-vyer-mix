@@ -38,7 +38,7 @@ interface BookingOption {
   booking_number: string | null;
 }
 
-export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId }: CreateTodoWizardProps) {
+export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId, planningMode }: CreateTodoWizardProps) {
   const isEdit = !!todoId;
   const { organizationId } = useCurrentOrg();
   const { data: todoTypes = [], createType } = useTodoTypes();
@@ -47,6 +47,10 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
   const [showNewType, setShowNewType] = useState(false);
   const [newTypeLabel, setNewTypeLabel] = useState('');
   const [bookingPickerOpen, setBookingPickerOpen] = useState(false);
+
+  // Planning mode — Team-väljare för personalkalendern.
+  // Kolumnerna heter 'team-1'..'team-10' (se useTeamResources.defaultTeams).
+  const [resourceId, setResourceId] = useState<string>('team-1');
 
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
   const [title, setTitle] = useState('');
