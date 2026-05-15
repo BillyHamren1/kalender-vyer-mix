@@ -387,8 +387,15 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                   <div className="p-3 space-y-3">
                     {rows.length === 0 ? (
                       <div className="text-xs text-muted-foreground italic">Inga dagar — klicka "Lägg till dag"</div>
-                    ) : rows.map(({ day, idx }) => (
+                    ) : rows.map(({ day, idx }) => {
+                      const phaseLocked = ctx.bookings.length > 0 && ctx.bookings.every((b: any) => isPhaseLocked(b, day.kind));
+                      return (
                       <div key={`${day.kind}-${idx}`} className="space-y-2 rounded-md border border-border/40 p-2">
+                        {phaseLocked && (
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5 w-fit">
+                            Fast tid från bokning
+                          </div>
+                        )}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex-1">
                             <Label className="text-[11px] text-muted-foreground">Datum</Label>
@@ -397,6 +404,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                               value={day.date}
                               onChange={(e) => updateDay(idx, { date: e.target.value })}
                               className="h-8 text-sm"
+                              disabled={phaseLocked}
                             />
                             <div className="text-[11px] text-muted-foreground mt-1">
                               {(() => { try { return format(parseISO(day.date), 'EEE d MMM', { locale: sv }); } catch { return ''; } })()}
