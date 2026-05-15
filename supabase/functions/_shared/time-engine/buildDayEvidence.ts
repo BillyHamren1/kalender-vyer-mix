@@ -721,15 +721,7 @@ export async function buildDayEvidence(
       // Lager 1.9 — rik calendar_event-data så knownTargets kan diagnosticera
       // calendarEventsWithoutTarget / withLargeProjectContext / pointingToChildBooking /
       // pointingToMissingGeoLargeProject. Planering är fortfarande context, inte proof.
-      assignmentCalendarEvents: (ae?.calendarEvents ?? []).map((ce) => ({
-        id: ce.assignmentId,
-        eventId: ce.eventId,
-        bookingId: ce.bookingId,
-        largeProjectId: ce.largeProjectId,
-        teamId: ce.teamId,
-        title: ce.title,
-        plannedPhase: ce.plannedPhase,
-      })),
+      assignmentCalendarEvents: assignmentCalendarEventsForKt,
     });
     evidence.knownTargets.items = kt.items;
     evidence.knownTargets.dataQuality = kt.dataQuality;
