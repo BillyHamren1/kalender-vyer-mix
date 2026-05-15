@@ -114,7 +114,14 @@ export type WorkdayAllocationWarning =
   | 'long_travel_over_150km'
   | 'movement_missing_anchor'
   // ── Lager 3.5 — supplier-warning ──────────────────────────────────────
-  | 'supplier_visit_without_project_context';
+  | 'supplier_visit_without_project_context'
+  // ── Lager 3.6 — hem/private efter sista arbetsplats ───────────────────
+  | 'home_after_last_work_location'
+  | 'temporary_home_presence';
+
+export type WorkdayAllocationProposalType =
+  | 'allocation_candidate'
+  | 'suggest_workday_end';
 
 export interface WorkdayAllocationDiagnostics {
   staffId: string | null;
