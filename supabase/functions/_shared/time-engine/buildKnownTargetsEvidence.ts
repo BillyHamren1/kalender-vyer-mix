@@ -308,6 +308,8 @@ export async function buildKnownTargetsEvidence(
     calendarEventsPointingToChildBooking: [],
     calendarEventsPointingToMissingGeoLargeProject: [],
     targetsWithNullRadius: [],
+    suppliersMissingCoordinates: [],
+    suppliersMissingRadius: [],
   };
   const diag: KnownTargetsDiagnostics = {
     warehouseCount: 0,
