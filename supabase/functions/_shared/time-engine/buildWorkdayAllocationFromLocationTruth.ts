@@ -938,8 +938,18 @@ export function buildWorkdayAllocationFromLocationTruth(
       sup.linkedProjectCandidate = candidate;
       if (sup.confidence === 'low') sup.confidence = 'medium';
       diag.supplierVisitsLinkedToProjectCandidate += 1;
+      // Lager 3.10B — explicit reason-mapping från candidate.source.
+      const linkReason: SupplierLinkProposalReason =
+        candidate.source === 'overlapping_assignment'
+          ? 'supplier_near_overlapping_assignment'
+          : candidate.source === 'pattern_warehouse_supplier_project'
+            ? 'supplier_between_warehouse_and_project'
+            : candidate.source === 'pattern_project_supplier_project'
+              ? 'supplier_between_project_and_project'
+              : 'supplier_visit_linked_to_project_candidate';
       proposals.push({
         segmentId: sup.sourceLocationTruthSegmentIds[0] ?? sup.id,
+        proposalType: 'link_supplier_to_project_candidate',
         proposedAllocationType: 'supplier_visit',
         targetType: candidate.targetType,
         targetId: candidate.targetId,
@@ -947,7 +957,19 @@ export function buildWorkdayAllocationFromLocationTruth(
         startAt: sup.startAt,
         endAt: sup.endAt,
         confidence: candidate.confidence,
-        reason: `supplier_visit_linked_to_project_candidate:${candidate.source}`,
+        reason: linkReason,
+        sourceSegmentIds:
+          sup.sourceLocationTruthSegmentIds.length > 0
+            ? [...sup.sourceLocationTruthSegmentIds]
+            : [sup.id],
+        supplierTargetId: sup.targetId,
+        supplierLabel: sup.label,
+        candidateTargetType: candidate.targetType,
+        candidateTargetId: candidate.targetId,
+        candidateLabel: candidate.label,
+        // Read-only Lager 3 — alla supplier-länkar måste granskas av människa
+        // innan de skrivs till time_reports / display_blocks.
+        requiresHumanApproval: true,
       });
     } else {
       sup.linkedProjectCandidate = null;
