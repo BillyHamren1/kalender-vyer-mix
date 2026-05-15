@@ -42,16 +42,25 @@ const DEFAULTS: Record<DayKind, { start: string; end: string }> = {
 const PHASE_ORDER: DayKind[] = ['rig', 'event', 'rigDown'];
 const phaseLabel = (k: DayKind) => k === 'rig' ? 'Riggning' : k === 'rigDown' ? 'Demontering' : 'Event';
 
+/**
+ * Plockar HH:MM ur ett tidsfält som kan vara antingen
+ *   - "HH:MM" / "HH:MM:SS"   (time-kolumn)
+ *   - "YYYY-MM-DD HH:MM:SS+TZ" eller ISO ("…THH:MM…")  (timestamptz)
+ * Vi tar tiden som den står (dvs. UTC-timmen om det är timestamptz),
+ * eftersom Phase Time Sync skriver tillbaka som "HH:MM:00" utan TZ-skift
+ * — då måste avläsningen vara symmetrisk.
+ */
 const trimSec = (t: string | null | undefined): string | null => {
   if (!t || typeof t !== 'string') return null;
-  const m = t.match(/^(\d{2}):(\d{2})/);
+  // Försök matcha HH:MM efter ev. " " eller "T" (timestamp), annars i början (time)
+  const m = t.match(/(?:^|[T\s])(\d{2}):(\d{2})/);
   return m ? `${m[1]}:${m[2]}` : null;
 };
 
-const FIELD_MAP: Record<DayKind, { start: string; end: string }> = {
-  rig: { start: 'rig_start_time', end: 'rig_end_time' },
-  event: { start: 'event_start_time', end: 'event_end_time' },
-  rigDown: { start: 'rigdown_start_time', end: 'rigdown_end_time' },
+const FIELD_MAP: Record<DayKind, { start: string; end: string; lock: string }> = {
+  rig: { start: 'rig_start_time', end: 'rig_end_time', lock: 'rig_time_locked' },
+  event: { start: 'event_start_time', end: 'event_end_time', lock: 'event_time_locked' },
+  rigDown: { start: 'rigdown_start_time', end: 'rigdown_end_time', lock: 'rigdown_time_locked' },
 };
 
 export const pickBookingTime = (
@@ -61,6 +70,10 @@ export const pickBookingTime = (
 ): string => {
   const field = FIELD_MAP[kind][edge];
   return trimSec(booking?.[field]) ?? DEFAULTS[kind][edge];
+};
+
+export const isPhaseLocked = (booking: any, kind: DayKind): boolean => {
+  return booking?.[FIELD_MAP[kind].lock] === true;
 };
 
 const todayIso = () => {
@@ -104,7 +117,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
         if (project?.booking_id) {
           const { data: b } = await supabase
             .from('bookings')
-            .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
+            .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, rig_time_locked, event_time_locked, rigdown_time_locked')
             .eq('id', project.booking_id)
             .single();
           if (b) bookings = [b];
@@ -118,7 +131,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
         projectName = lp?.name ?? '';
         const { data: bs } = await supabase
           .from('bookings')
-          .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time')
+          .select('id, client, booking_number, deliveryaddress, organization_id, eventdate, rigdaydate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, rig_time_locked, event_time_locked, rigdown_time_locked')
           .eq('large_project_id', projectId);
         bookings = bs || [];
       }
@@ -374,8 +387,15 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                   <div className="p-3 space-y-3">
                     {rows.length === 0 ? (
                       <div className="text-xs text-muted-foreground italic">Inga dagar — klicka "Lägg till dag"</div>
-                    ) : rows.map(({ day, idx }) => (
+                    ) : rows.map(({ day, idx }) => {
+                      const phaseLocked = ctx.bookings.length > 0 && ctx.bookings.every((b: any) => isPhaseLocked(b, day.kind));
+                      return (
                       <div key={`${day.kind}-${idx}`} className="space-y-2 rounded-md border border-border/40 p-2">
+                        {phaseLocked && (
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5 w-fit">
+                            Fast tid från bokning
+                          </div>
+                        )}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex-1">
                             <Label className="text-[11px] text-muted-foreground">Datum</Label>
@@ -384,6 +404,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                               value={day.date}
                               onChange={(e) => updateDay(idx, { date: e.target.value })}
                               className="h-8 text-sm"
+                              disabled={phaseLocked}
                             />
                             <div className="text-[11px] text-muted-foreground mt-1">
                               {(() => { try { return format(parseISO(day.date), 'EEE d MMM', { locale: sv }); } catch { return ''; } })()}
@@ -407,6 +428,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                               value={day.startTime}
                               onChange={(e) => updateDay(idx, { startTime: e.target.value })}
                               className="h-8 text-sm"
+                              disabled={phaseLocked}
                             />
                           </div>
                           <div>
@@ -416,6 +438,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                               value={day.endTime}
                               onChange={(e) => updateDay(idx, { endTime: e.target.value })}
                               className="h-8 text-sm"
+                              disabled={phaseLocked}
                             />
                           </div>
                           <div>
@@ -439,7 +462,8 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
