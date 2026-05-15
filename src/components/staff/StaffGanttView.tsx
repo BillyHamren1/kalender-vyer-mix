@@ -290,6 +290,74 @@ const mapReportCandidateKind = (
   return 'unknown';
 };
 
+/**
+ * Visual merge — slår ihop adjacent block med samma resolved visualKind +
+ * sessionKey + glapp ≤15min till ETT block. Phase inheritance har redan
+ * körts före detta steg via mapReportCandidateKind.
+ */
+const MERGEABLE_KINDS: ReadonlySet<GanttKind> = new Set([
+  'work', 'warehouse', 'rig', 'rigdown',
+]);
+const applyVisualMerge = (blocks: GanttBlock[], staffName?: string): GanttBlock[] => {
+  // Splitta i mergeable vs ej-mergeable. Ej-mergeable (transport/review/
+  // unknown/break/pre_work) skickas igenom oförändrade.
+  const mergeable: MergeBlockInput[] = [];
+  const passthrough: GanttBlock[] = [];
+  const byId = new Map<string, GanttBlock>();
+  for (const b of blocks) {
+    byId.set(b.id, b);
+    if (MERGEABLE_KINDS.has(b.kind) && b.sessionKey) {
+      mergeable.push({
+        id: b.id,
+        kind: b.kind as MergeableKind,
+        sessionKey: b.sessionKey,
+        startAt: b.startAt,
+        endAt: b.endAt,
+        durationMinutes: b.durationMinutes,
+        rawKind: b.rawKind,
+        isOpen: b.isOpen,
+        isNightGpsOnly: b.isNightGpsOnly,
+      });
+    } else {
+      passthrough.push(b);
+    }
+  }
+  const { blocks: merged, diagnostics } = mergeContiguousBlocks(mergeable, { maxGapMinutes: 15 });
+
+  if (diagnostics.mergedBlockCount > 0 && typeof console !== 'undefined') {
+    // eslint-disable-next-line no-console
+    console.warn('[Gantt 4.0] visualMerge', {
+      staff: staffName,
+      ...diagnostics,
+    });
+  }
+
+  // Återhydrera: behåll title/subtitle/plannedBadgeLabel från första underblocket
+  const result: GanttBlock[] = merged.map((m) => {
+    const first = byId.get(m.mergedFromIds[0])!;
+    return {
+      ...first,
+      id: m.id,
+      kind: m.kind as GanttKind,
+      startAt: m.startAt,
+      endAt: m.endAt,
+      durationMinutes: m.durationMinutes,
+      sessionKey: m.sessionKey,
+      rawKind: m.rawKind,
+      subBlocks: m.subBlocks.map((s) => ({
+        ...s,
+        resolvedKind: s.resolvedKind as GanttKind,
+      })),
+      countedDurationMinutes: m.countedDurationMinutes,
+      visualGapMinutes: m.visualGapMinutes,
+    };
+  });
+  // Mergea passthrough tillbaka och sortera på startAt för stabil ordning
+  return [...result, ...passthrough].sort(
+    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+  );
+};
+
 const blocksFromStaff = (
   staff: StaffWithDayReport,
   candidate: ReportCandidateBlockUI[] | null | undefined,
