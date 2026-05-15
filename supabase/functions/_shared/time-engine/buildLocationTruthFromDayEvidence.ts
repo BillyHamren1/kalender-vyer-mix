@@ -125,6 +125,22 @@ export type LocationTruthSegmentType =
   | 'unresolved_location'
   | 'needs_location_review';
 
+/**
+ * Lager 2.6 — kanonisk Final Location Truth-typ.
+ * Detta är det rena platsalfabetet som senare lager (interpretering,
+ * tidrapportering, payroll) får läsa. Vi mappar de interna typerna
+ * (known_target, known_address, unresolved_location) till denna lista.
+ *
+ * Final-listan innehåller medvetet INTE: rig/work/event/rigdown/payroll/
+ * display_blocks. Det är en plats-tidslinje, inte en arbetspass-tolkning.
+ */
+export type FinalLocationTruthSegmentType =
+  | 'known_site'
+  | 'movement'
+  | 'private_residence'
+  | 'unknown_area'
+  | 'needs_location_review';
+
 export type LocationTruthTargetType =
   | 'warehouse'
   | 'organization_location'
