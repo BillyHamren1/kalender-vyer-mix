@@ -479,6 +479,10 @@ export const TodayTab: React.FC = () => {
         <PrimaryAction snapshot={snapshot} />
       </div>
 
+      {/* Lager 4.5 — read-only förhandsvisning av Display Timeline V2.
+          Renderar null när V2-data saknas (fallback till befintlig vy). */}
+      <DisplayTimelineV2Card date={snapshot.date} />
+
       <SegmentDetailSheet
         segment={selectedSeg}
         date={snapshot.date}
