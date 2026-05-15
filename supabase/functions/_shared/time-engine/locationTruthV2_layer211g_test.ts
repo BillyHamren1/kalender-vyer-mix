@@ -257,7 +257,7 @@ Deno.test('Lager 2.11G #9 — planering target A, GPS target B → GPS vinner + 
   const wh = tgt('warehouse', 'wh1', 59.33, 18.07, 'Lager', { sourceTable: 'organization_locations' });
   const projA = tgt('project', 'pA', 59.50, 18.50, 'Långt bort');
   const r = buildLocationTruthFromDayEvidence(dayEv([wh, projA], makePings(59.33, 18.07), [
-    { bookingId: null, projectId: 'pA', largeProjectId: null, belongsToLargeProject: false },
+    { bookingId: null, projectId: 'pA', largeProjectId: null, belongsToLargeProject: false, startAt: '2026-05-15T07:30:00Z', endAt: '2026-05-15T09:00:00Z' },
   ]));
   const seg = findSeg(r, 'known_target')!;
   assertEquals(seg.matchedTarget?.targetId, 'wh1', 'GPS-target ska vinna');
