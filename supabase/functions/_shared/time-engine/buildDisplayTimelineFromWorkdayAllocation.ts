@@ -121,6 +121,16 @@ export interface DisplayTimelineBlock {
     rawAllocationWarnings: WorkdayAllocationWarning[];
     /** ID:n på Lager 3-proposals som kopplats till blocket. */
     relatedProposalSegmentIds: string[];
+    /** Lager 4.2 — totalt antal minuter som absorberades från små gap. */
+    absorbedGapMinutes: number;
+    /** Lager 4.2 — korta supplier-besök som vikts in i blocket. */
+    absorbedSupplierVisits: Array<{
+      startAt: string; endAt: string; label: string | null; address: string | null;
+    }>;
+    /** Lager 4.2 — korta travel/commute-segment som vikts in i blocket. */
+    absorbedTravelSegments: Array<{
+      startAt: string; endAt: string; durationMinutes: number;
+    }>;
   };
 }
 
