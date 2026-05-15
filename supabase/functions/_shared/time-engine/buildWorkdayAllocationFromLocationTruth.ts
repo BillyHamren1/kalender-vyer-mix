@@ -82,6 +82,8 @@ export type WorkdayAllocationWarning =
   | 'movement_classified_as_work_travel'
   | 'movement_classified_as_commute'
   | 'unassigned_known_target_presence'
+  | 'staff_not_assigned_to_matched_target'
+  | 'no_project_link'
   | 'planning_geo_mismatch'
   | 'supplier_visit_no_assignment'
   | 'warehouse_presence_no_assignment'
