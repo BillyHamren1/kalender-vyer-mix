@@ -552,6 +552,16 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
 
     const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
+    // Lager 3.3 — assignmentStatus:
+    //   assigned_overlap = planerad på rätt target i intervallet
+    //   unassigned_but_present = matchad target finns men ingen assignment
+    //                            (GPS/plats vinner — kopplingen behålls)
+    //   no_assignment = ingen target alls
+    let assignmentStatus: WorkdayAllocationAssignmentStatus;
+    if (matched && hasOverlap) assignmentStatus = 'assigned_overlap';
+    else if (matched && !hasOverlap) assignmentStatus = 'unassigned_but_present';
+    else assignmentStatus = 'no_assignment';
+
     const item: WorkdayAllocationSegment = {
       id: `wda_${seg.id}`,
       startAt: new Date(clippedStartMs).toISOString(),
@@ -564,7 +574,7 @@ export function buildWorkdayAllocationFromLocationTruth(
       address: seg.physicalLocation?.address ?? matched?.address ?? null,
       confidence: alloc.confidence,
       warnings: alloc.warnings,
-      assignmentStatus: hasOverlap ? 'assigned_overlap' : 'no_assignment',
+      assignmentStatus,
       businessContextStatus: seg.businessContext?.status ?? null,
       rawSegmentStartAt: seg.startAt,
       rawSegmentEndAt: seg.endAt,
@@ -577,6 +587,19 @@ export function buildWorkdayAllocationFromLocationTruth(
     for (const w of item.warnings) {
       if (w in diag.warningsByType) diag.warningsByType[w] += 1;
     }
+
+    // Lager 3.3 — spegla per-targetType count
+    switch (alloc.type) {
+      case 'project_work': diag.projectWorkCount += 1; break;
+      case 'large_project_work': diag.largeProjectWorkCount += 1; break;
+      case 'booking_work': diag.bookingWorkCount += 1; break;
+      case 'warehouse_work': diag.warehouseWorkCount += 1; break;
+      case 'supplier_visit': diag.supplierVisitCount += 1; break;
+      case 'unlinked_work_address': diag.unlinkedWorkAddressCount += 1; break;
+    }
+    if (assignmentStatus === 'unassigned_but_present') diag.unassignedButPresentCount += 1;
+    if (item.warnings.includes('planning_geo_mismatch')) diag.planningMismatchCount += 1;
+
     coveredIntervals.push([clippedStartMs, clippedEndMs]);
 
     if (diag.examples.length < 8) {
