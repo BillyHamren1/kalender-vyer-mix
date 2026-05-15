@@ -262,7 +262,7 @@ export async function buildAssignmentEvidence(
     try {
       const { data, error } = await supabaseAdmin
         .from('bookings')
-        .select('id, large_project_id, eventdate, rigdaydate, rigdowndate, event_start_time, event_end_time, rig_start_time, rig_end_time, rigdown_start_time, rigdown_end_time, booking_number, project_name')
+        .select('id, large_project_id, eventdate, rigdaydate, rigdowndate, event_start_time, event_end_time, rig_start_time, rig_end_time, rigdown_start_time, rigdown_end_time, booking_number, assigned_project_name')
         .in('id', Array.from(bookingIds));
       if (error) warnings.push(`bookings: ${error.message}`);
       else (data ?? []).forEach((b: any) => bookingMap.set(b.id, b));
@@ -298,7 +298,7 @@ export async function buildAssignmentEvidence(
       bookingId: r.booking_id ?? null,
       projectId: null,
       largeProjectId: lpId,
-      title: b?.project_name ?? b?.booking_number ?? null,
+      title: b?.assigned_project_name ?? b?.booking_number ?? null,
       plannedPhase: phase,
       startAt: start,
       endAt: end,
@@ -335,7 +335,7 @@ export async function buildAssignmentEvidence(
       bookingId: ce.booking_id ?? null,
       projectId: null,
       largeProjectId: lpId,
-      title: ce.title ?? ce.booking_number ?? b?.project_name ?? null,
+      title: ce.title ?? ce.booking_number ?? b?.assigned_project_name ?? null,
       plannedPhase: phase,
       startAt: start,
       endAt: end,
@@ -360,7 +360,7 @@ export async function buildAssignmentEvidence(
       bookingId: ce.booking_id ?? null,
       projectId: null,
       largeProjectId: lpId,
-      title: ce.title ?? ce.booking_number ?? b?.project_name ?? null,
+      title: ce.title ?? ce.booking_number ?? b?.assigned_project_name ?? null,
       plannedPhase: phase,
       eventType: ce.event_type ?? null,
       startAt: start,

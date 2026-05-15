@@ -323,7 +323,7 @@ export async function buildKnownTargetsEvidence(
     const { data, error } = await supabaseAdmin
       .from('organization_locations')
       .select(
-        'id, name, location_type, status, latitude, longitude, radius_meters, geofence_polygon, is_private_residence',
+        'id, name, location_type, is_active, latitude, longitude, radius_meters, geofence_polygon, is_private_residence',
       )
       .eq('organization_id', organizationId);
     if (error) {
@@ -343,7 +343,8 @@ export async function buildKnownTargetsEvidence(
         const radius = isFiniteNumber(r.radius_meters) ? r.radius_meters : null;
         const hasCoords = lat !== null && lng !== null;
         const hasRadius = radius !== null && radius > 0;
-        let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.name, r.status);
+        const olStatus = r.is_active === false ? 'inactive' : 'active';
+        let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.name, olStatus);
         if (!suppressed && !hasCoords && !polygon) suppressed = 'missing_coordinates';
         if (!suppressed && !polygon && !hasRadius) suppressed = 'missing_radius_and_polygon';
         const usableGeo = !suppressed && (polygon !== null || (hasCoords && hasRadius));
@@ -359,7 +360,7 @@ export async function buildKnownTargetsEvidence(
           hasCoordinates: hasCoords,
           hasRadius,
           sourceTable: 'organization_locations',
-          status: r.status ?? null,
+          status: olStatus,
           dateWindow: null,
           parentLargeProjectId: null,
           belongsToLargeProject: false,
@@ -386,7 +387,7 @@ export async function buildKnownTargetsEvidence(
     const { data, error } = await supabaseAdmin
       .from('large_projects')
       .select(
-        'id, project_name, status, latitude, longitude, address_radius_meters, address_geofence_polygon, start_date, end_date, deleted_at',
+        'id, name, status, address_latitude, address_longitude, address_radius_meters, address_geofence_polygon, start_date, end_date, deleted_at',
       )
       .eq('organization_id', organizationId)
       .is('deleted_at', null);
@@ -394,16 +395,16 @@ export async function buildKnownTargetsEvidence(
       diag.warnings.push(`large_projects: ${error.message}`);
     } else {
       for (const r of data ?? []) {
-        const lat = isFiniteNumber(r.latitude) ? r.latitude : null;
-        const lng = isFiniteNumber(r.longitude) ? r.longitude : null;
+        const lat = isFiniteNumber(r.address_latitude) ? r.address_latitude : null;
+        const lng = isFiniteNumber(r.address_longitude) ? r.address_longitude : null;
         const polygon = normalizePolygon(r.address_geofence_polygon);
         const radius = isFiniteNumber(r.address_radius_meters) ? r.address_radius_meters : null;
         const hasCoords = lat !== null && lng !== null;
         const hasRadius = radius !== null && radius > 0;
         const usableGeo = (polygon !== null) || (hasCoords && hasRadius);
-        let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.project_name, r.status);
+        let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.name, r.status);
         if (!suppressed && !usableGeo) suppressed = 'large_project_missing_geo';
-        const label = r.project_name ?? `LP ${r.id.slice(0, 8)}`;
+        const label = r.name ?? `LP ${r.id.slice(0, 8)}`;
         largeProjectInfoById.set(r.id, { id: r.id, label, hasGeo: usableGeo, suppressed });
         record({
           targetType: 'large_project',
@@ -468,7 +469,7 @@ export async function buildKnownTargetsEvidence(
       const { data, error } = await supabaseAdmin
         .from('bookings')
         .select(
-          'id, booking_number, project_name, status, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_polygon, deliveryaddress, eventdate, rigdaydate, rigdowndate, large_project_id',
+          'id, booking_number, assigned_project_name, status, delivery_latitude, delivery_longitude, deliveryaddress, eventdate, rigdaydate, rigdowndate, large_project_id',
         )
         .eq('organization_id', organizationId)
         .or(`eventdate.eq.${date},rigdaydate.eq.${date},rigdowndate.eq.${date}`);
@@ -485,7 +486,7 @@ export async function buildKnownTargetsEvidence(
         const { data, error } = await supabaseAdmin
           .from('bookings')
           .select(
-            'id, booking_number, project_name, status, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_polygon, deliveryaddress, eventdate, rigdaydate, rigdowndate, large_project_id',
+            'id, booking_number, assigned_project_name, status, delivery_latitude, delivery_longitude, deliveryaddress, eventdate, rigdaydate, rigdowndate, large_project_id',
           )
           .eq('organization_id', organizationId)
           .in('id', missing);
@@ -513,11 +514,12 @@ export async function buildKnownTargetsEvidence(
       const hasCoords = lat !== null && lng !== null;
       const hasRadius = radius !== null && radius > 0;
       const usableGeo = polygon !== null || (hasCoords && hasRadius);
-      const label = r.project_name
-        ? `${r.project_name}${r.booking_number ? ` (${r.booking_number})` : ''}`
+      const projectName = r.assigned_project_name ?? null;
+      const label = projectName
+        ? `${projectName}${r.booking_number ? ` (${r.booking_number})` : ''}`
         : (r.booking_number ?? `BK ${r.id.slice(0, 8)}`);
 
-      let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.project_name, r.status);
+      let suppressed: KnownTargetSuppressedReason = classifyStatusReason(projectName, r.status);
 
       // PRODUKTREGEL: child bookings inom large project är inte primary
       // work target och inte geo fallback. Aldrig tyst geo-fallback.
@@ -649,20 +651,21 @@ export async function buildKnownTargetsEvidence(
   try {
     const { data, error } = await supabaseAdmin
       .from('staff_private_zones')
-      .select('id, label, kind, latitude, longitude, radius_meters, geofence_polygon')
+      .select('id, label, kind, lat, lng, radius_m, active')
       .eq('organization_id', organizationId)
       .eq('staff_id', staffId);
     if (error) {
       diag.warnings.push(`staff_private_zones: ${error.message}`);
     } else {
       for (const r of data ?? []) {
-        const lat = isFiniteNumber(r.latitude) ? r.latitude : null;
-        const lng = isFiniteNumber(r.longitude) ? r.longitude : null;
-        const polygon = normalizePolygon(r.geofence_polygon);
-        const radius = isFiniteNumber(r.radius_meters) ? r.radius_meters : null;
+        if (r.active === false) continue;
+        const lat = isFiniteNumber(r.lat) ? r.lat : null;
+        const lng = isFiniteNumber(r.lng) ? r.lng : null;
+        const polygon = null as any;
+        const radius = isFiniteNumber(r.radius_m) ? r.radius_m : null;
         const hasCoords = lat !== null && lng !== null;
         const hasRadius = radius !== null && radius > 0;
-        const usableGeo = polygon !== null || (hasCoords && hasRadius);
+        const usableGeo = hasCoords && hasRadius;
         record({
           targetType: 'private_zone',
           targetId: r.id,
@@ -694,7 +697,7 @@ export async function buildKnownTargetsEvidence(
   try {
     const { data, error } = await supabaseAdmin
       .from('staff_home_observations')
-      .select('id, latitude, longitude, accuracy_meters, observed_at')
+      .select('id, lat, lng, dwell_minutes, observed_date')
       .eq('organization_id', organizationId)
       .eq('staff_id', staffId);
     if (error) {
@@ -702,9 +705,9 @@ export async function buildKnownTargetsEvidence(
       diag.warnings.push(`staff_home_observations: ${error.message}`);
     } else {
       for (const r of data ?? []) {
-        const lat = isFiniteNumber(r.latitude) ? r.latitude : null;
-        const lng = isFiniteNumber(r.longitude) ? r.longitude : null;
-        const radius = isFiniteNumber(r.accuracy_meters) ? r.accuracy_meters : null;
+        const lat = isFiniteNumber(r.lat) ? r.lat : null;
+        const lng = isFiniteNumber(r.lng) ? r.lng : null;
+        const radius = null as number | null;
         const hasCoords = lat !== null && lng !== null;
         record({
           targetType: 'home_observation',
@@ -735,16 +738,16 @@ export async function buildKnownTargetsEvidence(
   try {
     const { data, error } = await supabaseAdmin
       .from('staff_inferred_home_locations')
-      .select('id, latitude, longitude, radius_meters, confidence')
+      .select('id, lat, lng, radius_m, confidence')
       .eq('organization_id', organizationId)
       .eq('staff_id', staffId);
     if (error) {
       diag.warnings.push(`staff_inferred_home_locations: ${error.message}`);
     } else {
       for (const r of data ?? []) {
-        const lat = isFiniteNumber(r.latitude) ? r.latitude : null;
-        const lng = isFiniteNumber(r.longitude) ? r.longitude : null;
-        const radius = isFiniteNumber(r.radius_meters) ? r.radius_meters : null;
+        const lat = isFiniteNumber(r.lat) ? r.lat : null;
+        const lng = isFiniteNumber(r.lng) ? r.lng : null;
+        const radius = isFiniteNumber(r.radius_m) ? r.radius_m : null;
         const hasCoords = lat !== null && lng !== null;
         const hasRadius = radius !== null && radius > 0;
         const usableGeo = hasCoords && hasRadius;
