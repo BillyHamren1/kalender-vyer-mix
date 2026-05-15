@@ -31,6 +31,10 @@ import {
   type NormalizedGpsPing,
   type HardRejectedGpsPing,
 } from './normalizeGpsEvidence.ts';
+import {
+  detectGpsOutliers,
+  type GpsOutlierDiagnostics,
+} from './detectGpsOutliers.ts';
 
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
@@ -136,6 +140,8 @@ export interface DayEvidenceDiagnostics {
   gpsFetchDiagnostics: FetchAllStaffLocationPingsDiagnostics | null;
   /** Quality breakdown from GPS normalisation (Lager 1.3). */
   gpsNormalizationDiagnostics: GpsNormalizationDiagnostics | null;
+  /** Outlier-detektering för location logic (Lager 1.4). */
+  gpsOutlierDiagnostics: GpsOutlierDiagnostics | null;
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────
@@ -247,6 +253,7 @@ export async function buildDayEvidence(
       },
       gpsFetchDiagnostics: null,
       gpsNormalizationDiagnostics: null,
+      gpsOutlierDiagnostics: null,
     },
   };
 
@@ -299,6 +306,28 @@ export async function buildDayEvidence(
       warnings.push(
         `gps_hard_rejected:${norm.diagnostics.hardRejectedPingCount}`,
       );
+    }
+
+    // ── Lager 1.4: Outlier-detektering (read-only) ───────────────────────
+    // Markerar ignoredForLocationLogic på enstaka spikar. Skapar varken
+    // transport, okänd plats eller granska. Raw evidence röra ej; vi
+    // ignorerar bara för location logic. buildGpsDayTimeline rörs INTE.
+    try {
+      const outlier = detectGpsOutliers(norm.normalizedPings);
+      evidence.diagnostics.gpsOutlierDiagnostics = outlier.diagnostics;
+      if (outlier.diagnostics.outlierIgnoredCount > 0) {
+        warnings.push(
+          `gps_outliers_ignored_for_location:${outlier.diagnostics.outlierIgnoredCount}`,
+        );
+      }
+      if (outlier.diagnostics.retainedFarClusterCount > 0) {
+        warnings.push(
+          `gps_far_clusters_retained:${outlier.diagnostics.retainedFarClusterCount}`,
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      warnings.push(`gps_outlier_exception: ${msg}`);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
