@@ -492,6 +492,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     const clipped = clippedStartMs !== sMs || clippedEndMs !== eMs;
     if (clipped) diag.segmentsPartiallyClipped += 1;
     diag.segmentsInsideWorkday += 1;
+    diag.segmentsInsideEnvelope += 1;
 
     const hasOverlap = !!seg.evidence.assignmentSupportsTarget;
     const alloc = deriveAllocation(seg, hasOverlap);
