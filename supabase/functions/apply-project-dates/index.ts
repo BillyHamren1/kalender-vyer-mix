@@ -90,6 +90,7 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
       project_type: b.project_type,
       organization_id: b.organization_id,
       dates: cleaned,
+      dry_run: b.dry_run === true,
     },
   };
 }
