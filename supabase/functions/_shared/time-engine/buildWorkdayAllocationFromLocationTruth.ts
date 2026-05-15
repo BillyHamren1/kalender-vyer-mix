@@ -530,12 +530,14 @@ function deriveAllocation(
         return { type: 'booking_work', warnings, confidence: seg.confidence };
       case 'warehouse':
       case 'organization_location':
-        if (status === 'warehouse_presence' && !hasOverlapWithAssignment) {
-          warnings.push('warehouse_presence_no_assignment');
-        }
+        // Lager 3.10A: warehouse/organization_location kräver INGEN assignment.
+        // Det är normal arbetskontext inom aktiv dagtimer. Inga
+        // warehouse_presence_no_assignment / organization_location_no_assignment
+        // varningar emitteras längre.
         return { type: 'warehouse_work', warnings, confidence: seg.confidence };
       case 'supplier':
-        if (!hasOverlapWithAssignment) warnings.push('supplier_visit_no_assignment');
+        // Lager 3.10A: supplier kräver INGEN assignment.
+        // supplier_visit_no_assignment emitteras inte längre.
         return { type: 'supplier_visit', warnings, confidence: seg.confidence };
       case 'private_zone':
         return { type: 'private_time', warnings: ['private_residence_inside_workday'], confidence: seg.confidence };
