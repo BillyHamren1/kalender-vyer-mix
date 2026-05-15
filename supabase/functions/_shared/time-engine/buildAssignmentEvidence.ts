@@ -348,9 +348,27 @@ export async function buildAssignmentEvidence(
     if (!item.bookingId && !item.largeProjectId) diag.assignmentsWithoutTargetCount++;
     items.push(item);
     pushExample(item);
+
+    // Lager 1.9 — exponera även som rik calendar_event-rad.
+    calendarEvents.push({
+      assignmentId: ce.id ?? null,
+      eventId: ce.id ?? null,
+      source: 'team_calendar_event',
+      teamId: ce.resource_id ?? null,
+      teamName: null,
+      staffId: null, // team-koppling, inte direkt staff
+      bookingId: ce.booking_id ?? null,
+      projectId: null,
+      largeProjectId: lpId,
+      title: ce.title ?? ce.booking_number ?? b?.project_name ?? null,
+      plannedPhase: phase,
+      eventType: ce.event_type ?? null,
+      startAt: start,
+      endAt: end,
+      overlapsDate: ce.source_date === date,
+    });
   }
 
-  // ── Bygg items: large_project_team_assignments ───────────────────────────
   for (const lp of lpRows) {
     const phase: AssignmentPhase =
       lp.phase === 'rig' || lp.phase === 'event' || lp.phase === 'rigdown' ? lp.phase : 'unknown';
