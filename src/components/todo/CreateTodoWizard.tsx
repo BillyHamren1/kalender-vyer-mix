@@ -94,7 +94,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         setTitle('');
       }
     }
-  }, [open, preselectedBookingId]);
+  }, [open, preselectedBookingId, todoId]);
 
   // Bookings dropdown
   const { data: bookings = [] } = useQuery({
