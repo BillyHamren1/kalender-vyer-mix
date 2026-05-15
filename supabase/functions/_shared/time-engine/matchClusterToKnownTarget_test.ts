@@ -163,16 +163,19 @@ Deno.test('F: GPS far from planned target → planning ignored', () => {
   assert(r.planningIgnoredBecauseGeoDisagreed);
 });
 
-// G. LP saknar egen geo → needs_location_review + warning.
-Deno.test('G: large_project missing geo → needs_location_review', () => {
+// G. LP saknar egen geo → no_eventflow_target_match + business warnings (Lager 2.12C).
+Deno.test('G: large_project missing geo → no_eventflow_target_match + business warnings', () => {
   const cluster = makeCluster(59.40, 17.90);
   const targets = [
     makeTarget({ targetType: 'large_project', targetId: 'lp1', label: 'LP no geo', lat: null, lng: null, radiusMeters: null as unknown as number }),
   ];
   const assignments = [makeAssignment({ largeProjectId: 'lp1' })];
   const r = matchClusterToKnownTarget({ cluster, knownTargets: targets, assignments, privateResidence: NO_PRIVATE });
-  assertEquals(r.matchedTarget.type, 'needs_location_review');
-  assert(r.warnings.includes('large_project_missing_own_geo_blocks_match'));
+  assertEquals(r.matchedTarget.type, 'no_eventflow_target_match');
+  assert(r.warnings.includes('assigned_large_project_missing_geo'));
+  assert(r.warnings.includes('large_project_missing_geo'));
+  assert(r.warnings.includes('business_target_missing_geo'));
+  assertEquals(r.decisionReason, 'assigned_large_project_missing_geo_but_physical_location_stable');
 });
 
 // H. Private zone vinner över allt om inside.
