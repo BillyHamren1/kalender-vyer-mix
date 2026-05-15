@@ -193,38 +193,51 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       if (!title.trim()) throw new Error('Ange en titel');
       const bookingId = selectedBookingId && selectedBookingId !== 'none' ? selectedBookingId : null;
 
+      const payload = {
+        type_id: typeId,
+        title: title.trim(),
+        booking_id: bookingId,
+        client: client.trim() || null,
+        contact_name: contactName.trim() || null,
+        contact_phone: contactPhone.trim() || null,
+        contact_email: contactEmail.trim() || null,
+        address: address.trim() || null,
+        city: city.trim() || null,
+        postal_code: postalCode.trim() || null,
+        latitude,
+        longitude,
+        scheduled_date: scheduledDate || null,
+        start_time: startTime || null,
+        end_time: endTime || null,
+        assigned_leader: assignedLeader && assignedLeader !== 'none' ? assignedLeader : null,
+        internal_notes: internalNotes.trim() || null,
+      };
+
+      if (isEdit && todoId) {
+        const { data: todo, error } = await (supabase as any)
+          .from('todos')
+          .update(payload)
+          .eq('id', todoId)
+          .select()
+          .single();
+        if (error) throw error;
+        return todo;
+      }
+
       const { data: todo, error } = await supabase
         .from('todos')
-        .insert({
-          type_id: typeId,
-          title: title.trim(),
-          booking_id: bookingId,
-          client: client.trim() || null,
-          contact_name: contactName.trim() || null,
-          contact_phone: contactPhone.trim() || null,
-          contact_email: contactEmail.trim() || null,
-          address: address.trim() || null,
-          city: city.trim() || null,
-          postal_code: postalCode.trim() || null,
-          latitude,
-          longitude,
-          scheduled_date: scheduledDate || null,
-          start_time: startTime || null,
-          end_time: endTime || null,
-          assigned_leader: assignedLeader && assignedLeader !== 'none' ? assignedLeader : null,
-          internal_notes: internalNotes.trim() || null,
-        } as any)
+        .insert(payload as any)
         .select()
         .single();
       if (error) throw error;
       return todo;
     },
     onSuccess: () => {
-      toast.success('To do skapad');
+      toast.success(isEdit ? 'To do uppdaterad' : 'To do skapad');
       onSuccess();
     },
     onError: (e: any) => {
-      toast.error(`Kunde inte skapa to do: ${e?.message || 'Okänt fel'}`);
+      toast.error(`${isEdit ? 'Kunde inte uppdatera' : 'Kunde inte skapa'} to do: ${e?.message || 'Okänt fel'}`);
     },
   });
 
