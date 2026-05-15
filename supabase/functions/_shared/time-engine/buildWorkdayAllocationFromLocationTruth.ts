@@ -45,6 +45,7 @@ export type WorkdayAllocationAssignmentStatus =
   | 'assigned_overlap'
   | 'assigned_no_overlap'
   | 'no_assignment'
+  | 'unassigned_but_present'
   | 'unknown';
 
 export interface WorkdayAllocationSegment {
@@ -81,6 +82,8 @@ export type WorkdayAllocationWarning =
   | 'movement_classified_as_work_travel'
   | 'movement_classified_as_commute'
   | 'unassigned_known_target_presence'
+  | 'staff_not_assigned_to_matched_target'
+  | 'no_project_link'
   | 'planning_geo_mismatch'
   | 'supplier_visit_no_assignment'
   | 'warehouse_presence_no_assignment'
@@ -116,6 +119,15 @@ export interface WorkdayAllocationDiagnostics {
   segmentsInsideEnvelope: number;
   /** Alias för segmentsOutsideWorkday. */
   segmentsOutsideEnvelope: number;
+  // ── Lager 3.3 — fördelningsräknare ─────────────────────────────────────
+  projectWorkCount: number;
+  largeProjectWorkCount: number;
+  bookingWorkCount: number;
+  warehouseWorkCount: number;
+  supplierVisitCount: number;
+  unlinkedWorkAddressCount: number;
+  unassignedButPresentCount: number;
+  planningMismatchCount: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
@@ -288,7 +300,8 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'no_active_workday', 'segment_outside_workday', 'segment_partially_outside_workday',
   'unresolved_location_inside_workday', 'private_residence_inside_workday',
   'movement_classified_as_work_travel', 'movement_classified_as_commute',
-  'unassigned_known_target_presence', 'planning_geo_mismatch',
+  'unassigned_known_target_presence', 'staff_not_assigned_to_matched_target',
+  'no_project_link', 'planning_geo_mismatch',
   'supplier_visit_no_assignment', 'warehouse_presence_no_assignment',
   'needs_review_business_context', 'gap_in_workday', 'allocation_low_confidence',
 ];
@@ -347,7 +360,9 @@ function deriveAllocation(
   }
 
   if (seg.finalType === 'known_address') {
-    // Fysisk plats stabil men ingen EventFlow-target.
+    // Fysisk plats stabil men ingen EventFlow-target → unlinked_work_address.
+    // Lager 3.3: signalera tydligt att projektkoppling saknas.
+    warnings.push('no_project_link');
     if (status === 'planning_geo_mismatch') warnings.push('planning_geo_mismatch');
     if (status === 'needs_review') warnings.push('needs_review_business_context');
     return {
@@ -358,13 +373,22 @@ function deriveAllocation(
   }
 
   // known_site → mappa per matchedTarget.targetType
+  // Lager 3.3: GPS/plats vinner. Saknad assignment SLOPAR INTE kopplingen
+  // — den ger bara en warning + unassigned_but_present-status.
   if (matched) {
+    // planning_geo_mismatch betyder GPS säger en sak, planering en annan.
+    // GPS/plats vinner → vi behåller mappingen men varnar.
+    if (status === 'planning_geo_mismatch') warnings.push('planning_geo_mismatch');
+
     switch (matched.targetType) {
       case 'large_project':
+        if (!hasOverlapWithAssignment) warnings.push('staff_not_assigned_to_matched_target');
         return { type: 'large_project_work', warnings, confidence: seg.confidence };
       case 'project':
+        if (!hasOverlapWithAssignment) warnings.push('staff_not_assigned_to_matched_target');
         return { type: 'project_work', warnings, confidence: seg.confidence };
       case 'booking':
+        if (!hasOverlapWithAssignment) warnings.push('staff_not_assigned_to_matched_target');
         return { type: 'booking_work', warnings, confidence: seg.confidence };
       case 'warehouse':
       case 'organization_location':
@@ -380,10 +404,11 @@ function deriveAllocation(
     }
   }
 
-  // known_site utan matched target → unassigned presence.
+  // known_site utan matched target → unassigned presence (saknar projektkoppling).
   if (status === 'unassigned_known_target_presence') {
     warnings.push('unassigned_known_target_presence');
   }
+  warnings.push('no_project_link');
   return { type: 'unlinked_work_address', warnings, confidence: 'low' };
 }
 
@@ -436,6 +461,14 @@ export function buildWorkdayAllocationFromLocationTruth(
     envelopeWarnings: [...envelope.warnings],
     segmentsInsideEnvelope: 0,
     segmentsOutsideEnvelope: 0,
+    projectWorkCount: 0,
+    largeProjectWorkCount: 0,
+    bookingWorkCount: 0,
+    warehouseWorkCount: 0,
+    supplierVisitCount: 0,
+    unlinkedWorkAddressCount: 0,
+    unassignedButPresentCount: 0,
+    planningMismatchCount: 0,
     examples: [],
   };
 
@@ -519,6 +552,16 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
 
     const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
+    // Lager 3.3 — assignmentStatus:
+    //   assigned_overlap = planerad på rätt target i intervallet
+    //   unassigned_but_present = matchad target finns men ingen assignment
+    //                            (GPS/plats vinner — kopplingen behålls)
+    //   no_assignment = ingen target alls
+    let assignmentStatus: WorkdayAllocationAssignmentStatus;
+    if (matched && hasOverlap) assignmentStatus = 'assigned_overlap';
+    else if (matched && !hasOverlap) assignmentStatus = 'unassigned_but_present';
+    else assignmentStatus = 'no_assignment';
+
     const item: WorkdayAllocationSegment = {
       id: `wda_${seg.id}`,
       startAt: new Date(clippedStartMs).toISOString(),
@@ -531,7 +574,7 @@ export function buildWorkdayAllocationFromLocationTruth(
       address: seg.physicalLocation?.address ?? matched?.address ?? null,
       confidence: alloc.confidence,
       warnings: alloc.warnings,
-      assignmentStatus: hasOverlap ? 'assigned_overlap' : 'no_assignment',
+      assignmentStatus,
       businessContextStatus: seg.businessContext?.status ?? null,
       rawSegmentStartAt: seg.startAt,
       rawSegmentEndAt: seg.endAt,
@@ -544,6 +587,19 @@ export function buildWorkdayAllocationFromLocationTruth(
     for (const w of item.warnings) {
       if (w in diag.warningsByType) diag.warningsByType[w] += 1;
     }
+
+    // Lager 3.3 — spegla per-targetType count
+    switch (alloc.type) {
+      case 'project_work': diag.projectWorkCount += 1; break;
+      case 'large_project_work': diag.largeProjectWorkCount += 1; break;
+      case 'booking_work': diag.bookingWorkCount += 1; break;
+      case 'warehouse_work': diag.warehouseWorkCount += 1; break;
+      case 'supplier_visit': diag.supplierVisitCount += 1; break;
+      case 'unlinked_work_address': diag.unlinkedWorkAddressCount += 1; break;
+    }
+    if (assignmentStatus === 'unassigned_but_present') diag.unassignedButPresentCount += 1;
+    if (item.warnings.includes('planning_geo_mismatch')) diag.planningMismatchCount += 1;
+
     coveredIntervals.push([clippedStartMs, clippedEndMs]);
 
     if (diag.examples.length < 8) {
