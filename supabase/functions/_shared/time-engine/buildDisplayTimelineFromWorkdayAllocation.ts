@@ -107,6 +107,8 @@ export interface DisplayTimelineBlock {
   confidence: WorkdayAllocationConfidence;
   severity: DisplayTimelineSeverity;
   warnings: DisplayTimelineWarning[];
+  /** Lager 4.3 — människovänliga svenska warning-texter, parallella med `warnings`. */
+  humanWarnings: string[];
   actions: DisplayTimelineAction[];
   sourceAllocationSegmentIds: string[];
   sourceLocationTruthSegmentIds: string[];
@@ -249,9 +251,51 @@ function durationMinutes(startIso: string, endIso: string): number {
 
 function pickWarnings(raw: WorkdayAllocationWarning[]): DisplayTimelineWarning[] {
   const out: DisplayTimelineWarning[] = [];
+  const seen = new Set<string>();
   for (const w of raw) {
-    if (USER_VISIBLE_WARNINGS.has(w as DisplayTimelineWarning)) {
+    if (USER_VISIBLE_WARNINGS.has(w as DisplayTimelineWarning) && !seen.has(w)) {
+      seen.add(w);
       out.push(w as DisplayTimelineWarning);
+    }
+  }
+  return out;
+}
+
+// ── Lager 4.3 — Svensk warning-text ──────────────────────────────────────
+const WARNING_HUMAN_TEXT: Partial<Record<string, string>> = {
+  staff_not_assigned_to_matched_target: 'Du var på plats men saknade assignment.',
+  unassigned_known_target_presence: 'Närvaro på känd plats utan assignment.',
+  no_project_link: 'Adressen är inte kopplad till projekt.',
+  long_signal_gap: 'Signal saknades en längre stund, men platsen verkar vara samma.',
+  planning_geo_mismatch: 'Planeringen säger annan plats än GPS.',
+  supplier_visit_without_project_context: 'Leverantörsbesöket saknar tydlig projektkoppling.',
+  supplier_visit_during_planned_project: 'Leverantörsbesök under planerat projekt.',
+  warehouse_presence_during_planned_project: 'Lagerbesök under planerat projekt.',
+  allocation_low_confidence: 'Osäker tolkning av platsen.',
+  movement_classified_as_commute: 'Förflyttningen tolkades som pendling.',
+  normally_not_paid_commute: 'Pendling räknas normalt inte som arbetstid.',
+  normally_not_paid_homebound: 'Hemresa räknas normalt inte som arbetstid.',
+  long_travel_over_150km: 'Lång resa (över 150 km).',
+  movement_missing_anchor: 'Förflyttning saknar tydlig start- eller slutpunkt.',
+  home_after_last_work_location: 'Hemma efter sista arbetsplatsen för dagen.',
+  temporary_home_presence: 'Kort vistelse hemma.',
+  workday_time_without_location_truth_segment: 'Arbetstid utan platsdata.',
+  segment_partially_outside_workday: 'Delvis utanför arbetsdagen.',
+  needs_review_business_context: 'Affärsmässigt sammanhang behöver granskas.',
+};
+
+function humanWarning(w: string): string | null {
+  return WARNING_HUMAN_TEXT[w] ?? null;
+}
+
+function buildHumanWarnings(warnings: DisplayTimelineWarning[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const w of warnings) {
+    const text = humanWarning(w);
+    if (text && !seen.has(text)) {
+      seen.add(text);
+      out.push(text);
     }
   }
   return out;
@@ -277,27 +321,102 @@ function deriveSeverity(
   return 'normal';
 }
 
+// ── Lager 4.3 — Rubriker ─────────────────────────────────────────────────
+
+/**
+ * Försöker hitta en projektfas (RIGG/EVENT/RIGDOWN) i label.
+ * Returnerar { phase, baseName } där phase är ren fas-token eller null.
+ */
+function extractPhase(label: string | null): { phase: 'RIGG' | 'EVENT' | 'RIGDOWN' | null; baseName: string | null } {
+  if (!label) return { phase: null, baseName: null };
+  const trimmed = label.trim();
+  // Mönster: "RIGG — Foo", "Rigg: Foo", "Foo (RIGG)", "Foo - Event-dag"
+  const phaseRegex = /\b(rigg(?:ning)?|event(?:dag)?|rigdown|rigg\s*ner|nedrigg(?:ning)?)\b/i;
+  const m = trimmed.match(phaseRegex);
+  if (!m) return { phase: null, baseName: trimmed };
+  const raw = m[1].toLowerCase();
+  let phase: 'RIGG' | 'EVENT' | 'RIGDOWN' | null = null;
+  if (raw.startsWith('rigg') && !raw.includes('ner')) phase = 'RIGG';
+  else if (raw.startsWith('event')) phase = 'EVENT';
+  else phase = 'RIGDOWN';
+  // Rensa fas-tokenet ur baseName.
+  const baseName = trimmed
+    .replace(phaseRegex, '')
+    .replace(/[\s\-—–:()]+/g, ' ')
+    .trim() || null;
+  return { phase, baseName };
+}
+
 function deriveTitle(
   displayType: DisplayTimelineBlockType,
   label: string | null,
 ): string {
-  if (label && label.trim()) return label.trim();
-  return DISPLAY_TYPE_DEFAULT_TITLE[displayType];
+  const { phase, baseName } = extractPhase(label);
+  const name = baseName || (label ? label.trim() : null);
+  switch (displayType) {
+    case 'large_project':
+      if (phase && name) return `${phase} — ${name}`;
+      if (name) return `Projektarbete — ${name}`;
+      return 'Projektarbete';
+    case 'project':
+      if (phase && name) return `${phase} — ${name}`;
+      if (name) return `Projektarbete — ${name}`;
+      return 'Projektarbete';
+    case 'booking':
+      if (phase && name) return `${phase} — ${name}`;
+      if (name) return `Bokning — ${name}`;
+      return 'Bokning';
+    case 'warehouse':
+      return 'Lager';
+    case 'supplier':
+      if (name) return `Leverantörsbesök — ${name}`;
+      return 'Leverantörsbesök';
+    case 'travel':
+      return 'Arbetsresa';
+    case 'commute':
+      // Riktning sätts post-hoc i main()
+      return 'Resa till arbete';
+    case 'unlinked_address':
+      return 'Arbete på okopplad adress';
+    case 'private':
+      return 'Hemma';
+    case 'review':
+      return 'Behöver kontrolleras';
+    case 'break_or_gap':
+      return DISPLAY_TYPE_DEFAULT_TITLE.break_or_gap;
+  }
+}
+
+function formatDuration(min: number): string {
+  if (min >= 60) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m > 0 ? `${h} h ${m} min` : `${h} h`;
+  }
+  return min > 0 ? `${min} min` : '';
 }
 
 function deriveSubtitle(
   displayType: DisplayTimelineBlockType,
-  block: { address: string | null; durationMinutes: number },
+  block: { address: string | null; durationMinutes: number; supplierLinkLabel?: string | null; fromAddress?: string | null; toAddress?: string | null },
 ): string | null {
   const parts: string[] = [];
-  if (block.address) parts.push(block.address);
-  if (block.durationMinutes >= 60) {
-    const h = Math.floor(block.durationMinutes / 60);
-    const m = block.durationMinutes % 60;
-    parts.push(m > 0 ? `${h} h ${m} min` : `${h} h`);
-  } else if (block.durationMinutes > 0) {
-    parts.push(`${block.durationMinutes} min`);
+  if (displayType === 'supplier') {
+    if (block.address) parts.push(block.address);
+    if (block.supplierLinkLabel) parts.push(`Trolig koppling: ${block.supplierLinkLabel}`);
+  } else if (displayType === 'travel' || displayType === 'commute') {
+    if (block.fromAddress && block.toAddress) {
+      parts.push(`${block.fromAddress} → ${block.toAddress}`);
+    } else if (block.address) {
+      parts.push(block.address);
+    }
+  } else if (displayType === 'warehouse') {
+    if (block.address) parts.push(block.address);
+  } else {
+    if (block.address) parts.push(block.address);
   }
+  const dur = formatDuration(block.durationMinutes);
+  if (dur) parts.push(dur);
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
@@ -421,6 +540,9 @@ function buildBlockFromSegments(
     .filter((id) => proposalsBySegmentId.has(id));
   const relatedProposals = proposalSegmentIds.flatMap((id) => proposalsBySegmentId.get(id) ?? []);
 
+  // Lager 4.3 — supplier-länk för subtitle.
+  const supplierLink = group.find((s) => s.linkedProjectCandidate)?.linkedProjectCandidate ?? null;
+
   const baseBlock: Omit<DisplayTimelineBlock, 'actions' | 'subtitle'> = {
     id: `dtl_${index.toString().padStart(4, '0')}_${first.id}`,
     startAt,
@@ -435,6 +557,7 @@ function buildBlockFromSegments(
     confidence,
     severity: deriveSeverity(displayType, confidence, allWarnings),
     warnings: userWarnings,
+    humanWarnings: buildHumanWarnings(userWarnings),
     sourceAllocationSegmentIds: group.map((s) => s.id),
     sourceLocationTruthSegmentIds: Array.from(new Set(allLtIds)),
     metadata: {
@@ -448,7 +571,11 @@ function buildBlockFromSegments(
       absorbedTravelSegments: [],
     },
   };
-  const subtitle = deriveSubtitle(displayType, { address, durationMinutes: dur });
+  const subtitle = deriveSubtitle(displayType, {
+    address,
+    durationMinutes: dur,
+    supplierLinkLabel: supplierLink?.label ?? null,
+  });
   const actions = deriveActions(baseBlock, relatedProposals);
   return { ...baseBlock, subtitle, actions };
 }
@@ -474,6 +601,7 @@ function buildGapBlock(
     confidence: 'low',
     severity: 'needs_user_review',
     warnings: ['workday_time_without_location_truth_segment'],
+    humanWarnings: buildHumanWarnings(['workday_time_without_location_truth_segment']),
     sourceAllocationSegmentIds: [],
     sourceLocationTruthSegmentIds: [],
     metadata: {
@@ -703,6 +831,20 @@ export function buildDisplayTimelineFromWorkdayAllocation(
 
   // Slutsortera kronologiskt.
   blocks.sort((a, b) => toMs(a.startAt) - toMs(b.startAt));
+
+  // Lager 4.3 — Riktning för pendling baserat på grannar.
+  for (let i = 0; i < blocks.length; i++) {
+    const cur = blocks[i];
+    if (cur.displayType !== 'commute') continue;
+    const prev = blocks[i - 1];
+    const next = blocks[i + 1];
+    const prevIsWork = prev && PROJECT_LIKE.has(prev.displayType);
+    const nextIsWork = next && PROJECT_LIKE.has(next.displayType);
+    if (nextIsWork && !prevIsWork) cur.title = 'Resa till arbete';
+    else if (prevIsWork && !nextIsWork) cur.title = 'Hemresa';
+    else if (nextIsWork) cur.title = 'Resa till arbete';
+    else cur.title = 'Hemresa';
+  }
 
   // Diagnostics.
   const blocksByDisplayType = Object.fromEntries(
