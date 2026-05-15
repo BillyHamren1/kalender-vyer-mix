@@ -104,23 +104,6 @@ export interface KnownTargetsDataQuality {
   calendarEventsPointingToChildBooking: Array<{ calendarEventId: string | null; bookingId: string; largeProjectId: string }>;
   /** Lager 1.9 — calendar_events vars LP-context saknar egen geo. */
   calendarEventsPointingToMissingGeoLargeProject: Array<{ calendarEventId: string | null; bookingId: string | null; largeProjectId: string }>;
-export interface KnownTargetsDataQuality {
-  targetsMissingCoordinates: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
-  targetsMissingRadius: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
-  largeProjectsMissingGeo: LargeProjectMissingGeoEntry[];
-  bookingsInsideLargeProjects: Array<{ bookingId: string; largeProjectId: string; label: string }>;
-  projectsInsideLargeProjects: Array<{ projectId: string; largeProjectId: string; label: string }>;
-  childBookingsSuppressedAsTargets: Array<{ bookingId: string; largeProjectId: string }>;
-  childProjectsSuppressedAsTargets: Array<{ projectId: string; largeProjectId: string }>;
-  ambiguousLargeProjectChildProjects: Array<{ projectId: string; largeProjectId: string; reason: string }>;
-  assignmentsWithoutMatchingTarget: Array<{ assignmentId: string | null; bookingId: string | null; largeProjectId: string | null }>;
-  calendarEventsWithoutTarget: Array<{ calendarEventId: string | null; bookingId: string | null; reason: 'no_booking_ref' | 'booking_not_in_targets' | 'no_target_relation' }>;
-  /** Lager 1.9 — calendar_events vars booking tillhör ett large project. */
-  calendarEventsWithLargeProjectContext: Array<{ calendarEventId: string | null; bookingId: string | null; largeProjectId: string }>;
-  /** Lager 1.9 — calendar_events som pekar på child booking (suppressed). */
-  calendarEventsPointingToChildBooking: Array<{ calendarEventId: string | null; bookingId: string; largeProjectId: string }>;
-  /** Lager 1.9 — calendar_events vars LP-context saknar egen geo. */
-  calendarEventsPointingToMissingGeoLargeProject: Array<{ calendarEventId: string | null; bookingId: string | null; largeProjectId: string }>;
   targetsWithNullRadius: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
   /** Lager 1.13 — suppliers helt utan koordinater (kan inte geo-matchas). */
   suppliersMissingCoordinates: Array<{ targetId: string; label: string; address: string | null }>;
