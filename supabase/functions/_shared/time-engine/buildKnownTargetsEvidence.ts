@@ -41,6 +41,7 @@ export type KnownTargetStatus = string | null;
 
 export type KnownTargetSuppressedReason =
   | 'child_booking_inside_large_project'
+  | 'child_project_inside_large_project'
   | 'large_project_missing_geo'
   | 'missing_coordinates'
   | 'missing_radius_and_polygon'
