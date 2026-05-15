@@ -66,6 +66,8 @@ export interface KnownTargetEvidenceItem {
   polygon: KnownTargetPolygonPoint[] | null;
   hasCoordinates: boolean;
   hasRadius: boolean;
+  /** Lager 2.11A — vart radius kommer ifrån (null = okänt/native). */
+  radiusSource?: 'native' | 'default_supplier_radius' | null;
   sourceTable: string;
   status: KnownTargetStatus;
   dateWindow: { startUtc: string | null; endUtc: string | null } | null;
