@@ -562,6 +562,10 @@ export function buildWorkdayAllocationFromLocationTruth(
     unlinkedWorkAddressCount: 0,
     unassignedButPresentCount: 0,
     planningMismatchCount: 0,
+    workTravelCount: 0,
+    commuteTravelCount: 0,
+    longTravelOver150kmCount: 0,
+    movementReviewCount: 0,
     examples: [],
   };
 
