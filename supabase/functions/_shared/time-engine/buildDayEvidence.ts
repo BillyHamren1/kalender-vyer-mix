@@ -118,6 +118,8 @@ export interface DayEvidenceDiagnostics {
     privateZones: number;
     largeProjects: number;
   };
+  /** Diagnostics from the canonical paginated GPS reader (Lager 1.2). */
+  gpsFetchDiagnostics: FetchAllStaffLocationPingsDiagnostics | null;
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────
