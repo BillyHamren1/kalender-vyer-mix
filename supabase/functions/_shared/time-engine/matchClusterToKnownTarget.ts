@@ -115,15 +115,17 @@ function distanceMeters(
 // ── Defaults ──────────────────────────────────────────────────────────────
 
 const DEFAULT_PRIORITY: Record<KnownTargetType, number> = {
-  // Lägre = vinner.
+  // Lägre = vinner. Supplier ligger mellan org_location och large_project:
+  // känd fysisk plats men inte primär projektarbetsplats.
   private_zone: 1,
   home_observation: 1,
   inferred_home: 1,
   warehouse: 2,
   organization_location: 2,
-  large_project: 3,
-  project: 4,
-  booking: 5,
+  supplier: 3,
+  large_project: 4,
+  project: 5,
+  booking: 6,
 };
 
 const DEFAULT_OPTIONS: Required<MatchOptions> = {
