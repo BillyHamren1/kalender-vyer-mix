@@ -94,7 +94,13 @@ export interface KnownTargetsDataQuality {
   childProjectsSuppressedAsTargets: Array<{ projectId: string; largeProjectId: string }>;
   ambiguousLargeProjectChildProjects: Array<{ projectId: string; largeProjectId: string; reason: string }>;
   assignmentsWithoutMatchingTarget: Array<{ assignmentId: string | null; bookingId: string | null; largeProjectId: string | null }>;
-  calendarEventsWithoutTarget: Array<{ calendarEventId: string | null; bookingId: string | null }>;
+  calendarEventsWithoutTarget: Array<{ calendarEventId: string | null; bookingId: string | null; reason: 'no_booking_ref' | 'booking_not_in_targets' | 'no_target_relation' }>;
+  /** Lager 1.9 — calendar_events vars booking tillhör ett large project. */
+  calendarEventsWithLargeProjectContext: Array<{ calendarEventId: string | null; bookingId: string | null; largeProjectId: string }>;
+  /** Lager 1.9 — calendar_events som pekar på child booking (suppressed). */
+  calendarEventsPointingToChildBooking: Array<{ calendarEventId: string | null; bookingId: string; largeProjectId: string }>;
+  /** Lager 1.9 — calendar_events vars LP-context saknar egen geo. */
+  calendarEventsPointingToMissingGeoLargeProject: Array<{ calendarEventId: string | null; bookingId: string | null; largeProjectId: string }>;
   targetsWithNullRadius: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
 }
 
@@ -105,6 +111,24 @@ export interface LargeProjectRulesDiagnostics {
   childBookingsSuppressedCount: number;
   childProjectsSuppressedCount: number;
   ambiguousLargeProjectChildProjectCount: number;
+}
+
+export interface CalendarEventTargetDiagnostics {
+  calendarEventCount: number;
+  calendarEventsWithTargetCount: number;
+  calendarEventsWithoutTargetCount: number;
+  calendarEventsWithLargeProjectContextCount: number;
+  calendarEventsPointingToChildBookingCount: number;
+  calendarEventsPointingToMissingGeoLargeProjectCount: number;
+  examples: Array<{
+    calendarEventId: string | null;
+    bookingId: string | null;
+    largeProjectId: string | null;
+    teamId: string | null;
+    title: string | null;
+    plannedPhase: string | null;
+    classification: 'with_target' | 'no_booking_ref' | 'booking_not_in_targets' | 'child_booking_inside_lp' | 'lp_missing_geo';
+  }>;
 }
 
 export interface KnownTargetsDiagnostics {
@@ -120,6 +144,8 @@ export interface KnownTargetsDiagnostics {
   targetsMissingRadiusCount: number;
   /** Lager 1.8 — konsoliderade large project-regler. */
   largeProjectRules: LargeProjectRulesDiagnostics;
+  /** Lager 1.9 — calendar_event ↔ target-matchning. */
+  calendarEventTargetDiagnostics: CalendarEventTargetDiagnostics;
   warnings: string[];
   examples: Array<{
     targetType: KnownTargetType;
