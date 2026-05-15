@@ -75,8 +75,38 @@ export type DisplayTimelineWarning =
   | 'segment_partially_outside_workday'
   | 'needs_review_business_context';
 
-/** Action användaren förväntas kunna ta från ett block. */
+/**
+ * Action användaren förväntas kunna ta från ett block (eller hela dagen).
+ *
+ * Lager 4.4 — Actions är endast _beskrivningar_ av möjliga åtgärder.
+ * De skriver ingenting i Lager 4 och får inte mutera GPS, time_reports,
+ * active_time_registrations eller payroll. UI ansvarar för att utföra dem.
+ */
 export type DisplayTimelineActionType =
+  // Dag-nivå (Lager 4.4)
+  | 'approve_day'
+  | 'edit_day'
+  | 'add_note'
+  // Projekt/booking/large_project utan assignment
+  | 'confirm_worked_here'
+  | 'request_assignment_link'
+  | 'suggest_assignment_link'
+  // Unlinked address
+  | 'link_to_project'
+  | 'mark_as_other_work'
+  // Supplier
+  | 'link_supplier_visit_to_project'
+  | 'mark_as_pickup'
+  | 'mark_as_dropoff'
+  // Private + workday-end-förslag
+  | 'accept_suggested_workday_end'
+  | 'edit_workday_end'
+  | 'ignore_private_time'
+  // Planning ↔ GPS-mismatch
+  | 'confirm_actual_location'
+  | 'edit_time_block'
+  | 'add_explanation'
+  // Legacy / övriga (bakåtkompatibla)
   | 'confirm_allocation'
   | 'pick_project_for_supplier'
   | 'classify_unknown_address'
@@ -85,9 +115,21 @@ export type DisplayTimelineActionType =
   | 'mark_as_private'
   | 'open_correction_dialog';
 
+export type DisplayTimelineActionSeverity =
+  | 'info'
+  | 'primary'
+  | 'warning'
+  | 'critical';
+
 export interface DisplayTimelineAction {
+  /** Lager 4.4 — kanoniskt namn enligt spec. */
+  actionType: DisplayTimelineActionType;
+  /** Bakåtkompatibelt alias för actionType (samma värde). */
   type: DisplayTimelineActionType;
   label: string;
+  requiresAiValidation: boolean;
+  requiresUserNote: boolean;
+  severity: DisplayTimelineActionSeverity;
   /** Optional payload för UI (target-kandidat, segment-id m.m.). */
   payload?: Record<string, unknown>;
 }
