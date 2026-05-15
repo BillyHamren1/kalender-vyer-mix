@@ -121,7 +121,10 @@ Deno.test('C: child booking inside LP cannot win', () => {
   const assignments = [makeAssignment({ bookingId: 'bk-child', largeProjectId: 'lp1', belongsToLargeProject: true })];
   const r = matchClusterToKnownTarget({ cluster, knownTargets: targets, assignments, privateResidence: NO_PRIVATE });
   assert(r.matchedTarget.type !== 'booking', 'child booking must not win');
-  assertEquals(r.matchedTarget.type, 'needs_location_review');
+  // Lager 2.12C — LP utan geo returneras nu som no_eventflow_target_match
+  // (business/data-quality), inte som needs_location_review.
+  assertEquals(r.matchedTarget.type, 'no_eventflow_target_match');
+  assert(r.warnings.includes('assigned_large_project_missing_geo'));
 });
 
 // D. Vanlig booking utan LP → booking kan vinna.
