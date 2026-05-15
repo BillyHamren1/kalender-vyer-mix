@@ -382,6 +382,10 @@ export function buildLocationTruthFromDayEvidence(
           targetDiag.matchedOrganizationLocationCount++;
           targetDiag.matchedKnownSiteCount++;
           break;
+        case 'supplier':
+          targetDiag.matchedSupplierCount++;
+          targetDiag.matchedKnownSiteCount++;
+          break;
         case 'large_project':
           targetDiag.matchedLargeProjectCount++;
           targetDiag.matchedKnownSiteCount++;
