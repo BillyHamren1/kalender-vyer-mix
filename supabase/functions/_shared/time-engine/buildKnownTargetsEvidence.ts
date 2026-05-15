@@ -41,6 +41,7 @@ export type KnownTargetStatus = string | null;
 
 export type KnownTargetSuppressedReason =
   | 'child_booking_inside_large_project'
+  | 'child_project_inside_large_project'
   | 'large_project_missing_geo'
   | 'missing_coordinates'
   | 'missing_radius_and_polygon'
@@ -72,15 +73,38 @@ export interface KnownTargetEvidenceItem {
   suppressedReason: KnownTargetSuppressedReason;
 }
 
+export interface LargeProjectMissingGeoEntry {
+  targetId: string;
+  largeProjectId: string;
+  label: string;
+  largeProjectName: string;
+  reason: 'large_project_missing_own_geo';
+  childObjectsCount: number;
+  hasChildBookingGeo: boolean;
+  hasChildProjectGeo: boolean;
+}
+
 export interface KnownTargetsDataQuality {
   targetsMissingCoordinates: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
   targetsMissingRadius: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
-  largeProjectsMissingGeo: Array<{ targetId: string; label: string }>;
+  largeProjectsMissingGeo: LargeProjectMissingGeoEntry[];
   bookingsInsideLargeProjects: Array<{ bookingId: string; largeProjectId: string; label: string }>;
+  projectsInsideLargeProjects: Array<{ projectId: string; largeProjectId: string; label: string }>;
   childBookingsSuppressedAsTargets: Array<{ bookingId: string; largeProjectId: string }>;
+  childProjectsSuppressedAsTargets: Array<{ projectId: string; largeProjectId: string }>;
+  ambiguousLargeProjectChildProjects: Array<{ projectId: string; largeProjectId: string; reason: string }>;
   assignmentsWithoutMatchingTarget: Array<{ assignmentId: string | null; bookingId: string | null; largeProjectId: string | null }>;
   calendarEventsWithoutTarget: Array<{ calendarEventId: string | null; bookingId: string | null }>;
   targetsWithNullRadius: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
+}
+
+export interface LargeProjectRulesDiagnostics {
+  largeProjectCount: number;
+  largeProjectsWithGeoCount: number;
+  largeProjectsMissingGeoCount: number;
+  childBookingsSuppressedCount: number;
+  childProjectsSuppressedCount: number;
+  ambiguousLargeProjectChildProjectCount: number;
 }
 
 export interface KnownTargetsDiagnostics {
@@ -91,8 +115,11 @@ export interface KnownTargetsDiagnostics {
   bookingCount: number;
   privateZoneCount: number;
   childBookingsSuppressedCount: number;
+  childProjectsSuppressedCount: number;
   largeProjectsMissingGeoCount: number;
   targetsMissingRadiusCount: number;
+  /** Lager 1.8 — konsoliderade large project-regler. */
+  largeProjectRules: LargeProjectRulesDiagnostics;
   warnings: string[];
   examples: Array<{
     targetType: KnownTargetType;
@@ -200,7 +227,10 @@ export async function buildKnownTargetsEvidence(
     targetsMissingRadius: [],
     largeProjectsMissingGeo: [],
     bookingsInsideLargeProjects: [],
+    projectsInsideLargeProjects: [],
     childBookingsSuppressedAsTargets: [],
+    childProjectsSuppressedAsTargets: [],
+    ambiguousLargeProjectChildProjects: [],
     assignmentsWithoutMatchingTarget: [],
     calendarEventsWithoutTarget: [],
     targetsWithNullRadius: [],
@@ -213,8 +243,17 @@ export async function buildKnownTargetsEvidence(
     bookingCount: 0,
     privateZoneCount: 0,
     childBookingsSuppressedCount: 0,
+    childProjectsSuppressedCount: 0,
     largeProjectsMissingGeoCount: 0,
     targetsMissingRadiusCount: 0,
+    largeProjectRules: {
+      largeProjectCount: 0,
+      largeProjectsWithGeoCount: 0,
+      largeProjectsMissingGeoCount: 0,
+      childBookingsSuppressedCount: 0,
+      childProjectsSuppressedCount: 0,
+      ambiguousLargeProjectChildProjectCount: 0,
+    },
     warnings: [],
     examples: [],
   };
@@ -293,7 +332,10 @@ export async function buildKnownTargetsEvidence(
   }
 
   // ── 2. large_projects ────────────────────────────────────────────────────
-  const largeProjectGeoById = new Map<string, { hasGeo: boolean; label: string }>();
+  // Samlar bara LP-info här. dataQuality.largeProjectsMissingGeo populeras
+  // i post-pass när vi vet hur många child-objekt varje LP har.
+  interface LpInfo { id: string; label: string; hasGeo: boolean; suppressed: KnownTargetSuppressedReason }
+  const largeProjectInfoById = new Map<string, LpInfo>();
   try {
     const { data, error } = await supabaseAdmin
       .from('large_projects')
@@ -316,11 +358,7 @@ export async function buildKnownTargetsEvidence(
         let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.project_name, r.status);
         if (!suppressed && !usableGeo) suppressed = 'large_project_missing_geo';
         const label = r.project_name ?? `LP ${r.id.slice(0, 8)}`;
-        largeProjectGeoById.set(r.id, { hasGeo: usableGeo, label });
-        if (!usableGeo) {
-          dq.largeProjectsMissingGeo.push({ targetId: r.id, label });
-          diag.largeProjectsMissingGeoCount += 1;
-        }
+        largeProjectInfoById.set(r.id, { id: r.id, label, hasGeo: usableGeo, suppressed });
         record({
           targetType: 'large_project',
           targetId: r.id,
@@ -349,77 +387,37 @@ export async function buildKnownTargetsEvidence(
     diag.warnings.push(`large_projects exception: ${(e as Error).message}`);
   }
 
-  // ── 3. projects ─────────────────────────────────────────────────────────
-  // Hämta projekt som är aktiva för datumet (eventdate/rigday/rigdown rör
-  // datumet) eller som refereras av assignments. Stand-alone projekt är
-  // primary work target. Projekt knutna till booking inom large project
-  // ärver large project som parent.
-  const projectIdToBookingId = new Map<string, string>();
+  // ── 2.5. Bygg bookingToLp-map FÖRE bookings/projects ─────────────────────
+  // Källa A: large_project_bookings (join-tabell, sanning)
+  // Källa B: bookings.large_project_id (direkt kolumn)
+  // Båda läses; vi använder unionen så projekt-relationen kan härledas
+  // transitivt via project.booking_id → booking.large_project_id.
+  const bookingToLp = new Map<string, string>();
   try {
     const { data, error } = await supabaseAdmin
-      .from('projects')
-      .select(
-        'id, name, status, deliveryaddress, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_polygon, eventdate, rigdaydate, rigdowndate, deleted_at, booking_id, large_project_id',
-      )
-      .eq('organization_id', organizationId)
-      .is('deleted_at', null);
+      .from('large_project_bookings')
+      .select('booking_id, large_project_id')
+      .eq('organization_id', organizationId);
     if (error) {
-      diag.warnings.push(`projects: ${error.message}`);
+      diag.warnings.push(`large_project_bookings: ${error.message}`);
     } else {
       for (const r of data ?? []) {
-        if (r.booking_id) projectIdToBookingId.set(r.id, r.booking_id);
-        const dateRelevant = r.eventdate === date || r.rigdaydate === date || r.rigdowndate === date;
-        const referenced = (input.assignmentBookingIds ?? []).includes(r.booking_id);
-        if (!dateRelevant && !referenced) continue;
-        const lat = isFiniteNumber(r.delivery_latitude) ? r.delivery_latitude : null;
-        const lng = isFiniteNumber(r.delivery_longitude) ? r.delivery_longitude : null;
-        const polygon = normalizePolygon(r.address_geofence_polygon);
-        const radius = isFiniteNumber(r.address_radius_meters) ? r.address_radius_meters : null;
-        const hasCoords = lat !== null && lng !== null;
-        const hasRadius = radius !== null && radius > 0;
-        const usableGeo = polygon !== null || (hasCoords && hasRadius);
-        const parentLp = r.large_project_id ?? null;
-        const belongsToLp = !!parentLp;
-        let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.name, r.status);
-        if (!suppressed && belongsToLp) {
-          // Projekt som tillhör LP är fortfarande primary work target i UI,
-          // men deras geo räknas via LP. Vi undertrycker geo fallback om
-          // LP saknar geo eller om projektet saknar egen geo.
+        if (r.booking_id && r.large_project_id) {
+          bookingToLp.set(r.booking_id, r.large_project_id);
         }
-        if (!suppressed && !usableGeo) suppressed = 'missing_coordinates';
-        record({
-          targetType: 'project',
-          targetId: r.id,
-          label: r.name ?? '(unnamed project)',
-          lat,
-          lng,
-          radiusMeters: radius,
-          polygon,
-          hasCoordinates: hasCoords,
-          hasRadius,
-          sourceTable: 'projects',
-          status: r.status ?? null,
-          dateWindow: { startUtc: r.rigdaydate ?? r.eventdate ?? null, endUtc: r.rigdowndate ?? r.eventdate ?? null },
-          parentLargeProjectId: parentLp,
-          belongsToLargeProject: belongsToLp,
-          canBePrimaryWorkTarget: !suppressed,
-          canBeGeoTarget: usableGeo && !suppressed,
-          suppressedReason: suppressed,
-        });
-        diag.projectCount += 1;
       }
     }
   } catch (e) {
-    diag.warnings.push(`projects exception: ${(e as Error).message}`);
+    diag.warnings.push(`large_project_bookings exception: ${(e as Error).message}`);
   }
 
-  // ── 4. bookings ─────────────────────────────────────────────────────────
-  // Datum-relevanta bokningar + bokningar som assignments refererar till.
+  // ── 3. bookings ─────────────────────────────────────────────────────────
+  // Hämtas FÖRE projects så bookingToLp är komplett innan vi härleder
+  // child_project-relationen. Datum-relevanta + assignment-refererade.
+  // Spar booking-info för projects-loopen och post-pass.
+  const referencedBookingIds = new Set<string>(input.assignmentBookingIds ?? []);
+  const bookingsData: any[] = [];
   try {
-    const referencedBookingIds = new Set<string>(input.assignmentBookingIds ?? []);
-    let bookingsData: any[] = [];
-
-    // 4a: date-relevant via OR filter.
     try {
       const { data, error } = await supabaseAdmin
         .from('bookings')
@@ -429,12 +427,11 @@ export async function buildKnownTargetsEvidence(
         .eq('organization_id', organizationId)
         .or(`eventdate.eq.${date},rigdaydate.eq.${date},rigdowndate.eq.${date}`);
       if (error) diag.warnings.push(`bookings (date): ${error.message}`);
-      else bookingsData = data ?? [];
+      else for (const b of (data ?? [])) bookingsData.push(b);
     } catch (e) {
       diag.warnings.push(`bookings (date) exception: ${(e as Error).message}`);
     }
 
-    // 4b: referenced booking ids not yet covered.
     const haveIds = new Set<string>(bookingsData.map((b) => b.id));
     const missing = [...referencedBookingIds].filter((id) => !haveIds.has(id));
     if (missing.length > 0) {
@@ -447,14 +444,21 @@ export async function buildKnownTargetsEvidence(
           .eq('organization_id', organizationId)
           .in('id', missing);
         if (error) diag.warnings.push(`bookings (referenced): ${error.message}`);
-        else bookingsData = bookingsData.concat(data ?? []);
+        else for (const b of (data ?? [])) bookingsData.push(b);
       } catch (e) {
         diag.warnings.push(`bookings (referenced) exception: ${(e as Error).message}`);
       }
     }
 
+    // Komplettera bookingToLp med direktkolumnen.
     for (const r of bookingsData) {
-      const parentLp = r.large_project_id ?? null;
+      if (r.large_project_id && !bookingToLp.has(r.id)) {
+        bookingToLp.set(r.id, r.large_project_id);
+      }
+    }
+
+    for (const r of bookingsData) {
+      const parentLp = bookingToLp.get(r.id) ?? r.large_project_id ?? null;
       const belongsToLp = !!parentLp;
       const lat = isFiniteNumber(r.delivery_latitude) ? r.delivery_latitude : null;
       const lng = isFiniteNumber(r.delivery_longitude) ? r.delivery_longitude : null;
@@ -470,7 +474,7 @@ export async function buildKnownTargetsEvidence(
       let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.project_name, r.status);
 
       // PRODUKTREGEL: child bookings inom large project är inte primary
-      // work target och inte geo fallback.
+      // work target och inte geo fallback. Aldrig tyst geo-fallback.
       let canPrimary = !suppressed;
       let canGeo = usableGeo && !suppressed;
       if (!suppressed && belongsToLp) {
@@ -508,6 +512,91 @@ export async function buildKnownTargetsEvidence(
     }
   } catch (e) {
     diag.warnings.push(`bookings exception: ${(e as Error).message}`);
+  }
+
+  // ── 4. projects ─────────────────────────────────────────────────────────
+  // Hämta projekt aktiva för datumet eller refererade av assignments.
+  // SCHEMAT har INTE projects.large_project_id — relation till LP härleds
+  // transitivt via project.booking_id → bookingToLp. Stand-alone projects
+  // som hör till en booking inom LP undertrycks som primary/geo target.
+  const projectIdToBookingId = new Map<string, string>();
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('projects')
+      .select(
+        'id, name, status, deliveryaddress, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_polygon, eventdate, rigdaydate, rigdowndate, deleted_at, booking_id',
+      )
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null);
+    if (error) {
+      diag.warnings.push(`projects: ${error.message}`);
+    } else {
+      for (const r of data ?? []) {
+        if (r.booking_id) projectIdToBookingId.set(r.id, r.booking_id);
+        const dateRelevant = r.eventdate === date || r.rigdaydate === date || r.rigdowndate === date;
+        const referenced = r.booking_id && (input.assignmentBookingIds ?? []).includes(r.booking_id);
+        if (!dateRelevant && !referenced) continue;
+        const lat = isFiniteNumber(r.delivery_latitude) ? r.delivery_latitude : null;
+        const lng = isFiniteNumber(r.delivery_longitude) ? r.delivery_longitude : null;
+        const polygon = normalizePolygon(r.address_geofence_polygon);
+        const radius = isFiniteNumber(r.address_radius_meters) ? r.address_radius_meters : null;
+        const hasCoords = lat !== null && lng !== null;
+        const hasRadius = radius !== null && radius > 0;
+        const usableGeo = polygon !== null || (hasCoords && hasRadius);
+        const parentLp = r.booking_id ? (bookingToLp.get(r.booking_id) ?? null) : null;
+        const belongsToLp = !!parentLp;
+        let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.name, r.status);
+
+        // PRODUKTREGEL: child projects inom large project är inte primary
+        // work target och inte geo target. LP äger platsen.
+        let canPrimary = !suppressed;
+        let canGeo = usableGeo && !suppressed;
+        if (!suppressed && belongsToLp) {
+          suppressed = 'child_project_inside_large_project';
+          canPrimary = false;
+          canGeo = false;
+          dq.projectsInsideLargeProjects.push({ projectId: r.id, largeProjectId: parentLp, label: r.name ?? '(unnamed project)' });
+          dq.childProjectsSuppressedAsTargets.push({ projectId: r.id, largeProjectId: parentLp });
+          diag.childProjectsSuppressedCount += 1;
+          // Specialfall: child project har egen geo trots LP-tillhörighet.
+          // Vi tystar det inte här (det vore att tyst använda fallback) men
+          // flaggar för senare granskning.
+          if (usableGeo) {
+            dq.ambiguousLargeProjectChildProjects.push({
+              projectId: r.id,
+              largeProjectId: parentLp,
+              reason: 'child_project_has_own_geo_but_lp_owns_location',
+            });
+          }
+        } else if (!suppressed && !usableGeo) {
+          suppressed = 'missing_coordinates';
+          canPrimary = false;
+        }
+
+        record({
+          targetType: 'project',
+          targetId: r.id,
+          label: r.name ?? '(unnamed project)',
+          lat,
+          lng,
+          radiusMeters: radius,
+          polygon,
+          hasCoordinates: hasCoords,
+          hasRadius,
+          sourceTable: 'projects',
+          status: r.status ?? null,
+          dateWindow: { startUtc: r.rigdaydate ?? r.eventdate ?? null, endUtc: r.rigdowndate ?? r.eventdate ?? null },
+          parentLargeProjectId: parentLp,
+          belongsToLargeProject: belongsToLp,
+          canBePrimaryWorkTarget: canPrimary,
+          canBeGeoTarget: canGeo,
+          suppressedReason: suppressed,
+        });
+        diag.projectCount += 1;
+      }
+    }
+  } catch (e) {
+    diag.warnings.push(`projects exception: ${(e as Error).message}`);
   }
 
   // ── 5. staff_private_zones ──────────────────────────────────────────────
@@ -659,6 +748,58 @@ export async function buildKnownTargetsEvidence(
   }
 
   diag.targetsMissingRadiusCount = dq.targetsMissingRadius.length;
+
+  // ── 9. Post-pass: enrich largeProjectsMissingGeo + largeProjectRules ───
+  // Räkna child-objekt per LP och flagga LP utan egen geo. Vi använder
+  // ALDRIG child-geo som tyst fallback; vi rapporterar bara om det finns.
+  const childBookingsByLp = new Map<string, { count: number; anyGeo: boolean }>();
+  for (const it of items) {
+    if (it.targetType === 'booking' && it.parentLargeProjectId) {
+      const cur = childBookingsByLp.get(it.parentLargeProjectId) ?? { count: 0, anyGeo: false };
+      cur.count += 1;
+      if (it.hasCoordinates || it.polygon !== null) cur.anyGeo = true;
+      childBookingsByLp.set(it.parentLargeProjectId, cur);
+    }
+  }
+  const childProjectsByLp = new Map<string, { count: number; anyGeo: boolean }>();
+  for (const it of items) {
+    if (it.targetType === 'project' && it.parentLargeProjectId) {
+      const cur = childProjectsByLp.get(it.parentLargeProjectId) ?? { count: 0, anyGeo: false };
+      cur.count += 1;
+      if (it.hasCoordinates || it.polygon !== null) cur.anyGeo = true;
+      childProjectsByLp.set(it.parentLargeProjectId, cur);
+    }
+  }
+
+  let lpWithGeoCount = 0;
+  for (const lp of largeProjectInfoById.values()) {
+    if (lp.hasGeo) {
+      lpWithGeoCount += 1;
+      continue;
+    }
+    const cb = childBookingsByLp.get(lp.id) ?? { count: 0, anyGeo: false };
+    const cp = childProjectsByLp.get(lp.id) ?? { count: 0, anyGeo: false };
+    dq.largeProjectsMissingGeo.push({
+      targetId: lp.id,
+      largeProjectId: lp.id,
+      label: lp.label,
+      largeProjectName: lp.label,
+      reason: 'large_project_missing_own_geo',
+      childObjectsCount: cb.count + cp.count,
+      hasChildBookingGeo: cb.anyGeo,
+      hasChildProjectGeo: cp.anyGeo,
+    });
+    diag.largeProjectsMissingGeoCount += 1;
+  }
+
+  diag.largeProjectRules = {
+    largeProjectCount: diag.largeProjectCount,
+    largeProjectsWithGeoCount: lpWithGeoCount,
+    largeProjectsMissingGeoCount: diag.largeProjectsMissingGeoCount,
+    childBookingsSuppressedCount: diag.childBookingsSuppressedCount,
+    childProjectsSuppressedCount: diag.childProjectsSuppressedCount,
+    ambiguousLargeProjectChildProjectCount: dq.ambiguousLargeProjectChildProjects.length,
+  };
 
   return { items, dataQuality: dq, diagnostics: diag };
 }
